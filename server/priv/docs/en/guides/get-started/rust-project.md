@@ -59,7 +59,7 @@ Run `mise reshim` after adding the wrapper. You can then use `cargo build`, `car
 
 ## Compilation cache
 
-`tuist cargo build` automatically caches eligible registry leaf libraries, locally and through Kura's remote cache. No additional tool or cache configuration is needed. The cache is experimental and doesn't yet cover all compilations or reuse across different checkout paths. See <.localized_link href="/guides/features/cache/rust">Rust cache</.localized_link> for supported compilations, authentication, and how to verify reuse.
+`tuist cargo build` automatically caches eligible compilations, dependencies and build-script runs, locally and through Kura's remote cache. No additional tool or cache configuration is needed. The cache is experimental, is qualified on Apple silicon Macs, and doesn't yet cover every compilation. See <.localized_link href="/guides/features/cache/rust">Rust cache</.localized_link> for supported compilations, authentication, and how to verify reuse.
 
 ## Build insights
 

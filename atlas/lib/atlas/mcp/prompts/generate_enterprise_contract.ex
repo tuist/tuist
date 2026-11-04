@@ -202,7 +202,7 @@ defmodule Atlas.MCP.Prompts.GenerateEnterpriseContract do
   defp templates_to_fetch(:contract_package) do
     """
     - `msa.docx`
-    - `annex-2-dpa.docx`
+    - `annex-2-dpa-tuist-hosted.docx` for Tuist-hosted deals, or `annex-2-dpa.docx` for self-hosted deals (see "Hosted vs Self-hosted")
     - `annex-3-daa.docx`
     - `annex-4-sla.docx`
     - One of `order-form-tuist-hosted.docx` or `order-form-self-hosted.docx` (see "Hosted vs Self-hosted")
@@ -243,6 +243,10 @@ defmodule Atlas.MCP.Prompts.GenerateEnterpriseContract do
 
     # Annexes (DPA, DAA, SLA)
     The imported templates do not carry placeholder tokens. Copy them as-is, keep titles, numbering, and layout untouched, and only edit when the user requests negotiated deviations.
+
+    The DPA follows the hosting model, like the order form:
+    - `annex-2-dpa.docx` covers self-hosted deals, where Tuist only processes contact details and data seen during remote access, and engages no Sub-processors.
+    - `annex-2-dpa-tuist-hosted.docx` covers Tuist-hosted deals. Annex II describes the hosted processing (runners, remote cache, cache volumes, insights, accounts, support), and Annex IV lists the Sub-processors as published at https://security.tuist.dev/subprocessors when the template was made. Before sending, compare Annex IV with that page and update the table if it changed. If the order form states where runner or cache data is processed, make sure every provider and location it names appears in Annex IV, and tell the user about any mismatch with the trust center rather than resolving it silently.
     """
   end
 

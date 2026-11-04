@@ -13,6 +13,8 @@ defmodule TuistWeb.Locale do
 
   def language_tag(locale), do: String.replace(locale, "_", "-")
 
+  defdelegate direction(locale), to: SharedLocale
+
   def on_mount(:assign_locale, _params, session, socket) do
     user_locale = user_preferred_locale(socket)
 

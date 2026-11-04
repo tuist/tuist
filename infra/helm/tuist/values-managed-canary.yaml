@@ -72,6 +72,8 @@ server:
       enabled: true
     originAppKey:
       enabled: true
+    apns:
+      enabled: true
     externalSecrets:
       fields:
         sentryDsn: dsn_atlas
@@ -114,8 +116,10 @@ server:
     prices:
       # macOS is billable. 6000000 compute-unit milliseconds (100 minutes
       # on the 6 vCPU / 14 GB baseline) are free, and beyond that each
-      # millisecond costs 0.0001 cents, which is $0.06 per baseline
-      # machine-minute.
+      # millisecond costs 0.000083333333 cents, which is $0.05 per baseline
+      # machine-minute. That is 1/12,000 of a cent, which repeats, so the
+      # amount is cut at the 12 decimals Stripe accepts: a cent less per 50
+      # million minutes.
       #
       # The 100 included minutes must stay in step with the free
       # allowance: this Price decides what is charged, and
@@ -130,8 +134,8 @@ server:
       # line reads in milliseconds. The dashboard renders minutes.
       #
       # The Linux Price is graduated the same way: 150000000 compute-unit
-      # milliseconds (2,500 minutes on the 2 vCPU / 8 GB baseline, worth the
-      # same $6 as the macOS allowance) are free, and beyond that each
+      # milliseconds (2,500 minutes on the 2 vCPU / 8 GB baseline, worth $6
+      # against the $5 macOS allowance) are free, and beyond that each
       # millisecond costs 0.000004 cents, which is $0.0024 per baseline
       # machine-minute and $0.001 on the 1 vCPU / 2 GB machine. The free
       # tier must stay in step with TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES,
@@ -152,7 +156,10 @@ server:
       # and the renewal schedules have moved every item off it.
       runners:
         runner_linux_compute_unit_milliseconds: "price_1UXks7Q9gGM5W1agX8NDowQb"
-        runner_macos_compute_unit_milliseconds: "price_1UXNkTQ9gGM5W1agEHJ3BVpk"
+        runner_macos_compute_unit_milliseconds: "price_1UY5KOQ9gGM5W1agmgnBjo2I"
+      retired_runners:
+        runner_macos_compute_unit_milliseconds:
+          - "price_1UXNkTQ9gGM5W1agEHJ3BVpk"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in this environment's own Stripe account (test mode) by

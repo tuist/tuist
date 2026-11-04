@@ -12,6 +12,7 @@ Languages can be barriers to understanding. We want to make sure that Tuist is a
 Since language support is a continuous effort, we add languages as we see contributors willing to help us maintain them. The following languages are currently supported:
 
 - English
+- Arabic
 - Spanish
 - Japanese
 - Georgian

@@ -2,7 +2,7 @@ import Foundation
 
 /// Public cache inspection records, never the engine's private event stream.
 enum CargoCacheDetailsReport {
-    private struct Record: Decodable {
+    private struct Record {
         let record: String
         let key: String
         let name: String?
@@ -13,10 +13,32 @@ enum CargoCacheDetailsReport {
         let sizeBytes: UInt64?
         let object: String?
 
-        private enum CodingKeys: String, CodingKey {
-            case record, key, name, kind, status, operation, object
-            case durationNanoseconds = "duration_ns"
-            case sizeBytes = "size_bytes"
+        /// Read with `JSONSerialization`, as `CargoCacheReport` reads its counters: present fields must have their
+        /// types, as when decoded.
+        init?(_ data: Data) {
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let record = json["record"] as? String, let key = json["key"] as? String else { return nil }
+            func string(_ name: String) -> String?? {
+                guard let value = json[name], !(value is NSNull) else { return .some(nil) }
+                return (value as? String).map { .some($0) }
+            }
+            func unsigned(_ name: String) -> UInt64?? {
+                guard let value = json[name], !(value is NSNull) else { return .some(nil) }
+                return CargoCacheReport.unsigned(value).map { .some($0) }
+            }
+            guard let name = string("name"), let kind = string("kind"), let status = string("status"),
+                  let operation = string("operation"), let object = string("object"),
+                  let durationNanoseconds = unsigned("duration_ns"), let sizeBytes = unsigned("size_bytes")
+            else { return nil }
+            self.record = record
+            self.key = key
+            self.name = name
+            self.kind = kind
+            self.status = status
+            self.operation = operation
+            self.durationNanoseconds = durationNanoseconds
+            self.sizeBytes = sizeBytes
+            self.object = object
         }
     }
 
@@ -58,7 +80,7 @@ enum CargoCacheDetailsReport {
             for line in data.split(separator: UInt8(10), maxSplits: 30000, omittingEmptySubsequences: true) {
                 guard records < 30000 else { truncated = true; break }
                 records += 1
-                guard line.count <= 8192, let row = try? JSONDecoder().decode(Record.self, from: Data(line)), validKey(row.key)
+                guard line.count <= 8192, let row = Record(Data(line)), validKey(row.key)
                 else { truncated = true; continue }
                 switch row.record {
                 case "task":

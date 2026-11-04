@@ -164,6 +164,8 @@
           & > [data-part="command-label"] {
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+            direction: ltr;
+            unicode-bidi: isolate;
           }
         }
       }
@@ -455,7 +457,8 @@
             box-shadow: var(--noora-border-light-default);
             border-radius: var(--noora-radius-3);
             background: var(--noora-surface-background-primary);
-            padding: var(--noora-spacing-1) var(--noora-spacing-3) var(--noora-spacing-1) var(--noora-spacing-2);
+            padding-inline: var(--noora-spacing-2) var(--noora-spacing-3);
+            padding-block: var(--noora-spacing-1);
             max-width: 100%;
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-medium) var(--noora-font-body-small);
@@ -504,8 +507,8 @@
           }
 
           & [data-part="step-insight-chip"] > [data-part="step-insight-chip-meta"] > span + span {
-            border-left: 1px solid var(--noora-surface-border-primary);
-            padding-left: var(--noora-spacing-2);
+            border-inline-start: 1px solid var(--noora-surface-border-primary);
+            padding-inline-start: var(--noora-spacing-2);
           }
         }
 
@@ -533,8 +536,8 @@
 
             &::before {
               position: absolute;
-              right: -4px;
-              left: -4px;
+              inset-inline-end: -4px;
+              inset-inline-start: -4px;
               background: var(--noora-surface-border-primary);
               height: 1px;
               content: "";
@@ -582,7 +585,7 @@
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
           font-variant-numeric: tabular-nums;
-          text-align: right;
+          text-align: end;
           white-space: nowrap;
 
           @media (max-width: 900px) {
@@ -659,6 +662,8 @@
     max-height: 480px;
     overflow: auto;
     overscroll-behavior-y: contain;
+    direction: ltr;
+    unicode-bidi: isolate;
   }
 
   /* Two attribute selectors so this beats the `display: flex` above —
@@ -710,7 +715,7 @@
       font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
       line-height: inherit;
       user-select: none;
-      text-align: right;
+      text-align: end;
     }
 
     & > [data-part="log-ts"] {
@@ -794,7 +799,7 @@
         min-width: 3ch;
         color: var(--noora-surface-label-tertiary);
         user-select: none;
-        text-align: right;
+        text-align: end;
       }
 
       & > [data-part="log-ts"] {
@@ -815,7 +820,7 @@
           flex-shrink: 0;
           align-items: center;
           transition: transform 0.15s ease;
-          margin-right: var(--noora-spacing-2);
+          margin-inline-end: var(--noora-spacing-2);
           color: var(--noora-surface-label-primary);
 
           /* Noora's chevron renders as a 24×24 SVG by default;
@@ -844,7 +849,7 @@
       display: inline-flex;
       flex-shrink: 0;
       align-items: center;
-      margin-right: var(--noora-spacing-3);
+      margin-inline-end: var(--noora-spacing-3);
 
       & svg {
         width: 1em;
@@ -874,8 +879,8 @@
 
     & > [data-part="log-group-summary"] [data-part="log-action-duration"] {
       flex-shrink: 0;
-      margin-left: auto;
-      padding-left: var(--noora-spacing-5);
+      margin-inline-start: auto;
+      padding-inline-start: var(--noora-spacing-5);
       color: var(--noora-surface-label-secondary);
     }
 
@@ -892,7 +897,7 @@
       > [data-part="log-group"]
       > [data-part="log-group-summary"]
       > [data-part="log-group-label"] {
-      padding-left: var(--noora-spacing-9);
+      padding-inline-start: var(--noora-spacing-9);
     }
   }
 
@@ -1072,6 +1077,8 @@
   }
 
   & [data-part="interactive-terminal"] {
+    direction: ltr;
+    unicode-bidi: isolate;
     --runner-terminal-background: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1200));
     --runner-terminal-text: light-dark(var(--noora-neutral-light-1100), var(--noora-neutral-light-300));
     --runner-terminal-cursor-background: light-dark(var(--noora-neutral-light-1100), var(--noora-neutral-light-300));

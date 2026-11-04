@@ -21,6 +21,12 @@ dependency, so changes here affect `server/` directly. Component code lives in
 
 ## Component contracts
 
+- Right-to-left documents set `dir="rtl"` on `<html>`. Style the inline axis with
+  logical properties (`margin-inline-start`, `inset-inline-end`, `text-align: start`);
+  keep physical values only where JS or Zag positions in physical pixels, and say so.
+  Zag machines inherit `dir` in `js/machine.js`. Directional icons are listed in
+  `@rtl_mirrored_icons` (`lib/noora/icon.ex`) and mirror with the CSS `scale`
+  property so rotations still compose.
 - Share table/chart thumb sizing and dragging through `ScrollIndicator.js` and
   `css/scroll_indicator.css`; tables trigger updates explicitly so hidden overlays
   do not measure on scroll.

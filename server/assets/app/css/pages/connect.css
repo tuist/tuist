@@ -137,9 +137,9 @@
 
     &::after {
       position: absolute;
-      right: var(--noora-spacing-4);
       bottom: 3px;
-      left: var(--noora-spacing-4);
+      inset-inline-end: var(--noora-spacing-4);
+      inset-inline-start: var(--noora-spacing-4);
       border-bottom: 1px solid var(--noora-surface-border-primary);
       pointer-events: none;
       content: "";
@@ -186,6 +186,8 @@
     padding: var(--noora-spacing-6) var(--noora-spacing-5);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-code-large);
+    direction: ltr;
+    unicode-bidi: isolate;
 
     & > span {
       display: inline-flex;

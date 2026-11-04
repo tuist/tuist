@@ -9,16 +9,15 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -265,7 +264,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 		return ctrl.Result{}, helperErr
 	}
 	defer func() {
-		if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil && err == nil {
+		if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil && err == nil {
 			err = patchErr
 		}
 	}()
@@ -285,7 +284,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 	// Machine) are still reconciled normally — useful for tests
 	// and for any operator-side bring-up before MachineDeployment
 	// adoption completes.
-	ownerMachine, ownerErr := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	ownerMachine, ownerErr := shared.OwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if ownerErr != nil {
 		return ctrl.Result{}, fmt.Errorf("get owner Machine: %w", ownerErr)
 	}

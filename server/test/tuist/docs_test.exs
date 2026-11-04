@@ -2,6 +2,8 @@ defmodule Tuist.DocsTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import TuistWeb.Docs.MarkdownComponents, warn: false
+
   alias Tuist.ClickHouseVersions
   alias Tuist.Docs
   alias Tuist.Docs.CLI
@@ -51,6 +53,42 @@ defmodule Tuist.DocsTest do
       end
 
       refute page.body =~ "{#"
+    end
+
+    @tag :tmp_dir
+    test "component links in markdown keep the rendered page's locale", %{tmp_dir: tmp_dir} do
+      source_path = Path.join(tmp_dir, "cards.md")
+
+      File.write!(source_path, """
+      # Cards
+
+      See <.localized_link href="/guides/features/test-code-coverage">Coverage</.localized_link>.
+
+      <.home_cards>
+        <.home_card
+          title="Xcode"
+          details="Track Xcode tests."
+          link="/guides/features/test-insights/xcode"
+      />
+        <.home_card title="Pinned" details="Explicit locale." link="/guides/install-tuist" locale="ja" />
+      </.home_cards>
+      """)
+
+      page = Loader.load_page_source!({:page, source_path})
+
+      {rendered, _} =
+        Code.eval_quoted(page.body_template, [assigns: %{locale: "es", _doc_code_blocks: page.code_blocks}], __ENV__)
+
+      hrefs =
+        rendered
+        |> Phoenix.HTML.Safe.to_iodata()
+        |> IO.iodata_to_binary()
+        |> Floki.parse_fragment!()
+        |> Floki.attribute("a", "href")
+
+      assert "/es/docs/guides/features/test-code-coverage" in hrefs
+      assert "/es/docs/guides/features/test-insights/xcode" in hrefs
+      assert "/ja/docs/guides/install-tuist" in hrefs
     end
 
     @tag :tmp_dir
@@ -244,8 +282,8 @@ defmodule Tuist.DocsTest do
 
       guide = Docs.get_page("/en/guides/features/build-insights/rust").markdown
       assert guide =~ "{#cache-measurements}"
-      assert guide =~ "registry leaf libraries"
-      assert guide =~ "absolute paths"
+      assert guide =~ "qualified on Apple silicon Macs"
+      assert guide =~ "a checkout at another path on the same machine"
       refute guide =~ "compatible cache runtime"
       refute guide =~ "verification detects"
     end

@@ -104,8 +104,45 @@ func (e *AgentError) Error() string { return fmt.Sprintf("agent %s: %s", e.Op, e
 
 // Client speaks the agent protocol over connections from a Dialer.
 type Client struct {
-	dial Dialer
-	seq  atomic.Uint64
+	dial  Dialer
+	seq   atomic.Uint64
+	spare atomic.Pointer[spareConn]
+}
+
+type spareConn struct {
+	cn     *conn
+	opened time.Time
+}
+
+// A spare older than this is closed unused rather than trusted.
+const spareMaxAge = 10 * time.Second
+
+// Prewarm opens the connection the next Start uses, so that exec does not wait
+// for the dial and handshake. Only use it for a guest that is not paused or
+// snapshotted in between: a connection does not survive either.
+func (c *Client) Prewarm(ctx context.Context) {
+	if c.spare.Load() != nil {
+		return
+	}
+	cn, err := c.open(ctx)
+	if err != nil {
+		return
+	}
+	if !c.spare.CompareAndSwap(nil, &spareConn{cn: cn, opened: time.Now()}) {
+		cn.Close()
+	}
+}
+
+func (c *Client) takeSpare() *conn {
+	s := c.spare.Swap(nil)
+	if s == nil {
+		return nil
+	}
+	if time.Since(s.opened) > spareMaxAge {
+		s.cn.Close()
+		return nil
+	}
+	return s.cn
 }
 
 func NewClient(dial Dialer) *Client { return &Client{dial: dial} }
@@ -293,6 +330,7 @@ func (c *Client) WaitReady(ctx context.Context, timeout time.Duration) (Pong, er
 // WaitReady pings any Agent until it answers or the timeout passes.
 func WaitReady(ctx context.Context, agent Agent, timeout time.Duration) (Pong, error) {
 	deadline := time.Now().Add(timeout)
+	delay := time.Millisecond
 	var last error
 	for {
 		attempt, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -311,7 +349,8 @@ func WaitReady(ctx context.Context, agent Agent, timeout time.Duration) (Pong, e
 		select {
 		case <-ctx.Done():
 			return Pong{}, ctx.Err()
-		case <-time.After(25 * time.Millisecond):
+		case <-time.After(delay):
+			delay = min(2*delay, 25*time.Millisecond)
 		}
 	}
 }
@@ -406,15 +445,29 @@ func (p *process) pump() {
 // The connection stays open to stream output until exit; the request ctx
 // only bounds the start handshake.
 func (c *Client) Start(ctx context.Context, req ExecRequest, out OutputFunc) (Process, error) {
-	cn, err := c.open(ctx)
-	if err != nil {
-		return nil, err
+	exec := request{ID: c.nextID(), Op: "exec", Cmd: req.Cmd, Env: req.Env, Cwd: req.Cwd, TimeoutMs: req.TimeoutMs}
+	var stop func()
+	cn := c.takeSpare()
+	if cn != nil {
+		stop = watchContext(ctx, cn)
+		// A spare that cannot take the request never delivered it: dial afresh.
+		if err := cn.send(exec); err != nil {
+			stop()
+			cn.Close()
+			cn = nil
+		}
 	}
-	stop := watchContext(ctx, cn)
-	if err := cn.send(request{ID: c.nextID(), Op: "exec", Cmd: req.Cmd, Env: req.Env, Cwd: req.Cwd, TimeoutMs: req.TimeoutMs}); err != nil {
-		stop()
-		cn.Close()
-		return nil, fmt.Errorf("agent exec: %w", err)
+	if cn == nil {
+		var err error
+		if cn, err = c.open(ctx); err != nil {
+			return nil, err
+		}
+		stop = watchContext(ctx, cn)
+		if err := cn.send(exec); err != nil {
+			stop()
+			cn.Close()
+			return nil, fmt.Errorf("agent exec: %w", err)
+		}
 	}
 	resp, err := cn.recv()
 	stop()
@@ -472,4 +525,12 @@ func RunProcessWait(ctx context.Context, proc Process) (int, error) {
 		return -1, err
 	}
 	return code, err
+}
+
+// CloseSpare closes an unused prewarmed connection, for example when its
+// sandbox is deleted.
+func (c *Client) CloseSpare() {
+	if s := c.spare.Swap(nil); s != nil {
+		s.cn.Close()
+	}
 }

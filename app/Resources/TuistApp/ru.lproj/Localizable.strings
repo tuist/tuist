@@ -1,0 +1,311 @@
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"%@ simulator" = "Симулятор %@";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Access token or refresh token missing from response" = "В ответе отсутствует токен доступа или токен обновления";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All" = "Все";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All tracks" = "Все каналы";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Device" = "Устройство Android";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Emulator" = "Эмулятор Android";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Android Emulators" = "Эмуляторы Android";
+
+/* TuistPreviews/PreviewView/PreviewViewHeader.swift, TuistPreviews/PreviewsView/PreviewRowView.swift */
+"App" = "Приложение";
+
+/* TuistProfile/ProfileView.swift */
+"App version" = "Версия приложения";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Apple Sign In failed" = "Не удалось выполнить вход через Apple";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Apps in" = "Приложения в";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Are you sure you want to delete this preview? This action cannot be undone." = "Вы уверены, что хотите удалить этот превью? Это действие нельзя отменить.";
+
+/* TuistProfile/ProfileView.swift */
+"Are you sure you want to delete your account? This action cannot be undone." = "Вы уверены, что хотите удалить свою учетную запись? Это действие нельзя отменить.";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Authorization code not found" = "Код авторизации не найден";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Branch" = "Ветка";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Bundle identifier" = "Идентификатор пакета";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Cancel" = "Отменить";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Check for updates" = "Проверить обновления";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Commit SHA" = "Хеш коммита (SHA)";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Connected" = "Подключено";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy identifier" = "Копировать идентификатор";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy name" = "Копировать имя";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find APK file in the downloaded archive" = "Не удалось найти файл APK в загруженном архиве";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find app bundle in the downloaded archive" = "Не удалось найти пакет приложения в загруженном архиве";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "Не удалось установить приложение для %@, так как оно не содержит допустимых сборок приложения.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "Не удалось установить приложение для %@. Платформа %@ — это %@, а приложение включает только следующие платформы: %@";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created at" = "Создано";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created by" = "Автор";
+
+/* TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Delete" = "Удалить";
+
+/* TuistProfile/ProfileView.swift */
+"Delete Account" = "Удалить аккаунт";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete Preview" = "Удалить превью";
+
+/* TuistProfile/ProfileView.swift */
+"Delete account" = "Удалить аккаунт";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete preview" = "Удалить превью";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Details" = "Сведения";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Devices" = "Устройства";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Disconnected" = "Отключено";
+
+/* TuistProfile/ProfileView.swift */
+"Email" = "Электронная почта";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "Введите допустимый URL-адрес HTTPS-сервера без учетных данных, параметров запроса или фрагмента.";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Error" = "Ошибка";
+
+/* TuistMenuBar/StatusView.swift */
+"Finished" = "Завершено";
+
+/* TuistProfile/ProfileView.swift */
+"Get help" = "Получить помощь";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"Install latest previews with one click." = "Устанавливайте последние превью в один клик.";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installation failed" = "Ошибка установки";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@" = "Установлено %@";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@@%@" = "Установлено %@@%@";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installing preview" = "Установка превью";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid callback URL received" = "Получен недопустимый URL обратного вызова";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid response format" = "Недопустимый формат ответа";
+
+/* TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Launch" = "Запустить";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Launching preview" = "Запуск предварительной сборки";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Log out" = "Выйти";
+
+/* TuistMenuBar/Views/MenuBarView/MenuHeader.swift */
+"Logged out" = "Вы вышли из системы";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Missing Apple credentials from authorization" = "Отсутствуют учетные данные Apple для авторизации";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"No Previews" = "Нет предварительных сборок";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No Tuist projects found" = "Проекты Tuist не найдены";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews found" = "Предварительные сборки не найдены";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews match your filters" = "Нет предварительных сборок, соответствующих вашим фильтрам";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Ok" = "ОК";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Other devices" = "Другие устройства";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Pin" = "Закрепить";
+
+/* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews" = "Предварительные сборки";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews: %lld" = "Предварительные сборки: %lld";
+
+/* TuistProfile/ProfileView.swift */
+"Privacy Policy" = "Политика конфиденциальности";
+
+/* TuistApp/TuistApp.swift */
+"Profile" = "Профиль";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your previews." = "Потяните вниз, чтобы обновить превью.";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your projects." = "Потяните вниз, чтобы обновить проекты.";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Quit Tuist" = "Выйти из Tuist";
+
+/* TuistMenuBar/StatusView.swift */
+"Ready" = "Готово";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Release notes" = "Примечания к выпуску";
+
+/* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
+"Run" = "Запустить";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Search" = "Поиск";
+
+/* TuistOnboarding/SelfHostedServerAlert.swift */
+"Self-hosted" = "Self-hosted";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Self-hosted server" = "Самостоятельно размещаемый сервер";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Share logs" = "Поделиться журналами";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Sign in" = "Войти";
+
+/* TuistOnboarding/LogInView.swift */
+"Sign in to access your projects and\ncollaborate with your team" = "Войдите, чтобы получить доступ к своим проектам и\nсотрудничать с командой";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift */
+"Sign in to run previews" = "Войдите, чтобы запускать превью";
+
+/* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Apple" = "Войти через Apple";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with GitHub" = "Войти через GitHub";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Google" = "Войти через Google";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Tuist" = "Войти через Tuist";
+
+/* TuistProfile/ProfileView.swift */
+"Sign out" = "Выйти";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Simulators" = "Симуляторы";
+
+/* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
+"Supported platforms" = "Поддерживаемые платформы";
+
+/* TuistProfile/ProfileView.swift */
+"Terms of Service" = "Условия использования";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The app preview %@ was not found." = "Предпросмотр приложения %@ не найден.";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The latest preview for %@ was not found. Has any preview been published?" = "Последний предпросмотр для %@ не найден. Был ли опубликован какой-либо предпросмотр?";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The preview %@ does not have a package name set." = "Для предпросмотра %@ не указано имя пакета.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"The preview deeplink %@ is invalid." = "Ссылка на предварительную сборку %@ недействительна.";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The server returned a preview page that did not advance. Update your server or try again." = "Сервер вернул страницу предварительной сборки, которая не обновилась. Обновите ваш сервер или попробуйте снова.";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "Этот сервер не поддерживает фильтрацию предварительных сборок по каналу. Обновите ваш самостоятельно размещенный сервер Tuist или выберите «Все каналы».";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "Этот сервер не поддерживает поиск предварительных сборок. Обновите ваш самостоятельно размещенный сервер Tuist или очистите поиск.";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "Этот сервер не поддерживает вход через приложение Tuist. Попросите вашего администратора обновить его.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"To run a preview, you must have a simulator selected." = "Чтобы запустить предварительную сборку, необходимо выбрать симулятор.";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Token exchange failed with status code: %lld" = "Обмен токена завершился ошибкой со статусом: %lld";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Track" = "Канал";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Tracks" = "Треки";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Try a different search or select another track." = "Попробуйте другой поисковый запрос или выберите другой трек.";
+
+/* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
+"Unknown" = "Неизвестно";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Unpin" = "Открепить";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Update your self-hosted Tuist server to select a track." = "Обновите ваш self-hosted сервер Tuist, чтобы выбрать трек.";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Use the root address of your Tuist server" = "Используйте корневой адрес вашего сервера Tuist";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Welcome to Tuist" = "Добро пожаловать в Tuist";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"or" = "или";

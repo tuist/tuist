@@ -112,6 +112,7 @@ jobs:
             "infra/helm/rack-nodes|"
             "infra/helm/xcresult-processor|"
             "infra/helm/rack-cache-gateways|"
+            "infra/helm/remote-execution|values-ci.yaml"
           )
           failed=()
           for entry in "${configs[@]}"; do
@@ -152,6 +153,8 @@ jobs:
         run: bash infra/helm/k8s-monitoring/test-runner-macos-host-alerts.sh
       - name: Test runner queue time alert
         run: bash infra/helm/k8s-monitoring/test-runner-queue-time-alert.sh
+      - name: Test remote execution alerts
+        run: bash infra/helm/k8s-monitoring/test-remote-execution-alerts.sh
 
   render:
     name: Render
@@ -192,6 +195,7 @@ jobs:
             "slack (production)|infra/helm/slack|slack|values-production.yaml values-ci.yaml"
             "mdm (production)|infra/helm/mdm|mdm|values-production.yaml values-ci.yaml"
             "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
+            "remote-execution (production)|infra/helm/remote-execution|remote-execution|values-managed-production.yaml values-ci.yaml"
             "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"
             "tuist (clustered self-hosted)|infra/helm/tuist|cluster-validation|values-self-hosted-ci.yaml values-cluster-ci.yaml values-ci.yaml"
             "tuist (preview)|infra/helm/tuist|preview-validation|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"

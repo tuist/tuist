@@ -26,6 +26,7 @@ defmodule Tuist.Application do
   alias Tuist.Gradle.Build.Buffer
   alias Tuist.Gradle.ConfigurationOperation
   alias Tuist.Kura
+  alias Tuist.Sandboxes.SandboxEvent
   alias Tuist.Telemetry.QueryErrorContext
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.Test
@@ -367,6 +368,7 @@ defmodule Tuist.Application do
           Supervisor.child_spec(CrashReport.Buffer, id: CrashReport.Buffer),
           Supervisor.child_spec(TestCaseEvent.Buffer, id: TestCaseEvent.Buffer),
           Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
+          Supervisor.child_spec(SandboxEvent.Buffer, id: SandboxEvent.Buffer),
           Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
           Tuist.Vault,
           {Task.Supervisor, name: Tuist.MCP.Events.VerificationSupervisor, max_children: 100},
@@ -383,6 +385,8 @@ defmodule Tuist.Application do
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
           Tuist.Sandboxes.NodePresence,
+          {DynamicSupervisor, name: Tuist.RemoteExecution.Schedulers, strategy: :one_for_one},
+          {Task.Supervisor, name: Tuist.RemoteExecution.Tasks},
           Tuist.KeyValueStore.Invalidator,
           {Tuist.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
           {Tuist.API.Pipeline, []},

@@ -1,0 +1,388 @@
+<div id="sandboxes">
+  <div data-part="page-header">
+    <h1 data-part="title">{dgettext("dashboard_sandboxes", "Sandboxes")}</h1>
+    <span data-part="subtitle">
+      {dgettext(
+        "dashboard_sandboxes",
+        "Isolated Linux microVMs where coding agents work on your projects, with your account's Tuist cache close by."
+      )}
+    </span>
+  </div>
+
+  <.card
+    :if={@total == 0}
+    title={dgettext("dashboard_sandboxes", "Get started")}
+    icon="box_model_2"
+    id="sandboxes-onboarding"
+  >
+    <.card_section data-part="onboarding">
+      <div data-part="hero">
+        <div data-part="hero-icon"><.box_model_2 /></div>
+        <h2 data-part="hero-title">
+          {dgettext("dashboard_sandboxes", "Run agents in sandboxes")}
+        </h2>
+        <p data-part="hero-subtitle">
+          {dgettext(
+            "dashboard_sandboxes",
+            "Connect an agent and every task it starts gets its own sandbox. Sandboxes pause when the agent goes idle and resume where they left off."
+          )}
+        </p>
+      </div>
+      <span data-part="providers-title">
+        {dgettext("dashboard_sandboxes", "Choose an agent to connect:")}
+      </span>
+      <.providers
+        account={@selected_account}
+        amp_integration={@amp_integration}
+        can_manage_integrations={@can_manage_integrations}
+      />
+    </.card_section>
+  </.card>
+
+  <div :if={@total > 0} data-part="date-picker-bar">
+    <.date_picker
+      id="sandboxes-analytics-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_sandboxes", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_sandboxes", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_sandboxes", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_sandboxes", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_sandboxes", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_sandboxes", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "sandboxes-analytics-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_sandboxes", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "sandboxes-analytics-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
+
+  <.async_card
+    :let={ready?}
+    :if={@total > 0}
+    results={[@analytics]}
+    title={dgettext("dashboard_sandboxes", "Analytics")}
+    icon="chart_arcs"
+    id="sandboxes-analytics"
+  >
+    <div data-part="widgets">
+      <.widget
+        id="widget-sandboxes-created"
+        title={dgettext("dashboard_sandboxes", "Sandboxes created")}
+        legend_color="primary"
+        description={
+          dgettext("dashboard_sandboxes", "Sandboxes agents started in the selected window.")
+        }
+        value={if ready?, do: @analytics.result.created.count}
+        loading={!ready?}
+        selected={@analytics_selected_widget == "created"}
+        phx_click="select_widget"
+        phx_value_widget="created"
+        trend_value={if ready?, do: @analytics.result.created.trend}
+        trend_type={:neutral}
+        trend_label={@analytics_trend_label}
+        empty={ready? && @analytics.result.created.count == 0}
+      />
+      <.percentile_dropdown_widget
+        id="widget-sandboxes-session-duration"
+        title={
+          case @session_duration_percentile do
+            "p99" -> dgettext("dashboard_sandboxes", "p99 session duration")
+            "p90" -> dgettext("dashboard_sandboxes", "p90 session duration")
+            "p50" -> dgettext("dashboard_sandboxes", "p50 session duration")
+            _ -> dgettext("dashboard_sandboxes", "Avg. session duration")
+          end
+        }
+        description={
+          dgettext(
+            "dashboard_sandboxes",
+            "How long a sandbox runs before it is paused, archived, deleted or fails."
+          )
+        }
+        value={
+          if ready? do
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              TuistWeb.RunnersLive.percentile_value(
+                @analytics.result.session_duration,
+                @session_duration_percentile
+              )
+            )
+          end
+        }
+        metrics={
+          if ready?,
+            do: TuistWeb.RunnersLive.percentile_metrics_for(@analytics.result.session_duration)
+        }
+        selected_type={@session_duration_percentile}
+        event_name="select_session_duration_percentile"
+        loading={!ready?}
+        legend_color={
+          TuistWeb.RunnersLive.legend_color_for_percentile(@session_duration_percentile)
+        }
+        selected={@analytics_selected_widget == "session_duration"}
+        phx_click="select_widget"
+        phx_value_widget="session_duration"
+        trend_value={
+          if ready? do
+            TuistWeb.RunnersLive.percentile_trend(
+              @analytics.result.session_duration,
+              @session_duration_percentile
+            )
+          end
+        }
+        trend_type={:neutral}
+        trend_label={@analytics_trend_label}
+        empty={ready? && @analytics.result.session_duration.count == 0}
+      />
+      <.percentile_dropdown_widget
+        id="widget-sandboxes-setup"
+        title={
+          case @setup_percentile do
+            "p99" -> dgettext("dashboard_sandboxes", "p99 Setup")
+            "p90" -> dgettext("dashboard_sandboxes", "p90 Setup")
+            "avg" -> dgettext("dashboard_sandboxes", "Avg. Setup")
+            _ -> dgettext("dashboard_sandboxes", "p50 Setup")
+          end
+        }
+        description={
+          dgettext(
+            "dashboard_sandboxes",
+            "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
+          )
+        }
+        value={
+          if ready? do
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              TuistWeb.RunnersLive.percentile_value(@analytics.result.setup, @setup_percentile)
+            )
+          end
+        }
+        metrics={
+          if ready?, do: TuistWeb.RunnersLive.percentile_metrics_for(@analytics.result.setup)
+        }
+        selected_type={@setup_percentile}
+        event_name="select_setup_percentile"
+        loading={!ready?}
+        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@setup_percentile)}
+        selected={@analytics_selected_widget == "setup"}
+        phx_click="select_widget"
+        phx_value_widget="setup"
+        trend_value={
+          if ready? do
+            TuistWeb.RunnersLive.percentile_trend(@analytics.result.setup, @setup_percentile)
+          end
+        }
+        trend_type={:inverse}
+        trend_label={@analytics_trend_label}
+        empty={ready? && @analytics.result.setup.count == 0}
+      />
+      <.percentile_dropdown_widget
+        id="widget-sandboxes-time-to-start"
+        title={
+          case @time_to_start_percentile do
+            "p99" -> dgettext("dashboard_sandboxes", "p99 Time to start")
+            "p90" -> dgettext("dashboard_sandboxes", "p90 Time to start")
+            "avg" -> dgettext("dashboard_sandboxes", "Avg. Time to start")
+            _ -> dgettext("dashboard_sandboxes", "p50 Time to start")
+          end
+        }
+        description={
+          dgettext(
+            "dashboard_sandboxes",
+            "How long Tuist takes to boot a sandbox, whether from the template, from a project snapshot or by restoring it from an archive. Setup isn't included."
+          )
+        }
+        value={
+          if ready? do
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              TuistWeb.RunnersLive.percentile_value(
+                @analytics.result.time_to_start,
+                @time_to_start_percentile
+              )
+            )
+          end
+        }
+        metrics={
+          if ready?,
+            do: TuistWeb.RunnersLive.percentile_metrics_for(@analytics.result.time_to_start)
+        }
+        selected_type={@time_to_start_percentile}
+        event_name="select_time_to_start_percentile"
+        loading={!ready?}
+        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@time_to_start_percentile)}
+        selected={@analytics_selected_widget == "time_to_start"}
+        phx_click="select_widget"
+        phx_value_widget="time_to_start"
+        trend_value={
+          if ready? do
+            TuistWeb.RunnersLive.percentile_trend(
+              @analytics.result.time_to_start,
+              @time_to_start_percentile
+            )
+          end
+        }
+        trend_type={:inverse}
+        trend_label={@analytics_trend_label}
+        empty={ready? && @analytics.result.time_to_start.count == 0}
+      />
+    </div>
+    <.card_section data-part="analytics-chart-section">
+      <%= cond do %>
+        <% !ready? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "session_duration" -> %>
+          <.chart
+            id="sandboxes-session-duration-chart"
+            type="line"
+            extra_options={
+              TuistWeb.RunnersLive.duration_chart_options(
+                @analytics.result.dates,
+                @analytics_preset
+              )
+            }
+            series={
+              TuistWeb.RunnersLive.duration_chart_series(@analytics.result.session_duration)
+            }
+            y_axis_min={0}
+          />
+        <% @analytics_selected_widget == "setup" -> %>
+          <.chart
+            id="sandboxes-setup-chart"
+            type="line"
+            extra_options={
+              TuistWeb.RunnersLive.duration_chart_options(
+                @analytics.result.dates,
+                @analytics_preset
+              )
+            }
+            series={gapped_duration_series(@analytics.result.setup)}
+            y_axis_min={0}
+          />
+        <% @analytics_selected_widget == "time_to_start" -> %>
+          <.chart
+            id="sandboxes-time-to-start-chart"
+            type="line"
+            extra_options={
+              TuistWeb.RunnersLive.duration_chart_options(
+                @analytics.result.dates,
+                @analytics_preset
+              )
+            }
+            series={gapped_duration_series(@analytics.result.time_to_start)}
+            y_axis_min={0}
+          />
+        <% true -> %>
+          <.chart
+            id="sandboxes-created-chart"
+            type="line"
+            extra_options={
+              TuistWeb.RunnersLive.count_chart_options(@analytics.result.dates, @analytics_preset)
+            }
+            series={
+              count_series(@analytics.result.created, dgettext("dashboard_sandboxes", "Created"))
+            }
+            y_axis_min={0}
+          />
+      <% end %>
+    </.card_section>
+  </.async_card>
+
+  <.async_card
+    :let={ready?}
+    :if={@total > 0}
+    results={[@analytics]}
+    title={dgettext("dashboard_sandboxes", "Concurrency")}
+    icon="server"
+    id="sandboxes-concurrency"
+  >
+    <div data-part="concurrency-charts">
+      <.card_section
+        :for={
+          chart <-
+            concurrency_charts(
+              if(ready?,
+                do: @analytics.result.concurrency,
+                else: %{vcpus: [], memory_gb: [], disk_gb: []}
+              ),
+              @usage,
+              @selected_account
+            )
+        }
+        id={"sandboxes-concurrency-#{chart.id}"}
+        data-part="concurrency-chart"
+      >
+        <div data-part="concurrency-chart-header">
+          <h3>{chart.title}</h3>
+          <p>{chart.subtitle}</p>
+        </div>
+        <.skeleton_chart :if={!ready?} />
+        <.chart
+          :if={ready?}
+          id={"sandboxes-concurrency-#{chart.id}-chart"}
+          type="bar"
+          labels={@analytics.result.dates}
+          extra_options={concurrency_chart_options(@analytics_preset)}
+          series={concurrency_chart_series(chart.values, chart.limit, chart.usage_label)}
+          y_axis_min={0}
+          grid_lines
+          bar_radius={2}
+        />
+      </.card_section>
+    </div>
+  </.async_card>
+
+  <.card
+    :if={@total > 0}
+    title={dgettext("dashboard_sandboxes", "Recent sandboxes")}
+    icon="stack_2"
+    id="sandboxes-recent"
+  >
+    <:actions>
+      <.button
+        variant="secondary"
+        size="medium"
+        label={dgettext("dashboard_sandboxes", "View more")}
+        navigate={~p"/#{@selected_account.name}/sandboxes/instances"}
+      />
+    </:actions>
+    <.card_section>
+      <.sandboxes_table id="sandboxes-table" sandboxes={@sandboxes} account={@selected_account} />
+    </.card_section>
+  </.card>
+</div>

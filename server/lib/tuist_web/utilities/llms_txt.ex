@@ -103,8 +103,8 @@ defmodule TuistWeb.Utilities.LlmsTxt do
   def render_full do
     KeyValueStore.get_or_update([__MODULE__, "llms_full_txt"], [ttl: @cache_ttl], fn ->
       documentation =
-        Docs.pages()
-        |> Enum.filter(&english_page?/1)
+        @locale
+        |> Docs.pages()
         |> Enum.sort_by(& &1.slug)
         |> Enum.map_join("\n\n---\n\n", fn page ->
           url = Tuist.Environment.app_url(path: Paths.markdown_path_from_slug(page.slug))
@@ -140,8 +140,8 @@ defmodule TuistWeb.Utilities.LlmsTxt do
   # own H2 instead.
   defp documentation_sections do
     sections =
-      Docs.pages()
-      |> Enum.filter(&english_page?/1)
+      @locale
+      |> Docs.pages()
       |> Enum.group_by(&section_key/1)
 
     Enum.flat_map(ordered_sections(sections), fn {key, pages} ->
@@ -155,10 +155,6 @@ defmodule TuistWeb.Utilities.LlmsTxt do
     rest = sections |> Map.keys() |> Kernel.--(@section_order) |> Enum.sort()
 
     Enum.map(known ++ rest, &{&1, Map.fetch!(sections, &1)})
-  end
-
-  defp english_page?(%{slug: slug}) do
-    match?([@locale | _], String.split(slug, "/", trim: true))
   end
 
   defp section_key(%{slug: slug}) do

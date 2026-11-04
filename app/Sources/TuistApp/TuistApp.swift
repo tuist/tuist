@@ -77,6 +77,7 @@ import TuistServer
     import ArgumentParser
     import TuistErrorHandling
     import TuistNoora
+    import TuistNotifications
     import TuistOnboarding
     import TuistPreviews
     import TuistProfile
@@ -88,6 +89,7 @@ import TuistServer
 
     @main
     struct TuistApp: App {
+        @UIApplicationDelegateAdaptor(PushNotificationsAppDelegate.self) private var appDelegate
         @StateObject private var bootstrapper = AppBootstrapper()
 
         var body: some Scene {
@@ -104,11 +106,19 @@ import TuistServer
     private struct RootView: View {
         @StateObject private var authenticationService = AuthenticationService()
         @State private var activeTab = TabIdentifier.previews
+        @Environment(\.scenePhase) private var scenePhase
 
         var body: some View {
             content
                 .environmentObject(authenticationService)
                 .withErrorHandling()
+                .task(id: authenticationService.authenticationState) {
+                    await PushNotifications.shared.refresh()
+                }
+                .onChange(of: scenePhase) { _, scenePhase in
+                    guard scenePhase == .active else { return }
+                    Task { await PushNotifications.shared.refresh() }
+                }
                 .task {
                     TuistSDK(
                         fullHandle: "tuist/tuist",

@@ -69,7 +69,7 @@ const anchoredPopupPositioning = css`
   [data-part="positioner"] {
     position: absolute;
     top: calc(100% + var(--noora-spacing-2));
-    left: 0;
+    inset-inline-start: 0;
     z-index: var(--noora-z-index-10);
     box-sizing: border-box;
     width: 100%;
@@ -2667,14 +2667,14 @@ export class NooraFilter extends NooraElement {
       .noora-filter [data-part="positioner"] {
         position: absolute;
         top: calc(100% + var(--noora-spacing-2));
-        left: 0;
+        inset-inline-start: 0;
         z-index: var(--noora-z-index-10);
         min-width: max-content;
       }
 
       .noora-filter [data-control="value"] [data-part="positioner"] {
-        right: 0;
-        left: auto;
+        inset-inline-end: 0;
+        inset-inline-start: auto;
       }
 
       .noora-filter [data-part="content"] {
@@ -2682,8 +2682,8 @@ export class NooraFilter extends NooraElement {
       }
 
       .noora-filter [data-part="popover"] [data-part="positioner"] {
-        right: 0;
-        left: auto;
+        inset-inline-end: 0;
+        inset-inline-start: auto;
       }
 
       .noora-filter [data-part="popover"] [data-part="content"] {
@@ -4185,7 +4185,7 @@ export class NooraBreadcrumbs extends NooraElement {
       [data-part="positioner"] {
         position: absolute;
         top: calc(100% + var(--noora-spacing-4));
-        left: 0;
+        inset-inline-start: 0;
       }
     `,
   ];
@@ -4367,7 +4367,7 @@ export class NooraTabMenu extends NooraElement {
         padding: 0;
       }
       button.noora-tab-menu-vertical {
-        text-align: left;
+        text-align: start;
       }
     `,
   ];
@@ -4462,7 +4462,7 @@ export class NooraSidebar extends NooraElement {
         border: 0;
         background: transparent;
         width: 100%;
-        text-align: left;
+        text-align: start;
       }
     `,
   ];
@@ -4582,12 +4582,12 @@ export class NooraPopover extends NooraPopupElement {
 
       .noora-popover[data-positioning-placement$="-start"]
         > [data-part="positioner"] {
-        left: 0;
+        inset-inline-start: 0;
       }
 
       .noora-popover[data-positioning-placement$="-end"]
         > [data-part="positioner"] {
-        right: 0;
+        inset-inline-end: 0;
       }
 
       .noora-popover[data-positioning-placement="top"]
@@ -4658,7 +4658,7 @@ export class NooraTooltip extends NooraPopupElement {
       [data-part="positioner"] {
         position: absolute;
         top: 100%;
-        left: 0;
+        inset-inline-start: 0;
         padding-top: var(--noora-spacing-2);
       }
     `,

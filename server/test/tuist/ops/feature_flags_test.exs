@@ -19,6 +19,17 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     :ok
   end
 
+  test "remote execution is an explicit account opt-in" do
+    account = AccountsFixtures.user_fixture().account
+    reject(FunWithFlags, :enabled?, 1)
+    reject(FunWithFlags, :enabled?, 2)
+    assert {:ok, initial} = FeatureFlags.evaluate(%{"account_id" => account.id})
+    refute enabled?(initial, "bazel_remote_execution")
+    gate(:bazel_remote_execution, :actor, "account:#{account.id}", true)
+    assert {:ok, enabled} = FeatureFlags.evaluate(%{"account_id" => account.id})
+    assert enabled?(enabled, "bazel_remote_execution")
+  end
+
   test "account inspection respects actor exclusions and never enumerates projects" do
     excluded = AccountsFixtures.user_fixture().account
     included = AccountsFixtures.user_fixture().account

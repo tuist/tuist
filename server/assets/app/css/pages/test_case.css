@@ -163,16 +163,16 @@
         flex: 0 0 300px;
         flex-direction: column;
         gap: var(--noora-spacing-5);
-        border-left: 1px solid var(--noora-surface-border-primary);
-        padding-left: var(--noora-spacing-7);
+        border-inline-start: 1px solid var(--noora-surface-border-primary);
+        padding-inline-start: var(--noora-spacing-7);
 
         @media (max-width: 1024px) {
           & {
             flex-basis: auto;
             border-top: 1px solid var(--noora-surface-border-primary);
-            border-left: none;
+            border-inline-start: none;
             padding-top: var(--noora-spacing-6);
-            padding-left: 0;
+            padding-inline-start: 0;
           }
         }
 
@@ -448,7 +448,7 @@
                 flex-direction: row;
                 align-items: center;
                 gap: var(--noora-spacing-5);
-                margin-left: auto;
+                margin-inline-start: auto;
 
                 & [data-part="branch-info"],
                 & [data-part="branch-info-link"] {
@@ -532,6 +532,8 @@
               padding: var(--noora-spacing-5);
               color: var(--noora-surface-label-primary);
               font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+              direction: ltr;
+              unicode-bidi: isolate;
               white-space: pre-wrap;
               word-break: break-word;
             }
@@ -589,20 +591,21 @@
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-5);
-      padding: var(--noora-spacing-8) var(--noora-spacing-8) var(--noora-spacing-8) 0;
+      padding-inline: 0 var(--noora-spacing-8);
+      padding-block: var(--noora-spacing-8);
 
       & [data-part="timeline"] {
         display: flex;
         position: relative;
         flex-direction: column;
         gap: var(--noora-spacing-5);
-        padding-left: 48px;
+        padding-inline-start: 48px;
 
         &::before {
           position: absolute;
           top: 0;
           bottom: 0;
-          left: 24px;
+          inset-inline-start: 24px;
           background: var(--noora-surface-border-primary);
           width: 1px;
           content: "";

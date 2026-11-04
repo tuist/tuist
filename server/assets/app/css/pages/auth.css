@@ -195,8 +195,8 @@
 
     position: absolute;
     top: 0px;
-    left: 0px;
     z-index: -1;
+    inset-inline-start: 0px;
     width: 100%;
     height: 100%;
     overflow: hidden;
@@ -289,7 +289,7 @@
     padding: var(--noora-spacing-5);
     width: 100%;
     color: var(--noora-surface-label-primary);
-    text-align: left;
+    text-align: start;
 
     &:hover {
       background: var(--noora-surface-background-secondary);
