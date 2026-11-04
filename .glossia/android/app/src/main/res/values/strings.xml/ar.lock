@@ -1,0 +1,193 @@
+{
+  "baseline_schema_version": 1,
+  "hash": "c81ff2cae353d56bb08a4b0cbf9247ab217c4018ba7ed13d9d61f4e2bf9b0561",
+  "hash_tree": {
+    "root": {
+      "children": [
+        {
+          "children": [],
+          "details": {
+            "content_hash": {
+              "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "sections": {
+                "Preamble": {
+                  "content_hash": "31828f0d29669de0a1df380b936bb09a18607265a356af6c896de03469febcc5"
+                }
+              },
+              "sections_omitted": 0
+            }
+          },
+          "hash": "215c83666a510094a31d332ce8c3b14e1d9f4a51fb18b0144cd47be89a14efb6",
+          "kind": "source",
+          "label": "android/app/src/main/res/values/strings.xml",
+          "metadata": {
+            "content_hash": "2ddd4d07c17e7d75c73fd520d8772a544bcae70d751eda53e51897cc8cd6728f"
+          }
+        },
+        {
+          "children": [],
+          "details": {
+            "validation_hash": {
+              "argv_hash": "8b447ef7e89bf277f7d4b7ee691ea1fdc7d42345395892125d012c6e7ceac6c0",
+              "check_cmd_hash": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+              "check_cmds": {},
+              "relative_path": "android/L10N.md"
+            }
+          },
+          "hash": "c6662475dbbb422d0cef701c88484b5a61ab42591b52b3c6b965226b54bdc294",
+          "kind": "translation_config",
+          "label": "generation",
+          "metadata": {
+            "custom_prompt_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "format": "text",
+            "frontmatter_mode": "preserve",
+            "language": "Arabic",
+            "locale": "ar",
+            "model": "",
+            "preserve": [],
+            "prompt_version": 8,
+            "provider": "",
+            "retries": 3,
+            "segmentation_version": 1,
+            "source_language": "en",
+            "validation_hash": "87c225b42657543d25adca81bb0bf2283d465736002b132154544264ec980359"
+          }
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "details": {
+                "content_hash": {
+                  "L10N.md": {
+                    "content_hash": "dddb21b266221a93b654f49df883651011f42ef9fbfc4292c4d0fdde61f63e5b",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Global Translation Context": {
+                        "content_hash": "d18e7200389520fff40a446f68aecb79b9391230297af9e374d8587d60bcf99e"
+                      },
+                      "## Brand & Terminology": {
+                        "content_hash": "e9f38396c1d3a9ffc036cd3832e5c091bd08fa941b494083d17cfc8be109397e"
+                      },
+                      "## Formatting Rules": {
+                        "content_hash": "93747f67c92bfb2c7eb8ee0d05cca7476757fcb6aafe93fa1f29f986c977966b"
+                      },
+                      "## Tone": {
+                        "content_hash": "91ec263d7ccf88c1234cb74976d321d0758722525e60bbe4386945d8e14b7850"
+                      },
+                      "## Write for the Target Language": {
+                        "content_hash": "e9f56601269e3b4f2c494ecf7752a2c7070cd1079ee6469da3072e0ad880fb3d"
+                      }
+                    },
+                    "sections_omitted": 0
+                  },
+                  "android/L10N.md": {
+                    "content_hash": "9f33d6003f56af050eb15551ca577cccfee6ac84ca1d9ca37ca8e6559b29913d",
+                    "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                    "sections": {
+                      "# Tuist Android App Translation Context": {
+                        "content_hash": "8051abb99c8d74016fce567d2c8e664ce862ed031d82195e591215122db31403"
+                      },
+                      "## Catalog format": {
+                        "content_hash": "e83657dbd561b942094eb20ded2939e61c8950359c63f4c2359d9588eacd3386"
+                      },
+                      "## Meaning": {
+                        "content_hash": "d3e8aaa0c2ced097f5c736639c19dd842d1beb86c99d5358e2ece9c11179acc6"
+                      }
+                    },
+                    "sections_omitted": 0
+                  }
+                }
+              },
+              "hash": "cb4e469821698eb44ca06657cb08c5a3649ef0b5d67027f425ad1939e69cfb28",
+              "kind": "context",
+              "label": "project",
+              "metadata": {
+                "content_hash": "a760678cd64a3c7d76be01e81924c22d82317219fd091506153ec574f008e73f"
+              }
+            },
+            {
+              "children": [],
+              "details": {},
+              "hash": "2142b5336a0c93e93d936853018f589a34b88ba325aa002e150a036351292441",
+              "kind": "context",
+              "label": "locale",
+              "metadata": {
+                "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            },
+            {
+              "children": [
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "7f8274083ec92aa01ecfa47d4192002b3c4d68453327866a774062a4be5acb3a",
+                  "kind": "context",
+                  "label": "voice",
+                  "metadata": {
+                    "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+                  }
+                },
+                {
+                  "children": [],
+                  "details": {
+                    "content_hash": {}
+                  },
+                  "hash": "aaaa323144d0aa263b3c3b320f63fa40d6f277ca8e12bac4001fb8a508c0d17f",
+                  "kind": "context",
+                  "label": "terminology",
+                  "metadata": {
+                    "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+                  }
+                }
+              ],
+              "details": {},
+              "hash": "c18f36f445e3f1b1119032b90a7907097b5bb97f568b020c7a5a8333447a8658",
+              "kind": "server_context",
+              "label": "organization",
+              "metadata": {
+                "compiler_version": 3,
+                "selector_version": 2
+              }
+            }
+          ],
+          "details": {},
+          "hash": "453d23c59a13f7342bcc4c3e383a707471bd9acb349731c6a7671c7e70126b4c",
+          "kind": "context_bundle",
+          "label": "context",
+          "metadata": {}
+        }
+      ],
+      "details": {},
+      "hash": "c81ff2cae353d56bb08a4b0cbf9247ab217c4018ba7ed13d9d61f4e2bf9b0561",
+      "kind": "translation_input",
+      "label": "android/app/src/main/res/values/strings.xml",
+      "metadata": {}
+    }
+  },
+  "model": "",
+  "output_hash": "844339022eeafb300468eb13b0aaccba8211e075cafdf3bf7520aa464038a1f5",
+  "output_path": "android/app/src/main/res/values-ar/strings.xml",
+  "protection_state": "recorded",
+  "provider": "",
+  "server_context": {
+    "compiler_version": 3,
+    "glossary": {
+      "applied": [],
+      "content_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "shadowed": [],
+      "version": null
+    },
+    "selector_version": 2,
+    "voice": {
+      "content_hash": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "version": null
+    }
+  },
+  "source_commit_sha": "dee3bdaec2f6f1311d8f7e4bf77d5aa1e848d137",
+  "source_path": "android/app/src/main/res/values/strings.xml",
+  "translated_at": "2026-11-04T14:53:06.628197Z",
+  "translation_session_id": "01a1a70b-099b-7036-8778-73b4105cbed4"
+}
