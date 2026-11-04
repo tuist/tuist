@@ -17,7 +17,7 @@ struct ExternalLinkRow: View {
                     .font(.body)
                     .foregroundColor(Noora.Colors.surfaceLabelPrimary)
                 Spacer()
-                Image(systemName: "arrow.up.right.square")
+                Image(systemName: "arrow.up.forward.square")
                     .font(.title3.weight(.regular))
                     .foregroundColor(Noora.Colors.surfaceLabelTertiary)
             }
