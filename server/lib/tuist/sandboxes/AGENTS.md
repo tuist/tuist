@@ -5,6 +5,13 @@ Server control plane for the Firecracker sandboxes run by `sandboxd`
 sandbox is one persistent microVM per coding-agent session; the first
 consumer is Claude Managed Agents `self_hosted` environments.
 
+Linux REAPI actions use a separate `Tuist.RemoteExecution` lifecycle and
+`sandboxes.purpose = remote_execution`. Keep them out of agent listing, quotas,
+idle retention and node-report reconciliation: their scheduler and lease own
+them. Reserved executor nodes must not admit agent sessions; execution rows and
+resource reservations survive errors until acknowledged VM deletion.
+See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-execution.md).
+
 ## Pieces
 
 - `Tuist.Sandboxes`: context over `sandboxes`,

@@ -61,6 +61,7 @@ defmodule Tuist.PromEx do
         # Plugins.Application,
         Tuist.Oban.PromExPlugin,
         Tuist.Sandboxes.PromExPlugin,
+        Tuist.RemoteExecution.PromExPlugin,
         # Plugins.PhoenixLiveView,
         # Plugins.Absinthe,
         # Plugins.Broadway,

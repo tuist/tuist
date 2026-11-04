@@ -1222,6 +1222,15 @@ defmodule TuistWeb.Router do
     post "/auth/oidc/token", OIDCController, :exchange_token
   end
 
+  scope "/api/remote-execution", TuistWeb do
+    pipe_through [:non_authenticated_api]
+
+    get "/:account/:project/capabilities", RemoteExecutionController, :capabilities
+    post "/:account/:project/operations", RemoteExecutionController, :create
+    post "/:account/:project/leases", RemoteExecutionController, :lease
+    get "/:account/:project/operations/:id", RemoteExecutionController, :show
+  end
+
   # Runner Pod dispatch + autoscaler signals endpoints.
   # Authenticated by the Pod's projected ServiceAccount token
   # (audience-scoped to `tuist-dispatch`) — the controller
