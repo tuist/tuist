@@ -44,12 +44,8 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     end
   end
 
-  test "native API rejects disabled accounts and accepts the 24 GiB shape", %{conn: conn, account: account} do
-    stub(Tuist.FeatureFlags, :macos_sandboxes_enabled?, fn _ -> false end)
+  test "native API accepts the 24 GiB shape", %{conn: conn, account: account} do
     body = %{platform: "darwin", memory_mb: 24_576}
-    assert conn |> post(~p"/api/accounts/#{account.name}/sandboxes", body) |> json_response(:forbidden)
-
-    stub(Tuist.FeatureFlags, :macos_sandboxes_enabled?, fn _ -> true end)
 
     expect(Capacity, :place, fn sandbox ->
       sandbox |> Ecto.Changeset.change(node_name: "mac-1", node_uid: "node-uid", resident: true) |> Repo.update!()

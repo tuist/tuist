@@ -1,8 +1,8 @@
 # macOS sandbox operation
 
 macOS sandboxes use the existing account API and Managed Agents session router.
-The `macos_sandboxes` account feature flag is **off by default**, in addition to
-the existing `sandboxes` gate. Select `platform: "darwin"` when creating a sandbox
+macOS sandboxes share the `sandboxes` account feature flag with Linux sandboxes;
+there is no separate macOS flag. Select `platform: "darwin"` when creating a sandbox
 or agent environment. Defaults are template `macos`, 8 vCPU, 8 GiB RAM and a
 10 GB workspace. The other native shapes are 8 vCPU with 16 or 24 GiB RAM.
 The workspace is `/Users/runner/work`; Linux requests retain their existing defaults.
@@ -33,7 +33,7 @@ Deploy all of the following before enabling an account:
    required after the pull before readiness. Ownership recovery and eviction keep
    running independently. Prewarm the image before enabling an account;
    this one-time transfer is not part of resident resume latency.
-5. Run the acceptance checks below on staging, then enable `macos_sandboxes`
+5. Run the acceptance checks below on staging, then enable `sandboxes`
    for the intended account through the existing feature-flag administration.
    Create with `{"platform":"darwin"}`, execute a command, pause, resume and delete.
 

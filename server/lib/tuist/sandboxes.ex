@@ -14,7 +14,6 @@ defmodule Tuist.Sandboxes do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
-  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Sites
   alias Tuist.Sandboxes.AgentEnvironment
@@ -71,12 +70,10 @@ defmodule Tuist.Sandboxes do
 
   # ----- Agent environments -----
 
-  def create_agent_environment(%Account{id: account_id} = account, attrs) when is_map(attrs) do
-    with :ok <- authorize_platform(account, Map.get(attrs, :platform, :linux)) do
-      %AgentEnvironment{}
-      |> AgentEnvironment.create_changeset(attrs |> platform_defaults() |> Map.put(:account_id, account_id))
-      |> Repo.insert()
-    end
+  def create_agent_environment(%Account{id: account_id}, attrs) when is_map(attrs) do
+    %AgentEnvironment{}
+    |> AgentEnvironment.create_changeset(attrs |> platform_defaults() |> Map.put(:account_id, account_id))
+    |> Repo.insert()
   end
 
   defp platform_defaults(attrs) do
@@ -88,16 +85,6 @@ defmodule Tuist.Sandboxes do
       end
 
     Map.merge(defaults, attrs |> Enum.reject(fn {_key, value} -> is_nil(value) end) |> Map.new())
-  end
-
-  def authorize_platform(account, platform) when platform in [:darwin, "darwin"] do
-    if FeatureFlags.macos_sandboxes_enabled?(account), do: :ok, else: {:error, :macos_sandboxes_disabled}
-  end
-
-  def authorize_platform(_account, _platform), do: :ok
-
-  def platform_enabled?(%{account_id: account_id, platform: platform}) do
-    authorize_platform(%Account{id: account_id}, platform) == :ok
   end
 
   def workspace(%{platform: :darwin}), do: "/Users/runner/work"
@@ -330,7 +317,7 @@ defmodule Tuist.Sandboxes do
   node instead of booting the template. When that node cannot take the
   sandbox or the clone fails, the sandbox boots from the template instead.
   """
-  def create_sandbox(%Account{id: account_id} = account, attrs \\ %{}, opts \\ []) when is_map(attrs) do
+  def create_sandbox(%Account{id: account_id}, attrs \\ %{}, opts \\ []) when is_map(attrs) do
     attrs =
       attrs
       |> platform_defaults()
@@ -338,8 +325,7 @@ defmodule Tuist.Sandboxes do
 
     changeset = Sandbox.create_changeset(%Sandbox{}, attrs)
 
-    with :ok <- authorize_platform(account, Map.get(attrs, :platform, :linux)),
-         {:ok, requested} <- Ecto.Changeset.apply_action(changeset, :insert),
+    with {:ok, requested} <- Ecto.Changeset.apply_action(changeset, :insert),
          {:ok, sandbox} <- admit_onto_node(account_id, requested, fn -> Repo.insert(changeset) end) do
       Events.record(sandbox, "created")
       boot(sandbox, Keyword.get(opts, :from_disk_snapshot))
@@ -1259,18 +1245,14 @@ defmodule Tuist.Sandboxes do
   defp error_message(reason), do: inspect(reason)
 
   defp node_call(sandbox, op, args, opts) do
-    if op in ["create", "resume", "exec", "start_worker"] and not platform_enabled?(sandbox) do
-      {:error, :macos_sandboxes_disabled}
-    else
-      args = if sandbox.platform == :darwin, do: Map.put(args, :node_uid, sandbox.node_uid), else: args
+    args = if sandbox.platform == :darwin, do: Map.put(args, :node_uid, sandbox.node_uid), else: args
 
-      case Nodes.call(sandbox.node_name, op, args, opts) do
-        # This exact native sentinel means admission refused the operation.
-        # Joined cleanup/fencing errors must remain failures, not retryable
-        # capacity denials. This also works with already-deployed host versions.
-        {:error, "macOS sandbox capacity unavailable"} when sandbox.platform == :darwin -> {:error, :no_capacity}
-        result -> result
-      end
+    case Nodes.call(sandbox.node_name, op, args, opts) do
+      # This exact native sentinel means admission refused the operation.
+      # Joined cleanup/fencing errors must remain failures, not retryable
+      # capacity denials. This also works with already-deployed host versions.
+      {:error, "macOS sandbox capacity unavailable"} when sandbox.platform == :darwin -> {:error, :no_capacity}
+      result -> result
     end
   end
 

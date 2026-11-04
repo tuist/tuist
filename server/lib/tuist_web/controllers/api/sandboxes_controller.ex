@@ -292,9 +292,6 @@ defmodule TuistWeb.API.SandboxesController do
       {:ok, agent_environment} ->
         conn |> put_status(:created) |> json(serialize_agent_environment(agent_environment))
 
-      {:error, :macos_sandboxes_disabled} ->
-        sandbox_error(conn, :macos_sandboxes_disabled)
-
       {:error, %Ecto.Changeset{} = changeset} ->
         conn |> put_status(:bad_request) |> json(%{message: changeset_message(changeset)})
     end
@@ -570,10 +567,6 @@ defmodule TuistWeb.API.SandboxesController do
   end
 
   defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message})
-
-  defp sandbox_error(conn, :macos_sandboxes_disabled) do
-    conn |> put_status(:forbidden) |> json(%{message: "macOS sandboxes are not enabled for this account."})
-  end
 
   defp sandbox_error(conn, {:invalid_state, state}) do
     conn |> put_status(:conflict) |> json(%{message: "The sandbox is #{state}."})

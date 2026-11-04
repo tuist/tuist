@@ -5,7 +5,6 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
-  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.Capacity
@@ -14,7 +13,6 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
   alias Tuist.Sandboxes.Nodes
 
   setup do
-    stub(FeatureFlags, :macos_sandboxes_enabled?, fn _ -> true end)
     name = "mac-#{System.unique_integer([:positive])}"
 
     node = %{
@@ -173,17 +171,6 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
 
     assert {:error, ^error} = Sandboxes.resume(paused)
     assert %{state: :error, resident: true, error_message: ^error} = Repo.reload!(paused)
-  end
-
-  test "the macOS gate is required even in development and before any create side effect" do
-    stub(FeatureFlags, :macos_sandboxes_enabled?, fn _ -> false end)
-    reject(&Nodes.call/4)
-    account = account_fixture()
-
-    assert {:error, :macos_sandboxes_disabled} =
-             Sandboxes.create_sandbox(account, %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192})
-
-    assert {:error, :macos_sandboxes_disabled} = Sandboxes.create_agent_environment(account, %{platform: :darwin})
   end
 
   test "create and pause route through the recorded owner with authenticated protocol fields", %{node: node} do

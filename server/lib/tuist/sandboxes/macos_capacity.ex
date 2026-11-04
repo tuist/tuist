@@ -36,8 +36,7 @@ defmodule Tuist.Sandboxes.MacosCapacity do
   end
 
   def admit_turn(sandbox, apply) do
-    with true <- Sandboxes.platform_enabled?(sandbox),
-         {:ok, _pid, info} <- Nodes.lookup(sandbox.node_name),
+    with {:ok, _pid, info} <- Nodes.lookup(sandbox.node_name),
          true <- info[:generation] == sandbox.node_uid and allowed?(info) do
       apply.()
     else
@@ -46,22 +45,18 @@ defmodule Tuist.Sandboxes.MacosCapacity do
   end
 
   def admissible?(environment, session_id) do
-    if Sandboxes.platform_enabled?(environment) do
-      case Sandboxes.get_sandbox_for_session(environment.id, session_id) do
-        %Sandbox{} = sandbox ->
-          with true <- sandbox.state in @charged or Concurrency.check(sandbox.account_id, sandbox) == :ok,
-               {:ok, _pid, info} <- Nodes.lookup(sandbox.node_name) do
-            info[:generation] == sandbox.node_uid and allowed?(info)
-          else
-            _ -> false
-          end
+    case Sandboxes.get_sandbox_for_session(environment.id, session_id) do
+      %Sandbox{} = sandbox ->
+        with true <- sandbox.state in @charged or Concurrency.check(sandbox.account_id, sandbox) == :ok,
+             {:ok, _pid, info} <- Nodes.lookup(sandbox.node_name) do
+          info[:generation] == sandbox.node_uid and allowed?(info)
+        else
+          _ -> false
+        end
 
-        nil ->
-          Concurrency.check(environment.account_id, environment) == :ok and
-            Enum.any?(Nodes.connected_nodes(), &(ready?(&1, environment.template) and room?(&1, environment)))
-      end
-    else
-      false
+      nil ->
+        Concurrency.check(environment.account_id, environment) == :ok and
+          Enum.any?(Nodes.connected_nodes(), &(ready?(&1, environment.template) and room?(&1, environment)))
     end
   end
 
@@ -87,9 +82,8 @@ defmodule Tuist.Sandboxes.MacosCapacity do
       Repo.query!("SELECT pg_advisory_xact_lock($1::integer, hashtext($2))", [7302, node.name])
       current = Repo.get!(Sandbox, sandbox.id)
 
-      if current.state not in [:creating, :paused, :resuming] or not Sandboxes.platform_enabled?(current) or
-           not allowed?(node) or not room?(node, current),
-         do: Repo.rollback(:no_capacity)
+      if current.state not in [:creating, :paused, :resuming] or not allowed?(node) or not room?(node, current),
+        do: Repo.rollback(:no_capacity)
 
       if current.node_name && (current.node_name != node.name or current.node_uid != node.generation),
         do: Repo.rollback(:owner_changed)

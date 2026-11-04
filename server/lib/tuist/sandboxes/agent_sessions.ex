@@ -45,7 +45,6 @@ defmodule Tuist.Sandboxes.AgentSessions do
 
     with {:ok, params} <- validate_params(attrs),
          {:ok, agent_environment} <- resolve_agent_environment(account, attrs[:agent_environment_id]),
-         :ok <- Sandboxes.authorize_platform(account, agent_environment.platform),
          {:ok, api_key} <- api_key(agent_environment),
          model = params.model || agent_environment.agent_model,
          {:ok, agent_id} <- ensure_agent(account, agent_environment, api_key, model, attrs[:agent_id]),
