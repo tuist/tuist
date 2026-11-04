@@ -171,7 +171,7 @@ server:
       # `retired_runners` until `Tuist.Billing.migrate_retired_runner_prices/1`
       # and the renewal schedules have moved every item off it.
       runners:
-        runner_linux_compute_unit_milliseconds: "price_1UXgCMLWue9IBlPSqFeUEhhJ"
+        runner_linux_compute_unit_milliseconds: "price_1UXkpzLWue9IBlPSCGV7NlAg"
         runner_macos_compute_unit_milliseconds: "price_1UXO5iLWue9IBlPSX793RSDB"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
@@ -1151,10 +1151,11 @@ ovhFleets:
   # region out of service without touching the box.
   eu-east:
     enabled: true
-    # Three boxes: two Advance-1-2024 plus ns3128245 (Advance-1-2026, 2026-10-19).
-    # At two the region reserved 1228 GiB against an admission line of 1267, so
-    # Admission refused every storage claim growth for the accounts it hosts.
-    replicas: 3
+    # Four boxes: three Advance-1-2024 (ns3263234 added 2026-11-03) plus ns3128245
+    # (Advance-1-2026, 2026-10-19). At three the region's admission headroom was
+    # down to 4 GiB, so placement expansions and claim growths for the accounts it
+    # hosts were refused.
+    replicas: 4
     nodePool: kura-eu-east
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
@@ -2175,6 +2176,11 @@ runnersFleet:
   # one. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
+    "27.3-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 16
     "27.2":
       autoscaling:
         enabled: true
@@ -2312,6 +2318,7 @@ sandboxes:
       effect: NoSchedule
   maxMemoryGiB: 32
   diskGiB: 100
+  archiveAfterHours: 24
   networkPolicy:
     # Amp Orb archives go to the in-rack shard-storage release.
     archiveStoreEgress: true

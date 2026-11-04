@@ -54,7 +54,7 @@ cancel the sustained write cost.
 
 All layouts experienced CPU throttling. Recorded ordinary-phase memory events
 showed no OOM/max-limit events. CPU and memory observations cover the runtime
-cgroup before the extra working-set phase, not total host/CSI/OpenBao resources
+cgroup before the extra working-set phase, not total host/CSI/key-service resources
 or a fleet density projection. This uses a pinned candidate runtime on every
 layout, not today's deployed runtime measured against a new release. The
 shared-XFS control isolates storage layout within the VM; it is not production
@@ -185,4 +185,4 @@ HTTP workload establishes equivalence on hosted NVMe or under production load.
 No hosted staging or production storage was changed by these experiments.
 Earlier shared-XFS capacity/memory gains and thin-layout staging results remain
 separate evidence. A passing primitive test cannot clear final-layout storage
-safety, permanent OpenBao custody/recovery or staged-migration release gates.
+safety, root-key custody/recovery or staged-migration release gates.

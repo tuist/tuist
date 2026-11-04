@@ -20,8 +20,9 @@ The Linux integration test creates a private sparse backing file, loop device,
 VG and 24 GiB thin pool with 512 KiB chunks. It wraps the actual driver's
 Create/Stage/Publish/Unpublish/Unstage/Delete/Observe/Reclaim operations in a
 fixture-only authenticated loopback API. Each device uses a distinct derived
-fixture key. This does not exercise OpenBao or the Kubernetes ownership checks.
-Normal teardown refuses to destroy backing when mounts or loops remain attached.
+fixture key. This does not exercise the key service or the Kubernetes ownership
+checks. Normal teardown refuses to destroy backing when mounts or loops remain
+attached.
 
 The runtime patch routes segment IDs to a base filesystem or named borrowed
 unit, scans mounted units during startup recovery, and drains sealed segments
@@ -49,7 +50,7 @@ loop-backed VM results are not hosted NVMe or production throughput results.
 
 - No production allocator, fairness adaptation or runtime budget leases. The
   fenced CSI API and server parent-PVC authorization passed the isolated
-  Kubernetes/OpenBao fixture recorded in the validation report.
+  Kubernetes fixture recorded in the validation report.
 - Active segments seal through the normal writer barrier before targeted drain.
 - Kubernetes hot publication, CSI pod restart and cold runtime-pod replacement
   passed on Paris staging. Actual node reboot/power-loss qualification is separate.
@@ -71,7 +72,8 @@ and each child's `segments/`. Child IDs are
 AAD use the entire ID. The server authorizes the live parent PV/PVC, requires
 its immutable `borrowed_units: v1` attribute, and retains the existing caller
 audience, node affinity, PVC UID and account-ownership checks. Children share
-the account's OpenBao-wrapped shares but never share a volume passphrase.
+the account's tenant shares, wrapped by the Tuist-managed root (`tuist_root`),
+but never share a volume passphrase.
 
 The existing root-only allocator socket accepts `POST /v1/units`. Requests carry
 the parent `volume_id`, `lv_uuid`, `pool_uuid`, `pod_uid`, `generation`, a unique

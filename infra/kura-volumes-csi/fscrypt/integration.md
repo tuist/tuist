@@ -27,7 +27,7 @@ See the [kernel's threat model](https://docs.kernel.org/filesystems/fscrypt.html
 
 ## Key custody and lifecycle
 
-Preserve the existing OpenBao-backed tenant-share provider, caller/node/PVC
+Preserve the existing tenant-share provider, caller/node/PVC
 ownership checks and sealed key-delivery transport. Changing the local
 encryption mechanism does not require changing the wrapping service.
 
@@ -48,8 +48,8 @@ authorization revocation, active-mount checks and incomplete-cleanup records.
 Key removal may leave keys in use by open files. A CSI unstage must check mount
 and key-removal status and preserve a retryable record. An absent key after a
 cold remount is a fail-closed case, not permission to create a plaintext tree.
-Permanent OpenBao custody, durable audit delivery and matching database/key
-restore remain the separate gates in [key-management.md](../security/key-management.md).
+Root-key custody and matching database/key restore remain the separate
+gates in [key-management.md](../security/key-management.md).
 
 ## One owner for enforcement and accounting
 
@@ -118,7 +118,7 @@ reformatting a node requires evacuating its existing data first. A single-host
 region needs external landing capacity. Do not promise a migration without
 spare capacity or a filesystem switch triggered by an ordinary pod restart.
 
-Before merge, qualify the real CSI/key-service/OpenBao path on staging with
+Before merge, qualify the real CSI/key-service path on staging with
 restart, outage, concurrency, retained-volume and pressure cases; repeat
 benchmarks against the production-style shared-XFS control on the same host.
 Rehearse interrupted migration and rollback. Rollback disables new enrollment

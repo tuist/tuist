@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "2cc9c70ad89fc6f5efc4334f9d42738dcb1455e2b1adb4556639a5730ec2bba5",
+  "hash": "599c9daad41d4090733cab0f475868542b5aa8ba4842e16d7cc31bb5fc9fadb3",
   "hash_tree": {
     "root": {
       "children": [
@@ -35,7 +35,7 @@
                   "content_hash": "8aaf5c9abf7b8885bbf50c115f609fb241f85145e2d4cc9ee125b3c522b1c1b5"
                 },
                 "### Choose an enrollment policy {#choose-an-enrollment-policy}": {
-                  "content_hash": "b50c68bf31d4b1c20fc4dce8212f668e0bcb19e88ee8f04207aa541691b905bf"
+                  "content_hash": "854599b1054c5fd99d19f23e9b11d1d5f9cc9af378cd7c2df0b0adc33001b806"
                 },
                 "### Choose the role enrolled members get {#choose-the-enrollment-role}": {
                   "content_hash": "8904e328ae21f7bb036e0ad74e2076f13edb288b0602342de530444610f0826f"
@@ -98,11 +98,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "268ea990a1ae73dd858b69b8e367ae39805d4ed6c3461dc5eb69bc47aa8618ff",
+          "hash": "869e371a746d60a866343b6eb38ddadee5f3a8dee8340fdbee3135c651eb777b",
           "kind": "source",
           "label": "server/priv/docs/en/guides/integrations/authentication/sso.md",
           "metadata": {
-            "content_hash": "042578c7c219b90cff4985ec0e940413ea6363321f4f99b611e853900ab3d250"
+            "content_hash": "a0ea76bd343c500a13ea1fae1b78274dff7af1243edb68b474fa0e7c3988d825"
           }
         },
         {
@@ -298,14 +298,14 @@
         }
       ],
       "details": {},
-      "hash": "2cc9c70ad89fc6f5efc4334f9d42738dcb1455e2b1adb4556639a5730ec2bba5",
+      "hash": "599c9daad41d4090733cab0f475868542b5aa8ba4842e16d7cc31bb5fc9fadb3",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/integrations/authentication/sso.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "1490f9114e0f28f535152216cf6a2bf045013d8cdeb028b28a7762b8cd91a255",
+  "output_hash": "22eeaefc082fa5121d5fa0abf3610df18e5e774179a52a4b1e9d5588691049b4",
   "output_path": "server/priv/docs/ko/guides/integrations/authentication/sso.md",
   "protection_state": "recorded",
   "provider": "",
@@ -323,8 +323,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "48b5c3fa3af11d67e1f20100ad034813e56b8a2f",
+  "source_commit_sha": "f3b52931f314aa90655f3fa241917849be3b2b35",
   "source_path": "server/priv/docs/en/guides/integrations/authentication/sso.md",
-  "translated_at": "2026-11-02T15:45:52.719952Z",
-  "translation_session_id": "01a19cea-0ae5-74c6-87ac-7d85d7430613"
+  "translated_at": "2026-11-03T13:39:21.277237Z",
+  "translation_session_id": "01a1a1a1-2f45-7ca0-9f53-5c3600d4353c"
 }
