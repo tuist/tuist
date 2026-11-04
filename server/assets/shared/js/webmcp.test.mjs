@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { registerNavigationTools, registerWebMCPTools } from "./webmcp.mjs";
+import { registerDocsNavigationTool, registerNavigationTools, registerWebMCPTools } from "./webmcp.mjs";
 
 const listProjects = {
   name: "list_projects",
@@ -330,4 +330,79 @@ test("navigates only to listed pages, and resolves once a live navigation has re
     reloading: true,
   });
   assert.deepEqual(clicks, ["/acme/app", "/other/projects"]);
+});
+
+async function docsTool({ pages = {} } = {}) {
+  const modelContext = fakeModelContext();
+  const target = new EventTarget();
+  const location = { origin: "https://tuist.dev", pathname: "/en/docs/guides/install-tuist", hash: "" };
+  const document = { title: "Install Tuist" };
+  const navigations = [];
+  const visit = (kind) => (href) => {
+    navigations.push([kind, href]);
+    const url = new URL(href, location.origin);
+    Object.assign(location, { pathname: url.pathname, hash: url.hash });
+    document.title = pages[url.pathname] ?? "Untitled";
+    if (kind === "patch")
+      setTimeout(() => target.dispatchEvent(new CustomEvent("phx:page-loading-stop", { detail: { kind } })));
+  };
+  const liveSocket = { js: () => ({ patch: visit("patch"), navigate: visit("navigate") }) };
+  // Answers HEAD requests for the paths in `pages`, following `redirects`.
+  const redirects = { "/ja/docs/guides/features/cache": "/en/docs/guides/features/cache" };
+  const fetch = async (href) => {
+    const url = new URL(href);
+    const finalPath = redirects[url.pathname] ?? url.pathname;
+    return { ok: finalPath in pages, url: `${url.origin}${finalPath}` };
+  };
+  await registerDocsNavigationTool({ modelContext, liveSocket, document, location, fetch, target, timeout: 50 });
+  return { tool: modelContext.tools.get("navigate_to_docs_page"), navigations };
+}
+
+test("opens same-origin docs pages by URL or path once they have rendered", async () => {
+  const pages = { "/en/docs/guides/features/cache": "Cache", "/en/docs": "Docs", "/es/docs/guides": "Guías" };
+  const { tool, navigations } = await docsTool({ pages });
+
+  assert.deepEqual(await tool.execute({ path: "https://tuist.dev/en/docs/guides/features/cache#binary-cache" }), {
+    path: "/en/docs/guides/features/cache#binary-cache",
+    title: "Cache",
+  });
+  assert.deepEqual(await tool.execute({ path: "/en/docs" }), { path: "/en/docs", title: "Docs" });
+  // An untranslated page opens where the site redirects it.
+  assert.deepEqual(await tool.execute({ path: "/ja/docs/guides/features/cache" }), {
+    path: "/en/docs/guides/features/cache",
+    title: "Cache",
+  });
+  // Another locale's docs are another LiveView session, which reloads.
+  assert.deepEqual(await tool.execute({ path: "/es/docs/guides" }), { path: "/es/docs/guides", reloading: true });
+
+  assert.deepEqual(navigations, [
+    ["patch", "/en/docs/guides/features/cache#binary-cache"],
+    ["patch", "/en/docs"],
+    ["patch", "/en/docs/guides/features/cache"],
+    ["navigate", "/es/docs/guides"],
+  ]);
+});
+
+test("refuses anything but an existing same-origin docs page", async () => {
+  const { tool, navigations } = await docsTool({ pages: { "/en/docs": "Docs" } });
+  const refused = [
+    "https://evil.example/en/docs/guides",
+    "//evil.example/en/docs",
+    "javascript:alert(1)",
+    "/en/blog/post",
+    "/en/docs-markdown/guides",
+    "/en/docs/../../tuist/projects",
+    "/tuist/tuist/builds",
+  ];
+
+  for (const path of refused) {
+    const result = await tool.execute({ path });
+    assert.equal(result.isError, true, path);
+    assert.match(result.error, /is not a Tuist documentation page/, path);
+  }
+  assert.deepEqual(await tool.execute({ path: "/en/docs/nope" }), {
+    isError: true,
+    error: "There is no documentation page at /en/docs/nope.",
+  });
+  assert.deepEqual(navigations, []);
 });
