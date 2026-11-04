@@ -64,7 +64,7 @@
 
     ol {
       margin: 0;
-      padding-left: var(--noora-spacing-7);
+      padding-inline-start: var(--noora-spacing-7);
     }
 
     li + li {

@@ -385,6 +385,8 @@ defmodule Tuist.Application do
           Cache,
           {Phoenix.PubSub, name: Tuist.PubSub},
           Tuist.Sandboxes.NodePresence,
+          {DynamicSupervisor, name: Tuist.RemoteExecution.Schedulers, strategy: :one_for_one},
+          {Task.Supervisor, name: Tuist.RemoteExecution.Tasks},
           Tuist.KeyValueStore.Invalidator,
           {Tuist.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
           {Tuist.API.Pipeline, []},

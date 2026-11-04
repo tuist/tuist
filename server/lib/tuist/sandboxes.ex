@@ -181,7 +181,7 @@ defmodule Tuist.Sandboxes do
   end
 
   defp filtered_sandboxes(%Account{id: account_id}, opts) do
-    from(s in Sandbox, where: s.account_id == ^account_id and s.state != ^:deleted)
+    from(s in Sandbox, where: s.account_id == ^account_id and s.state != ^:deleted and s.purpose == :agent)
     |> where_search(Keyword.get(opts, :search))
     |> where_status(Keyword.get(opts, :status))
     |> where_vcpus(Keyword.get(opts, :vcpus))
@@ -226,7 +226,7 @@ defmodule Tuist.Sandboxes do
   def sandbox_vcpus(%Account{id: account_id}) do
     Repo.all(
       from s in Sandbox,
-        where: s.account_id == ^account_id and s.state != ^:deleted,
+        where: s.account_id == ^account_id and s.state != ^:deleted and s.purpose == :agent,
         distinct: true,
         order_by: s.vcpus,
         select: s.vcpus
@@ -241,7 +241,7 @@ defmodule Tuist.Sandboxes do
     counts =
       Repo.all(
         from s in Sandbox,
-          where: s.account_id == ^account_id and s.state != ^:deleted,
+          where: s.account_id == ^account_id and s.state != ^:deleted and s.purpose == :agent,
           group_by: s.state,
           select: {s.state, count(s.id)}
       )
@@ -258,7 +258,7 @@ defmodule Tuist.Sandboxes do
   def list_sandboxes_idle_before(%DateTime{} = cutoff) do
     Repo.all(
       from s in Sandbox,
-        where: is_nil(s.amp_orb_id),
+        where: is_nil(s.amp_orb_id) and s.purpose == :agent,
         where:
           (s.state == :paused and coalesce(s.paused_at, s.updated_at) < ^cutoff) or
             (s.state == :error and s.updated_at < ^cutoff),
@@ -268,7 +268,7 @@ defmodule Tuist.Sandboxes do
 
   def get_sandbox(%Account{id: account_id}, id) do
     with {:ok, uuid} <- Ecto.UUID.cast(id),
-         %Sandbox{} = sandbox <- Repo.get_by(Sandbox, id: uuid, account_id: account_id) do
+         %Sandbox{} = sandbox <- Repo.get_by(Sandbox, id: uuid, account_id: account_id, purpose: :agent) do
       {:ok, sandbox}
     else
       _ -> {:error, :not_found}
@@ -304,6 +304,8 @@ defmodule Tuist.Sandboxes do
   sandbox or the clone fails, the sandbox boots from the template instead.
   """
   def create_sandbox(%Account{id: account_id}, attrs \\ %{}, opts \\ []) when is_map(attrs) do
+    attrs = Map.drop(attrs, [:purpose, "purpose"])
+
     attrs =
       @default_shape
       |> Map.put(:template, @default_template)
@@ -984,7 +986,7 @@ defmodule Tuist.Sandboxes do
     stuck_before = DateTime.add(now(), -@stuck_after_seconds, :second)
 
     Sandbox
-    |> where([s], s.node_name == ^node_name and s.id not in ^reported_ids)
+    |> where([s], s.node_name == ^node_name and s.id not in ^reported_ids and s.purpose == :agent)
     |> where(
       [s],
       s.state in ^[:running, :paused, :resuming] or (s.state == :creating and s.updated_at < ^stuck_before)
@@ -1001,6 +1003,9 @@ defmodule Tuist.Sandboxes do
   def reconcile_node_report(_node_name, _report), do: :ok
 
   defp reconcile_reported(%Sandbox{state: :deleted}, _node_name, _reported), do: :ok
+
+  # Execution VMs are tracked by their scheduler and lease, not node reports.
+  defp reconcile_reported(%Sandbox{purpose: :remote_execution}, _node_name, _reported), do: :ok
 
   # Archiving deletes the jail after the row is archived; a node that missed
   # that delete still lists it.

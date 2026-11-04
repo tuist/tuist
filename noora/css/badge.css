@@ -11,11 +11,11 @@
   }
 
   &[data-icon] {
-    padding-left: var(--noora-spacing-2);
+    padding-inline-start: var(--noora-spacing-2);
   }
 
   &[data-dot] {
-    padding-left: var(--noora-spacing-0);
+    padding-inline-start: var(--noora-spacing-0);
   }
 
   &[data-icon-only] {

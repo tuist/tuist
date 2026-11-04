@@ -439,7 +439,7 @@
                 position: absolute;
                 top: calc(2 * var(--u));
                 bottom: calc(2 * var(--u));
-                left: calc(2 * var(--u));
+                inset-inline-start: calc(2 * var(--u));
                 background: repeating-linear-gradient(
                   90deg,
                   var(--dot) 0 calc(4 * var(--u)),
@@ -450,7 +450,7 @@
 
               &::before {
                 --dot: var(--marketing-illustration-neutral-4);
-                right: calc(2 * var(--u));
+                inset-inline-end: calc(2 * var(--u));
               }
 
               /* Lit dots: whole dots only, --dots of the 40 (the hook rounds

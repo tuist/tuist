@@ -20,15 +20,16 @@ import (
 )
 
 const (
-	KernelFile   = "vmlinux"
-	RootfsFile   = "rootfs.ext4"
-	BootRootfs   = "rootfs.boot.ext4"
-	MemFile      = "memfile"
-	SnapshotFile = "snapshot"
-	MetadataFile = "metadata.json"
-	ReadyFile    = "ready"
-	shapesDir    = "shapes"
-	buildSuffix  = ".building"
+	KernelFile    = "vmlinux"
+	RootfsFile    = "rootfs.ext4"
+	BootRootfs    = "rootfs.boot.ext4"
+	BootWorkspace = "workspace.empty.ext4"
+	MemFile       = "memfile"
+	SnapshotFile  = "snapshot"
+	MetadataFile  = "metadata.json"
+	ReadyFile     = "ready"
+	shapesDir     = "shapes"
+	buildSuffix   = ".building"
 )
 
 // Shape is the vCPU and memory size a snapshot was taken with. A snapshot
@@ -92,6 +93,7 @@ type Metadata struct {
 	VCPUs              int       `json:"vcpus"`
 	MemoryMB           int       `json:"memory_mb"`
 	WorkspaceGB        int       `json:"workspace_gb"`
+	WorkspacePrepared  bool      `json:"workspace_prepared,omitempty"`
 	FirecrackerVersion string    `json:"firecracker_version"`
 	BuiltAt            time.Time `json:"built_at"`
 }
@@ -148,11 +150,12 @@ func (t Template) ReadyShapes() []Shape {
 
 // Artifacts are the files a sandbox is created from.
 type Artifacts struct {
-	Dir      string
-	Rootfs   string
-	Memfile  string
-	Snapshot string
-	Meta     Metadata
+	Dir       string
+	Rootfs    string
+	Workspace string
+	Memfile   string
+	Snapshot  string
+	Meta      Metadata
 }
 
 var ErrShapeNotReady = errors.New("template shape snapshot not built")
@@ -171,11 +174,12 @@ func (t Template) Artifacts(shape Shape) (Artifacts, error) {
 		return Artifacts{}, fmt.Errorf("decoding %s: %w", filepath.Join(dir, MetadataFile), err)
 	}
 	return Artifacts{
-		Dir:      dir,
-		Rootfs:   filepath.Join(dir, BootRootfs),
-		Memfile:  filepath.Join(dir, MemFile),
-		Snapshot: filepath.Join(dir, SnapshotFile),
-		Meta:     meta,
+		Dir:       dir,
+		Rootfs:    filepath.Join(dir, BootRootfs),
+		Workspace: filepath.Join(dir, BootWorkspace),
+		Memfile:   filepath.Join(dir, MemFile),
+		Snapshot:  filepath.Join(dir, SnapshotFile),
+		Meta:      meta,
 	}, nil
 }
 

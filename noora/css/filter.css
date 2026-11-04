@@ -7,13 +7,13 @@
   padding: var(--noora-spacing-1) var(--noora-spacing-3);
 
   & > :not(:first-child) {
-    margin-left: var(--noora-spacing-3);
+    margin-inline-start: var(--noora-spacing-3);
   }
 
   & > :not(:last-child) {
-    border-right: 1px solid;
+    border-inline-end: 1px solid;
     border-color: var(--noora-surface-border-primary);
-    padding-right: var(--noora-spacing-3);
+    padding-inline-end: var(--noora-spacing-3);
   }
 
   & [data-part="label"] {

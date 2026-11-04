@@ -135,7 +135,7 @@ defmodule Tuist.Accounts.AirUsageEmailTest do
         notification(80)
       )
 
-    assert email.html_body =~ ~s(<html lang="es">)
+    assert email.html_body =~ ~s(<html lang="es" dir="ltr">)
     assert email.html_body =~ "Octubre 1, 2026"
     assert email.text_body =~ "Octubre 1, 2026"
     assert Gettext.get_locale(TuistWeb.Gettext) == previous_locale
@@ -151,6 +151,17 @@ defmodule Tuist.Accounts.AirUsageEmailTest do
 
     assert email.html_body =~ "2026-10-01"
     assert email.text_body =~ "2026-10-01"
+  end
+
+  test "lays out right-to-left locales from the right" do
+    email =
+      UserNotifier.air_usage_email(
+        %{email: "admin@example.com", preferred_locale: "ar"},
+        %{name: "acme"},
+        notification(80)
+      )
+
+    assert email.html_body =~ ~s(<html lang="ar" dir="rtl">)
   end
 
   defp notification(threshold) do

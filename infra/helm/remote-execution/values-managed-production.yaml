@@ -1,0 +1,11 @@
+# Deployed by .github/workflows/remote-execution-deployment.yml into the
+# cluster's sandbox namespace (tuist-sandboxes). Image tags come from the
+# workflow. Keep it disabled until the env has hosts labelled and tainted
+# tuist.dev/workload=remote-execution, excluded from every CI RunnerPool.
+enabled: false
+serverURL: http://tuist-tuist-server.tuist.svc.cluster.local:80
+serverNamespace: tuist
+gateway:
+  ingress:
+    enabled: true
+    host: execution.tuist.dev

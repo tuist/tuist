@@ -651,6 +651,46 @@ case System.get_env("MCP_PROXY_SERVERS") do
             shared_oauth: true,
             shared_oauth_user_email: System.get_env("SENTRY_MCP_SHARED_USER_EMAIL"),
             bearer_token: System.get_env("SENTRY_MCP_BEARER_TOKEN")
+          },
+          # OVHcloud's MCP server serves one API section per URL, and every
+          # fleet is on the OVHcloud US account. Each person connects their own
+          # OVH login, which can reinstall, reboot and terminate servers, so
+          # only the named reads are proxied. OVH's tools carry no readOnlyHint,
+          # which is why this enumerates them rather than using read_only.
+          # Reinstalls, renames and prep stay human steps.
+          %{
+            name: "ovh-servers",
+            url: "https://mcp.us.ovhcloud.com/mcp/v1_dedicated_server",
+            auth_type: "oauth2",
+            authorization_url: "https://mcp.us.ovhcloud.com/oauth-proxy/authorization",
+            token_url: "https://mcp.us.ovhcloud.com/oauth-proxy/token",
+            registration_url: "https://mcp.us.ovhcloud.com/oauth-proxy/register",
+            scopes: ["all"],
+            tool_allowlist: [
+              "get-dedicated-server-list",
+              "get-dedicated-server-details",
+              "get-dedicated-server-service-infos",
+              "get-dedicated-server-install-status",
+              "get-dedicated-server-hardware-specs",
+              "get-dedicated-server-network-specs",
+              "list-dedicated-server-tasks",
+              "get-dedicated-server-task-details",
+              "list-dedicated-server-vracks",
+              "list-dedicated-server-planned-interventions",
+              "list-dedicated-server-datacenter-availabilities"
+            ]
+          },
+          # A server's displayName (the fleet adoption prefix) lives on its
+          # service, not under /dedicated/server.
+          %{
+            name: "ovh-services",
+            url: "https://mcp.us.ovhcloud.com/mcp/v1_services",
+            auth_type: "oauth2",
+            authorization_url: "https://mcp.us.ovhcloud.com/oauth-proxy/authorization",
+            token_url: "https://mcp.us.ovhcloud.com/oauth-proxy/token",
+            registration_url: "https://mcp.us.ovhcloud.com/oauth-proxy/register",
+            scopes: ["all"],
+            tool_allowlist: ["get-service-list", "get-service-details"]
           }
         ]
     end

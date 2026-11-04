@@ -121,6 +121,10 @@ struct CargoCompilationCacheTests {
             "macro_rules! library { () => { core::arch::${concat(global_, a, sm)}!(\"nop\"); } }",
             "macro_rules! library { () => { $\u{2003}{\u{2003}concat(global_, a, sm)} } }",
             "#![feature(macro_metavar_expr_concat)]\nmacro_rules! library { () => { ${ /* gap */ concat(global_, a, sm)} } }",
+            "pub const OPEN: &str = \"/*\"; core::arch::global_asm!(\"nop\");",
+            "pub const QUOTE: char = '\"'; core::arch::global_asm!(\"nop\");",
+            "pub const RAW: &str = r#\"\"// \"#; core::arch::global_asm!(\"nop\");",
+            "/* unterminated asm",
         ] {
             try Data(source.utf8).write(to: fixture.source)
             await #expect(throws: CargoCacheInvocation.CacheError.self) {
@@ -133,6 +137,8 @@ struct CargoCompilationCacheTests {
             "pub fn library() -> Vec<u8> { [b\"tracked\", b\" input\"].concat() }",
             "pub fn blink() {} pub use core::concat;",
             "pub fn éasmé() {} pub use core::concat;",
+            "/// Follows a symbolic link, like the `asm` file type.\npub fn library<'a>(link: &'a str) -> &'a str { link }",
+            "pub const TYPES: &[&str] = &[\"asm\", r#\"link(\"#]; /* naked_asm /* nested */ */ pub use core::concat;",
         ] {
             try Data(source.utf8).write(to: fixture.source)
             #expect(try await fixture.prepare()?.compilerInputs != nil)
@@ -146,11 +152,18 @@ struct CargoCompilationCacheTests {
         let generated = fixture.root.appendingPathComponent("generated.rs")
         try Data("pub fn generated() {}".utf8).write(to: generated)
         let report = "artifact: \(fixture.source.path) \(generated.path)\n"
-        try report.write(to: fixture.root.appendingPathComponent("probe.d"), atomically: true, encoding: .utf8)
         let arguments = fixture.invocation.arguments + [
             "--extern", "dependency=\(dependency.path)", "-L", "dependency=\(fixture.output.path)",
         ]
-        let original = try #require(await fixture.prepare(arguments: arguments))
+        let deferred = try #require(await fixture.prepare(arguments: arguments))
+        #expect(deferred.isDeferred)
+        let depInfo = fixture.output.appendingPathComponent(fixture.invocation.files[2])
+        let fixtureDepInfo = try Data(contentsOf: depInfo)
+        try report.write(to: depInfo, atomically: true, encoding: .utf8)
+        let original = try #require(await deferred.refreshed(remote: nil))
+        try fixtureDepInfo.write(to: depInfo)
+        #expect(original.compilerInputs?.sources.map(\.lastPathComponent).sorted() == ["generated.rs", "lib.rs"])
+        #expect(try await fixture.prepare(arguments: arguments)?.key == original.key)
         try Data("unrelated".utf8).write(to: dependency.deletingLastPathComponent().appendingPathComponent("unrelated.rlib"))
         #expect(try await fixture.prepare(arguments: arguments)?.key == original.key)
         try Data("pub fn changed() {}".utf8).write(to: generated)
@@ -159,7 +172,7 @@ struct CargoCompilationCacheTests {
         try Data("changed dependency".utf8).write(to: dependency)
         await #expect(throws: CargoCacheInvocation.CacheError.self) { try await fixture.prepare(arguments: arguments) }
         try fixture.invocation.certifyOutputs()
-        #expect(try await fixture.prepare(arguments: arguments)?.key != original.key)
+        #expect(try await fixture.prepare(arguments: arguments)?.isDeferred == true)
     }
 
     @Test(.inTemporaryDirectory) func inspectsIncludedNonRustFilesBeforeCertifyingRegistryLibraries() async throws {
@@ -167,16 +180,18 @@ struct CargoCompilationCacheTests {
         let included = fixture.source.deletingLastPathComponent().appendingPathComponent("generated.txt")
         try Data("include!(\"generated.txt\");".utf8).write(to: fixture.source)
         try "artifact: \(fixture.source.path) \(included.path)\n".write(
-            to: fixture.root.appendingPathComponent("probe.d"), atomically: true, encoding: .utf8
+            to: fixture.output.appendingPathComponent(fixture.invocation.files[2]), atomically: true, encoding: .utf8
         )
-        try Data("pub fn generated() {}".utf8).write(to: included)
-        #expect(try await fixture.prepare()?.compilerInputs != nil)
-        try Data("core::arch::global_asm!(\".include \\\"hidden.s\\\"\");".utf8).write(to: included)
-        await #expect(throws: CargoCacheInvocation.CacheError.self) { try await fixture.prepare() }
-        try Data(repeating: 65, count: 2_000_000).write(to: included)
-        #expect(try await fixture.prepare()?.compilerInputs != nil)
-        try Data(repeating: 65, count: 2_000_001).write(to: included)
-        await #expect(throws: CargoCacheInvocation.CacheError.self) { try await fixture.prepare() }
+        func keyed(_ content: Data) async throws -> CargoCacheInvocation? {
+            try content.write(to: included)
+            let invocation = try #require(await fixture.prepare())
+            #expect(invocation.isDeferred)
+            return invocation.keyedFromDepInfo()
+        }
+        #expect(try await keyed(Data("pub fn generated() {}".utf8)) != nil)
+        #expect(try await keyed(Data("core::arch::global_asm!(\".include \\\"hidden.s\\\"\");".utf8)) == nil)
+        #expect(try await keyed(Data(repeating: 65, count: 2_000_000)) != nil)
+        #expect(try await keyed(Data(repeating: 65, count: 2_000_001)) == nil)
     }
 
     @Test(.inTemporaryDirectory) func rejectsUncertifiedDependenciesAndProceduralMacros() async throws {
@@ -208,11 +223,12 @@ struct CargoCompilationCacheTests {
         let bin = fixture.root.appendingPathComponent("proxy-bin")
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
         let rustup = bin.appendingPathComponent("rustup")
-        try "#!/bin/sh\nprintf '%s\\n' '\(fixture.invocation.toolchain.path)'\n".write(
-            to: rustup,
-            atomically: true,
-            encoding: .utf8
-        )
+        try "#!/bin/sh\nprintf '%s\\n' '\(fixture.invocation.toolchain.path)' '\(fixture.invocation.hostTarget.path)/lib'\n"
+            .write(
+                to: rustup,
+                atomically: true,
+                encoding: .utf8
+            )
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: rustup.path)
         let rustc = bin.appendingPathComponent("rustc")
         try FileManager.default.createSymbolicLink(at: rustc, withDestinationURL: rustup)
@@ -237,11 +253,12 @@ struct CargoCompilationCacheTests {
         let bin = fixture.root.appendingPathComponent("proxy-bin")
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
         let rustc = bin.appendingPathComponent("rustc")
-        try "#!/bin/sh\nprintf '%s\\n' '\(fixture.invocation.toolchain.path)'\n".write(
-            to: rustc,
-            atomically: true,
-            encoding: .utf8
-        )
+        try "#!/bin/sh\nprintf '%s\\n' '\(fixture.invocation.toolchain.path)' '\(fixture.invocation.hostTarget.path)/lib'\n"
+            .write(
+                to: rustc,
+                atomically: true,
+                encoding: .utf8
+            )
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: rustc.path)
         var environment = fixture.invocation.environment
         environment["PATH"] = "\(bin.path):/usr/bin:/bin"
@@ -329,17 +346,18 @@ struct CargoCompilationCacheTests {
         #expect(try await fixture.cache().restoreLocally())
     }
 
-    @Test(.inTemporaryDirectory) func renderedDiagnosticsAndUnexpectedStreamsAreNeverCached() async throws {
+    @Test(.inTemporaryDirectory) func diagnosticsReplayOnlyAtTheirWidthAndUnexpectedStreamsAreNeverCached() async throws {
         let fixture = try await fixture()
-        for diagnostic in [
-            Data("warning: terminal-specific rendering".utf8),
-            Data(#"{"$message_type":"diagnostic","rendered":"warning: narrow terminal"}"#.utf8),
-        ] {
-            try await fixture.cache().store(stdout: Data(), stderr: diagnostic)
-            #expect(try await fixture.cache().restoreLocally() == false)
-        }
+        try await fixture.cache().store(stdout: Data(), stderr: Data("warning: terminal-specific rendering".utf8))
+        #expect(try await fixture.cache().restoreLocally() == false)
         try await fixture.cache().store(stdout: Data("unexpected compiler output".utf8), stderr: Data())
         #expect(try await fixture.cache().restoreLocally() == false)
+        let narrow = try #require(await fixture.prepare(arguments: fixture.invocation.arguments + ["--diagnostic-width=80"]))
+        let diagnostic = Data(#"{"$message_type":"diagnostic","rendered":"warning: narrow terminal"}"#.utf8)
+        try await fixture.cache(invocation: narrow).store(stdout: Data(), stderr: diagnostic)
+        try fixture.removeOutputs()
+        #expect(try await fixture.cache().restoreLocally() == false)
+        #expect(try await fixture.cache(invocation: narrow).restoreLocally())
     }
 
     @Test(.inTemporaryDirectory) func neverReplaysTerminalSpecificRemoteCompilerStreams() async throws {
@@ -524,7 +542,7 @@ struct CargoCompilationCacheTests {
 
     @Test(.inTemporaryDirectory) func cacheFailureDoesNotReplaceCompilerExitStatus() async throws {
         let fixture = try await fixture()
-        let script = "#!/bin/sh\nif [ \"$1\" = --print ]; then printf '%s' '\(fixture.invocation.toolchain.path)'; else exit 31; fi\n"
+        let script = "#!/bin/sh\nif [ \"$1\" = --print ]; then printf '%s\\n' '\(fixture.invocation.toolchain.path)' '\(fixture.invocation.hostTarget.path)/lib'; else exit 31; fi\n"
         try script.write(to: fixture.invocation.compiler, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fixture.invocation.compiler.path)
         do {
@@ -838,7 +856,8 @@ struct CargoCompilationCacheTests {
         let package = root.appendingPathComponent("cargo/registry/src/test/tiny")
         let toolchain = root.appendingPathComponent("toolchain")
         let output = root.appendingPathComponent("output")
-        for folder in [package, toolchain.appendingPathComponent("lib"), toolchain.appendingPathComponent("bin"), output] {
+        let hostLibraries = toolchain.appendingPathComponent("lib/rustlib/host/lib")
+        for folder in [package, hostLibraries, toolchain.appendingPathComponent("bin"), output] {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         }
         let source = package.appendingPathComponent("lib.rs")
@@ -848,7 +867,7 @@ struct CargoCompilationCacheTests {
         try "artifact: \(escaped)\n".write(to: root.appendingPathComponent("probe.d"), atomically: true, encoding: .utf8)
         try """
         #!/bin/sh
-        if [ "$1" = --print ]; then printf '%s' '\(toolchain.path)'; exit 0; fi
+        if [ "$1" = --print ]; then printf '%s\\n' '\(toolchain.path)' '\(hostLibraries.path)'; exit 0; fi
         for argument in "$@"; do
           case "$argument" in
             --emit=dep-info=*)

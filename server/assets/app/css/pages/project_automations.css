@@ -186,7 +186,7 @@
         }
 
         & > [data-part="form-section-header-action"] {
-          margin-left: auto;
+          margin-inline-start: auto;
         }
 
         & [data-part="title"] {
@@ -274,7 +274,7 @@
       }
 
       & > .noora-button[data-variant="secondary"] {
-        margin-left: auto;
+        margin-inline-start: auto;
       }
     }
 
@@ -395,7 +395,7 @@
     padding: var(--noora-spacing-5) 0 0;
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-    text-align: left;
+    text-align: start;
   }
 
   [data-part="body"] {
@@ -427,7 +427,7 @@
     padding: 0;
     width: 100%;
     color: var(--noora-surface-label-primary);
-    text-align: left;
+    text-align: start;
   }
 
   [data-part="section-heading"] {

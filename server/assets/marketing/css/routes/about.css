@@ -191,8 +191,8 @@
     padding: var(--noora-spacing-14) var(--noora-spacing-4) var(--noora-spacing-4);
 
     @media (min-width: 1024px) {
-      margin-right: 0;
-      margin-left: 0;
+      margin-inline-start: 0;
+      margin-inline-end: 0;
       width: 100%;
       max-width: 1200px;
     }

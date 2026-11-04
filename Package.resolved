@@ -1,5 +1,5 @@
 {
-  "originHash" : "82348b304c0c843768c19d49b885baf254818abff843332ba96dc4c387284faf",
+  "originHash" : "c3a0f5dd6cf0d1e0e8ff44dd08dbc94a1e8ad00d1dd4de89b25d15d867beb7e7",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -104,7 +104,7 @@
       "identity" : "apple.swift-log",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-log.git",
+      "originalLocation" : "https://github.com/apple/swift-log",
       "state" : {
         "version" : "1.13.2"
       }
@@ -653,15 +653,6 @@
       }
     },
     {
-      "identity" : "testcoverageattribution",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/TestCoverageAttribution",
-      "state" : {
-        "revision" : "f94fe52332b1baf46b18ba054ac82edc2ec5a950",
-        "version" : "0.3.1"
-      }
-    },
-    {
       "identity" : "tid-kijyun.kanna",
       "kind" : "registry",
       "location" : "",
@@ -709,6 +700,14 @@
       "location" : "",
       "state" : {
         "version" : "0.2.0"
+      }
+    },
+    {
+      "identity" : "tuist.TestCoverageAttribution",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.3.1"
       }
     },
     {

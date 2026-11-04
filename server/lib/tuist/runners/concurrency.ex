@@ -257,8 +257,19 @@ defmodule Tuist.Runners.Concurrency do
 
   @doc """
   Whether the account's concurrency limit held a job of shape `requested`
-  back at any of `instants`: the account's runner sessions open at that
-  instant, plus the job, exceed its limit for `platform`.
+  back at any instant between `from` and `to`: the account's runner
+  sessions open at that instant, plus the job, exceed its limit for
+  `platform`.
+
+  The whole window counts, not only its ends. Under a sustained limit a
+  job can be enqueued while a slot is free and claimed just after one
+  frees, yet spend the wait in between behind its own account's runners;
+  GitHub hands each freed slot to any of the account's queued jobs, so
+  which one waits is not the fleet's doing.
+
+  Usage only rises when a session opens, so its peak over the window is
+  at `from` or at a session start inside it. Those instants are checked
+  against the sessions overlapping the window, read in one query.
 
   Reads sessions rather than claims because it looks back, and a claim is
   gone once released. A session opens with its claim's timestamp, so it
@@ -267,29 +278,50 @@ defmodule Tuist.Runners.Concurrency do
   An account without a limit row, or a job without a shape, reads `false`:
   neither is a limit the account chose.
   """
-  def limit_held?(account_id, platform, %{vcpus: _, memory_gb: _} = requested, instants)
-      when is_integer(account_id) and platform in @platforms and is_list(instants) do
+  def limit_held?(account_id, platform, %{vcpus: _, memory_gb: _} = requested, %DateTime{} = from, %DateTime{} = to)
+      when is_integer(account_id) and platform in @platforms do
     with true <- valid_capacity?(requested),
          {:ok, limit} <- limit_for_platform(account_id, platform) do
-      Enum.any?(instants, &(not fits?(session_usage_at(account_id, platform, &1), limit, requested)))
+      sessions = sessions_overlapping(account_id, platform, from, to)
+
+      sessions
+      |> Enum.map(& &1.started_at)
+      |> Enum.filter(&(DateTime.after?(&1, from) and not DateTime.after?(&1, to)))
+      |> then(&[from | &1])
+      |> Enum.any?(&(not fits?(usage_at(sessions, &1), limit, requested)))
     else
       _ -> false
     end
   end
 
-  def limit_held?(_account_id, _platform, _requested, _instants), do: false
+  def limit_held?(_account_id, _platform, _requested, _from, _to), do: false
 
-  defp session_usage_at(account_id, platform, %DateTime{} = instant) do
-    oldest_open = DateTime.add(instant, -RunnerSessions.max_session_lifetime_seconds(), :second)
+  defp sessions_overlapping(account_id, platform, from, to) do
+    oldest_open = DateTime.add(from, -RunnerSessions.max_session_lifetime_seconds(), :second)
 
-    Repo.one(
+    Repo.all(
       from(session in RunnerSession,
         where:
-          session.account_id == ^account_id and session.platform == ^platform and session.started_at <= ^instant and
-            session.started_at > ^oldest_open and (is_nil(session.ended_at) or session.ended_at > ^instant),
-        select: %{vcpus: coalesce(sum(session.vcpus), 0), memory_gb: coalesce(sum(session.memory_gb), 0)}
+          session.account_id == ^account_id and session.platform == ^platform and session.started_at <= ^to and
+            session.started_at > ^oldest_open and (is_nil(session.ended_at) or session.ended_at > ^from),
+        select: map(session, [:started_at, :ended_at, :vcpus, :memory_gb])
       )
     )
+  end
+
+  # The six-hour bound applies per instant, as it does to an open session
+  # whose close was never recorded.
+  defp usage_at(sessions, instant) do
+    oldest_open = DateTime.add(instant, -RunnerSessions.max_session_lifetime_seconds(), :second)
+
+    sessions
+    |> Enum.filter(fn session ->
+      not DateTime.after?(session.started_at, instant) and DateTime.after?(session.started_at, oldest_open) and
+        (is_nil(session.ended_at) or DateTime.after?(session.ended_at, instant))
+    end)
+    |> Enum.reduce(%{vcpus: 0, memory_gb: 0}, fn session, usage ->
+      %{vcpus: usage.vcpus + session.vcpus, memory_gb: usage.memory_gb + session.memory_gb}
+    end)
   end
 
   defp limits_for_accounts([], _platform), do: %{}
