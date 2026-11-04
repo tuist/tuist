@@ -74,6 +74,7 @@ public struct CreateTestImpactRunService: CreateTestImpactRunServicing {
         }
         let hasScope = request.scheme != nil || request.testPlan != nil || request.destination != nil
         return .init(
+            ancestor_shas: request.ancestorSHAs.isEmpty ? nil : request.ancestorSHAs,
             baseline_sha: baselineSHA,
             build_system: request.buildSystem,
             changed_files: changedFiles,

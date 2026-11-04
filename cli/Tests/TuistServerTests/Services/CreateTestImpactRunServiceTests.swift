@@ -7,11 +7,16 @@ import Testing
 struct CreateTestImpactRunServiceTests {
     private typealias Output = Operations.createTestImpactRun.Output
 
-    private func request(_ basis: TestImpactRunRequest.Basis, parentSHAs: [String] = ["base", "head"]) -> TestImpactRunRequest {
+    private func request(
+        _ basis: TestImpactRunRequest.Basis,
+        parentSHAs: [String] = ["base", "head"],
+        ancestorSHAs: [String] = []
+    ) -> TestImpactRunRequest {
         TestImpactRunRequest(
             headSHA: "head",
             commitSHA: "merge",
             parentSHAs: parentSHAs,
+            ancestorSHAs: ancestorSHAs,
             basis: basis,
             modules: ["CoreTests"],
             platform: "ios",
@@ -78,10 +83,20 @@ struct CreateTestImpactRunServiceTests {
         #expect(body.changed_files_count == nil)
     }
 
-    @Test func sendsNoParentsOutsideAMergeCommit() {
+    @Test func sendsNoParentsOrAncestorsWhenThereAreNone() {
         let body = CreateTestImpactRunService.body(for: request(.fallback(.noBaseline), parentSHAs: []))
 
         #expect(body.parent_shas == nil)
+        #expect(body.ancestor_shas == nil)
+    }
+
+    @Test func sendsTheAncestorsTheBaselineRequestSent() {
+        let body = CreateTestImpactRunService.body(for: request(
+            .fallback(.historyUnknown),
+            ancestorSHAs: ["parent", "grandparent"]
+        ))
+
+        #expect(body.ancestor_shas == ["parent", "grandparent"])
     }
 
     @Test func sendsTheFallbackReasonWithoutABaseline() {

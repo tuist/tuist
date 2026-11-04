@@ -9721,7 +9721,7 @@ components:
           x-struct:
           x-validate:
         reason:
-          description: "Why there's no baseline: `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`."
+          description: "Why there's no baseline: `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. `history_unknown` means the server's history has none of the checked-out commit, the parents and the ancestors sent: the client deepens its checkout once by 100 commits and repeats the request with `ancestor_shas`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`."
           type: string
           x-struct:
           x-validate:
@@ -9991,6 +9991,15 @@ components:
       x-validate:
     ResolveTestImpactBaselineParams:
       properties:
+        ancestor_shas:
+          description: "The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges."
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         build_system:
           description: The build system, `xcode` first. A plain string so new build systems don't need a new client.
           type: string
@@ -11954,7 +11963,7 @@ components:
           x-struct:
           x-validate:
         reason:
-          description: Why the run fell back, such as `excluded_branch`, `diff_too_large`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
+          description: Why the run fell back, such as `excluded_branch`, `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
           type: string
           x-struct:
           x-validate:
@@ -14660,6 +14669,15 @@ components:
       x-validate:
     CreateTestImpactRunParams:
       properties:
+        ancestor_shas:
+          description: The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         baseline_sha:
           description: The baseline the baseline request returned. When absent, `fallback_reason` says why.
           type: string
@@ -37060,6 +37078,15 @@ paths:
           application/json:
             schema:
               properties:
+                ancestor_shas:
+                  description: "The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges."
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
                 build_system:
                   description: The build system, `xcode` first. A plain string so new build systems don't need a new client.
                   type: string
@@ -44378,6 +44405,15 @@ paths:
           application/json:
             schema:
               properties:
+                ancestor_shas:
+                  description: The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
                 baseline_sha:
                   description: The baseline the baseline request returned. When absent, `fallback_reason` says why.
                   type: string

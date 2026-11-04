@@ -43,7 +43,7 @@ public struct ResolveTestImpactBaselineService: ResolveTestImpactBaselineServici
         serverURL: URL,
         commitSHA: String,
         parentSHAs: [String],
-        ancestorSHAs _: [String],
+        ancestorSHAs: [String],
         platform: String?,
         scheme: String?,
         testPlan: String?,
@@ -55,6 +55,7 @@ public struct ResolveTestImpactBaselineService: ResolveTestImpactBaselineServici
             let input = Operations.resolveTestImpactBaseline.Input(
                 path: .init(account_handle: handles.accountHandle, project_handle: handles.projectHandle),
                 body: .json(.init(
+                    ancestor_shas: ancestorSHAs.isEmpty ? nil : ancestorSHAs,
                     build_system: "xcode",
                     commit_sha: commitSHA,
                     parent_shas: parentSHAs.isEmpty ? nil : parentSHAs,
