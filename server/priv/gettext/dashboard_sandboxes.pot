@@ -583,16 +583,6 @@ msgstr ""
 msgid "since yesterday"
 msgstr ""
 
-#: lib/tuist_web/live/sandboxes_live.html.heex:179
-#, elixir-autogen, elixir-format
-msgid "Avg. setup"
-msgstr ""
-
-#: lib/tuist_web/live/sandboxes_live.html.heex:221
-#, elixir-autogen, elixir-format
-msgid "Avg. time to start"
-msgstr ""
-
 #: lib/tuist_web/live/sandboxes_live.html.heex:226
 #, elixir-autogen, elixir-format
 msgid "How long Tuist takes to boot a sandbox, whether from the template, from a project snapshot or by restoring it from an archive. Setup isn't included."
@@ -603,32 +593,42 @@ msgstr ""
 msgid "How long your project's .agents/setup takes in an Amp Orb started from the template. Orbs started from a project snapshot skip it, so this is where your own setup work shows."
 msgstr ""
 
+#: lib/tuist_web/live/sandboxes_live.html.heex:179
+#, elixir-autogen, elixir-format
+msgid "Avg. Setup"
+msgstr ""
+
+#: lib/tuist_web/live/sandboxes_live.html.heex:221
+#, elixir-autogen, elixir-format
+msgid "Avg. Time to start"
+msgstr ""
+
 #: lib/tuist_web/live/sandboxes_live.html.heex:180
 #, elixir-autogen, elixir-format
-msgid "p50 setup"
+msgid "p50 Setup"
 msgstr ""
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:222
 #, elixir-autogen, elixir-format
-msgid "p50 time to start"
+msgid "p50 Time to start"
 msgstr ""
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:178
 #, elixir-autogen, elixir-format
-msgid "p90 setup"
+msgid "p90 Setup"
 msgstr ""
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:220
 #, elixir-autogen, elixir-format
-msgid "p90 time to start"
+msgid "p90 Time to start"
 msgstr ""
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:177
 #, elixir-autogen, elixir-format
-msgid "p99 setup"
+msgid "p99 Setup"
 msgstr ""
 
 #: lib/tuist_web/live/sandboxes_live.html.heex:219
 #, elixir-autogen, elixir-format
-msgid "p99 time to start"
+msgid "p99 Time to start"
 msgstr ""

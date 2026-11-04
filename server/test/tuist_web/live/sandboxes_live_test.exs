@@ -109,7 +109,7 @@ defmodule TuistWeb.SandboxesLiveTest do
       render_async(lv)
 
       assert has_element?(lv, "#widget-sandboxes-created", "1")
-      assert has_element?(lv, "#widget-sandboxes-time-to-start", "p50 time to start")
+      assert has_element?(lv, "#widget-sandboxes-time-to-start", "p50 Time to start")
       refute has_element?(lv, "#widget-sandboxes-time-to-start", "No data yet")
       assert has_element?(lv, "#widget-sandboxes-setup", "No data yet")
       assert has_element?(lv, "#sandboxes-created-chart")
