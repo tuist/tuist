@@ -2,7 +2,7 @@
 # Builds the coverage test selection test bed's git history. See README.md.
 #
 #   scenarios.sh build <generated|xcodeproj|synchronized> <output-dir>
-#   scenarios.sh checkout <repo> <scenario>
+#   scenarios.sh checkout <repo> <scenario>     (<repo>: the <output-dir> of build)
 #   scenarios.sh refs <repo>
 #   scenarios.sh check <repo>
 #   scenarios.sh project <xcodeproj|synchronized>

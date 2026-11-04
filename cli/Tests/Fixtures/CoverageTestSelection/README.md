@@ -61,10 +61,18 @@ TestCoverageAttribution records.
 
 ## The history
 
-`scenarios.sh build <variant> <dir>` commits the variant as `baseline` on `main`, then
-one branch per scenario, and prints every ref. Identity, dates and git settings are fixed, so a
-fixture revision always produces the same SHAs. The script tags each scenario's checkout as
-`checkout/<scenario>` and each commit a scenario records a run on as `run/…`.
+`scenarios.sh build <variant> <dir>` creates a new git repository at `<dir>`, which must be
+missing or empty, commits the variant as `baseline` on `main`, then one branch per scenario, and
+prints every ref. Identity, dates and git settings are fixed, so a fixture revision always
+produces the same SHAs. The script tags each scenario's checkout as `checkout/<scenario>` and each
+commit a scenario records a run on as `run/…`.
+
+The other commands take that directory as `<repo>`:
+
+```bash
+cli/Tests/Fixtures/CoverageTestSelection/scenarios.sh build generated /tmp/test-bed
+cli/Tests/Fixtures/CoverageTestSelection/scenarios.sh checkout /tmp/test-bed source_change
+```
 
 - `scenarios.sh checkout <repo> <scenario>` checks a scenario out on its branch, detached for
   `local_merge`, and leaves the uncommitted edits for `dirty_checkout`.
