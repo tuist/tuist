@@ -40,12 +40,14 @@
     justify-content: flex-end;
     align-items: flex-start;
     gap: var(--noora-spacing-9);
-    padding: 0 var(--noora-spacing-13) var(--noora-spacing-13) var(--noora-spacing-4);
+    padding-inline: var(--noora-spacing-4) var(--noora-spacing-13);
+    padding-block: 0 var(--noora-spacing-13);
     height: 600px;
     overflow: hidden;
 
     @media (max-width: 720px) {
-      padding: var(--noora-spacing-13) var(--noora-spacing-10) var(--noora-spacing-10) var(--noora-spacing-4);
+      padding-inline: var(--noora-spacing-4) var(--noora-spacing-10);
+      padding-block: var(--noora-spacing-13) var(--noora-spacing-10);
       height: auto;
     }
 
@@ -130,6 +132,9 @@
       align-items: stretch;
       gap: var(--noora-spacing-2);
       font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      /* A code diff: stays left-to-right in RTL pages. */
+      direction: ltr;
+      unicode-bidi: isolate;
 
       & > [data-part="variant"] {
         display: none;
@@ -267,6 +272,9 @@
         & > [data-part="illustration"][data-illustration="cache-ready"] {
           height: 400px;
           overflow: hidden;
+          /* Nodes sit at the export's pixel coordinates over the wires SVGs,
+             so the scene keeps its left-to-right layout in RTL. */
+          direction: ltr;
 
           @media (max-width: 1140px) {
             height: 370px;
@@ -698,6 +706,9 @@
           justify-content: flex-start;
           height: 550px;
           overflow: hidden;
+          /* Boxes sit at the comp's pixel coordinates over the wires SVGs,
+             so the scene keeps its left-to-right layout in RTL. */
+          direction: ltr;
 
           @media (max-width: 1200px) {
             height: 430px;
@@ -1211,7 +1222,7 @@
 
         @media (min-width: 721px) {
           &:nth-child(2n) {
-            border-left: 1px solid var(--marketing-stroke-default);
+            border-inline-start: 1px solid var(--marketing-stroke-default);
           }
         }
 
@@ -1304,6 +1315,9 @@
               padding: var(--noora-spacing-5);
               height: 196px;
               overflow: hidden;
+              /* Command output: stays left-to-right in RTL pages. */
+              direction: ltr;
+              unicode-bidi: isolate;
 
               /* The tail rows melt out stepwise. */
               & > [data-part="term-line"]:nth-child(5) {
@@ -1347,6 +1361,7 @@
         & > [data-part="illustration"][data-illustration="scaling"] {
           overflow: hidden;
 
+          /* Version numbers, staggered by their physical position. */
           & > [data-part="pills"] {
             display: flex;
             flex-direction: column;
@@ -1354,6 +1369,7 @@
             gap: var(--noora-spacing-8);
             mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
             width: 100%;
+            direction: ltr;
 
             & > [data-part="pill-row"] {
               display: flex;

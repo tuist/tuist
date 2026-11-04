@@ -191,9 +191,9 @@
 
       &::after {
         position: absolute;
-        right: 0;
         bottom: calc(-1 * var(--noora-spacing-5));
-        left: 0;
+        inset-inline-end: 0;
+        inset-inline-start: 0;
         border-radius: var(--noora-radius-1);
         background: var(--noora-neutral-light-50);
         height: 2px;
@@ -206,10 +206,10 @@
     display: flex;
     position: absolute;
     top: var(--noora-spacing-4);
-    right: var(--noora-spacing-4);
     justify-content: center;
     align-items: center;
     cursor: pointer;
+    inset-inline-end: var(--noora-spacing-4);
     border: none;
     border-radius: var(--noora-radius-3);
     background: none;
@@ -252,6 +252,9 @@
     border-radius: var(--noora-radius-4);
     background: var(--noora-neutral-dark-1100);
     padding: var(--noora-spacing-6) var(--noora-spacing-5);
+    /* Commands read left to right in every locale. */
+    direction: ltr;
+    unicode-bidi: isolate;
     user-select: text;
 
     &::after {
@@ -331,7 +334,8 @@
   & [data-part="browser-sidebar"] {
     flex-shrink: 0;
     background: var(--noora-neutral-dark-1200);
-    padding: var(--noora-spacing-5) var(--noora-spacing-3) var(--noora-spacing-5) var(--noora-spacing-4);
+    padding-inline: var(--noora-spacing-4) var(--noora-spacing-3);
+    padding-block: var(--noora-spacing-5);
   }
 
   & [data-part="browser-sidebar-items"] {
@@ -563,12 +567,12 @@
   & [data-part="feature-card"] [data-part="icon"] {
     display: flex;
     position: absolute;
-    right: calc(-1 * var(--noora-spacing-4));
     bottom: calc(-1 * var(--noora-spacing-4));
     justify-content: center;
     align-items: center;
     opacity: 0.8;
     mix-blend-mode: overlay;
+    inset-inline-end: calc(-1 * var(--noora-spacing-4));
     width: 138px;
     height: 138px;
     pointer-events: none;

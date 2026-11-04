@@ -12,11 +12,12 @@ defmodule Tuist.Docs.NimblePublisher.Cache do
     %{id: __MODULE__, start: {__MODULE__, :start_link, [opts]}}
   end
 
-  def pages do
-    ContentCache.get(__MODULE__, :pages, fn ->
-      {pages, _source_paths} = Loader.load_pages!()
-      pages
-    end)
+  # Loads only the requested locale through the per-page cache. Building every
+  # locale at once renders thousands of translated pages in a single load.
+  def pages(locale) do
+    slugs()
+    |> Enum.filter(&(&1 == "/#{locale}" or String.starts_with?(&1, "/#{locale}/")))
+    |> Enum.map(&get_page/1)
   end
 
   def slugs do

@@ -73,6 +73,11 @@
     align-items: start;
     gap: var(--noora-spacing-8);
 
+    /* Sandboxes aren't billed, so their chart has no receipts beside it. */
+    &:not(:has([data-part="receipts"])) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
     @media (max-width: 1024px) {
       & {
         grid-template-columns: minmax(0, 1fr);

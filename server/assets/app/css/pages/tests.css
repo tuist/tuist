@@ -57,12 +57,12 @@
         justify-content: space-between;
         align-items: flex-start;
         & > [data-part="legends"] {
-          margin-left: var(--noora-spacing-5);
+          margin-inline-start: var(--noora-spacing-5);
           padding-bottom: unset;
         }
       }
       & > [data-part="legends"] {
-        margin-left: var(--noora-spacing-5);
+        margin-inline-start: var(--noora-spacing-5);
         padding-bottom: unset;
       }
       & .noora-chart {
@@ -136,14 +136,14 @@
           background-color: var(--noora-surface-background-primary);
           height: 48px;
           &[data-index="one"] {
-            right: var(--noora-spacing-4);
             bottom: 9px;
-            left: var(--noora-spacing-4);
+            inset-inline-end: var(--noora-spacing-4);
+            inset-inline-start: var(--noora-spacing-4);
           }
           &[data-index="two"] {
-            right: var(--noora-spacing-7);
             bottom: 0;
-            left: var(--noora-spacing-7);
+            inset-inline-end: var(--noora-spacing-7);
+            inset-inline-start: var(--noora-spacing-7);
           }
         }
       }
@@ -182,14 +182,14 @@
           background-color: var(--noora-surface-background-primary);
           height: 48px;
           &[data-index="one"] {
-            right: var(--noora-spacing-4);
             bottom: 9px;
-            left: var(--noora-spacing-4);
+            inset-inline-end: var(--noora-spacing-4);
+            inset-inline-start: var(--noora-spacing-4);
           }
           &[data-index="two"] {
-            right: var(--noora-spacing-7);
             bottom: 0;
-            left: var(--noora-spacing-7);
+            inset-inline-end: var(--noora-spacing-7);
+            inset-inline-start: var(--noora-spacing-7);
           }
         }
       }

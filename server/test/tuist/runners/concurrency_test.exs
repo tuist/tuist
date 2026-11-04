@@ -457,7 +457,7 @@ defmodule Tuist.Runners.ConcurrencyTest do
     end
   end
 
-  describe "limit_held?/4" do
+  describe "limit_held?/5" do
     defp open_session!(account, attrs) do
       Repo.insert!(
         struct(
@@ -477,11 +477,45 @@ defmodule Tuist.Runners.ConcurrencyTest do
 
       open_session!(account, %{platform: :macos, vcpus: 6, memory_gb: 14, started_at: DateTime.add(at, -60, :second)})
 
-      refute Concurrency.limit_held?(account.id, :macos, shape, [at])
+      refute Concurrency.limit_held?(account.id, :macos, shape, at, at)
 
       open_session!(account, %{platform: :macos, vcpus: 6, memory_gb: 14, started_at: DateTime.add(at, -30, :second)})
 
-      assert Concurrency.limit_held?(account.id, :macos, shape, [at])
+      assert Concurrency.limit_held?(account.id, :macos, shape, at, at)
+    end
+
+    test "holds a job the limit blocked only between the ends of its wait" do
+      account = account_fixture()
+      enqueued_at = ~U[2026-10-28 12:00:00.000000Z]
+      shape = %{vcpus: 6, memory_gb: 14}
+
+      open_session!(account, %{
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        started_at: DateTime.add(enqueued_at, -60, :second)
+      })
+
+      # Fills the limit from 60 s to 120 s into a 300 s wait; both ends
+      # have room for the job.
+      open_session!(account, %{
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        started_at: DateTime.add(enqueued_at, 60, :second),
+        ended_at: DateTime.add(enqueued_at, 120, :second)
+      })
+
+      refute Concurrency.limit_held?(account.id, :macos, shape, enqueued_at, DateTime.add(enqueued_at, 50, :second))
+      assert Concurrency.limit_held?(account.id, :macos, shape, enqueued_at, DateTime.add(enqueued_at, 300, :second))
+
+      refute Concurrency.limit_held?(
+               account.id,
+               :macos,
+               shape,
+               DateTime.add(enqueued_at, 120, :second),
+               DateTime.add(enqueued_at, 300, :second)
+             )
     end
 
     test "counts only sessions open at the instant, on the job's platform" do
@@ -500,8 +534,8 @@ defmodule Tuist.Runners.ConcurrencyTest do
       open_session!(account, %{platform: :macos, vcpus: 12, memory_gb: 28, started_at: DateTime.add(at, 60, :second)})
       open_session!(account, %{platform: :linux, vcpus: 32, memory_gb: 64, started_at: DateTime.add(at, -60, :second)})
 
-      refute Concurrency.limit_held?(account.id, :macos, shape, [at])
-      assert Concurrency.limit_held?(account.id, :macos, shape, [at, DateTime.add(at, 120, :second)])
+      refute Concurrency.limit_held?(account.id, :macos, shape, at, DateTime.add(at, 30, :second))
+      assert Concurrency.limit_held?(account.id, :macos, shape, at, DateTime.add(at, 120, :second))
     end
 
     test "never holds a job without a shape or an account without a limit" do
@@ -511,8 +545,10 @@ defmodule Tuist.Runners.ConcurrencyTest do
         from(limit in ConcurrencyLimit, where: limit.account_id == ^account.id and limit.platform == :macos)
       )
 
-      refute Concurrency.limit_held?(account.id, :macos, %{vcpus: 6, memory_gb: 14}, [DateTime.utc_now()])
-      refute Concurrency.limit_held?(account.id, :linux, %{vcpus: 0, memory_gb: 0}, [DateTime.utc_now()])
+      now = DateTime.utc_now()
+
+      refute Concurrency.limit_held?(account.id, :macos, %{vcpus: 6, memory_gb: 14}, now, now)
+      refute Concurrency.limit_held?(account.id, :linux, %{vcpus: 0, memory_gb: 0}, now, now)
     end
   end
 end

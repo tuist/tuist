@@ -1195,6 +1195,13 @@ defmodule TuistWeb.Router do
     put "/me/notification-preferences/:kind/projects/:account_handle/:project_handle",
         NotificationPreferencesController,
         :update_project
+
+    get "/me/ai-subscriptions", AISubscriptionsController, :index
+    put "/me/ai-subscriptions/claude", AISubscriptionsController, :connect_claude
+    post "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :start_chatgpt_login
+    post "/me/ai-subscriptions/chatgpt/login/poll", AISubscriptionsController, :poll_chatgpt_login
+    delete "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :cancel_chatgpt_login
+    delete "/me/ai-subscriptions/:provider", AISubscriptionsController, :delete
   end
 
   scope "/api" do
@@ -1218,6 +1225,15 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :non_authenticated_api, :oidc_exchange_rate_limit]
 
     post "/auth/oidc/token", OIDCController, :exchange_token
+  end
+
+  scope "/api/remote-execution", TuistWeb do
+    pipe_through [:non_authenticated_api]
+
+    get "/:account/:project/capabilities", RemoteExecutionController, :capabilities
+    post "/:account/:project/operations", RemoteExecutionController, :create
+    post "/:account/:project/leases", RemoteExecutionController, :lease
+    get "/:account/:project/operations/:id", RemoteExecutionController, :show
   end
 
   # Runner Pod dispatch + autoscaler signals endpoints.
@@ -1706,6 +1722,9 @@ defmodule TuistWeb.Router do
       live "/runners/profiles", RunnerProfilesLive
       live "/runners/volumes", RunnerVolumesLive
       live "/runners/volumes/:id", RunnerVolumesLive
+      live "/sandboxes", SandboxesLive
+      live "/sandboxes/instances", SandboxInstancesLive
+      live "/sandboxes/:sandbox_id", SandboxLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
@@ -1718,6 +1737,7 @@ defmodule TuistWeb.Router do
       live "/settings/integrations", IntegrationsLive
       live "/settings/authentication", AuthenticationSettingsLive
       live "/settings/authentication/workload-identities", AuthenticationSettingsLive, :workload_identities
+      live "/settings/ai-subscriptions", AISubscriptionsSettingsLive
     end
   end
 
