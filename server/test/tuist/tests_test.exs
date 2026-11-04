@@ -910,6 +910,55 @@ defmodule Tuist.TestsTest do
       assert names == ["testAlpha", "testBeta", "testGamma"]
     end
 
+    test "pages project test case runs by their latest version when older versions match the filters" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      no_longer_flaky_id = UUIDv7.generate()
+      no_longer_flaky_test_case_id = UUIDv7.generate()
+
+      for {is_flaky, inserted_at} <- [{true, ~N[2026-07-21 10:00:00.000000]}, {false, ~N[2026-07-21 11:00:00.000000]}] do
+        RunsFixtures.test_case_run_fixture(
+          id: no_longer_flaky_id,
+          test_case_id: no_longer_flaky_test_case_id,
+          project_id: project.id,
+          name: "testNoLongerFlaky",
+          is_flaky: is_flaky,
+          ran_at: ~N[2026-07-21 09:03:00.000000],
+          inserted_at: inserted_at
+        )
+      end
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        name: "testFlaky",
+        is_flaky: true,
+        ran_at: ~N[2026-07-21 09:02:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        name: "testOlderFlaky",
+        is_flaky: true,
+        ran_at: ~N[2026-07-21 09:01:00.000000]
+      )
+
+      # When
+      {runs, _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :is_flaky, op: :==, value: true}
+          ],
+          order_by: [:ran_at, :id],
+          order_directions: [:desc, :asc],
+          page: 1,
+          page_size: 1
+        })
+
+      # Then
+      assert Enum.map(runs, & &1.name) == ["testFlaky"]
+    end
+
     test "hydrates the replacement version selected by the test-run materialized view" do
       project = ProjectsFixtures.project_fixture()
       inserted_at = ~N[2026-07-21 10:00:00.000000]
