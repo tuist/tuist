@@ -26,7 +26,7 @@ const MAX_BATCH_RECORDS: usize = 32;
 const MAX_BATCH_BODY_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_BATCH_METADATA_BYTES: usize = 64 * 1024;
 // Content descriptors hashed per page while the source serves.
-const DESCRIPTOR_PAGE_RECORDS: usize = 64;
+const DESCRIPTOR_PAGE_RECORDS: usize = 1024;
 const DESCRIPTOR_PAGE_BODY_BYTES: u64 = 128 * 1024 * 1024;
 // Metadata-only descriptors checked per request inside the barrier.
 const DESCRIPTOR_BATCH_RECORDS: usize = 1024;
@@ -3867,6 +3867,26 @@ mod tests {
             "{error}"
         );
         assert_eq!(pair.requests("/_internal/handover/verify"), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_content_walk_reads_small_records_in_large_pages() {
+        let pair = ContentPair::new().await;
+        for index in 0..1100u32 {
+            pair.seed(&format!("small-{index}"), &index.to_be_bytes())
+                .await;
+        }
+        pair.catch_up_cursor();
+        let renew = pair.keep_granted("Serving");
+        pair.prepare_while_serving().await.unwrap();
+        renew.abort();
+
+        assert_eq!(pair.verified(), 1100);
+        let pages = pair.source_requests("/_internal/handover/descriptors");
+        assert!(
+            pages <= 2,
+            "{pages} descriptor pages for 1,100 small records"
+        );
     }
 
     #[tokio::test]
