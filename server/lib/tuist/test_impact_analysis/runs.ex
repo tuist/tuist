@@ -5,21 +5,23 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   `create/2` is the runs request: with a baseline it stores or reuses the
   diff, rebuilds the evidence window for that baseline
   (`Tuist.TestImpactAnalysis.Baselines`), applies the rules
-  (`Tuist.TestImpactAnalysis.run/1`) and records the run with its selected
-  tests. Without one, or when selection can't happen, it records a fallback
-  with the reason, after which the client runs default selective testing.
-  When hashing left no module to decide (`modules: []`), it records a
-  selection of nothing, without a diff or the rules, so a run never runs
-  more than hashing left.
+  (`Tuist.TestImpactAnalysis.run/1`) to the modules left to decide and
+  records the run with its selected tests. Without one, or when selection
+  can't happen, it records a fallback with the reason, after which the client
+  runs default selective testing. When hashing skipped every module, it
+  records a selection of nothing, without a diff or the rules, so a run never
+  runs more than hashing left.
 
-  Every run counts the baseline's tests in the modules the client skipped
-  because their hash matched (`skipped_modules`) as `module_skipped_count`,
-  once its baseline is confirmed; runs that end before that record 0.
+  The request lists every test module in scope, each `skipped` or not, and
+  the counts cover all of them: once the baseline is confirmed, the
+  baseline's tests in skipped modules count as requested and skipped. Runs
+  that end before that record zeros.
 
-  Skipped tests are never stored. A skip list is the baseline's tests in
-  scope less the selected ones: `skip_entries/2` for an unsharded run, and
-  `shard_skip/4` for one shard of a plan, read again from the baseline runs
-  the decision used (`baseline_run_ids`).
+  Skipped tests are never stored. A skip list is the baseline's tests in the
+  modules left to decide (`requested_modules`) less the selected ones:
+  `skip_entries/2` for an unsharded run, and `shard_skip/4` for one shard of
+  a plan, read again from the baseline runs the decision used
+  (`baseline_run_ids`).
   """
   import Ecto.Query
 
@@ -42,6 +44,8 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   """
   def create(%Project{} = project, params) do
     commit_sha = Map.get(params, :commit_sha) || params.head_sha
+    {decided, skipped} = split_modules(params)
+    params = Map.merge(params, %{decided_modules: decided, skipped_modules: skipped})
     attrs = run_attrs(project, params, commit_sha)
 
     case decide(project, params, commit_sha) do
@@ -59,9 +63,14 @@ defmodule Tuist.TestImpactAnalysis.Runs do
           {:ok, %{run: run, skipped_tests: nil}}
         end
 
-      {:selected, input, result, baseline, module_skipped} ->
-        record_selection(Map.merge(attrs, module_skipped), input, result, baseline)
+      {:selected, input, result, baseline, hash_skipped} ->
+        record_selection(attrs, input, result, baseline, hash_skipped)
     end
+  end
+
+  defp split_modules(params) do
+    {skipped, decided} = params |> Map.get(:modules, []) |> Enum.split_with(&Map.get(&1, :skipped, false))
+    {Enum.map(decided, & &1.name), Enum.map(skipped, & &1.name)}
   end
 
   defp run_attrs(project, params, commit_sha) do
@@ -76,7 +85,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
       build_system: params.build_system,
       platform: Map.get(params, :platform) || "",
       build_context: Map.get(params, :xcode) || %{},
-      requested_modules: Map.get(params, :modules) || [],
+      requested_modules: params.decided_modules,
       rules_version: TestImpactAnalysis.rules_version()
     }
   end
@@ -85,7 +94,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     baseline_sha = Map.get(params, :baseline_sha)
 
     cond do
-      Map.get(params, :modules) == [] ->
+      params.decided_modules == [] ->
         {:nothing_left, nothing_left_attrs(project, params, commit_sha, baseline_sha)}
 
       is_nil(baseline_sha) ->
@@ -96,22 +105,25 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     end
   end
 
-  # Nothing to decide, so no diff and no rules: only the count of what hashing
-  # skipped, when the baseline is confirmed.
+  # Nothing to decide, so no diff and no rules: only what hashing skipped,
+  # counted once the baseline is confirmed.
   defp nothing_left_attrs(_project, _params, _commit_sha, nil), do: %{}
 
   defp nothing_left_attrs(project, params, commit_sha, baseline_sha) do
     case resolve(project, scope(params, commit_sha), baseline_sha) do
       {:ok, baseline} ->
-        %{baseline_run_ids: baseline.run_ids, module_skipped_count: module_skipped_count(project, params, baseline)}
+        hash_skipped = hash_skipped_count(project, params, baseline)
+        %{baseline_run_ids: baseline.run_ids, requested_count: hash_skipped, skipped_count: hash_skipped}
 
       {:fallback, _reason, _extra} ->
         %{baseline_sha: nil}
     end
   end
 
-  defp module_skipped_count(project, params, baseline) do
-    Input.baseline_test_count(project.id, baseline.run_ids, Map.get(params, :skipped_modules) || [])
+  # The baseline's tests in the modules the client skipped because their hash
+  # matched. No rule decides them, so they're counted, never listed.
+  defp hash_skipped_count(project, params, baseline) do
+    Input.baseline_test_count(project.id, baseline.run_ids, params.skipped_modules)
   end
 
   defp scope(params, commit_sha) do
@@ -128,27 +140,37 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     with {:ok, changed_files, changed_files_count} <- changed_files(project, params, commit_sha, baseline_sha),
          :ok <- within_diff_limit(changed_files_count),
          {:ok, baseline} <- resolve(project, scope(params, commit_sha), baseline_sha) do
-      module_skipped = %{module_skipped_count: module_skipped_count(project, params, baseline)}
+      hash_skipped = hash_skipped_count(project, params, baseline)
 
       input =
         Input.load(project,
           repository_id: baseline.repository_id,
           baseline_sha: baseline_sha,
           baseline_run_ids: baseline.run_ids,
-          modules: Map.get(params, :modules),
+          modules: params.decided_modules,
           changed_files: changed_files,
           changed_files_count: changed_files_count
         )
 
       case TestImpactAnalysis.run(input) do
+        # Default selective testing runs every test of the modules left.
         %{outcome: :fallback} = result ->
+          requested = length(input.tests)
+
           extra =
-            result |> trace_attrs() |> Map.put(:matched_path, result.matched_path || "") |> Map.merge(module_skipped)
+            result
+            |> trace_attrs()
+            |> Map.merge(%{
+              matched_path: result.matched_path || "",
+              requested_count: requested + hash_skipped,
+              selected_count: requested,
+              skipped_count: hash_skipped
+            })
 
           {:fallback, result.reason, extra}
 
         result ->
-          {:selected, input, result, baseline, module_skipped}
+          {:selected, input, result, baseline, hash_skipped}
       end
     end
   end
@@ -199,7 +221,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     end
   end
 
-  defp record_selection(attrs, input, result, baseline) do
+  defp record_selection(attrs, input, result, baseline, hash_skipped) do
     tests = Map.new(input.tests, &{&1.test_case_id, &1})
 
     selected =
@@ -222,9 +244,9 @@ defmodule Tuist.TestImpactAnalysis.Runs do
       |> Map.merge(%{
         outcome: "selected",
         baseline_run_ids: baseline.run_ids,
-        requested_count: result.counts.requested,
+        requested_count: result.counts.requested + hash_skipped,
         selected_count: result.counts.selected,
-        skipped_count: result.counts.skipped
+        skipped_count: result.counts.skipped + hash_skipped
       })
 
     with {:ok, run} <- Storage.create_run(attrs, selected) do
@@ -279,8 +301,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   def shard_skip(project_id, run_id, own_suites, other_suites \\ nil) do
     case Storage.get_run(project_id, run_id) do
       {:ok, %{outcome: "selected"} = run} ->
-        modules = if run.requested_modules == [], do: nil, else: run.requested_modules
-        tests = Input.baseline_tests(project_id, run.baseline_run_ids, modules)
+        tests = Input.baseline_tests(project_id, run.baseline_run_ids, run.requested_modules)
         selected_ids = project_id |> Storage.list_run_tests(run_id) |> MapSet.new(& &1.test_case_id)
 
         case other_suites do
