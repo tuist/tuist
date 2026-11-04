@@ -59,7 +59,6 @@ defmodule Tuist.Ops.FeatureFlags do
 
   @evaluators %{
     bazel_remote_execution: {FeatureFlags, :bazel_remote_execution_enabled?},
-    bazel_remote_execution_handoff: {FeatureFlags, :bazel_remote_execution_handoff_enabled?},
     immutable_shard_reports: {FeatureFlags, :immutable_shard_reports_enabled?},
     runner_shard_storage: {FeatureFlags, :runner_shard_storage_enabled?},
     kura_positive_fence: {FeatureFlags, :kura_positive_fence_enabled?},
