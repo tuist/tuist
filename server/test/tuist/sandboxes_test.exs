@@ -639,38 +639,17 @@ defmodule Tuist.SandboxesTest do
   end
 
   describe "limits and shapes" do
-    test "refuses a create past the account's running sandbox limit" do
+    test "running sandboxes are bounded by the account's CPU and memory quota, not by a count" do
       account = account_fixture()
-      assert Sandboxes.max_running_sandboxes_per_account() == 5
+      # 10 × 2 vCPU / 4 GiB stays inside the default 32 vCPU / 64 GiB quota.
+      for _ <- 1..10, do: sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      paused = sandbox_fixture(account: account, state: :paused, node_name: "node-a")
 
-      for _ <- 1..5,
-          do: sandbox_fixture(account: account, state: :running, node_name: "node-a")
-
-      reject(&Capacity.place/1)
-      assert {:error, :sandbox_running_limit} = Sandboxes.create_sandbox(account, %{})
-    end
-
-    test "paused sandboxes count only toward the on-node cap" do
-      account = account_fixture()
-      for _ <- 1..5, do: sandbox_fixture(account: account, state: :paused, node_name: "node-a")
       expect(Capacity, :place, fn _sandbox -> {:error, :no_capacity} end)
       assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{})
 
-      for _ <- 6..Sandboxes.max_on_node_sandboxes_per_account(),
-          do: sandbox_fixture(account: account, state: :paused, node_name: "node-a")
-
-      reject(&Capacity.place/1)
-      assert {:error, :sandbox_limit} = Sandboxes.create_sandbox(account, %{})
-    end
-
-    test "refuses a resume past the account's running sandbox limit" do
-      account = account_fixture()
-      for _ <- 1..5, do: sandbox_fixture(account: account, state: :running, node_name: "node-a")
-      paused = sandbox_fixture(account: account, state: :paused, node_name: "node-a")
-      reject(&Nodes.call/4)
-
-      assert {:error, :sandbox_running_limit} = Sandboxes.resume(paused)
-      assert Repo.reload!(paused).state == :paused
+      expect(Capacity, :admit, fn _sandbox -> {:error, :no_capacity} end)
+      assert {:error, :no_capacity} = Sandboxes.resume(paused)
     end
 
     test "refuses a shape the nodes do not offer" do

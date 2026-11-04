@@ -87,7 +87,7 @@ defmodule Tuist.Sandboxes.Archives do
   One pass of the archive tier: deletes the archives of restored Orbs,
   aborts uploads and restores whose caller died, then archives Orbs paused
   for longer than the configured threshold and the least recently paused
-  Orbs of accounts over the on-node cap. Archiving is off while no
+  Orbs of accounts past their newest ten paused on nodes. Archiving is off while no
   threshold is configured; the cleanups always run.
   """
   def run do
@@ -113,6 +113,51 @@ defmodule Tuist.Sandboxes.Archives do
     end
 
     :ok
+  end
+
+  @doc """
+  Makes room for a create or restore the account's disk limit refused:
+  queues the archive of its least recently paused idle Orb. Answers whether
+  room is on its way, which is also the case while one of its archives is
+  already uploading. Answers false when archiving is off, the account is at
+  its archive storage cap, or it has no Orb to archive; only deleting
+  sandboxes frees disk then.
+  """
+  def make_room(account_id) do
+    cond do
+      !Environment.sandbox_archive_after_hours() ->
+        false
+
+      Repo.exists?(from s in Sandbox, where: s.account_id == ^account_id and not is_nil(s.archive_upload_id)) ->
+        true
+
+      archived_bytes(account_id) < @max_archived_bytes_per_account and Repo.exists?(archivable(account_id)) ->
+        {:ok, _job} = %{account_id: account_id} |> ArchiveSandboxesWorker.new() |> Oban.insert()
+        true
+
+      true ->
+        false
+    end
+  end
+
+  @doc """
+  Archives the account's least recently paused idle Orb, queued by
+  `make_room/1`.
+  """
+  def archive_oldest(account_id) do
+    case account_id |> archivable() |> order_by([s], asc: s.paused_at, asc: s.id) |> limit(1) |> Repo.one() do
+      nil -> {:ok, :skipped}
+      sandbox -> archive(sandbox)
+    end
+  end
+
+  defp archivable(account_id) do
+    retry_before = DateTime.add(now(), -@retry_after_hours, :hour)
+
+    from s in idle_paused_orbs(),
+      where:
+        s.account_id == ^account_id and is_nil(s.archived_at) and is_nil(s.archive_upload_id) and
+          (is_nil(s.archive_attempted_at) or s.archive_attempted_at < ^retry_before)
   end
 
   defp idle_paused_orbs do
