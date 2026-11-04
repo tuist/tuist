@@ -773,9 +773,12 @@ defmodule Tuist.Runners.WorkflowJobs do
 
   # Observes each job's queue time once, when GitHub first names the runner
   # it ran on. `limit_held` sets apart the jobs that waited for their own
-  # account's concurrency limit, at enqueue or 15 s before the claim, about
-  # one runner boot earlier, when a runner would have had to start for it.
+  # account's concurrency limit at any point from enqueue to 15 s before
+  # the claim, about one runner boot earlier, when a runner would have had
+  # to start for it.
   defp emit_executed(%WorkflowJob{enqueued_at: %DateTime{} = enqueued_at, executor_claimed_at: claimed_at} = row) do
+    boot_before_claim = DateTime.add(claimed_at, -15, :second)
+
     limit_held =
       case row.platform do
         platform when platform in ["linux", "macos"] ->
@@ -783,7 +786,8 @@ defmodule Tuist.Runners.WorkflowJobs do
             row.account_id,
             String.to_existing_atom(platform),
             %{vcpus: row.vcpus, memory_gb: row.memory_gb},
-            [enqueued_at, DateTime.add(claimed_at, -15, :second)]
+            Enum.min([enqueued_at, boot_before_claim], DateTime),
+            Enum.max([enqueued_at, boot_before_claim], DateTime)
           )
 
         _ ->
