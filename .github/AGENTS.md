@@ -422,9 +422,9 @@ and the CLI session logs when it fails, then the unit and app tests run in full
 follows when both passed and the selective acceptance run has finished. The unit, app and acceptance tests record per-target evidence,
 which the CLI reads from Xcode's raw profiles (the targets don't link
 TestCoverageAttribution, so there is no per-test evidence): the server carries
-targets selective testing skipped only from runs that recorded evidence, main's
-full runs for every selective run and a pull request's own runs for its later
-pushes. Targets are carried only whole: a skipped target no run recorded
+targets selective testing skipped only from runs that recorded evidence under
+the same hash: main's runs (full for unit and app, selective for acceptance)
+for every selective run and a pull request's own runs for its later pushes. Targets are carried only whole: a skipped target no run recorded
 under the same hash (or whose source run fails the server's checks) has no
 per-test fallback, and neither do tests skipped by identifier
 (`--skip-test-targets`, `-skip-testing`), so both stay gaps (`not_linked`).
