@@ -188,7 +188,7 @@ If your agent supports `auth.md`, it can start anonymously without opening a bro
 In browsers that support [WebMCP](https://webmachinelearning.github.io/webmcp), Tuist's pages register tools with `document.modelContext`, so agents built into the browser can call them without any extra configuration. The calls run on the Tuist server.
 
 - **Website and documentation pages** register the documentation and source tools (`search_tuist`, `search_tuist_code`, `list_tuist_files` and `read_tuist_file`). They don't need you to sign in.
-- **An account's dashboard pages**, when you're signed in, register Tuist's read-only tools for that account. They run as the signed-in user, so they only reach data you can read in the dashboard, and only the account you're looking at. When you move to another account's pages, the tools are replaced with that account's.
+- **An account's dashboard pages**, when you're signed in, register Tuist's read-only tools for that account. Each page registers only the tools for what it shows, for the project's build system: a Gradle project's builds page gets the Gradle build tools, its test pages the test and coverage tools, and the runners pages the runner tools. Every page also gets the documentation tools, `list_projects` and `get_project`. The tools run as the signed-in user, so they only reach data you can read in the dashboard, and only the account you're looking at. When you move to another page or account, the tools are replaced with that page's.
 
 Tools that create, change, or delete data are not available through WebMCP, because a browser agent receives the tools without you adding them and reads content that builds and tests produce. Connect an MCP client to the `/mcp` endpoint to use those tools.
 

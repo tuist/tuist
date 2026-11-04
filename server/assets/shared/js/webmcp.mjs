@@ -1,8 +1,9 @@
 // WebMCP (https://webmachinelearning.github.io/webmcp) lets agents built into
 // the browser call tools a page registers. Pages name the Tuist endpoint that
-// serves those tools: an account's read-only tools on its signed-in dashboard
-// pages (`data-webmcp-endpoint` on the headerbar, which changes as LiveView
-// navigates between accounts), and the documentation tools elsewhere (the
+// serves those tools: on an account's signed-in dashboard pages, the read-only
+// tools for what the page shows (`data-webmcp-endpoint` on the headerbar, which
+// changes as LiveView navigates between pages and accounts, but not when a
+// filter or sort changes), and the documentation tools elsewhere (the
 // `webmcp-endpoint` meta tag).
 //
 // Registration is a progressive enhancement: it never throws or rejects, so
