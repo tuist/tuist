@@ -1,6 +1,7 @@
 defmodule Tuist.TestImpactAnalysis.BaselinesTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  alias Tuist.GitHistory
   alias Tuist.TestImpactAnalysis.Baselines
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CoverageFixtures
@@ -93,12 +94,26 @@ defmodule Tuist.TestImpactAnalysis.BaselinesTest do
       assert Baselines.resolve(project, scope("p2")) == {:error, :no_baseline}
     end
 
-    test "answers no_baseline when the history doesn't have the checkout", %{account: account, project: project} do
+    test "answers history_unknown until the client uploads the checkout's history", %{
+      account: account,
+      project: project
+    } do
       repository_id = CoverageFixtures.seed_history(account, chain("c", 2, nil))
       CoverageFixtures.commit_coverage(project, repository_id, "c1")
 
+      assert Baselines.resolve(project, scope("f2")) == {:error, :history_unknown}
+      assert Baselines.resolve(project, scope("f2", %{parent_shas: ["f1"]})) == {:error, :history_unknown}
+
+      # The client deepens its checkout and uploads the graph it now has.
+      GitHistory.record_commits(repository_id, "sha1", chain("f", 2, "c2", 10))
+
+      assert {:ok, %{sha: "c1", distance: 1}} = Baselines.resolve(project, scope("f2"))
+    end
+
+    test "answers no_baseline when the project has no coverage to walk from", %{account: account, project: project} do
+      CoverageFixtures.seed_history(account, chain("c", 2, nil))
+
       assert Baselines.resolve(project, scope("unknown")) == {:error, :no_baseline}
-      assert Baselines.resolve(project, scope("unknown", %{parent_shas: ["other"]})) == {:error, :no_baseline}
     end
 
     test "only picks a run on the requested platform", %{account: account, project: project} do

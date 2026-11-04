@@ -89,6 +89,9 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
 
       assert conn |> post(path, %{build_system: "xcode", commit_sha: "base", platform: "ios"}) |> json_response(:ok) ==
                %{"baseline_sha" => nil, "reason" => "no_baseline_evidence", "diff_cached" => false}
+
+      assert conn |> post(path, %{build_system: "xcode", commit_sha: "unknown", platform: "ios"}) |> json_response(:ok) ==
+               %{"baseline_sha" => nil, "reason" => "history_unknown", "diff_cached" => false}
     end
 
     test "requires the build system and the checked-out commit", %{conn: conn, user: user, project: project} do
