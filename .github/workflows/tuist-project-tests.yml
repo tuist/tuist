@@ -6,20 +6,21 @@ name: tuist/tuist Tests
 #
 # Coverage is on for every run: Tuist.swift's `coverage` option makes
 # every job read the binary cache's coverage variant, whose binaries carry coverage counters,
-# and the schemes that leave their test action's coverage unset collect it
-# (the acceptance schemes set `coverage: false`).
+# and the schemes that leave their test action's coverage unset collect it,
+# TuistAcceptanceTests included.
 #
-# - Pull requests: unit and app tests run selectively, acceptance as before,
-#   and once the unit and app tests have finished, whatever their result,
-#   `tuist coverage complete` marks the run's commit complete. The server
+# - Pull requests: unit, app and acceptance tests run selectively, and once
+#   they have finished, whatever their result, `tuist coverage complete` marks
+#   the run's commit complete. The server
 #   carries the targets selective testing skipped from main's full runs and the
 #   pull request's earlier runs (both record per-target coverage evidence). A new push cancels
 #   the run in progress, so a superseded commit is never signalled.
 # - Pushes to main: `tuist cache` warms the coverage variant first, then the unit
 #   and app tests run in full (`--no-selective-testing`) against that warm, and
-#   `tuist coverage complete` follows when both passed. Every merge runs on its
+#   `tuist coverage complete` follows when both passed and acceptance, which
+#   runs alongside the warm, selectively, has reported. Every merge runs on its
 #   own, so every merge is measured; the full runs hold two macOS runners for up
-#   to two hours. Acceptance runs alongside the warm, selectively.
+#   to two hours.
 #
 # Nothing in a deploy or release waits on this workflow. The checkout is the
 # default one, so every job resolves the same commit: on main the pushed commit,
@@ -430,13 +431,14 @@ jobs:
         run: tuist test --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
 
   # Only a complete commit joins the coverage trend, and pull request gates wait
-  # for it. On a pull request it follows the unit and app tests whatever they
-  # concluded (a fork's runs report nothing, so it has nothing to complete); on
-  # main only when both full runs passed. A CLI release older than
-  # `tuist coverage complete` skips the signal, and the commit stays in progress.
+  # for it. On a pull request it follows the unit, app and acceptance tests
+  # whatever they concluded (a fork's runs report nothing, so it has nothing to
+  # complete); on main only when both full runs passed, after acceptance has
+  # reported. A CLI release older than `tuist coverage complete` skips the
+  # signal, and the commit stays in progress.
   coverage-complete:
     name: Complete Coverage
-    needs: [unit-tests, app-tests]
+    needs: [unit-tests, app-tests, acceptance-tests]
     runs-on: tuist-macos-27-0
     timeout-minutes: 15
     permissions:
