@@ -829,6 +829,12 @@ server:
       item: ORIGIN_APP
       appIdField: app_id
       field: private_key
+    # Apple Push Notification service token-auth key for the Tuist iOS app
+    # (the APNS item: key_id, team_id, topic, private-key.p8). Enable only
+    # after the item exists in the environment's vault, since a missing field
+    # fails the whole sync.
+    apns:
+      enabled: false
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
     # a pair exists in the environment's vault: cache tokens are then signed by
