@@ -438,8 +438,7 @@ full run of an earlier commit on main, tested with main's `mise.toml`. The
 selective runs upload coverage too; the server drops from their skips whatever a
 full run of the scheme at the commit executed. The coverage settings are set once, in the
 root `Tuist.swift`'s `coverage: .coverage(enabled: true, prefixMapping: true)`
-and `testInsights: .testInsights(coverage: .coverage(upload: true))` (behind the root
-`mise.toml`'s `TUIST_FEATURE_FLAG_COVERAGE` until the pinned CLI drops it), so every job and
+and `testInsights: .testInsights(coverage: .coverage(upload: true))`, so every job and
 every developer resolve the same variant and the same prefix mapping; both are
 hashed into binary-cache and selective-testing keys, so never override them per
 step with `TUIST_COVERAGE_ENABLED` or `TUIST_COVERAGE_PREFIX_MAPPING`. The test runs pass no
