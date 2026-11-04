@@ -138,11 +138,13 @@ pulso:
   # throughput (32 slots ≈ 50 req/s against ~6 req/s steady). Staging ran at
   # ~390Mi with 16 slots saturated, so 32 fits in 1.5Gi, plus Pulso's default
   # 64 MiB of pending bytes. Each signal gets its own reserve of slots (default
-  # an eighth), so a remote-write replay can't starve logs or traces. 1.22.0
-  # pipelines flushes, so a 20 ms coalescing window keeps latency low.
+  # an eighth), so a remote-write replay can't starve logs or traces. Since
+  # 1.31.0 object-store PUTs follow the coalescing window instead of pushes:
+  # 2 s cuts Tigris Class A requests about 3x (docs/storage-costs.md) and adds
+  # up to 2 s to ingest acks.
   ingestBatching:
     maxConcurrentRequests: 32
-    flushIntervalMs: 20
+    flushIntervalMs: 2000
   # Merge small log segments (one per Alloy push) so LogQL panels and alert
   # rules read tens of objects instead of thousands. Single writer, so every
   # reader/writer/compactor runs the same version.
