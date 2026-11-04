@@ -1,8 +1,10 @@
 defmodule Tuist.PushTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Boruta.Ecto.Token
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.OAuth.Clients
   alias Tuist.OAuth.TokenGenerator
   alias Tuist.Push
@@ -12,8 +14,9 @@ defmodule Tuist.PushTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
-    {:ok, client} = Clients.create_client(%{redirect_uris: ["tuist://oauth-callback"], name: "push-test-client"})
-    %{client: client}
+    app_client_id = Ecto.UUID.generate()
+    stub(Environment, :oauth_client_id, fn -> app_client_id end)
+    %{client: Clients.public!()}
   end
 
   defp sign_in(user, client, previous \\ nil) do
@@ -181,18 +184,25 @@ defmodule Tuist.PushTest do
     :ok = Push.unregister(user, installation_id())
     old_tombstone = installation_id()
     :ok = Push.unregister(user, old_tombstone)
+    removed = installation_id()
+    {:ok, removed_installation} = Push.register(user, session, removed, ios())
+    :ok = Push.remove_device(user, removed_installation.id)
 
     days_ago = fn days -> DateTime.utc_now() |> DateTime.add(-days, :day) |> DateTime.truncate(:second) end
     stale_installation |> Ecto.Changeset.change(last_registered_at: days_ago.(61)) |> Repo.update!()
 
-    Installation
-    |> Repo.get_by!(installation_id: old_tombstone)
-    |> Ecto.Changeset.change(retired_at: days_ago.(181))
-    |> Repo.update!()
+    for id <- [old_tombstone, removed] do
+      Installation
+      |> Repo.get_by!(installation_id: id)
+      |> Ecto.Changeset.change(retired_at: days_ago.(181))
+      |> Repo.update!()
+    end
 
-    assert {:ok, %{retired: 1, deleted: 1}} = Push.prune()
+    assert %{retired: 1, deleted: 1} = Push.prune()
     assert ids(Push.live_installations(user.id)) == [fresh]
     assert Repo.get_by(Installation, installation_id: old_tombstone) == nil
+    # A removed device stays removed however long its app is away.
+    assert {:error, :removed} = Push.register(user, session, removed, ios())
   end
 
   test "stores the device name as a single bounded line", %{client: client} do
@@ -286,5 +296,15 @@ defmodule Tuist.PushTest do
     assert {:error, :invalid} = Push.update_account_preference(user, "new_preview", organization.account.id, "no")
     assert {:error, :invalid} = Push.update_project_preference(user, "unknown", project.id, false)
     refute Enum.any?(Push.preferences(user, "new_preview"), &(&1.account.id == foreign.account_id))
+
+    # An organization without projects yet can still be turned off for its future projects.
+    empty = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+
+    assert %{enabled: true, projects: []} =
+             Enum.find(Push.preferences(user, "new_preview"), &(&1.account.id == empty.account.id))
+
+    assert :ok = Push.update_account_preference(user, "new_preview", empty.account.id, false)
+    later = ProjectsFixtures.project_fixture(account_id: empty.account.id)
+    refute Push.notify?(user.id, "new_preview", later.id)
   end
 end

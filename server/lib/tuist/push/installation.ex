@@ -17,7 +17,6 @@ defmodule Tuist.Push.Installation do
   schema "push_installations" do
     field :installation_id, Ecto.UUID
     belongs_to :user, User
-    field :oauth_client_id, Ecto.UUID
     field :oauth_grant_id, Ecto.UUID
     field :platform, :string
     field :device_name, :string

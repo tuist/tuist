@@ -3,19 +3,15 @@ defmodule TuistWeb.API.PushDevicesController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
-  alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Accounts.User
   alias Tuist.Push
   alias TuistWeb.API.Schemas.Error
-  alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_message: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug :no_store
-  plug :load_oauth_session
+  plug TuistWeb.Plugs.PushAppSessionPlug
 
   tags ["Push devices"]
 
@@ -67,7 +63,7 @@ defmodule TuistWeb.API.PushDevicesController do
       bad_request: {"The device or installation ID is invalid", "application/json", Error},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"Only native app OAuth sessions can register push devices", "application/json", Error},
-      conflict: {"The installation belongs to another user", "application/json", Error},
+      conflict: {"The installation belongs to another user or registration", "application/json", Error},
       gone:
         {"The installation ID can no longer be registered", "application/json",
          %Schema{
@@ -186,7 +182,7 @@ defmodule TuistWeb.API.PushDevicesController do
   defp error(conn, :invalid), do: conn |> put_status(:bad_request) |> json(%{message: "Invalid push device."})
 
   defp error(conn, :conflict),
-    do: conn |> put_status(:conflict) |> json(%{message: "The installation belongs to another user."})
+    do: conn |> put_status(:conflict) |> json(%{message: "The installation conflicts with another registration."})
 
   defp error(conn, :retired),
     do:
@@ -196,24 +192,4 @@ defmodule TuistWeb.API.PushDevicesController do
 
   defp error(conn, :removed),
     do: conn |> put_status(:gone) |> json(%{message: "This device was removed from your device list.", reason: "removed"})
-
-  defp load_oauth_session(conn, _opts) do
-    with %User{} = user <- user(Authentication.authenticated_subject(conn)),
-         ["Bearer " <> bearer] <- get_req_header(conn, "authorization"),
-         {:ok, session} <- Push.oauth_session(bearer, user) do
-      conn |> assign(:push_user, user) |> assign(:push_session, session)
-    else
-      _ ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{message: "Push devices can only be managed from a signed-in Tuist app."})
-        |> halt()
-    end
-  end
-
-  defp user(%User{} = user), do: user
-  defp user(%AuthenticatedAccount{issued_by: %User{} = user}), do: user
-  defp user(_subject), do: nil
-
-  defp no_store(conn, _opts), do: put_resp_header(conn, "cache-control", "no-store")
 end

@@ -1,8 +1,10 @@
 defmodule TuistWeb.API.PushDevicesControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
 
   alias Boruta.Ecto.Token
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.OAuth.Clients
   alias Tuist.OAuth.TokenGenerator
   alias Tuist.Push
@@ -12,7 +14,13 @@ defmodule TuistWeb.API.PushDevicesControllerTest do
 
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
-    {:ok, client} = Clients.create_client(%{redirect_uris: ["tuist://oauth-callback"], name: "push-test-client"})
+    app_client_id = Ecto.UUID.generate()
+    stub(Environment, :oauth_client_id, fn -> app_client_id end)
+
+    %{user: user, bearer: sign_in(user, Clients.public!())}
+  end
+
+  defp sign_in(user, client) do
     bearer = TokenGenerator.generate(:access_token, %Token{sub: to_string(user.id), client_id: client.id})
 
     Repo.insert!(%Token{
@@ -24,7 +32,7 @@ defmodule TuistWeb.API.PushDevicesControllerTest do
       scope: ""
     })
 
-    %{user: user, bearer: bearer}
+    bearer
   end
 
   defp device,
@@ -123,24 +131,33 @@ defmodule TuistWeb.API.PushDevicesControllerTest do
       |> authorized(bearer)
       |> put("/api/me/push-devices/#{Ecto.UUID.generate()}", Map.put(device(), :user_id, 1))
 
-    assert conn.status in [400, 422]
+    assert json_response(conn, 422)
   end
 
-  test "rejects credentials that are not an app sign-in", %{conn: conn, user: user} do
-    {:ok, {_, token}} =
+  test "rejects credentials that are not a Tuist app sign-in", %{user: user} do
+    {:ok, {_, account_token}} =
       Accounts.create_account_token(%{
         account: user.account,
         scopes: ["account:cache:read"],
         name: "push-test-token"
       })
 
-    conn =
-      conn
-      |> put_req_header("authorization", "Bearer #{token}")
-      |> put_req_header("content-type", "application/json")
-      |> put("/api/me/push-devices/#{Ecto.UUID.generate()}", device())
+    # A client registered through dynamic client registration, such as an MCP client the user authorized.
+    {:ok, other_client} = Clients.create_client(%{redirect_uris: ["https://example.com/callback"], name: "other"})
+    other_client_bearer = sign_in(user, other_client)
 
-    assert conn.status in [401, 403]
+    for bearer <- [account_token, other_client_bearer] do
+      for request <- [
+            &put(&1, "/api/me/push-devices/#{Ecto.UUID.generate()}", device()),
+            &get(&1, "/api/me/push-devices"),
+            &get(&1, "/api/me/notification-preferences/new_preview"),
+            &put(&1, "/api/me/notification-preferences/new_preview/accounts/#{user.account.name}", %{enabled: false})
+          ] do
+        assert build_conn() |> authorized(bearer) |> request.() |> json_response(403)
+      end
+    end
+
     assert Push.live_installations(user.id) == []
+    assert [%{enabled: true}] = Push.preferences(user, "new_preview")
   end
 end

@@ -14,10 +14,15 @@ defmodule Tuist.Push do
   - Retired rows are tombstones: owner, grant and token cleared, installation ID
     kept, and any later registration of that ID returns `:retired`. Clients
     rotate their installation ID after a successful unregister or `:retired`.
-  - Ownership never moves between users. Another user's live row is retired
-    (`owner_changed`) only when the caller presents the same device token, which
-    proves it is the same app installation; otherwise `:conflict`.
+  - A row never changes owner, and a device token is live in one row only.
+    Registering a token retires every other live row that holds it
+    (`superseded`, or `owner_changed` when another user's row has the same
+    installation ID), so one user's notifications never reach a device that
+    someone else has signed into since. Another user's installation ID with a
+    different token is a `:conflict`.
   - Users keep at most ten live rows; the oldest are `evicted`.
+  - `removed` tombstones are never pruned, so a removed device stays off even
+    if its app comes back after a long time.
 
   Every server, hosted or on-premise, owns the registrations of the users who
   sign into it. Only tuist.dev holds the APNs key and FCM credentials for the
@@ -30,6 +35,7 @@ defmodule Tuist.Push do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.User
+  alias Tuist.Environment
   alias Tuist.MCP.Events.OAuthGrants
   alias Tuist.OAuth.Clients
   alias Tuist.Projects
@@ -42,6 +48,7 @@ defmodule Tuist.Push do
   @max_live_per_user 10
   @stale_after_days 60
   @tombstone_retention_days 180
+  @prune_batch_size 1000
   @uuid ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/
   @apns_token ~r/\A(?:[0-9a-fA-F]{2}){16,256}\z/
   @android_token ~r/\A[\x21-\x7E]{16,4096}\z/
@@ -51,16 +58,19 @@ defmodule Tuist.Push do
   def preference_kinds, do: @preference_kinds
 
   @doc """
-  Resolves the OAuth grant behind `bearer` for `user`. Only OAuth sessions with a
-  refresh token (the native apps' PKCE sign-in) qualify; account tokens and other
+  Resolves the OAuth grant behind `bearer` for `user`. Only sign-ins through the
+  Tuist app client (`Tuist.Environment.oauth_client_id/0`) with a refresh token
+  qualify; dynamically registered OAuth clients, account tokens and other
   credentials return `{:error, :oauth_session_required}`.
   """
   def oauth_session(bearer, %User{id: user_id}) when is_binary(bearer) do
-    with {:ok, %{"client_id" => client_id, "user_id" => ^user_id}} <- Tuist.Guardian.decode_and_verify(bearer),
-         {:ok, client_id} <- Ecto.UUID.cast(client_id),
+    client_id = Environment.oauth_client_id()
+
+    with {:ok, %{"client_id" => ^client_id, "user_id" => ^user_id}} when is_binary(client_id) <-
+           Tuist.Guardian.decode_and_verify(bearer),
          %Boruta.Ecto.Token{} = grant <- OAuthGrants.find_bearer(bearer, client_id, user_id),
          {:ok, grant_id} <- OAuthGrants.root_id(grant) do
-      {:ok, %{oauth_client_id: client_id, oauth_grant_id: grant_id}}
+      {:ok, %{oauth_grant_id: grant_id}}
     else
       _ -> {:error, :oauth_session_required}
     end
@@ -124,9 +134,9 @@ defmodule Tuist.Push do
   end
 
   @doc """
-  Removes one of `user`'s devices by its server registration ID, for example
-  from the dashboard. Unlike `unregister/2`, the app keeps it off when it next
-  tries to refresh its registration (`:removed`). Always `:ok`.
+  Removes one of `user`'s devices by its server registration ID, from the app's
+  device list or the dashboard. Unlike `unregister/2`, the app keeps it off when
+  it next tries to refresh its registration (`:removed`). Always `:ok`.
   """
   def remove_device(%User{id: user_id}, registration_id) do
     with {:ok, registration_id} <- Ecto.UUID.cast(registration_id),
@@ -158,8 +168,8 @@ defmodule Tuist.Push do
   end
 
   @doc """
-  `user`'s own `kind` choices for every account (their personal account and
-  their organizations) that owns a project they can access, sorted by name:
+  `user`'s own `kind` choices for every account they belong to (their personal
+  account and their organizations), sorted by name:
 
       [%{account: account, enabled: boolean,
          projects: [%{project: project, override: nil | boolean, enabled: boolean}]}]
@@ -182,17 +192,19 @@ defmodule Tuist.Push do
       |> Repo.all()
       |> Map.new()
 
+    projects = user |> Projects.list_accessible_projects(preload: [:account]) |> Enum.group_by(& &1.account_id)
+
     user
-    |> Projects.list_accessible_projects(preload: [:account])
-    |> Enum.group_by(& &1.account_id)
-    |> Enum.map(fn {account_id, [%{account: account} | _] = projects} ->
-      enabled = Map.get(account_choices, account_id, true)
+    |> accessible_accounts()
+    |> Enum.map(fn account ->
+      enabled = Map.get(account_choices, account.id, true)
 
       %{
         account: account,
         enabled: enabled,
         projects:
           projects
+          |> Map.get(account.id, [])
           |> Enum.sort_by(& &1.name)
           |> Enum.map(fn project ->
             override = Map.get(overrides, project.id)
@@ -295,9 +307,11 @@ defmodule Tuist.Push do
     :ok
   end
 
-  defp accessible_account_ids(user) do
-    [Accounts.get_account_from_user(user).id | Enum.map(Accounts.get_user_organization_accounts(user), & &1.account.id)]
+  defp accessible_accounts(user) do
+    [Accounts.get_account_from_user(user) | Enum.map(Accounts.get_user_organization_accounts(user), & &1.account)]
   end
+
+  defp accessible_account_ids(user), do: user |> accessible_accounts() |> Enum.map(& &1.id)
 
   @doc """
   Whether `user_id` wants `kind` notifications about `project_id`: their
@@ -314,38 +328,44 @@ defmodule Tuist.Push do
     |> Kernel.==(true)
   end
 
+  def prune_batch_size, do: @prune_batch_size
+
   @doc """
-  Retires registrations the app has not refreshed for #{@stale_after_days} days
-  (clients re-register on foreground) and deletes tombstones after
-  #{@tombstone_retention_days} days.
+  Retires up to #{@prune_batch_size} registrations the app has not refreshed for
+  #{@stale_after_days} days (clients re-register on foreground) and deletes up to
+  #{@prune_batch_size} tombstones older than #{@tombstone_retention_days} days,
+  except `removed` ones.
   """
   def prune do
     now = now()
 
-    {stale, _} =
+    stale =
       Installation
       |> where([i], is_nil(i.retired_at) and i.last_registered_at < ^DateTime.add(now, -@stale_after_days, :day))
+      |> limit(@prune_batch_size)
+      |> select([i], i.id)
+
+    {retired, _} =
+      Installation
+      |> where([i], i.id in subquery(stale) and is_nil(i.retired_at))
       |> Repo.update_all(set: retired_fields("stale"))
 
-    {deleted, _} =
+    expired =
       Installation
       |> where([i], i.retired_at < ^DateTime.add(now, -@tombstone_retention_days, :day))
-      |> Repo.delete_all()
+      |> where([i], i.retired_reason != "removed")
+      |> limit(@prune_batch_size)
+      |> select([i], i.id)
 
-    {:ok, %{retired: stale, deleted: deleted}}
+    {deleted, _} = Installation |> where([i], i.id in subquery(expired)) |> Repo.delete_all()
+
+    %{retired: retired, deleted: deleted}
   end
 
-  defp session_active?(%Installation{} = installation) do
-    case Clients.get_client(installation.oauth_client_id) do
-      %{refresh_token_ttl: ttl} when is_integer(ttl) ->
-        match?(
-          {:ok, _scope},
-          OAuthGrants.active_scope(installation.oauth_grant_id, installation.oauth_client_id, installation.user_id, ttl)
-        )
-
-      _ ->
-        false
-    end
+  # Raises on database errors, so a transient failure never retires a live device.
+  defp session_active?(%Installation{oauth_grant_id: grant_id, user_id: user_id}) do
+    ttl = Clients.public!().refresh_token_ttl
+    match?({:ok, _scope}, OAuthGrants.active_scope(grant_id, Environment.oauth_client_id(), user_id, ttl))
   end
 
   # Compare-and-retire on the grant, so a concurrent re-registration that
@@ -416,7 +436,6 @@ defmodule Tuist.Push do
     installation
     |> Ecto.Changeset.change(%{
       user_id: user.id,
-      oauth_client_id: session.oauth_client_id,
       oauth_grant_id: session.oauth_grant_id,
       platform: attrs.platform,
       device_name: attrs.name,
@@ -431,6 +450,10 @@ defmodule Tuist.Push do
     |> Repo.insert_or_update()
     |> case do
       {:ok, saved} ->
+        # The installation lock does not serialize a user's other installations,
+        # so take a per-user lock before enforcing the cap. The order is always
+        # installation, then user.
+        Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["push_user:#{user.id}"])
         evict_oldest!(user.id)
         {:ok, saved}
 
@@ -459,7 +482,15 @@ defmodule Tuist.Push do
   end
 
   defp retired_fields(reason) do
-    [retired_at: now(), retired_reason: reason, user_id: nil, oauth_grant_id: nil, token: nil, token_hash: nil]
+    [
+      retired_at: now(),
+      retired_reason: reason,
+      user_id: nil,
+      oauth_grant_id: nil,
+      device_name: nil,
+      token: nil,
+      token_hash: nil
+    ]
   end
 
   defp now, do: DateTime.truncate(DateTime.utc_now(), :second)

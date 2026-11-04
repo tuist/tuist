@@ -7,7 +7,6 @@ defmodule Tuist.Repo.Migrations.CreatePushInstallations do
       add :installation_id, :uuid, null: false
       # Cleared when retired; live rows cascade with their user.
       add :user_id, references(:users, on_delete: :delete_all)
-      add :oauth_client_id, :uuid
       add :oauth_grant_id, :uuid
       add :platform, :string
       add :device_name, :string
@@ -31,8 +30,9 @@ defmodule Tuist.Repo.Migrations.CreatePushInstallations do
              name: :push_installations_live_token_hash_index
            )
 
+    # Not `retired_at IS NULL`: the user-delete cascade filters on user_id alone.
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-    create index(:push_installations, [:user_id], where: "retired_at IS NULL")
+    create index(:push_installations, [:user_id], where: "user_id IS NOT NULL")
 
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:push_installations, [:last_registered_at], where: "retired_at IS NULL")
@@ -43,7 +43,7 @@ defmodule Tuist.Repo.Migrations.CreatePushInstallations do
     # excellent_migrations:safety-assured-for-next-line check_constraint_added
     create constraint(:push_installations, :live_or_tombstone,
              check: """
-             (retired_at IS NULL AND user_id IS NOT NULL AND oauth_client_id IS NOT NULL AND oauth_grant_id IS NOT NULL
+             (retired_at IS NULL AND user_id IS NOT NULL AND oauth_grant_id IS NOT NULL
                AND token IS NOT NULL AND token_hash IS NOT NULL AND platform IS NOT NULL AND environment IS NOT NULL
                AND token_updated_at IS NOT NULL AND last_registered_at IS NOT NULL)
              OR (retired_at IS NOT NULL AND user_id IS NULL AND oauth_grant_id IS NULL AND token IS NULL
