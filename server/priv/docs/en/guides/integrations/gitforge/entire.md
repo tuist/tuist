@@ -49,6 +49,8 @@ Configure these server environment variables:
 | `TUIST_ENTIRE_CORE_URL` | Entire Core used for installation requests; defaults to `https://eu.auth.entire.io` |
 | `TUIST_ENTIRE_DELIVERY_JWKS_URL` | Webhook signing-key URL supplied by Entire at registration |
 
+For managed Helm deployments, store the private PEM in the environment's 1Password vault as `ENTIRE_PLUGIN/private_key`, then enable `server.config.entirePluginKey.enabled` alongside `server.config.managedSecrets`. External Secrets supplies `TUIST_ENTIRE_PLUGIN_PRIVATE_KEY` through the existing server-config Secret without trimming the multiline PEM. The item and field names are configurable through `server.config.entirePluginKey.item` and `.field`. This mapping defaults off and does not configure the slug or webhook signing-key URL; supply those separately after registration. Each environment should use its own signing key. Share only the public PEM with Entire, never the private key.
+
 Register `https://<your-tuist-host>/integrations/entire/callback` as the post-install URL and `https://<your-tuist-host>/webhooks/entire` as the webhook URL. Enable the `entire_trails` feature flag for the account after applying the server migrations. Entire Trail summaries are independent of Tuist's CI execution configuration and feature flag.
 
 Tuist verifies installation receipts and webhook signatures, mints short-lived repository-scoped tokens, and discovers each repository's current processing region before publishing. Tokens are never embedded in report links.

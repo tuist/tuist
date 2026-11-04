@@ -7,6 +7,8 @@ defmodule Tuist.Entire.Client do
   alias Tuist.KeyValueStore
 
   @cores for region <- ~w(us eu au in uk sg), suffix <- ~w(io com), do: "https://#{region}.auth.entire.#{suffix}"
+  @delivery_issuers for region <- ~w(us-east-2 eu-central-1 eu-west-2 ap-south-1 ap-southeast-1 ap-southeast-2 sa-east-1),
+                        do: "https://#{region}.entire-ci-webhooks.entire.io"
 
   def config, do: Application.get_env(:tuist, __MODULE__, [])
 
@@ -40,9 +42,9 @@ defmodule Tuist.Entire.Client do
   end
 
   def verify_delivery(token, body) do
-    with {:ok, header, _claims} <- peek(token),
+    with {:ok, header, claims} <- peek(token),
+         true <- claims["iss"] in @delivery_issuers,
          {:ok, claims} <- verify(token, header, __MODULE__.config()[:delivery_jwks_url]),
-         true <- trusted_origin?(claims["iss"]),
          true <- audience?(claims, __MODULE__.config()[:slug]),
          true <- nonempty?(claims["jti"]),
          digest = Base.url_encode64(:crypto.hash(:sha256, body), padding: false),

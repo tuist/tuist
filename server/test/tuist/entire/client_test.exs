@@ -98,6 +98,36 @@ defmodule Tuist.Entire.ClientTest do
              Entire.verify_delivery(sign(JOSE.JWK.generate_key({:okp, :Ed25519}), claims), body)
   end
 
+  test "accepts only documented delivery issuers, independently of signing-key availability", context do
+    body = JSON.encode!(%{delivery_id: "delivery-issuer", installation_id: "ins_one", plugin_id: "tuist-ci"})
+    digest = Base.url_encode64(:crypto.hash(:sha256, body), padding: false)
+    claims = claims(%{"aud" => "tuist-ci", "body_sha256" => digest})
+
+    for region <- ~w(us-east-2 eu-central-1 eu-west-2 ap-south-1 ap-southeast-1 ap-southeast-2 sa-east-1) do
+      issuer = "https://#{region}.entire-ci-webhooks.entire.io"
+      assert {:ok, _, _} = Entire.verify_delivery(sign(context.key, Map.put(claims, "iss", issuer)), body)
+    end
+
+    for issuer <- [
+          "https://entire.io",
+          "https://entire.com",
+          "https://eu.auth.entire.io",
+          "https://delivery.entire.io",
+          "https://us-east-2.entire-ci-webhooks.entire.com",
+          "https://us-east-2.entire-ci-webhooks.entire.io.attacker.test",
+          "https://us-east-2.entire-ci-webhooks.entire.io/",
+          "http://us-east-2.entire-ci-webhooks.entire.io"
+        ] do
+      assert {:error, :invalid_delivery} = Entire.verify_delivery(sign(context.key, Map.put(claims, "iss", issuer)), body)
+    end
+
+    Cachex.clear(context.cache)
+    Cachex.clear(context.jwks_cache)
+    stub(Req, :get, fn _ -> {:error, :closed} end)
+    token = sign(context.key, Map.put(claims, "iss", "https://eu.auth.entire.io"))
+    assert {:error, :invalid_delivery} = Entire.verify_delivery(token, body)
+  end
+
   test "reports unavailable signing keys as retryable", %{key: key} do
     expect(Req, :get, fn _ -> {:error, :closed} end)
     token = sign(key, claims(%{"iss" => "https://eu.auth.entire.io"}), "entire-install-receipt+jwt")
@@ -265,7 +295,7 @@ defmodule Tuist.Entire.ClientTest do
     digest = Base.url_encode64(:crypto.hash(:sha256, body), padding: false)
 
     claims =
-      claims(%{"iss" => "https://delivery.entire.io", "aud" => "tuist-ci", "body_sha256" => digest})
+      claims(%{"iss" => "https://us-east-2.entire-ci-webhooks.entire.io", "aud" => "tuist-ci", "body_sha256" => digest})
 
     {sign(key, claims, "JWT", kid), body}
   end
