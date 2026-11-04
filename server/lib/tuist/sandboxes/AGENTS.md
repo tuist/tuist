@@ -147,7 +147,7 @@ consumer is Claude Managed Agents `self_hosted` environments.
   lock (taken only to start and to finish), so a resume wins: the node
   cancels the upload and `finish` discards one whose row changed. A spawn
   of an archived Orb (`running_or_resume/1`) is admitted like a create
-  (concurrency, the running limit and the on-node cap), placed by
+  (the CPU, memory and disk quota), placed by
   `Capacity.place/1`, or by `place/2` among the nodes at its store's site,
   created
   with `from_archive` and cold boots; a failed restore reverts the row to
@@ -159,11 +159,16 @@ consumer is Claude Managed Agents `self_hosted` environments.
   queued by `enqueue_if_over_cap/1` after an Orb pause) runs
   `Archives.run/0`, which also aborts uploads abandoned for 45 minutes and
   reverts restores stuck for 15.
-- Account limits (`Tuist.Sandboxes`): at most five sandboxes creating,
-  running or resuming (`:sandbox_running_limit`, checked on create,
-  restore and resume, retryable) and thirty on nodes, paused included
-  (`:sandbox_limit`, checked on create and restore). The account CPU and
-  memory quota (`Tuist.Sandboxes.Concurrency`) applies on top.
+- Account limits (`Tuist.Sandboxes.Concurrency`), never a count: running
+  sandboxes (creating, running or resuming) charge the CPU and memory quota
+  (`:sandbox_concurrency_limit`, checked on create, restore and resume,
+  retryable), and every sandbox on a node, paused included, charges the disk
+  quota (`sandbox_disk_gb_limit`) with its workspace and memory image,
+  checked on create and restore only, so lowering it never strands a paused
+  sandbox. Past the disk quota, `Archives.make_room/1` queues the archive of
+  the account's least recently paused idle Orb and the refusal is retryable
+  (`:sandbox_disk_limit`); when nothing can be archived it is final
+  (`:sandbox_limit`).
 - Idle Orbs: node reports carry each running VM's `cpu_ms`. A reading more
   than 20 ms per second above `guest_cpu_ms` since `last_active_at`, or
   below it (a new VM process), records activity. A running Orb quiet for
@@ -288,9 +293,8 @@ socket, the poller and the caller share a replica:
 - `TuistWeb.Plugs.RequireSandboxesPlug` gates both account APIs on
   `FeatureFlags.sandboxes_enabled?/1` (an explicit `:sandboxes` flag on
   canary and production), and the poller manager only runs pollers for
-  flagged accounts. Accounts get at most 5 live sandboxes, the shapes
-  in `Sandbox.shapes/0` and workspaces up to 100 GB. Archived Amp Orbs do
-  not count toward the 5.
+  flagged accounts. Accounts get the shapes in `Sandbox.shapes/0` and
+  workspaces up to 100 GB.
 - `TuistWeb.API.SandboxesController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes` (agent environments,
   including `PATCH agent-environments/:id` for the API key, model and
