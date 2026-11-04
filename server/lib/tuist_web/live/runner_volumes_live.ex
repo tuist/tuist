@@ -146,9 +146,9 @@ defmodule TuistWeb.RunnerVolumesLive do
            |> push_event("close-modal", %{id: "volume-confirm-delete"})
            |> put_flash(
              :info,
-             dgettext("dashboard_runners", "Volume cleared. Running jobs can finish.")
+             dgettext("dashboard_runners", "Volume deleted. Running jobs can finish.")
            )
-           |> load()}
+           |> push_patch(to: ~p"/#{account.name}/runners/volumes")}
 
         _ ->
           {:noreply, put_flash(socket, :error, dgettext("dashboard_runners", "Could not update volume. Please retry."))}

@@ -290,7 +290,7 @@ require runner access; clearing requires account administration or the `account:
 | `list_runner_volume_jobs` | Paginated job and workflow references, cache status, hit outcome and mount time. | `account_handle`, `volume_id` |
 | `list_runner_job_volumes` | Volumes mounted by a job. | `account_handle`, `workflow_job_id` |
 | `get_runner_volume_analytics` | Storage series, job runs, hit rate and trends. Optional `volume_id`, `start` and `end` (ISO 8601); defaults to seven days, maximum 90. | `account_handle` |
-| `clear_runner_volume` | Clear saved contents. Running jobs keep their private copies but cannot save them; later jobs start empty. | `account_handle`, `volume_id` |
+| `delete_runner_volume` | Delete a volume and its saved contents. Running jobs keep their private copies but cannot save them; later jobs with the same key start empty. | `account_handle`, `volume_id` |
 
 Lists accept `page` and `page_size` (up to 100). Volume inventory also accepts
 `name` and `repository` (exact matches, combined with AND), `sort_by` (`volume`, `repository`, `used_space`, `capacity`, `last_used`)

@@ -10977,10 +10977,34 @@ components:
           type: string
           x-struct:
           x-validate:
+        writable:
+          description: Whether the token may write to the project in `full_handle`. Present only when `full_handle` is sent.
+          type: boolean
+          x-struct:
+          x-validate:
       required:
         - token
         - expires_in
       title: CacheToken
+      type: object
+      x-struct:
+      x-validate:
+    RunnerVolumeDeleted:
+      additionalProperties: false
+      properties:
+        deleted:
+          type: boolean
+          x-struct:
+          x-validate:
+        id:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - deleted
+        - id
+      title: RunnerVolumeDeleted
       type: object
       x-struct:
       x-validate:
@@ -12282,6 +12306,19 @@ components:
           type: string
           x-struct:
           x-validate:
+        archive_bytes:
+          description: Size of the stored archive in bytes.
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        archived_at:
+          description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         error_message:
           nullable: true
           type: string
@@ -12334,6 +12371,7 @@ components:
             - running
             - resuming
             - paused
+            - archived
             - error
             - deleted
           type: string
@@ -16676,6 +16714,19 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        archive_bytes:
+                          description: Size of the stored archive in bytes.
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        archived_at:
+                          description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         error_message:
                           nullable: true
                           type: string
@@ -16728,6 +16779,7 @@ paths:
                             - running
                             - resuming
                             - paused
+                            - archived
                             - error
                             - deleted
                           type: string
@@ -16882,6 +16934,19 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  archive_bytes:
+                    description: Size of the stored archive in bytes.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  archived_at:
+                    description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   error_message:
                     nullable: true
                     type: string
@@ -16934,6 +16999,7 @@ paths:
                       - running
                       - resuming
                       - paused
+                      - archived
                       - error
                       - deleted
                     type: string
@@ -18283,6 +18349,7 @@ paths:
   /api/accounts/{account_handle}/runners/volumes/{volume_id}/clear:
     post:
       callbacks: {}
+      deprecated: true
       operationId: clearRunnerVolume
       parameters:
         - description: ''
@@ -18366,7 +18433,7 @@ paths:
                 x-struct:
                 x-validate:
               style: simple
-      summary: Clear saved volume contents. Running jobs retain their copies but cannot save them.
+      summary: 'Deprecated: use deleteRunnerVolume.'
       tags:
         - Runners
   /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/artifacts:
@@ -21419,6 +21486,19 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  archive_bytes:
+                    description: Size of the stored archive in bytes.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  archived_at:
+                    description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   error_message:
                     nullable: true
                     type: string
@@ -21471,6 +21551,7 @@ paths:
                       - running
                       - resuming
                       - paused
+                      - archived
                       - error
                       - deleted
                     type: string
@@ -23489,6 +23570,94 @@ paths:
       tags:
         - Organizations
   /api/accounts/{account_handle}/runners/volumes/{volume_id}:
+    delete:
+      callbacks: {}
+      operationId: deleteRunnerVolume
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            minLength: 1
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: volume_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  deleted:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  id:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - deleted
+                  - id
+                title: RunnerVolumeDeleted
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner volume data
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Volume or job not found, or runners disabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Delete a runner volume. Running jobs retain their copies but cannot save them; later jobs with its key start empty.
+      tags:
+        - Runners
     get:
       callbacks: {}
       operationId: getRunnerVolume
@@ -26219,6 +26388,19 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  archive_bytes:
+                    description: Size of the stored archive in bytes.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  archived_at:
+                    description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   error_message:
                     nullable: true
                     type: string
@@ -26271,6 +26453,7 @@ paths:
                       - running
                       - resuming
                       - paused
+                      - archived
                       - error
                       - deleted
                     type: string
@@ -39527,6 +39710,19 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  archive_bytes:
+                    description: Size of the stored archive in bytes.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  archived_at:
+                    description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                   error_message:
                     nullable: true
                     type: string
@@ -39579,6 +39775,7 @@ paths:
                       - running
                       - resuming
                       - paused
+                      - archived
                       - error
                       - deleted
                     type: string
@@ -55824,6 +56021,11 @@ paths:
                   token:
                     description: The token to send to cache nodes.
                     type: string
+                    x-struct:
+                    x-validate:
+                  writable:
+                    description: Whether the token may write to the project in `full_handle`. Present only when `full_handle` is sent.
+                    type: boolean
                     x-struct:
                     x-validate:
                 required:

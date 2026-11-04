@@ -627,6 +627,30 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert {:noreply, ^socket} = RunnerVolumesLive.handle_event("confirm", %{}, socket)
   end
 
+  test "confirming deletes the volume and returns to the list" do
+    id = Ecto.UUID.generate()
+    volume = %Volume{id: id}
+    expect(Authorization, :authorize, fn :runners_update, :user, %{id: 1} -> :ok end)
+    expect(CacheVolumes, :get, fn 1, ^id -> volume end)
+    expect(CacheVolumes, :delete, fn 1, ^id -> {:ok, volume} end)
+
+    socket = %Socket{
+      assigns: %{
+        __changed__: %{},
+        flash: %{},
+        selected_account: %{id: 1, name: "acme"},
+        current_user: :user,
+        can_manage: true,
+        pending_action: {:delete, id}
+      }
+    }
+
+    assert {:noreply, socket} = RunnerVolumesLive.handle_event("confirm", %{}, socket)
+    assert socket.assigns.pending_action == nil
+    assert socket.assigns.flash["info"] == "Volume deleted. Running jobs can finish."
+    assert {:live, :patch, %{to: "/acme/runners/volumes"}} = socket.redirected
+  end
+
   test "requesting another account's volume never opens confirmation" do
     id = Ecto.UUID.generate()
     expect(CacheVolumes, :get, fn 1, ^id -> nil end)
