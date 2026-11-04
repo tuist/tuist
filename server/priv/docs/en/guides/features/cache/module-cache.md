@@ -56,7 +56,7 @@ Restricted generation limits source targets to the selected destination and pres
 
 `tuist test --destination` uses and downloads only the selected destination's slices, so a simulator test run can use binaries from a simulator-only or a full warm. It fails when the destination passed to `xcodebuild` after `--` doesn't match, and `--destination device` requires a device `-destination`. Selective-testing hashes don't depend on the destination, so runs with different `--destination` values share test results.
 
-Slice-by-slice caching supports iOS and macOS with standard architectures. Other platforms, custom architectures, and unsupported products keep full-artifact caching. Legacy module caching always downloads full artifacts and requires `--destination all` when warming.
+Slice-by-slice caching supports iOS and macOS. A slice that builds fewer architectures than the SDK's standard set, such as an arm64-only simulator slice from `EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64`, is cached under its architectures and only used by builds whose settings exclude the same architectures. Tuist reads those settings from the project's and targets' build settings and xcconfig files and from `XCODE_XCCONFIG_FILE`. Architecture settings it can't evaluate, such as values that reference other build settings, keep full-artifact caching, and so do other platforms and unsupported products. Legacy module caching always downloads full artifacts and requires `--destination all` when warming.
 
 ### Remote upload admission {#remote-upload-admission}
 

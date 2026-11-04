@@ -51,19 +51,29 @@
     public struct CacheStorableItemMetadata: Hashable, Equatable, Codable {
         public var binaryCacheFingerprints: [String: String]
         public var requiresSDKSlices: Bool
+        /// The architectures a consumer builds for an SDK, keyed like `binaryCacheFingerprints`, when its
+        /// build settings provably build fewer than the SDK's standard set. Absent means the standard set.
+        public var binaryCacheArchitectures: [String: [String]]
 
-        public init(binaryCacheFingerprints: [String: String] = [:], requiresSDKSlices: Bool = false) {
+        public init(
+            binaryCacheFingerprints: [String: String] = [:],
+            requiresSDKSlices: Bool = false,
+            binaryCacheArchitectures: [String: [String]] = [:]
+        ) {
             self.binaryCacheFingerprints = binaryCacheFingerprints
             self.requiresSDKSlices = requiresSDKSlices
+            self.binaryCacheArchitectures = binaryCacheArchitectures
         }
 
-        private enum CodingKeys: String, CodingKey { case binaryCacheFingerprints, requiresSDKSlices }
+        private enum CodingKeys: String, CodingKey { case binaryCacheFingerprints, requiresSDKSlices, binaryCacheArchitectures }
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             binaryCacheFingerprints = try container
                 .decodeIfPresent([String: String].self, forKey: .binaryCacheFingerprints) ?? [:]
             requiresSDKSlices = try container.decodeIfPresent(Bool.self, forKey: .requiresSDKSlices) ?? false
+            binaryCacheArchitectures = try container
+                .decodeIfPresent([String: [String]].self, forKey: .binaryCacheArchitectures) ?? [:]
         }
     }
 

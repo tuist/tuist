@@ -275,6 +275,7 @@ import XcodeGraph
             let plan = try await CacheWarmPlan.make(
                 targets: cacheableTargets,
                 fingerprints: hashedGraph.fingerprints,
+                architectures: hashedGraph.architectures,
                 sdkSelection: destination.sdkSelection,
                 generateOnly: generateOnly,
                 useSDKs: !Environment.current.isLegacyModuleCacheEnabled,
@@ -1442,7 +1443,8 @@ import XcodeGraph
                 hash: $0.value.hash,
                 metadata: .init(
                     binaryCacheFingerprints: sdkSelection.fingerprints($0.value.binaryCacheFingerprints),
-                    requiresSDKSlices: sdkSelection != .all && !$0.value.binaryCacheFingerprints.isEmpty
+                    requiresSDKSlices: sdkSelection != .all && !$0.value.binaryCacheFingerprints.isEmpty,
+                    binaryCacheArchitectures: $0.value.binaryCacheArchitectures
                 )
             ) })
             let cacheItems = try await cacheStorage.fetch(requestedItems, cacheCategory: .binaries)
@@ -1487,6 +1489,10 @@ import XcodeGraph
                     selectedHashesByCacheableTarget.values.map { ($0.hash, $0.binaryCacheFingerprints) },
                     uniquingKeysWith: { first, _ in first }
                 ),
+                architectures: Dictionary(
+                    selectedHashesByCacheableTarget.values.map { ($0.hash, $0.binaryCacheArchitectures) },
+                    uniquingKeysWith: { first, _ in first }
+                ),
                 localHits: localHits
             )
         }
@@ -1506,6 +1512,9 @@ import XcodeGraph
 
         let fingerprints: [String: [String: String]]
 
+        /// Per hash, the architectures of each SDK whose consumers build fewer than the SDK's standard set.
+        let architectures: [String: [String: [String]]]
+
         /// Targets the local cache served, with the path it returned for each.
         let localHits: [CacheStorableItem: AbsolutePath]
 
@@ -1513,9 +1522,11 @@ import XcodeGraph
             targetsToBuild: [(GraphTarget, String)],
             hashes: [GraphTarget: TargetContentHash],
             fingerprints: [String: [String: String]] = [:],
+            architectures: [String: [String: [String]]] = [:],
             localHits: [CacheStorableItem: AbsolutePath] = [:]
         ) {
             self.fingerprints = fingerprints
+            self.architectures = architectures
             self.localHits = localHits
             self.targetsToBuild = targetsToBuild
             targetHashes = Dictionary(
