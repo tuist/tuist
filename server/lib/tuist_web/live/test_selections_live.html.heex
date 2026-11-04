@@ -88,7 +88,7 @@
             description={
               dgettext(
                 "dashboard_tests",
-                "Requested tests the period's selection runs skipped: they passed in the baseline and none of the files they executed changed since."
+                "Tests the period's selection runs skipped: those in modules selective testing found unchanged, and those the changes since the baseline don't reach."
               )
             }
             value={if ready?, do: format_number(@analytics.result.totals.skipped)}
@@ -107,7 +107,7 @@
             description={
               dgettext(
                 "dashboard_tests",
-                "The share of requested tests that were skipped."
+                "The share of the tests in scope that were skipped, in unchanged modules or not affected."
               )
             }
             value={if ready?, do: "#{@analytics.result.totals.skip_rate}%"}
@@ -293,12 +293,12 @@
             } />
           </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Selected")}>
-            <.text_cell label={"#{format_number(run.selected_count)} / #{format_number(run.requested_count)}"} />
+            <.text_cell label={"#{format_number(run.selected_count)} / #{format_number(Selections.total_count(run))}"} />
           </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Skip rate")}>
             <.text_cell
               :if={!Selections.fallback?(run)}
-              label={"#{Selections.skip_rate(run.selected_count, run.skipped_count)}%"}
+              label={"#{Selections.skip_rate(run)}%"}
             />
             <.badge_cell
               :if={Selections.fallback?(run)}

@@ -34,6 +34,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
             project_id: project.id,
             commit_sha: @sha,
             skipped_count: 1,
+            module_skipped_count: 2,
             rules_version: "2026-11-01",
             rule_trace: [
               %{rule: "tracked_files", selected: 0, skipped: 0, verdict: "continue"},
@@ -92,8 +93,9 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       render_async(lv)
 
       assert has_element?(lv, "#widget-selected", "1")
-      assert has_element?(lv, "#widget-skipped", "1")
-      assert has_element?(lv, "#widget-skip-rate", "50.0%")
+      assert has_element?(lv, "#widget-skipped", "3")
+      assert has_element?(lv, "#widget-skip-rate", "75.0%")
+      assert has_element?(lv, "#test-selection-runs-table", "1 / 4")
       assert has_element?(lv, "#test-selection-runs-table", "a1b2c3d")
       assert has_element?(lv, "#test-selection-runs-table", "feature/search")
     end
@@ -159,8 +161,10 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
       {:ok, lv, _html} = live(conn, path <> "?tab=test-optimizations")
 
-      assert has_element?(lv, "#widget-selection-selected", "1 / 2")
+      assert has_element?(lv, "#widget-selection-selected", "1 / 4")
+      assert has_element?(lv, "#widget-selection-module-skipped", "2")
       assert has_element?(lv, "#widget-selection-skipped", "1")
+      assert has_element?(lv, "#widget-selection-skip-rate", "75.0%")
       assert has_element?(lv, "#widget-selection-not-run", "0")
       assert has_element?(lv, "[data-part='selection-summary-card']", "0f0f0f0")
       assert has_element?(lv, "[data-part='selection-summary-card']", "2 files")

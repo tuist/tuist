@@ -433,6 +433,17 @@ seeded =
             0
           end
 
+        # The baseline's tests in the modules the run never reached, which
+        # selective testing skipped by hash.
+        module_skipped_count =
+          if baseline && reason in ["", "tracked_file_changed"] do
+            baseline.sha
+            |> baseline_tests.(test_run.scheme)
+            |> Enum.count(&(not MapSet.member?(target_set, &1.module)))
+          else
+            0
+          end
+
         rule_trace =
           cond do
             reason == "tracked_file_changed" -> [%{rule: "tracked_files", selected: 0, skipped: 0, verdict: "abort"}]
@@ -467,6 +478,7 @@ seeded =
           requested_count: if(reason == "", do: length(selected) + skipped_count, else: 0),
           selected_count: length(selected),
           skipped_count: skipped_count,
+          module_skipped_count: module_skipped_count,
           inserted_at: selected_at
         }
 

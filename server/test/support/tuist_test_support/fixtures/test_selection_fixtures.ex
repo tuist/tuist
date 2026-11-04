@@ -14,7 +14,8 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
   @doc """
   Inserts an impact run for `project_id` with the given `selected` tests
   (maps over a selected test's fields; `name` at least) and returns it. The
-  selected count is derived from them; `skipped_count` defaults to 0.
+  selected count is derived from them; `skipped_count` and
+  `module_skipped_count` default to 0.
   """
   def run_fixture(attrs \\ []) do
     project_id = Keyword.fetch!(attrs, :project_id)
@@ -71,7 +72,8 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
           ),
         requested_count: if(outcome == "fallback", do: 0, else: length(selected) + skipped_count),
         selected_count: if(outcome == "fallback", do: 0, else: length(selected)),
-        skipped_count: if(outcome == "fallback", do: 0, else: skipped_count)
+        skipped_count: if(outcome == "fallback", do: 0, else: skipped_count),
+        module_skipped_count: Keyword.get(attrs, :module_skipped_count, 0)
       })
 
     {:ok, _} = IngestRepo.insert(run)

@@ -46,6 +46,7 @@ defmodule Tuist.Tests.SelectionsTest do
           [
             project_id: project.id,
             skipped_count: 2,
+            module_skipped_count: 4,
             selected: [
               %{
                 test_case_id: load,
@@ -145,15 +146,17 @@ defmodule Tuist.Tests.SelectionsTest do
   end
 
   describe "run_summary/2" do
-    test "adds up the run's tests, the skipped tests' baseline duration and the selected tests that never reported",
+    test "adds up the run's tests, those hashing skipped, the skipped tests' baseline duration and the selected tests that never reported",
          %{project: project} do
       %{run: run, test_run: test_run} = run(project)
       summary = Selections.run_summary(run, test_run.id)
 
       assert summary.requested == 4
+      assert summary.total == 8
       assert summary.selected == 2
       assert summary.skipped == 2
-      assert summary.skip_rate == 50.0
+      assert summary.module_skipped == 4
+      assert summary.skip_rate == 75.0
       assert summary.skipped_duration == 700
       assert summary.not_run == 1
       assert summary.reported
@@ -287,8 +290,8 @@ defmodule Tuist.Tests.SelectionsTest do
       assert analytics.totals.runs == 2
       assert analytics.totals.fallbacks == 1
       assert analytics.totals.selected == 2
-      assert analytics.totals.skipped == 2
-      assert analytics.totals.skip_rate == 50.0
+      assert analytics.totals.skipped == 6
+      assert analytics.totals.skip_rate == 75.0
       assert Enum.sum(analytics.selected) == 2
       assert length(analytics.dates) == 8
     end

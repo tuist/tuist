@@ -234,16 +234,33 @@ defmodule TuistWeb.TestSelection.RunTab do
               description={
                 dgettext(
                   "dashboard_tests",
-                  "Requested tests the selection kept, out of all requested."
+                  "Tests the selection kept, out of all the tests in scope, including those in unchanged modules."
                 )
               }
-              value={"#{format_number(@summary.selected)} / #{format_number(@summary.requested)}"}
+              value={"#{format_number(@summary.selected)} / #{format_number(@summary.total)}"}
               legend_color="primary"
             />
             <.widget
+              id="widget-selection-module-skipped"
+              title={dgettext("dashboard_tests", "In unchanged modules")}
+              description={
+                dgettext(
+                  "dashboard_tests",
+                  "Tests skipped because selective testing found their module unchanged, counted from the baseline's tests."
+                )
+              }
+              value={format_number(@summary.module_skipped)}
+              legend_color="secondary"
+            />
+            <.widget
               id="widget-selection-skipped"
-              title={dgettext("dashboard_tests", "Skipped")}
-              description={dgettext("dashboard_tests", "Requested tests the selection skipped.")}
+              title={dgettext("dashboard_tests", "Not affected")}
+              description={
+                dgettext(
+                  "dashboard_tests",
+                  "Tests in the remaining modules skipped because the changes since the baseline don't reach them."
+                )
+              }
               value={format_number(@summary.skipped)}
               legend_color="secondary"
             />
@@ -251,7 +268,10 @@ defmodule TuistWeb.TestSelection.RunTab do
               id="widget-selection-skip-rate"
               title={dgettext("dashboard_tests", "Skip rate")}
               description={
-                dgettext("dashboard_tests", "The share of requested tests that were skipped.")
+                dgettext(
+                  "dashboard_tests",
+                  "The share of the tests in scope that were skipped, in unchanged modules or not affected."
+                )
               }
               value={"#{@summary.skip_rate}%"}
               legend_color="tertiary"
@@ -262,7 +282,7 @@ defmodule TuistWeb.TestSelection.RunTab do
               description={
                 dgettext(
                   "dashboard_tests",
-                  "The skipped tests' durations in the baseline run, one after another."
+                  "The not-affected tests' durations in the baseline run, one after another."
                 )
               }
               value={format_duration(@summary.skipped_duration)}

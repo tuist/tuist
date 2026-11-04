@@ -513,12 +513,16 @@
               <span data-part="value">
                 {dgettext("dashboard_tests", "%{selected} of %{requested} tests",
                   selected: @selection_run.selected_count,
-                  requested: @selection_run.requested_count
+                  requested: Tuist.Tests.Selections.total_count(@selection_run)
                 )}
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_tests", "Skipped")}</div>
+              <div data-part="title">{dgettext("dashboard_tests", "In unchanged modules")}</div>
+              <span data-part="value">{@selection_run.module_skipped_count}</span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Not affected")}</div>
               <span data-part="value">{@selection_run.skipped_count}</span>
             </div>
           </div>

@@ -70,7 +70,7 @@ defmodule Tuist.Tests.Selections do
           date: fragment("formatDateTime(?, ?)", r.inserted_at, ^format),
           runs: count(),
           selected: sum(r.selected_count),
-          skipped: sum(r.skipped_count)
+          skipped: sum(r.skipped_count + r.module_skipped_count)
         }
       )
       |> ClickHouseRepo.all()
@@ -117,7 +117,7 @@ defmodule Tuist.Tests.Selections do
             runs: count(),
             fallbacks: fragment("countIf(? = 'fallback')", r.outcome),
             selected: sum(r.selected_count),
-            skipped: sum(r.skipped_count)
+            skipped: sum(r.skipped_count + r.module_skipped_count)
           }
         )
       ) || %{}
@@ -134,13 +134,22 @@ defmodule Tuist.Tests.Selections do
     }
   end
 
-  @doc "The share of requested tests that were skipped, as a percentage with one decimal."
+  @doc "The share of tests that were skipped, as a percentage with one decimal."
   def skip_rate(selected, skipped) do
     case selected + skipped do
       0 -> 0.0
       total -> Float.round(skipped / total * 100, 1)
     end
   end
+
+  @doc """
+  An impact run's skip rate, counting the tests in the modules hashing
+  skipped as skipped.
+  """
+  def skip_rate(%Run{} = run), do: skip_rate(run.selected_count, run.skipped_count + run.module_skipped_count)
+
+  @doc "The tests in an impact run's scope: those hashing skipped and those it left to decide."
+  def total_count(%Run{} = run), do: run.requested_count + run.module_skipped_count
 
   defp trend(previous, current) when previous in [0, +0.0] or current in [0, +0.0], do: 0.0
   defp trend(previous, current), do: Float.round((current - previous) / previous * 100, 1)
@@ -374,9 +383,11 @@ defmodule Tuist.Tests.Selections do
 
     Map.merge(outcomes, %{
       requested: run.requested_count,
+      total: total_count(run),
       selected: run.selected_count,
       skipped: run.skipped_count,
-      skip_rate: skip_rate(run.selected_count, run.skipped_count),
+      module_skipped: run.module_skipped_count,
+      skip_rate: skip_rate(run),
       skipped_duration: skipped_duration,
       reasons: Enum.sort_by(selected_reasons ++ skipped_reasons, &{&1.decision != "selected", -&1.count, &1.reason})
     })
