@@ -1,5 +1,5 @@
 {
-  "originHash" : "6f530f5db15c1378248db6d6b2b79a67cb1356fa2cc5c28416e7fd8fb4429b61",
+  "originHash" : "82348b304c0c843768c19d49b885baf254818abff843332ba96dc4c387284faf",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -650,6 +650,15 @@
       "originalLocation" : "https://github.com/tadija/AEXML.git",
       "state" : {
         "version" : "4.7.0"
+      }
+    },
+    {
+      "identity" : "testcoverageattribution",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/TestCoverageAttribution",
+      "state" : {
+        "revision" : "f94fe52332b1baf46b18ba054ac82edc2ec5a950",
+        "version" : "0.3.1"
       }
     },
     {

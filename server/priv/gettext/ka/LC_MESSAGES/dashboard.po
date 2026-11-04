@@ -60,35 +60,35 @@ msgstr "საშ."
 msgid "Bad request"
 msgstr "არასწორი მოთხოვნა"
 
-#: lib/tuist_web/components/app_layout_components.ex:550
+#: lib/tuist_web/components/app_layout_components.ex:551
 #, elixir-autogen, elixir-format
 msgid "Billing"
 msgstr "გადახდები"
 
-#: lib/tuist_web/components/app_layout_components.ex:71
-#: lib/tuist_web/components/app_layout_components.ex:311
+#: lib/tuist_web/components/app_layout_components.ex:72
+#: lib/tuist_web/components/app_layout_components.ex:312
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
 msgstr "აწყობის გაშვებები"
 
-#: lib/tuist_web/components/app_layout_components.ex:60
-#: lib/tuist_web/components/app_layout_components.ex:298
+#: lib/tuist_web/components/app_layout_components.ex:61
+#: lib/tuist_web/components/app_layout_components.ex:299
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr "აწყობები"
 
-#: lib/tuist_web/components/app_layout_components.ex:439
+#: lib/tuist_web/components/app_layout_components.ex:440
 #, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr "ბანდლები"
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:54
-#: lib/tuist_web/live/once_runs_live.ex:908
+#: lib/tuist_web/live/once_runs_live.ex:921
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr "CI"
 
-#: lib/tuist_web/components/app_layout_components.ex:249
+#: lib/tuist_web/components/app_layout_components.ex:250
 #, elixir-autogen, elixir-format
 msgid "Cache Runs"
 msgstr "ქეშის გაშვებები"
@@ -104,7 +104,7 @@ msgstr "ორგანიზაციის შექმნა"
 msgid "Download macOS app"
 msgstr "macOS აპის ჩამოტვირთვა"
 
-#: lib/tuist_web/components/app_layout_components.ex:666
+#: lib/tuist_web/components/app_layout_components.ex:667
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr "ელფოსტები"
@@ -116,12 +116,12 @@ msgstr "ელფოსტები"
 msgid "Error"
 msgstr "შეცდომა"
 
-#: lib/tuist_web/components/app_layout_components.ex:681
+#: lib/tuist_web/components/app_layout_components.ex:682
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "შეცდომები"
 
-#: lib/tuist_web/components/app_layout_components.ex:659
+#: lib/tuist_web/components/app_layout_components.ex:660
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr "ფლაგები"
@@ -137,13 +137,13 @@ msgstr "დაიწყეთ"
 msgid "Go to dashboard"
 msgstr "გადადით დაშბორდზე"
 
-#: lib/tuist_web/components/app_layout_components.ex:689
+#: lib/tuist_web/components/app_layout_components.ex:690
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr "Grafana"
 
-#: lib/tuist_web/components/app_layout_components.ex:596
+#: lib/tuist_web/components/app_layout_components.ex:597
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr "ინტეგრაციები"
@@ -159,8 +159,8 @@ msgstr "GitHub-ის აპლიკაციის არასწორი �
 msgid "Invalid installation request. Please try again."
 msgstr "არასწორი ინსტალაციის მოთხოვნა. გთხოვთ, სცადოთ ხელახლა."
 
-#: lib/tuist_web/components/app_layout_components.ex:503
-#: lib/tuist_web/components/app_layout_components.ex:653
+#: lib/tuist_web/components/app_layout_components.ex:504
+#: lib/tuist_web/components/app_layout_components.ex:654
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr "ამოცანები"
@@ -170,7 +170,7 @@ msgstr "ამოცანები"
 msgid "Learn more"
 msgstr "გაიგეთ მეტი"
 
-#: lib/tuist_web/components/app_layout_components.ex:647
+#: lib/tuist_web/components/app_layout_components.ex:648
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr "LiveDashboard"
@@ -180,12 +180,12 @@ msgstr "LiveDashboard"
 msgid "Log out"
 msgstr "გასვლა"
 
-#: lib/tuist_web/components/app_layout_components.ex:529
+#: lib/tuist_web/components/app_layout_components.ex:530
 #, elixir-autogen, elixir-format
 msgid "Members"
 msgstr "წევრები"
 
-#: lib/tuist_web/components/app_layout_components.ex:232
+#: lib/tuist_web/components/app_layout_components.ex:233
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
 msgstr "მოდულის ქეში"
@@ -243,7 +243,7 @@ msgstr "უკაცრავად, ვერ მოვახერხეთ �
 msgid "Operations"
 msgstr "ოპერაციები"
 
-#: lib/tuist_web/components/app_layout_components.ex:31
+#: lib/tuist_web/components/app_layout_components.ex:32
 #: lib/tuist_web/live/ops_database_live.html.heex:8
 #, elixir-autogen, elixir-format
 msgid "Overview"
@@ -259,17 +259,17 @@ msgstr "გთხოვთ, დარწმუნდეთ, რომ სწო�
 msgid "Prev"
 msgstr "წინა"
 
-#: lib/tuist_web/components/app_layout_components.ex:427
+#: lib/tuist_web/components/app_layout_components.ex:428
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr "პრევიუები"
 
-#: lib/tuist_web/components/app_layout_components.ex:518
+#: lib/tuist_web/components/app_layout_components.ex:519
 #, elixir-autogen, elixir-format
 msgid "Profiles"
 msgstr "პროფილები"
 
-#: lib/tuist_web/components/app_layout_components.ex:478
+#: lib/tuist_web/components/app_layout_components.ex:479
 #, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr "პროექტები"
@@ -279,12 +279,12 @@ msgstr "პროექტები"
 msgid "Server error"
 msgstr "სერვერის შეცდომა"
 
-#: lib/tuist_web/components/app_layout_components.ex:563
+#: lib/tuist_web/components/app_layout_components.ex:564
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "პარამეტრები"
 
-#: lib/tuist_web/components/app_layout_components.ex:451
+#: lib/tuist_web/components/app_layout_components.ex:452
 #, elixir-autogen, elixir-format
 msgid "Project Settings"
 msgstr "პროექტის პარამეტრები"
@@ -304,7 +304,7 @@ msgstr "გვიხსნით, გვერდი, რომელსაც �
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr "გვიხსნით, ზედმეტად ბევრი მოთხოვნა გააკეთეთ. გთხოვთ, სცადოთ თავიდან მოგვიანებით."
 
-#: lib/tuist_web/components/app_layout_components.ex:673
+#: lib/tuist_web/components/app_layout_components.ex:674
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr "შენახვა"
@@ -314,20 +314,20 @@ msgstr "შენახვა"
 msgid "Switch to your preferred theme"
 msgstr "გადადით სასურველ თემაზე"
 
-#: lib/tuist_web/components/app_layout_components.ex:122
-#: lib/tuist_web/components/app_layout_components.ex:368
+#: lib/tuist_web/components/app_layout_components.ex:123
+#: lib/tuist_web/components/app_layout_components.ex:369
 #, elixir-autogen, elixir-format
 msgid "Test Cases"
 msgstr "ტესტების შემთხვევები"
 
-#: lib/tuist_web/components/app_layout_components.ex:110
-#: lib/tuist_web/components/app_layout_components.ex:353
+#: lib/tuist_web/components/app_layout_components.ex:111
+#: lib/tuist_web/components/app_layout_components.ex:354
 #, elixir-autogen, elixir-format
 msgid "Test Runs"
 msgstr "ტესტების გაშვებები"
 
-#: lib/tuist_web/components/app_layout_components.ex:102
-#: lib/tuist_web/components/app_layout_components.ex:340
+#: lib/tuist_web/components/app_layout_components.ex:103
+#: lib/tuist_web/components/app_layout_components.ex:341
 #, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr "ტესტები"
@@ -337,7 +337,7 @@ msgstr "ტესტები"
 msgid "The account %{account_handle} was not found."
 msgstr "ანგარიში %{account_handle} ვერ მოიძებნა."
 
-#: lib/tuist_web/authentication.ex:491
+#: lib/tuist_web/authentication.ex:773
 #: lib/tuist_web/live/layout_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
@@ -392,8 +392,8 @@ msgstr "ზედმეტად ბევრი მოთხოვნა"
 msgid "Too many requests."
 msgstr "ზედმეტად ბევრი მოთხოვნა."
 
-#: lib/tuist_web/components/app_layout_components.ex:711
-#: lib/tuist_web/components/app_layout_components.ex:749
+#: lib/tuist_web/components/app_layout_components.ex:729
+#: lib/tuist_web/components/app_layout_components.ex:767
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr "Tuist-ის ხატულა"
@@ -418,7 +418,7 @@ msgstr "არაავტორიზებული"
 msgid "Unknown"
 msgstr "უცნობი"
 
-#: lib/tuist_web/components/app_layout_components.ex:288
+#: lib/tuist_web/components/app_layout_components.ex:289
 #, elixir-autogen, elixir-format
 msgid "Xcode Cache"
 msgstr "Xcode ქეში"
@@ -460,8 +460,8 @@ msgstr "p90"
 msgid "p99"
 msgstr "p99"
 
-#: lib/tuist_web/components/app_layout_components.ex:152
-#: lib/tuist_web/components/app_layout_components.ex:383
+#: lib/tuist_web/components/app_layout_components.ex:153
+#: lib/tuist_web/components/app_layout_components.ex:384
 #, elixir-autogen, elixir-format
 msgid "Flaky Tests"
 msgstr "არასტაბილური ტესტები"
@@ -481,18 +481,18 @@ msgstr "დაგვიკავშირდით"
 msgid "This is a public dashboard for the %{account_name}/%{project_name} project."
 msgstr "ეს არის საჯარო დაშბორდი %{account_name}/%{project_name} პროექტისთვის."
 
-#: lib/tuist_web/components/app_layout_components.ex:163
-#: lib/tuist_web/components/app_layout_components.ex:394
+#: lib/tuist_web/components/app_layout_components.ex:164
+#: lib/tuist_web/components/app_layout_components.ex:395
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
 msgstr "კარანტინში მოქცეული ტესტები"
 
-#: lib/tuist_web/components/app_layout_components.ex:261
+#: lib/tuist_web/components/app_layout_components.ex:262
 #, elixir-autogen, elixir-format
 msgid "Generations"
 msgstr "გენერაციები"
 
-#: lib/tuist_web/components/app_layout_components.ex:418
+#: lib/tuist_web/components/app_layout_components.ex:419
 #, elixir-autogen, elixir-format
 msgid "Gradle Cache"
 msgstr "Gradle ქეში"
@@ -502,8 +502,8 @@ msgstr "Gradle ქეში"
 msgid "Create project"
 msgstr "პროექტის შექმნა"
 
-#: lib/tuist_web/components/app_layout_components.ex:543
-#: lib/tuist_web/components/app_layout_components.ex:616
+#: lib/tuist_web/components/app_layout_components.ex:544
+#: lib/tuist_web/components/app_layout_components.ex:617
 #: lib/tuist_web/live/bazel_cache_live.ex:24
 #: lib/tuist_web/live/ops_cache_live.html.heex:3
 #, elixir-autogen, elixir-format
@@ -525,54 +525,54 @@ msgstr "მეტრიკები"
 msgid "Authentication failed"
 msgstr "ავტორიზაცია ვერ მოხერხდა"
 
-#: lib/tuist_web/controllers/auth_controller.ex:587
-#: lib/tuist_web/controllers/auth_controller.ex:759
+#: lib/tuist_web/controllers/auth_controller.ex:595
+#: lib/tuist_web/controllers/auth_controller.ex:767
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr "თქვენმა იდენტობის პროვაიდერმა წვდომა დაბლოკა. გთხოვთ, სთხოვოთ თქვენი ორგანიზაციის ადმინისტრატორს, მიანიჭოს თქვენთვის Tuist-ის აპლიკაციის წვდომა."
 
-#: lib/tuist_web/components/app_layout_components.ex:178
-#: lib/tuist_web/components/app_layout_components.ex:405
+#: lib/tuist_web/components/app_layout_components.ex:179
+#: lib/tuist_web/components/app_layout_components.ex:406
 #, elixir-autogen, elixir-format
 msgid "Shards"
 msgstr "შარდები"
 
-#: lib/tuist_web/controllers/auth_controller.ex:596
+#: lib/tuist_web/controllers/auth_controller.ex:604
 #, elixir-autogen, elixir-format
 msgid "Authentication with the identity provider failed. Please try again."
 msgstr "იდენტობის პროვაიდერთან ავტორიზაცია ვერ მოხერხდა. გთხოვთ, სცადოთ ხელახლა."
 
-#: lib/tuist_web/controllers/auth_controller.ex:857
+#: lib/tuist_web/controllers/auth_controller.ex:865
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with the SSO provider. Please try again."
 msgstr "SSO პროვაიდერთან ავტორიზაცია ვერ მოხერხდა. გთხოვთ, სცადოთ ხელახლა."
 
-#: lib/tuist_web/controllers/auth_controller.ex:738
+#: lib/tuist_web/controllers/auth_controller.ex:746
 #, elixir-autogen, elixir-format
 msgid "SSO is not fully configured for this organization. Ask an organization admin to review the SSO settings."
 msgstr "SSO ამ ორგანიზაციისთვის სრულად არ არის კონფიგურირებული. სთხოვეთ ორგანიზაციის ადმინისტრატორს გადახედოს SSO პარამეტრებს."
 
-#: lib/tuist_web/controllers/auth_controller.ex:801
+#: lib/tuist_web/controllers/auth_controller.ex:809
 #, elixir-autogen, elixir-format
 msgid "The SSO authorization code is invalid or expired. Please restart the sign-in flow."
 msgstr "SSO ავტორიზაციის კოდი არასწორია ან ვადაგასულია. გთხოვთ, ხელახლა დაიწყოთ შესვლის პროცესი."
 
-#: lib/tuist_web/controllers/auth_controller.ex:773
+#: lib/tuist_web/controllers/auth_controller.ex:781
 #, elixir-autogen, elixir-format
 msgid "The SSO provider callback is missing an authorization code. Please restart the sign-in flow."
 msgstr "SSO პროვაიდერის callback-ში აკლია ავტორიზაციის კოდი. გთხოვთ, ხელახლა დაიწყოთ შესვლის პროცესი."
 
-#: lib/tuist_web/controllers/auth_controller.ex:724
+#: lib/tuist_web/controllers/auth_controller.ex:732
 #, elixir-autogen, elixir-format
 msgid "The SSO request is missing an organization identifier. Please start the sign-in flow again from the login page."
 msgstr "SSO მოთხოვნაში აკლია ორგანიზაციის იდენტიფიკატორი. გთხოვთ, შესვლის პროცესი ხელახლა დაიწყოთ შესვლის გვერდიდან."
 
-#: lib/tuist_web/controllers/auth_controller.ex:752
+#: lib/tuist_web/controllers/auth_controller.ex:760
 #, elixir-autogen, elixir-format
 msgid "The SSO response could not be validated because the request state did not match. Please try again."
 msgstr "SSO პასუხის ვალიდაცია შეუძლებელია, რადგან მოთხოვნის მდგომარეობა არ ემთხვევა. გთხოვთ, სცადოთ ხელახლა."
 
-#: lib/tuist_web/controllers/auth_controller.ex:780
+#: lib/tuist_web/controllers/auth_controller.ex:788
 #, elixir-autogen, elixir-format
 msgid "The configured SSO endpoints are invalid. Ask your organization admin to review the SSO settings."
 msgstr "კონფიგურირებული SSO ბოლოწერტილები არასწორია. სთხოვეთ თქვენი ორგანიზაციის ადმინისტრატორს გადახედოს SSO პარამეტრებს."
@@ -582,52 +582,52 @@ msgstr "კონფიგურირებული SSO ბოლოწერ�
 msgid "Tuist Ops"
 msgstr "Tuist Ops"
 
-#: lib/tuist_web/controllers/auth_controller.ex:787
+#: lib/tuist_web/controllers/auth_controller.ex:795
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't exchange the authorization code with your identity provider. Ask your organization admin to verify the SSO credentials and callback URL."
 msgstr "Tuist-მა ვერ შეძლო ავტორიზაციის კოდის გაცვლა თქვენს იდენტობის პროვაიდერთან. სთხოვეთ თქვენი ორგანიზაციის ადმინისტრატორს გადაამოწმოს SSO კრედენციალები და callback URL."
 
-#: lib/tuist_web/controllers/auth_controller.ex:794
+#: lib/tuist_web/controllers/auth_controller.ex:802
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't fetch your profile from your identity provider. Ask your organization admin to verify the user info endpoint and configured scopes."
 msgstr "Tuist-მა ვერ მოახერხა თქვენი პროფილის მიღება იდენტობის პროვაიდერიდან. სთხოვეთ თქვენი ორგანიზაციის ადმინისტრატორს შეამოწმოს მომხმარებლის ინფორმაციის endpoint და კონფიგურირებული scopes."
 
-#: lib/tuist_web/controllers/auth_controller.ex:850
+#: lib/tuist_web/controllers/auth_controller.ex:858
 #, elixir-autogen, elixir-format
 msgid "We couldn't complete the SSO callback for this request. Please try again."
 msgstr "ჩვენ ვერ დავასრულეთ SSO callback ამ მოთხოვნისთვის. გთხოვთ, სცადოთ ხელახლა."
 
-#: lib/tuist_web/controllers/auth_controller.ex:731
+#: lib/tuist_web/controllers/auth_controller.ex:739
 #, elixir-autogen, elixir-format
 msgid "We couldn't find the organization for this SSO request. Please verify that you are using the correct SSO link."
 msgstr "ჩვენ ვერ ვიპოვეთ ორგანიზაცია ამ SSO მოთხოვნისთვის. გთხოვთ, დარწმუნდეთ, რომ იყენებთ სწორ SSO ბმულს."
 
-#: lib/tuist_web/controllers/auth_controller.ex:843
+#: lib/tuist_web/controllers/auth_controller.ex:851
 #, elixir-autogen, elixir-format
 msgid "We couldn't start the SSO flow for this organization. Please verify the SSO configuration and try again."
 msgstr "ჩვენ ვერ დავიწყეთ SSO ნაკადი ამ ორგანიზაციისთვის. გთხოვთ, შეამოწმოთ SSO კონფიგურაცია და სცადოთ ხელახლა."
 
-#: lib/tuist_web/controllers/auth_controller.ex:745
+#: lib/tuist_web/controllers/auth_controller.ex:753
 #, elixir-autogen, elixir-format
 msgid "Your SSO session has expired. Please restart the sign-in flow from the login page."
 msgstr "თქვენი SSO სესია ამოიწურა. გთხოვთ, თავიდან დაიწყოთ შესვლის პროცესი შესვლის გვერდიდან."
 
-#: lib/tuist_web/controllers/auth_controller.ex:822
+#: lib/tuist_web/controllers/auth_controller.ex:830
 #, elixir-autogen, elixir-format
 msgid "Your Tuist account already exists, but it isn't a member of this organization. Ask an organization admin to add you, then sign in with SSO again."
 msgstr "თქვენი Tuist ანგარიში უკვე არსებობს, მაგრამ ის არ არის ამ ორგანიზაციის წევრი. სთხოვეთ ორგანიზაციის ადმინისტრატორს დაგამატოთ, შემდეგ კი ხელახლა შედით SSO-ით."
 
-#: lib/tuist_web/controllers/auth_controller.ex:808
+#: lib/tuist_web/controllers/auth_controller.ex:816
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing a stable user identifier. Ask your organization admin to review the user info claims."
 msgstr "თქვენი იდენტობის პროვაიდერის პასუხში არ არის სტაბილური მომხმარებლის იდენტიფიკატორი. სთხოვეთ თქვენი ორგანიზაციის ადმინისტრატორს გადახედოს მომხმარებლის ინფორმაციის claims-ებს."
 
-#: lib/tuist_web/controllers/auth_controller.ex:815
+#: lib/tuist_web/controllers/auth_controller.ex:823
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing an email address. Ask your organization admin to include the email claim."
 msgstr "თქვენი იდენტობის პროვაიდერის პასუხში არ არის ელფოსტის მისამართი. სთხოვეთ თქვენი ორგანიზაციის ადმინისტრატორს ჩართოს email claim."
 
-#: lib/tuist_web/controllers/auth_controller.ex:766
+#: lib/tuist_web/controllers/auth_controller.ex:774
 #, elixir-autogen, elixir-format
 msgid "Your identity provider returned an authentication error. Please try again or contact your organization admin."
 msgstr "თქვენმა იდენტობის პროვაიდერმა დააბრუნა აუთენტიფიკაციის შეცდომა. გთხოვთ, სცადეთ ხელახლა ან დაუკავშირდით თქვენი ორგანიზაციის ადმინისტრატორს."
@@ -637,7 +637,7 @@ msgstr "თქვენმა იდენტობის პროვაიდ�
 msgid "Dashboard"
 msgstr "დაშბორდი"
 
-#: lib/tuist_web/components/app_layout_components.ex:629
+#: lib/tuist_web/components/app_layout_components.ex:630
 #: lib/tuist_web/live/ops_accounts_live.ex:19
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
@@ -645,7 +645,7 @@ msgstr "დაშბორდი"
 msgid "Accounts"
 msgstr "ანგარიშები"
 
-#: lib/tuist_web/components/app_layout_components.ex:602
+#: lib/tuist_web/components/app_layout_components.ex:603
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr "აუთენტიფიკაცია"
@@ -685,12 +685,12 @@ msgstr "ანგარიში ვერ მოიძებნა."
 msgid "Active"
 msgstr "აქტიური"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:898
+#: lib/tuist_web/live/ops_account_live.html.heex:906
 #, elixir-autogen, elixir-format
 msgid "Address line 1"
 msgstr "მისამართის ხაზი 1"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:906
+#: lib/tuist_web/live/ops_account_live.html.heex:914
 #, elixir-autogen, elixir-format
 msgid "Address line 2 (optional)"
 msgstr "მისამართის ხაზი 2 (არასავალდებულო)"
@@ -720,8 +720,8 @@ msgstr "ავსტრია"
 msgid "Belgium"
 msgstr "ბელგია"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:794
-#: lib/tuist_web/live/ops_account_live.html.heex:890
+#: lib/tuist_web/live/ops_account_live.html.heex:802
+#: lib/tuist_web/live/ops_account_live.html.heex:898
 #: lib/tuist_web/live/ops_accounts_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Billing email"
@@ -742,13 +742,13 @@ msgstr "ბულგარეთი"
 msgid "Canada"
 msgstr "კანადა"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:948
+#: lib/tuist_web/live/ops_account_live.html.heex:956
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "გაუქმება"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:840
+#: lib/tuist_web/live/ops_account_live.html.heex:848
 #, elixir-autogen, elixir-format
 msgid "Cancel %{account}'s subscription at the end of the current billing period? Access is kept until then."
 msgstr "გსურთ გააუქმოთ %{account}-ის გამოწერა მიმდინარე გადახდის პერიოდის ბოლოს? წვდომა შენარჩუნდება ამ დრომდე."
@@ -758,7 +758,7 @@ msgstr "გსურთ გააუქმოთ %{account}-ის გამო�
 msgid "Cancel failed: %{reason}"
 msgstr "გაუქმება ვერ მოხერხდა: %{reason}"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:837
+#: lib/tuist_web/live/ops_account_live.html.heex:845
 #, elixir-autogen, elixir-format
 msgid "Cancel plan"
 msgstr "გეგმის გაუქმება"
@@ -779,7 +779,7 @@ msgstr "ჩილე"
 msgid "China"
 msgstr "ჩინეთი"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:912
+#: lib/tuist_web/live/ops_account_live.html.heex:920
 #, elixir-autogen, elixir-format
 msgid "City"
 msgstr "ქალაქი"
@@ -789,12 +789,12 @@ msgstr "ქალაქი"
 msgid "Colombia"
 msgstr "კოლუმბია"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:932
+#: lib/tuist_web/live/ops_account_live.html.heex:940
 #, elixir-autogen, elixir-format
 msgid "Country"
 msgstr "ქვეყანა"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:860
+#: lib/tuist_web/live/ops_account_live.html.heex:868
 #, elixir-autogen, elixir-format
 msgid "Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
 msgstr "ქმნის Stripe-ის მომხმარებელს (თუ არ არსებობს), ადგენს გადახდის მისამართს და იწყებს ინვოისით გადახდილ Enterprise გეგმას. მომხმარებელი იღებს ინვოისს ელფოსტით; ბარათის მონაცემები აქ არ შეგროვდება."
@@ -921,7 +921,7 @@ msgstr "იტალია"
 msgid "Japan"
 msgstr "იაპონია"
 
-#: lib/tuist_web/components/app_layout_components.ex:622
+#: lib/tuist_web/components/app_layout_components.ex:623
 #: lib/tuist_web/live/ops_account_live.html.heex:25
 #, elixir-autogen, elixir-format
 msgid "Kura"
@@ -962,7 +962,7 @@ msgstr "მალაიზია"
 msgid "Malta"
 msgstr "მალტა"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:807
+#: lib/tuist_web/live/ops_account_live.html.heex:815
 #, elixir-autogen, elixir-format
 msgid "Manage on Stripe"
 msgstr "Stripe-ზე მართვა"
@@ -979,7 +979,7 @@ msgstr "მექსიკა"
 msgid "Name"
 msgstr "სახელი"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:882
+#: lib/tuist_web/live/ops_account_live.html.heex:890
 #, elixir-autogen, elixir-format
 msgid "Name on invoice"
 msgstr "სახელი ინვოისზე"
@@ -1017,7 +1017,7 @@ msgstr "გასაუქმებელი აქტიური გამო�
 #: lib/tuist_web/live/ops_account_live.html.heex:53
 #: lib/tuist_web/live/ops_account_live.html.heex:57
 #: lib/tuist_web/live/ops_account_live.html.heex:63
-#: lib/tuist_web/live/ops_account_live.html.heex:795
+#: lib/tuist_web/live/ops_account_live.html.heex:803
 #: lib/tuist_web/live/ops_accounts_live.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "None"
@@ -1028,7 +1028,7 @@ msgstr "არცერთი"
 msgid "Norway"
 msgstr "ნორვეგია"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:798
+#: lib/tuist_web/live/ops_account_live.html.heex:806
 #: lib/tuist_web/live/ops_accounts_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Not created"
@@ -1055,13 +1055,13 @@ msgstr "მოლოდინში"
 msgid "Philippines"
 msgstr "ფილიპინები"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:780
+#: lib/tuist_web/live/ops_account_live.html.heex:788
 #: lib/tuist_web/live/ops_accounts_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "Plan"
 msgstr "პაკეტი"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:777
+#: lib/tuist_web/live/ops_account_live.html.heex:785
 #, elixir-autogen, elixir-format
 msgid "Plan & billing"
 msgstr "პაკეტი და გადახდები"
@@ -1076,7 +1076,7 @@ msgstr "პოლონეთი"
 msgid "Portugal"
 msgstr "პორტუგალია"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:926
+#: lib/tuist_web/live/ops_account_live.html.heex:934
 #, elixir-autogen, elixir-format
 msgid "Postal code"
 msgstr "საფოსტო ინდექსი"
@@ -1111,7 +1111,7 @@ msgstr "გაშვება"
 msgid "Search by name"
 msgstr "ძებნა სახელით"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:935
+#: lib/tuist_web/live/ops_account_live.html.heex:943
 #, elixir-autogen, elixir-format
 msgid "Select a country"
 msgstr "ქვეყნის არჩევა"
@@ -1151,7 +1151,7 @@ msgstr "ესპანეთი"
 msgid "Started"
 msgstr "დაწყებულია"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:920
+#: lib/tuist_web/live/ops_account_live.html.heex:928
 #, elixir-autogen, elixir-format
 msgid "State / region (optional)"
 msgstr "შტატი / რეგიონი (არასავალდებულო)"
@@ -1160,13 +1160,13 @@ msgstr "შტატი / რეგიონი (არასავალდე�
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:18
 #: lib/tuist_web/live/ops_account_live.html.heex:31
 #: lib/tuist_web/live/ops_account_live.html.heex:99
-#: lib/tuist_web/live/ops_account_live.html.heex:787
+#: lib/tuist_web/live/ops_account_live.html.heex:795
 #: lib/tuist_web/live/ops_accounts_live.html.heex:40
 #, elixir-autogen, elixir-format
 msgid "Status"
 msgstr "სტატუსი"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:797
+#: lib/tuist_web/live/ops_account_live.html.heex:805
 #: lib/tuist_web/live/ops_accounts_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Stripe customer"
@@ -1238,13 +1238,13 @@ msgstr "გაერთიანებული სამეფო"
 msgid "United States"
 msgstr "აშშ"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:855
+#: lib/tuist_web/live/ops_account_live.html.heex:863
 #, elixir-autogen, elixir-format
 msgid "Upgrade %{account} to Enterprise"
 msgstr "გადაიყვანეთ %{account} Enterprise-ზე"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:815
-#: lib/tuist_web/live/ops_account_live.html.heex:956
+#: lib/tuist_web/live/ops_account_live.html.heex:823
+#: lib/tuist_web/live/ops_account_live.html.heex:964
 #, elixir-autogen, elixir-format
 msgid "Upgrade to Enterprise"
 msgstr "გადადით Enterprise-ზე"
@@ -1323,22 +1323,22 @@ msgstr "GitHub Enterprise Server-მა დააბრუნა 404 მან�
 msgid "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry."
 msgstr "GitHub Enterprise Server-მა დააბრუნა HTTP %{status} მანიფესტის კონვერტაციისას. შეამოწმეთ სერვერის ლოგები მოთხოვნის სხეულისთვის და სცადეთ ხელახლა."
 
-#: lib/tuist_web/components/app_layout_components.ex:584
+#: lib/tuist_web/components/app_layout_components.ex:585
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr "ზოგადი"
 
-#: lib/tuist_web/components/app_layout_components.ex:489
+#: lib/tuist_web/components/app_layout_components.ex:490
 #, elixir-autogen, elixir-format
 msgid "Runners"
 msgstr "გამშვებები"
 
-#: lib/tuist_web/components/app_layout_components.ex:536
+#: lib/tuist_web/components/app_layout_components.ex:537
 #, elixir-autogen, elixir-format
 msgid "Webhooks"
 msgstr "Webhooks"
 
-#: lib/tuist_web/components/app_layout_components.ex:497
+#: lib/tuist_web/components/app_layout_components.ex:498
 #, elixir-autogen, elixir-format
 msgid "Workflows"
 msgstr "სამუშაო ნაკადები"
@@ -1431,7 +1431,7 @@ msgstr "Markdown-დ გადაწერა"
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
 msgstr "Kubernetes API-დან ვერ მოხერხდა კლასტერის სარეზერვო ასლების რესურსების წაკითხვა — შეამოწმეთ სერვერის ServiceAccount-ის RBAC უფლებები postgresql.cnpg.io-ზე."
 
-#: lib/tuist_web/components/app_layout_components.ex:641
+#: lib/tuist_web/components/app_layout_components.ex:642
 #: lib/tuist_web/live/ops_database_live.html.heex:3
 #: lib/tuist_web/live/ops_database_live.html.heex:58
 #, elixir-autogen, elixir-format
@@ -1812,17 +1812,17 @@ msgstr "WAL-ის არქივი"
 msgid "Write lag (bytes)"
 msgstr "ჩაწერის დაყოვნება (ბაიტებში)"
 
-#: lib/tuist_web/components/app_layout_components.ex:556
+#: lib/tuist_web/components/app_layout_components.ex:557
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr "გამოყენება"
 
-#: lib/tuist_web/components/app_layout_components.ex:732
+#: lib/tuist_web/components/app_layout_components.ex:750
 #, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr "დოკუმენტაცია"
 
-#: lib/tuist_web/components/app_layout_components.ex:590
+#: lib/tuist_web/components/app_layout_components.ex:591
 #, elixir-autogen, elixir-format
 msgid "Tokens"
 msgstr "ტოკენები"
@@ -1833,7 +1833,7 @@ msgid "Limits apply independently to Linux and macOS. A new runner starts only w
 msgstr "ლიმიტები დამოუკიდებლად ვრცელდება Linux-სა და macOS-ზე. ახალი გამშვები იწყებს მუშაობას მხოლოდ მაშინ, როცა მისი vCPU და მეხსიერება თავსდება პლატფორმის დარჩენილ სიმძლავრეში."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:419
-#: lib/tuist_web/live/ops_account_live.html.heex:671
+#: lib/tuist_web/live/ops_account_live.html.heex:679
 #, elixir-autogen, elixir-format
 msgid "Linux"
 msgstr "Linux"
@@ -1866,7 +1866,7 @@ msgid "Save runner limits"
 msgstr "რანერის ლიმიტების შენახვა"
 
 #: lib/tuist_web/live/ops_account_live.html.heex:438
-#: lib/tuist_web/live/ops_account_live.html.heex:670
+#: lib/tuist_web/live/ops_account_live.html.heex:678
 #, elixir-autogen, elixir-format
 msgid "macOS"
 msgstr "macOS"
@@ -1878,7 +1878,7 @@ msgstr "macOS"
 msgid "vCPU limit"
 msgstr "vCPU ლიმიტი"
 
-#: lib/tuist_web/controllers/auth_controller.ex:829
+#: lib/tuist_web/controllers/auth_controller.ex:837
 #, elixir-autogen, elixir-format
 msgid "Your organization does not allow automatic enrollment for this email domain. Ask an organization admin to invite you."
 msgstr "თქვენი ორგანიზაცია არ იძლევა ამ ელფოსტის დომენისთვის ავტომატური რეგისტრაციის საშუალებას. სთხოვეთ ორგანიზაციის ადმინისტრატორს, მიგიწვიოთ."
@@ -1898,52 +1898,52 @@ msgstr "%{account} ახლა %{visibility}-ია."
 msgid "Account visibility could not be updated."
 msgstr "ანგარიშის ხილვადობის განახლება ვერ მოხერხდა."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:760
+#: lib/tuist_web/live/ops_account_live.html.heex:768
 #, elixir-autogen, elixir-format
 msgid "Actions"
 msgstr "მოქმედებები"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:742
+#: lib/tuist_web/live/ops_account_live.html.heex:750
 #, elixir-autogen, elixir-format
 msgid "Dashboards"
 msgstr "დაფები"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:766
+#: lib/tuist_web/live/ops_account_live.html.heex:774
 #, elixir-autogen, elixir-format
 msgid "Make private"
 msgstr "პირადი გახდომა"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:767
+#: lib/tuist_web/live/ops_account_live.html.heex:775
 #, elixir-autogen, elixir-format
 msgid "Make public"
 msgstr "საჯარო გახდომა"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:757
+#: lib/tuist_web/live/ops_account_live.html.heex:765
 #, elixir-autogen, elixir-format
 msgid "Nothing."
 msgstr "არაფერი."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:746
+#: lib/tuist_web/live/ops_account_live.html.heex:754
 #, elixir-autogen, elixir-format
 msgid "Private"
 msgstr "პირადი"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:745
+#: lib/tuist_web/live/ops_account_live.html.heex:753
 #, elixir-autogen, elixir-format
 msgid "Public"
 msgstr "საჯარო"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:753
+#: lib/tuist_web/live/ops_account_live.html.heex:761
 #, elixir-autogen, elixir-format
 msgid "Public projects, runners, and usage. Members, webhooks, cache, billing, and settings stay private."
 msgstr "საჯარო პროექტები, გამშვებები და გამოყენება. წევრები, ვებჰუკები, ქეში, გადახდები და პარამეტრები კერძოდ რჩება."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:749
+#: lib/tuist_web/live/ops_account_live.html.heex:757
 #, elixir-autogen, elixir-format
 msgid "Signed-out visitors see"
 msgstr "გასული სტუმრები ხედავენ"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:739
+#: lib/tuist_web/live/ops_account_live.html.heex:747
 #, elixir-autogen, elixir-format
 msgid "Visibility"
 msgstr "ხილვადობა"
@@ -1980,12 +1980,12 @@ msgstr "%{account} საცდელ პერიოდზეა და გა�
 msgid "%{account}'s runner trial is over. Runner usage is billable from now on."
 msgstr "%{account}-ის საცდელი პერიოდი დასრულდა. ამიერიდან გამშვები ინსტანციების გამოყენება იბეგრება."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:574
+#: lib/tuist_web/live/ops_account_live.html.heex:582
 #, elixir-autogen, elixir-format
 msgid "An account on a runner trial is not billed for runner usage. Usage is still metered and still reported, but the subscription carries no runner item for Stripe to invoice it against. The trial runs until it is cancelled here."
 msgstr "საცდელ პერიოდზე მყოფ ანგარიშს გამშვები ინსტანციების გამოყენება არ ერიცხება. გამოყენება კვლავ იზომება და აისახება ანგარიშებში, თუმცა გამოწერაში არ არის შესაბამისი პუნქტი, რომლის მიხედვითაც Stripe შეძლებდა გადახდის ჩარიცხვას. საცდელი პერიოდი გრძელდება მის გაუქმებამდე."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:603
+#: lib/tuist_web/live/ops_account_live.html.heex:611
 #, elixir-autogen, elixir-format
 msgid "Cancel runner trial"
 msgstr "გააუქმე საცდელი პერიოდი"
@@ -2000,7 +2000,7 @@ msgstr "საცდელი პერიოდის გაუქმება 
 msgid "Could not start the trial: %{reason}"
 msgstr "საცდელი პერიოდის დაწყება ვერ მოხერხდა: %{reason}"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:622
+#: lib/tuist_web/live/ops_account_live.html.heex:630
 #, elixir-autogen, elixir-format
 msgid "Expires"
 msgstr "ვადის გასვლა"
@@ -2010,22 +2010,22 @@ msgstr "ვადის გასვლა"
 msgid "No expiry"
 msgstr "ვადის შეზღუდვა არ აქვს"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:584
+#: lib/tuist_web/live/ops_account_live.html.heex:592
 #, elixir-autogen, elixir-format
 msgid "On a runner trial"
 msgstr "გაშვების საცდელი პერიოდი"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:571
+#: lib/tuist_web/live/ops_account_live.html.heex:579
 #, elixir-autogen, elixir-format
 msgid "Runner trial"
 msgstr "გაშვების საცდელი პერიოდი"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:597
+#: lib/tuist_web/live/ops_account_live.html.heex:605
 #, elixir-autogen, elixir-format
 msgid "Start runner trial"
 msgstr "გაშვების საცდელი პერიოდის დაწყება"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:619
+#: lib/tuist_web/live/ops_account_live.html.heex:627
 #, elixir-autogen, elixir-format
 msgid "Minutes remaining"
 msgstr "დარჩენილი წუთები"
@@ -2035,17 +2035,17 @@ msgstr "დარჩენილი წუთები"
 msgid "Prepaid"
 msgstr "წინასწარ გადახდილი"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:609
+#: lib/tuist_web/live/ops_account_live.html.heex:617
 #, elixir-autogen, elixir-format
 msgid "Prepaid runner minutes"
 msgstr "წინასწარ გადახდილი რანერის წუთები"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:616
+#: lib/tuist_web/live/ops_account_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "Source"
 msgstr "წყარო"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:627
+#: lib/tuist_web/live/ops_account_live.html.heex:635
 #, elixir-autogen, elixir-format
 msgid "This account has no prepaid runner minutes."
 msgstr "ამ ანგარიშს არ აქვს წინასწარ გადახდილი რანერის წუთები."
@@ -2055,7 +2055,7 @@ msgstr "ამ ანგარიშს არ აქვს წინასწ�
 msgid "Trial"
 msgstr "საცდელი პერიოდი"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:586
+#: lib/tuist_web/live/ops_account_live.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "Cancelling adds the runner items to this account's subscription, which makes its runner usage billable from that moment. Minutes it ran during the trial stay free, including those already recorded in the current billing period."
 msgstr "გაუქმება ამ ანგარიშის გამოწერაში დაამატებს რანერის ელემენტებს, რაც იმ მომენტიდან რანერის გამოყენებას გადასახდელს გახდის. საცდელი პერიოდის განმავლობაში გაშვებული წუთები უფასო რჩება, მათ შორის მიმდინარე ანგარიშსწორების პერიოდში უკვე ჩაწერილი წუთებიც."
@@ -2584,12 +2584,12 @@ msgstr "დროებით მიუწვდომელია"
 msgid "Temporarily unavailable."
 msgstr "დროებით მიუწვდომელია."
 
-#: lib/tuist_web/components/app_layout_components.ex:275
+#: lib/tuist_web/components/app_layout_components.ex:276
 #, elixir-autogen, elixir-format
 msgid "Modules"
 msgstr "მოდულები"
 
-#: lib/tuist_web/components/app_layout_components.ex:322
+#: lib/tuist_web/components/app_layout_components.ex:323
 #, elixir-autogen, elixir-format
 msgid "Tasks"
 msgstr "ამოცანები"
@@ -2620,7 +2620,7 @@ msgstr[0] "ნაჩვენებია გაზომვების %{count
 msgid "Placement proposes moving this account off its first region, %{from}, to %{to}."
 msgstr "განთავსება გვთავაზობს ამ ანგარიშის პირველი რეგიონიდან, %{from}, %{to}-ში გადატანას."
 
-#: lib/tuist_web/components/app_layout_components.ex:191
+#: lib/tuist_web/components/app_layout_components.ex:192
 #, elixir-autogen, elixir-format
 msgid "Bazel Cache"
 msgstr "Bazel Cache"
@@ -2630,7 +2630,7 @@ msgstr "Bazel Cache"
 msgid "%{account}'s free tier starts over from now. It has the full allowance again until the end of the month."
 msgstr "%{account}-ის უფასო პაკეტი ახლიდან იწყება. თვის ბოლომდე მას სრული ლიმიტი ექნება."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:547
+#: lib/tuist_web/live/ops_account_live.html.heex:555
 #, elixir-autogen, elixir-format
 msgid "Cache access blocked"
 msgstr "ქეშზე წვდომა დაბლოკილია"
@@ -2640,12 +2640,12 @@ msgstr "ქეშზე წვდომა დაბლოკილია"
 msgid "Could not reset the free tier: %{reason}"
 msgstr "უფასო პაკეტის განულება ვერ მოხერხდა: %{reason}"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:508
+#: lib/tuist_web/live/ops_account_live.html.heex:516
 #, elixir-autogen, elixir-format
 msgid "Free tier"
 msgstr "უფასო პაკეტი"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:538
+#: lib/tuist_web/live/ops_account_live.html.heex:546
 #, elixir-autogen, elixir-format
 msgid "Last reset"
 msgstr "ბოლო განულება"
@@ -2655,22 +2655,22 @@ msgstr "ბოლო განულება"
 msgid "Never"
 msgstr "არასდროს"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:565
+#: lib/tuist_web/live/ops_account_live.html.heex:573
 #, elixir-autogen, elixir-format
 msgid "Reset free tier"
 msgstr "უფასო პაკეტის განულება"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:549
+#: lib/tuist_web/live/ops_account_live.html.heex:557
 #, elixir-autogen, elixir-format
 msgid "This account is over its free tier and cannot reach the cache until it upgrades or the free tier is reset. Enforcement runs once a day, so an account can read as over the limit for up to a day before it is actually cut off."
 msgstr "ეს ანგარიში აღემატება უფასო პაკეტის ლიმიტს და ქეშზე წვდომას ვერ მიიღებს, სანამ არ გააუმჯობესებს პაკეტს ან არ განულდება უფასო პაკეტი. შეზღუდვა დღეში ერთხელ მოქმედებს, ამიტომ ანგარიშმა შეიძლება ლიმიტის გადაჭარბებად ჩაითვალოს ერთი დღის განმავლობაში, სანამ რეალურად არ შეიზღუდება."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:560
+#: lib/tuist_web/live/ops_account_live.html.heex:568
 #, elixir-autogen, elixir-format
 msgid "Reset this account's free tier? It gets the full allowance again for the rest of the month, and the runs it has already made stop counting."
 msgstr "გადავწეროთ ამ ანგარიშის უფასო პაკეტი? დარჩენილი თვის განმავლობაში ის კვლავ მიიღებს სრულ ლიმიტს, ხოლო უკვე შესრულებული გაშვებები აღარ ჩაითვლება."
 
-#: lib/tuist_web/authentication.ex:477
+#: lib/tuist_web/authentication.ex:759
 #, elixir-autogen, elixir-format
 msgid "The project you are looking for doesn't exist or has been moved."
 msgstr "პროექტი, რომელსაც ეძებთ, არ არსებობს ან გადატანილია."
@@ -2717,17 +2717,17 @@ msgstr "დისკის ზომა ავტომატურად რე
 msgid "PR #%{number}"
 msgstr "PR #%{number}"
 
-#: lib/tuist_web/controllers/auth_controller.ex:836
+#: lib/tuist_web/controllers/auth_controller.ex:844
 #, elixir-autogen, elixir-format
 msgid "Your organization hasn't verified a login email domain that matches your email, so single sign-on can't create a Tuist account for you. If you were invited, sign up with the invited email address, accept the invitation, and then sign in with single sign-on to link your account."
 msgstr "თქვენს ორგანიზაციას არ აქვს დადასტურებული შესაბამისი ელფოსტის დომენი, ამიტომ ერთჯერადი შესვლა (SSO) ვერ შექმნის Tuist-ის ანგარიშს. თუ მიწვეული ხართ, დარეგისტრირდით მიწვევის ელფოსტით, მიიღეთ მიწვევა და შემდეგ შედით SSO-ით ანგარიშის დასაკავშირებლად."
 
-#: lib/tuist_web/components/app_layout_components.ex:141
+#: lib/tuist_web/components/app_layout_components.ex:142
 #, elixir-autogen, elixir-format
 msgid "Code Coverage"
 msgstr "კოდის დაფარვა"
 
-#: lib/tuist_web/components/app_layout_components.ex:203
+#: lib/tuist_web/components/app_layout_components.ex:204
 #: lib/tuist_web/live/once_cache_live.ex:27
 #, elixir-autogen, elixir-format
 msgid "Once Cache"
@@ -2758,17 +2758,17 @@ msgstr "Tuist-მა ვერ ამოიცნო %{url}. გადაამ�
 msgid "%{account} now holds a pool of %{credit} in runner credit, about %{minutes} baseline minutes, usable until %{date}."
 msgstr "%{account}-ს ახლა გააჩნია %{credit} რანერის კრედიტების პული, რაც დაახლოებით %{minutes} ბაზისურ წუთს შეესაბამება და ვადიანია %{date}-მდე."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:647
+#: lib/tuist_web/live/ops_account_live.html.heex:655
 #, elixir-autogen, elixir-format
 msgid "Amount paid (USD)"
 msgstr "გადახდილი თანხა (USD)"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:702
+#: lib/tuist_web/live/ops_account_live.html.heex:710
 #, elixir-autogen, elixir-format
 msgid "Baseline minutes"
 msgstr "ბაზისური წუთები"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:685
+#: lib/tuist_web/live/ops_account_live.html.heex:693
 #, elixir-autogen, elixir-format
 msgid "Contract's last day"
 msgstr "ხელშეკრულების ბოლო დღე"
@@ -2813,22 +2813,22 @@ msgstr "პულის მინიჭება ვერ მოხერხდ
 msgid "Could not grant the pool: the credit multiplier has to be between 1.0 and 2.0, with at most four decimal places."
 msgstr "პულის მინიჭება ვერ მოხერხდა: კრედიტის გამამრავლებელი 1.0-სა და 2.0-ს შორის უნდა იყოს, არაუმეტეს ოთხი ათწილადის სიზუსტით."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:696
+#: lib/tuist_web/live/ops_account_live.html.heex:704
 #, elixir-autogen, elixir-format
 msgid "Credit granted"
 msgstr "კრედიტი მინიჭებულია"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:654
+#: lib/tuist_web/live/ops_account_live.html.heex:662
 #, elixir-autogen, elixir-format
 msgid "Credit multiplier"
 msgstr "კრედიტის მამრავლი"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:732
+#: lib/tuist_web/live/ops_account_live.html.heex:740
 #, elixir-autogen, elixir-format
 msgid "Grant pool"
 msgstr "გრანტების პული"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:667
+#: lib/tuist_web/live/ops_account_live.html.heex:675
 #, elixir-autogen, elixir-format
 msgid "Platforms"
 msgstr "პლატფორმები"
@@ -2838,17 +2838,17 @@ msgstr "პლატფორმები"
 msgid "Pool"
 msgstr "პული"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:691
+#: lib/tuist_web/live/ops_account_live.html.heex:699
 #, elixir-autogen, elixir-format
 msgid "Stripe invoice (optional)"
 msgstr "Stripe-ის ინვოისი (არასავალდებულო)"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:669
+#: lib/tuist_web/live/ops_account_live.html.heex:677
 #, elixir-autogen, elixir-format
 msgid "macOS and Linux"
 msgstr "macOS და Linux"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:678
+#: lib/tuist_web/live/ops_account_live.html.heex:686
 #, elixir-autogen, elixir-format
 msgid "Contract's first day"
 msgstr "კონტრაქტის პირველი დღე"
@@ -2858,22 +2858,22 @@ msgstr "კონტრაქტის პირველი დღე"
 msgid "Could not grant the pool: the contract has to start on or before its last day and last at most a year."
 msgstr "პულის გამოყოფა ვერ მოხერხდა: კონტრაქტი უნდა დაიწყოს ბოლო დღემდე ან მანამდე და გაგრძელდეს არაუმეტეს ერთი წლის განმავლობაში."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:710
+#: lib/tuist_web/live/ops_account_live.html.heex:718
 #, elixir-autogen, elixir-format
 msgid "First invoice paid from the pool"
 msgstr "პულიდან გადახდილი პირველი ინვოისი"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:722
+#: lib/tuist_web/live/ops_account_live.html.heex:730
 #, elixir-autogen, elixir-format
 msgid "Invoices paid from the pool"
 msgstr "პულიდან გადახდილი ინვოისები"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:716
+#: lib/tuist_web/live/ops_account_live.html.heex:724
 #, elixir-autogen, elixir-format
 msgid "Last invoice paid from the pool"
 msgstr "პულიდან გადახდილი ბოლო ინვოისი"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:724
+#: lib/tuist_web/live/ops_account_live.html.heex:732
 #, elixir-autogen, elixir-format
 msgid "No subscription to invoice against"
 msgstr "გამოწერა არ არსებობს, რომლის საინვოისოდ გამოყენებაც შესაძლებელი იქნებოდა"
@@ -2888,12 +2888,12 @@ msgstr "%{account}-ს უკვე აქვს აქტიური გამ
 msgid "%{account} is now on the Open Source plan."
 msgstr "%{account} ახლა Open Source გეგმაზეა."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:824
+#: lib/tuist_web/live/ops_account_live.html.heex:832
 #, elixir-autogen, elixir-format
 msgid "Put %{account} on the Open Source plan? Its usage is never invoiced, and Kura does not serve open source accounts."
 msgstr "გადავიყვანოთ %{account} ღია კოდის პლანზე? მისი გამოყენება არასდროს ინვოისდება, და Kura არ ემსახურება ღია კოდის ანგარიშებს."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:821
+#: lib/tuist_web/live/ops_account_live.html.heex:829
 #, elixir-autogen, elixir-format
 msgid "Start open source plan"
 msgstr "ღია კოდის პლანის დაწყება"
@@ -2951,7 +2951,7 @@ msgstr "ბოლო 7 დღე"
 msgid "Local"
 msgstr "ლოკალური"
 
-#: lib/tuist_web/components/app_layout_components.ex:224
+#: lib/tuist_web/components/app_layout_components.ex:225
 #: lib/tuist_web/live/toolchain_cache_live.ex:189
 #, elixir-autogen, elixir-format
 msgid "Mix Cache"
@@ -3038,7 +3038,7 @@ msgstr "წარმატებული კლიენტის CAS ატვ
 msgid "This account already has a GitHub App registered for a different GitHub host."
 msgstr "ამ ანგარიშზე უკვე რეგისტრირებულია GitHub App სხვა GitHub ჰოსტისთვის."
 
-#: lib/tuist_web/components/app_layout_components.ex:215
+#: lib/tuist_web/components/app_layout_components.ex:216
 #: lib/tuist_web/live/toolchain_cache_live.ex:181
 #, elixir-autogen, elixir-format
 msgid "Cargo Cache"
@@ -3049,31 +3049,26 @@ msgstr "Cargo Cache"
 msgid "Hits"
 msgstr "ქეშში მოხვედრა"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:522
-#: lib/tuist_web/live/ops_account_live.html.heex:531
+#: lib/tuist_web/live/ops_account_live.html.heex:530
+#: lib/tuist_web/live/ops_account_live.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit}"
 msgstr "%{usage} %{limit}-დან"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:511
+#: lib/tuist_web/live/ops_account_live.html.heex:519
 #, elixir-autogen, elixir-format
 msgid "An Air account can reach the cache until it uses %{egress} of cache egress or %{requests} cache requests a month. Resetting starts the count over from now, so the account is unblocked and has the full allowance again for the rest of the month. It is not an exemption: the reset goes inert on the first of next month, when counting returns to the month boundary."
 msgstr "Air ანგარიშს შეუძლია მიუწვდებოდეს ქეშამდე, სანამ თვეში არ გამოიყენებს %{egress} ქეშიდან გადმოტვირთულ მონაცემებს ან %{requests} ქეშის მოთხოვნას. გადატვირთვა იწყებს ათვლას თავიდან ამჟამინდელი მომენტიდან, რითაც ანგარიში განბლოკილი ხდება და თვის დარჩენილ ნაწილში ისევ სრულ ლიმიტს იღებს. ეს არ არის გამონაკლისი: გადატვირთვა კარგავს ძალას შემდეგი თვის პირველ რიცხვში, როდესაც ათვლა ბრუნდება თვის საზღვრებთან."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:520
+#: lib/tuist_web/live/ops_account_live.html.heex:528
 #, elixir-autogen, elixir-format
 msgid "Cache egress this period"
 msgstr "ქეშიდან გადმოტვირთული მონაცემები ამ პერიოდში"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:529
+#: lib/tuist_web/live/ops_account_live.html.heex:537
 #, elixir-autogen, elixir-format
 msgid "Cache requests this period"
 msgstr "ქეშის მოთხოვნები ამ პერიოდში"
-
-#: lib/tuist_web/live/ops_account_live.html.heex:471
-#, elixir-autogen, elixir-format
-msgid "Sandbox CPU and memory limits are independent of CI. Creating, resuming and running sandboxes count toward these limits; paused sandboxes do not."
-msgstr "სენდბოქსის CPU-სა და მეხსიერების ლიმიტები დამოუკიდებელია CI-დან. სენდბოქსების შექმნა, აღდგენა და გაშვება ითვლება ამ ლიმიტებში; შეჩერებული სენდბოქსები არ ითვლება."
 
 #: lib/tuist_web/live/ops_account_live.html.heex:468
 #, elixir-autogen, elixir-format
@@ -3085,17 +3080,27 @@ msgstr "სენდბოქსების კონკურენტულ�
 msgid "Sandbox concurrency limits updated."
 msgstr "სენდბოქსების კონკურენტულობის ლიმიტები განახლდა."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:501
+#: lib/tuist_web/live/ops_account_live.html.heex:509
 #, elixir-autogen, elixir-format
 msgid "Save sandbox limits"
 msgstr "სენდბოქსის ლიმიტების შენახვა"
 
-#: lib/tuist_web/live/ops_account_live.html.heex:632
+#: lib/tuist_web/live/ops_account_live.html.heex:640
 #, elixir-autogen, elixir-format
 msgid "A pool is runner credit paid up front for a contract term of up to a year, usually by bank transfer. It stays usable for the whole term instead of expiring each month, so quiet months do not forfeit minutes the customer already paid for, and usage past it is billed on demand. A term shorter than a year lines a new contract up with the end of an earlier one. The pool pays the invoices that carry the term's usage, shown below once both dates are in. Granting a pool bills nothing: charge for it on its own invoice, and enter that invoice's id here so the credit can be traced to it."
 msgstr "პული არის გაშვების კრედიტი, რომელიც წინასწარ იხდება ერთწლიანი ან მასზე ნაკლები ვადის ხელშეკრულებისთვის, ჩვეულებრივ საბანკო გადარიცხვით. ის მოქმედებს მთელი ვადის განმავლობაში და არ იწურება ყოველთვიურად, რაც ნიშნავს, რომ ზომიერი დატვირთვის თვეებში მომხმარებელი არ კარგავს უკვე გადახდილ წუთებს, ხოლო ლიმიტის გადაჭარბება იბეგრება მოთხოვნის შესაბამისად. ერთ წელზე ნაკლები ვადა საშუალებას იძლევა ახალი ხელშეკრულება დამთხვევას წინა ხელშეკრულების დასრულების თარიღთან. პული ფარავს ინვოისებს, რომლებიც შეიცავს მოცემული ვადის გამოყენებას; ქვემოთ გამოჩნდება მას შემდეგ, რაც ორივე თარიღი იქნება მითითებული. პულის მინიჭება არ იწვევს გადახდას: გადაიხადეთ ის ცალკე ინვოისით და შეიყვანეთ ამ ინვოისის ID აქ, რათა კრედიტი მას მიებას."
 
-#: lib/tuist_web/live/ops_account_live.html.heex:657
+#: lib/tuist_web/live/ops_account_live.html.heex:665
 #, elixir-autogen, elixir-format
 msgid "Credit granted per dollar paid: the on-demand price per minute divided by the deal's prepaid price per minute."
 msgstr "კრედიტი ყოველ გადახდილ დოლარზე: წუთის ფასი მოთხოვნის შესაბამისად, გაყოფილი შეთანხმების წინასწარ გადახდილ ფასზე წუთისთვის."
+
+#: lib/tuist_web/live/ops_account_live.html.heex:501
+#, elixir-autogen, elixir-format
+msgid "Disk limit (GB)"
+msgstr "დისკის ლიმიტი (GB)"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:471
+#, elixir-autogen, elixir-format
+msgid "Sandbox limits are independent of CI. Creating, resuming and running sandboxes count toward the CPU and memory limits. Every sandbox on a node, paused ones included, counts toward the disk limit with its workspace and memory image; archived sandboxes do not."
+msgstr "სენბოქსების ლიმიტები დამოუკიდებელია CI-სგან. სენბოქსების შექმნა, აღდგენა და გაშვება ითვლება CPU-სა და მეხსიერების ლიმიტებში. კვანძზე არსებული ყველა სენბოქსი, მათ შორის შეჩერებულებიც, ითვლება დისკის ლიმიტში თავის სამუშაო სივრცესა და მეხსიერების ასლით; არქივირებული სენბოქსები არ ითვლება."

@@ -1,9 +1,12 @@
 package dev.tuist.app.ui.login
 
 import android.app.Activity
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.tuist.app.R
 import dev.tuist.app.data.auth.AuthEvent
 import dev.tuist.app.data.auth.AuthEventBus
 import dev.tuist.app.data.auth.AuthRepository
@@ -16,6 +19,7 @@ import javax.inject.Inject
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val authEventBus: AuthEventBus,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     private val _messages = Channel<String>(Channel.BUFFERED)
@@ -26,7 +30,7 @@ class LoginViewModel @Inject constructor(
             authEventBus.events.collect { event ->
                 when (event) {
                     is AuthEvent.SessionExpired ->
-                        _messages.send("Your session expired. Please sign in again.")
+                        _messages.send(context.getString(R.string.session_expired))
                 }
             }
         }

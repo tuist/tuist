@@ -28,8 +28,8 @@ defmodule Tuist.Runners.PrepaidTest do
   end
 
   describe "on_demand_cost_for_milliseconds/2" do
-    test "charges a macOS baseline minute $0.06" do
-      assert Prepaid.on_demand_cost_for_milliseconds(:macos, 100 * 60_000) == Money.new(600, :USD)
+    test "charges a macOS baseline minute $0.05" do
+      assert Prepaid.on_demand_cost_for_milliseconds(:macos, 100 * 60_000) == Money.new(500, :USD)
     end
 
     test "charges a Linux baseline minute $0.0024, as the pricing page lists for 2 vCPU / 8 GB" do
@@ -176,8 +176,8 @@ defmodule Tuist.Runners.PrepaidTest do
 
       assert balance.available == Money.new(37_500, :USD)
       assert balance.granted == Money.new(75_000, :USD)
-      # $750 of credit buys 12,500 minutes at the $0.06 standard rate.
-      assert balance.granted_minutes == 12_500
+      # $750 of credit buys 15,000 minutes at the $0.05 standard rate.
+      assert balance.granted_minutes == 15_000
     end
 
     test "counts a pool by what it has left toward the period, and a monthly grant in full" do
@@ -214,8 +214,8 @@ defmodule Tuist.Runners.PrepaidTest do
 
       balance = Prepaid.balance(%Account{customer_id: customer_id})
 
-      assert balance.granted_minutes == 262_500
-      assert balance.period_minutes == 62_500
+      assert balance.granted_minutes == 315_000
+      assert balance.period_minutes == 75_000
       assert Enum.find(balance.grants, &(&1.id == "credgr_pool")).kind == "pool"
     end
   end

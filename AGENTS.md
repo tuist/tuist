@@ -37,8 +37,9 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 ## Guardrails
 
 - Do not edit generated `CHANGELOG.md` files.
-- Edit English source content only. Never edit translation `.po` files; the
-  Glossia GitHub App owns them. Gettext `.pot` templates may be updated.
+- Edit English source content only. Never edit translation `.po` files or the
+  apps' non-English string catalogs; the Glossia GitHub App owns them. Gettext
+  `.pot` templates may be updated.
 - Keep Swift project prefix mapping enabled. Resolve test fixtures and snapshots
   through `TuistTestSupport` and the runtime checkout (`TUIST_CONFIG_SRCROOT`), not
   compiler-remapped `#file` or `#filePath` paths.

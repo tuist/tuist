@@ -46,6 +46,12 @@
       flex: 1;
     }
 
+    /* Usage widgets show a value without a trend, so they do not reserve
+       the trend widgets' minimum height. */
+    & .tuist-widget {
+      min-height: unset;
+    }
+
     @media (max-width: 768px) {
       & {
         flex-direction: column;
@@ -66,6 +72,11 @@
     grid-template-columns: minmax(0, 1fr) 320px;
     align-items: start;
     gap: var(--noora-spacing-8);
+
+    /* Sandboxes aren't billed, so their chart has no receipts beside it. */
+    &:not(:has([data-part="receipts"])) {
+      grid-template-columns: minmax(0, 1fr);
+    }
 
     @media (max-width: 1024px) {
       & {

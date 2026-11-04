@@ -1,0 +1,311 @@
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"%@ simulator" = "%@ 시뮬레이터";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Access token or refresh token missing from response" = "응답에 액세스 토큰 또는 새로 고침 토큰이 없습니다";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All" = "전체";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All tracks" = "모든 트랙";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Device" = "Android 기기";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Emulator" = "Android 에뮬레이터";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Android Emulators" = "Android 에뮬레이터";
+
+/* TuistPreviews/PreviewView/PreviewViewHeader.swift, TuistPreviews/PreviewsView/PreviewRowView.swift */
+"App" = "앱";
+
+/* TuistProfile/ProfileView.swift */
+"App version" = "앱 버전";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Apple Sign In failed" = "Apple 로그인 실패";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Apps in" = "다음의 앱";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Are you sure you want to delete this preview? This action cannot be undone." = "이 프리뷰를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.";
+
+/* TuistProfile/ProfileView.swift */
+"Are you sure you want to delete your account? This action cannot be undone." = "계정을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Authorization code not found" = "인증 코드를 찾을 수 없습니다";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Branch" = "브랜치";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Bundle identifier" = "번들 식별자";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Cancel" = "취소";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Check for updates" = "업데이트 확인";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Commit SHA" = "커밋 SHA";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Connected" = "연결됨";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy identifier" = "식별자 복사";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy name" = "이름 복사";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find APK file in the downloaded archive" = "다운로드한 아카이브에서 APK 파일을 찾을 수 없습니다";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find app bundle in the downloaded archive" = "다운로드한 아카이브에서 앱 번들을 찾을 수 없습니다";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "%@의 앱을 설치할 수 없습니다. 유효한 앱 빌드가 포함되어 있지 않습니다.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "%@의 앱을 설치할 수 없습니다. %@의 플랫폼은 %@이며, 앱에는 다음 플랫폼만 포함되어 있습니다: %@";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created at" = "생성일";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created by" = "생성자";
+
+/* TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Delete" = "삭제";
+
+/* TuistProfile/ProfileView.swift */
+"Delete Account" = "계정 삭제";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete Preview" = "프리뷰 삭제";
+
+/* TuistProfile/ProfileView.swift */
+"Delete account" = "계정 삭제";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete preview" = "미리보기 삭제";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Details" = "세부 정보";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Devices" = "디바이스";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Disconnected" = "연결 끊김";
+
+/* TuistProfile/ProfileView.swift */
+"Email" = "이메일";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "인증 정보, 쿼리 또는 프래그먼트가 없는 유효한 HTTPS 서버 URL을 입력하세요.";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Error" = "오류";
+
+/* TuistMenuBar/StatusView.swift */
+"Finished" = "완료됨";
+
+/* TuistProfile/ProfileView.swift */
+"Get help" = "도움 받기";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"Install latest previews with one click." = "최신 프리뷰를 한 번의 클릭으로 설치하세요.";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installation failed" = "설치 실패";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@" = "%@ 설치됨";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@@%@" = "%@@%@ 설치됨";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installing preview" = "프리뷰 설치 중";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid callback URL received" = "잘못된 콜백 URL을 수신했습니다";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid response format" = "잘못된 응답 형식";
+
+/* TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Launch" = "실행";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Launching preview" = "프리뷰 실행 중";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Log out" = "로그아웃";
+
+/* TuistMenuBar/Views/MenuBarView/MenuHeader.swift */
+"Logged out" = "로그아웃됨";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Missing Apple credentials from authorization" = "인증에 Apple 자격 증명이 누락되었습니다";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"No Previews" = "프리뷰 없음";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No Tuist projects found" = "Tuist 프로젝트를 찾을 수 없습니다";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews found" = "프리뷰를 찾을 수 없습니다";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews match your filters" = "필터와 일치하는 미리보기가 없습니다";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Ok" = "확인";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Other devices" = "다른 기기";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Pin" = "고정";
+
+/* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews" = "미리보기";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews: %lld" = "미리보기: %lld";
+
+/* TuistProfile/ProfileView.swift */
+"Privacy Policy" = "개인정보 보호정책";
+
+/* TuistApp/TuistApp.swift */
+"Profile" = "프로필";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your previews." = "미리보기를 새로고침하려면 아래로 당기세요.";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your projects." = "프로젝트를 새로고침하려면 아래로 당기세요.";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Quit Tuist" = "Tuist 종료";
+
+/* TuistMenuBar/StatusView.swift */
+"Ready" = "준비됨";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Release notes" = "릴리스 노트";
+
+/* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
+"Run" = "실행";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Search" = "검색";
+
+/* TuistOnboarding/SelfHostedServerAlert.swift */
+"Self-hosted" = "셀프 호스팅";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Self-hosted server" = "셀프 호스팅 서버";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Share logs" = "로그 공유";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Sign in" = "로그인";
+
+/* TuistOnboarding/LogInView.swift */
+"Sign in to access your projects and\ncollaborate with your team" = "프로젝트에 접근하고 팀과 협업하려면\n로그인하세요";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift */
+"Sign in to run previews" = "프리뷰를 실행하려면 로그인하세요";
+
+/* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Apple" = "Apple로 로그인";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with GitHub" = "GitHub로 로그인";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Google" = "Google로 로그인";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Tuist" = "Tuist로 로그인";
+
+/* TuistProfile/ProfileView.swift */
+"Sign out" = "로그아웃";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Simulators" = "시뮬레이터";
+
+/* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
+"Supported platforms" = "지원되는 플랫폼";
+
+/* TuistProfile/ProfileView.swift */
+"Terms of Service" = "서비스 약관";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The app preview %@ was not found." = "앱 미리보기 %@를 찾을 수 없습니다.";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The latest preview for %@ was not found. Has any preview been published?" = "%@의 최신 미리보기를 찾을 수 없습니다. 게시된 미리보기가 있나요?";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The preview %@ does not have a package name set." = "미리보기 %@에 패키지 이름이 설정되어 있지 않습니다.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"The preview deeplink %@ is invalid." = "미리보기 딥링크 %@이(가) 유효하지 않습니다.";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The server returned a preview page that did not advance. Update your server or try again." = "서버에서 진행되지 않는 미리보기 페이지를 반환했습니다. 서버를 업데이트하거나 다시 시도하세요.";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "이 서버는 트랙별로 미리보기를 필터링하는 것을 지원하지 않습니다. 자체 호스팅 Tuist 서버를 업데이트하거나 모든 트랙을 선택하세요.";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "이 서버는 미리보기 검색을 지원하지 않습니다. 자체 호스팅 Tuist 서버를 업데이트하거나 검색어를 지우세요.";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "이 서버는 Tuist 앱에서의 로그인을 지원하지 않습니다. 관리자에게 서버 업데이트를 요청하세요.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"To run a preview, you must have a simulator selected." = "미리보기를 실행하려면 시뮬레이터를 선택해야 합니다.";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Token exchange failed with status code: %lld" = "토큰 교환이 실패했습니다. 상태 코드: %lld";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Track" = "트랙";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Tracks" = "트랙";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Try a different search or select another track." = "다른 검색어를 입력하거나 다른 트랙을 선택하세요.";
+
+/* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
+"Unknown" = "알 수 없음";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Unpin" = "고정 해제";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Update your self-hosted Tuist server to select a track." = "트랙을 선택하려면 자체 호스팅 Tuist 서버를 업데이트하세요.";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Use the root address of your Tuist server" = "Tuist 서버의 루트 주소 사용";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Welcome to Tuist" = "Tuist에 오신 것을 환영합니다";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"or" = "또는";

@@ -19,6 +19,17 @@
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
 
+  & > [data-part="header"] > div:first-child {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > p {
+      margin: 0;
+      font: var(--noora-font-body-medium);
+    }
+  }
+
   & p {
     color: var(--noora-surface-label-secondary);
   }
@@ -35,6 +46,10 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="form"] > .noora-button {
+    align-self: flex-end;
   }
 
   & [data-part="time-off-overview"] {

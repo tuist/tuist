@@ -138,6 +138,13 @@
         border-radius: var(--noora-radius-4);
       }
 
+      /* Media recorded in both themes: show the variant matching the
+         data-theme the root layout's bootstrap stamps on <html>. */
+      :root:not([data-theme="dark"]) & [data-theme-variant="dark"],
+      :root[data-theme="dark"] & [data-theme-variant="light"] {
+        display: none;
+      }
+
       @media (min-width: 1024px) {
         max-width: 650px;
 

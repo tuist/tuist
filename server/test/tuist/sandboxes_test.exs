@@ -6,14 +6,20 @@ defmodule Tuist.SandboxesTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxEvent
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
+
+  defp events(%Sandbox{id: id}) do
+    ClickHouseRepo.all(from(e in SandboxEvent, where: e.sandbox_id == ^id, order_by: e.inserted_at, select: e.event))
+  end
 
   describe "agent environments" do
     test "create_agent_environment/2 stores the key encrypted and lists it back without it" do
@@ -103,6 +109,15 @@ defmodule Tuist.SandboxesTest do
       assert sandbox.last_active_at
       assert [%Sandbox{id: id}] = Sandboxes.list_sandboxes(account)
       assert id == sandbox.id
+      assert events(sandbox) == ["created", "started"]
+
+      assert [%{boot_source: "template"}] =
+               ClickHouseRepo.all(
+                 from(e in SandboxEvent,
+                   where: e.sandbox_id == ^sandbox.id and e.event == "started",
+                   select: %{boot_source: e.boot_source}
+                 )
+               )
     end
 
     test "applies the requested shape" do
@@ -127,8 +142,11 @@ defmodule Tuist.SandboxesTest do
 
       assert {:error, :no_node} = Sandboxes.create_sandbox(account, %{})
 
-      assert [%Sandbox{state: :error, node_name: nil, error_message: message}] = Sandboxes.list_sandboxes(account)
+      assert [%Sandbox{state: :error, node_name: nil, error_message: message} = sandbox] =
+               Sandboxes.list_sandboxes(account)
+
       assert message =~ "no node"
+      assert events(sandbox) == ["created", "failed"]
     end
 
     test "marks the sandbox as errored when the node rejects the create" do
@@ -156,6 +174,7 @@ defmodule Tuist.SandboxesTest do
       end)
 
       assert {:ok, %Sandbox{state: :paused, paused_at: %DateTime{}}} = Sandboxes.pause(sandbox)
+      assert events(sandbox) == ["paused"]
     end
 
     test "pause/1 leaves the sandbox running when the node refuses" do
@@ -244,6 +263,7 @@ defmodule Tuist.SandboxesTest do
 
       assert {:ok, %Sandbox{}} = Sandboxes.delete(sandbox)
       assert Repo.get(Sandbox, sandbox_id) == nil
+      assert events(sandbox) == ["deleted"]
     end
 
     test "removes the row when the node is not connected" do
@@ -366,6 +386,8 @@ defmodule Tuist.SandboxesTest do
 
       assert %Sandbox{state: :error, error_message: "firecracker exited", residency_work_id: nil, residency_epoch: 5} =
                Repo.reload!(sandbox)
+
+      assert events(sandbox) == ["failed"]
     end
   end
 
@@ -617,38 +639,17 @@ defmodule Tuist.SandboxesTest do
   end
 
   describe "limits and shapes" do
-    test "refuses a create past the account's running sandbox limit" do
+    test "running sandboxes are bounded by the account's CPU and memory quota, not by a count" do
       account = account_fixture()
-      assert Sandboxes.max_running_sandboxes_per_account() == 5
+      # 10 × 2 vCPU / 4 GiB stays inside the default 32 vCPU / 64 GiB quota.
+      for _ <- 1..10, do: sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      paused = sandbox_fixture(account: account, state: :paused, node_name: "node-a")
 
-      for _ <- 1..5,
-          do: sandbox_fixture(account: account, state: :running, node_name: "node-a")
-
-      reject(&Capacity.place/1)
-      assert {:error, :sandbox_running_limit} = Sandboxes.create_sandbox(account, %{})
-    end
-
-    test "paused sandboxes count only toward the on-node cap" do
-      account = account_fixture()
-      for _ <- 1..5, do: sandbox_fixture(account: account, state: :paused, node_name: "node-a")
       expect(Capacity, :place, fn _sandbox -> {:error, :no_capacity} end)
       assert {:error, :no_capacity} = Sandboxes.create_sandbox(account, %{})
 
-      for _ <- 6..Sandboxes.max_on_node_sandboxes_per_account(),
-          do: sandbox_fixture(account: account, state: :paused, node_name: "node-a")
-
-      reject(&Capacity.place/1)
-      assert {:error, :sandbox_limit} = Sandboxes.create_sandbox(account, %{})
-    end
-
-    test "refuses a resume past the account's running sandbox limit" do
-      account = account_fixture()
-      for _ <- 1..5, do: sandbox_fixture(account: account, state: :running, node_name: "node-a")
-      paused = sandbox_fixture(account: account, state: :paused, node_name: "node-a")
-      reject(&Nodes.call/4)
-
-      assert {:error, :sandbox_running_limit} = Sandboxes.resume(paused)
-      assert Repo.reload!(paused).state == :paused
+      expect(Capacity, :admit, fn _sandbox -> {:error, :no_capacity} end)
+      assert {:error, :no_capacity} = Sandboxes.resume(paused)
     end
 
     test "refuses a shape the nodes do not offer" do

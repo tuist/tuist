@@ -11,53 +11,53 @@
 msgid ""
 msgstr "Language: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\n"
 
-#: lib/tuist_web/live/usage_live.ex:424
-#: lib/tuist_web/live/usage_live.html.heex:208
-#: lib/tuist_web/live/usage_live.html.heex:262
-#: lib/tuist_web/live/usage_live.html.heex:313
+#: lib/tuist_web/live/usage_live.ex:450
+#: lib/tuist_web/live/usage_live.html.heex:231
+#: lib/tuist_web/live/usage_live.html.heex:285
+#: lib/tuist_web/live/usage_live.html.heex:336
 #, elixir-autogen, elixir-format
 msgid "Requests"
 msgstr "요청"
 
-#: lib/tuist_web/live/usage_live.ex:23
+#: lib/tuist_web/live/usage_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr "찾으시는 페이지가 존재하지 않거나 이동되었습니다."
 
-#: lib/tuist_web/live/usage_live.ex:41
+#: lib/tuist_web/live/usage_live.ex:42
 #: lib/tuist_web/live/usage_live.html.heex:4
-#: lib/tuist_web/live/usage_live.html.heex:223
-#: lib/tuist_web/live/usage_live.html.heex:254
-#: lib/tuist_web/live/usage_live.html.heex:393
+#: lib/tuist_web/live/usage_live.html.heex:246
+#: lib/tuist_web/live/usage_live.html.heex:277
+#: lib/tuist_web/live/usage_live.html.heex:416
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr "사용량"
 
-#: lib/tuist_web/live/usage_live.ex:417
-#: lib/tuist_web/live/usage_live.html.heex:193
-#: lib/tuist_web/live/usage_live.html.heex:258
-#: lib/tuist_web/live/usage_live.html.heex:273
+#: lib/tuist_web/live/usage_live.ex:443
+#: lib/tuist_web/live/usage_live.html.heex:216
+#: lib/tuist_web/live/usage_live.html.heex:281
+#: lib/tuist_web/live/usage_live.html.heex:296
 #, elixir-autogen, elixir-format
 msgid "Egress"
 msgstr "이그레스"
 
-#: lib/tuist_web/live/usage_live.ex:219
-#: lib/tuist_web/live/usage_live.ex:220
+#: lib/tuist_web/live/usage_live.ex:245
+#: lib/tuist_web/live/usage_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "알 수 없음"
 
-#: lib/tuist_web/live/usage_live.html.heex:63
+#: lib/tuist_web/live/usage_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "At the standard rate, before the free tier"
 msgstr "무료 티어 적용 전 표준 요금 기준"
 
-#: lib/tuist_web/live/usage_live.html.heex:68
+#: lib/tuist_web/live/usage_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Billed"
 msgstr "청구됨"
 
-#: lib/tuist_web/live/usage_live.html.heex:49
+#: lib/tuist_web/live/usage_live.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Runner minutes"
 msgstr "러너 시간"
@@ -72,58 +72,58 @@ msgstr "이 계정에 청구된 러너 시간과 캐시 트래픽입니다."
 msgid "Runner usage"
 msgstr "러너 사용량"
 
-#: lib/tuist_web/live/usage_live.html.heex:62
+#: lib/tuist_web/live/usage_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Usage value"
 msgstr "사용량 값"
 
-#: lib/tuist_web/live/usage_live.ex:332
+#: lib/tuist_web/live/usage_live.ex:358
 #, elixir-autogen, elixir-format
 msgid "Linux"
 msgstr "Linux"
 
-#: lib/tuist_web/live/usage_live.ex:331
+#: lib/tuist_web/live/usage_live.ex:357
 #, elixir-autogen, elixir-format
 msgid "macOS"
 msgstr "macOS"
 
-#: lib/tuist_web/live/usage_live.html.heex:121
+#: lib/tuist_web/live/usage_live.html.heex:144
 #, elixir-autogen, elixir-format
 msgid "%{count} minutes included"
 msgstr "%{count}분 포함"
 
-#: lib/tuist_web/live/usage_live.html.heex:108
+#: lib/tuist_web/live/usage_live.html.heex:131
 #, elixir-autogen, elixir-format
 msgid "%{count} minutes run"
 msgstr "%{count}분 실행"
 
-#: lib/tuist_web/live/usage_live.ex:545
-#: lib/tuist_web/live/usage_live.html.heex:128
+#: lib/tuist_web/live/usage_live.ex:571
+#: lib/tuist_web/live/usage_live.html.heex:151
 #, elixir-autogen, elixir-format
 msgid "Billed this period"
 msgstr "이번 기간 청구액"
 
-#: lib/tuist_web/live/usage_live.html.heex:141
+#: lib/tuist_web/live/usage_live.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "Balance"
 msgstr "잔액"
 
-#: lib/tuist_web/live/usage_live.html.heex:145
+#: lib/tuist_web/live/usage_live.html.heex:168
 #, elixir-autogen, elixir-format
 msgid "Covers this period"
 msgstr "이번 기간 적용"
 
-#: lib/tuist_web/live/usage_live.html.heex:154
+#: lib/tuist_web/live/usage_live.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Drawn down when the period is invoiced, so this is what your balance would cover today."
 msgstr "기간 청구 시 차감되므로, 현재 잔액으로 커버 가능한 금액입니다."
 
-#: lib/tuist_web/live/usage_live.html.heex:149
+#: lib/tuist_web/live/usage_live.html.heex:172
 #, elixir-autogen, elixir-format
 msgid "Left to pay"
 msgstr "미결제 금액"
 
-#: lib/tuist_web/live/usage_live.html.heex:137
+#: lib/tuist_web/live/usage_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Prepaid credit"
 msgstr "선불 크레딧"
@@ -133,214 +133,229 @@ msgstr "선불 크레딧"
 msgid "Billing period:"
 msgstr "청구 기간:"
 
-#: lib/tuist_web/live/usage_live.ex:307
+#: lib/tuist_web/live/usage_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count} minutes."
 msgstr "지난 기간은 %{count}분이었습니다."
 
-#: lib/tuist_web/live/usage_live.ex:327
+#: lib/tuist_web/live/usage_live.ex:353
 #, elixir-autogen, elixir-format
 msgid "Last period came to %{count}."
 msgstr "지난 기간은 %{count}이었습니다."
 
-#: lib/tuist_web/live/usage_live.ex:319
+#: lib/tuist_web/live/usage_live.ex:345
 #, elixir-autogen, elixir-format
 msgid "Nothing ran last period."
 msgstr "지난 기간에는 실행된 항목이 없습니다."
 
-#: lib/tuist_web/live/usage_live.ex:313
+#: lib/tuist_web/live/usage_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} minutes this period."
 msgstr "이번 기간은 약 %{count}분으로 예상됩니다."
 
-#: lib/tuist_web/live/usage_live.ex:212
-#: lib/tuist_web/live/usage_live.ex:469
+#: lib/tuist_web/live/usage_live.ex:214
+#: lib/tuist_web/live/usage_live.ex:495
 #, elixir-autogen, elixir-format
 msgid "Projected"
 msgstr "예상"
 
-#: lib/tuist_web/live/usage_live.ex:340
+#: lib/tuist_web/live/usage_live.ex:366
 #, elixir-autogen, elixir-format
 msgid "Current period %{from} – %{to}"
 msgstr "현재 기간 %{from} – %{to}"
 
-#: lib/tuist_web/live/usage_live.html.heex:116
+#: lib/tuist_web/live/usage_live.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "Covered by your trial"
 msgstr "체험판으로 커버됨"
 
-#: lib/tuist_web/live/usage_live.ex:542
-#: lib/tuist_web/live/usage_live.html.heex:69
+#: lib/tuist_web/live/usage_live.ex:568
+#: lib/tuist_web/live/usage_live.html.heex:91
 #, elixir-autogen, elixir-format
 msgid "What you'll owe for this period"
 msgstr "이번 기간 청구 예정 금액"
 
-#: lib/tuist_web/live/usage_live.html.heex:456
+#: lib/tuist_web/live/usage_live.html.heex:479
 #, elixir-autogen, elixir-format
 msgid "%{count} failed"
 msgstr "%{count}개 실패"
 
-#: lib/tuist_web/live/usage_live.html.heex:385
+#: lib/tuist_web/live/usage_live.html.heex:408
 #, elixir-autogen, elixir-format
 msgid "%{count} free each period"
 msgstr "기간당 %{count}개 무료"
 
-#: lib/tuist_web/live/usage_live.html.heex:335
-#: lib/tuist_web/live/usage_live.html.heex:435
+#: lib/tuist_web/live/usage_live.html.heex:358
+#: lib/tuist_web/live/usage_live.html.heex:458
 #, elixir-autogen, elixir-format
 msgid "%{count} included"
 msgstr "%{count}개 포함"
 
-#: lib/tuist_web/live/usage_live.html.heex:427
+#: lib/tuist_web/live/usage_live.html.heex:450
 #, elixir-autogen, elixir-format
 msgid "%{count} passing"
 msgstr "%{count}개 통과"
 
-#: lib/tuist_web/live/usage_live.html.heex:319
+#: lib/tuist_web/live/usage_live.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "%{count} requests"
 msgstr "%{count}개 요청"
 
-#: lib/tuist_web/live/usage_live.html.heex:472
+#: lib/tuist_web/live/usage_live.html.heex:495
 #, elixir-autogen, elixir-format
 msgid "%{count} run on Tuist Runners"
 msgstr "Tuist Runner에서 %{count}회 실행"
 
-#: lib/tuist_web/live/usage_live.html.heex:464
+#: lib/tuist_web/live/usage_live.html.heex:487
 #, elixir-autogen, elixir-format
 msgid "%{count} skipped"
 msgstr "%{count}개 건너뜀"
 
-#: lib/tuist_web/live/usage_live.html.heex:295
+#: lib/tuist_web/live/usage_live.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "%{size} included"
 msgstr "%{size} 포함"
 
-#: lib/tuist_web/live/usage_live.html.heex:373
+#: lib/tuist_web/live/usage_live.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Passing test cases are billed. Builds, failed and skipped test cases, and tests run on Tuist Runners are free."
 msgstr "청구 기간: %{from} ~ %{to}. 통과한 테스트 케이스는 청구 대상입니다. 빌드, 실패 및 건너뛴 테스트 케이스, Tuist Runner에서 실행된 테스트는 무료입니다."
 
-#: lib/tuist_web/live/usage_live.html.heex:171
+#: lib/tuist_web/live/usage_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Cache usage"
 msgstr "캐시 사용량"
 
-#: lib/tuist_web/live/usage_live.ex:544
+#: lib/tuist_web/live/usage_live.ex:570
 #, elixir-autogen, elixir-format
 msgid "Estimated for this period"
 msgstr "이번 기간 예상치"
 
-#: lib/tuist_web/live/usage_live.html.heex:460
-#: lib/tuist_web/live/usage_live.html.heex:468
-#: lib/tuist_web/live/usage_live.html.heex:476
+#: lib/tuist_web/live/usage_live.html.heex:483
+#: lib/tuist_web/live/usage_live.html.heex:491
+#: lib/tuist_web/live/usage_live.html.heex:499
 #, elixir-autogen, elixir-format
 msgid "Free"
 msgstr "무료"
 
-#: lib/tuist_web/live/usage_live.html.heex:451
+#: lib/tuist_web/live/usage_live.html.heex:474
 #, elixir-autogen, elixir-format
 msgid "Not billed"
 msgstr "청구되지 않음"
 
-#: lib/tuist_web/live/usage_live.ex:567
+#: lib/tuist_web/live/usage_live.ex:593
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} passing test cases this period."
 msgstr "이번 기간 약 %{count}개의 통과한 테스트 케이스가 예상됩니다."
 
-#: lib/tuist_web/live/usage_live.ex:559
+#: lib/tuist_web/live/usage_live.ex:585
 #, elixir-autogen, elixir-format
 msgid "On track for about %{count} requests this period."
 msgstr "이번 기간 약 %{count}건의 요청이 예상됩니다."
 
-#: lib/tuist_web/live/usage_live.ex:553
+#: lib/tuist_web/live/usage_live.ex:579
 #, elixir-autogen, elixir-format
 msgid "On track for about %{size} this period."
 msgstr "이번 기간 약 %{size}가 예상됩니다."
 
-#: lib/tuist_web/live/usage_live.html.heex:383
-#: lib/tuist_web/live/usage_live.html.heex:421
+#: lib/tuist_web/live/usage_live.html.heex:406
+#: lib/tuist_web/live/usage_live.html.heex:444
 #, elixir-autogen, elixir-format
 msgid "Passing test cases"
 msgstr "통과한 테스트 케이스"
 
-#: lib/tuist_web/live/usage_live.html.heex:361
+#: lib/tuist_web/live/usage_live.html.heex:384
 #, elixir-autogen, elixir-format
 msgid "Test insights usage"
 msgstr "테스트 인사이트 사용량"
 
-#: lib/tuist_web/live/usage_live.ex:540
+#: lib/tuist_web/live/usage_live.ex:566
 #, elixir-autogen, elixir-format
 msgid "What this period comes to. There is no subscription to bill it to."
 msgstr "이번 기간 총합입니다. 청구할 구독이 없습니다."
 
-#: lib/tuist_web/live/usage_live.ex:532
+#: lib/tuist_web/live/usage_live.ex:558
 #, elixir-autogen, elixir-format
 msgid "per %{count}"
 msgstr "%{count}당"
 
-#: lib/tuist_web/live/usage_live.ex:529
+#: lib/tuist_web/live/usage_live.ex:555
 #, elixir-autogen, elixir-format
 msgid "per GB"
 msgstr "GB당"
 
-#: lib/tuist_web/live/usage_live.ex:534
+#: lib/tuist_web/live/usage_live.ex:560
 #, elixir-autogen, elixir-format
 msgid "per million"
 msgstr "백만 건당"
 
-#: lib/tuist_web/live/usage_live.html.heex:165
+#: lib/tuist_web/live/usage_live.html.heex:188
 #, elixir-autogen, elixir-format
 msgid "No runner usage in this period"
 msgstr "이번 기간 러너 사용량 없음"
 
-#: lib/tuist_web/live/usage_live.html.heex:485
+#: lib/tuist_web/live/usage_live.html.heex:508
 #, elixir-autogen, elixir-format
 msgid "No test runs in this period"
 msgstr "이번 기간 테스트 실행 없음"
 
-#: lib/tuist_web/live/usage_live.html.heex:279
+#: lib/tuist_web/live/usage_live.html.heex:302
 #, elixir-autogen, elixir-format
 msgid "%{size} of egress"
 msgstr "%{size}의 이그레스"
 
-#: lib/tuist_web/live/usage_live.html.heex:183
+#: lib/tuist_web/live/usage_live.html.heex:206
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Egress and requests from every cache share one allowance, and traffic from Tuist Runners counts at half. Uploads and storage are free."
 msgstr "청구 기간 %{from}부터 %{to}까지. 모든 캐시의 이그레스와 요청은 하나의 할당량을 공유하며, Tuist Runner에서 발생하는 트래픽은 절반으로 계산됩니다. 업로드 및 스토리지는 무료입니다."
 
-#: lib/tuist_web/live/usage_live.html.heex:195
+#: lib/tuist_web/live/usage_live.html.heex:218
 #, elixir-autogen, elixir-format
 msgid "Data downloaded from your caches. %{size} free each period."
 msgstr "캐시에서 다운로드한 데이터. 매 기간 %{size}까지 무료입니다."
 
-#: lib/tuist_web/live/usage_live.html.heex:210
+#: lib/tuist_web/live/usage_live.html.heex:233
 #, elixir-autogen, elixir-format
 msgid "Downloads served from your caches. %{count} free each period."
 msgstr "캐시에서 제공된 다운로드. 매 기간 %{count}회까지 무료입니다."
 
-#: lib/tuist_web/live/usage_live.html.heex:354
+#: lib/tuist_web/live/usage_live.html.heex:377
 #, elixir-autogen, elixir-format
 msgid "No cache usage in this period"
 msgstr "이번 기간에는 캐시 사용량이 없습니다"
 
-#: lib/tuist_web/live/usage_live.html.heex:290
-#: lib/tuist_web/live/usage_live.html.heex:330
+#: lib/tuist_web/live/usage_live.html.heex:313
+#: lib/tuist_web/live/usage_live.html.heex:353
 #, elixir-autogen, elixir-format
 msgid "Tuist Runners discount"
 msgstr "Tuist Runner 할인"
 
-#: lib/tuist_web/live/usage_live.ex:536
+#: lib/tuist_web/live/usage_live.ex:562
 #, elixir-autogen, elixir-format
 msgid "Unknown project"
 msgstr "알 수 없는 프로젝트"
 
-#: lib/tuist_web/live/usage_live.html.heex:39
+#: lib/tuist_web/live/usage_live.html.heex:61
 #, elixir-autogen, elixir-format
 msgid "Billing period %{from} to %{to}. Minutes are measured on each platform's baseline machine, macOS 6 vCPU / 14 GB and Linux 2 vCPU / 8 GB; a larger machine uses more than one minute per minute it runs."
 msgstr "청구 기간: %{from}부터 %{to}까지. 실행 시간은 각 플랫폼의 기본 머신(macOS 6 vCPU / 14 GB, Linux 2 vCPU / 8 GB)을 기준으로 측정되며, 더 큰 머신은 실행 1분당 1분 이상의 시간이 소모됩니다."
 
-#: lib/tuist_web/live/usage_live.html.heex:51
+#: lib/tuist_web/live/usage_live.html.heex:73
 #, elixir-autogen, elixir-format
 msgid "%{macos} free macOS and %{linux} free Linux minutes each month"
 msgstr "매달 %{macos} 무료 macOS 및 %{linux} 무료 Linux 분"
+
+#: lib/tuist_web/live/usage_live.ex:230
+#, elixir-autogen, elixir-format
+msgid "Platform"
+msgstr "플랫폼"
+
+#: lib/tuist_web/live/usage_live.ex:229
+#, elixir-autogen, elixir-format
+msgid "Repository"
+msgstr "저장소"
+
+#: lib/tuist_web/live/usage_live.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "Group by:"
+msgstr "그룹 기준:"

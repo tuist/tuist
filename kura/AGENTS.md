@@ -67,8 +67,11 @@ does not repair embedded/native verification or qualify running processes.
   After its repair walk, a preparing destination pulls the serving source's
   content descriptors (`/_internal/handover/descriptors`, named destination of
   the current Serving intent only) and records the versions whose bytes match
-  in its bounded verified set. A same-version mismatch fails preparation; any
-  other walk failure stops it and keeps what was verified. Inside the barrier,
+  in its bounded verified set. A same-version mismatch fails preparation, and
+  so does a walk that does not reach the end of the source's index (deadline,
+  refused route or unreachable source): never freeze a source with content left
+  to hash. The preparation report's `content_verified` says the walk finished;
+  the controller freezes only for it. Inside the barrier,
   when begin advertises verified records, the source sends metadata-only
   descriptors (`/_internal/handover/verify-descriptors`) and verifies in full
   only the records the destination names. A version's bytes never change, and a

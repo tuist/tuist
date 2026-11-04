@@ -112,7 +112,7 @@ msgid "Continue"
 msgstr "Kontynuuj"
 
 #: lib/tuist_web/controllers/sso_link_html/status.html.heex:6
-#: lib/tuist_web/live/device_codes_success_live.ex:57
+#: lib/tuist_web/live/device_codes_success_live.ex:64
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr "Panel"
@@ -271,14 +271,14 @@ msgstr "Zarejestruj się w Tuist"
 msgid "This username has already been taken"
 msgstr "Ta nazwa użytkownika jest już zajęta"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:37
+#: lib/tuist_web/live/device_codes_success_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Tuist CLI is connected!"
 msgstr "Tuist CLI jest podłączone!"
 
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
-#: lib/tuist_web/live/device_codes_success_live.ex:26
+#: lib/tuist_web/live/device_codes_success_live.ex:33
 #: lib/tuist_web/live/sso_login_live.ex:72
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
@@ -291,7 +291,7 @@ msgstr "Tuist CLI jest podłączone!"
 msgid "Tuist Logo"
 msgstr "Logo Tuist"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:35
+#: lib/tuist_web/live/device_codes_success_live.ex:42
 #, elixir-autogen, elixir-format
 msgid "Tuist app is connected!"
 msgstr "Aplikacja Tuist jest podłączona!"
@@ -308,7 +308,7 @@ msgstr "Panel Tuist"
 msgid "Tuist documentation"
 msgstr "Dokumentacja Tuist"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:39
+#: lib/tuist_web/live/device_codes_success_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Tuist is connected!"
 msgstr "Tuist jest połączony!"
@@ -350,17 +350,17 @@ msgstr "Witaj ponownie! Zaloguj się, aby kontynuować"
 msgid "Welcome! Create an account to continue"
 msgstr "Witaj! Utwórz konto, aby kontynuować"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:49
+#: lib/tuist_web/live/device_codes_success_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue"
 msgstr "Możesz zamknąć kartę i kontynuować"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:45
+#: lib/tuist_web/live/device_codes_success_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the app"
 msgstr "Możesz zamknąć kartę i kontynuować w aplikacji"
 
-#: lib/tuist_web/live/device_codes_success_live.ex:47
+#: lib/tuist_web/live/device_codes_success_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal"
 msgstr "Możesz zamknąć kartę i kontynuować w terminalu"
@@ -893,3 +893,8 @@ msgstr "Nie udało się zweryfikować klucza dostępu. Spróbuj ponownie."
 #, elixir-autogen, elixir-format
 msgid "This passkey is already registered."
 msgstr "Ten klucz dostępu jest już zarejestrowany."
+
+#: lib/tuist_web/authentication.ex:698
+#, elixir-autogen, elixir-format
+msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
+msgstr "Każda z Twoich organizacji wymaga własnego jednokrotnego logowania (SSO), więc ta sesja nie może zalogować się do CLI Tuist, aplikacji ani klientów MCP. Poproś administratora organizacji o pomoc."
