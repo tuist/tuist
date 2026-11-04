@@ -29,6 +29,7 @@ defmodule TuistWeb.API.SandboxesController do
   @orb_admission_refusals [
     :no_capacity,
     :sandbox_concurrency_limit,
+    :sandbox_disk_limit,
     :sandbox_account_busy,
     :locked
   ]
@@ -571,8 +572,16 @@ defmodule TuistWeb.API.SandboxesController do
     conn
     |> put_status(:forbidden)
     |> json(%{
+      message: "The account has reached its sandbox disk limit, which paused sandboxes count toward. Delete some first."
+    })
+  end
+
+  defp sandbox_error(conn, :sandbox_disk_limit) do
+    conn
+    |> put_status(:too_many_requests)
+    |> json(%{
       message:
-        "The account has reached its limit of #{Sandboxes.max_on_node_sandboxes_per_account()} sandboxes on nodes, paused ones included. Delete some first."
+        "The account has reached its sandbox disk limit. Its oldest paused Orb is being archived to make room; retry shortly."
     })
   end
 

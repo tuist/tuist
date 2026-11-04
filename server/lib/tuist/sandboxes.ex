@@ -48,13 +48,9 @@ defmodule Tuist.Sandboxes do
   # belongs to a caller that died mid-operation (a web pod stopped during a
   # deploy): the node's report decides what it is now.
   @stuck_after_seconds 150
-  # Running sandboxes are bounded by the account CPU and memory quota
-  # (`Concurrency`), not by a count. Sandboxes on a node, paused ones
-  # included, hold disk there, so they count toward the on-node cap, and Amp
-  # Orbs past `Archives.max_paused_on_node_per_account/0` move to object
-  # storage.
-  @max_on_node_sandboxes_per_account 30
-  @on_node_states [:creating, :running, :resuming, :paused]
+  # Sandboxes are bounded by the account's CPU, memory and disk quota
+  # (`Concurrency`), not by a count. Amp Orbs past
+  # `Archives.max_paused_on_node_per_account/0` move to object storage.
   # A running Amp Orb whose guest has used under 2% of one vCPU for this
   # long is paused, in case Amp's own pause never arrives.
   @orb_idle_pause_after_seconds 600
@@ -213,27 +209,23 @@ defmodule Tuist.Sandboxes do
     changeset = Sandbox.create_changeset(%Sandbox{}, attrs)
 
     with {:ok, requested} <- Ecto.Changeset.apply_action(changeset, :insert),
-         {:ok, sandbox} <-
-           Concurrency.admit(account_id, requested, fn ->
-             with :ok <- check_sandbox_limit(account_id) do
-               Repo.insert(changeset)
-             end
-           end) do
+         {:ok, sandbox} <- admit_onto_node(account_id, requested, fn -> Repo.insert(changeset) end) do
       boot(sandbox, Keyword.get(opts, :from_disk_snapshot))
     end
   end
 
-  def max_on_node_sandboxes_per_account, do: @max_on_node_sandboxes_per_account
+  # Admits one more sandbox onto a node: a create or a restore. Past the
+  # account's disk limit, archiving its oldest paused Orb makes room, so the
+  # refusal is retryable while one is on its way (`:sandbox_disk_limit`), and
+  # final otherwise (`:sandbox_limit`): only deleting sandboxes frees disk.
+  defp admit_onto_node(account_id, requested, reserve) do
+    case Concurrency.admit(account_id, requested, reserve) do
+      {:error, :sandbox_disk_limit} ->
+        if Archives.make_room(account_id), do: {:error, :sandbox_disk_limit}, else: {:error, :sandbox_limit}
 
-  # Admits one more sandbox onto a node: a create or a restore.
-  defp check_sandbox_limit(account_id) do
-    if count_in_states(account_id, @on_node_states) < @max_on_node_sandboxes_per_account,
-      do: :ok,
-      else: {:error, :sandbox_limit}
-  end
-
-  defp count_in_states(account_id, states) do
-    Repo.aggregate(from(s in Sandbox, where: s.account_id == ^account_id and s.state in ^states), :count)
+      other ->
+        other
+    end
   end
 
   defp boot(%Sandbox{} = sandbox, source) do
@@ -460,10 +452,8 @@ defmodule Tuist.Sandboxes do
   defp restore(%Sandbox{state: :archived} = sandbox) do
     with {:ok, source} <- Archives.restore_source(sandbox),
          {:ok, creating} <-
-           Concurrency.admit(sandbox.account_id, sandbox, fn ->
-             with :ok <- check_sandbox_limit(sandbox.account_id) do
-               update_sandbox(sandbox, %{state: :creating, node_name: nil, error_message: nil})
-             end
+           admit_onto_node(sandbox.account_id, sandbox, fn ->
+             update_sandbox(sandbox, %{state: :creating, node_name: nil, error_message: nil})
            end) do
       boot(creating, {:archive, source})
     end
