@@ -64,8 +64,13 @@ public final class PushNotifications {
         }
         guard let serverURL else {
             // Sessions can also end without `signOut()`, for example when they expire or the account is deleted.
-            // Forgetting the opt-in keeps the next account from being registered without asking.
-            _ = await enqueue { [registrationService] in registrationService.forgetAll() }.result
+            // Forgetting the opt-in keeps the next account from being registered without asking. The server may not
+            // have retired the registration yet, so the APNs token is invalidated too, as when signing out.
+            _ = await enqueue { [registrationService] in
+                if registrationService.forgetAll() {
+                    UIApplication.shared.unregisterForRemoteNotifications()
+                }
+            }.result
             isEnabledOnThisDevice = false
             installationID = nil
             return

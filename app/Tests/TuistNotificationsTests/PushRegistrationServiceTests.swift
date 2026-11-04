@@ -211,7 +211,8 @@ import TuistServer
         try await optIn(serverURL: selfHostedURL)
         try await register()
 
-        subject.forgetAll()
+        #expect(subject.forgetAll() == true)
+        #expect(subject.forgetAll() == false)
         try await register()
 
         #expect(subject.isEnabled(serverURL: serverURL) == false)

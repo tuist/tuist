@@ -112,10 +112,13 @@ struct PushRegistrationService: Sendable {
         try? appStorage.set(PushInstallationsKey.self, value: installations)
     }
 
-    /// Forgets every installation, so the next sign-in starts opted out. The server retires registrations whose
-    /// session ended, and deletes them with the account.
-    func forgetAll() {
+    /// Forgets every installation, so the next sign-in starts opted out, and returns whether any was opted in. The
+    /// server retires registrations whose session ended, and deletes them with the account.
+    @discardableResult
+    func forgetAll() -> Bool {
+        let wasEnabled = installations().values.contains(where: \.isEnabled)
         try? appStorage.set(PushInstallationsKey.self, value: [:])
+        return wasEnabled
     }
 
     private func unregister(serverURL: URL) async throws {
