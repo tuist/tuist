@@ -94,6 +94,28 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
                %{"baseline_sha" => nil, "reason" => "history_unknown", "diff_cached" => false}
     end
 
+    test "answers excluded_branch on the project's default branch", %{conn: conn, user: user, project: project} do
+      stub(FeatureFlags, :test_impact_analysis_enabled?, fn _account, _project -> true end)
+
+      repository_id =
+        CoverageFixtures.seed_history(user.account, [
+          CoverageFixtures.commit("base", [], 0),
+          CoverageFixtures.commit("head", ["base"], 1)
+        ])
+
+      CoverageFixtures.commit_coverage(project, repository_id, "base")
+      path = ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/baseline"
+      params = %{build_system: "xcode", commit_sha: "head", platform: "ios"}
+
+      response = conn |> post(path, Map.put(params, :git_branch, project.default_branch)) |> json_response(:ok)
+
+      assert response == %{"baseline_sha" => nil, "reason" => "excluded_branch", "diff_cached" => false}
+      assert_schema(response, "TestImpactBaseline", Spec.spec())
+
+      assert conn |> post(path, Map.put(params, :git_branch, "feature")) |> json_response(:ok) ==
+               %{"baseline_sha" => "base", "diff_cached" => false}
+    end
+
     test "requires the build system and the checked-out commit", %{conn: conn, user: user, project: project} do
       conn =
         post(conn, ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/baseline", %{

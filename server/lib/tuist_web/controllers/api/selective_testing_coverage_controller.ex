@@ -50,7 +50,7 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
   operation(:baseline,
     summary: "Resolve the baseline for coverage-based test selection.",
     description:
-      "Returns the nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing.",
+      "Returns the nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing, and `excluded_branch` on the project's default branch.",
     operation_id: "resolveTestImpactBaseline",
     parameters: @path_parameters,
     request_body:
@@ -85,6 +85,11 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
              description:
                "The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none."
            },
+           git_branch: %Schema{
+             type: :string,
+             description:
+               "The branch the checkout is on. Sent outside pull requests: on the project's default branch the answer is `excluded_branch`, without resolving a baseline."
+           },
            xcode: @xcode_schema
          },
          required: [:build_system, :commit_sha]
@@ -105,6 +110,10 @@ defmodule TuistWeb.API.SelectiveTestingCoverageController do
     else
       json(conn, %{baseline_sha: nil, reason: "not_enabled", diff_cached: false})
     end
+  end
+
+  defp resolve_baseline(project, %{git_branch: branch}) when branch != "" and branch == project.default_branch do
+    %{baseline_sha: nil, reason: "excluded_branch", diff_cached: false}
   end
 
   defp resolve_baseline(project, params) do
