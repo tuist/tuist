@@ -397,6 +397,18 @@ type guestReply struct {
 	CPUPermille int64 `json:"cpu_permille"`
 }
 
+// guestBridge runs the bridge from a root-owned copy on the guest's disk.
+// After a suspended VM resumes, the guest can still read the VirtioFS share
+// but `runner` can no longer execute from it (EPERM), so the share only
+// delivers the tools: a copy that differs from the share is replaced.
+const guestBridge = `set -eu
+s="/Volumes/My Shared Files/sandbox-tools"
+l=/usr/local/libexec/tuist-sandbox
+if ! /usr/bin/cmp -s "$s/sbx-macos" "$l/sbx-macos"; then
+	/usr/bin/sudo -n /bin/sh -c 'set -eu; /bin/mkdir -p "$2"; for f in sbx-macos sbx-worker; do /bin/cp -X "$1/$f" "$2/.$f.$$"; /bin/chmod 0755 "$2/.$f.$$"; /bin/mv -f "$2/.$f.$$" "$2/$f"; done' sh "$s" "$l"
+fi
+exec /usr/bin/sudo -n -H -u runner /usr/bin/env PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin "$l/sbx-macos"`
+
 func (t *TartRuntime) guest(ctx context.Context, r *Record, request any, out func(protocol.Stream)) (guestReply, error) {
 	var result guestReply
 	data, err := json.Marshal(request)
@@ -404,7 +416,7 @@ func (t *TartRuntime) guest(ctx context.Context, r *Record, request any, out fun
 		return result, err
 	}
 	c := t.client(r)
-	cmd := exec.CommandContext(ctx, c.Binary, "exec", "-i", r.VMName(), "/usr/bin/sudo", "-n", "-H", "-u", "runner", "/usr/bin/env", "PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin", "/Volumes/My Shared Files/sandbox-tools/sbx-macos")
+	cmd := exec.CommandContext(ctx, c.Binary, "exec", "-i", r.VMName(), "/bin/sh", "-c", guestBridge)
 	cmd.Env = append(os.Environ(), "TART_HOME="+c.HomeDir)
 	cmd.Stdin = strings.NewReader(string(data) + "\n")
 	cmd.WaitDelay = time.Second

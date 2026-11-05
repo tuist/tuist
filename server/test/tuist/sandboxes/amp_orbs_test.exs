@@ -254,7 +254,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     end)
 
     expect(Nodes, :call, fn "mac-a", "exec", args, opts ->
-      assert args.cmd == ["/Volumes/My Shared Files/sandbox-tools/sbx-macos", "--orb-bootstrap"]
+      assert args.cmd == ["/usr/local/libexec/tuist-sandbox/sbx-macos", "--orb-bootstrap"]
       assert args.cwd == "/Users/runner/work"
       assert %{"ORB_TOKEN" => "orb-secret"} = args.env
       assert opts[:timeout] > 120_000

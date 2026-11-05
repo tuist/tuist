@@ -273,11 +273,11 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     end
   end
 
-  # The macOS guest bridge, shared read-only into every Tart guest, starts
+  # The macOS guest bridge, which the host copies onto each guest's disk, starts
   # Amp in its own session so the exec's process-group fence spares it. The
   # first Orb on a guest installs the Amp CLI, which can take a minute.
   defp bootstrap_command(%Sandbox{platform: :darwin}),
-    do: ["/Volumes/My Shared Files/sandbox-tools/sbx-macos", "--orb-bootstrap"]
+    do: ["/usr/local/libexec/tuist-sandbox/sbx-macos", "--orb-bootstrap"]
 
   defp bootstrap_command(_sandbox), do: ["/usr/local/bin/sbx-orb-bootstrap"]
 
