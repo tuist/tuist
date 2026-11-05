@@ -18,6 +18,6 @@ dependencies:
     version: 4.0.3
     repository: https://grafana.github.io/helm-charts
   - name: pulso
-    version: 1.33.2
+    version: 1.33.3
     repository: oci://ghcr.io/tuist/charts
     condition: pulso.enabled
