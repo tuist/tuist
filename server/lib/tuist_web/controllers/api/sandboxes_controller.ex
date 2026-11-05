@@ -5,7 +5,8 @@ defmodule TuistWeb.API.SandboxesController do
   alias OpenApiSpex.Schema
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
-  alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.Query
+  alias Tuist.Sandboxes.Schemas, as: SandboxSchemas
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
@@ -96,39 +97,7 @@ defmodule TuistWeb.API.SandboxesController do
     }
   }
 
-  @sandbox_schema %Schema{
-    title: "Sandbox",
-    description: "A Firecracker sandbox VM.",
-    type: :object,
-    properties: %{
-      id: %Schema{type: :string, format: "uuid"},
-      state: %Schema{type: :string, enum: Enum.map(Sandbox.states(), &Atom.to_string/1)},
-      template: %Schema{type: :string},
-      template_tag: %Schema{type: :string, nullable: true},
-      vcpus: %Schema{type: :integer},
-      memory_mb: %Schema{type: :integer},
-      workspace_gb: %Schema{type: :integer},
-      node_name: %Schema{type: :string, nullable: true},
-      hostname: %Schema{type: :string, nullable: true},
-      agent_environment_id: %Schema{type: :integer, nullable: true},
-      amp_orb_id: %Schema{type: :string, nullable: true},
-      anthropic_session_id: %Schema{type: :string, nullable: true},
-      residency_work_id: %Schema{type: :string, nullable: true},
-      last_active_at: %Schema{type: :string, format: "date-time", nullable: true},
-      paused_at: %Schema{type: :string, format: "date-time", nullable: true},
-      archived_at: %Schema{
-        type: :string,
-        format: "date-time",
-        nullable: true,
-        description: "When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`."
-      },
-      archive_bytes: %Schema{type: :integer, nullable: true, description: "Size of the stored archive in bytes."},
-      error_message: %Schema{type: :string, nullable: true},
-      inserted_at: %Schema{type: :string, format: "date-time"},
-      updated_at: %Schema{type: :string, format: "date-time"}
-    },
-    required: [:id, :state, :template, :vcpus, :memory_mb, :workspace_gb, :inserted_at, :updated_at]
-  }
+  @sandbox_schema SandboxSchemas.sandbox()
 
   @exec_result_schema %Schema{
     title: "SandboxExecResult",
@@ -283,7 +252,7 @@ defmodule TuistWeb.API.SandboxesController do
         conn |> put_status(:created) |> json(serialize_agent_environment(agent_environment))
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        conn |> put_status(:bad_request) |> json(%{message: changeset_message(changeset)})
+        sandbox_error(conn, changeset)
     end
   end
 
@@ -376,24 +345,34 @@ defmodule TuistWeb.API.SandboxesController do
 
   operation(:index,
     summary: "List the account's sandboxes.",
+    description: "Newest first by default. Deleted sandboxes are not listed.",
     operation_id: "listSandboxes",
-    parameters: @account_parameters,
+    parameters: SandboxSchemas.parameters(:list),
     responses:
-      Map.put(
-        @error_responses,
-        :ok,
-        {"Sandboxes", "application/json",
-         %Schema{
-           type: :object,
-           properties: %{sandboxes: %Schema{type: :array, items: @sandbox_schema}},
-           required: [:sandboxes]
-         }}
-      )
+      Map.merge(@error_responses, %{
+        ok: {"Sandboxes", "application/json", SandboxSchemas.response(:list)},
+        bad_request: {"Invalid parameters", "application/json", Error}
+      })
   )
 
-  def index(%{assigns: %{selected_account: account}} = conn, _params) do
-    json(conn, %{sandboxes: account |> Sandboxes.list_sandboxes() |> Enum.map(&serialize_sandbox/1)})
-  end
+  def index(%{assigns: %{selected_account: account}} = conn, params),
+    do: respond(conn, Query.run(:list, account, string_keys(params)))
+
+  operation(:analytics,
+    summary: "Get the account's sandbox analytics for a time range.",
+    description:
+      "vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.",
+    operation_id: "getSandboxAnalytics",
+    parameters: SandboxSchemas.parameters(:analytics),
+    responses:
+      Map.merge(@error_responses, %{
+        ok: {"Sandbox analytics", "application/json", SandboxSchemas.response(:analytics)},
+        bad_request: {"Invalid parameters", "application/json", Error}
+      })
+  )
+
+  def analytics(%{assigns: %{selected_account: account}} = conn, params),
+    do: respond(conn, Query.run(:analytics, account, string_keys(params)))
 
   operation(:create,
     summary: "Create a sandbox.",
@@ -417,7 +396,7 @@ defmodule TuistWeb.API.SandboxesController do
     attrs = Map.take(body_params, [:template, :vcpus, :memory_mb, :workspace_gb])
 
     case Sandboxes.create_sandbox(account, attrs) do
-      {:ok, sandbox} -> conn |> put_status(:created) |> json(serialize_sandbox(sandbox))
+      {:ok, sandbox} -> conn |> put_status(:created) |> json(Query.sandbox(sandbox))
       {:error, reason} -> sandbox_error(conn, reason)
     end
   end
@@ -433,9 +412,8 @@ defmodule TuistWeb.API.SandboxesController do
       })
   )
 
-  def show(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}} = conn, _params) do
-    with_sandbox(conn, account, sandbox_id, fn sandbox -> json(conn, serialize_sandbox(sandbox)) end)
-  end
+  def show(%{assigns: %{selected_account: account}} = conn, params),
+    do: respond(conn, Query.run(:show, account, string_keys(params)))
 
   operation(:exec,
     summary: "Run a shell command in a sandbox.",
@@ -496,14 +474,8 @@ defmodule TuistWeb.API.SandboxesController do
       })
   )
 
-  def pause(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}} = conn, _params) do
-    with_sandbox(conn, account, sandbox_id, fn sandbox ->
-      case Sandboxes.pause(sandbox) do
-        {:ok, sandbox} -> json(conn, serialize_sandbox(sandbox))
-        {:error, reason} -> sandbox_error(conn, reason)
-      end
-    end)
-  end
+  def pause(%{assigns: %{selected_account: account}} = conn, params),
+    do: respond(conn, Query.run(:pause, account, string_keys(params)))
 
   operation(:resume,
     summary: "Resume a paused sandbox.",
@@ -518,14 +490,8 @@ defmodule TuistWeb.API.SandboxesController do
       })
   )
 
-  def resume(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}} = conn, _params) do
-    with_sandbox(conn, account, sandbox_id, fn sandbox ->
-      case Sandboxes.resume(sandbox) do
-        {:ok, sandbox} -> json(conn, serialize_sandbox(sandbox))
-        {:error, reason} -> sandbox_error(conn, reason)
-      end
-    end)
-  end
+  def resume(%{assigns: %{selected_account: account}} = conn, params),
+    do: respond(conn, Query.run(:resume, account, string_keys(params)))
 
   operation(:delete,
     summary: "Delete a sandbox.",
@@ -540,14 +506,41 @@ defmodule TuistWeb.API.SandboxesController do
       })
   )
 
-  def delete(%{assigns: %{selected_account: account}, params: %{sandbox_id: sandbox_id}} = conn, _params) do
-    with_sandbox(conn, account, sandbox_id, fn sandbox ->
-      case Sandboxes.delete(sandbox) do
-        {:ok, _deleted} -> send_resp(conn, :no_content, "")
-        {:error, reason} -> sandbox_error(conn, reason)
-      end
-    end)
+  def delete(%{assigns: %{selected_account: account}} = conn, params) do
+    case Query.run(:delete, account, string_keys(params)) do
+      {:ok, _deleted} -> send_resp(conn, :no_content, "")
+      error -> respond(conn, error)
+    end
   end
+
+  operation(:archive,
+    summary: "Archive a paused sandbox.",
+    description:
+      "Queues moving the paused sandbox's disks to object storage, which frees them on its node. The sandbox stays `paused` until the upload completes and then becomes `archived`; resuming restores it.",
+    operation_id: "archiveSandbox",
+    parameters: @sandbox_parameters,
+    responses:
+      @error_responses
+      |> Map.merge(@node_error_responses)
+      |> Map.merge(%{
+        accepted: {"Sandbox", "application/json", @sandbox_schema},
+        not_found: {"The sandbox was not found", "application/json", Error}
+      })
+  )
+
+  def archive(%{assigns: %{selected_account: account}} = conn, params) do
+    case Query.run(:archive, account, string_keys(params)) do
+      {:ok, sandbox} -> conn |> put_status(:accepted) |> json(sandbox)
+      error -> respond(conn, error)
+    end
+  end
+
+  # CastAndValidate casts the params to atom keys; Query takes the string
+  # keys MCP tools receive.
+  defp string_keys(params), do: Map.new(params, fn {key, value} -> {to_string(key), value} end)
+
+  defp respond(conn, {:ok, data}), do: json(conn, data)
+  defp respond(conn, {:error, reason}), do: sandbox_error(conn, reason)
 
   defp with_sandbox(conn, account, sandbox_id, fun) do
     case Sandboxes.get_sandbox(account, sandbox_id) do
@@ -558,90 +551,22 @@ defmodule TuistWeb.API.SandboxesController do
 
   defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message})
 
-  defp sandbox_error(conn, {:invalid_state, state}) do
-    conn |> put_status(:conflict) |> json(%{message: "The sandbox is #{state}."})
-  end
-
-  defp sandbox_error(conn, :no_node) do
-    conn
-    |> put_status(:service_unavailable)
-    |> json(%{message: "No sandbox node with the template ready is connected."})
-  end
-
-  defp sandbox_error(conn, :sandbox_limit) do
-    conn
-    |> put_status(:forbidden)
-    |> json(%{
-      message: "The account has reached its sandbox disk limit, which paused sandboxes count toward. Delete some first."
-    })
-  end
-
-  defp sandbox_error(conn, :sandbox_disk_limit) do
-    conn
-    |> put_status(:too_many_requests)
-    |> json(%{
-      message:
-        "The account has reached its sandbox disk limit. Its oldest paused Orb is being archived to make room; retry shortly."
-    })
-  end
-
-  defp sandbox_error(conn, :sandbox_concurrency_limit) do
-    conn
-    |> put_status(:too_many_requests)
-    |> json(%{
-      message: "The account has reached its sandbox CPU or memory limit. Pause a sandbox before starting more work."
-    })
-  end
-
-  defp sandbox_error(conn, :sandbox_account_busy) do
-    conn |> put_status(:conflict) |> json(%{message: "Another sandbox admission is in progress. Retry shortly."})
-  end
-
-  defp sandbox_error(conn, :locked) do
-    conn |> put_status(:conflict) |> json(%{message: "Another operation on the sandbox is in progress."})
-  end
-
-  defp sandbox_error(conn, :no_capacity) do
-    conn
-    |> put_status(:service_unavailable)
-    |> json(%{message: "No sandbox node has memory or disk left for this sandbox."})
-  end
-
-  defp sandbox_error(conn, :not_connected) do
-    conn |> put_status(:service_unavailable) |> json(%{message: "The sandbox's node is not connected."})
-  end
-
-  defp sandbox_error(conn, :node_disconnected) do
-    conn
-    |> put_status(:service_unavailable)
-    |> json(%{message: "The sandbox's node disconnected during the operation."})
-  end
-
-  defp sandbox_error(conn, :timeout) do
-    conn |> put_status(:gateway_timeout) |> json(%{message: "The sandbox's node did not answer in time."})
-  end
-
-  defp sandbox_error(conn, %Ecto.Changeset{} = changeset) do
-    conn |> put_status(:bad_request) |> json(%{message: changeset_message(changeset)})
-  end
-
-  defp sandbox_error(conn, reason) when is_binary(reason) do
-    conn |> put_status(:bad_gateway) |> json(%{message: "The sandbox node rejected the operation: #{reason}"})
-  end
+  # Every sandbox 503 comes after the server has already waited for a node or
+  # for capacity, so an immediate retry only repeats that wait. The hint is
+  # longer than any client retry budget (`RetryMiddleware` waits at most 30
+  # seconds per retry, 10 retries at most), so the CLI reports it at once.
+  @service_unavailable_retry_after_seconds 300
 
   defp sandbox_error(conn, reason) do
-    conn |> put_status(:internal_server_error) |> json(%{message: "Sandbox operation failed: #{inspect(reason)}"})
+    {status, message} = Query.error(reason)
+
+    conn |> retry_after(status) |> put_status(status) |> json(%{message: message})
   end
 
-  defp changeset_message(changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {message, opts} ->
-      Enum.reduce(opts, message, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
-    end)
-    |> Enum.map_join(", ", fn {field, messages} -> "#{field} #{Enum.join(messages, ", ")}" end)
-  end
+  defp retry_after(conn, :service_unavailable),
+    do: put_resp_header(conn, "retry-after", "#{@service_unavailable_retry_after_seconds}")
+
+  defp retry_after(conn, _status), do: conn
 
   defp serialize_agent_environment(%AgentEnvironment{} = agent_environment) do
     agent_environment
@@ -663,30 +588,5 @@ defmodule TuistWeb.API.SandboxesController do
       :updated_at
     ])
     |> Map.put(:has_api_key, is_binary(agent_environment.anthropic_api_key))
-  end
-
-  defp serialize_sandbox(%Sandbox{} = sandbox) do
-    Map.take(sandbox, [
-      :id,
-      :state,
-      :template,
-      :template_tag,
-      :vcpus,
-      :memory_mb,
-      :workspace_gb,
-      :node_name,
-      :hostname,
-      :agent_environment_id,
-      :anthropic_session_id,
-      :amp_orb_id,
-      :residency_work_id,
-      :last_active_at,
-      :paused_at,
-      :archived_at,
-      :archive_bytes,
-      :error_message,
-      :inserted_at,
-      :updated_at
-    ])
   end
 end

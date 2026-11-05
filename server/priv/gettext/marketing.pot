@@ -222,7 +222,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:13
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:694
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:364
-#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:116
+#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:118
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:366
 #: lib/tuist_web/marketing/live/marketing_customers_live/customers.html.heex:109
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:638
@@ -521,7 +521,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:139
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:700
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:370
-#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:122
+#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:124
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:372
 #: lib/tuist_web/marketing/live/marketing_customers_live/customers.html.heex:115
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:644
@@ -564,14 +564,14 @@ msgstr ""
 msgid "Tuist"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/root.html.heex:205
-#: lib/tuist_web/marketing/layouts/root.html.heex:211
+#: lib/tuist_web/marketing/layouts/root.html.heex:209
+#: lib/tuist_web/marketing/layouts/root.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Tuist Blog"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/root.html.heex:220
-#: lib/tuist_web/marketing/layouts/root.html.heex:226
+#: lib/tuist_web/marketing/layouts/root.html.heex:224
+#: lib/tuist_web/marketing/layouts/root.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Tuist Changelog"
 msgstr ""
@@ -834,7 +834,7 @@ msgid "Onboarded"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:68
-#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:43
+#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:45
 #, elixir-autogen, elixir-format
 msgid "Read next"
 msgstr ""
@@ -851,7 +851,7 @@ msgid "See how leading teams scale with Tuist"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:134
-#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:113
+#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "AI moves fast. So should your builds."
 msgstr ""
@@ -976,11 +976,6 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Standard support via Slack and email"
-msgstr ""
-
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:36
-#, elixir-autogen, elixir-format
-msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:646
@@ -1482,7 +1477,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1042
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:128
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:361
-#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:111
+#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:113
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:363
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:635
 #, elixir-autogen, elixir-format
@@ -2784,11 +2779,6 @@ msgstr ""
 msgid "More shipping."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
-#, elixir-autogen, elixir-format
-msgid "Build, test, and ship software on infrastructure that continuously optimizes performance, removes bottlenecks, and scales with your team."
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:603
 #, elixir-autogen, elixir-format
 msgid "%{vcpus} vCPU · %{memory} GB"
@@ -2893,4 +2883,10 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1000
 #, elixir-autogen, elixir-format
 msgid "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes and 2,500 free Linux minutes a month, counted on a 2 vCPU / 8 GB Linux machine, and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:36
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Tuist connects to your existing build tools and CI to speed up builds, optimize testing, and scale compute, so you can focus on shipping software."
 msgstr ""

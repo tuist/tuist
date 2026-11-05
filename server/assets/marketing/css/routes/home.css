@@ -54,14 +54,14 @@
 
   & > [data-part="body"],
   & > [data-part="header"] {
-    padding-right: var(--noora-spacing-6);
-    padding-left: var(--noora-spacing-6);
+    padding-inline-start: var(--noora-spacing-6);
+    padding-inline-end: var(--noora-spacing-6);
 
     @media (min-width: 1024px) {
-      margin-right: auto;
-      margin-left: auto;
-      padding-right: var(--noora-spacing-6);
-      padding-left: var(--noora-spacing-6);
+      margin-inline-start: auto;
+      margin-inline-end: auto;
+      padding-inline-start: var(--noora-spacing-6);
+      padding-inline-end: var(--noora-spacing-6);
       width: 650px;
       max-width: 650px;
     }
@@ -200,10 +200,13 @@
          constant; the animation itself runs on the compositor, unlike the
          previous per-frame transform from a rAF loop, which stuttered
          whenever the page's other animations held the main thread. */
+      /* Logos only, on a physical translateX loop: kept left-to-right so the
+         loop stays seamless in RTL. */
       & > [data-part="track"] {
         display: flex;
         flex-direction: row;
         align-items: center;
+        direction: ltr;
         /* Overridden inline by the hook from the measured track width. */
         --marquee-duration: 40s;
         animation: marketing-logos-marquee var(--marquee-duration) linear infinite;
@@ -389,7 +392,7 @@
           /* Divider between the two halves — only when side by side. */
           &[data-variant="without-cache"] {
             @media (min-width: 1024px) {
-              border-right: 1px solid var(--marketing-stroke-default);
+              border-inline-end: 1px solid var(--marketing-stroke-default);
             }
           }
 
@@ -421,11 +424,11 @@
               white-space: nowrap;
 
               &:not(:last-child) {
-                border-right: 1px solid var(--marketing-stroke-default);
+                border-inline-end: 1px solid var(--marketing-stroke-default);
 
                 @media (max-width: 599px) {
-                  border-right: none;
                   border-bottom: 1px solid var(--marketing-stroke-default);
+                  border-inline-end: none;
                 }
               }
 
@@ -440,7 +443,7 @@
               /* 16px between the build-time value and its badge; the row's
                  spacing-2 flex gap already contributes, so subtract it. */
               & > .noora-badge {
-                margin-left: calc(var(--noora-spacing-6) - var(--noora-spacing-2));
+                margin-inline-start: calc(var(--noora-spacing-6) - var(--noora-spacing-2));
 
                 /* Tabular figures so the live percentage doesn't resize the
                    badge as digit widths change while it counts. */
@@ -464,7 +467,7 @@
             & > [data-part="chart-label"] {
               position: absolute;
               top: var(--noora-spacing-2);
-              left: var(--noora-spacing-2);
+              inset-inline-start: var(--noora-spacing-2);
               pointer-events: none;
               color: var(--noora-surface-label-tertiary);
               font: var(--noora-font-weight-regular) 11px var(--noora-font-code);
@@ -495,8 +498,8 @@
              chart (its panel is the right half); top-left when stacked. */
           &[data-variant="with-cache"] > [data-part="chart"] > [data-part="chart-label"] {
             @media (min-width: 1024px) {
-              right: var(--noora-spacing-2);
-              left: auto;
+              inset-inline-end: var(--noora-spacing-2);
+              inset-inline-start: auto;
             }
           }
         }
@@ -640,7 +643,7 @@
             white-space: nowrap;
 
             &:not(:last-child) {
-              border-right: 1px solid var(--marketing-stroke-default);
+              border-inline-end: 1px solid var(--marketing-stroke-default);
             }
 
             & > strong {
@@ -662,6 +665,9 @@
           align-items: center;
           min-height: 0;
           overflow: hidden;
+          /* SVG wires plus HTML boxes at the template's pixel coordinates:
+             the scene keeps its left-to-right layout in RTL. */
+          direction: ltr;
 
           /* The scene holds the SVG (280px tall) + the logo hub together and is
              vertically centered in the stage, so both shift as one — the grid
@@ -959,7 +965,7 @@
             white-space: nowrap;
 
             &:not(:last-child) {
-              border-right: 1px solid var(--marketing-stroke-default);
+              border-inline-end: 1px solid var(--marketing-stroke-default);
             }
 
             /* Legend swatches mirroring the grid cells' three states so the
@@ -969,7 +975,7 @@
               box-sizing: border-box;
               /* 6px between the swatch and its label; the row's spacing-2 flex
                  gap already contributes, so add only the difference. */
-              margin-right: calc(6px - var(--noora-spacing-2));
+              margin-inline-end: calc(6px - var(--noora-spacing-2));
               border: 1px solid var(--marketing-illustration-neutral-3);
               border-radius: 1px;
               width: 10px;
@@ -999,7 +1005,7 @@
                  min-width stops the label from shifting as the count grows from
                  one to three digits while animating. */
               font-variant-numeric: tabular-nums;
-              text-align: left;
+              text-align: start;
             }
           }
         }
@@ -1033,11 +1039,11 @@
 
             & > [data-part="stat"] {
               &:not(:last-child) {
-                border-right: none;
+                border-inline-end: none;
               }
 
               &:nth-child(1) {
-                border-right: 1px solid var(--marketing-stroke-default);
+                border-inline-end: 1px solid var(--marketing-stroke-default);
               }
 
               &:nth-child(-n + 2) {
@@ -1121,10 +1127,10 @@
 
           @media (min-width: 1024px) {
             border-bottom: none;
-            border-left: 1px solid var(--marketing-stroke-default);
+            border-inline-start: 1px solid var(--marketing-stroke-default);
 
             &:first-child {
-              border-left: none;
+              border-inline-start: none;
             }
           }
 
@@ -1220,7 +1226,7 @@
       flex-shrink: 0;
       /* Cells draw right/bottom hairlines; the -1px margins overlap the
          outer ones with the section border so the edges don't double up. */
-      margin-right: -1px;
+      margin-inline-end: -1px;
       margin-bottom: -1px;
       border-top: 1px solid var(--marketing-stroke-default);
 
@@ -1233,7 +1239,7 @@
       @media (min-width: 1024px) {
         grid-template-columns: repeat(3, 1fr);
         border-top: none;
-        border-left: 1px solid var(--marketing-stroke-default);
+        border-inline-start: 1px solid var(--marketing-stroke-default);
         /* 3 columns of 128px cells; 4 rows put the section at 512px. */
         width: 384px;
       }
@@ -1242,8 +1248,8 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        border-right: 1px solid var(--marketing-stroke-default);
         border-bottom: 1px solid var(--marketing-stroke-default);
+        border-inline-end: 1px solid var(--marketing-stroke-default);
         aspect-ratio: 1;
 
         /* The tooltip trigger stretches to the full cell so the whole tile
@@ -1371,8 +1377,8 @@
 
         @media (min-width: 1024px) {
           &:not(:last-child) {
-            border-right: 1px solid var(--marketing-stroke-default);
             border-bottom: none;
+            border-inline-end: 1px solid var(--marketing-stroke-default);
           }
         }
 
@@ -1461,8 +1467,8 @@
             display: flex;
             position: absolute;
             top: 57px;
-            right: var(--noora-spacing-6);
-            left: var(--noora-spacing-6);
+            inset-inline-end: var(--noora-spacing-6);
+            inset-inline-start: var(--noora-spacing-6);
 
             /* Two pre-composed variants of the same stack: a 12-face version
                for the narrow desktop tiles (wider than the tile, cropped at
@@ -1699,7 +1705,7 @@
         @media (min-width: 1024px) {
           /* Desktop: the community row's own hairline covers the top. */
           border-top: none;
-          border-left: 1px solid var(--marketing-stroke-default);
+          border-inline-start: 1px solid var(--marketing-stroke-default);
           min-height: 0;
         }
 
@@ -1869,7 +1875,7 @@
       flex-direction: column;
       align-items: center;
       gap: var(--noora-spacing-6);
-      border-left: none;
+      border-inline-start: none;
       padding: var(--noora-spacing-5) 0;
 
       &[data-variant="cache"] {
@@ -1877,7 +1883,7 @@
       }
 
       @media (min-width: 1180px) {
-        border-left: 1px solid var(--noora-surface-border-primary);
+        border-inline-start: 1px solid var(--noora-surface-border-primary);
         padding: var(--noora-spacing-8) 0;
       }
 
@@ -2028,8 +2034,8 @@
         &[data-variant="generated-projects"],
         &[data-variant="registry"] {
           & > [data-part="feature-info"] {
-            padding-right: var(--noora-spacing-10);
-            padding-left: var(--noora-spacing-10);
+            padding-inline-start: var(--noora-spacing-10);
+            padding-inline-end: var(--noora-spacing-10);
           }
         }
 
@@ -2037,14 +2043,14 @@
           border-bottom: 1px solid var(--noora-surface-border-primary);
 
           @media (min-width: 1180px) {
-            border-right: 1px solid var(--noora-surface-border-primary);
             border-bottom: none;
+            border-inline-end: 1px solid var(--noora-surface-border-primary);
           }
         }
 
         &[data-variant="registry"] {
           @media (min-width: 1180px) {
-            border-left: none;
+            border-inline-start: none;
           }
         }
       }
@@ -2134,14 +2140,14 @@
           border-bottom: 1px solid var(--noora-surface-border-primary);
 
           @media (min-width: 1180px) {
-            border-right: 1px solid var(--noora-surface-border-primary);
             border-bottom: none;
+            border-inline-end: 1px solid var(--noora-surface-border-primary);
           }
         }
 
         &[data-variant="test-insights"] {
           @media (min-width: 1180px) {
-            border-left: none;
+            border-inline-start: none;
           }
         }
       }
@@ -2380,7 +2386,7 @@
         & > img {
           position: absolute;
           top: 0;
-          left: 0;
+          inset-inline-start: 0;
           border-radius: var(--noora-radius-6);
           width: 100%;
           height: 100%;
@@ -2501,8 +2507,8 @@
           & > img {
             position: absolute;
             top: 0;
-            left: 0;
             mix-blend-mode: overlay;
+            inset-inline-start: 0;
             border-radius: var(--noora-radius-6);
             width: 100%;
             height: 100%;
@@ -2690,6 +2696,24 @@
           scroll-snap-type: x proximity;
           scrollbar-width: none;
 
+          /* The row starts on the right in RTL, so the fades swap sides. */
+          [dir="rtl"] & {
+            -webkit-mask-image: linear-gradient(
+              to left,
+              transparent 0,
+              black var(--fade-start),
+              black calc(100% - var(--fade-end)),
+              transparent 100%
+            );
+            mask-image: linear-gradient(
+              to left,
+              transparent 0,
+              black var(--fade-start),
+              black calc(100% - var(--fade-end)),
+              transparent 100%
+            );
+          }
+
           &::-webkit-scrollbar {
             display: none;
           }
@@ -2841,9 +2865,9 @@
            copies outward. */
         & > [data-part="dots"] {
           position: absolute;
-          right: 0;
           bottom: 0;
-          left: 0;
+          inset-inline-end: 0;
+          inset-inline-start: 0;
           width: 100%;
           height: 216px;
           pointer-events: none;
@@ -2905,6 +2929,10 @@
            component; 4 keeps the keyframe period sane before that. */
         --marquee-card-count: 4;
         overflow: hidden;
+        /* The cards ride a physical translateX loop, so the row stays
+           left-to-right (seamless in RTL); each card restores the page
+           direction for its quote. */
+        direction: ltr;
 
         &[data-viewport="desktop"] {
           display: none;
@@ -2960,6 +2988,10 @@
         box-sizing: border-box;
         border-right: 1px solid var(--marketing-stroke-default);
         width: min(400px, 85vw);
+
+        [dir="rtl"] & {
+          direction: rtl;
+        }
 
         & > [data-part="quote"] {
           flex: 1;

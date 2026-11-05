@@ -379,7 +379,7 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machine *i
 		conditions.MarkTrue(machine, NodeReadyCondition)
 		if machine.Status.FailureReason == nil {
 			fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
-			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, vultrBootstrapUser, node); driftErr != nil {
+			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, vultrBootstrapUser, false, node); driftErr != nil {
 				logger.Error(driftErr, "kubelet config re-push failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			} else if requeue {

@@ -30,11 +30,11 @@ defmodule Atlas.MCP.ProxyTest do
       [
         servers: [
           %{
-            "name" => "sentry",
-            "url" => "https://mcp.sentry.dev/mcp",
+            "name" => "shared",
+            "url" => "https://mcp.shared.example/mcp",
             "auth_type" => "oauth2",
-            "authorization_url" => "https://mcp.sentry.dev/oauth/authorize",
-            "token_url" => "https://mcp.sentry.dev/oauth/token",
+            "authorization_url" => "https://mcp.shared.example/oauth/authorize",
+            "token_url" => "https://mcp.shared.example/oauth/token",
             "shared_oauth" => "true",
             "shared_oauth_user_email" => "pedro@tuist.dev"
           }
@@ -44,7 +44,7 @@ defmodule Atlas.MCP.ProxyTest do
 
     assert [
              %Server{
-               name: "sentry",
+               name: "shared",
                auth_type: :oauth2,
                shared_oauth: true,
                shared_oauth_user_email: "pedro@tuist.dev"
@@ -222,7 +222,7 @@ defmodule Atlas.MCP.ProxyTest do
 
   # The Tuist server's tools read production customer data — test runs, builds,
   # and the artifacts behind them — so they are gated exactly like the Grafana
-  # and Sentry tools rather than falling through to the default group. And
+  # tools rather than falling through to the default group. And
   # because the upstream is OAuth2, reaching it needs the Atlas user's own
   # authorization: there is no service credential standing in for everyone.
   test "gates the Tuist upstream on observability access and per-user authorization" do

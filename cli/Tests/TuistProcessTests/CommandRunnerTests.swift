@@ -39,6 +39,22 @@ import Testing
                 environment: ["CARGO_MAKEFLAGS": "\(flag)=\(read),\(write)"], workingDirectory: nil
             )
         }
+
+        /// A hook server runs probes with a hook's variables, where the jobserver numbers name its own descriptors:
+        /// a kqueue cannot be inherited, and spawning must not fail because of it.
+        @Test func ignoresJobserverDescriptorsThatAreNotPipes() async throws {
+            let queue = kqueue()
+            let socket = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+            defer {
+                close(queue)
+                close(socket)
+            }
+            let output = try await CommandRunner().run(
+                arguments: ["/bin/sh", "-c", "printf ran"],
+                environment: ["TUIST_CARGO_SESSION": "fixture", "CARGO_MAKEFLAGS": "--jobserver-fds=\(queue),\(socket)"]
+            ).concatenatedString()
+            #expect(output == "ran")
+        }
     #endif
 
     @Test func boundedOutputHandlerStreamsLargeFailuresWithoutRetainingStderr() async throws {

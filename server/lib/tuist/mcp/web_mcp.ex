@@ -157,6 +157,7 @@ defmodule Tuist.MCP.WebMCP do
   defp account_page(["projects"]), do: "projects"
   defp account_page(["runners" | _]), do: "runners"
   defp account_page(["webhooks" | _]), do: "webhooks"
+  defp account_page(["sandboxes" | _]), do: "sandboxes"
   defp account_page(["settings", "tokens" | _]), do: "account-tokens"
   defp account_page(["settings", "ai-subscriptions" | _]), do: "ai-subscriptions"
 
@@ -197,6 +198,8 @@ defmodule Tuist.MCP.WebMCP do
   defp page_tools("projects", _build_system), do: [Tools.ListAccounts]
   defp page_tools("runners", _build_system), do: @runner_tools
   defp page_tools("webhooks", _build_system), do: @webhook_tools
+
+  defp page_tools("sandboxes", _build_system), do: [Tools.ListSandboxes, Tools.GetSandbox, Tools.GetSandboxAnalytics]
   defp page_tools("account-tokens", _build_system), do: [Tools.ListAccountTokens, Tools.GetAccountToken]
   defp page_tools("organization", _build_system), do: [Tools.GetOrganization]
   defp page_tools("ai-subscriptions", _build_system), do: [Tools.ListAISubscriptions]

@@ -15,9 +15,11 @@ defmodule TuistWeb.LocaleTest do
 
   describe "normalize_locale/1" do
     test "normalizes language and region locales" do
+      assert Locale.normalize_locale("ar-SA") == "ar"
       assert Locale.normalize_locale("es-ES") == "es"
       assert Locale.normalize_locale("ka-GE") == "ka"
       assert Locale.normalize_locale("ru-RU") == "ru"
+      assert Locale.normalize_locale("tr-TR") == "tr"
     end
 
     test "normalizes chinese script variants" do

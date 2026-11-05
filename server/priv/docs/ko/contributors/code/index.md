@@ -7,7 +7,7 @@
 ---
 # 코드 {#code}
 
-Tuist는 모노레포입니다. 각 컴포넌트는 자체 도구, 의존성 및 로컬 실행 단계를 갖추고 있습니다. 기여하고자 하는 영역을 선택하세요:
+Tuist는 모노레포입니다. 각 컴포넌트에는 자체 도구, 의존성 및 로컬 실행 단계가 있습니다. 기여하려는 영역을 선택하세요:
 
 - <.localized_link href="/contributors/code/cli">CLI</.localized_link>
 - <.localized_link href="/contributors/code/server">Server</.localized_link>

@@ -2,6 +2,19 @@
 
 Atlas's personal LLM connections are separate from Tuist Server customer data and from Atlas's operator-configured inference providers.
 
+## Managed outbound email delivery
+
+Atlas's managed deployment sends email through SES in Ireland, including support
+replies and newsletters previously owned by Hive. SES receives the message and
+recipients for delivery. Its shared encrypted feedback queue retains delivery,
+bounce and complaint metadata, recipient addresses and original headers/subjects
+for 14 days; account suppression records normally remain until removed (AWS
+deletes them after 90 days if account sending stays paused). These are separate
+from Atlas's PostgreSQL support messages and newsletter consent/unsubscribe state.
+Retrieve relevant provider records by the verified subject's email addresses
+and SES message IDs, redacting other recipients and authentication material.
+See [the shared provider inventory and retrieval procedure](../server/data-export.md#managed-outbound-email-delivery).
+
 ## Native device-only read projections
 
 iOS/macOS retain bounded, disposable copies of authorized Orbit inbox/history,
@@ -40,6 +53,10 @@ Credentials remain until reconnect/replacement, disconnect or user deletion. Rec
 `connection.connected`, `.disconnected`, `.refreshed` and `.needs_authorization` audit events retain actor/interface, connection target, provider and `/settings/connections` dashboard path, never tokens or raw provider bodies. They follow existing audit retention and may outlive a disconnected grant. MCP `manage_account_connections` permits metadata listing and caller-only disconnect; it accepts no credentials. MCP `search_my_gmail`, `get_my_gmail_message` and `search_my_slack` read the caller's own mailbox or Slack search results on demand without storing them; they record `connection.gmail_searched`, `.gmail_message_read` (message id only) and `.slack_searched` audit events with result counts, and their `mcp.tool_called` events omit arguments so queries are never retained. HTTP, browser and MCP metadata expose only provider/name/configured/account_name/scopes/status. Provider tokens never appear in native returns, agent prompts or tool responses.
 
 For a verified export, select **all** `user_connections` and `user_connection_authorizations` by `user_id`, with related `audit_activities` by actor/connection target and `mcp.tool_called` records for `manage_account_connections`. Export non-secret identity, scope, lifecycle metadata and authorization expiry, never live tokens, PKCE verifiers, tickets or native handoff secrets through dashboard/API/MCP/email. Offer disconnect/reconnect instead of copying credentials. No object-storage paths or Tuist Server customer tables are added; Atlas's separate database and encrypted backups retain these records under the existing backup policy. The three-row settings/API metadata listing is not a complete legal export.
+
+## Upstream MCP tool approvals
+
+`mcp_tool_approvals` stores one row per request to run an approval-gated upstream MCP tool (today OVHcloud's `reinstall-dedicated-server`): the requesting `user_id` (cascade deletion), upstream server and tool names, the exact call arguments as JSON, a SHA-256 digest of those arguments, status (`pending`, `approved`, `rejected`), decision, consumption and expiry timestamps (one hour after the request). Arguments can include a server name, hostname, OS template, disk layout and a public SSH key; they hold no upstream credentials. `mcp_tool_approval.requested`, `.approved`, `.rejected` and `.consumed` audit events keep the actor, target, server, tool and arguments under existing audit retention, and may outlive the row. Rows are not swept on expiry; they remain until user deletion and follow the existing backup policy. For a verified export, select `mcp_tool_approvals` and `audit_activities` with `target_type = "mcp_tool_approval"` by `user_id`/actor. No object-storage paths or Tuist Server customer tables are added.
 
 ## Engineering error alert rules
 

@@ -12,7 +12,6 @@ extension Client {
     static let idempotentServerOperationIDs: Set<String> = [
         "authenticate",
         "cleanCache",
-        "clearRunnerVolume",
         "completeAnalyticsArtifactsUploads",
         "completeAnalyticsArtifactsUploadsProject",
         "completeCommitCoverage",
@@ -23,6 +22,7 @@ extension Client {
         "createRunnerShellSession",
         "createStressPlan",
         "createTest",
+        "deleteRunnerVolume",
         "exchangeOIDCToken",
         "findMissingCommitListings",
         "findMissingCommits",

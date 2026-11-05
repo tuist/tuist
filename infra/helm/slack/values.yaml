@@ -42,6 +42,8 @@ database:
   poolSize: "5"
 
 mailer:
+  provider: mailgun
+  sesRegion: ""
   fromName: Tuist
   fromEmail: hello@tuist.dev
   mailgunDomain: mail.tuist.dev
@@ -55,6 +57,8 @@ runtimeSecrets:
     turnstileSiteKey: ""
     turnstileSecretKey: ""
     mailgunApiKey: ""
+    sesAccessKeyId: ""
+    sesSecretAccessKey: ""
     slackInviteUrl: ""
     slackBotToken: ""
     slackChannelId: ""
@@ -71,6 +75,8 @@ runtimeSecrets:
       turnstileSiteKey: turnstile-site-key
       turnstileSecretKey: turnstile-secret-key
       mailgunApiKey: mailgun-api-key
+      sesAccessKeyId: ses-access-key-id
+      sesSecretAccessKey: ses-secret-access-key
       slackInviteUrl: slack-invite-url
       slackBotToken: slack-bot-token
       slackChannelId: slack-channel-id

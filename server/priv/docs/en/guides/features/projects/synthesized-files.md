@@ -36,7 +36,7 @@ When your project is generated,
 Tuist will synthesize the content of those files and write them into the `Derived` directory relative to the directory containing the project that defines them.
 
 > [!TIP]
-> **Gitignore The Derived Directory**
+> **Gitignore the Derived directory**
 >
 > We recommend adding the `Derived` directory to the `.gitignore` file of your project.
 
@@ -62,13 +62,13 @@ NSBundle *bundle = [MyFeatureResources bundle];
 ```
 
 > [!WARNING]
-> **Limitation With Internal Targets**
+> **Limitation with internal targets**
 >
 > Currently, Tuist does not generate resource bundle accessors for internal targets that contain only Objective-C sources. This is a known limitation tracked in [issue #6456](https://github.com/tuist/tuist/issues/6456).
 
 
 > [!TIP]
-> **Supporting Resources In Libraries Through Bundles**
+> **Supporting resources in libraries through bundles**
 >
 > If a target product, for example a library, doesn't support resources, Tuist will include the resources in a target of product type `bundle` ensuring that it ends up in the final product and that the interface points to the right bundle. These synthesized bundles are automatically tagged with `tuist:synthesized` and inherit all tags from their parent target, allowing you to target them in <.localized_link href="/guides/features/projects/metadata-tags#system-tags">cache profiles</.localized_link>.
 
@@ -89,7 +89,7 @@ Tuist includes [templates](https://github.com/tuist/tuist/tree/main/cli/Sources/
 
 > Note: You can disable the synthesizing of resource accessors on a per-project basis by passing the `disableSynthesizedResourceAccessors` option to the project options.
 
-#### Custom templates {#custom-templates}
+### Custom templates {#custom-templates}
 
 If you want to provide your own templates to synthesize accessors to other resource types,
 which must be supported by [SwiftGen](https://github.com/SwiftGen/SwiftGen),
@@ -112,7 +112,7 @@ If you want to configure the list of resource types to synthesize accessors for,
 you can use the `Project.resourceSynthesizers` property passing the list of resource synthesizers you want to use:
 
 ```swift
-let project = Project(resourceSynthesizers: [.string(), .fonts()])
+let project = Project(name: "App", resourceSynthesizers: [.strings(), .fonts()])
 ```
 
 > [!NOTE]

@@ -7,9 +7,9 @@
 ---
 # Install Tuist {#install-tuist}
 
-The Tuist command-line interface runs on **macOS** and **Linux** and connects your Xcode, generated, Gradle, and Bazel projects to Tuist's cache, insights, and runner infrastructure. Although you can build Tuist from [source](https://github.com/tuist/tuist), we recommend one of the installation methods below to ensure a valid, verifiable installation.
+The Tuist command-line interface runs on **macOS** and **Linux** and connects your Xcode, generated, Gradle, Bazel, and Rust projects to Tuist's cache, insights, and runner infrastructure. Although you can build Tuist from [source](https://github.com/tuist/tuist), we recommend one of the installation methods below to ensure a valid, verifiable installation. Elixir projects use the `tuist_ex` Hex package instead and do not need the CLI.
 
-### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
+## Mise {#recommended-mise}
 
 > [!NOTE]
 > If you don't have Mise installed, follow the [getting started guide](https://mise.jdx.dev/getting-started.html) first. Mise is a recommended alternative to [Homebrew](https://brew.sh) if you are a team or organization that needs to ensure deterministic versions of tools across different environments.
@@ -37,7 +37,7 @@ On Linux, Tuist is available exclusively via Mise. Commands that depend on Xcode
 </details>
 
 
-### <a href="https://brew.sh">Homebrew</a> (macOS only) {#recommended-homebrew}
+## Homebrew (macOS only) {#recommended-homebrew}
 
 You can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https://github.com/tuist/homebrew-tuist):
 
@@ -48,7 +48,7 @@ brew install --formula tuist@x.y.z
 ```
 
 > [!TIP]
-> **Verifying The Authenticity Of The Binaries**
+> **Verifying the authenticity of the binaries**
 >
 > You can verify that your installation's binaries have been built by us by running the following command, which checks if the certificate's team is `U6LC622NKF`:
 >

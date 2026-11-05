@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -91,11 +92,29 @@ func TestStoreDiscovery(t *testing.T) {
 
 func TestBuildID(t *testing.T) {
 	id := BuildID(Template{Name: "default", Tag: "sha-abc.1"}, Shape{VCPUs: 2, MemoryMB: 4096})
-	if id != "tmpl-default-sha-abc-1-2x4096" {
+	if !strings.HasPrefix(id, "tmpl-") || len(id) != 37 {
 		t.Fatalf("got %q", id)
 	}
 	if err := vm.ValidateID(BuildID(Template{Name: strings.Repeat("n", 40), Tag: strings.Repeat("t", 40)}, Shape{VCPUs: 2, MemoryMB: 4096})); err != nil {
 		t.Fatal(err)
+	}
+	tmpl := Template{Name: "bazel", Tag: "sha-" + strings.Repeat("a", 40)}
+	shape := Shape{VCPUs: 2, MemoryMB: 4096}
+	id = BuildID(tmpl, shape)
+	if socket := filepath.Join(vm.RootDir("/data/sandboxes/jail", id), firecracker.APISocketPath); len(socket) >= 108 {
+		t.Fatalf("full image pin exceeds Unix socket limit: %s", socket)
+	}
+	if id != BuildID(tmpl, shape) {
+		t.Fatal("template ID is not stable")
+	}
+	for _, other := range []string{
+		BuildID(Template{Name: "bazel", Tag: tmpl.Tag + "b"}, shape),
+		BuildID(Template{Name: "other", Tag: tmpl.Tag}, shape),
+		BuildID(tmpl, Shape{VCPUs: 4, MemoryMB: 4096}),
+	} {
+		if id == other {
+			t.Fatal("distinct template identities collided")
+		}
 	}
 }
 
@@ -357,5 +376,27 @@ func TestCleanPartialBuilds(t *testing.T) {
 	}
 	if !vm.Exists(ready) || vm.Exists(partial) || vm.Exists(staging) {
 		t.Fatal("clean removed the wrong directories")
+	}
+}
+
+func TestBazelTemplatePreparesAndUnmountsPristineWorkspace(t *testing.T) {
+	dataDir := t.TempDir()
+	tmpl := seedTemplate(t, filepath.Join(dataDir, "templates"), "bazel", "t1")
+	launcher := &fakevm.Launcher{}
+	b := newBuilder(t, dataDir, launcher, &fakevm.Network{}, &eventSink{})
+	artifacts, err := b.Ensure(context.Background(), tmpl, Shape{VCPUs: 2, MemoryMB: 4096})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !artifacts.Meta.WorkspacePrepared || vm.FileSize(artifacts.Workspace) != 10<<30 {
+		t.Fatalf("missing pristine workspace: %+v", artifacts)
+	}
+	requests := launcher.Last().Agent.RequestsOf("configure")
+	if len(requests) != 1 || requests[0]["format_workspace"] != true {
+		t.Fatalf("template must format once: %v", requests)
+	}
+	execs := launcher.Last().Agent.RequestsOf("exec")
+	if len(execs) != 1 || execs[0]["cwd"] != "/" || !strings.Contains(fmt.Sprint(execs[0]["cmd"]), "exec /bin/umount /workspace") {
+		t.Fatalf("template must unmount before snapshot: %v", execs)
 	}
 }

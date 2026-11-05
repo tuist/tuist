@@ -1200,6 +1200,16 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       File.ln_s!("../src/detail", Path.join([c_target, "include", "detail"]))
       File.ln_s!("../../../README.md", Path.join([c_target, "include", "README.md"]))
       File.ln_s!("Sources/CDemo/include", Path.join(source, "Headers"))
+      # Copies are repointed one at a time, so links resolving through the
+      # half-repointed copy must not fail the flattening.
+      # Several groups keep this independent of the order `find` lists them in.
+      for group <- 1..3 do
+        File.ln_s!("../Headers/loop_#{group}.h", Path.join([c_target, "include", "loop_#{group}.h"]))
+
+        for index <- 1..10 do
+          File.ln_s!("../../../Headers/loop_#{group}.h", Path.join([c_target, "include", "via_#{group}_#{index}.h"]))
+        end
+      end
 
       archive_path = Path.join(tmp, "source_archive.zip")
       assert :ok = ReleaseWorker.zip_directory(source, archive_path)
@@ -1229,6 +1239,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       # A package-root symlink whose own basename matches a bundle extension must
       # still be flattened, since it is a root-level symlink SwiftPM mishandles.
       File.ln_s!("README.md", Path.join(source, "Widget.framework"))
+      # A newline in the name must not split it into other paths to act on.
+      newline_name = "x\nmissing-#{System.unique_integer([:positive])}"
+      File.ln_s!("README.md", Path.join(source, newline_name))
 
       archive_path = Path.join(tmp, "source_archive.zip")
       assert :ok = ReleaseWorker.zip_directory(source, archive_path)
@@ -1239,6 +1252,69 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
 
       assert {:ok, %File.Stat{type: :regular}} =
                File.lstat(Path.join([extract_dir, "repo-v1.0.0", "Widget.framework"]))
+
+      assert {:ok, %File.Stat{type: :regular}} = File.lstat(Path.join(source, newline_name))
+    end
+
+    test "prunes symlinks that escape the package root through another symlink" do
+      tmp = Path.join(System.tmp_dir!(), "zip_directory_symlink_escape_#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      sentinel = "sentinel-outside-package-#{System.unique_integer([:positive])}"
+      outside = Path.join(tmp, "outside")
+      File.mkdir_p!(outside)
+      File.write!(Path.join(outside, "sentinel.txt"), sentinel)
+
+      source = Path.join(tmp, "repo-v1.0.0")
+      File.mkdir_p!(Path.join([source, "a", "b"]))
+      File.mkdir_p!(Path.join(source, "Sources"))
+      File.write!(Path.join(source, "README.md"), "readme")
+      # `a/b/u` is a legitimate link to the package root, so a `..` after it
+      # leaves the package on disk even though the text stays inside it.
+      File.ln_s!("../..", Path.join([source, "a", "b", "u"]))
+      File.ln_s!("a/b/u/../outside/sentinel.txt", Path.join(source, "leak"))
+      File.ln_s!("b/u/..", Path.join([source, "a", "up"]))
+      File.ln_s!("a/up/outside", Path.join(source, "leakdir"))
+      File.ln_s!("../a/b/u/../outside/sentinel.txt", Path.join([source, "Sources", "leak"]))
+      # Control: an escape the textual check already catches.
+      File.ln_s!("../outside/sentinel.txt", Path.join(source, "plain"))
+      File.ln_s!("a/b/u/README.md", Path.join(source, "CLAUDE.md"))
+      # Stays inside while `Deep` is a link, but escapes once `Deep` is
+      # flattened into a real directory.
+      File.mkdir_p!(Path.join([source, "a", "b", "c"]))
+      File.ln_s!("a/b/c", Path.join(source, "Deep"))
+      File.ln_s!("../Deep/../../../outside/sentinel.txt", Path.join([source, "Sources", "flattened"]))
+      # `l` is missing on a case-sensitive server, but a case-insensitive client
+      # resolves it to `L` and climbs out of the package.
+      File.ln_s!("..", Path.join([source, "Sources", "L"]))
+      File.ln_s!("l/../outside/sentinel.txt", Path.join([source, "Sources", "casefold"]))
+      File.ln_s!(Path.join(source, "README.md"), Path.join([source, "Sources", "absolute"]))
+
+      archive_path = Path.join(tmp, "source_archive.zip")
+      assert :ok = ReleaseWorker.zip_directory(source, archive_path)
+
+      {listing, 0} = System.cmd("unzip", ["-Z1", archive_path])
+      entries = String.split(listing, "\n", trim: true)
+      {contents, 0} = System.cmd("unzip", ["-p", archive_path])
+
+      refute contents =~ sentinel
+      assert "repo-v1.0.0/CLAUDE.md" in entries
+      assert "repo-v1.0.0/a/b/u" in entries
+      assert "repo-v1.0.0/Deep/" in entries
+
+      for escaping <- [
+            "leak",
+            "leakdir",
+            "leakdir/sentinel.txt",
+            "a/up",
+            "Sources/leak",
+            "Sources/flattened",
+            "Sources/casefold",
+            "Sources/absolute",
+            "plain"
+          ] do
+        refute "repo-v1.0.0/#{escaping}" in entries
+      end
     end
   end
 

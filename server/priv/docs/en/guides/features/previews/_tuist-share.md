@@ -19,20 +19,16 @@ Replace `App` with your app name, application file path, or executable distribut
 
 ### Compatibility {#preview-metadata-compatibility}
 
-Release notes are additive metadata, not part of a preview's identity. Uploads from old and new clients still group into the same preview across platforms. The first nonblank notes are retained: a later upload can fill notes that were previously absent, but cannot overwrite existing notes. Omitting `release_notes`, sending `null`, or sending an empty or whitespace-only string never clears notes. Existing previews are not backfilled and remain valid without notes.
+Release notes don't change which preview a build belongs to. The first notes a preview receives are kept: a later upload can add notes to a preview that has none, but can't overwrite or clear existing ones. Previews uploaded before release notes existed stay valid without them.
 
-The list API's optional `track` query parameter matches a whole track name, case-insensitively, consistent with existing track storage. Omit it or send an empty value (`?track=`) to list all tracks. Track names remain open strings, not a fixed list of values. `GET /api/projects/:account_handle/:project_handle/previews/tracks` returns `{total_count, tracks: [{name, count}]}` with sorted, case-insensitively grouped named tracks, under the same preview-read authorization as listing builds. Counts cover the whole project independently of pagination, search, and the selected track; the total includes untracked previews. Only listable previews with a bundle identifier are counted. The list API also accepts optional `search` for a literal, case-insensitive substring of the display name or full release notes, combined with the track before pagination. Existing `display_name` filtering remains exact.
-
-Old clients can continue uploading and listing previews without sending either field. New clients accept older responses that omit track or notes, and ignore unknown response properties added by future servers. API integrations should likewise ignore unknown response properties so additive metadata remains compatible.
-
-Self-hosted deployments need a server version that supports release notes and track filtering, together with an updated client, to use these features. Older servers may ignore notes or unknown query parameters.
+Self-hosted deployments need a server version that supports release notes and track filtering, together with an updated client. Older servers ignore the notes. For the track and search filters of the list endpoints, see the [API reference](https://tuist.dev/api/docs).
 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
 > [!WARNING]
-> **Integration With Git Platform Required**
+> **Git forge integration required**
 >
-> To get automatic pull/merge request comments, integrate your <.localized_link href="/guides/server/accounts-and-projects">remote project</.localized_link> with a <.localized_link href="/guides/server/authentication">Git platform</.localized_link>.
+> To get automatic pull/merge request comments, integrate your <.localized_link href="/guides/server/accounts-and-projects">remote project</.localized_link> with a <.localized_link href="/guides/integrations/gitforge/github">Git forge</.localized_link>.
 
 Once your Tuist project is connected with your Git platform, add <.localized_link href="/cli/share">`tuist share`</.localized_link> after a successful application build in CI. Tuist will post a preview link directly in your pull/merge requests, so reviewers can test without building locally:
 
@@ -51,7 +47,7 @@ Use the result for custom automations, such as posting a Slack message from CI. 
 ```json
 {
   "id": 1234567890,
-  "url": "https://cloud.tuist.io/preview/1234567890",
-  "qrCodeURL": "https://cloud.tuist.io/preview/1234567890/qr-code.svg"
+  "url": "https://tuist.dev/preview/1234567890",
+  "qrCodeURL": "https://tuist.dev/preview/1234567890/qr-code.svg"
 }
 ```

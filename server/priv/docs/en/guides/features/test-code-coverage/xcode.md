@@ -7,8 +7,7 @@
 ---
 # Xcode code coverage {#xcode-code-coverage}
 
-> [!NOTE] EARLY ACCESS
-> Code coverage for Xcode projects is in early access. [Reach out](mailto:contact@tuist.dev) to turn it on for your account. Until then, Tuist doesn't store the coverage your runs upload.
+<!-- @snippet: ./_xcode-early-access -->
 
 Code coverage tells you which lines of your code your tests executed. Tuist uploads the line coverage of every test run and folds the runs of a commit into one figure, for the project, each target and each file. The dashboard's **Code Coverage** page shows it per commit and as a trend for each branch.
 

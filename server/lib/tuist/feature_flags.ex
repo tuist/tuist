@@ -5,6 +5,15 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Observability
   alias Tuist.Projects.Project
 
+  @doc "Default-off account opt-in to Linux Bazel remote execution in every environment."
+  def bazel_remote_execution_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :bazel_remote_execution,
+      account,
+      flag_enabled?(:bazel_remote_execution, account, flags)
+    )
+  end
+
   @doc "Default-off account enrollment in runner-local shard artifact storage."
   def runner_shard_storage_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
@@ -115,6 +124,16 @@ defmodule Tuist.FeatureFlags do
   """
   def ai_enabled?(user) do
     Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:ai, for: user)
+  end
+
+  @doc """
+  The names of the flags enabled for `user` that the Tuist apps read
+  (`GET /api/me/feature-flags`) to show or hide features. Apps treat a flag
+  they don't receive as off. Add a flag here, under the name the apps use,
+  only when an app feature depends on it.
+  """
+  def app_flags(user) do
+    for {name, true} <- [{"ai", ai_enabled?(user)}], do: name
   end
 
   @doc """

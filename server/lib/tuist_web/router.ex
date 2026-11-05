@@ -848,6 +848,7 @@ defmodule TuistWeb.Router do
         get "/volumes/analytics", RunnerVolumesController, :analytics
         get "/volumes/:volume_id", RunnerVolumesController, :show
         get "/volumes/:volume_id/jobs", RunnerVolumesController, :jobs
+        delete "/volumes/:volume_id", RunnerVolumesController, :delete
         post "/volumes/:volume_id/clear", RunnerVolumesController, :clear
         get "/jobs/:workflow_job_id/volumes", RunnerVolumesController, :job_volumes
       end
@@ -862,8 +863,8 @@ defmodule TuistWeb.Router do
             :show_delivery_attempt
       end
 
-      # The literal agent-environments and agent-sessions routes must
-      # precede `/:sandbox_id`.
+      # The literal analytics, agent-environments and agent-sessions routes
+      # must precede `/:sandbox_id`.
       scope "/sandboxes" do
         post "/amp-orbs/:orb_id", SandboxesController, :dispatch_amp_orb
         post "/agent-environments", SandboxesController, :create_agent_environment
@@ -876,12 +877,14 @@ defmodule TuistWeb.Router do
         post "/agent-sessions/:agent_session_id/messages", AgentSessionsController, :create_message
         get "/agent-sessions/:agent_session_id/events", AgentSessionsController, :index_events
         post "/agent-sessions/:agent_session_id/archive", AgentSessionsController, :archive
+        get "/analytics", SandboxesController, :analytics
         get "/", SandboxesController, :index
         post "/", SandboxesController, :create
         get "/:sandbox_id", SandboxesController, :show
         post "/:sandbox_id/exec", SandboxesController, :exec
         post "/:sandbox_id/pause", SandboxesController, :pause
         post "/:sandbox_id/resume", SandboxesController, :resume
+        post "/:sandbox_id/archive", SandboxesController, :archive
         delete "/:sandbox_id", SandboxesController, :delete
       end
     end
@@ -1191,6 +1194,7 @@ defmodule TuistWeb.Router do
         NotificationPreferencesController,
         :update_project
 
+    get "/me/feature-flags", FeatureFlagsController, :index
     get "/me/ai-subscriptions", AISubscriptionsController, :index
     put "/me/ai-subscriptions/claude", AISubscriptionsController, :connect_claude
     post "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :start_chatgpt_login
@@ -1220,6 +1224,15 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :non_authenticated_api, :oidc_exchange_rate_limit]
 
     post "/auth/oidc/token", OIDCController, :exchange_token
+  end
+
+  scope "/api/remote-execution", TuistWeb do
+    pipe_through [:non_authenticated_api]
+
+    get "/:account/:project/capabilities", RemoteExecutionController, :capabilities
+    post "/:account/:project/operations", RemoteExecutionController, :create
+    post "/:account/:project/leases", RemoteExecutionController, :lease
+    get "/:account/:project/operations/:id", RemoteExecutionController, :show
   end
 
   # Runner Pod dispatch + autoscaler signals endpoints.

@@ -25,6 +25,9 @@
     background: var(--noora-surface-background-tertiary);
     padding: var(--noora-spacing-6) var(--noora-spacing-5);
     line-break: anywhere;
+    /* Commands read left to right in every locale. */
+    direction: ltr;
+    unicode-bidi: isolate;
 
     & > [data-part="label"] {
       color: var(--noora-surface-label-primary);

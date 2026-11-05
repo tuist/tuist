@@ -454,7 +454,12 @@ public struct CommandRunner: CommandRunning {
                   let value = authentication.split(separator: "=").last else { return options }
             let descriptors = value.split(separator: ",").compactMap { Int32($0) }
             guard descriptors.count == 2, Set(descriptors).count == 2,
-                  descriptors.allSatisfy({ $0 > 2 && fcntl($0, F_GETFD) != -1 }) else { return options }
+                  // Only a jobserver pipe is inherited: a hook server runs probes with the hook's variables, and in
+                  // that process the same numbers can be any descriptor (a socket, a kqueue that cannot be inherited).
+                  descriptors.allSatisfy({ descriptor in
+                      var info = stat()
+                      return descriptor > 2 && fstat(descriptor, &info) == 0 && (info.st_mode & S_IFMT) == S_IFIFO
+                  }) else { return options }
             options.preSpawnProcessConfigurator = { _, actions in
                 for descriptor in descriptors {
                     let result = posix_spawn_file_actions_addinherit_np(&actions, descriptor)

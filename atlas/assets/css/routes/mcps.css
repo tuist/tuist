@@ -52,4 +52,55 @@
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-small);
   }
+
+  & [data-part="approvals-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="approval"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="approval-header"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="approval-tool"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & [data-part="approval-meta"],
+  & [data-part="approval-hint"] {
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="approval-arguments"] {
+    margin: 0;
+    max-height: 24rem;
+    overflow: auto;
+    padding: var(--noora-spacing-4);
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-secondary);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-code-small);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  & [data-part="approval-actions"] {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-3);
+  }
 }

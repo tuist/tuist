@@ -2734,9 +2734,9 @@ defmodule Tuist.AccountsTest do
     end
 
     @tag :browser_session
-    test "expires at fifteen minutes idle without activity from validity checks", %{token: token} do
+    test "expires at seven days idle without activity from validity checks", %{token: token} do
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
-      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -899)])
+      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -604_799)])
       assert Accounts.get_user_by_session_token(token)
 
       stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1) end)
@@ -2745,11 +2745,11 @@ defmodule Tuist.AccountsTest do
     end
 
     @tag :browser_session
-    test "activity cannot extend the eight-hour absolute deadline", %{token: token} do
+    test "activity cannot extend the 30-day absolute deadline", %{token: token} do
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
 
       Repo.update_all(UserToken,
-        set: [inserted_at: now |> DateTime.add(-28_799) |> DateTime.to_naive(), last_active_at: now]
+        set: [inserted_at: now |> DateTime.add(-2_591_999) |> DateTime.to_naive(), last_active_at: now]
       )
 
       assert Accounts.get_user_session(token, touch: true)
@@ -2761,10 +2761,10 @@ defmodule Tuist.AccountsTest do
     test "user activity extends only the idle deadline and only for that session", %{token: token, user: user} do
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
       other_token = Accounts.generate_user_session_token(user)
-      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 840) end)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 604_740) end)
       assert Accounts.get_user_session(token, touch: true)
 
-      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1680) end)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1_209_480) end)
       assert Accounts.get_user_by_session_token(token)
       refute Accounts.get_user_by_session_token(other_token)
     end
@@ -2775,7 +2775,7 @@ defmodule Tuist.AccountsTest do
 
       Repo.update_all(UserToken,
         set: [
-          inserted_at: now |> DateTime.add(-900) |> DateTime.to_naive(),
+          inserted_at: now |> DateTime.add(-604_800) |> DateTime.to_naive(),
           last_active_at: nil,
           auth_provider: nil,
           auth_provider_organization_id: nil

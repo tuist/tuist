@@ -1473,8 +1473,24 @@ defmodule Tuist.Environment do
       apns_private_key(secrets) != nil
   end
 
+  @doc """
+  The Firebase service account JSON (as downloaded from Google Cloud) the server
+  sends Android notifications with.
+  """
+  def fcm_service_account(secrets \\ secrets()) do
+    get([:fcm, :service_account], secrets)
+  end
+
+  def fcm_configured?(secrets \\ secrets()) do
+    fcm_service_account(secrets) not in [nil, ""]
+  end
+
   def mailgun_api_key(secrets \\ secrets()) do
     get([:mailgun, :api_key], secrets)
+  end
+
+  def mailing_provider(secrets \\ secrets()) do
+    get([:mailing, :provider], secrets, default_value: "mailgun")
   end
 
   def mailing_domain(secrets \\ secrets()) do
@@ -1499,8 +1515,25 @@ defmodule Tuist.Environment do
   end
 
   def mail_configured?(secrets \\ secrets()) do
-    mailgun_api_key(secrets) != nil and mailing_domain(secrets) != nil and
-      mailing_from_address(secrets) != nil
+    case mailing_provider(secrets) do
+      "mailgun" ->
+        mailgun_api_key(secrets) != nil and mailing_domain(secrets) != nil and
+          mailing_from_address(secrets) != nil
+
+      "ses" ->
+        Enum.all?(
+          [
+            get([:ses, :region], secrets),
+            get([:ses, :access_key_id], secrets),
+            get([:ses, :secret_access_key], secrets),
+            mailing_from_address(secrets)
+          ],
+          &(&1 not in [nil, ""])
+        )
+
+      provider ->
+        raise ArgumentError, "unsupported mailing provider: #{inspect(provider)}"
+    end
   end
 
   def skip_email_confirmation?(secrets \\ secrets()) do

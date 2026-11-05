@@ -94,7 +94,7 @@
       & > [data-part="value"] {
         display: inline-flex;
         align-items: baseline;
-        margin-left: var(--noora-spacing-4);
+        margin-inline-start: var(--noora-spacing-4);
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-code-large);
         font-variant-numeric: tabular-nums;
@@ -164,12 +164,18 @@
         transition:
           transform 200ms var(--ease-out-cubic),
           width 200ms var(--ease-out-cubic),
-          margin-left 200ms var(--ease-out-cubic),
+          margin-inline-start 200ms var(--ease-out-cubic),
           opacity 200ms var(--ease-out-cubic);
-        margin-left: 0;
+        margin-inline-start: 0;
         width: 0;
         overflow: hidden;
         color: var(--noora-surface-label-primary);
+
+        /* Slides in from the inline start: mirrored in RTL. :where() keeps the
+           specificity so the hover/focus rule below still wins. */
+        :where([dir="rtl"]) & {
+          transform: translateX(var(--noora-spacing-3));
+        }
 
         & > svg {
           flex: none;
@@ -187,7 +193,7 @@
         & > [data-part="arrow"] {
           transform: translateX(0);
           opacity: 1;
-          margin-left: var(--noora-spacing-2);
+          margin-inline-start: var(--noora-spacing-2);
           width: 16px;
         }
       }

@@ -142,9 +142,11 @@ A volume's capacity is chosen by the server for each use. The guest may send
 `requested_volume_bytes` (a whole number of decimal GB, 1 to 100 GB) with its
 acquire request; hosts drop any other value and never fail a request because of
 it. Hosts forward a valid request and always send `max_volume_bytes`, their
-largest accepted volume: 32 GB on Linux (`--max-volume-gb`,
-`runnersFleetLinux.cacheVolumes.maxVolumeGB`) and 100 GB on macOS
-(`--custom-cache-max-volume-gb`) by default. A server answer of 507 means the
+largest accepted volume: 100 GB by default on both platforms, Linux through
+`runnersFleetLinux.cacheVolumes.maxVolumeGB` (`--max-volume-gb`, whose own
+default is 32 GB) and macOS through `--custom-cache-max-volume-gb`. Linux
+admission reserves the expected write, not the capacity, and Docker volumes
+already take 100 GB on the same cache filesystem. A server answer of 507 means the
 volume exceeds that maximum: the host does not retry and the job continues
 cold (macOS mailbox reason `capacity`, Linux status 503). A volume without a server-chosen size is
 created at the host default of 20 GB.

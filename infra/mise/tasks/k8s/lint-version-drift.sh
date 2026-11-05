@@ -49,7 +49,7 @@ for gate in $gates; do
 done
 
 # Both layouts: the flat CRs still applied by mgmt-cluster-apply.yml
-# (preview, pentest) AND the Flux-reconciled ones under workloads/.
+# (pentest) AND the Flux-reconciled ones under workloads/.
 for f in "$REPO_ROOT"/infra/k8s/clusters/cluster-*.yaml \
          "$REPO_ROOT"/infra/k8s/clusters/workloads/*/cluster.yaml; do
   [ -e "$f" ] || continue

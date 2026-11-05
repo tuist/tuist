@@ -177,7 +177,7 @@ defmodule TuistWeb.AuthenticationTest do
 
       assert %{value: signed_token, max_age: max_age} = conn.resp_cookies[@remember_me_cookie]
       assert signed_token != get_session(conn, :user_token)
-      assert max_age == 28_800
+      assert max_age == 2_592_000
     end
   end
 
@@ -1050,14 +1050,14 @@ defmodule TuistWeb.AuthenticationTest do
       assert remembered |> get(~p"/#{organization.account.name}/projects") |> html_response(200)
 
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
-      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -900)])
+      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -604_800)])
       expired = Authentication.fetch_current_user(remembered, [])
       refute expired.assigns.current_user
       refute get_session(expired, :user_token)
       assert %{max_age: 0} = expired.resp_cookies[@remember_me_cookie]
 
       Repo.update_all(UserToken,
-        set: [inserted_at: now |> DateTime.add(-28_800) |> DateTime.to_naive(), last_active_at: now]
+        set: [inserted_at: now |> DateTime.add(-2_592_000) |> DateTime.to_naive(), last_active_at: now]
       )
 
       refute Authentication.fetch_current_user(remembered, []).assigns.current_user
@@ -1070,7 +1070,7 @@ defmodule TuistWeb.AuthenticationTest do
       path = ~p"/#{user.account.name}/#{project.name}/settings"
       {:ok, view, _} = live(conn, path)
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
-      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -900)])
+      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -604_800)])
 
       render_hook(view, "rename_project", %{"project" => %{"name" => "must-not-change"}})
       # The socket reloads its page; HTTP then sends the expired session to login.
@@ -1089,7 +1089,7 @@ defmodule TuistWeb.AuthenticationTest do
       path = ~p"/#{user.account.name}/#{project.name}"
       {:ok, view, _} = live(conn, path)
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
-      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -900)])
+      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -604_800)])
 
       send(view.pid, :check_browser_session)
       assert_redirect(view, path)

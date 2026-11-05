@@ -79,14 +79,6 @@ defmodule Tuist.Docs.Loader do
                   render: [unsafe: true]
                 ] ++ @syntax_highlight_options
 
-  def load_pages! do
-    source_paths = source_paths()
-    example_readmes = example_readmes()
-    pages = Enum.map(source_paths, &build_page!/1) ++ Enum.map(example_readmes, &build_example_page!/1)
-    all_source_paths = source_paths ++ example_readmes
-    {pages, all_source_paths}
-  end
-
   def load_slugs! do
     load_page_sources!()
     |> Map.keys()

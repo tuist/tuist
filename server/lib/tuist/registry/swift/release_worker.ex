@@ -620,8 +620,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     parent_dir = Path.dirname(directory)
     base_name = Path.basename(directory)
 
-    with :ok <- remove_symlinks_outside_root(directory),
-         :ok <- resolve_root_symlinks(directory) do
+    with {:ok, root_directory} <- real_path(directory),
+         :ok <- remove_symlinks_outside_root(directory, root_directory),
+         :ok <- resolve_root_symlinks(directory, root_directory) do
       # `-y` stores the remaining (nested) symlinks as symlinks instead of
       # following them and inlining their target.
       case System.cmd("zip", ["-r", "-y", archive_path, base_name], cd: parent_dir) do
@@ -637,15 +638,18 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   # symlinks extract correctly and must be preserved, both because packages rely
   # on them and because flattening the ones sealed inside code-signed bundles
   # (e.g. a framework's `Versions/Current -> A`) invalidates the signature.
-  defp resolve_root_symlinks(directory) do
-    case System.cmd("find", [directory, "-mindepth", "1", "-maxdepth", "1", "-type", "l"], stderr_to_stdout: true) do
+  defp resolve_root_symlinks(directory, root_directory) do
+    # NUL-separated, because names may contain newlines.
+    case System.cmd("find", [directory, "-mindepth", "1", "-maxdepth", "1", "-type", "l", "-print0"],
+           stderr_to_stdout: true
+         ) do
       {output, 0} ->
-        symlink_paths = String.split(output, "\n", trim: true)
+        symlink_paths = String.split(output, <<0>>, trim: true)
 
         {directory_symlinks, non_directory_symlinks} = classify_symlinks(symlink_paths)
 
-        with :ok <- resolve_non_directory_symlinks(non_directory_symlinks) do
-          resolve_directory_symlinks(directory_symlinks)
+        with :ok <- resolve_non_directory_symlinks(non_directory_symlinks, root_directory) do
+          resolve_directory_symlinks(directory_symlinks, root_directory)
         end
 
       {output, status} ->
@@ -659,37 +663,40 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end)
   end
 
-  defp resolve_non_directory_symlinks([]), do: :ok
+  defp resolve_non_directory_symlinks([], _root_directory), do: :ok
 
-  defp resolve_non_directory_symlinks([symlink_path | rest]) do
-    case File.stat(symlink_path) do
-      {:ok, %File.Stat{type: :regular}} ->
-        content = File.read!(symlink_path)
-        File.rm!(symlink_path)
-        File.write!(symlink_path, content)
-
-      _ ->
-        File.rm(symlink_path)
+  # The target is resolved and checked again right before it is read, and the
+  # resolved path is read instead of the link, so the bytes copied into the
+  # archive come from the file that passed the check.
+  defp resolve_non_directory_symlinks([symlink_path | rest], root_directory) do
+    with {:ok, target} <- File.read_link(symlink_path),
+         {:ok, resolved_target} <- resolve_symlink_target(symlink_path, target),
+         true <- path_within_root?(resolved_target, root_directory),
+         {:ok, %File.Stat{type: :regular}} <- File.lstat(resolved_target) do
+      content = File.read!(resolved_target)
+      File.rm!(symlink_path)
+      File.write!(symlink_path, content)
+    else
+      _ -> File.rm(symlink_path)
     end
 
-    resolve_non_directory_symlinks(rest)
+    resolve_non_directory_symlinks(rest, root_directory)
   end
 
-  defp resolve_directory_symlinks(directory_symlinks) do
+  defp resolve_directory_symlinks(directory_symlinks, root_directory) do
     {cyclic, non_cyclic} =
       Enum.split_with(directory_symlinks, fn path ->
-        case File.read_link(path) do
-          {:ok, target} ->
-            resolved = resolve_symlink_target(path, target)
-            symlink_creates_cycle?(Path.expand(path), resolved)
-
-          _ ->
-            false
+        with {:ok, target} <- File.read_link(path),
+             {:ok, resolved} <- resolve_symlink_target(path, target),
+             {:ok, parent} <- real_path(Path.dirname(path)) do
+          symlink_creates_cycle?(Path.join(parent, Path.basename(path)), resolved)
+        else
+          _ -> false
         end
       end)
 
     Enum.each(cyclic, &remove_cyclic_directory_symlink/1)
-    Enum.each(non_cyclic, &resolve_non_cyclic_directory_symlink/1)
+    Enum.each(non_cyclic, &resolve_non_cyclic_directory_symlink(&1, root_directory))
   end
 
   defp remove_cyclic_directory_symlink(symlink_path) do
@@ -698,30 +705,46 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     Logger.info("Removed recursive directory symlink #{symlink_path} -> #{target}")
   end
 
-  defp resolve_non_cyclic_directory_symlink(symlink_path) do
+  defp resolve_non_cyclic_directory_symlink(symlink_path, root_directory) do
     {:ok, target} = File.read_link(symlink_path)
-    resolved_target = resolve_symlink_target(symlink_path, target)
-    File.rm!(symlink_path)
-    File.cp_r!(resolved_target, symlink_path)
-    repoint_copied_symlinks(resolved_target, symlink_path)
+
+    with {:ok, resolved_target} <- resolve_symlink_target(symlink_path, target),
+         true <- path_within_root?(resolved_target, root_directory),
+         {:ok, %File.Stat{type: :directory}} <- File.lstat(resolved_target) do
+      nested_targets = resolve_nested_symlinks(resolved_target)
+      File.rm!(symlink_path)
+      File.cp_r!(resolved_target, symlink_path)
+      repoint_copied_symlinks(nested_targets, symlink_path)
+    else
+      _ -> File.rm!(symlink_path)
+    end
+  end
+
+  # Resolved before the copy exists, so no link resolves through a copy whose
+  # links still carry their verbatim targets.
+  defp resolve_nested_symlinks(source_directory) do
+    {output, 0} = System.cmd("find", [source_directory, "-type", "l", "-print0"])
+
+    output
+    |> String.split(<<0>>, trim: true)
+    |> Enum.map(fn original_link ->
+      {:ok, target} = File.read_link(original_link)
+      {Path.relative_to(original_link, source_directory), resolve_symlink_target(original_link, target)}
+    end)
   end
 
   # `File.cp_r!/2` copies nested symlinks verbatim, so each copy is repointed at
   # the path its original resolved to; a relative target would otherwise resolve
   # from the copy's location, dangling or escaping the package root.
-  defp repoint_copied_symlinks(source_directory, copy_directory) do
-    {output, 0} = System.cmd("find", [copy_directory, "-type", "l"])
-
-    output
-    |> String.split("\n", trim: true)
-    |> Enum.each(fn copied_link ->
-      {:ok, target} = File.read_link(copied_link)
-      original_link = Path.join(source_directory, Path.relative_to(copied_link, copy_directory))
-      resolved_target = resolve_symlink_target(original_link, target)
-      copy_parent = copied_link |> Path.expand() |> Path.dirname()
-
+  defp repoint_copied_symlinks(nested_targets, copy_directory) do
+    Enum.each(nested_targets, fn {relative_path, resolution} ->
+      copied_link = Path.join(copy_directory, relative_path)
       File.rm!(copied_link)
-      File.ln_s!(Path.relative_to(resolved_target, copy_parent, force: true), copied_link)
+
+      with {:ok, resolved_target} <- resolution,
+           {:ok, copy_parent} <- real_path(Path.dirname(copied_link)) do
+        File.ln_s!(Path.relative_to(resolved_target, copy_parent, force: true), copied_link)
+      end
     end)
   end
 
@@ -799,9 +822,8 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp remove_symlinks_outside_root(root_directory) do
-    expanded_root_directory = Path.expand(root_directory)
-    prune_symlinks_outside_root([expanded_root_directory], expanded_root_directory)
+  defp remove_symlinks_outside_root(directory, root_directory) do
+    prune_symlinks_outside_root([Path.expand(directory)], root_directory)
   end
 
   defp prune_symlinks_outside_root([], _root_directory), do: :ok
@@ -851,23 +873,67 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp ensure_symlink_target_within_root(path, target, root_directory) do
-    resolved_target = resolve_symlink_target(path, target)
-
-    if path_within_root?(resolved_target, root_directory) do
+    with true <- target_text_within_root?(path, target, root_directory),
+         {:ok, resolved_target} <- resolve_symlink_target(path, target),
+         true <- path_within_root?(resolved_target, root_directory) do
       :ok
     else
-      {:symlink_outside_root, target}
+      _ -> {:symlink_outside_root, target}
+    end
+  end
+
+  # Clients resolve the archive's links again on their own filesystem, which
+  # may fold case or normalize Unicode, so names that are distinct here can
+  # name a symlink there. A target is therefore kept only when its text alone
+  # stays inside the package: relative, with `..` only at its start, and with
+  # no more of them than the link sits below the root. Every kept link then
+  # climbs at most to the root before descending, whatever its names resolve to.
+  defp target_text_within_root?(path, target, root_directory) do
+    {parents, names} =
+      target
+      |> Path.split()
+      |> Enum.reject(&(&1 == "."))
+      |> Enum.split_while(&(&1 == ".."))
+
+    with :relative <- Path.type(target),
+         false <- ".." in names,
+         {:ok, link_directory} <- real_path(Path.dirname(path)) do
+      depth = link_directory |> Path.relative_to(root_directory) |> Path.split() |> Enum.count(&(&1 != "."))
+      length(parents) <= depth
+    else
+      _ -> false
     end
   end
 
   defp resolve_symlink_target(link_path, target) do
     if Path.type(target) == :absolute do
-      Path.expand(target)
+      real_path(target)
     else
-      link_path
-      |> Path.dirname()
-      |> Path.join(target)
-      |> Path.expand()
+      link_path |> Path.dirname() |> Path.join(target) |> real_path()
+    end
+  end
+
+  # Resolves a path the way the OS does: one component at a time, following
+  # each symlink it meets before reading the next component. A `..` after a
+  # symlink therefore climbs from the link's target, not from its text, so
+  # `a/u/../x` with `a/u -> ../..` lands outside a package even though
+  # `Path.expand/1` keeps it inside.
+  @max_symlink_hops 40
+
+  defp real_path(path), do: path |> Path.absname() |> Path.split() |> walk_real_path("/", 0)
+
+  defp walk_real_path(_components, _current, hops) when hops > @max_symlink_hops, do: {:error, :too_many_symlinks}
+  defp walk_real_path([], current, _hops), do: {:ok, current}
+  defp walk_real_path(["/" | rest], _current, hops), do: walk_real_path(rest, "/", hops)
+  defp walk_real_path(["." | rest], current, hops), do: walk_real_path(rest, current, hops)
+  defp walk_real_path([".." | rest], current, hops), do: walk_real_path(rest, Path.dirname(current), hops)
+
+  defp walk_real_path([name | rest], current, hops) do
+    candidate = Path.join(current, name)
+
+    case File.read_link(candidate) do
+      {:ok, target} -> walk_real_path(Path.split(target) ++ rest, current, hops + 1)
+      {:error, _not_a_symlink} -> walk_real_path(rest, candidate, hops)
     end
   end
 

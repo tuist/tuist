@@ -320,6 +320,7 @@ defmodule Tuist do
       # Firecracker sandboxes for coding-agent sessions (control plane
       # for infra/sandboxd; see lib/tuist/sandboxes/AGENTS.md).
       Sandboxes,
+      RemoteExecution,
       Sandboxes.AtlasIdentity,
       Sandboxes.ProviderEnvironments,
       Sandboxes.AmpIntegrations,
@@ -332,8 +333,10 @@ defmodule Tuist do
       Sandboxes.Concurrency,
       Sandboxes.Nodes,
       Sandboxes.Pricing,
+      Sandboxes.Query,
       Sandboxes.Router,
       Sandboxes.Sandbox,
+      Sandboxes.Schemas,
       # Customer-runner pool. The Tuist GitHub App fires
       # `workflow_job: queued` events into the webhook controller,
       # which delegates to Tuist.Runners.Dispatch; the

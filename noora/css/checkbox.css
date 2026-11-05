@@ -41,7 +41,7 @@
   & [data-part="label"] {
     display: flex;
     grid-area: label;
-    margin-left: var(--noora-spacing-5);
+    margin-inline-start: var(--noora-spacing-5);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-body-medium);
 
@@ -54,7 +54,7 @@
     display: flex;
     grid-area: description;
     margin-top: var(--noora-spacing-2);
-    margin-left: var(--noora-spacing-5);
+    margin-inline-start: var(--noora-spacing-5);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-small);
   }

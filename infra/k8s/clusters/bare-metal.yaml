@@ -422,7 +422,9 @@ spec:
         # Keep in sync with controllers/linux/kata_sandbox_cgroup.go. Puts
         # the shim, virtiofsd and QEMU in a systemd scope under the Pod's
         # slice instead of cgroups at the root that nothing removes; see the
-        # kata-qemu handler block above.
+        # kata-qemu handler block above. That also keeps them on the Pod's
+        # cpuset rather than on cores the static CPU manager gave another
+        # runner.
         - content: |
             [runtime]
             sandbox_cgroup_only = true
@@ -510,13 +512,25 @@ spec:
           # graceful backstop (evict-with-event) before true host OOM.
           # Existing nodes only pick this up once the bare-metal MD is
           # rolled (the flags are baked into the kubelet at kubeadm-join).
+          #
+          # The daemons' CPU is reserved by id instead, as one whole core
+          # (cpu0 and its sibling) in the kubelet configuration patch that
+          # preKubeadmCommands writes, because the static CPU manager hands
+          # out whole cores; see kubeletReservationBlock in
+          # controllers/linux/linux_cloudinit.go, which the OVH runner hosts
+          # use.
           kubeletExtraArgs:
             - name: system-reserved
-              value: "cpu=1,memory=2Gi"
+              value: "memory=2Gi"
             - name: kube-reserved
-              value: "cpu=1,memory=2Gi"
+              value: "memory=2Gi"
             - name: eviction-hard
               value: "memory.available<10%,nodefs.available<10%,imagefs.available<15%,nodefs.inodesFree<5%"
+        # The kubelet configuration patch preKubeadmCommands writes: the
+        # static CPU manager, so a runner Pod's integer CPU request gets
+        # whole physical cores to itself.
+        patches:
+          directory: /etc/kubeadm/patches
       preKubeadmCommands:
         # No `set -euo pipefail` here — CAPI's kubeadm-bootstrap
         # renders each `preKubeadmCommands` entry as its own
@@ -565,6 +579,13 @@ spec:
         - systemctl enable tuist-kata-shared-memory.service
         - systemctl start tuist-kata-shared-memory.service
         - systemctl enable --now containerd
+        # Reserve cpu0 and its hyperthread sibling for the host daemons and
+        # pin system.slice to them. Which CPU is cpu0's sibling depends on
+        # the box, so it is read from the topology here rather than written
+        # into the template.
+        - mkdir -p /etc/kubeadm/patches
+        - 'printf "reservedSystemCPUs: \"%s\"\ncpuManagerPolicy: static\ncpuManagerPolicyOptions:\n  full-pcpus-only: \"true\"\n" "$(cat /sys/devices/system/cpu/cpu0/topology/thread_siblings_list)" > /etc/kubeadm/patches/kubeletconfiguration+merge.yaml'
+        - 'systemctl set-property system.slice AllowedCPUs="$(cat /sys/devices/system/cpu/cpu0/topology/thread_siblings_list)"'
         - systemctl enable kubelet
       postKubeadmCommands:
         # Stamp the runner-pool + kata-runtime labels on the Node

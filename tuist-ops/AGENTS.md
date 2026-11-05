@@ -1,7 +1,7 @@
 # Internal operations
 
-Standalone Phoenix app for JIT cluster elevation, operator project-access grants,
-and Slack-requested previews. It has its own production namespace, Helm release,
+Standalone Phoenix app for JIT cluster elevation and operator project-access
+grants. It has its own production namespace, Helm release,
 secrets, and CNPG database, independent of the customer server.
 
 ## Boundaries and security
@@ -26,9 +26,6 @@ secrets, and CNPG database, independent of the customer server.
 - Project-access read grants are self-serve with a reason; admin grants require
   Slack approval. The customer server verifies signed Ed25519 grants offline.
   See `infra/k8s/operator-project-access-audit.md` for the audit/deployment runbook.
-- Previews record their audit trail here but mutate Kubernetes through
-  `.github/workflows/preview-deploy.yml`; do not add workload-cluster credentials
-  to this app. Keep workflow outcome reporting on the originating Slack card.
 - Migrations run on boot unless `SKIP_MIGRATIONS=true`.
 
 Tool versions live in `mise.toml`; use `mix test` for tests. Deployment is defined
