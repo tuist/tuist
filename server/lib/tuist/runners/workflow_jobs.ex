@@ -238,20 +238,29 @@ defmodule Tuist.Runners.WorkflowJobs do
   `Tuist.Runners.Claims.release/2`). Both are the execution's own
   moment rather than the minting claim's: B waited in the queue until
   GitHub placed it here, not until the Pod that took it was reserved.
+
+  `guards: [account_id: id]` confines the move to that account's row. The
+  executed job's id comes from a webhook body, which a GitHub Enterprise
+  Server sender writes itself, so it may name another account's job.
   """
-  def transition_executing(workflow_job_id, runner_name, pod_name, site \\ nil)
+  def transition_executing(workflow_job_id, runner_name, pod_name, site \\ nil, guards \\ [])
       when is_integer(workflow_job_id) and is_binary(runner_name) and runner_name != "" and is_binary(pod_name) and
              pod_name != "" do
     now = DateTime.utc_now()
 
     workflow_job_id
-    |> transition(["queued"], "running",
-      runner_name: runner_name,
-      pod_name: pod_name,
-      site: site,
-      claimed_at: now,
-      started_at: now,
-      executed_workflow_job_id: workflow_job_id
+    |> transition(
+      ["queued"],
+      "running",
+      [
+        runner_name: runner_name,
+        pod_name: pod_name,
+        site: site,
+        claimed_at: now,
+        started_at: now,
+        executed_workflow_job_id: workflow_job_id
+      ],
+      guards
     )
     |> finish_executing()
   end
@@ -274,7 +283,14 @@ defmodule Tuist.Runners.WorkflowJobs do
   that is running, and the handle guard confines the takeover to the
   claim the caller found naming the job.
   """
-  def take_over_executing(workflow_job_id, runner_name, pod_name, %DateTime{} = stale_claimed_at, site \\ nil)
+  def take_over_executing(
+        workflow_job_id,
+        runner_name,
+        pod_name,
+        %DateTime{} = stale_claimed_at,
+        site \\ nil,
+        guards \\ []
+      )
       when is_integer(workflow_job_id) and is_binary(runner_name) and runner_name != "" and is_binary(pod_name) and
              pod_name != "" do
     now = DateTime.utc_now()
@@ -291,7 +307,7 @@ defmodule Tuist.Runners.WorkflowJobs do
         started_at: now,
         executed_workflow_job_id: workflow_job_id
       ],
-      claimed_at: stale_claimed_at
+      Keyword.put(guards, :claimed_at, stale_claimed_at)
     )
     |> finish_executing()
   end
@@ -1148,10 +1164,11 @@ defmodule Tuist.Runners.WorkflowJobs do
     outcome
   end
 
-  defp apply_guards(query, []), do: query
-
-  defp apply_guards(query, claimed_at: %DateTime{} = claimed_at) do
-    where(query, [j], j.claimed_at == ^claimed_at)
+  defp apply_guards(query, guards) do
+    Enum.reduce(guards, query, fn
+      {:claimed_at, %DateTime{} = claimed_at}, q -> where(q, [j], j.claimed_at == ^claimed_at)
+      {:account_id, account_id}, q when is_integer(account_id) -> where(q, [j], j.account_id == ^account_id)
+    end)
   end
 
   # One statement for the batch: emitting these per row was what still
