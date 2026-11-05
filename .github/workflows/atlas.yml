@@ -121,28 +121,6 @@ jobs:
         run: once build atlas/mix_application_test
         env:
           ONCE_CACHE_PROVIDER: ${{ steps.once-auth.outcome == 'success' && 'tuist' || 'local' }}
-          RUST_LOG: once::commands::graph::analysis::actions=debug
-
-      - name: Diagnose Rebar artifacts on failure
-        if: failure()
-        working-directory: .
-        run: |
-          for path in atlas/deps/ranch .once/tmp/analysis/atlas/mix-test-ranch .once/out/atlas/mix-test-ranch; do
-            if [ -d "$path" ]; then
-              find "$path" -type f \( -name '*.app' -o -name '*.beam' -o -name 'compile*.log' \) -print
-            fi
-          done
-
-      - name: Probe released Once restoration on failure
-        if: failure()
-        working-directory: .
-        run: |
-          mise install github:tuist/once@0.74.2
-          rm -rf .once
-          mise exec github:tuist/once@0.74.2 -- once build atlas/mix-test-ranch
-        env:
-          ONCE_CACHE_PROVIDER: ${{ steps.once-auth.outcome == 'success' && 'tuist' || 'local' }}
-          RUST_LOG: once::commands::graph::analysis::actions=debug
 
       # Once persists the compiler's stderr as a build output, so this also
       # catches warnings replayed from a cached compilation. Lines from mise's
