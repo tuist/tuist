@@ -348,6 +348,7 @@ defmodule Tuist do
       Runners.Billing,
       Runners.Catalog,
       Runners.Allowance,
+      Runners.CacheVolumeBilling,
       Runners.Prepaid,
       Runners.Trials,
       Runners.Concurrency,

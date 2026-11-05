@@ -177,6 +177,12 @@ server:
       runners:
         runner_linux_compute_unit_milliseconds: "price_1UXkpzLWue9IBlPSCGV7NlAg"
         runner_macos_compute_unit_milliseconds: "price_1UY5HTLWue9IBlPSxLGHE0iW"
+        # Cache volume storage in megabyte-months: 100,000 free (100 GB-months),
+        # then 0.01 cents each, which is $0.10 per GB-month. Measured by
+        # `Tuist.Runners.CacheVolumeBilling`, which states the same tiers. Its
+        # Meter has to exist before this key does; the empty id reports without
+        # charging.
+        runner_cache_volume_megabyte_months: ""
       retired_runners:
         runner_macos_compute_unit_milliseconds:
           - "price_1UXO5iLWue9IBlPSX793RSDB"

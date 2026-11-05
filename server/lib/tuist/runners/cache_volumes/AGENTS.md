@@ -264,12 +264,12 @@ these schemas persist volume identities and per-job uses.
   inventory is validated and stored on the use as `docker_images`, describes the
   volume page's Images tab on the dashboard (`Tuist.Runners.DockerCache`) and
   decides nothing. `reserved_bytes` for `docker` is the saved head plus 20 GB,
-  runner-cache's `DockerGrowthBytes`. Docker cache storage is not billed: when
-  volume storage becomes a billing meter, exclude the `docker` and `checkout` keys.
+  runner-cache's `DockerGrowthBytes`. Docker and checkout storage is not billed:
+  `Tuist.Runners.CacheVolumeBilling` leaves out `unbilled_keys/0`, every reserved key.
 - `image/3` with the `rebase` operation (Docker volumes only) moves a successful
   job's use that may still publish onto the lineage's current HEAD, named by
   `generation` and its `content_digest`, once its host reports the guest merged
   the job's images with that HEAD; publication then fast-forwards it. Anything
   but the current HEAD is a conflict.
 
-- Saved-size observations (`runner_cache_volume_saved_sizes`) are recorded under the volume lock in the same transaction as publication, clear, expiry, saved-head deletion or a changed head measurement. New volumes start at zero; unmeasured saved heads stay null. Duplicate sizes do not append rows. Migration seeds only the current observation, never fabricated past history. Account/volume-scoped hourly reads carry the latest earlier observation forward and preserve gaps. Retention keeps 90 days plus the last older baseline per volume, independent of usage deletion.
+- Saved-size observations (`runner_cache_volume_saved_sizes`) are recorded under the volume lock in the same transaction as publication, clear, expiry, saved-head deletion or a changed head measurement. New volumes start at zero; unmeasured saved heads stay null. Duplicate sizes do not append rows. Migration seeds only the current observation, never fabricated past history. Account/volume-scoped hourly reads carry the latest earlier observation forward and preserve gaps. Retention keeps 90 days plus the last older baseline per volume, independent of usage deletion. They are what storage is billed on: `Tuist.Runners.CacheVolumeBilling` weights each volume's saved head by how long it was held (unmeasured heads count as nothing), so a volume counts once however many copies hosts retain. Changing what is recorded here changes invoices.
