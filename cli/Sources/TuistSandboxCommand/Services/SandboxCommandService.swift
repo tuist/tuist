@@ -74,7 +74,7 @@ struct SandboxCommandService {
             return
         }
         try await Noora.current.paginatedTable(
-            headers: ["ID", "Status", "vCPUs", "Memory", "Last active"],
+            headers: ["ID", "Status", "Platform", "vCPUs", "Memory", "Last active"],
             pageSize: pageSize,
             totalPages: response.pagination_metadata.total_pages,
             startPage: page - 1,
@@ -108,6 +108,7 @@ struct SandboxCommandService {
 
     func create(
         options: SandboxOptions.Values,
+        platform: ServerSandboxPlatform?,
         template: String?,
         vcpus: Int?,
         memoryMB: Int?,
@@ -118,6 +119,7 @@ struct SandboxCommandService {
             try await sandboxesService.createSandbox(
                 accountHandle: accountHandle,
                 serverURL: serverURL,
+                platform: platform,
                 template: template,
                 vcpus: vcpus,
                 memoryMB: memoryMB,

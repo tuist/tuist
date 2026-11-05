@@ -1,5 +1,6 @@
 import ArgumentParser
 import TuistNooraExtension
+import TuistServer
 
 public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
     public init() {}
@@ -9,15 +10,37 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
         abstract: "Boot a bare sandbox from a template. Useful to try a template before connecting an environment."
     )
 
+    enum Platform: String, ExpressibleByArgument, CaseIterable {
+        case linux, macos
+
+        var server: ServerSandboxPlatform {
+            switch self {
+            case .linux: .linux
+            case .macos: .darwin
+            }
+        }
+
+        /// The vCPUs each offered memory size comes with.
+        var shapes: [Int: Int] {
+            switch self {
+            case .linux: [4096: 2, 8192: 4, 16384: 8]
+            case .macos: [8192: 8, 16384: 8, 24576: 8]
+            }
+        }
+    }
+
     @OptionGroup var options: SandboxOptions
 
-    @Option(name: .long, help: "Template name. Defaults to the server's default template.")
+    @Option(name: .long, help: "linux or macos. Defaults to linux.")
+    var platform: Platform = .linux
+
+    @Option(name: .long, help: "Template name. Defaults to the server's default template for the platform.")
     var template: String?
 
-    @Option(name: .long, help: "2, 4 or 8, with the matching --memory-mb (4096, 8192 or 16384).")
+    @Option(name: .long, help: "Linux: 2, 4 or 8. macOS: 8. Pass it with the matching --memory-mb.")
     var vcpus: Int?
 
-    @Option(name: .long, help: "4096, 8192 or 16384, with the matching --vcpus.")
+    @Option(name: .long, help: "Linux: 4096, 8192 or 16384. macOS: 8192, 16384 or 24576. Pass it with the matching --vcpus.")
     var memoryMb: Int?
 
     @Option(name: .long, help: "Workspace disk size in GB (1–100).")
@@ -26,11 +49,14 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
     public var jsonThroughNoora: Bool { true }
 
     public func validate() throws {
-        let shapes = [2: 4096, 4: 8192, 8: 16384]
         switch (vcpus, memoryMb) {
         case (nil, nil): break
-        case let (vcpus?, memory?) where shapes[vcpus] == memory: break
-        default: throw ValidationError("Pass --vcpus and --memory-mb together as 2/4096, 4/8192 or 8/16384.")
+        case let (vcpus?, memory?) where platform.shapes[memory] == vcpus: break
+        default:
+            let offered = platform.shapes.sorted { $0.key < $1.key }.map { "\($0.value)/\($0.key)" }
+            throw ValidationError(
+                "Pass --vcpus and --memory-mb together as one of \(offered.joined(separator: ", ")) for \(platform.rawValue)."
+            )
         }
         if let workspaceGb, !(1 ... 100).contains(workspaceGb) {
             throw ValidationError("Workspace size must be 1–100 GB.")
@@ -40,6 +66,7 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
     public func run() async throws {
         try await SandboxCommandService().create(
             options: options.values,
+            platform: platform.server,
             template: template,
             vcpus: vcpus,
             memoryMB: memoryMb,

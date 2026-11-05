@@ -6,7 +6,8 @@ import TuistServer
 enum SandboxOutput {
     static func row(_ sandbox: SandboxesPage.sandboxesPayloadPayload) -> [String] {
         [
-            sandbox.id, status(sandbox.status, state: sandbox.state.rawValue), String(sandbox.vcpus),
+            sandbox.id, status(sandbox.status, state: sandbox.state.rawValue), platform(sandbox.platform?.rawValue),
+            String(sandbox.vcpus),
             megabytes(sandbox.memory_mb),
             sandbox.last_active_at.map(Formatters.formatDate) ?? "Never",
         ]
@@ -17,6 +18,7 @@ enum SandboxOutput {
             "Sandbox".bold(),
             "ID: \(sandbox.id)",
             "Status: \(status(sandbox.status, state: sandbox.state.rawValue))",
+            "Platform: \(platform(sandbox.platform?.rawValue))",
             "vCPUs: \(sandbox.vcpus)",
             "Memory: \(megabytes(sandbox.memory_mb))",
             "Disk: \(sandbox.workspace_gb) GB",
@@ -56,6 +58,11 @@ enum SandboxOutput {
     /// The status the dashboard shows, which servers before it was added do not send.
     static func status(_ status: String?, state: String) -> String {
         (status ?? state).capitalized
+    }
+
+    /// Servers before macOS sandboxes do not send a platform; their sandboxes are all Linux.
+    private static func platform(_ platform: String?) -> String {
+        platform == "darwin" ? "macOS" : "Linux"
     }
 
     private static func megabytes(_ value: Int) -> String {
