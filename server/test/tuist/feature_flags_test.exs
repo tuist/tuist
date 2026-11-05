@@ -118,6 +118,28 @@ defmodule Tuist.FeatureFlagsTest do
     end
   end
 
+  describe "test_impact_analysis_enabled?/2" do
+    test "canary and production require the account flag and coverage for the project" do
+      account = %Account{id: 42, name: "tuist"}
+      stub(Environment, :env, fn -> :prod end)
+
+      for flag? <- [true, false], coverage? <- [true, false] do
+        stub(FunWithFlags, :enabled?, fn
+          :test_impact_analysis, [for: ^account] -> flag?
+          :xcode_coverage, [for: ^account] -> coverage?
+        end)
+
+        assert FeatureFlags.test_impact_analysis_enabled?(account, %Project{build_system: :xcode}) ==
+                 (flag? and coverage?)
+      end
+    end
+
+    test "other environments enable it for projects with coverage" do
+      stub(Environment, :env, fn -> :stag end)
+      assert FeatureFlags.test_impact_analysis_enabled?(%Account{id: 42, name: "tuist"}, %Project{build_system: :xcode})
+    end
+  end
+
   describe "kura_stable_hostname_enabled?/1" do
     test "staging and production require an explicit account or global flag" do
       account = %Account{id: 42, name: "tuist"}

@@ -22,6 +22,7 @@ defmodule Tuist.Shards do
   alias Tuist.Shards.ShardPlanTestSuite
   alias Tuist.Shards.Storage, as: ShardStorage
   alias Tuist.Storage
+  alias Tuist.TestImpactAnalysis
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
@@ -37,12 +38,8 @@ defmodule Tuist.Shards do
   @nested_jvm_class_regex ~r/^(?<class>[\p{L}_][\p{L}\p{N}_.]*)\$[\p{L}\p{N}_$]+$/u
 
   def create_shard_plan(%Project{} = project, params, opts \\ []) do
-    granularity = Map.get(params, :granularity, "module")
     reference = Map.fetch!(params, :reference)
-
-    units = resolve_units(project, params, granularity)
-    concurrency = module_concurrency(project, params, granularity, units)
-    timing_data = fetch_timing_data(project, granularity, units, timing_estimate(concurrency))
+    {granularity, units, concurrency, timing_data, test_impact_run_id} = plan_inputs(project, params)
 
     units_with_durations =
       units
@@ -88,6 +85,7 @@ defmodule Tuist.Shards do
       granularity: granularity,
       build_run_id: Map.get(params, :build_run_id),
       gradle_build_id: Map.get(params, :gradle_build_id),
+      test_impact_run_id: test_impact_run_id,
       inserted_at: now,
       storage_target:
         ShardStorage.select(project, Repo.preload(project, :account).account, Keyword.get(opts, :runner_grant)),
@@ -118,6 +116,25 @@ defmodule Tuist.Shards do
       shard_count: shard_count,
       shard_assignments: shard_assignments
     }
+  end
+
+  # A plan for an impact run that selected tests distributes the suites with
+  # selected tests, priced by those tests' durations, at suite granularity. An
+  # impact run that fell back, or that doesn't exist, plans as without one.
+  defp plan_inputs(project, params) do
+    with run_id when is_binary(run_id) <- Map.get(params, :test_impact_run_id),
+         {:ok, selection} <- TestImpactAnalysis.Runs.shard_units(project.id, run_id) do
+      skipped = MapSet.new(Map.get(params, :skipped_test_suites) || [])
+      units = selection.durations |> Map.keys() |> Enum.sort() |> Enum.reject(&MapSet.member?(skipped, &1))
+      {"suite", units, nil, selection.durations, run_id}
+    else
+      _ ->
+        granularity = Map.get(params, :granularity, "module")
+        units = resolve_units(project, params, granularity)
+        concurrency = module_concurrency(project, params, granularity, units)
+        timing_data = fetch_timing_data(project, granularity, units, timing_estimate(concurrency))
+        {granularity, units, concurrency, timing_data, nil}
+    end
   end
 
   def get_shard_plan(id) do
@@ -535,16 +552,37 @@ defmodule Tuist.Shards do
         with {:ok, actor} <- ShardStorage.resolve_for_request(plan, account, Keyword.get(opts, :runner_grant)) do
           {download_url, download_urls} = shard_download_urls(account, project, plan, download_modules, actor)
 
-          {:ok,
-           %{
-             shard_plan_id: plan.id,
-             modules: modules,
-             suites: suites,
-             skip: skip,
-             download_url: download_url,
-             download_urls: download_urls
-           }}
+          shard = %{
+            shard_plan_id: plan.id,
+            modules: modules,
+            suites: suites,
+            skip: skip,
+            download_url: download_url,
+            download_urls: download_urls
+          }
+
+          {:ok, put_skipped_tests(shard, project, plan, shard_index, opts)}
         end
+    end
+  end
+
+  # A shard of a plan for an impact run carries the tests selection skipped
+  # within what the shard runs. The catch-all shard runs every suite the
+  # other shards don't own, so its list also covers those suites.
+  defp put_skipped_tests(shard, _project, %ShardPlan{test_impact_run_id: nil}, _shard_index, _opts), do: shard
+
+  defp put_skipped_tests(shard, project, plan, shard_index, opts) do
+    plan = preload_assignments(plan, [:test_suites, :modules])
+    {own, other} = Enum.split_with(plan.test_suites, &(&1.shard_index == shard_index))
+    own = MapSet.new(own, &{&1.module_name, &1.test_suite_name})
+
+    other =
+      if Keyword.get(opts, :suite_catch_all?, false) and shard_index == plan.shard_count - 1,
+        do: MapSet.new(other, &{&1.module_name, &1.test_suite_name})
+
+    case TestImpactAnalysis.Runs.shard_skip(project.id, plan.test_impact_run_id, own, other) do
+      nil -> shard
+      skipped_tests -> Map.put(shard, :skipped_tests, skipped_tests)
     end
   end
 

@@ -160,6 +160,9 @@ defmodule Tuist.Tests.Coverage.Evidence do
   @doc false
   def suite_scope_id(module_name, suite_name), do: Enum.join([module_name, suite_name], @separator)
 
+  @doc false
+  def scope_module(scope_id), do: scope_id |> String.split(@separator, parts: 2) |> hd()
+
   @doc "Line numbers as `[first, last]` runs of consecutive lines, ascending."
   def line_ranges(line_numbers) do
     line_numbers
