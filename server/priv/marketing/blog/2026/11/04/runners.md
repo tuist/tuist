@@ -107,4 +107,4 @@ And if you're already on GitHub Actions, adopting them is a one-line:
        - run: tuist test
 ```
 
-macOS runners start at $0.05 per minute on an M5 Pro Mac mini, Linux starts at $0.001, and every plan comes with free minutes. You'll find every rate on our [pricing page](/pricing#runners). As the utilization of our fleet grows, expect the price to drop down further. We've already dropped our initial pay-as-you-go price for macOS from $0.075 to $0.05, and we don't plan to stop there. Let us help to get there and make a difference in the industry!
+macOS runners start at $0.05 per minute on an M5 Pro Mac mini, Linux starts at $0.001, and every plan comes with free minutes. You'll find every rate on our [pricing page](/pricing#runners). As the utilization of our fleet grows, expect the price to drop down further. We've already dropped our initial pay-as-you-go price for macOS from $0.075 to $0.05, and we don't plan to stop there. Help us get there and make a difference in the industry!
