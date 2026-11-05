@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-# Tuist Linux runner image — Ubuntu 22.04 base with the GitHub
+# Tuist Linux runner image — Ubuntu 24.04 base with the GitHub
 # Actions runner binary and Tuist's dispatch-poll script baked in.
 # Designed to run as a single-job Pod on Hetzner Cloud nodes
 # managed by the runners-controller. After `./run.sh --jitconfig
@@ -126,14 +126,14 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
     # `runner`, not root.
     && chmod -R a+rwX "${ANDROID_SDK_ROOT}"
 
-FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b AS runner
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS runner
 
 # GitHub-hosted runners set ImageOS, and setup actions such as
 # erlef/setup-beam read it to pick a prebuilt binary for the OS. Keep it
 # in step with the base image above (ubuntu:24.04 -> ubuntu24). The image
 # is amd64-only (RUNNER_ARCH=x64); an arm64 build would need GitHub's
-# `ubuntu22-arm64`.
-ENV ImageOS=ubuntu22
+# `ubuntu24-arm64`.
+ENV ImageOS=ubuntu24
 
 # Set runtime defaults so customer workflows see UTF-8 locales out
 # of the box and apt-driven installs in workflow steps don't trip
@@ -149,7 +149,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # stays deferred to a `tuist-linux-runner-fat` variant).
 #
 # Categorized for readability:
-#   - actions/runner runtime: libicu70 + libssl3 + libkrb5
+#   - actions/runner runtime: libicu74 + libssl3t64 + libkrb5
 #   - baseline shell + transfer: bash, ca-certificates, curl, wget,
 #     gnupg, jq, locales, lsb-release, sudo, tar, unzip, xz-utils
 #   - build toolchain: build-essential pulls gcc/g++/make/libc6-dev;
@@ -184,9 +184,9 @@ RUN apt-get update \
         git \
         gnupg \
         jq \
-        libicu70 \
+        libicu74 \
         libkrb5-3 \
-        libssl3 \
+        libssl3t64 \
         locales \
         lsb-release \
         sudo \
@@ -330,9 +330,12 @@ ENV ANDROID_HOME=/usr/local/lib/android/sdk \
 # matches the hosted-runner experience. The `docker` group GID is
 # pinned to 123 to match the `--group=123` arg the controller
 # passes to dockerd in the sidecar, so the runner can reach
-# /var/run/docker.sock without sudo.
-RUN groupadd -g 123 docker \
-    && useradd -m -d /home/runner -s /bin/bash -G docker runner \
+# /var/run/docker.sock without sudo. The base image's `ubuntu` user
+# holds UID 1000, which `runner` has always had: cached checkouts and
+# Docker data roots that earlier jobs left are owned by it.
+RUN userdel --remove ubuntu \
+    && groupadd -g 123 docker \
+    && useradd -m -u 1000 -d /home/runner -s /bin/bash -G docker runner \
     && echo "runner ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
     && mkdir -p /home/runner/actions-runner \
     && chown -R runner:runner /home/runner \

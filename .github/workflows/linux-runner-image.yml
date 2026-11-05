@@ -79,7 +79,7 @@ jobs:
           docker run --rm --privileged \
             -e TUIST_TEST_BIND_MOUNTS=1 \
             -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
-            ubuntu:22.04 /cache-volume.test -test.v
+            ubuntu:24.04 /cache-volume.test -test.v
       - name: Verify Docker layers and cache mounts across jobs
         timeout-minutes: 15
         shell: bash
@@ -149,7 +149,7 @@ jobs:
         run: |
           docker run --rm \
             -v "${{ github.workspace }}/infra/linux-runner-image:/w" \
-            -w /w ubuntu:22.04 bash ./metrics-sampler_test.sh
+            -w /w ubuntu:24.04 bash ./metrics-sampler_test.sh
 
       - uses: actions/setup-go@v5
         with:

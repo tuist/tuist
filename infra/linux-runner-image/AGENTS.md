@@ -72,9 +72,13 @@ One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are
   attached to the same Pod by the runners-controller. The
   runner's `docker` group is pinned to GID 123 to match the
   socket GID dockerd creates in the sidecar.
-- `ImageOS=ubuntu22`, as GitHub-hosted runners set it. Setup actions
+- `ImageOS=ubuntu24`, as GitHub-hosted runners set it. Setup actions
   such as `erlef/setup-beam` read it to pick a prebuilt binary and
-  fail without it. Change it together with the `ubuntu:22.04` base.
+  fail without it. Change it together with the `ubuntu:24.04` base.
+  The base matches the Amp orb template's Ubuntu release, so native
+  builds share Mix dependency cache keys with orbs. `runner` keeps UID
+  1000 (the base image's `ubuntu` user is removed): cached checkouts and
+  Docker data roots from earlier jobs are owned by it.
 - `/usr/local/lib/android/sdk` — Android SDK, with `ANDROID_HOME`
   and `ANDROID_SDK_ROOT` exported. Same path and same
   bake-it-into-the-image posture as GitHub's hosted Ubuntu image,
@@ -208,7 +212,7 @@ without pushing, `workflow_dispatch` pushes `:sha-<git-sha>` only
 flow).
 
 `pull_request` also syntax-checks every shell script and runs
-`metrics-sampler_test.sh` inside `ubuntu:22.04` — the image's own
+`metrics-sampler_test.sh` inside `ubuntu:24.04` — the image's own
 base, so the sampler's byte formatting is exercised against mawk
 rather than whichever awk the CI runner happens to ship.
 

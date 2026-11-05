@@ -1095,7 +1095,7 @@ msgstr ""
 
 #: lib/tuist_web/live/runner_profiles_live.ex:477
 #, elixir-autogen, elixir-format
-msgid "Ubuntu 22.04 LTS"
+msgid "Ubuntu 24.04 LTS"
 msgstr ""
 
 #: lib/tuist_web/live/runner_profiles_live.ex:532

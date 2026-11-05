@@ -220,6 +220,9 @@ defmodule TuistEx.Cache.CompilerTest do
     assert Compiler.supported_config?(cache_builder: builder, compilers: [:elixir_make])
     refute Compiler.unsupported_source?("c_src/probe.c", cache_builder: builder)
 
+    assert Compiler.builder(dependency, builders: [probe: [native: false, outputs: []]]) ==
+             [native: false, outputs: [], generated: [], env: [], inputs: [], tools: []]
+
     for invalid <- [
           [],
           [platform: ""],
@@ -228,7 +231,10 @@ defmodule TuistEx.Cache.CompilerTest do
           [platform: "image", generated: ["."]],
           [platform: "image", generated: ["_build"]],
           [platform: "image", env: ["INVALID=VALUE"]],
-          [platform: "image", unknown: true]
+          [platform: "image", unknown: true],
+          [native: false, platform: "image"],
+          [native: false, tools: ["cc"]],
+          [native: "false", platform: "image"]
         ] do
       invalid = Keyword.put_new(invalid, :outputs, [])
 
