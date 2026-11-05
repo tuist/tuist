@@ -498,7 +498,9 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "shows Tuist Runners pricing", %{conn: conn} do
       html = conn |> get("/pricing") |> html_response(200)
 
-      assert html =~ "Tuist Runners pricing"
+      assert html =~ ~r/id="pricing-runners-title">\s*Tuist Runners\s*</
+      assert html =~ "2 GB / vCPU"
+      assert html =~ "4 GB / vCPU"
       assert html =~ "8 vCPU · 24 GB"
       assert html =~ "16 vCPU · 48 GB"
       assert html =~ "See every machine and rate"

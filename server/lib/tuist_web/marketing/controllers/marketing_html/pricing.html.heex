@@ -569,7 +569,7 @@ runner_terms = [
         <div data-part="text">
           <span data-part="eyebrow">{dgettext("marketing", "Compute")}</span>
           <h2 data-part="title" id="pricing-runners-title">
-            {dgettext("marketing", "Tuist Runners pricing")}
+            {dgettext("marketing", "Tuist Runners")}
           </h2>
           <p data-part="description">
             {dgettext(
@@ -579,46 +579,154 @@ runner_terms = [
           </p>
         </div>
 
-        <div data-part="platforms">
-          <article
-            :for={platform <- runner_platforms}
-            data-part="platform"
-            data-platform={platform.id}
-            aria-labelledby={"pricing-runners-#{platform.id}"}
-          >
-            <div data-part="platform-head">
-              <h3 data-part="name" id={"pricing-runners-#{platform.id}"}>{platform.name}</h3>
-              <p data-part="description">{platform.description}</p>
-            </div>
-            <table data-part="machines">
-              <thead>
-                <tr>
-                  <th scope="col">{dgettext("marketing", "Machine")}</th>
-                  <th scope="col">{dgettext("marketing", "Price")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr :for={machine <- platform.machines}>
-                  <th scope="row">
-                    {dgettext("marketing", "%{vcpus} vCPU · %{memory} GB",
+        <%!-- Per-platform machine data, shared by the toolbar's pickers and
+        the price cards. Every price on a platform is padded to the same
+        number of decimals ($0.002 → $0.0020), so the figure keeps one shape
+        and the odometer reels roll between machines instead of rebuilding. --%>
+        <% runner_cards =
+          for {platform, index} <- Enum.with_index(runner_platforms) do
+            decimals =
+              platform.machines
+              |> Enum.map(&(&1.price |> String.split(".") |> List.last() |> String.length()))
+              |> Enum.max()
+
+            machines =
+              Enum.map(platform.machines, fn machine ->
+                amount = machine.price |> String.trim_leading("$") |> String.to_float()
+
+                %{
+                  vcpus: machine.vcpus,
+                  memory_gb: machine.memory_gb,
+                  price: "$" <> :erlang.float_to_binary(amount, decimals: decimals),
+                  hourly: "$" <> :erlang.float_to_binary(amount * 60, decimals: 2),
+                  spec:
+                    dgettext("marketing", "%{vcpus} vCPU · %{memory} GB",
                       vcpus: machine.vcpus,
                       memory: machine.memory_gb
-                    )}
-                  </th>
-                  <td>
-                    {machine.price}<span data-part="unit">{dgettext("marketing", "/min")}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                    )
+                }
+              end)
+
+            selected =
+              Enum.find(machines, &(&1.vcpus == 2 and &1.memory_gb == 8)) || hd(machines)
+
+            %{
+              platform: platform,
+              active: index == 0,
+              machines: machines,
+              selected: selected,
+              ratio: div(selected.memory_gb, selected.vcpus),
+              vcpu_steps: machines |> Enum.map(& &1.vcpus) |> Enum.uniq(),
+              ratios:
+                machines
+                |> Enum.map(&div(&1.memory_gb, &1.vcpus))
+                |> Enum.uniq()
+                |> Enum.sort()
+            }
+          end
+
+        [hourly_before, hourly_after] =
+          dgettext("marketing", "≈ %{price} per hour of job time", price: "\0")
+          |> String.split("\0", parts: 2)
+
+        per_minute = dgettext("marketing", "/min") %>
+
+        <%!-- Platform toggle on the left; the active platform's machine
+        pickers on the right. --%>
+        <div data-part="toolbar">
+          <.button_group
+            size="large"
+            id="pricing-runner-platform-select"
+            data-part="platform-select"
+            phx-hook="PricingRunnerPlatformSelect"
+            phx-update="ignore"
+            role="group"
+            aria-label={dgettext("marketing", "Platform")}
+          >
+            <.button_group_item
+              :for={card <- runner_cards}
+              label={card.platform.name}
+              data-platform-option={card.platform.id}
+              aria-controls={"pricing-runners-platform-#{card.platform.id}"}
+              data-selected={card.active}
+              aria-pressed={if card.active, do: "true", else: "false"}
+            />
+          </.button_group>
+
+          <div
+            :for={card <- runner_cards}
+            id={"pricing-runners-controls-#{card.platform.id}"}
+            data-part="controls"
+            data-platform={card.platform.id}
+            data-active={card.active}
+            phx-update="ignore"
+          >
+            <div data-part="control">
+              <span data-part="control-label">{dgettext("marketing", "vCPU")}</span>
+              <.button_group size="medium" role="group" aria-label={dgettext("marketing", "vCPU")}>
+                <.button_group_item
+                  :for={vcpus <- card.vcpu_steps}
+                  label={to_string(vcpus)}
+                  data-machine-vcpus={vcpus}
+                  data-selected={vcpus == card.selected.vcpus}
+                  aria-pressed={if vcpus == card.selected.vcpus, do: "true", else: "false"}
+                />
+              </.button_group>
+            </div>
+            <div :if={length(card.ratios) > 1} data-part="control">
+              <span data-part="control-label">{dgettext("marketing", "Memory")}</span>
+              <.button_group
+                size="medium"
+                role="group"
+                aria-label={dgettext("marketing", "Memory per vCPU")}
+              >
+                <.button_group_item
+                  :for={ratio <- card.ratios}
+                  label={dgettext("marketing", "%{memory} GB / vCPU", memory: ratio)}
+                  data-machine-ratio={ratio}
+                  data-selected={ratio == card.ratio}
+                  aria-pressed={if ratio == card.ratio, do: "true", else: "false"}
+                />
+              </.button_group>
+            </div>
+          </div>
+        </div>
+
+        <div data-part="platforms">
+          <article
+            :for={card <- runner_cards}
+            id={"pricing-runners-platform-#{card.platform.id}"}
+            data-part="platform"
+            data-platform={card.platform.id}
+            data-active={card.active}
+            aria-label={card.platform.name}
+            phx-hook="PricingRunnerMachineSelect"
+            phx-update="ignore"
+            data-controls={"pricing-runners-controls-#{card.platform.id}"}
+            data-machines={Jason.encode!(card.machines)}
+            data-default-vcpus={card.selected.vcpus}
+            data-default-gb={card.selected.memory_gb}
+          >
+            <div data-part="art" aria-hidden="true">
+              <.illustration name={"runners-#{card.platform.id}"} />
+            </div>
+            <div data-part="machine">
+              <p data-part="spec">
+                {card.platform.description} ·
+                <span data-machine-out="spec">{card.selected.spec}</span>
+              </p>
+              <p data-part="price" aria-live="polite">
+                <span data-part="figure" data-machine-out="price">{card.selected.price}</span><span data-part="unit">{per_minute}</span>
+              </p>
+              <p data-part="hourly">
+                {hourly_before}<span data-machine-out="hourly">{card.selected.hourly}</span>{hourly_after}
+              </p>
+            </div>
           </article>
           <ul data-part="terms">
             <li :for={term <- runner_terms} data-part="term">
-              <.system_check />
-              <div>
-                <div data-part="term-title">{term.title}</div>
-                <div data-part="term-description">{term.description}</div>
-              </div>
+              <div data-part="term-title">{term.title}</div>
+              <div data-part="term-description">{term.description}</div>
             </li>
           </ul>
         </div>

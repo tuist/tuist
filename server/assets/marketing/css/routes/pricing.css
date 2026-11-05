@@ -225,7 +225,7 @@
             flex-shrink: 0;
             width: 16px;
             height: 16px;
-            color: var(--noora-purple-500);
+            color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
           }
         }
       }
@@ -467,7 +467,7 @@
         }
 
         &[data-available="true"] svg {
-          color: var(--noora-purple-500);
+          color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
         }
 
         &[data-available="false"] svg {
@@ -657,12 +657,80 @@
    discount terms, and the access row. Same hairline grid as the plans
    frame above. */
 #marketing-pricing > section[data-part="pricing"] > [data-part="runners"] {
-  border-top: 1px solid var(--marketing-stroke-default);
-  padding-top: var(--noora-spacing-16);
+  padding-top: 0;
+  /* Prices, specs and allowances line up digit for digit. Every `font`
+     shorthand below resets the numeric variant, so each one restates it,
+     and the Noora button groups get it here. */
+  font-variant-numeric: tabular-nums;
 
-  /* Desktop: macOS with the terms stacked beneath it on the left, the
-     longer Linux table spanning both rows on the right. Narrower
-     viewports stack all three in source order. */
+  & .noora-button-group-item {
+    font-variant-numeric: tabular-nums;
+  }
+
+  & > [data-part="text"] > [data-part="description"] {
+    max-width: none;
+  }
+
+  /* Platform toggle on the left, the active platform's machine pickers on
+     the right. Stacked layouts put the pickers under the toggle as a
+     label/picker grid, so the button groups line up on one edge. */
+  & > [data-part="toolbar"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-7);
+    padding-inline: var(--noora-spacing-4);
+
+    /* The platform toggle and the machine pickers read as two groups:
+       a wider gap between them than between the picker rows. */
+    @media (max-width: 1023px) {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-9);
+    }
+
+    & > [data-part="controls"] {
+      display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-9);
+
+      @media (max-width: 1023px) {
+        display: grid;
+        grid-template-columns: auto auto;
+        justify-content: start;
+        align-items: center;
+        /* Each picker keeps its own width instead of stretching to the
+           column's widest one. */
+        justify-items: start;
+        gap: var(--noora-spacing-5) var(--noora-spacing-6);
+      }
+
+      &:not([data-active]) {
+        display: none;
+      }
+
+      & > [data-part="control"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-5);
+
+        /* The label and its picker become the grid's two cells. */
+        @media (max-width: 1023px) {
+          display: contents;
+        }
+
+        & > [data-part="control-label"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          font-variant-numeric: tabular-nums;
+        }
+      }
+    }
+  }
+
+  /* One platform's table at a time, picked with the button group above.
+     Desktop: the terms on the left, the table on the right. Narrower
+     viewports stack the two, table first. */
   & > [data-part="platforms"] {
     display: grid;
     grid-template-columns: 1fr;
@@ -670,90 +738,194 @@
     border-bottom: 1px solid var(--marketing-stroke-default);
 
     @media (min-width: 1024px) {
-      grid-template-rows: auto 1fr;
       grid-template-columns: repeat(2, 1fr);
-      grid-template-areas:
-        "macos linux"
-        "terms linux";
-
-      & > [data-platform="macos"] {
-        grid-area: macos;
-      }
-
-      & > [data-platform="linux"] {
-        grid-area: linux;
-        border-inline-start: 1px solid var(--marketing-stroke-default);
-      }
 
       & > [data-part="terms"] {
-        grid-area: terms;
+        order: -1;
+        border-inline-end: 1px solid var(--marketing-stroke-default);
+
+        & > [data-part="term"]:first-child {
+          border-top: none;
+        }
       }
     }
 
+    /* Price card: the selected machine's price as the headline, with its
+       spec above and the hourly cost below, centred vertically in the card
+       (the pickers live in the toolbar above). */
     & > [data-part="platform"] {
       display: flex;
+      position: relative;
       flex-direction: column;
-      gap: var(--noora-spacing-8);
+      justify-content: center;
+      gap: var(--noora-spacing-11);
       box-sizing: border-box;
+      isolation: isolate;
       padding: var(--noora-spacing-7);
+      overflow: hidden;
 
-      @media (max-width: 1023px) {
-        &:not(:first-child) {
-          border-top: 1px solid var(--marketing-stroke-default);
+      &:not([data-active]) {
+        display: none;
+      }
+
+      /* Per-platform art: the drawing's aspect ratio, its fixed width (it
+         keeps its size as the card resizes), and its distance from the
+         card's right edge (0 touches it, negative bleeds off it). The
+         drawings are inline SVGs coloured with Noora neutrals (see
+         MarketingIllustrations). */
+      &[data-platform="macos"] {
+        --runner-art-ratio: 650 / 482;
+        /* Same 300px height as the Linux chip. */
+        --runner-art-width: 404px;
+        --runner-art-inset: 0;
+      }
+
+      &[data-platform="linux"] {
+        --runner-art-ratio: 1;
+        --runner-art-width: 300px;
+        --runner-art-inset: 0;
+      }
+
+      /* Hardware drawing behind the card: the chip sits against the right
+         edge, centred vertically. The box is 1.5x the drawing with the
+         drawing centred in it (shifted right by a sixth so the drawing's
+         edge lands on the inset), which leaves the mask room to fade all
+         the way out. The mask is two straight fades multiplied together,
+         side to side and top to bottom, so it has no curved edge to show:
+         the lettering stays solid, the board eases out toward the top and
+         bottom, and the left edge clears entirely, keeping the chip off the
+         price and pickers. */
+      & > [data-part="art"] {
+        display: grid;
+        position: absolute;
+        place-items: center;
+        translate: calc(100% / 6) -50%;
+        z-index: -1;
+        mask-image: linear-gradient(
+            to right,
+            transparent 17%,
+            rgb(0 0 0 / 0.15) 27%,
+            rgb(0 0 0 / 0.5) 38%,
+            black 52%,
+            black 70%,
+            rgb(0 0 0 / 0.4) 86%,
+            transparent 100%
+          ),
+          linear-gradient(
+            to bottom,
+            transparent 8%,
+            rgb(0 0 0 / 0.35) 22%,
+            black 38%,
+            black 62%,
+            rgb(0 0 0 / 0.35) 78%,
+            transparent 92%
+          );
+        mask-composite: intersect;
+        inset-block-start: 50%;
+        inset-inline-end: var(--runner-art-inset);
+        aspect-ratio: var(--runner-art-ratio);
+        width: calc(var(--runner-art-width) * 1.5);
+        pointer-events: none;
+
+        /* Stacked layouts put the chip right behind the price, so it
+           steps back further there to keep the text easy to read. */
+        @media (max-width: 1023px) {
+          opacity: 0.4;
+        }
+
+        & > svg {
+          width: calc(100% / 1.5);
+          height: auto;
         }
       }
 
-      & > [data-part="platform-head"] {
+      & > [data-part="machine"] {
         display: flex;
         flex-direction: column;
-        gap: var(--noora-spacing-2);
+        gap: var(--noora-spacing-6);
 
-        & > [data-part="name"] {
-          color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+        /* Odometer figures (PricingRunnerMachineSelect hook, same reels as
+           the homepage cache count): each digit column clips a reel of
+           glyphs one line tall, slid by --i lines. The column reaches a
+           little past the line above and below (offset by negative
+           margins, so layout is unchanged) and those bands fade out, so a
+           rolling digit softens at the edges instead of being cut. */
+        & [data-part="figure"] {
+          display: inline-flex;
+          align-items: baseline;
+
+          & > [data-part="char"] {
+            display: block;
+          }
+
+          & > [data-part="char"][data-digit] {
+            mask-image: linear-gradient(
+              180deg,
+              transparent 0,
+              black var(--noora-spacing-2),
+              black calc(100% - var(--noora-spacing-2)),
+              transparent 100%
+            );
+            box-sizing: content-box;
+            margin-block: calc(-1 * var(--noora-spacing-2));
+            padding-block: var(--noora-spacing-2);
+            height: 1lh;
+            overflow: hidden;
+
+            & > [data-part="reel"] {
+              --i: 0;
+              display: block;
+              transform: translateY(calc(var(--i) * -5%));
+              transition:
+                transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+                filter 0.3s ease-out;
+
+              /* A slight blur while rolling, clearing as the digit settles. */
+              &[data-rolling] {
+                filter: blur(0.4px);
+              }
+
+              &[data-snap] {
+                transition: none;
+              }
+
+              @media (prefers-reduced-motion: reduce) {
+                transition: none;
+
+                &[data-rolling] {
+                  filter: none;
+                }
+              }
+
+              & > span {
+                display: block;
+                height: 1lh;
+              }
+            }
+          }
         }
 
-        & > [data-part="description"] {
+        & > [data-part="spec"],
+        & > [data-part="hourly"] {
           color: var(--noora-surface-label-secondary);
           font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-        }
-      }
-
-      & > [data-part="machines"] {
-        border-collapse: collapse;
-        width: 100%;
-        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-        font-variant-numeric: tabular-nums;
-
-        & th,
-        & td {
-          border-top: 1px solid var(--marketing-stroke-default);
-          padding: var(--noora-spacing-5) 0;
-          text-align: end;
+          font-variant-numeric: tabular-nums;
         }
 
-        & th:first-child {
-          text-align: start;
-        }
-
-        & thead th {
-          border-top: none;
-          padding-top: 0;
-          color: var(--noora-surface-label-secondary);
-          font-weight: var(--noora-font-weight-regular);
-        }
-
-        & tbody th {
+        & > [data-part="price"] {
           color: var(--noora-surface-label-primary);
-          font-weight: var(--noora-font-weight-regular);
-        }
+          font: var(--noora-font-weight-regular) var(--noora-font-display-medium);
+          /* The display line height pads the number unevenly; the gap
+             above sets the rhythm instead. */
+          line-height: 1;
+          font-variant-numeric: tabular-nums;
 
-        & tbody td {
-          color: var(--noora-surface-label-primary);
-        }
-
-        & [data-part="unit"] {
-          color: var(--noora-surface-label-secondary);
+          & > [data-part="unit"] {
+            margin-inline-start: var(--noora-spacing-2);
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+            font-variant-numeric: tabular-nums;
+          }
         }
       }
     }
@@ -766,30 +938,26 @@
       list-style: none;
 
       & > [data-part="term"] {
-        display: flex;
-        align-items: flex-start;
-        gap: var(--noora-spacing-4);
         box-sizing: border-box;
         border-top: 1px solid var(--marketing-stroke-default);
         padding: var(--noora-spacing-7);
 
-        & > svg {
-          flex-shrink: 0;
-          margin-top: 2px;
-          width: 16px;
-          height: 16px;
-          color: var(--noora-purple-500);
+        /* Stacked full width, each term gets more air above and below. */
+        @media (max-width: 1023px) {
+          padding-block: var(--noora-spacing-9);
         }
 
         & [data-part="term-title"] {
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+          font-variant-numeric: tabular-nums;
         }
 
         & [data-part="term-description"] {
           margin-top: var(--noora-spacing-2);
           color: var(--noora-surface-label-secondary);
           font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          font-variant-numeric: tabular-nums;
           text-wrap: pretty;
         }
       }
@@ -812,6 +980,7 @@
       max-width: 640px;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      font-variant-numeric: tabular-nums;
     }
 
     & > .noora-button {
