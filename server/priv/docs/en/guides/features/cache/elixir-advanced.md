@@ -252,6 +252,14 @@ eviction and project-cleanup rules.
   carry no artifact key, transfer bytes, restore latency or estimated time saved. To test a
   snapshot restore, clean just a supported dependency's build with
   `mix deps.clean NAME --build` after it has populated the cache, then compile again.
+- Because current outputs aren't published, a CI job that keeps its `_build`
+  between runs uploads only the dependencies it recompiles. To give other
+  machines hits for everything, compile from an empty `_build` with write
+  access in every `MIX_ENV` they use.
+- Set `TUIST_DEBUG=1` to print each dependency's outcome (`local_hit`,
+  `remote_hit`, `miss` or `bypass` with its reason) and artifact key. This works
+  even when the build report can't be submitted, for example with a read-only
+  cache token. Compare keys between machines to find a differing input.
 - Match `MIX_ENV`, `MIX_TARGET`, compiler settings and declared inputs. Path changes
   also change keys unless portable reuse is enabled.
 - Unsupported dependencies appear as **Not cached**, not misses. They are excluded

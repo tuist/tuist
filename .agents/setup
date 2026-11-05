@@ -77,6 +77,12 @@ if [[ ! -x "$mise_bin" ]] || [[ "$("$mise_bin" --version 2>/dev/null)" != "$mise
 fi
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 export MISE_YES=1
+# github: tools (ClickHouse, MinIO) verify attestations through api.github.com.
+# Orbs share egress IPs, so anonymous requests hit the 60/hour limit and the
+# install fails; authenticate with the orb's gh login when there is one.
+if [[ -z "${GITHUB_TOKEN:-}${MISE_GITHUB_TOKEN:-}" ]] && token="$(gh auth token 2>/dev/null)"; then
+  export MISE_GITHUB_TOKEN="$token"
+fi
 
 profile_marker="# tuist: mise toolchain"
 if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
