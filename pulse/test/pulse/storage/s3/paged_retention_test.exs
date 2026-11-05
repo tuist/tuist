@@ -7,8 +7,10 @@ defmodule Pulse.Storage.S3.PagedRetentionTest do
   use Pulse.Test.Case, async: true
 
   alias Pulse.ObjectStore
+  alias Pulse.PromQL.TaskSupervisor
   alias Pulse.Record.MetricSample
   alias Pulse.Runtime
+  alias Pulse.Runtime.Task
   alias Pulse.Storage.S3
   alias Pulse.Storage.S3.JournalManifest
   alias Pulse.Storage.S3.Manifest
@@ -166,6 +168,63 @@ defmodule Pulse.Storage.S3.PagedRetentionTest do
     assert {:ok, %{hour: nil}} = MetricTiers.finalize(ctx.tenant, ctx.retention, opts)
     assert %Manifest{version: 4} = root(ctx)
     assert values(ctx) == [2.0, 3.0]
+  end
+
+  test "hour selection bounds extreme spans by floor, settled hours and explicit skips", ctx do
+    last_timestamp = 9_223_372_036_854_775_807
+    # Place the settled boundary just after hour 1, so hour 0 is eligible
+    # but hour 1 is not. Millisecond rounding cannot move it a whole hour.
+    settle_ms = System.os_time(:millisecond) - div(@hour, 1_000_000)
+
+    cases = [
+      {0, 0, [0, 2 * @hour], 0, @hour},
+      {0, @hour, [@hour, 2 * @hour, 3 * @hour + 1], 0, 3 * @hour},
+      {0, @hour + 1, [@hour], 0, 2 * @hour},
+      {5 * @hour + 1, @hour, [5 * @hour], 0, 6 * @hour},
+      {20 * @hour, @hour, [], 0, 10 * @hour},
+      {20 * @hour, @hour, [10 * @hour, 11 * @hour], 0, 20 * @hour},
+      {0, 0, [], settle_ms, 0},
+      {0, 0, [0], settle_ms, nil},
+      {0, @hour, [], settle_ms, nil}
+    ]
+
+    for {{first_timestamp, floor, skipped, settle, expected}, index} <- Enum.with_index(cases) do
+      tenant = ctx.tenant <> "-selection-#{index}"
+      span = S3.object_key(tenant, "metrics", first_timestamp, last_timestamp, "span", nil)
+      later = S3.object_key(tenant, "metrics", 10 * @hour, 11 * @hour, "later", nil)
+      root = JournalManifest.new()
+
+      root = %{
+        root
+        | paging: Map.put(root.paging, "rf", floor),
+          segments: [
+            Segment.build(later, 10 * @hour, 11 * @hour, 2, 100),
+            Segment.build(span, first_timestamp, last_timestamp, 2, 100)
+          ]
+      }
+
+      assert {:ok, _} = ObjectStore.put(ctx.config, Manifest.manifest_key(tenant, "metrics"), encode(root))
+
+      # Missing bodies deliberately stop after selection, so the public result
+      # exposes the chosen hour without involving native merge allocations.
+      # The former interval expansion exceeds this heap even for one segment;
+      # a regression kills only this supervised task, never the test VM.
+      task =
+        Task.Supervisor.async_nolink(TaskSupervisor, fn ->
+          Process.flag(:max_heap_size, %{size: div(8 * 1_048_576, 8), kill: true, error_logger: false})
+          {:reductions, before} = Process.info(self(), :reductions)
+          result = MetricTiers.finalize(tenant, ctx.config, settle_ms: settle, skip_hours: MapSet.new(skipped))
+          {:reductions, after_selection} = Process.info(self(), :reductions)
+          {result, after_selection - before}
+        end)
+
+      assert {:ok, {result, reductions}} = Task.yield(task, 5_000)
+      assert reductions < 500_000
+
+      if expected == nil,
+        do: assert(result == {:ok, %{hour: nil}}),
+        else: assert(result == {:error, {expected, :not_found}})
+    end
   end
 
   test "expired pages are rewritten in bounded passes and dropped once cleanup forgets them", ctx do

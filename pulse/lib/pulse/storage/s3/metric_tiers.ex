@@ -109,11 +109,23 @@ defmodule Pulse.Storage.S3.MetricTiers do
     with {:ok, candidates} <- candidates(root, tenant, config) do
       candidates.segments
       |> Enum.filter(&(Segment.metric_tier(&1) in [:raw, :grouped] and is_integer(&1.min_ts) and is_integer(&1.max_ts)))
-      |> Enum.flat_map(fn s -> Enum.to_list(hour(s.min_ts)..hour(s.max_ts)//@hour_ns) end)
-      |> Enum.filter(&(&1 + @hour_ns <= settled_before and &1 + @hour_ns > floor and not MapSet.member?(skip, &1)))
+      |> Enum.map(fn s ->
+        first = max(hour(s.min_ts), hour(floor))
+        last = min(hour(s.max_ts), hour(settled_before) - @hour_ns)
+        first_unskipped_hour(first, last, skip)
+      end)
+      |> Enum.reject(&is_nil/1)
       |> Enum.min(fn -> nil end)
       |> finalize_oldest(root, tenant, config, opts)
     end
+  end
+
+  # Clamp the interval arithmetically, then visit only explicitly skipped
+  # hours. Sparse or malformed timestamps must not allocate their entire span.
+  defp first_unskipped_hour(first, last, _skip) when first > last, do: nil
+
+  defp first_unskipped_hour(first, last, skip) do
+    if MapSet.member?(skip, first), do: first_unskipped_hour(first + @hour_ns, last, skip), else: first
   end
 
   defp finalize_oldest(nil, _root, _tenant, _config, _opts), do: {:ok, %{hour: nil}}
