@@ -7,20 +7,20 @@ defmodule TuistWeb.RemoteExecutionController do
   plug(:authorize)
 
   def capabilities(conn, _params) do
-    case RemoteExecution.settings(conn.assigns.execution_project.account_id) do
-      %{max_concurrency: concurrency, node_names: [_ | _]} = settings when concurrency > 0 ->
+    case RemoteExecution.available_settings(conn.assigns.execution_project.account_id) do
+      {:ok, settings} ->
         json(conn, %{
           image: settings.image_tag,
           endpoint: settings.executor_endpoint,
           cas_endpoint: settings.cas_endpoint,
-          max_concurrency: concurrency,
+          max_concurrency: settings.max_concurrency,
           leases: true
         })
 
-      _ ->
+      {:error, _} ->
         conn
         |> put_status(:service_unavailable)
-        |> json(%{message: "execution capacity is not configured"})
+        |> json(%{message: "no execution capacity is available"})
     end
   end
 

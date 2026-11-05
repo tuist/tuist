@@ -8,6 +8,7 @@ defmodule Tuist.RemoteExecutionTest do
 
   alias Tuist.Cache
   alias Tuist.FeatureFlags
+  alias Tuist.Kura
   alias Tuist.RemoteExecution
   alias Tuist.RemoteExecution.Scheduler
   alias Tuist.RemoteExecution.VMs
@@ -37,7 +38,8 @@ defmodule Tuist.RemoteExecutionTest do
       ]
     end)
 
-    {:ok, _settings} = configure(project, max_concurrency: 2, warm_pool_size: 0)
+    stub(Kura, :runner_cache_endpoint_url, fn _account, :linux -> "https://cache.example" end)
+    {:ok, _settings} = configure(project, max_concurrency: 2)
 
     on_exit(fn ->
       if pid = Scheduler.whereis(project.account_id) do
@@ -52,19 +54,15 @@ defmodule Tuist.RemoteExecutionTest do
     %{project: project}
   end
 
-  defp configure(project, attrs) do
-    RemoteExecution.configure(
-      project.account,
-      Map.merge(
-        %{
-          node_names: ["reserved-linux"],
-          image_tag: @image,
-          cas_endpoint: "grpcs://cache.example",
-          executor_endpoint: "grpcs://execution.example"
-        },
-        Map.new(attrs)
-      )
-    )
+  # Limits that hold `max_concurrency` VMs of 2 vCPUs and 4 GB.
+  defp configure(project, max_concurrency: vms) do
+    {:ok, account} =
+      RemoteExecution.update_limits(project.account, %{
+        remote_execution_vcpus_limit: vms * 2,
+        remote_execution_memory_gb_limit: vms * 4
+      })
+
+    RemoteExecution.available_settings(account.id)
   end
 
   # Records every node command and answers exec with `result`, optionally
@@ -127,7 +125,7 @@ defmodule Tuist.RemoteExecutionTest do
 
     assert {:ok, %{done: true, state: "completed"} = operation} = submit(project)
     assert operation.response == Base.encode64(<<10, 0>>)
-    assert %{cacheable: true, action_hash: @hash, action_size: 10, cas_endpoint: "grpcs://cache.example"} = operation
+    assert %{cacheable: true, action_hash: @hash, action_size: 10, cas_endpoint: "grpcs://cache.example:443"} = operation
 
     assert_received {:node, "create", %{template_tag: @image, expires_at_unix: expires}}
     assert expires > DateTime.to_unix(DateTime.utc_now())
@@ -137,8 +135,8 @@ defmodule Tuist.RemoteExecutionTest do
     assert %{"hash" => @hash, "image" => @image, "instance" => instance} = JSON.decode!(env["SBX_EXECUTION_REQUEST"])
     assert instance == project.name
 
-    assert_receive {:node, "delete", %{sandbox_id: _}}
-    eventually(fn -> vm_rows(project) == [] end)
+    assert_receive {:node, "delete", %{sandbox_id: used}}
+    eventually(fn -> Enum.all?(vm_rows(project), &(&1.id != used)) end)
   end
 
   test "results that must not be cached are returned without publication details", %{project: project} do
@@ -230,8 +228,8 @@ defmodule Tuist.RemoteExecutionTest do
     assert {:ok, %{id: ^id, done: true}} = RemoteExecution.await(project, id, "executing", wait: 2_000)
   end
 
-  test "the warm pool follows demand up to its configured ceiling", %{project: project} do
-    {:ok, _} = configure(project, max_concurrency: 8, warm_pool_size: 4)
+  test "the warm pool follows demand below its ceiling", %{project: project} do
+    {:ok, _} = configure(project, max_concurrency: 8)
     stub_node()
     assert {:ok, %{done: true}} = submit(project)
 
@@ -242,12 +240,14 @@ defmodule Tuist.RemoteExecutionTest do
   end
 
   test "a warm VM is kept ready and taken by the next action", %{project: project} do
-    {:ok, _} = configure(project, warm_pool_size: 1)
+    {:ok, _} = configure(project, max_concurrency: 1)
     stub_node()
     assert {:ok, %{done: true}} = submit(project)
+    assert_received {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"], sandbox_id: used}}
 
+    # The used VM is deleted first: the account has room for one.
     eventually(fn ->
-      match?([%Sandbox{state: :running}], vm_rows(project))
+      match?([%Sandbox{state: :running, id: id}] when id != used, vm_rows(project))
     end)
 
     [warm] = vm_rows(project)
@@ -261,6 +261,45 @@ defmodule Tuist.RemoteExecutionTest do
     stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _ -> false end)
     assert {:error, :unavailable} = submit(project)
     assert Scheduler.whereis(project.account_id) == nil
+  end
+
+  test "accounts execute with default limits and the deployment's image, cache and endpoint" do
+    stub(Tuist.Environment, :remote_execution_endpoint, fn -> "grpcs://execution.example" end)
+    stub(Kura, :runner_cache_endpoint_url, fn _account, :linux -> "http://kura.tuist.svc:4000" end)
+    account = project_fixture().account
+
+    # 16 vCPUs and 32 GB hold eight VMs of 2 vCPUs and 4 GB.
+    assert {:ok,
+            %{
+              max_concurrency: 8,
+              image_tag: @image,
+              cas_endpoint: "grpc://kura.tuist.svc:4000",
+              executor_endpoint: "grpcs://execution.example"
+            }} = RemoteExecution.available_settings(account.id)
+
+    stub(Kura, :runner_cache_endpoint_url, fn _account, :linux -> nil end)
+    assert {:error, :unavailable} = RemoteExecution.available_settings(account.id)
+
+    stub(Kura, :runner_cache_endpoint_url, fn _account, :linux -> "https://cache.example" end)
+    stub(Nodes, :connected_nodes, fn -> [] end)
+    assert {:error, :unavailable} = RemoteExecution.available_settings(account.id)
+  end
+
+  test "the scarcer of the vCPU and memory limits bounds the account's VMs", %{project: project} do
+    {:ok, account} =
+      RemoteExecution.update_limits(project.account, %{
+        remote_execution_vcpus_limit: 8,
+        remote_execution_memory_gb_limit: 7
+      })
+
+    assert {:ok, %{max_concurrency: 1} = settings} = RemoteExecution.available_settings(account.id)
+    assert {:ok, _row} = VMs.reserve(account.id, settings)
+    assert {:error, :busy} = VMs.reserve(account.id, settings)
+
+    assert {:error, changeset} =
+             RemoteExecution.update_limits(account, %{remote_execution_vcpus_limit: 1})
+
+    assert %{remote_execution_vcpus_limit: [_]} = errors_on(changeset)
   end
 
   test "inputs the gateway prefetched reach the action's VM", %{project: project} do
@@ -395,7 +434,7 @@ defmodule Tuist.RemoteExecutionTest do
       stub_node()
 
       assert {:ok, lease} = RemoteExecution.lease(project, wait: 5_000)
-      assert %{endpoint: "http://10.0.0.1:7071", image: @image, cas_endpoint: "grpcs://cache.example"} = lease
+      assert %{endpoint: "http://10.0.0.1:7071", image: @image, cas_endpoint: "grpcs://cache.example:443"} = lease
       assert lease.expires_in_ms > 0
       assert_receive {:claim_pending, node_call}
       assert_received {:node, "exec", %{sandbox_id: id, env: env, claim: claim}}
@@ -407,7 +446,7 @@ defmodule Tuist.RemoteExecutionTest do
 
       send(node_call, {:claim, {:ok, %{"exit_code" => 0}}})
       assert_receive {:node, "delete", %{sandbox_id: ^id}}
-      eventually(fn -> vm_rows(project) == [] end)
+      eventually(fn -> Enum.all?(vm_rows(project), &(&1.id != id)) end)
     end
 
     test "an unclaimed lease returns its VM untouched to the next action", %{project: project} do

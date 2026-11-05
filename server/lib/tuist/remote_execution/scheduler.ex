@@ -10,7 +10,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
   share one operation, so those retries attach to the running execution.
 
   Concurrency is still bounded in PostgreSQL, per VM rather than per action
-  (`Tuist.RemoteExecution.VMs`). The scheduler keeps up to `warm_pool_size`
+  (`Tuist.RemoteExecution.VMs`). The scheduler keeps up to four
   pristine VMs ready beyond current demand, renews its rows' leases in
   batches and destroys each VM after its single action.
   """
@@ -33,6 +33,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
   # Demand sizing for the warm pool: observed preparation time is the lead
   # time, and a build's peak outlives the gap between builds.
   @warm_hold_ms 60_000
+  @max_warm_vms 4
   @initial_prepare_ms 50
   # A VM is assigned only while its last renewal leaves most of the lease.
   @fresh_lease_ms 40_000
@@ -656,7 +657,8 @@ defmodule Tuist.RemoteExecution.Scheduler do
   # preparation time, which is how many VMs are consumed while a replacement is
   # prepared (Little's law), plus one. A build's peak is held across the gap
   # before the next build, then falls back to the current demand.
-  # `warm_pool_size` caps it as the hosts' budget.
+  # At most `@max_warm_vms` stay warm per account: idle VMs hold memory on
+  # hosts that runner jobs share.
   defp warm_target(state, now) do
     arrivals = drop_old_arrivals(state.arrivals, now - state.prepare_ms)
     count = :queue.len(arrivals)
@@ -667,7 +669,8 @@ defmodule Tuist.RemoteExecution.Scheduler do
         do: {demand, now},
         else: {state.warm_peak, state.warm_peak_at}
 
-    {min(peak, state.settings.warm_pool_size), %{state | arrivals: arrivals, warm_peak: peak, warm_peak_at: peak_at}}
+    {min(peak, min(@max_warm_vms, state.settings.max_concurrency)),
+     %{state | arrivals: arrivals, warm_peak: peak, warm_peak_at: peak_at}}
   end
 
   defp drop_old_arrivals(arrivals, since) do
@@ -677,8 +680,7 @@ defmodule Tuist.RemoteExecution.Scheduler do
     end
   end
 
-  defp matches?(sandbox, settings),
-    do: sandbox.template_tag == settings.image_tag and sandbox.node_name in settings.node_names
+  defp matches?(sandbox, settings), do: sandbox.template_tag == settings.image_tag
 
   defp start_prepare(state) do
     placeholder = make_ref()
