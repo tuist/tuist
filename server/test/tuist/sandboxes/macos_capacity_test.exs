@@ -62,6 +62,19 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
     assert {:ok, _} = Capacity.place(sandbox())
   end
 
+  test "placement prefers a host with a warm VM of the requested shape", %{node: node} do
+    cold = %{node | name: "cold-#{System.unique_integer([:positive])}"}
+    warm_template = %{name: "macos", ready: true, tag: "image@sha256:abc", warm: ["8x8192"]}
+    warm = %{node | templates: [warm_template]}
+    odd = %{node | name: "odd-#{System.unique_integer([:positive])}", templates: [%{warm_template | warm: ["8x16384"]}]}
+
+    stub(Nodes, :connected_nodes, fn -> [cold, odd, warm] end)
+    stub(Nodes, :lookup, fn name -> {:ok, self(), Enum.find([cold, odd, warm], &(&1.name == name))} end)
+
+    assert {:ok, name} = Capacity.place(sandbox())
+    assert name == warm.name
+  end
+
   test "CI revocation, stale grants and replaced control identities deny new work", %{node: node} do
     for grant <- [
           Map.put(node.admission, "allow", false),

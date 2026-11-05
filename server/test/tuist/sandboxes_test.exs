@@ -120,6 +120,22 @@ defmodule Tuist.SandboxesTest do
                )
     end
 
+    test "records a claimed warm VM as the boot source" do
+      account = account_fixture()
+      expect(Capacity, :place, fn _sandbox -> {:ok, "node-a"} end)
+      expect(Nodes, :call, fn "node-a", "create", _args, _opts -> {:ok, %{"boot_ms" => 900, "warm" => true}} end)
+
+      assert {:ok, sandbox} = Sandboxes.create_sandbox(account, %{})
+
+      assert [%{boot_source: "warm"}] =
+               ClickHouseRepo.all(
+                 from(e in SandboxEvent,
+                   where: e.sandbox_id == ^sandbox.id and e.event == "started",
+                   select: %{boot_source: e.boot_source}
+                 )
+               )
+    end
+
     test "applies the requested shape" do
       account = account_fixture()
 

@@ -16,7 +16,12 @@ defmodule Tuist.Sandboxes.MacosCapacity do
   @mib 1024 * 1024
 
   def place(sandbox) do
-    nodes = Enum.filter(Nodes.connected_nodes(), &ready?(&1, sandbox.template))
+    # A host with a booted warm VM of this shape claims it instead of
+    # cold-booting, so it is tried first.
+    nodes =
+      Nodes.connected_nodes()
+      |> Enum.filter(&ready?(&1, sandbox.template))
+      |> Enum.sort_by(&(not warm?(&1, sandbox)))
 
     Enum.reduce_while(nodes, {:error, :no_capacity}, fn node, _acc ->
       case reserve(sandbox, node, :creating) do
@@ -63,6 +68,11 @@ defmodule Tuist.Sandboxes.MacosCapacity do
   defp ready?(node, template) do
     node[:platform] == "darwin" and allowed?(node) and
       Enum.any?(Map.get(node, :templates, []), &(&1.name == template and &1.ready))
+  end
+
+  defp warm?(node, sandbox) do
+    shape = "#{sandbox.vcpus}x#{sandbox.memory_mb}"
+    Enum.any?(Map.get(node, :templates, []), &(&1.name == sandbox.template and shape in Map.get(&1, :warm, [])))
   end
 
   def allowed?(%{platform: "darwin", generation: generation, control_uid: control, admission: grant}) do

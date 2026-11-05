@@ -360,14 +360,16 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		*cancel = stop
 		*controlUID = string(control.UID)
 		minter := &satoken.ClientMinter{Client: s.Kube, Audiences: []string{"tuist-sandboxes"}, ExpirationSeconds: 600}
-		templates := []protocol.TemplateInfo{{Name: cfg.Template, Tag: cfg.Image, Ready: true}}
+		templates := func() []protocol.TemplateInfo {
+			return []protocol.TemplateInfo{{Name: cfg.Template, Tag: cfg.Image, Ready: true, Warm: m.warmShapes()}}
+		}
 		capacity := protocol.Capacity{CPUs: int(node.Status.Allocatable.Cpu().Value()), MemoryBytes: uint64(node.Status.Allocatable.Memory().Value())}
 		client := server.New(server.Config{URL: cfg.URL, NodeName: s.Node, Token: func(ctx context.Context) (string, error) { return minter.Mint(ctx, control) }, ReportInterval: 5 * time.Second,
 			Hello: func() protocol.Hello {
-				return protocol.Hello{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Templates: templates, Sandboxes: m.Snapshot()}
+				return protocol.Hello{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Templates: templates(), Sandboxes: m.Snapshot()}
 			},
 			Report: func() protocol.Report {
-				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Sandboxes: m.Snapshot()}
+				return protocol.Report{Platform: "darwin", Generation: m.NodeUID, ControlUID: string(control.UID), Admission: s.grant(), Capacity: capacity, Sandboxes: m.Snapshot(), Templates: templates()}
 			},
 			Handler: m.Dispatch})
 		m.Gate.Lock()

@@ -24,8 +24,8 @@ type fakeRuntime struct {
 	saveStarted, saveRelease chan struct{}
 	creates, warms           int
 	// Warm VMs boot in the background.
-	mu sync.Mutex
-	cpuPermille              int64
+	mu          sync.Mutex
+	cpuPermille int64
 }
 
 func (f *fakeRuntime) Create(_ context.Context, r *Record) error {

@@ -253,7 +253,8 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
     report = %{
       "type" => "report",
       "sandboxes" => [%{"id" => "s1", "state" => "running"}],
-      "memory" => %{"used_bytes" => 5}
+      "memory" => %{"used_bytes" => 5},
+      "templates" => [%{"name" => "xcode", "tag" => "sha-9", "ready" => true, "warm" => ["8x8192"]}]
     }
 
     expect(Sandboxes, :reconcile_node_report, fn ^node_name, ^report ->
@@ -264,7 +265,13 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
     assert {:ok, state} = SandboxNodeWebSock.handle_in(text(report), state)
     assert_received :report_handled
 
-    assert [%{sandboxes: [%{id: "s1", state: "running"}], memory: %{used_bytes: 5}}] =
+    assert [
+             %{
+               sandboxes: [%{id: "s1", state: "running"}],
+               memory: %{used_bytes: 5},
+               templates: [%{name: "xcode", warm: ["8x8192"]}]
+             }
+           ] =
              Enum.filter(Nodes.connected_nodes(), &(&1.name == node_name))
 
     assert :ok = SandboxNodeWebSock.terminate(:normal, state)

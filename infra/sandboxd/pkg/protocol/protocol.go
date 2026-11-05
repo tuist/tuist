@@ -113,6 +113,9 @@ type TemplateInfo struct {
 	// template gets a clone of: the most a sandbox's rootfs can ever take on
 	// the node, which the server reserves against the disk budget.
 	RootfsBytes int64 `json:"rootfs_bytes"`
+	// Warm lists the shapes (`<vcpus>x<memory_mb>`) of booted macOS VMs a
+	// create of this template claims instead of cold-booting, one per VM.
+	Warm []string `json:"warm,omitempty"`
 }
 
 type SandboxInfo struct {
@@ -215,6 +218,8 @@ type Report struct {
 	DiskSnapshots []DiskSnapshotInfo `json:"disk_snapshots"`
 	Memory        MemoryReport       `json:"memory"`
 	Disk          DiskReport         `json:"disk"`
+	// Templates is sent by macOS hosts, whose warm VMs change between hellos.
+	Templates []TemplateInfo `json:"templates,omitempty"`
 }
 
 type Command struct {

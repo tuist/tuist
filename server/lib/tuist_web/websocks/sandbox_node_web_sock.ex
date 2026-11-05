@@ -252,7 +252,13 @@ defmodule TuistWeb.SandboxNodeWebSock do
 
   defp templates(templates) when is_list(templates) do
     for %{"name" => name} = template <- templates, is_binary(name) do
-      %{name: name, tag: template["tag"], ready: template["ready"] == true, rootfs_bytes: template["rootfs_bytes"]}
+      %{
+        name: name,
+        tag: template["tag"],
+        ready: template["ready"] == true,
+        rootfs_bytes: template["rootfs_bytes"],
+        warm: for(shape <- List.wrap(template["warm"]), is_binary(shape), do: shape)
+      }
     end
   end
 

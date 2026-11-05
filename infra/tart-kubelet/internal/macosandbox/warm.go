@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -301,4 +302,18 @@ func (m *Manager) onWarmVM(id string) bool {
 	defer m.Gate.Unlock()
 	r := m.records[id]
 	return r != nil && strings.HasPrefix(r.VM, warmVMPrefix)
+}
+
+// warmShapes lists the ready warm VMs for the server's placement.
+func (m *Manager) warmShapes() []string {
+	m.Gate.Lock()
+	defer m.Gate.Unlock()
+	shapes := []string{}
+	for _, w := range m.warm {
+		if w.ready {
+			shapes = append(shapes, fmt.Sprintf("%dx%d", w.rec.VCPUs, w.rec.MemoryMB))
+		}
+	}
+	sort.Strings(shapes)
+	return shapes
 }

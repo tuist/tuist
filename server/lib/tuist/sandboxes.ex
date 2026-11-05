@@ -430,6 +430,7 @@ defmodule Tuist.Sandboxes do
   # A disk snapshot clone that failed fell back to the template.
   defp boot_source({:archive, _source}, _data), do: "archive"
   defp boot_source(_source, %{"disk_snapshot_id" => id}) when is_binary(id), do: "disk_snapshot"
+  defp boot_source(_source, %{"warm" => true}), do: "warm"
   defp boot_source(_source, _data), do: "template"
 
   defp place_and_create(sandbox, args, nil) do
