@@ -216,7 +216,7 @@ defmodule TuistWeb.UserLoginLive do
             <.button
               type="button"
               variant="secondary"
-              size="medium"
+              size="large"
               label={dgettext("dashboard_auth", "Log in with a passkey")}
             >
               <:icon_left>
