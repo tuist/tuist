@@ -368,13 +368,6 @@ public struct BazelSetupCommandService {
         return execution
     }
 
-    private func warnExecutionUnavailable(_ reason: String) {
-        AlertController.current.warning(.alert(
-            "Remote execution is unavailable: \(reason)",
-            takeaway: "Bazel will build locally against the remote cache. Run tuist bazel setup --remote-execution again to retry."
-        ))
-    }
-
     /// Resolve cache configuration, leaving remote caching disabled when no endpoint is available.
     private func cacheURL(serverURL: URL, accountHandle: String) async throws -> URL? {
         do {
@@ -531,6 +524,13 @@ public struct BazelSetupCommandService {
             candidate = parent
         }
     }
+}
+
+private func warnExecutionUnavailable(_ reason: String) {
+    AlertController.current.warning(.alert(
+        "Remote execution is unavailable: \(reason)",
+        takeaway: "Bazel will build locally against the remote cache. Run tuist bazel setup --remote-execution again to retry."
+    ))
 }
 
 public enum BazelSetupCommandServiceError: LocalizedError, Equatable {
