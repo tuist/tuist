@@ -17,6 +17,12 @@ GitLab entry points are in `ci/runner-caches/gradle-cache/`.
   and catch everything, because Gradle changed that API between versions and
   older versions lack it. Check changes against real Gradle 8 and 9.
 - Never fail the job: a missing client is a no-op and a client failure warns.
+- After attaching, the step keeps the volume within its capacity, since Gradle's
+  seven-day cleanup does not bound it: from 75% used (`df` of the caches mount) it
+  removes `caches/build-cache-1`, and if the volume is still at 75% it empties
+  `caches` (never `wrapper`) and warns to raise `size`. It runs before Gradle,
+  so nothing holds the files. The Buildkite hook and GitLab snippet repeat it;
+  both tests stub `df`.
 - Keep the distribution self-contained: `action.yml`, `setup.sh`, README,
   license and source commit. Run `bash .github/actions/gradle-cache/action_test.sh`.
 - Releases ship with the Buildkite and GitLab entry points as one `runner-caches`

@@ -3128,7 +3128,7 @@ runnersFleetLinux:
     maxSlots: 100
     minFreeGB: 40 # Includes room for a private image and its publication archive.
     volumeGB: 20
-    maxVolumeGB: 32 # Largest volume this host accepts; the server never allocates more.
+    maxVolumeGB: 100 # Largest volume this host accepts, as for Docker volumes and macOS; the server never allocates more.
     provisioning:
       enabled: false
       sizeGB: 200
