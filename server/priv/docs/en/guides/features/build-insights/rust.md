@@ -9,7 +9,9 @@
 
 Build Insights helps you find what slows your Cargo builds down and catch regressions before they affect the whole team. You can compare local builds with CI, see how build times change, and inspect the crates compiled in each build.
 
-> [!IMPORTANT] Requirements
+> [!IMPORTANT]
+> **Requirements**
+>
 > - Follow the <.localized_link href="/guides/get-started/rust-project">Rust project setup</.localized_link> to connect your project and authenticate.
 
 ## Report your builds {#report-your-builds}
@@ -34,7 +36,7 @@ Each row is one `rustc` invocation for a crate, which can contain many source fi
 
 ### Track crates across builds {#crate-history}
 
-For projects enrolled in the gradual crate-history rollout, **Builds → Crates** shows observed crates and their compilation history. Open a crate to compare its recorded durations and outcomes across builds, then follow a compilation back to its Cargo build. The same inventory is available through `/cargo/crates` in the project API and the shared MCP build-entity tools with `kind: cargo_crates`.
+When available for your project, **Builds → Crates** shows observed crates and their compilation history. Open a crate to compare its recorded durations and outcomes across builds, then follow a compilation back to its Cargo build. The same inventory is available through `/cargo/crates` in the project API and the shared MCP build-entity tools with `kind: cargo_crates`.
 
 Crates are grouped by their exact recorded root path, name and kind. Changing checkout paths can split histories; profiles, features and target triples are not distinguished. This is an inventory of observed compiler jobs, not every crate in your workspace. Cached or up-to-date crates do not create compilation samples.
 
@@ -65,8 +67,9 @@ Open a build's **Cache** tab to see task hits, task misses, hit rate, and downlo
 
 If detailed records are missing or incomplete, the page shows a notice. The summary still covers the whole build. Estimated compiler work avoided is **not elapsed build time saved**.
 
-> [!WARNING] Experimental compilation cache
-> The cache is experimental and qualified on Apple silicon Macs. Libraries are cached by the sources the compiler read; build scripts, procedural macros, executables and native code are cached only on Apple silicon Macs. Cache keys replace checkout and toolchain paths with placeholders, so a checkout at another path on the same machine reuses them. Incremental compilations build normally.
+<!-- @snippet: ../cache/_rust-experimental -->
+
+Incremental compilations build normally.
 
 ### Builds that run tests {#builds-that-run-tests}
 

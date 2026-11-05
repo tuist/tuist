@@ -23,7 +23,7 @@ Since language support is a continuous effort, we add languages as we see contri
 - Traditional Chinese
 
 > [!TIP]
-> **Request A New Language**
+> **Request a new language**
 >
 > If you believe Tuist would benefit from supporting a new language, please create a new [topic in the community forum](https://community.tuist.io/c/general/4) to discuss it with the community.
 
@@ -40,7 +40,7 @@ The workflow is:
 4. After the changes land on `main`, Glossia translates what changed and keeps a translation pull request open with the updated localized files.
 
 > [!WARNING]
-> **Don't Modify Generated Localized Content**
+> **Don't modify generated localized content**
 >
 > Do not edit generated localized content directly. Update the English source and the language context instead.
 

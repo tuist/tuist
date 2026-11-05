@@ -66,7 +66,7 @@ jobs:
       - run: tuist auth login
       - run: tuist setup cache
 ```
-```yaml [Project token (Mise)]
+```yaml [Account token (Mise)]
 name: Build Application
 on:
   pull_request:
@@ -87,7 +87,7 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: tuist setup cache
 ```
-```yaml [Project token (Homebrew)]
+```yaml [Account token (Homebrew)]
 name: Build Application
 on:
   pull_request:
@@ -112,13 +112,13 @@ jobs:
 :::
 
 > [!NOTE]
-> **Oidc Setup**
+> **OIDC setup**
 >
 > Before using OIDC authentication, you need to <.localized_link href="/guides/integrations/gitforge/github">connect your GitHub repository</.localized_link> to your Tuist project. The `permissions: id-token: write` is required for OIDC to work. Alternatively, you can use an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> with the `TUIST_TOKEN` secret.
 
 
 > [!TIP]
-> We recommend using `mise use --pin` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
+> We recommend using `mise use --pin` in your Tuist projects to pin the version of Tuist across environments. The command pins the version of Tuist in your `mise.toml` file.
 
 
 ### Xcode Cloud {#xcode-cloud}
@@ -134,9 +134,9 @@ In [Xcode Cloud](https://developer.apple.com/xcode-cloud/), which uses Xcode pro
 curl https://mise.run | sh # Install Mise
 export PATH="$HOME/.local/bin:$PATH"
 
-mise install # Installs the version from .mise.toml
+mise install # Installs the version from mise.toml
 
-# Runs the version of Tuist indicated in the .mise.toml file {#runs-the-version-of-tuist-indicated-in-the-misetoml-file}
+# Runs the version of Tuist indicated in the mise.toml file
 mise exec -- tuist install --path ../ # `--path` needed as this is run from within the `ci_scripts` directory
 mise exec -- tuist generate -p ../ --no-open # `-p` needed as this is run from within the `ci_scripts` directory
 ```
@@ -183,7 +183,7 @@ jobs:
           name: Build
           command: mise exec -- tuist setup cache
 ```
-```yaml [Project token (Mise)]
+```yaml [Account token (Mise)]
 version: 2.1
 jobs:
   build:
@@ -246,7 +246,7 @@ workflows:
           inputs:
             - content: mise exec -- tuist setup cache
 ```
-```yaml [Project token (Mise)]
+```yaml [Account token (Mise)]
 workflows:
   build:
     steps:
@@ -293,7 +293,7 @@ workflows:
       - name: Install Mise
         script: |
           curl https://mise.jdx.dev/install.sh | sh
-          mise install # Installs the version from .mise.toml
+          mise install # Installs the version from mise.toml
       - name: Build
         script: mise exec -- tuist setup cache
 ```

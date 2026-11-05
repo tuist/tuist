@@ -9,7 +9,9 @@
 
 Tuist reports individual test results from `cargo test`, including unit tests, integration tests, and doctests. No Rust dependency or additional test runner is required.
 
-> [!IMPORTANT] Requirements
+> [!IMPORTANT]
+> **Requirements**
+>
 > - Follow the <.localized_link href="/guides/get-started/rust-project">Rust project setup</.localized_link>.
 
 ## Report your test runs {#report-your-test-runs}

@@ -9,7 +9,9 @@
 
 Code coverage tells you which lines of your code your tests executed. The Hex package uploads the line coverage of every `mix test --cover` run, and Tuist folds the runs of a commit into one figure, for the project, each OTP application and each file. The dashboard's **Code Coverage** page shows it per commit and as a trend for each branch.
 
-> [!IMPORTANT] REQUIREMENTS
+> [!IMPORTANT]
+> **Requirements**
+>
 > - Complete the <.localized_link href="/guides/get-started/elixir-project">shared Elixir setup</.localized_link>, which routes `mix test` through the package
 
 ## Setup {#setup}

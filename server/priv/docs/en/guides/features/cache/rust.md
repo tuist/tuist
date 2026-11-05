@@ -9,8 +9,7 @@
 
 Tuist caches supported Rust compilation outputs so Cargo can reuse them after its build outputs have been removed. The cache is built into the Tuist CLI. There is no separate cache executable or Cargo plugin to install.
 
-> [!WARNING] Experimental compilation cache
-> The cache is experimental and qualified on Apple silicon Macs. Build scripts, procedural macros, executables and native code are cached only there, and Linux library caching isn't qualified yet. Reuse is verified for checkouts at different paths on the same machine, not across machines.
+<!-- @snippet: ./_rust-experimental -->
 
 ## Enable caching {#enable-caching}
 

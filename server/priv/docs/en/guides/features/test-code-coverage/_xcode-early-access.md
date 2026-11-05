@@ -1,0 +1,4 @@
+> [!NOTE]
+> **Early access**
+>
+> Code coverage for Xcode projects is in early access. [Reach out](mailto:contact@tuist.dev) to turn it on for your account. Until then, Tuist doesn't store the coverage your runs upload.
