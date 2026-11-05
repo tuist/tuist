@@ -119,10 +119,16 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
     end
 
     test "counts the tests of modules skipped by hash as requested and skipped", %{project: project} do
-      modules = [%{name: "AppTests", skipped: false}, %{name: "CoreTests", skipped: true}]
+      modules = [
+        %{name: "AppTests", skipped: false},
+        %{name: "CoreTests", skipped: true},
+        %{name: "NewTests", skipped: true}
+      ]
+
       assert {:ok, %{run: run, skipped_tests: skip}} = Runs.create(project, params(%{modules: modules}))
 
       assert {run.outcome, run.requested_modules} == {"selected", ["AppTests"]}
+      assert run.skipped_modules == %{"CoreTests" => 1, "NewTests" => 0}
       assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 2, 3}
       refute Enum.any?(skip, &(&1.module == "CoreTests"))
     end
@@ -133,7 +139,7 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
 
       assert {:ok, %{run: run}} = Runs.create(project, params(%{modules: modules, changed_files: changed}))
 
-      assert {run.outcome, run.reason} == {"fallback", "tracked_file_changed"}
+      assert {run.outcome, run.reason, run.skipped_modules} == {"fallback", "tracked_file_changed", %{"CoreTests" => 1}}
       assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 4, 1}
     end
 
@@ -146,10 +152,14 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
 
       assert {run.outcome, run.reason, run.rule_trace, run.requested_modules} == {"selected", "", [], []}
       assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 0, 5}
+      assert run.skipped_modules == %{"AppTests" => 4, "CoreTests" => 1}
       assert Storage.get_diff(project.id, "c2", "c1") == {:error, :not_found}
 
-      assert {:ok, %{run: %{outcome: "selected", baseline_sha: nil, requested_count: 0}}} =
+      # Without a baseline the modules are kept, with no counts.
+      assert {:ok, %{run: %{outcome: "selected", baseline_sha: nil, requested_count: 0} = run}} =
                Runs.create(project, params(%{modules: modules, baseline_sha: nil, fallback_reason: "no_baseline"}))
+
+      assert run.skipped_modules == %{"AppTests" => 0, "CoreTests" => 0}
     end
 
     test "reuses the stored diff when the client sends none", %{project: project} do

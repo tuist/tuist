@@ -73,6 +73,7 @@ defmodule Tuist.TestImpactAnalysis.StorageTest do
             platform: "ios",
             build_context: %{"scheme" => "App", "destination" => String.duplicate("x", 2_000), "secret" => "dropped"},
             requested_modules: ["AppTests"],
+            skipped_modules: %{"CoreTests" => 3},
             outcome: "selected",
             rules_version: "1",
             rule_trace: [
@@ -100,6 +101,7 @@ defmodule Tuist.TestImpactAnalysis.StorageTest do
       assert stored.baseline_sha == "base"
       assert stored.platform == "ios"
       assert stored.requested_modules == ["AppTests"]
+      assert stored.skipped_modules == %{"CoreTests" => 3}
       assert stored.build_context |> Map.keys() |> Enum.sort() == ["destination", "scheme"]
       assert String.length(stored.build_context["destination"]) == 1_024
       assert [%{rule: "tracked_files"}, %{rule: "unaffected", skipped: 3, verdict: "done"}] = stored.rule_trace
