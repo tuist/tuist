@@ -77,6 +77,12 @@ if [[ ! -x "$mise_bin" ]] || [[ "$("$mise_bin" --version 2>/dev/null)" != "$mise
 fi
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 export MISE_YES=1
+# github: tools (ClickHouse, MinIO) verify attestations through api.github.com.
+# Orbs share egress IPs, so anonymous requests hit the 60/hour limit and the
+# install fails; authenticate with the orb's gh login when there is one.
+if [[ -z "${GITHUB_TOKEN:-}${MISE_GITHUB_TOKEN:-}" ]] && token="$(gh auth token 2>/dev/null)"; then
+  export MISE_GITHUB_TOKEN="$token"
+fi
 
 profile_marker="# tuist: mise toolchain"
 if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
@@ -123,6 +129,16 @@ npm ls >/dev/null 2>&1 || time npm ci --ignore-scripts --no-audit --no-fund
 
 # --- Server ----------------------------------------------------------------
 cd "$repo_root/server"
+
+# Let tuist_ex restore compiled dependencies from the tuist/server remote cache
+# instead of compiling all of them for dev and again for test. It exchanges
+# this Amp workload identity through the tuist account's OIDC trust policy for
+# the Amp issuer; without that policy, or offline, compilation falls back to
+# building locally. Exported for setup only, never persisted into the snapshot.
+if [[ -z "${TUIST_TOKEN:-}${TUIST_OIDC_TOKEN:-}" ]] &&
+  token="$(amp orb id-token --audience tuist --subject-scope project --ttl-seconds 3600 2>/dev/null)"; then
+  export TUIST_OIDC_TOKEN="$token" TUIST_OIDC_ACCOUNT=tuist
+fi
 
 step "Starting ClickHouse"
 mise run --no-deps clickhouse:start
