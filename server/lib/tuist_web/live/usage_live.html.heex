@@ -193,7 +193,7 @@
   <.card
     :if={@runner_breakdown.minutes > 0 or @runners_enabled}
     title={dgettext("dashboard_usage", "Cache volume storage")}
-    icon="folders"
+    icon="device_floppy"
     data-part="storage-usage-card"
   >
     <.async_result :let={storage} assign={@storage}>
