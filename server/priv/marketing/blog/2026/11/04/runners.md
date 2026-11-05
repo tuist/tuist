@@ -4,6 +4,7 @@ category: "product"
 tags: ["product", "runners", "ci", "macos", "linux", "cache"]
 excerpt: "Managed macOS and Linux CI runners with colocated caching and insights down to the metal. Invite-only while we grow capacity."
 author: fortmarek
+og_image_path: /marketing/images/blog/2026/11/04/runners/og.png
 live: true
 highlighted: true
 cta_title: "Your CI, optimized for your workflows all the way to the bare metal."
