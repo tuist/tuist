@@ -131,6 +131,19 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       assert %{name: "default", vcpus: 8, memory_gb: 32} = Profiles.get_by_name(account, "default")
     end
 
+    test "saves the Ubuntu release picked in the OS select and lists it", %{conn: conn, account: account} do
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/profiles")
+      assert html =~ "Ubuntu 24.04"
+
+      render_hook(lv, "update_form_name", %{"value" => "jammy"})
+      html = render_hook(lv, "select_os_version", %{"data" => "ubuntu-22.04"})
+      assert html =~ ~r/id="_lv_portal_wrap_runner-profile-os-dropdown-label-portal">\s*Ubuntu 22.04\s*</
+      html = render_hook(lv, "save_profile", %{})
+
+      assert %{os_version: "ubuntu-22.04"} = Profiles.get_by_name(account, "jammy")
+      assert html =~ "Ubuntu 22.04"
+    end
+
     test "surfaces validation errors inline without redirecting", %{conn: conn, account: account} do
       {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles")
 

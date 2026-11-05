@@ -381,6 +381,16 @@ spec:
             {{- end }}
             - name: TUIST_RUNNER_LINUX_SHAPES
               value: {{ $serverShapes | toJson | quote }}
+            # The Ubuntu releases the shape pools above run on, limited to
+            # those with an image, so profiles only offer an OS with pools.
+            {{- $serverOSVersions := list }}
+            {{- range include "tuist.runnersLinuxOSVersions" $ | fromJsonArray }}
+            {{- $entry := dict "osVersion" .osVersion }}
+            {{- if .default }}{{- $_ := set $entry "default" true }}{{- end }}
+            {{- $serverOSVersions = append $serverOSVersions $entry }}
+            {{- end }}
+            - name: TUIST_RUNNER_LINUX_OS_VERSIONS
+              value: {{ $serverOSVersions | toJson | quote }}
             {{- end }}
             {{- end }}
             {{- if .Values.runnersFleet.enabled }}

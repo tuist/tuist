@@ -110,6 +110,39 @@ reuses the old cached image. To revert the feature, remove the preparation call
 and image-hold overlay and clean up its scoped helpers; digest pinning and the
 registry cache can remain. No schema or stored-data migration is involved.
 
+## Ubuntu releases
+
+Runner Profiles pick an Ubuntu release (`os_version`), listed in
+`runnersFleetLinux.osVersions`. The Dockerfile has one base stage per release
+(`base-ubuntu-24.04`, `base-ubuntu-22.04`), selected by `--build-arg
+OS_VERSION`; each sets its own `ImageOS`, the runtime package names come from
+the base's `/etc/os-release`, and `runner` is UID 1000 on every base. Each
+non-default release keeps its own registry build cache
+(`buildcache-ubuntu-22.04`), so the two builds do not evict each other.
+
+One release version publishes all of them from the same commit: the default as
+`<semver>` (and `latest`), every other release as `<semver>-<os-tag>`
+(`1.42.0-ubuntu-22-04`). The deploy resolves `shapeRunnerImage` from `<semver>`
+and `osRunnerImages.<os-tag>` from the suffixed tag. When that tag is missing,
+as for a version released before the release existed, the chart renders no
+pools for it and the server stops offering it; profiles already on it then
+have no pool until a version with the tag deploys. `announce` stages each
+release's pools on that release's image only (`tuist.dev/os-version`).
+
+Pools of the default release keep the shape-only names; other releases'
+pools append the tag and start at a warm floor of 0, so adding a release does
+not multiply standby Pods. Raise its floor with the entry's `autoscaling`
+block once it carries real demand.
+
+Adding a release (e.g. 26.04): add a base stage and its runtime packages,
+build it in `linux-runner-image.yml`'s `build-os-variants` and the release
+workflow, add its tag to the deploy's loop, and list it in
+`runnersFleetLinux.osVersions` once canary validated it. Changing the default:
+existing profiles are pinned, so the old default's pools gain their tag in the
+same deploy; rewrite unclaimed queued `fleet_name`s in that deploy, as the
+Xcode retirement migrations do. Retiring a release: migrate its profiles and
+unclaimed queued jobs to another release first, then remove the entry.
+
 ## Validation
 
 The normal production cascade deploys canary, then requires Runners Acceptance
