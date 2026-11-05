@@ -592,6 +592,9 @@ defmodule Tuist.Application do
             start_pool_metrics?: true
           ],
           object_storage_endpoint => object_storage_pool_opts,
+          # APNs only speaks HTTP/2 and multiplexes requests on one connection.
+          "https://api.push.apple.com" => apns_pool_opts(),
+          "https://api.sandbox.push.apple.com" => apns_pool_opts(),
           "https://marketing.tuist.dev" => [
             conn_opts: [
               log: true,
@@ -618,6 +621,22 @@ defmodule Tuist.Application do
 
       Map.merge(base_pools, additional_pools)
     end
+  end
+
+  defp apns_pool_opts do
+    [
+      conn_opts: [
+        log: true,
+        transport_opts: [
+          inet6: Environment.use_ipv6?() in ~w(true 1),
+          cacertfile: CAStore.file_path(),
+          verify: :verify_peer
+        ]
+      ],
+      count: 1,
+      protocols: [:http2],
+      start_pool_metrics?: true
+    ]
   end
 
   defp object_storage_endpoint do

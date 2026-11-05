@@ -39,7 +39,9 @@ defmodule Tuist.Push do
   alias Tuist.Environment
   alias Tuist.MCP.Events.OAuthGrants
   alias Tuist.OAuth.Clients
+  alias Tuist.Push.APNs
   alias Tuist.Push.Installation
+  alias Tuist.Push.Workers.NewPreviewWorker
   alias Tuist.Repo
 
   @max_live_per_user 10
@@ -148,7 +150,7 @@ defmodule Tuist.Push do
   @doc """
   The user's live installations whose OAuth grant is still active. Installations
   whose sign-in has ended are retired as `session_ended` instead of returned.
-  This is the set a future delivery fan-out should target.
+  This is the set notifications are delivered to.
   """
   def live_installations(user_id) do
     Installation
@@ -158,6 +160,31 @@ defmodule Tuist.Push do
     |> Enum.filter(fn installation ->
       session_active?(installation) or retire_session_ended(installation)
     end)
+  end
+
+  @doc """
+  Queues a new-preview notification for `preview` (see
+  `Tuist.Push.Workers.NewPreviewWorker`). Does nothing on servers without an
+  APNs key.
+  """
+  def notify_new_preview(%{id: preview_id}) do
+    if APNs.configured?() do
+      {:ok, _job} = %{"preview_id" => preview_id} |> NewPreviewWorker.new() |> Oban.insert()
+    end
+
+    :ok
+  end
+
+  @doc """
+  Retires `installation` as `rejected` after the push provider refused its token,
+  unless it has registered a different token since.
+  """
+  def retire_rejected(%Installation{id: id, token_hash: token_hash}) do
+    Installation
+    |> where([i], i.id == ^id and i.token_hash == ^token_hash and is_nil(i.retired_at))
+    |> Repo.update_all(set: retired_fields("rejected"))
+
+    :ok
   end
 
   def prune_batch_size, do: @prune_batch_size
