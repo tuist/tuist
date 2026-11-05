@@ -175,8 +175,7 @@ pulso:
           - alert:preview
           - alert:evaluate
           - alert:import
-          # alert:record (needed to create the kura group) is rejected at boot
-          # by 1.35.0's runtime config; add it back with the 1.35.1 fix.
+          - alert:record
   # Proposed production retention, previewed only: observe mode computes the
   # floor but expires nothing. Switching to enforce deletes data and needs an
   # explicit decision. 1.32.0+ keeps enforced prefixes on the paged manifest,
