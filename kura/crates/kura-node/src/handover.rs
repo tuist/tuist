@@ -51,6 +51,11 @@ const CONTENT_WALK_DEADLINE_MARGIN_MS: u64 = 30_000;
 // Bounds the records a content-verified destination remembers as missing, so
 // the frozen repair fetches only those; past it, the full walk runs.
 const MAX_DELTA_REPAIR_RECORDS: usize = 100_000;
+// Barrier-delta entries per page the frozen source requests, and the bytes a
+// page may take; every other verification answer stays within 16 KiB.
+const BARRIER_DELTA_PAGE_RECORDS: usize = 512;
+const BARRIER_DELTA_PAGE_BYTES: usize = 256 * 1024;
+const VERIFICATION_ANSWER_BYTES: usize = 16 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Intent {
@@ -520,13 +525,16 @@ async fn verify_inner(
             .as_ref()
             .filter(|verified| verified.intent_id == request.intent.id)
             .map_or((0, None), |verified| {
-                (verified.keys.len(), verified.barrier_delta.clone())
+                (
+                    verified.keys.len(),
+                    verified.barrier_delta.as_ref().map(Vec::len),
+                )
             });
         return Ok(serde_json::json!({
             "destination": authority.identity(),
             "max_batch_records": MAX_BATCH_RECORDS,
             "preverified_records": preverified,
-            "barrier_delta": barrier_delta,
+            "barrier_delta_records": barrier_delta,
         }));
     }
     if state
@@ -577,6 +585,73 @@ async fn verify_inner(
         .await?;
     *authority.barrier.lock().map_err(|_| "barrier poisoned")? = Some(receipt.clone());
     Ok(serde_json::json!({"receipt": receipt}))
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct BarrierDeltaRequest {
+    intent: Intent,
+    source: Holder,
+    offset: usize,
+}
+
+/// One page of the records the frozen source must verify in full, once this
+/// destination holds the corpus for the named intent.
+pub async fn barrier_delta(
+    State(state): State<SharedState>,
+    Json(request): Json<BarrierDeltaRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    barrier_delta_page(&state, request)
+        .map(Json)
+        .map_err(|error| (StatusCode::CONFLICT, bounded_detail(&error)))
+}
+
+fn barrier_delta_page(
+    state: &SharedState,
+    request: BarrierDeltaRequest,
+) -> Result<serde_json::Value, String> {
+    let verify = VerifyRequest {
+        begin: false,
+        intent: request.intent,
+        source: request.source,
+        record: None,
+        records: Vec::new(),
+        receipt: None,
+        records_without_feed_rows: None,
+    };
+    require_current_destination(state, &verify)?;
+    if state
+        .store
+        .handover_hold
+        .lock()
+        .map_err(|_| "handover hold poisoned")?
+        .as_deref()
+        != Some(verify.intent.id.as_str())
+    {
+        return Err("retained corpus not held".into());
+    }
+    let authority = &state.runtime.authority;
+    let verified = authority
+        .verified_content
+        .lock()
+        .map_err(|_| "verified content poisoned")?;
+    let delta = verified
+        .as_ref()
+        .filter(|verified| verified.intent_id == verify.intent.id)
+        .and_then(|verified| verified.barrier_delta.as_ref())
+        .ok_or("no barrier delta for this intent")?;
+    let mut entries = Vec::new();
+    let mut bytes = 0usize;
+    for entry in delta.iter().skip(request.offset) {
+        let encoded = serde_json::to_vec(entry).map_err(|e| e.to_string())?.len() + 1;
+        if entries.len() == BARRIER_DELTA_PAGE_RECORDS
+            || (!entries.is_empty() && bytes + encoded > BARRIER_DELTA_PAGE_BYTES)
+        {
+            break;
+        }
+        bytes += encoded;
+        entries.push(entry);
+    }
+    Ok(serde_json::json!({"destination": authority.identity(), "entries": entries}))
 }
 
 fn require_current_destination(state: &SharedState, request: &VerifyRequest) -> Result<(), String> {
@@ -1480,6 +1555,7 @@ async fn send(
         "/_internal/handover/verify",
         request,
         &verification_context(request),
+        VERIFICATION_ANSWER_BYTES,
     )
     .await
 }
@@ -1490,6 +1566,7 @@ async fn send_to(
     path: &str,
     body: &impl Serialize,
     context: &str,
+    limit: usize,
 ) -> Result<serde_json::Value, String> {
     let response = state
         .peer_request(
@@ -1504,7 +1581,7 @@ async fn send_to(
         .map_err(|e| e.to_string())?;
     let status = response.status();
     let bytes =
-        crate::replication::read_bounded_body(response, 16 * 1024, "handover verification").await?;
+        crate::replication::read_bounded_body(response, limit as u64, "handover verification").await?;
     if !status.is_success() {
         let reason = bounded_detail(&String::from_utf8_lossy(&bytes));
         if status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
@@ -1581,6 +1658,7 @@ async fn descriptor_needs(
         "/_internal/handover/verify-descriptors",
         &batch,
         &format!("descriptors records={count}"),
+        VERIFICATION_ANSWER_BYTES,
     )
     .await?;
     check_destination(&answer, intent)?;
@@ -1737,18 +1815,48 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
     let preverified = answer["preverified_records"].as_u64().unwrap_or(0);
     let started = std::time::Instant::now();
     let mut content_verified = 0u64;
-    let barrier_delta: Option<Vec<BackfillEntry>> = match &answer["barrier_delta"] {
-        serde_json::Value::Null => None,
-        delta => Some(serde_json::from_value(delta.clone()).map_err(|e| e.to_string())?),
-    };
+    let barrier_delta = answer["barrier_delta_records"]
+        .as_u64()
+        .map(|records| records as usize);
     let delta_barrier = barrier_delta.is_some();
-    if let Some(delta) = barrier_delta {
+    if let Some(delta_records) = barrier_delta {
         // The destination confirmed every other retained record while this
-        // source served and still holds it: verify only what it repaired.
+        // source served and still holds it: verify only what it repaired,
+        // reading its list a bounded page at a time.
         let mut seen = HashSet::new();
         let mut batch = Vec::with_capacity(batch_size);
         let mut body_bytes = 0u64;
-        for entry in delta {
+        let mut offset = 0usize;
+        let mut page = Vec::new();
+        loop {
+            if page.is_empty() {
+                if offset == delta_records {
+                    break;
+                }
+                let answer = send_to(
+                    state,
+                    intent,
+                    "/_internal/handover/barrier-delta",
+                    &BarrierDeltaRequest {
+                        intent: intent.clone(),
+                        source: receipt.source.clone(),
+                        offset,
+                    },
+                    &format!("barrier delta offset={offset}"),
+                    2 * BARRIER_DELTA_PAGE_BYTES,
+                )
+                .await?;
+                check_destination(&answer, intent)?;
+                let entries: Vec<BackfillEntry> =
+                    serde_json::from_value(answer["entries"].clone()).map_err(|e| e.to_string())?;
+                if entries.is_empty() || offset + entries.len() > delta_records {
+                    return Err("destination barrier delta changed while frozen".into());
+                }
+                offset += entries.len();
+                page = entries;
+                page.reverse();
+            }
+            let entry = page.pop().expect("a delta entry");
             let kind = BackfillRecordKind::from_wire_name(&entry.record_kind)
                 .ok_or("unknown retained record kind")?;
             if !seen.insert(content_key(
@@ -4079,6 +4187,30 @@ mod tests {
             3,
             "begin, the late record in full, and the receipt"
         );
+    }
+
+    #[tokio::test]
+    async fn a_delta_larger_than_one_verification_answer_is_paged_to_the_frozen_source() {
+        let pair = ContentPair::new().await;
+        pair.seed("early", &vec![1; 64 * 1024]).await;
+        pair.catch_up_cursor();
+        pair.prepare_while_serving().await.unwrap();
+        // Hundreds of late records name far more than 16 KiB of delta.
+        let late = 600;
+        for index in 0..late {
+            pair.seed(&format!("late-{index}"), &(index as u64).to_be_bytes())
+                .await;
+        }
+
+        let receipt = pair.freeze().await.unwrap();
+
+        assert_eq!(receipt.records as usize, late);
+        assert_eq!(
+            pair.requests("/_internal/handover/verify-descriptors"),
+            0,
+            "the frozen source never walks its whole index"
+        );
+        assert!(pair.requests("/_internal/handover/barrier-delta") > 1);
     }
 
     #[tokio::test]
