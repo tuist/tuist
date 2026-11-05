@@ -1,5 +1,6 @@
 defmodule TuistWeb.SCIM.UsersControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -243,6 +244,80 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
       conn = patch(conn, "/scim/v2/Users/#{user.id}", body)
       assert json_response(conn, 200)["active"] == false
       assert {:error, :not_found} = SCIM.get_user(org, user.id)
+    end
+  end
+
+  describe "operator email domain" do
+    setup do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      %{operator_email: "x@#{Tuist.Environment.operator_email_domain()}"}
+    end
+
+    test "refuses to create an operator-domain user", %{conn: conn, operator_email: operator_email} do
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: operator_email, active: true}))
+
+      assert json_response(conn, 400)["scimType"] == "invalidValue"
+      assert {:error, :not_found} = Accounts.get_user_by_email(operator_email)
+    end
+
+    test "refuses to rename a member into the operator domain", %{
+      conn: conn,
+      organization: org,
+      operator_email: operator_email
+    } do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "member@example.com"})
+
+      body =
+        JSON.encode!(%{
+          schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+          Operations: [%{op: "replace", path: "userName", value: String.upcase(operator_email)}]
+        })
+
+      conn = patch(conn, "/scim/v2/Users/#{user.id}", body)
+
+      assert json_response(conn, 400)["scimType"] == "invalidValue"
+      assert Accounts.get_user_by_id(user.id).email == "member@example.com"
+      refute Accounts.tuist_operator?(Accounts.get_user_by_id(user.id))
+    end
+
+    test "creates operator-domain users for an organization that DNS-verified that domain", %{
+      operator_email: operator_email
+    } do
+      organization =
+        organization_fixture(
+          sso_provider: :oauth2,
+          sso_organization_id: "https://idp.operator.example",
+          sso_login_domain: Tuist.Environment.operator_email_domain(),
+          sso_login_domain_verified_at: ~U[2026-01-01 00:00:00Z],
+          oauth2_client_id: "client",
+          oauth2_client_secret: "secret",
+          oauth2_authorize_url: "https://idp.operator.example/authorize",
+          oauth2_token_url: "https://idp.operator.example/token",
+          oauth2_user_info_url: "https://idp.operator.example/userinfo"
+        )
+
+      {:ok, {_token, plaintext}} = SCIM.create_token(organization, %{name: "verified"})
+
+      conn =
+        build_conn()
+        |> put_req_header("authorization", "Bearer #{plaintext}")
+        |> put_req_header("content-type", "application/scim+json")
+        |> post("/scim/v2/Users", JSON.encode!(%{userName: operator_email, active: true}))
+
+      assert json_response(conn, 201)["userName"] == operator_email
+    end
+
+    test "still attaches an existing operator-domain user", %{
+      conn: conn,
+      organization: org,
+      operator_email: operator_email
+    } do
+      existing = user_fixture(email: operator_email)
+
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: operator_email, active: true}))
+
+      assert json_response(conn, 201)["id"] == to_string(existing.id)
+      assert Accounts.belongs_to_organization?(existing, org)
     end
   end
 
