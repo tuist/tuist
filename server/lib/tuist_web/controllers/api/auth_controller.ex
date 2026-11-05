@@ -10,7 +10,6 @@ defmodule TuistWeb.API.AuthController do
   alias Tuist.Authentication.RefreshReplays
   alias Tuist.Environment
   alias Tuist.OAuth.Apple
-  alias Tuist.Time
   alias TuistWeb.API.Schemas.AuthenticationTokens
 
   plug(TuistWeb.Plugs.CastAndValidate,
@@ -34,6 +33,44 @@ defmodule TuistWeb.API.AuthController do
           type: :string
         }
       }
+    })
+  end
+
+  operation(:create_device_code,
+    summary: "Start a device sign-in.",
+    description: """
+    Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to \
+    open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every \
+    `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+    """,
+    operation_id: "createDeviceCode",
+    responses: %{
+      ok:
+        {"The device sign-in was started", "application/json",
+         %Schema{
+           title: "DeviceAuthorization",
+           type: :object,
+           properties: %{
+             device_code: %Schema{type: :string, description: "The secret code to poll for tokens with."},
+             user_code: %Schema{type: :string, description: "The short code the person enters in the browser."},
+             verification_uri: %Schema{type: :string, description: "The page where the person enters the code."},
+             expires_in: %Schema{type: :integer, description: "Seconds until the codes expire."},
+             interval: %Schema{type: :integer, description: "Seconds to wait between polls."}
+           },
+           required: [:device_code, :user_code, :verification_uri, :expires_in, :interval]
+         }}
+    }
+  )
+
+  def create_device_code(conn, _params) do
+    {:ok, device_code} = Accounts.create_device_authorization()
+
+    json(conn, %{
+      device_code: device_code.code,
+      user_code: Accounts.format_user_code(device_code.user_code),
+      verification_uri: url(~p"/auth/device"),
+      expires_in: Accounts.device_code_ttl_seconds(),
+      interval: 1
     })
   end
 
@@ -86,10 +123,7 @@ defmodule TuistWeb.API.AuthController do
         |> put_status(:accepted)
         |> json(%{})
 
-      NaiveDateTime.before?(
-        device_code.created_at,
-        DateTime.to_naive(DateTime.add(Time.utc_now(), -5, :minute))
-      ) ->
+      Accounts.device_code_expired?(device_code) ->
         conn
         |> put_status(:bad_request)
         |> json(%{message: "The device code has expired."})
@@ -99,7 +133,23 @@ defmodule TuistWeb.API.AuthController do
         |> put_status(:accepted)
         |> json(%{})
 
-      device_code.authenticated ->
+      Accounts.device_code_used?(device_code) ->
+        device_code_already_used(conn)
+
+      true ->
+        issue_device_code_tokens(conn, device_code)
+    end
+  end
+
+  # Consuming the code first means only one poll receives the tokens. A later
+  # or losing concurrent poll gets a 400, which ends the CLI's polling with a
+  # message instead of waiting forever.
+  defp issue_device_code_tokens(conn, device_code) do
+    case Accounts.consume_device_code(device_code) do
+      {:error, :already_used} ->
+        device_code_already_used(conn)
+
+      {:ok, device_code} ->
         user = Accounts.get_user!(device_code.user_id, preload: [:account])
 
         # Refreshing carries the claims over, so the tokens keep the SSO
@@ -124,6 +174,12 @@ defmodule TuistWeb.API.AuthController do
           refresh_token: refresh_token
         })
     end
+  end
+
+  defp device_code_already_used(conn) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{message: "The device code was already used. Sign in again."})
   end
 
   operation(:refresh_token,
