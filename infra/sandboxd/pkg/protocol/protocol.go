@@ -32,6 +32,11 @@ const (
 	OpSaveDisks   = "save_disks"
 	OpDeleteDisks = "delete_disks"
 	OpArchive     = "archive"
+	// OpHoldResidency keeps a running macOS sandbox from idle eviction while
+	// detached guest work (an Amp Orb's turn) that the host cannot observe
+	// runs; a pause or OpReleaseResidency with the same work ID ends it.
+	OpHoldResidency    = "hold_residency"
+	OpReleaseResidency = "release_residency"
 )
 
 const (
@@ -108,18 +113,25 @@ type TemplateInfo struct {
 	// template gets a clone of: the most a sandbox's rootfs can ever take on
 	// the node, which the server reserves against the disk budget.
 	RootfsBytes int64 `json:"rootfs_bytes"`
+	// Warm lists the shapes (`<vcpus>x<memory_mb>`) of booted macOS VMs a
+	// create of this template claims instead of cold-booting, one per VM.
+	Warm []string `json:"warm,omitempty"`
 }
 
 type SandboxInfo struct {
-	ID            string `json:"id"`
-	State         string `json:"state"`
-	Template      string `json:"template"`
-	TemplateTag   string `json:"template_tag"`
-	VCPUs         int    `json:"vcpus"`
-	MemoryMB      int    `json:"memory_mb"`
-	WorkspaceGB   int    `json:"workspace_gb"`
-	Hostname      string `json:"hostname"`
-	WorkerRunning bool   `json:"worker_running"`
+	// Resident is true while a paused macOS VM still owns a host slot and RAM.
+	// False must be sent too: omission leaves the server's old charge intact.
+	Resident       bool   `json:"resident"`
+	ID             string `json:"id"`
+	State          string `json:"state"`
+	Template       string `json:"template"`
+	TemplateTag    string `json:"template_tag"`
+	VCPUs          int    `json:"vcpus"`
+	MemoryMB       int    `json:"memory_mb"`
+	WorkspaceGB    int    `json:"workspace_gb"`
+	Hostname       string `json:"hostname"`
+	WorkerRunning  bool   `json:"worker_running"`
+	FinishedWorkID string `json:"finished_work_id,omitempty"`
 	// ColdBoot marks a paused sandbox whose next resume boots the kernel on
 	// its own disks instead of restoring memory, because the daemon lost the
 	// VM while it was running and the disks moved on since the last snapshot.
@@ -143,6 +155,10 @@ type DiskSnapshotInfo struct {
 }
 
 type Hello struct {
+	ControlUID         string             `json:"control_uid,omitempty"`
+	Admission          any                `json:"admission,omitempty"`
+	Platform           string             `json:"platform,omitempty"`
+	Generation         string             `json:"generation,omitempty"`
 	ExecutionDeadlines bool               `json:"execution_deadlines,omitempty"`
 	ExecutionSlots     int                `json:"execution_slots,omitempty"`
 	Type               string             `json:"type"`
@@ -175,6 +191,8 @@ type Stream struct {
 }
 
 type Event struct {
+	WorkID     string `json:"work_id,omitempty"`
+	Generation string `json:"generation,omitempty"`
 	Type       string `json:"type"`
 	Event      string `json:"event"`
 	SandboxID  string `json:"sandbox_id,omitempty"`
@@ -194,12 +212,18 @@ type MemoryReport struct {
 // changes, so a resize reaches the server's budget without waiting out the
 // interval.
 type Report struct {
+	ControlUID    string             `json:"control_uid,omitempty"`
+	Admission     any                `json:"admission,omitempty"`
+	Platform      string             `json:"platform,omitempty"`
+	Generation    string             `json:"generation,omitempty"`
 	Type          string             `json:"type"`
 	Capacity      Capacity           `json:"capacity"`
 	Sandboxes     []SandboxInfo      `json:"sandboxes"`
 	DiskSnapshots []DiskSnapshotInfo `json:"disk_snapshots"`
 	Memory        MemoryReport       `json:"memory"`
 	Disk          DiskReport         `json:"disk"`
+	// Templates is sent by macOS hosts, whose warm VMs change between hellos.
+	Templates []TemplateInfo `json:"templates,omitempty"`
 }
 
 type Command struct {

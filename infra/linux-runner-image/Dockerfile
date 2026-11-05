@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
-# Tuist Linux runner image — Ubuntu 24.04 base with the GitHub
+# Tuist Linux runner image — Ubuntu base (24.04 by default, 22.04 with
+# `--build-arg OS_VERSION=ubuntu-22.04`) with the GitHub
 # Actions runner binary and Tuist's dispatch-poll script baked in.
 # Designed to run as a single-job Pod on Hetzner Cloud nodes
 # managed by the runners-controller. After `./run.sh --jitconfig
@@ -15,6 +16,10 @@
 #
 # Renovate auto-bumps RUNNER_VERSION via `renovate.json` config
 # matching the same pattern as the macOS image.
+
+# Global scope: `FROM base-${OS_VERSION}` below only sees ARGs declared
+# before the first FROM.
+ARG OS_VERSION=ubuntu-24.04
 
 FROM --platform=$BUILDPLATFORM golang:1.26.10-bookworm AS runner-shell-agent-builder
 
@@ -126,14 +131,24 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
     # `runner`, not root.
     && chmod -R a+rwX "${ANDROID_SDK_ROOT}"
 
-FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS runner
-
+# One base stage per Ubuntu release a Runner Profile can pick
+# (`runnersFleetLinux.osVersions` in the chart). `OS_VERSION` selects one;
+# BuildKit builds only the stage it names, so the other base is never
+# pulled. Everything after the base is shared, and the large layers
+# (`COPY --link` of the Android SDK) do not depend on it.
+#
 # GitHub-hosted runners set ImageOS, and setup actions such as
-# erlef/setup-beam read it to pick a prebuilt binary for the OS. Keep it
-# in step with the base image above (ubuntu:24.04 -> ubuntu24). The image
-# is amd64-only (RUNNER_ARCH=x64); an arm64 build would need GitHub's
-# `ubuntu24-arm64`.
+# erlef/setup-beam read it to pick a prebuilt binary for the OS, so each
+# base sets the value GitHub uses for its release. The image is
+# amd64-only (RUNNER_ARCH=x64); an arm64 build would need GitHub's
+# `ubuntu24-arm64` / `ubuntu22-arm64`.
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS base-ubuntu-24.04
 ENV ImageOS=ubuntu24
+
+FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b AS base-ubuntu-22.04
+ENV ImageOS=ubuntu22
+
+FROM base-${OS_VERSION} AS runner
 
 # Set runtime defaults so customer workflows see UTF-8 locales out
 # of the box and apt-driven installs in workflow steps don't trip
@@ -149,7 +164,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # stays deferred to a `tuist-linux-runner-fat` variant).
 #
 # Categorized for readability:
-#   - actions/runner runtime: libicu74 + libssl3t64 + libkrb5
+#   - actions/runner runtime: libicu + libssl3 + libkrb5. 24.04 renamed
+#     the ICU and OpenSSL runtime packages (libicu74, libssl3t64), so the
+#     names come from the base's release
 #   - baseline shell + transfer: bash, ca-certificates, curl, wget,
 #     gnupg, jq, locales, lsb-release, sudo, tar, unzip, xz-utils
 #   - build toolchain: build-essential pulls gcc/g++/make/libc6-dev;
@@ -176,17 +193,22 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # `actions/runner` registers under a non-root user by default —
 # `RUNNER_ALLOW_RUNASROOT=0` enforces it, and the explicit `runner`
 # user is created below.
-RUN apt-get update \
+RUN . /etc/os-release \
+    && case "$VERSION_ID" in \
+         22.04) runtime_packages="libicu70 libssl3" ;; \
+         24.04) runtime_packages="libicu74 libssl3t64" ;; \
+         *) echo "No runtime packages for Ubuntu $VERSION_ID" >&2; exit 1 ;; \
+       esac \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
+        $runtime_packages \
         bash \
         ca-certificates \
         curl \
         git \
         gnupg \
         jq \
-        libicu74 \
         libkrb5-3 \
-        libssl3t64 \
         locales \
         lsb-release \
         sudo \
@@ -330,10 +352,11 @@ ENV ANDROID_HOME=/usr/local/lib/android/sdk \
 # matches the hosted-runner experience. The `docker` group GID is
 # pinned to 123 to match the `--group=123` arg the controller
 # passes to dockerd in the sidecar, so the runner can reach
-# /var/run/docker.sock without sudo. The base image's `ubuntu` user
-# holds UID 1000, which `runner` has always had: cached checkouts and
-# Docker data roots that earlier jobs left are owned by it.
-RUN userdel --remove ubuntu \
+# /var/run/docker.sock without sudo. `runner` is UID 1000 on every base:
+# cached checkouts and Docker data roots that earlier jobs left are owned
+# by it, and a profile can move between OS versions. 24.04 ships an
+# `ubuntu` user at UID 1000, which is removed; 22.04 has none.
+RUN if id -u ubuntu >/dev/null 2>&1; then userdel --remove ubuntu; fi \
     && groupadd -g 123 docker \
     && useradd -m -u 1000 -d /home/runner -s /bin/bash -G docker runner \
     && echo "runner ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \

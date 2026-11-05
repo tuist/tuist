@@ -111,8 +111,9 @@ msgstr ""
 msgid "Continue"
 msgstr ""
 
+#: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:14
 #: lib/tuist_web/controllers/sso_link_html/status.html.heex:6
-#: lib/tuist_web/live/device_codes_success_live.ex:64
+#: lib/tuist_web/live/device_codes_success_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr ""
@@ -271,14 +272,14 @@ msgstr ""
 msgid "This username has already been taken"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:44
+#: lib/tuist_web/live/device_codes_success_live.ex:31
 #, elixir-autogen, elixir-format
 msgid "Tuist CLI is connected!"
 msgstr ""
 
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:4
 #: lib/tuist_web/live/choose_username_live.ex:51
-#: lib/tuist_web/live/device_codes_success_live.ex:33
+#: lib/tuist_web/live/device_codes_success_live.ex:20
 #: lib/tuist_web/live/sso_login_live.ex:72
 #: lib/tuist_web/live/user_confirmation_instructions_live.ex:16
 #: lib/tuist_web/live/user_confirmation_live.ex:16
@@ -291,7 +292,7 @@ msgstr ""
 msgid "Tuist Logo"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:42
+#: lib/tuist_web/live/device_codes_success_live.ex:29
 #, elixir-autogen, elixir-format
 msgid "Tuist app is connected!"
 msgstr ""
@@ -308,7 +309,7 @@ msgstr ""
 msgid "Tuist documentation"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:46
+#: lib/tuist_web/live/device_codes_success_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "Tuist is connected!"
 msgstr ""
@@ -350,17 +351,17 @@ msgstr ""
 msgid "Welcome! Create an account to continue"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:56
+#: lib/tuist_web/live/device_codes_success_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:52
+#: lib/tuist_web/live/device_codes_success_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the app"
 msgstr ""
 
-#: lib/tuist_web/live/device_codes_success_live.ex:54
+#: lib/tuist_web/live/device_codes_success_live.ex:41
 #, elixir-autogen, elixir-format
 msgid "You can close the tab and continue in the terminal"
 msgstr ""
@@ -442,7 +443,7 @@ msgstr ""
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:601
+#: lib/tuist_web/controllers/auth_controller.ex:709
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
 msgstr ""
@@ -557,11 +558,12 @@ msgstr ""
 msgid "Google sign-in could not be completed. Please try logging in again."
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:61
+#: lib/tuist_web/controllers/sso_link_controller.ex:62
 #, elixir-autogen, elixir-format
 msgid "Already linked"
 msgstr ""
 
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:38
 #: lib/tuist_web/controllers/integration_installation_html/show.html.heex:45
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:46
 #, elixir-autogen, elixir-format
@@ -573,7 +575,7 @@ msgstr ""
 msgid "Link account"
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:125
+#: lib/tuist_web/controllers/sso_link_controller.ex:126
 #, elixir-autogen, elixir-format
 msgid "Link expired"
 msgstr ""
@@ -583,7 +585,7 @@ msgstr ""
 msgid "Link only if %{organization} is your organization. Anyone who can sign in to this identity provider account can sign in to your whole Tuist account."
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:133
+#: lib/tuist_web/controllers/sso_link_controller.ex:134
 #, elixir-autogen, elixir-format
 msgid "Link single sign-on · Tuist"
 msgstr ""
@@ -593,17 +595,19 @@ msgstr ""
 msgid "Link single sign-on?"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:458
+#: lib/tuist_web/controllers/auth_controller.ex:515
 #, elixir-autogen, elixir-format
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:126
+#: lib/tuist_web/controllers/sso_link_controller.ex:127
 #, elixir-autogen, elixir-format
 msgid "Sign in with single sign-on again to link your account."
 msgstr ""
 
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:18
 #: lib/tuist_web/controllers/sso_link_html/show.html.heex:15
+#: lib/tuist_web/live/device_authorization_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Signed in to Tuist as %{email}"
 msgstr ""
@@ -613,11 +617,12 @@ msgstr ""
 msgid "The %{organization} identity provider account that will sign in to your Tuist account."
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:63
+#: lib/tuist_web/controllers/sso_link_controller.ex:64
 #, elixir-autogen, elixir-format
 msgid "This identity provider account is already linked to another Tuist account."
 msgstr ""
 
+#: lib/tuist_web/controllers/device_code_html.ex:19
 #: lib/tuist_web/controllers/sso_link_html.ex:19
 #, elixir-autogen, elixir-format
 msgid "Tuist logo"
@@ -1012,7 +1017,75 @@ msgstr ""
 msgid "this device only"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:341
+#: lib/tuist_web/controllers/auth_controller.ex:420
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Log in with its email and password instead."
+msgstr ""
+
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:8
+#, elixir-autogen, elixir-format
+msgid "Continue only if you just started this sign-in from your terminal or app."
+msgstr ""
+
+#: lib/tuist_web/live/device_authorization_live.ex:31
+#, elixir-autogen, elixir-format
+msgid "Enter the code shown in your terminal."
+msgstr ""
+
+#: lib/tuist_web/live/device_authorization_live.ex:72
+#, elixir-autogen, elixir-format
+msgid "Only enter a code from a terminal you are using. Never enter a code someone sent you."
+msgstr ""
+
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:32
+#: lib/tuist_web/live/device_authorization_live.ex:65
+#, elixir-autogen, elixir-format
+msgid "Sign in"
+msgstr ""
+
+#: lib/tuist_web/controllers/auth_controller.ex:602
+#: lib/tuist_web/live/device_authorization_live.ex:19
+#, elixir-autogen, elixir-format
+msgid "Sign in to Tuist"
+msgstr ""
+
+#: lib/tuist_web/live/device_authorization_live.ex:30
+#, elixir-autogen, elixir-format
+msgid "Sign in to the Tuist CLI"
+msgstr ""
+
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Sign in to the Tuist CLI?"
+msgstr ""
+
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Sign in to the Tuist app?"
+msgstr ""
+
+#: lib/tuist_web/controllers/auth_controller.ex:650
+#: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:2
+#, elixir-autogen, elixir-format
+msgid "Sign-in link expired"
+msgstr ""
+
+#: lib/tuist_web/controllers/device_code_html/confirm.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "Signing in gives whoever started it access to your Tuist account. If you did not start it, cancel."
+msgstr ""
+
+#: lib/tuist_web/controllers/auth_controller.ex:632
+#, elixir-autogen, elixir-format
+msgid "That code is incorrect or has expired. Check it and try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/device_code_html/unavailable.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "This sign-in link has expired or was already used. Start the sign-in again."
+msgstr ""
+
+#: lib/tuist_web/controllers/auth_controller.ex:638
+#, elixir-autogen, elixir-format
+msgid "Too many attempts. Wait a few minutes and try again."
 msgstr ""

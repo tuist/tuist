@@ -151,6 +151,12 @@ spec:
             - name: TUIST_SERVER_TOKEN_PATH
               value: {{ printf "%s/token" .Values.tuistServer.tokenMountPath | quote }}
             {{- end }}
+            {{- with .Values.pulso.upstreams }}
+            # One proxied MCP upstream per Pulso, each reading its own
+            # audience-scoped token from the pulso-token volume below.
+            - name: PULSO_MCP_UPSTREAMS
+              value: {{ $upstreams := list }}{{ range . }}{{ $upstreams = append $upstreams (dict "name" .name "url" .mcpUrl "token_path" (printf "%s/%s" $.Values.pulso.tokenMountPath .name)) }}{{ end }}{{ $upstreams | toJson | quote }}
+            {{- end }}
             {{- if .Values.postgres.enabled }}
             - name: PGUSER
               valueFrom:
@@ -214,14 +220,22 @@ spec:
                 command: ["sh", "-c", "sleep 10"]
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if .Values.tuistServer.enabled }}
+          {{- if or .Values.tuistServer.enabled .Values.pulso.upstreams }}
           volumeMounts:
+            {{- if .Values.tuistServer.enabled }}
             - name: tuist-server-token
               mountPath: {{ .Values.tuistServer.tokenMountPath }}
               readOnly: true
+            {{- end }}
+            {{- if .Values.pulso.upstreams }}
+            - name: pulso-token
+              mountPath: {{ .Values.pulso.tokenMountPath }}
+              readOnly: true
+            {{- end }}
           {{- end }}
-      {{- if .Values.tuistServer.enabled }}
+      {{- if or .Values.tuistServer.enabled .Values.pulso.upstreams }}
       volumes:
+        {{- if .Values.tuistServer.enabled }}
         # Projected ServiceAccount token scoped to the Tuist server audience.
         # The Tuist server verifies it offline against Atlas' pinned JWKS
         # (InternalAtlasAuthPlug); the kubelet rotates the file in place.
@@ -232,4 +246,19 @@ spec:
                   path: token
                   audience: {{ .Values.tuistServer.tokenAudience | quote }}
                   expirationSeconds: {{ .Values.tuistServer.tokenExpirationSeconds }}
+        {{- end }}
+        {{- with .Values.pulso.upstreams }}
+        # Same mechanism for Pulso's MCP endpoints: one token per Pulso, each
+        # with that host as its audience, so a token sent to one Pulso is
+        # never accepted by another (or by the Tuist server).
+        - name: pulso-token
+          projected:
+            sources:
+              {{- range . }}
+              - serviceAccountToken:
+                  path: {{ .name }}
+                  audience: {{ .audience | quote }}
+                  expirationSeconds: {{ $.Values.pulso.tokenExpirationSeconds }}
+              {{- end }}
+        {{- end }}
       {{- end }}

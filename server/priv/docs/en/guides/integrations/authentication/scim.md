@@ -147,7 +147,9 @@ Changing a user's app roles in Entra ID updates their Tuist role on the next pro
 
 ## Lifecycle behavior {#lifecycle-behavior}
 
-When your identity provider assigns a user to the provisioning application, Tuist creates the user if the email is not already known to Tuist, then adds them to the organization. If the email already belongs to an existing Tuist user outside the organization, Tuist rejects the request to prevent an IdP from claiming a user that it does not already manage in that organization.
+When your identity provider assigns a user to the provisioning application, Tuist creates the user if the email is not already known to Tuist, then adds them to the organization. If the email already belongs to an existing Tuist user outside the organization, Tuist adds that user and emails them about it, unless another organization's SCIM integration created the account. In that case Tuist rejects the request with `409`, so that an identity provider can't claim an account another organization manages.
+
+Your identity provider can change a user's email (`userName`) only while your organization manages the account on its own. That means Tuist created the account through your SCIM integration, and since then the user hasn't set a password, signed in with a provider other than your organization's single sign-on, claimed an agent registration, or joined another organization. For any other user, Tuist rejects the change with `400` and the `mutability` SCIM error type. It still applies a deactivation sent in the same request. Tuist also refuses to create users in, or rename users into, a login domain that another organization verified, and, on tuist.dev, Tuist's own domain. A rename clears the record that the user proved control of the old address.
 
 When your identity provider unassigns or deactivates the user, Tuist removes their organization role while preserving the user record and any work they own. Deprovisioning does not disable the user globally, because the same Tuist user can belong to other organizations.
 

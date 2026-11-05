@@ -21,10 +21,14 @@ defmodule Atlas.MCP.Proxy do
   @connection_tool "atlas_connection_status"
 
   @protocol_version "2025-03-26"
+  # Revisions without the initialize handshake: every request carries its
+  # version and client capabilities in `params._meta` and mirrors the version,
+  # method and tool name in headers. Pulso speaks only these.
+  @stateless_protocol_versions ["2026-07-28"]
   @client_info %{"name" => "atlas-mcp-proxy", "version" => "0.1.0"}
   # The Tuist server's tools read production customer data, so they sit in the
-  # same "observability" ("Production systems") group as the Grafana and Tuist
-  # database tools — granted by the same identity toggle. OVH's reads
+  # same "observability" ("Production systems") group as the Grafana, Pulso and
+  # Tuist database tools — granted by the same identity toggle. OVH's reads
   # describe the production fleet, so they belong there too.
   @server_tool_groups %{
     "grafana" => "observability",
@@ -185,6 +189,9 @@ defmodule Atlas.MCP.Proxy do
     not restricted_mcp_session?(conn) or server_tool_group(server) in allowed_tool_groups(conn)
   end
 
+  # One Pulso upstream per Tuist environment (`pulso` for production,
+  # `pulso_canary`, ...), all reading cluster telemetry.
+  defp server_tool_group(%Server{name: "pulso" <> _}), do: "observability"
   defp server_tool_group(%Server{name: name}), do: Map.get(@server_tool_groups, name, "default")
 
   defp restricted_mcp_session?(%{assigns: %{mcp_claims: %{"mcp_tool_groups" => groups}}}) when is_list(groups), do: true
@@ -233,6 +240,8 @@ defmodule Atlas.MCP.Proxy do
           approval_required_tools: normalize_scopes(get_config(raw, :approval_required_tools, [])),
           atlas_identity_header: get_config(raw, :atlas_identity_header),
           bearer_token: bearer_token,
+          token_path: get_config(raw, :token_path),
+          protocol_version: get_config(raw, :protocol_version, @protocol_version),
           receive_timeout: normalize_timeout(get_config(raw, :receive_timeout, 15_000))
         }
     end
@@ -251,6 +260,8 @@ defmodule Atlas.MCP.Proxy do
   defp explicit_auth_type(:oauth2), do: :oauth2
   defp explicit_auth_type("bearer_token"), do: :bearer_token
   defp explicit_auth_type(:bearer_token), do: :bearer_token
+  defp explicit_auth_type("service_account_token"), do: :service_account_token
+  defp explicit_auth_type(:service_account_token), do: :service_account_token
   defp explicit_auth_type("none"), do: :none
   defp explicit_auth_type(:none), do: :none
   defp explicit_auth_type(_auth_type), do: nil
@@ -480,6 +491,9 @@ defmodule Atlas.MCP.Proxy do
 
   defp hoisted_tool_name(server_name, tool_name), do: "#{server_name}__#{tool_name}"
 
+  defp with_session(%Server{protocol_version: version}, _conn, callback) when version in @stateless_protocol_versions,
+    do: callback.(nil)
+
   defp with_session(%Server{} = server, conn, callback) do
     with {:ok, session_id} <- initialize(server, conn),
          :ok <- send_initialized(server, conn, session_id) do
@@ -522,7 +536,7 @@ defmodule Atlas.MCP.Proxy do
       "jsonrpc" => "2.0",
       "id" => request_id(),
       "method" => method,
-      "params" => params
+      "params" => request_params(server, params)
     }
 
     with {:ok, body, _session_id} <- post_json(server, request, session_id, conn) do
@@ -533,8 +547,18 @@ defmodule Atlas.MCP.Proxy do
     end
   end
 
+  defp request_params(%Server{protocol_version: version}, params) when version in @stateless_protocol_versions do
+    Map.put(params, "_meta", %{
+      "io.modelcontextprotocol/protocolVersion" => version,
+      "io.modelcontextprotocol/clientCapabilities" => %{},
+      "io.modelcontextprotocol/clientInfo" => @client_info
+    })
+  end
+
+  defp request_params(%Server{}, params), do: params
+
   defp post_json(%Server{} = server, payload, session_id, conn) do
-    with {:ok, request} <- request(server, conn, session_id) do
+    with {:ok, request} <- request(server, conn, session_id, payload) do
       request =
         request
         |> Req.merge(json: payload)
@@ -558,12 +582,13 @@ defmodule Atlas.MCP.Proxy do
     end
   end
 
-  defp request(%Server{} = server, conn, session_id) do
+  defp request(%Server{} = server, conn, session_id, payload) do
     headers =
       server.headers
       |> put_default_header("accept", "application/json, text/event-stream")
-      |> put_default_header("mcp-protocol-version", @protocol_version)
+      |> put_default_header("mcp-protocol-version", server.protocol_version)
       |> maybe_put_header("mcp-session-id", session_id)
+      |> put_stateless_headers(server, payload)
       |> maybe_put_header(server.atlas_identity_header, atlas_identity_token(server, conn))
 
     with {:ok, auth_token} <- auth_token(server, conn) do
@@ -595,6 +620,23 @@ defmodule Atlas.MCP.Proxy do
 
   defp auth_token(%Server{auth_type: :bearer_token, bearer_token: token}, _conn), do: {:ok, token}
   defp auth_token(%Server{auth_type: :none}, _conn), do: {:ok, nil}
+
+  # A projected ServiceAccount token that the kubelet rotates in place, so it is
+  # read per request rather than once at boot. The upstream verifies it against
+  # this cluster's pinned signing keys; Atlas holds no shared secret for it.
+  defp auth_token(%Server{auth_type: :service_account_token} = server, _conn) do
+    with path when is_binary(path) and path != "" <- server.token_path,
+         {:ok, contents} <- File.read(path),
+         token when token != "" <- String.trim(contents) do
+      {:ok, token}
+    else
+      {:error, reason} ->
+        {:error, "Could not read the #{server.name} workload identity token: #{:file.format_error(reason)}"}
+
+      _missing_or_empty ->
+        {:error, "MCP server #{server.name} has no workload identity token configured."}
+    end
+  end
 
   defp auth_token(%Server{auth_type: :oauth2} = server, %{assigns: %{current_user: user}}) do
     case MCPContext.access_token_for(user, server) do
@@ -669,6 +711,15 @@ defmodule Atlas.MCP.Proxy do
       [{key, value} | headers]
     end
   end
+
+  defp put_stateless_headers(headers, %Server{protocol_version: version}, %{"method" => method} = payload)
+       when version in @stateless_protocol_versions do
+    headers
+    |> maybe_put_header("mcp-method", method)
+    |> maybe_put_header("mcp-name", if(method == "tools/call", do: get_in(payload, ["params", "name"])))
+  end
+
+  defp put_stateless_headers(headers, %Server{}, _payload), do: headers
 
   defp maybe_put_header(headers, _key, nil), do: headers
   defp maybe_put_header(headers, _key, ""), do: headers

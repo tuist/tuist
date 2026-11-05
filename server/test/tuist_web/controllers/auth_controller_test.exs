@@ -9,6 +9,7 @@ defmodule TuistWeb.AuthControllerTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Oauth2Identity
+  alias Tuist.Accounts.User
   alias Tuist.OAuth2.SSOClient
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -30,18 +31,10 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) == "/users/log_in"
     end
 
-    test "redirects to the CLI success page when the user is logged in", %{conn: conn} do
-      # Given
-      device_code = "AOKJ-1234"
-      user = AccountsFixtures.user_fixture()
+    test "redirects to the device code confirmation when the user is logged in", %{conn: conn} do
+      conn = conn |> log_in_user(AccountsFixtures.user_fixture()) |> get("/auth/cli/AOKJ-1234")
 
-      conn = log_in_user(conn, user)
-
-      # When
-      conn = get(conn, "/auth/device_codes/#{device_code}?type=cli")
-
-      # Then
-      assert redirected_to(conn) == "/auth/device_codes/#{device_code}/success?type=cli"
+      assert redirected_to(conn) == "/auth/device_codes/AOKJ-1234?type=cli"
     end
   end
 
@@ -65,7 +58,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert get_session(conn, :user_return_to) == "/auth/device_codes/SSO-1234?type=cli"
     end
 
-    test "approves the device code for a session signed in with the provider", %{conn: conn, user: user} do
+    test "shows the confirmation to a session signed in with the provider", %{conn: conn, user: user} do
       conn =
         conn
         |> init_test_session(%{})
@@ -76,10 +69,10 @@ defmodule TuistWeb.AuthControllerTest do
 
       conn = get(conn, "/auth/device_codes/SSO-1234?type=cli")
 
-      assert redirected_to(conn) == "/auth/device_codes/SSO-1234/success?type=cli"
+      assert html_response(conn, 200) =~ "SSO-1234"
     end
 
-    test "the success page records the SSO sign-in that approved the device code", %{conn: conn, user: user} do
+    test "confirming records the SSO sign-in that approved the device code", %{conn: conn, user: user} do
       Accounts.create_device_code("SSO-9012")
 
       token =
@@ -87,22 +80,22 @@ defmodule TuistWeb.AuthControllerTest do
 
       conn = conn |> init_test_session(%{}) |> put_session(:user_token, token)
 
-      assert {:ok, _view, _html} = live(conn, "/auth/device_codes/SSO-9012/success?type=cli")
+      conn = post(conn, "/auth/device_codes/SSO-9012", %{"type" => "cli"})
+
+      assert redirected_to(conn) == "/auth/device_codes/SSO-9012/success?type=cli"
 
       assert %{authenticated: true, auth_provider: "google", auth_provider_organization_id: "example.com"} =
                Accounts.get_device_code("SSO-9012")
     end
 
-    test "the success page does not approve the device code for a session the route would refuse", %{
+    test "confirming does not approve the device code for a session the route would refuse", %{
       conn: conn,
       user: user
     } do
       Accounts.create_device_code("SSO-5678")
-      conn = log_in_user(conn, user)
+      conn = conn |> log_in_user(user) |> post("/auth/device_codes/SSO-5678", %{"type" => "cli"})
 
-      assert {:error, {:redirect, %{to: "/auth/device_codes/SSO-5678?type=cli"}}} =
-               live(conn, "/auth/device_codes/SSO-5678/success?type=cli")
-
+      assert redirected_to(conn) == "/users/auth/google"
       refute Accounts.get_device_code("SSO-5678").authenticated
     end
 
@@ -126,6 +119,152 @@ defmodule TuistWeb.AuthControllerTest do
     end
   end
 
+  describe "device code approval consent" do
+    test "visiting an approval link signed in does not hand the user's tokens to whoever polls the code", %{
+      conn: conn
+    } do
+      user = AccountsFixtures.user_fixture()
+      conn = log_in_user(conn, user)
+
+      # A signed-in user opens a link to a code chosen by someone else, and
+      # renders every page the server sends them to.
+      conn = get(conn, "/auth/device_codes/ATTACKER-CODE?type=cli")
+      assert {:ok, _view, _html} = live(recycle(conn), "/auth/device_codes/ATTACKER-CODE/success?type=cli")
+
+      poll = get(build_conn(), "/api/auth/device_code/ATTACKER-CODE")
+      assert json_response(poll, :accepted) == %{}
+    end
+
+    test "the confirmation page posts the code back to approve it", %{conn: conn} do
+      conn = conn |> log_in_user(AccountsFixtures.user_fixture()) |> get("/auth/device_codes/CLI-CODE?type=app")
+
+      html = html_response(conn, 200)
+      document = Floki.parse_document!(html)
+      assert [form] = Floki.find(document, ~s(form[method="post"][action="/auth/device_codes/CLI-CODE?type=app"]))
+      assert [_] = Floki.find(form, ~s(input[name="_csrf_token"]))
+    end
+
+    test "confirming approves the code once and the poll consumes it", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = log_in_user(conn, user)
+      Accounts.create_device_code("CLI-CODE")
+
+      assert conn |> post("/auth/device_codes/CLI-CODE", %{"type" => "cli"}) |> redirected_to() ==
+               "/auth/device_codes/CLI-CODE/success?type=cli"
+
+      assert json_response(get(build_conn(), "/api/auth/device_code/CLI-CODE"), :ok)["token"] == user.token
+      assert %{"message" => _} = json_response(get(build_conn(), "/api/auth/device_code/CLI-CODE"), :bad_request)
+    end
+
+    test "opening a used code's link again cannot approve it a second time", %{conn: conn} do
+      conn = log_in_user(conn, AccountsFixtures.user_fixture())
+      Accounts.create_device_code("CLI-CODE")
+      post(conn, "/auth/device_codes/CLI-CODE", %{"type" => "cli"})
+      assert json_response(get(build_conn(), "/api/auth/device_code/CLI-CODE"), :ok)
+
+      assert html_response(get(conn, "/auth/device_codes/CLI-CODE?type=cli"), 410)
+      assert html_response(post(conn, "/auth/device_codes/CLI-CODE", %{"type" => "cli"}), 410)
+      assert json_response(get(build_conn(), "/api/auth/device_code/CLI-CODE"), :bad_request)
+    end
+
+    test "a code another user already approved cannot be approved again", %{conn: conn} do
+      first = AccountsFixtures.user_fixture()
+      Accounts.create_device_code("CLI-CODE")
+      {:ok, _} = Accounts.authenticate_device_code("CLI-CODE", first)
+
+      conn = log_in_user(conn, AccountsFixtures.user_fixture())
+
+      assert html_response(get(conn, "/auth/device_codes/CLI-CODE?type=cli"), 410)
+      assert html_response(post(conn, "/auth/device_codes/CLI-CODE", %{"type" => "cli"}), 410)
+      assert Accounts.get_device_code("CLI-CODE").user_id == first.id
+    end
+
+    test "an expired code cannot be approved", %{conn: conn} do
+      Accounts.create_device_code("OLD-CODE", created_at: DateTime.add(DateTime.utc_now(), -6, :minute))
+      conn = log_in_user(conn, AccountsFixtures.user_fixture())
+
+      assert html_response(get(conn, "/auth/device_codes/OLD-CODE?type=cli"), 410)
+      assert html_response(post(conn, "/auth/device_codes/OLD-CODE", %{"type" => "cli"}), 410)
+      refute Accounts.get_device_code("OLD-CODE").authenticated
+    end
+  end
+
+  describe "standard device flow" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      {:ok, device_code} = Accounts.create_device_authorization()
+      %{conn: log_in_user(conn, user), user: user, device_code: device_code}
+    end
+
+    test "the page asks for the code without showing one", %{conn: conn, device_code: device_code} do
+      assert {:ok, _view, html} = live(conn, "/auth/device")
+
+      document = Floki.parse_document!(html)
+      assert [form] = Floki.find(document, ~s(form[method="post"][action="/auth/device"]))
+      assert [_] = Floki.find(form, ~s(input[name="_csrf_token"]))
+      assert [_] = Floki.find(form, ~s(input[type="hidden"][name="user_code"]))
+      refute html =~ device_code.code
+      refute html =~ device_code.user_code
+    end
+
+    test "typing the user code approves it once, however it is written", %{
+      conn: conn,
+      user: user,
+      device_code: device_code
+    } do
+      typed = device_code.user_code |> Accounts.format_user_code() |> String.downcase()
+
+      assert conn |> post("/auth/device", %{"user_code" => typed}) |> redirected_to() ==
+               "/auth/device/success?type=cli"
+
+      assert json_response(get(build_conn(), "/api/auth/device_code/#{device_code.code}"), :ok)["token"] == user.token
+      assert json_response(get(build_conn(), "/api/auth/device_code/#{device_code.code}"), :bad_request)
+      assert conn |> post("/auth/device", %{"user_code" => typed}) |> redirected_to() == "/auth/device"
+    end
+
+    test "a wrong or expired user code approves nothing", %{conn: conn, device_code: device_code} do
+      conn = post(conn, "/auth/device", %{"user_code" => "BBBB-BBBB"})
+
+      assert redirected_to(conn) == "/auth/device"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "incorrect or has expired"
+      refute Accounts.get_device_code(device_code.code).authenticated
+
+      device_code |> Ecto.Changeset.change(created_at: ~N[2020-01-01 00:00:00]) |> Repo.update!()
+      post(conn, "/auth/device", %{"user_code" => device_code.user_code})
+      refute Accounts.get_device_code(device_code.code).authenticated
+    end
+
+    test "the link-based flow cannot approve a code that has a user code", %{conn: conn, device_code: device_code} do
+      assert html_response(get(conn, "/auth/device_codes/#{device_code.code}?type=cli"), 410)
+      assert html_response(post(conn, "/auth/device_codes/#{device_code.code}", %{"type" => "cli"}), 410)
+      refute Accounts.get_device_code(device_code.code).authenticated
+    end
+
+    test "limits how many codes one account can try", %{conn: conn, device_code: device_code} do
+      for _ <- 1..10, do: post(conn, "/auth/device", %{"user_code" => "BBBB-BBBB"})
+
+      conn = post(conn, "/auth/device", %{"user_code" => device_code.user_code})
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "Too many attempts"
+      refute Accounts.get_device_code(device_code.code).authenticated
+    end
+
+    test "approving needs the organization's single sign-on like the link-based flow", %{
+      conn: conn,
+      user: user,
+      device_code: device_code
+    } do
+      organization = AccountsFixtures.organization_fixture()
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+      enforce_sso(organization, :google, "example.com")
+
+      conn = post(conn, "/auth/device", %{"user_code" => device_code.user_code})
+
+      assert redirected_to(conn) == "/users/auth/google"
+      refute Accounts.get_device_code(device_code.code).authenticated
+    end
+  end
+
   describe "GET /auth/device_codes/:device_code" do
     test "redirects to log in when the user is not logged in", %{conn: conn} do
       # Given
@@ -138,32 +277,11 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) == "/users/log_in"
     end
 
-    test "redirects to the CLI success page when the user is logged in", %{conn: conn} do
-      # Given
-      device_code = "AOKJ-1234"
-      user = AccountsFixtures.user_fixture()
+    test "shows the confirmation without approving the code when the user is logged in", %{conn: conn} do
+      conn = conn |> log_in_user(AccountsFixtures.user_fixture()) |> get("/auth/device_codes/AOKJ-1234?type=cli")
 
-      conn = log_in_user(conn, user)
-
-      # When
-      conn = get(conn, "/auth/device_codes/#{device_code}?type=cli")
-
-      # Then
-      assert redirected_to(conn) == "/auth/device_codes/#{device_code}/success?type=cli"
-    end
-
-    test "redirects to the app success page when the user is logged in", %{conn: conn} do
-      # Given
-      device_code = "AOKJ-1234"
-      user = AccountsFixtures.user_fixture()
-
-      conn = log_in_user(conn, user)
-
-      # When
-      conn = get(conn, "/auth/device_codes/#{device_code}?type=app")
-
-      # Then
-      assert redirected_to(conn) == "/auth/device_codes/#{device_code}/success?type=app"
+      assert html_response(conn, 200) =~ "AOKJ-1234"
+      refute Accounts.get_device_code("AOKJ-1234").authenticated
     end
   end
 
@@ -1704,7 +1822,7 @@ defmodule TuistWeb.AuthControllerTest do
         provider: :google,
         uid: "google-uid-123",
         info: %Info{email: "existing@example.com"},
-        extra: %{raw_info: %{user: %{"hd" => nil}}}
+        extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
       }
 
       # When: OAuth callback is triggered (call controller directly to bypass Ueberauth middleware)
@@ -1789,7 +1907,7 @@ defmodule TuistWeb.AuthControllerTest do
           provider: :google,
           uid: "owner-google-uid",
           info: %Info{email: "owner@example.com"},
-          extra: %{raw_info: %{user: %{"hd" => nil}}}
+          extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
         })
         |> TuistWeb.AuthController.callback(%{})
 
@@ -1798,13 +1916,97 @@ defmodule TuistWeb.AuthControllerTest do
       assert user_id == user.id
     end
 
+    test "refuses a Google email that Google has not verified", %{conn: conn} do
+      existing_user = AccountsFixtures.user_fixture(email: "unverified-target@example.com")
+
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-uid-unverified",
+        info: %Info{email: existing_user.email},
+        extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => false}}}
+      }
+
+      conn = conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth)
+
+      assert_raise UnauthorizedError, fn -> TuistWeb.AuthController.callback(conn, %{}) end
+      assert {:error, :not_found} = Accounts.get_oauth2_identity(:google, "google-uid-unverified")
+    end
+
+    test "confirms an unconfirmed account it links to and drops the password set before confirmation", %{conn: conn} do
+      password = "StrongP@ssword!2035"
+      squatted = AccountsFixtures.user_fixture(email: "squatted@example.com", password: password, confirmed_at: nil)
+
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-uid-owner",
+        info: %Info{email: squatted.email},
+        extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
+      }
+
+      conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth) |> TuistWeb.AuthController.callback(%{})
+
+      assert {:ok, _} = Accounts.get_oauth2_identity(:google, "google-uid-owner")
+      claimed = Accounts.get_user_by_id(squatted.id)
+      assert claimed.confirmed_at
+      refute User.valid_password?(claimed, password)
+    end
+
+    test "on a self-hosted instance, the first Google sign-in into an operator-domain account clears its unproven password",
+         %{conn: conn} do
+      # The account may predate mail being configured, when sign-ups were
+      # confirmed automatically, so its password may belong to whoever
+      # registered the owner's address first.
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
+      stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
+      stub(Tuist.Environment, :operator_email_domain, fn -> "example.com" end)
+      password = "StrongP@ssword!2037"
+      squatted = AccountsFixtures.user_fixture(email: "auto-confirmed@example.com", password: password)
+      assert squatted.confirmed_at
+
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-uid-auto-confirmed",
+        info: %Info{email: squatted.email},
+        extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
+      }
+
+      conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth) |> TuistWeb.AuthController.callback(%{})
+
+      claimed = Accounts.get_user_by_id(squatted.id)
+      assert claimed.email_verified_at
+      refute User.valid_password?(claimed, password)
+    end
+
+    test "a returning sign-in records mailbox proof only for the address the provider verified", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(email: "returning-#{System.unique_integer([:positive])}@example.com")
+      AccountsFixtures.oauth2_identity_fixture(user: user, id_in_provider: "returning-uid", provider_organization_id: nil)
+
+      sign_in = fn email ->
+        auth = %Ueberauth.Auth{
+          provider: :google,
+          uid: "returning-uid",
+          info: %Info{email: email},
+          extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
+        }
+
+        conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth) |> TuistWeb.AuthController.callback(%{})
+      end
+
+      sign_in.("someone-else@example.com")
+      assert is_nil(Accounts.get_user_by_id(user.id).email_verified_at)
+
+      sign_in.(user.email)
+      assert Accounts.get_user_by_id(user.id).email_verified_at
+    end
+
     test "redirects to choose-username for new OAuth user without existing email", %{conn: conn} do
       # Simulate OAuth callback with a new email
       auth = %Ueberauth.Auth{
         provider: :google,
         uid: "google-uid-456",
         info: %Info{email: "newuser@example.com"},
-        extra: %{raw_info: %{user: %{"hd" => nil}}}
+        extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
       }
 
       # When: OAuth callback is triggered (call controller directly to bypass Ueberauth middleware)

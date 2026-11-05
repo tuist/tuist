@@ -701,7 +701,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		})
 	}
 
-	return &corev1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        podName,
 			Namespace:   pool.Namespace,
@@ -753,7 +753,31 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				},
 			},
 		},
-	}, nil
+	}
+	if IsMacosSandboxWarm(pool) {
+		// A warm sandbox VM is booted by tart-kubelet's sandbox service,
+		// which owns its finalizer, and later handed to a sandbox. It
+		// polls no dispatch and must hold no credential.
+		pod.Labels[MacosSandboxWarmLabel] = "true"
+		pod.Spec.NodeSelector[MacosSandboxWarmHostLabel] = "v1"
+		pod.Spec.AutomountServiceAccountToken = ptr(false)
+		pod.Spec.Containers[0].Env = nil
+	}
+	return pod, nil
+}
+
+const (
+	// MacosSandboxWarmLabel marks a darwin RunnerPool, and its Pods, as
+	// pre-booted macOS sandbox VMs instead of CI runners.
+	MacosSandboxWarmLabel = "tuist.dev/macos-sandbox-warm"
+	// MacosSandboxWarmHostLabel is advertised by tart-kubelets that boot
+	// warm Pods, so an older kubelet never runs one as a CI VM.
+	MacosSandboxWarmHostLabel = "tuist.dev/macos-sandbox-warm-host"
+)
+
+// IsMacosSandboxWarm reports whether the pool keeps warm sandbox VMs.
+func IsMacosSandboxWarm(pool *tuistv1.RunnerPool) bool {
+	return pool.Spec.OS == "darwin" && pool.Labels[MacosSandboxWarmLabel] == "true"
 }
 
 // BuildServiceAccount returns the per-Pod ServiceAccount manifest.

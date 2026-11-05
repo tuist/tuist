@@ -80,7 +80,7 @@ struct SandboxCommandServiceTests {
 
         // The table truncates cells to the terminal width, so check the rendered row instead of the table text.
         #expect(ui().contains("Never"))
-        #expect(Array(SandboxOutput.row(page.sandboxes[0]).prefix(4)) == [Self.id, "Active", "4", "8 GB"])
+        #expect(Array(SandboxOutput.row(page.sandboxes[0]).prefix(5)) == [Self.id, "Active", "Linux", "4", "8 GB"])
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
@@ -140,6 +140,34 @@ struct SandboxCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
+    func createsAMacOSSandbox() async throws {
+        let created = Self.sandbox(status: "starting")
+            .replacingOccurrences(of: "\"vcpus\":4", with: "\"platform\":\"darwin\",\"vcpus\":8")
+        given(sandboxesService).createSandbox(
+            accountHandle: .value("resolved-account"),
+            serverURL: .value(Self.serverURL),
+            platform: .value(.darwin),
+            template: .value(nil),
+            vcpus: .value(8),
+            memoryMB: .value(24576),
+            workspaceGB: .value(nil)
+        ).willReturn(try Self.decode(created))
+
+        let command = try SandboxCreateCommand.parse(["--platform", "macos", "--vcpus", "8", "--memory-gb", "24"])
+        try await subject().create(
+            options: Self.values(),
+            platform: command.platform.server,
+            template: command.template,
+            vcpus: command.vcpus,
+            memoryGB: command.memoryGB,
+            workspaceGB: command.workspaceGb
+        )
+
+        #expect(ui().contains("Platform: macOS"))
+        #expect(ui().contains("vCPUs: 8"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedNoora)
     func failsWithoutAnAccount() async throws {
         await #expect(throws: SandboxCommandError.missingAccount) {
             try await subject(fullHandle: nil).show(options: Self.values(), sandboxID: Self.id)
@@ -165,9 +193,16 @@ struct SandboxCommandServiceTests {
     func deleteRequiresConfirmationAndCreateRequiresAnOfferedShape() throws {
         #expect(throws: (any Error).self) { try SandboxDeleteCommand.parse([Self.id]) }
         #expect(throws: Never.self) { try SandboxDeleteCommand.parse([Self.id, "--yes"]) }
-        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--vcpus", "4", "--memory-mb", "4096"]) }
+        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--vcpus", "4", "--memory-gb", "4"]) }
         #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--vcpus", "4"]) }
-        #expect(throws: Never.self) { try SandboxCreateCommand.parse(["--vcpus", "4", "--memory-mb", "8192"]) }
+        #expect(throws: Never.self) { try SandboxCreateCommand.parse(["--vcpus", "4", "--memory-gb", "8"]) }
+        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--vcpus", "8", "--memory-gb", "24"]) }
+        #expect(throws: Never.self) {
+            try SandboxCreateCommand.parse(["--platform", "macos", "--vcpus", "8", "--memory-gb", "24"])
+        }
+        #expect(throws: (any Error).self) {
+            try SandboxCreateCommand.parse(["--platform", "macos", "--vcpus", "4", "--memory-gb", "8"])
+        }
         #expect(throws: (any Error).self) { try SandboxShowCommand.parse(["not-a-uuid"]) }
     }
 

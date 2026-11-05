@@ -50,7 +50,8 @@ defmodule TuistWeb.SSOLinkController do
         sso_organization_id: link.organization_id
       })
     else
-      :error ->
+      # A mailbox proof ended this account's sign-ins while the link waited.
+      error when error in [:error, {:error, :credentials_revoked}] ->
         render_expired(conn)
 
       {:error, _changeset} ->

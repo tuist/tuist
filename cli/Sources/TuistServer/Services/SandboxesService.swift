@@ -5,6 +5,7 @@ import TuistHTTP
 
 public typealias SandboxesPage = Operations.listSandboxes.Output.Ok.Body.jsonPayload
 public typealias ServerSandbox = Components.Schemas.Sandbox
+public typealias ServerSandboxPlatform = Operations.createSandbox.Input.Body.jsonPayload.platformPayload
 public typealias SandboxAnalytics = Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload
 public typealias SandboxExecResult = Components.Schemas.SandboxExecResult
 
@@ -33,6 +34,7 @@ public protocol SandboxesServicing: Sendable {
     func createSandbox(
         accountHandle: String,
         serverURL: URL,
+        platform: ServerSandboxPlatform?,
         template: String?,
         vcpus: Int?,
         memoryMB: Int?,
@@ -174,6 +176,7 @@ public struct SandboxesService: SandboxesServicing {
     public func createSandbox(
         accountHandle: String,
         serverURL: URL,
+        platform: ServerSandboxPlatform?,
         template: String?,
         vcpus: Int?,
         memoryMB: Int?,
@@ -187,7 +190,13 @@ public struct SandboxesService: SandboxesServicing {
         let response = try await SandboxesServiceError.send {
             try await Client.authenticated(serverURL: serverURL).createSandbox(.init(
                 path: .init(account_handle: accountHandle),
-                body: .json(.init(memory_mb: shapeMemory, template: template, vcpus: shapeVCPUs, workspace_gb: workspaceGB))
+                body: .json(.init(
+                    memory_mb: shapeMemory,
+                    platform: platform,
+                    template: template,
+                    vcpus: shapeVCPUs,
+                    workspace_gb: workspaceGB
+                ))
             ))
         }
         switch response {

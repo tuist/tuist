@@ -32,6 +32,9 @@ esac
 if [[ -n "${ORB_SNAPSHOT_ID:-}" && ! "$ORB_SNAPSHOT_ID" =~ ^[A-Za-z0-9._:-]{1,255}$ ]]; then
     echo 'Invalid Orb snapshot ID.' >&2; exit 1
 fi
+if [[ -n "${ORB_TYPE:-}" && ! "$ORB_TYPE" =~ ^[a-z0-9-]{1,64}$ ]]; then
+    echo 'Invalid orb type.' >&2; exit 1
+fi
 
 # ORB_IMAGE is a template name, not an OCI image: sandboxd only boots
 # installed Firecracker templates. Never silently substitute another image.
@@ -75,6 +78,8 @@ jq -n '{operation: env.ORB_OPERATION} +
         memory_mb: ((env.TUIST_ORB_MEMORY_MB // "4096") | tonumber),
         workspace_gb: ((env.TUIST_ORB_WORKSPACE_GB // "10") | tonumber)
     } + (if (env.AMP_URL // "") != "" then {amp_url: env.AMP_URL} else {} end)
+      + (if (env.TUIST_WORKLOAD_TOKEN_FILE // "") != "" and (env.ORB_TYPE // "") != ""
+           then {orb_type: env.ORB_TYPE} else {} end)
     else {} end)' > "$request"
 
 # Retry only explicit admission refusals, never ambiguous transport failures
@@ -121,6 +126,14 @@ while true; do
     if [[ "$ORB_OPERATION" == spawn && "$status" == 429 ]] &&
         grep -Eiq $'^x-tuist-orb-refusal: sandbox-limit\r?$' "$headers"; then
         echo 'The Tuist account reached its limit of Orbs kept on sandbox nodes, and paused Orbs count toward it. Delete threads you no longer need, then retry.' >&2
+        exit 1
+    fi
+    if grep -Eiq $'^x-tuist-orb-refusal: unknown-orb-type\r?$' "$headers"; then
+        echo "Tuist does not offer the orb type '${ORB_TYPE:-}'. Use one of the types listed on the Tuist Amp integration page." >&2
+        exit 1
+    fi
+    if grep -Eiq $'^x-tuist-orb-refusal: orb-type-mismatch\r?$' "$headers"; then
+        echo "This thread's Orb was created for another platform than orb type '${ORB_TYPE:-}'. Start a new thread with the type you need." >&2
         exit 1
     fi
     echo "Tuist Orb $ORB_OPERATION failed (HTTP $status)." >&2

@@ -625,10 +625,21 @@ runnersFleet:
 # KVM is a standard managed Linux runner capability. Disable defaultEnabled
 # to roll pools back to the stock kernel while leaving host preparation intact.
 runnersFleetLinux:
+  # Ubuntu 22.04 stays selectable until GitHub removes its hosted image
+  # (Apr 17, 2027). Its image, `<semver>-ubuntu-22-04`, is resolved per
+  # deploy into `osRunnerImages`.
+  osVersions:
+    - osVersion: ubuntu-24.04
+      default: true
+    - osVersion: ubuntu-22.04
   nestedVirtualization:
     enabled: true
     defaultEnabled: true
 
+# Prepare host services; account admission is gated by the :sandboxes flag.
+sandboxes:
+  macos:
+    enabled: true
 # Account-owned provider workloads run on the general pool.
 ampOrbProvider:
   nodeSelector:

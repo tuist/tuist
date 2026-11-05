@@ -1,0 +1,52 @@
+<.device_code_frame
+  title={
+    if @type == "app",
+      do: dgettext("dashboard_auth", "Sign in to the Tuist app?"),
+      else: dgettext("dashboard_auth", "Sign in to the Tuist CLI?")
+  }
+  subtitle={
+    dgettext(
+      "dashboard_auth",
+      "Continue only if you just started this sign-in from your terminal or app."
+    )
+  }
+>
+  <.alert
+    type="secondary"
+    status="information"
+    size="small"
+    title={dgettext("dashboard_auth", "Signed in to Tuist as %{email}", email: @email)}
+  />
+  <form
+    method="post"
+    action={~p"/auth/device_codes/#{@device_code}?type=#{@type}"}
+    data-part="form"
+  >
+    <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+    <div data-part="actions">
+      <.button
+        id="confirm-device-code"
+        variant="primary"
+        size="large"
+        type="submit"
+        label={dgettext("dashboard_auth", "Sign in")}
+      />
+      <.button
+        id="cancel-device-code"
+        variant="secondary"
+        size="large"
+        label={dgettext("dashboard_auth", "Cancel")}
+        href={TuistWeb.Authentication.signed_in_path(@current_user)}
+      />
+    </div>
+  </form>
+  <div data-part="security-note">
+    <span data-part="icon"><.lock /></span>
+    <span>
+      {dgettext(
+        "dashboard_auth",
+        "Signing in gives whoever started it access to your Tuist account. If you did not start it, cancel."
+      )}
+    </span>
+  </div>
+</.device_code_frame>

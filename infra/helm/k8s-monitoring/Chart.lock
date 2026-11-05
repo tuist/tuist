@@ -2,5 +2,8 @@ dependencies:
 - name: k8s-monitoring
   repository: https://grafana.github.io/helm-charts
   version: 4.0.3
-digest: sha256:97ac38bd78c49e442ce5a8852f16b3a26a7e6a81045fa9e25ca3c345d7031c6a
-generated: "2026-04-24T15:55:54.104901+02:00"
+- name: pulso
+  repository: oci://ghcr.io/tuist/charts
+  version: 1.38.0
+digest: sha256:afd5461c7de98fde4e4e6f7b86a06ffd996cf022746c536d5287458828444dd0
+generated: "2026-11-05T16:01:06.116764+01:00"

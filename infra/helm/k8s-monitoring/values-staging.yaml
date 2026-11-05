@@ -27,6 +27,85 @@ k8s-monitoring:
               key: deployment.environment
               value: staging
 
+    # In-cluster Pulso (see `pulso` at the top level). Features leave
+    # `destinations` empty, so every feature sends to all compatible
+    # destinations: these receive exactly what Grafana Cloud receives, each
+    # through its own write queue so a Pulso outage cannot hold back Grafana Cloud delivery. Basic
+    # auth carries the tenant as the username.
+    pulso-metrics:
+      type: prometheus
+      url: http://pulso.observability.svc.cluster.local:4000/api/v1/write
+      auth:
+        type: basic
+        usernameKey: pulso-username
+        passwordKey: pulso-password
+      secret:
+        create: false
+        name: pulso-credentials
+        namespace: observability
+      extraLabels:
+        env: staging
+      # Same restart-scoped label and metric drops as Grafana Cloud.
+      metricProcessingRules: |
+        write_relabel_config {
+          action = "labeldrop"
+          regex = "container_id|uid|pod_ip|image_id|image_spec|k8s_pod_uid"
+        }
+        write_relabel_config {
+          source_labels = ["__name__"]
+          regex = "node_network_(receive|transmit)_drop_total|traces_service_graph_request_.*"
+          action = "drop"
+        }
+        write_relabel_config {
+          source_labels = ["job"]
+          regex = "integrations/(process|self)"
+          action = "drop"
+        }
+
+    pulso-logs:
+      type: loki
+      url: http://pulso.observability.svc.cluster.local:4000/loki/api/v1/push
+      auth:
+        type: basic
+        usernameKey: pulso-username
+        passwordKey: pulso-password
+      secret:
+        create: false
+        name: pulso-credentials
+        namespace: observability
+      extraLabels:
+        env: staging
+
+    pulso-traces:
+      type: otlp
+      url: http://pulso.observability.svc.cluster.local:4000
+      protocol: http
+      metrics:
+        enabled: false
+      logs:
+        enabled: false
+      traces:
+        enabled: true
+      auth:
+        type: basic
+        usernameKey: pulso-username
+        passwordKey: pulso-password
+      secret:
+        create: false
+        name: pulso-credentials
+        namespace: observability
+      # Pulso rejects requests above 10,000 records or 4 MiB; the default
+      # 8192-span trigger with no ceiling can exceed both under load.
+      processors:
+        batch:
+          size: 2048
+          maxSize: 2048
+        attributes:
+          actions:
+            - action: insert
+              key: deployment.environment
+              value: staging
+
   # Put the receiver on the tailnet. See values-production.yaml for the full
   # rationale. Staging needs it for the Mac mini fleet's host logs: tart-kubelet
   # writes to /var/log/tart-kubelet.log on the mini, nothing in the cluster can
@@ -35,9 +114,61 @@ k8s-monitoring:
   # where that path is proven before canary and production turn it on —
   # infra/helm/tuist macosFleet.hostLogs points here.
   collectors:
+    alloy-control-plane:
+      includeDestinations:
+        - grafana-cloud-metrics
+        - pulso-metrics
     alloy-receiver:
       service:
         annotations:
           tailscale.com/expose: "true"
           tailscale.com/hostname: tuist-alloy-receiver-staging
           tailscale.com/tags: tag:tuist-k8s-staging
+
+pulso:
+  enabled: true
+  storage:
+    bucket: tuist-pulso-staging
+  # Small ingest; keep room on the cpx32 workers for server rollouts.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1536Mi
+  # Each ingest request waits ~0.5 s on its Tigris write, so concurrency caps
+  # throughput (32 slots ≈ 50 req/s against ~6 req/s steady). Staging ran at
+  # ~390Mi with 16 slots saturated, so 32 fits in 1.5Gi, plus Pulso's default
+  # 64 MiB of pending bytes. Each signal gets its own reserve of slots (default
+  # an eighth), so a remote-write replay can't starve logs or traces. 1.22.0
+  # pipelines flushes, so a 20 ms coalescing window keeps latency low.
+  ingestBatching:
+    maxConcurrentRequests: 32
+    flushIntervalMs: 20
+  # Atlas (atlas-production cluster) queries this Pulso over MCP only; see the
+  # path allowlist in values.yaml. Each environment has its own token audience,
+  # so a token sent to one Pulso is never accepted by another.
+  ingress:
+    enabled: true
+    className: nginx
+    host: pulso-staging.tuist.dev
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+    tls:
+      - secretName: pulso-tls
+        hosts: [pulso-staging.tuist.dev]
+  # Same Atlas cluster key as production (TUIST_ATLAS_TOKEN_JWKS in the tuist
+  # chart); rotate all copies together. Read-only: no ingest.
+  workloadIdentity:
+    trust:
+      - name: atlas-production
+        issuer: https://kubernetes.default.svc.cluster.local
+        audiences: [pulso-staging.tuist.dev]
+        max_token_ttl_seconds: 3600
+        keys:
+          type: inline
+          jwks: '{"keys":[{"use":"sig","kty":"RSA","kid":"RlVpaMmFrqqIHY46_HT42inm4mfvqBKfwLVJiPCcl7g","alg":"RS256","n":"urnlzTgGSYHPHyc-sjXI7lzdx3ChfMpqUMpwuj1vgBMywpvdjFEKZ-5xWBBfS_GIna4q--YBau4zo21xFw0Jd-Ye8l4daXozFTwB1oOv-xOoIL7YITR8dtXsXzqeGIKx1rt90jE2vgvYQDBnkIf9ohgDIApbLICYGSAko5MfdypYhiO52KOxum8nB5dwIaKhr2-DiLQtFQbl__c6Uk2dFpW0_5u4d-uO6yspp5iVo54sc7XIlFNxPBlx2uVQZe8tvTH9Ipc_sovDjMfoKH7g0fG14q6xQU5CkQD1pNS__6J3xFvFYQEp3wXu4i_Rin65EI9GvNKtbZkH-sQ5e8jzLw","e":"AQAB"}]}'
+        bindings:
+          - subject: system:serviceaccount:atlas-production:atlas
+            tenant: tuist
+            capabilities: [read]

@@ -882,6 +882,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/git-history/listings`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/listings/post(uploadCommitListing)`.
     func uploadCommitListing(_ input: Operations.uploadCommitListing.Input) async throws -> Operations.uploadCommitListing.Output
+    /// Start a device sign-in.
+    ///
+    /// Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/auth/device_codes`.
+    /// - Remark: Generated from `#/paths//api/auth/device_codes/post(createDeviceCode)`.
+    func createDeviceCode(_ input: Operations.createDeviceCode.Input) async throws -> Operations.createDeviceCode.Output
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -3656,6 +3664,16 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Start a device sign-in.
+    ///
+    /// Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/auth/device_codes`.
+    /// - Remark: Generated from `#/paths//api/auth/device_codes/post(createDeviceCode)`.
+    public func createDeviceCode(headers: Operations.createDeviceCode.Input.Headers = .init()) async throws -> Operations.createDeviceCode.Output {
+        try await createDeviceCode(Operations.createDeviceCode.Input(headers: headers))
+    }
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -5206,6 +5224,57 @@ public enum Servers {}
 public enum Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
+        /// - Remark: Generated from `#/components/schemas/DeviceAuthorization`.
+        public struct DeviceAuthorization: Codable, Hashable, Sendable {
+            /// The secret code to poll for tokens with.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/device_code`.
+            public var device_code: Swift.String
+            /// Seconds until the codes expire.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/expires_in`.
+            public var expires_in: Swift.Int
+            /// Seconds to wait between polls.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/interval`.
+            public var interval: Swift.Int
+            /// The short code the person enters in the browser.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/user_code`.
+            public var user_code: Swift.String
+            /// The page where the person enters the code.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/verification_uri`.
+            public var verification_uri: Swift.String
+            /// Creates a new `DeviceAuthorization`.
+            ///
+            /// - Parameters:
+            ///   - device_code: The secret code to poll for tokens with.
+            ///   - expires_in: Seconds until the codes expire.
+            ///   - interval: Seconds to wait between polls.
+            ///   - user_code: The short code the person enters in the browser.
+            ///   - verification_uri: The page where the person enters the code.
+            public init(
+                device_code: Swift.String,
+                expires_in: Swift.Int,
+                interval: Swift.Int,
+                user_code: Swift.String,
+                verification_uri: Swift.String
+            ) {
+                self.device_code = device_code
+                self.expires_in = expires_in
+                self.interval = interval
+                self.user_code = user_code
+                self.verification_uri = verification_uri
+            }
+            public enum CodingKeys: String, CodingKey {
+                case device_code
+                case expires_in
+                case interval
+                case user_code
+                case verification_uri
+            }
+        }
         /// A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
         ///
         /// - Remark: Generated from `#/components/schemas/AuthenticationTokens`.
@@ -15759,6 +15828,13 @@ public enum Components {
             public var name: Swift.String?
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/pause_grace_seconds`.
             public var pause_grace_seconds: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/platform`.
+            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case linux = "linux"
+                case darwin = "darwin"
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/platform`.
+            public var platform: Components.Schemas.SandboxAgentEnvironment.platformPayload
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/template`.
             public var template: Swift.String
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/updated_at`.
@@ -15782,6 +15858,7 @@ public enum Components {
             ///   - memory_mb:
             ///   - name:
             ///   - pause_grace_seconds:
+            ///   - platform:
             ///   - template:
             ///   - updated_at:
             ///   - vcpus:
@@ -15799,6 +15876,7 @@ public enum Components {
                 memory_mb: Swift.Int,
                 name: Swift.String? = nil,
                 pause_grace_seconds: Swift.Int,
+                platform: Components.Schemas.SandboxAgentEnvironment.platformPayload,
                 template: Swift.String,
                 updated_at: Foundation.Date,
                 vcpus: Swift.Int,
@@ -15816,6 +15894,7 @@ public enum Components {
                 self.memory_mb = memory_mb
                 self.name = name
                 self.pause_grace_seconds = pause_grace_seconds
+                self.platform = platform
                 self.template = template
                 self.updated_at = updated_at
                 self.vcpus = vcpus
@@ -15834,6 +15913,7 @@ public enum Components {
                 case memory_mb
                 case name
                 case pause_grace_seconds
+                case platform
                 case template
                 case updated_at
                 case vcpus
@@ -16976,6 +17056,7 @@ public enum Components {
                 case _4096 = 4096
                 case _8192 = 8192
                 case _16384 = 16384
+                case _24576 = 24576
             }
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/memory_mb`.
             public var memory_mb: Components.Schemas.CreateSandboxAgentEnvironment.memory_mbPayload?
@@ -16983,11 +17064,18 @@ public enum Components {
             public var name: Swift.String?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/pause_grace_seconds`.
             public var pause_grace_seconds: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/platform`.
+            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case linux = "linux"
+                case darwin = "darwin"
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/platform`.
+            public var platform: Components.Schemas.CreateSandboxAgentEnvironment.platformPayload?
             /// Sandbox template name.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/template`.
             public var template: Swift.String?
-            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/vcpus`.
             @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -16995,7 +17083,7 @@ public enum Components {
                 case _4 = 4
                 case _8 = 8
             }
-            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/vcpus`.
             public var vcpus: Components.Schemas.CreateSandboxAgentEnvironment.vcpusPayload?
@@ -17013,8 +17101,9 @@ public enum Components {
             ///   - memory_mb:
             ///   - name:
             ///   - pause_grace_seconds:
+            ///   - platform:
             ///   - template: Sandbox template name.
-            ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
             public init(
                 agent_model: Swift.String? = nil,
@@ -17026,6 +17115,7 @@ public enum Components {
                 memory_mb: Components.Schemas.CreateSandboxAgentEnvironment.memory_mbPayload? = nil,
                 name: Swift.String? = nil,
                 pause_grace_seconds: Swift.Int? = nil,
+                platform: Components.Schemas.CreateSandboxAgentEnvironment.platformPayload? = nil,
                 template: Swift.String? = nil,
                 vcpus: Components.Schemas.CreateSandboxAgentEnvironment.vcpusPayload? = nil,
                 workspace_gb: Swift.Int? = nil
@@ -17039,6 +17129,7 @@ public enum Components {
                 self.memory_mb = memory_mb
                 self.name = name
                 self.pause_grace_seconds = pause_grace_seconds
+                self.platform = platform
                 self.template = template
                 self.vcpus = vcpus
                 self.workspace_gb = workspace_gb
@@ -17053,6 +17144,7 @@ public enum Components {
                 case memory_mb
                 case name
                 case pause_grace_seconds
+                case platform
                 case template
                 case vcpus
                 case workspace_gb
@@ -21403,14 +21495,22 @@ public enum Components {
                 case _4096 = 4096
                 case _8192 = 8192
                 case _16384 = 16384
+                case _24576 = 24576
             }
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/memory_mb`.
             public var memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload?
+            /// - Remark: Generated from `#/components/schemas/CreateSandbox/platform`.
+            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case linux = "linux"
+                case darwin = "darwin"
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSandbox/platform`.
+            public var platform: Components.Schemas.CreateSandbox.platformPayload?
             /// Sandbox template name.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/template`.
             public var template: Swift.String?
-            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/vcpus`.
             @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -21418,7 +21518,7 @@ public enum Components {
                 case _4 = 4
                 case _8 = 8
             }
-            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/vcpus`.
             public var vcpus: Components.Schemas.CreateSandbox.vcpusPayload?
@@ -21428,22 +21528,26 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - memory_mb:
+            ///   - platform:
             ///   - template: Sandbox template name.
-            ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
             public init(
                 memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload? = nil,
+                platform: Components.Schemas.CreateSandbox.platformPayload? = nil,
                 template: Swift.String? = nil,
                 vcpus: Components.Schemas.CreateSandbox.vcpusPayload? = nil,
                 workspace_gb: Swift.Int? = nil
             ) {
                 self.memory_mb = memory_mb
+                self.platform = platform
                 self.template = template
                 self.vcpus = vcpus
                 self.workspace_gb = workspace_gb
             }
             public enum CodingKeys: String, CodingKey {
                 case memory_mb
+                case platform
                 case template
                 case vcpus
                 case workspace_gb
@@ -23201,7 +23305,7 @@ public enum Components {
                 ])
             }
         }
-        /// A Firecracker sandbox VM.
+        /// A persistent Linux or macOS sandbox VM.
         ///
         /// - Remark: Generated from `#/components/schemas/Sandbox`.
         public struct Sandbox: Codable, Hashable, Sendable {
@@ -23235,8 +23339,19 @@ public enum Components {
             public var node_name: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Sandbox/paused_at`.
             public var paused_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/Sandbox/platform`.
+            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case linux = "linux"
+                case darwin = "darwin"
+            }
+            /// - Remark: Generated from `#/components/schemas/Sandbox/platform`.
+            public var platform: Components.Schemas.Sandbox.platformPayload?
             /// - Remark: Generated from `#/components/schemas/Sandbox/residency_work_id`.
             public var residency_work_id: Swift.String?
+            /// Whether a macOS sandbox retains its process and capacity.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Sandbox/resident`.
+            public var resident: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/Sandbox/state`.
             @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case creating = "creating"
@@ -23279,7 +23394,9 @@ public enum Components {
             ///   - memory_mb:
             ///   - node_name:
             ///   - paused_at:
+            ///   - platform:
             ///   - residency_work_id:
+            ///   - resident: Whether a macOS sandbox retains its process and capacity.
             ///   - state:
             ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
             ///   - template:
@@ -23301,7 +23418,9 @@ public enum Components {
                 memory_mb: Swift.Int,
                 node_name: Swift.String? = nil,
                 paused_at: Foundation.Date? = nil,
+                platform: Components.Schemas.Sandbox.platformPayload? = nil,
                 residency_work_id: Swift.String? = nil,
+                resident: Swift.Bool? = nil,
                 state: Components.Schemas.Sandbox.statePayload,
                 status: Swift.String? = nil,
                 template: Swift.String,
@@ -23323,7 +23442,9 @@ public enum Components {
                 self.memory_mb = memory_mb
                 self.node_name = node_name
                 self.paused_at = paused_at
+                self.platform = platform
                 self.residency_work_id = residency_work_id
+                self.resident = resident
                 self.state = state
                 self.status = status
                 self.template = template
@@ -23346,7 +23467,9 @@ public enum Components {
                 case memory_mb
                 case node_name
                 case paused_at
+                case platform
                 case residency_work_id
+                case resident
                 case state
                 case status
                 case template
@@ -29688,7 +29811,7 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata`.
             public var pagination_metadata: Components.Schemas.Sandboxes.pagination_metadataPayload
-            /// A Firecracker sandbox VM.
+            /// A persistent Linux or macOS sandbox VM.
             ///
             /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload`.
             public struct sandboxesPayloadPayload: Codable, Hashable, Sendable {
@@ -29722,8 +29845,19 @@ public enum Components {
                 public var node_name: Swift.String?
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/paused_at`.
                 public var paused_at: Foundation.Date?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/platform`.
+                @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case linux = "linux"
+                    case darwin = "darwin"
+                }
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/platform`.
+                public var platform: Components.Schemas.Sandboxes.sandboxesPayloadPayload.platformPayload?
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/residency_work_id`.
                 public var residency_work_id: Swift.String?
+                /// Whether a macOS sandbox retains its process and capacity.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/resident`.
+                public var resident: Swift.Bool?
                 /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/state`.
                 @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                     case creating = "creating"
@@ -29766,7 +29900,9 @@ public enum Components {
                 ///   - memory_mb:
                 ///   - node_name:
                 ///   - paused_at:
+                ///   - platform:
                 ///   - residency_work_id:
+                ///   - resident: Whether a macOS sandbox retains its process and capacity.
                 ///   - state:
                 ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                 ///   - template:
@@ -29788,7 +29924,9 @@ public enum Components {
                     memory_mb: Swift.Int,
                     node_name: Swift.String? = nil,
                     paused_at: Foundation.Date? = nil,
+                    platform: Components.Schemas.Sandboxes.sandboxesPayloadPayload.platformPayload? = nil,
                     residency_work_id: Swift.String? = nil,
+                    resident: Swift.Bool? = nil,
                     state: Components.Schemas.Sandboxes.sandboxesPayloadPayload.statePayload,
                     status: Swift.String? = nil,
                     template: Swift.String,
@@ -29810,7 +29948,9 @@ public enum Components {
                     self.memory_mb = memory_mb
                     self.node_name = node_name
                     self.paused_at = paused_at
+                    self.platform = platform
                     self.residency_work_id = residency_work_id
+                    self.resident = resident
                     self.state = state
                     self.status = status
                     self.template = template
@@ -29833,7 +29973,9 @@ public enum Components {
                     case memory_mb
                     case node_name
                     case paused_at
+                    case platform
                     case residency_work_id
+                    case resident
                     case state
                     case status
                     case template
@@ -33984,7 +34126,7 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata`.
                         public var pagination_metadata: Operations.listSandboxes.Output.Ok.Body.jsonPayload.pagination_metadataPayload
-                        /// A Firecracker sandbox VM.
+                        /// A persistent Linux or macOS sandbox VM.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload`.
                         public struct sandboxesPayloadPayload: Codable, Hashable, Sendable {
@@ -34018,8 +34160,19 @@ public enum Operations {
                             public var node_name: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/paused_at`.
                             public var paused_at: Foundation.Date?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/platform`.
+                            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case linux = "linux"
+                                case darwin = "darwin"
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/platform`.
+                            public var platform: Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayloadPayload.platformPayload?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/residency_work_id`.
                             public var residency_work_id: Swift.String?
+                            /// Whether a macOS sandbox retains its process and capacity.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/resident`.
+                            public var resident: Swift.Bool?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/state`.
                             @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case creating = "creating"
@@ -34062,7 +34215,9 @@ public enum Operations {
                             ///   - memory_mb:
                             ///   - node_name:
                             ///   - paused_at:
+                            ///   - platform:
                             ///   - residency_work_id:
+                            ///   - resident: Whether a macOS sandbox retains its process and capacity.
                             ///   - state:
                             ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                             ///   - template:
@@ -34084,7 +34239,9 @@ public enum Operations {
                                 memory_mb: Swift.Int,
                                 node_name: Swift.String? = nil,
                                 paused_at: Foundation.Date? = nil,
+                                platform: Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayloadPayload.platformPayload? = nil,
                                 residency_work_id: Swift.String? = nil,
+                                resident: Swift.Bool? = nil,
                                 state: Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayloadPayload.statePayload,
                                 status: Swift.String? = nil,
                                 template: Swift.String,
@@ -34106,7 +34263,9 @@ public enum Operations {
                                 self.memory_mb = memory_mb
                                 self.node_name = node_name
                                 self.paused_at = paused_at
+                                self.platform = platform
                                 self.residency_work_id = residency_work_id
+                                self.resident = resident
                                 self.state = state
                                 self.status = status
                                 self.template = template
@@ -34129,7 +34288,9 @@ public enum Operations {
                                 case memory_mb
                                 case node_name
                                 case paused_at
+                                case platform
                                 case residency_work_id
+                                case resident
                                 case state
                                 case status
                                 case template
@@ -34482,14 +34643,22 @@ public enum Operations {
                         case _4096 = 4096
                         case _8192 = 8192
                         case _16384 = 16384
+                        case _24576 = 24576
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/memory_mb`.
                     public var memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload?
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/platform`.
+                    @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case linux = "linux"
+                        case darwin = "darwin"
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/platform`.
+                    public var platform: Operations.createSandbox.Input.Body.jsonPayload.platformPayload?
                     /// Sandbox template name.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/template`.
                     public var template: Swift.String?
-                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/vcpus`.
                     @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -34497,7 +34666,7 @@ public enum Operations {
                         case _4 = 4
                         case _8 = 8
                     }
-                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/vcpus`.
                     public var vcpus: Operations.createSandbox.Input.Body.jsonPayload.vcpusPayload?
@@ -34507,22 +34676,26 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - memory_mb:
+                    ///   - platform:
                     ///   - template: Sandbox template name.
-                    ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
                     public init(
                         memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload? = nil,
+                        platform: Operations.createSandbox.Input.Body.jsonPayload.platformPayload? = nil,
                         template: Swift.String? = nil,
                         vcpus: Operations.createSandbox.Input.Body.jsonPayload.vcpusPayload? = nil,
                         workspace_gb: Swift.Int? = nil
                     ) {
                         self.memory_mb = memory_mb
+                        self.platform = platform
                         self.template = template
                         self.vcpus = vcpus
                         self.workspace_gb = workspace_gb
                     }
                     public enum CodingKeys: String, CodingKey {
                         case memory_mb
+                        case platform
                         case template
                         case vcpus
                         case workspace_gb
@@ -34552,7 +34725,7 @@ public enum Operations {
             public struct Created: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// A Firecracker sandbox VM.
+                    /// A persistent Linux or macOS sandbox VM.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
@@ -34586,8 +34759,19 @@ public enum Operations {
                         public var node_name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/paused_at`.
                         public var paused_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/platform`.
+                        public var platform: Operations.createSandbox.Output.Created.Body.jsonPayload.platformPayload?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/residency_work_id`.
                         public var residency_work_id: Swift.String?
+                        /// Whether a macOS sandbox retains its process and capacity.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/resident`.
+                        public var resident: Swift.Bool?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/state`.
                         @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case creating = "creating"
@@ -34630,7 +34814,9 @@ public enum Operations {
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
+                        ///   - platform:
                         ///   - residency_work_id:
+                        ///   - resident: Whether a macOS sandbox retains its process and capacity.
                         ///   - state:
                         ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                         ///   - template:
@@ -34652,7 +34838,9 @@ public enum Operations {
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
+                            platform: Operations.createSandbox.Output.Created.Body.jsonPayload.platformPayload? = nil,
                             residency_work_id: Swift.String? = nil,
+                            resident: Swift.Bool? = nil,
                             state: Operations.createSandbox.Output.Created.Body.jsonPayload.statePayload,
                             status: Swift.String? = nil,
                             template: Swift.String,
@@ -34674,7 +34862,9 @@ public enum Operations {
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
+                            self.platform = platform
                             self.residency_work_id = residency_work_id
+                            self.resident = resident
                             self.state = state
                             self.status = status
                             self.template = template
@@ -34697,7 +34887,9 @@ public enum Operations {
                             case memory_mb
                             case node_name
                             case paused_at
+                            case platform
                             case residency_work_id
+                            case resident
                             case state
                             case status
                             case template
@@ -48885,7 +49077,7 @@ public enum Operations {
             public struct Ok: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// A Firecracker sandbox VM.
+                    /// A persistent Linux or macOS sandbox VM.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
@@ -48919,8 +49111,19 @@ public enum Operations {
                         public var node_name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/paused_at`.
                         public var paused_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/platform`.
+                        public var platform: Operations.getSandbox.Output.Ok.Body.jsonPayload.platformPayload?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/residency_work_id`.
                         public var residency_work_id: Swift.String?
+                        /// Whether a macOS sandbox retains its process and capacity.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/resident`.
+                        public var resident: Swift.Bool?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/state`.
                         @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case creating = "creating"
@@ -48963,7 +49166,9 @@ public enum Operations {
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
+                        ///   - platform:
                         ///   - residency_work_id:
+                        ///   - resident: Whether a macOS sandbox retains its process and capacity.
                         ///   - state:
                         ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                         ///   - template:
@@ -48985,7 +49190,9 @@ public enum Operations {
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
+                            platform: Operations.getSandbox.Output.Ok.Body.jsonPayload.platformPayload? = nil,
                             residency_work_id: Swift.String? = nil,
+                            resident: Swift.Bool? = nil,
                             state: Operations.getSandbox.Output.Ok.Body.jsonPayload.statePayload,
                             status: Swift.String? = nil,
                             template: Swift.String,
@@ -49007,7 +49214,9 @@ public enum Operations {
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
+                            self.platform = platform
                             self.residency_work_id = residency_work_id
+                            self.resident = resident
                             self.state = state
                             self.status = status
                             self.template = template
@@ -49030,7 +49239,9 @@ public enum Operations {
                             case memory_mb
                             case node_name
                             case paused_at
+                            case platform
                             case residency_work_id
+                            case resident
                             case state
                             case status
                             case template
@@ -64585,7 +64796,7 @@ public enum Operations {
             public struct Ok: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// A Firecracker sandbox VM.
+                    /// A persistent Linux or macOS sandbox VM.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
@@ -64619,8 +64830,19 @@ public enum Operations {
                         public var node_name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/paused_at`.
                         public var paused_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/platform`.
+                        public var platform: Operations.resumeSandbox.Output.Ok.Body.jsonPayload.platformPayload?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/residency_work_id`.
                         public var residency_work_id: Swift.String?
+                        /// Whether a macOS sandbox retains its process and capacity.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/resident`.
+                        public var resident: Swift.Bool?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/state`.
                         @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case creating = "creating"
@@ -64663,7 +64885,9 @@ public enum Operations {
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
+                        ///   - platform:
                         ///   - residency_work_id:
+                        ///   - resident: Whether a macOS sandbox retains its process and capacity.
                         ///   - state:
                         ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                         ///   - template:
@@ -64685,7 +64909,9 @@ public enum Operations {
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
+                            platform: Operations.resumeSandbox.Output.Ok.Body.jsonPayload.platformPayload? = nil,
                             residency_work_id: Swift.String? = nil,
+                            resident: Swift.Bool? = nil,
                             state: Operations.resumeSandbox.Output.Ok.Body.jsonPayload.statePayload,
                             status: Swift.String? = nil,
                             template: Swift.String,
@@ -64707,7 +64933,9 @@ public enum Operations {
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
+                            self.platform = platform
                             self.residency_work_id = residency_work_id
+                            self.resident = resident
                             self.state = state
                             self.status = status
                             self.template = template
@@ -64730,7 +64958,9 @@ public enum Operations {
                             case memory_mb
                             case node_name
                             case paused_at
+                            case platform
                             case residency_work_id
+                            case resident
                             case state
                             case status
                             case template
@@ -88411,6 +88641,13 @@ public enum Operations {
                             public var name: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/pause_grace_seconds`.
                             public var pause_grace_seconds: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/platform`.
+                            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case linux = "linux"
+                                case darwin = "darwin"
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/platform`.
+                            public var platform: Operations.listSandboxAgentEnvironments.Output.Ok.Body.jsonPayload.agent_environmentsPayloadPayload.platformPayload
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/template`.
                             public var template: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/updated_at`.
@@ -88434,6 +88671,7 @@ public enum Operations {
                             ///   - memory_mb:
                             ///   - name:
                             ///   - pause_grace_seconds:
+                            ///   - platform:
                             ///   - template:
                             ///   - updated_at:
                             ///   - vcpus:
@@ -88451,6 +88689,7 @@ public enum Operations {
                                 memory_mb: Swift.Int,
                                 name: Swift.String? = nil,
                                 pause_grace_seconds: Swift.Int,
+                                platform: Operations.listSandboxAgentEnvironments.Output.Ok.Body.jsonPayload.agent_environmentsPayloadPayload.platformPayload,
                                 template: Swift.String,
                                 updated_at: Foundation.Date,
                                 vcpus: Swift.Int,
@@ -88468,6 +88707,7 @@ public enum Operations {
                                 self.memory_mb = memory_mb
                                 self.name = name
                                 self.pause_grace_seconds = pause_grace_seconds
+                                self.platform = platform
                                 self.template = template
                                 self.updated_at = updated_at
                                 self.vcpus = vcpus
@@ -88486,6 +88726,7 @@ public enum Operations {
                                 case memory_mb
                                 case name
                                 case pause_grace_seconds
+                                case platform
                                 case template
                                 case updated_at
                                 case vcpus
@@ -88785,6 +89026,7 @@ public enum Operations {
                         case _4096 = 4096
                         case _8192 = 8192
                         case _16384 = 16384
+                        case _24576 = 24576
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/memory_mb`.
                     public var memory_mb: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.memory_mbPayload?
@@ -88792,11 +89034,18 @@ public enum Operations {
                     public var name: Swift.String?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/pause_grace_seconds`.
                     public var pause_grace_seconds: Swift.Int?
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/platform`.
+                    @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case linux = "linux"
+                        case darwin = "darwin"
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/platform`.
+                    public var platform: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.platformPayload?
                     /// Sandbox template name.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/template`.
                     public var template: Swift.String?
-                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/vcpus`.
                     @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -88804,7 +89053,7 @@ public enum Operations {
                         case _4 = 4
                         case _8 = 8
                     }
-                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/vcpus`.
                     public var vcpus: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.vcpusPayload?
@@ -88822,8 +89071,9 @@ public enum Operations {
                     ///   - memory_mb:
                     ///   - name:
                     ///   - pause_grace_seconds:
+                    ///   - platform:
                     ///   - template: Sandbox template name.
-                    ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
                     public init(
                         agent_model: Swift.String? = nil,
@@ -88835,6 +89085,7 @@ public enum Operations {
                         memory_mb: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.memory_mbPayload? = nil,
                         name: Swift.String? = nil,
                         pause_grace_seconds: Swift.Int? = nil,
+                        platform: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.platformPayload? = nil,
                         template: Swift.String? = nil,
                         vcpus: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.vcpusPayload? = nil,
                         workspace_gb: Swift.Int? = nil
@@ -88848,6 +89099,7 @@ public enum Operations {
                         self.memory_mb = memory_mb
                         self.name = name
                         self.pause_grace_seconds = pause_grace_seconds
+                        self.platform = platform
                         self.template = template
                         self.vcpus = vcpus
                         self.workspace_gb = workspace_gb
@@ -88862,6 +89114,7 @@ public enum Operations {
                         case memory_mb
                         case name
                         case pause_grace_seconds
+                        case platform
                         case template
                         case vcpus
                         case workspace_gb
@@ -88923,6 +89176,13 @@ public enum Operations {
                         public var name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/pause_grace_seconds`.
                         public var pause_grace_seconds: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/platform`.
+                        public var platform: Operations.createSandboxAgentEnvironment.Output.Created.Body.jsonPayload.platformPayload
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/updated_at`.
@@ -88946,6 +89206,7 @@ public enum Operations {
                         ///   - memory_mb:
                         ///   - name:
                         ///   - pause_grace_seconds:
+                        ///   - platform:
                         ///   - template:
                         ///   - updated_at:
                         ///   - vcpus:
@@ -88963,6 +89224,7 @@ public enum Operations {
                             memory_mb: Swift.Int,
                             name: Swift.String? = nil,
                             pause_grace_seconds: Swift.Int,
+                            platform: Operations.createSandboxAgentEnvironment.Output.Created.Body.jsonPayload.platformPayload,
                             template: Swift.String,
                             updated_at: Foundation.Date,
                             vcpus: Swift.Int,
@@ -88980,6 +89242,7 @@ public enum Operations {
                             self.memory_mb = memory_mb
                             self.name = name
                             self.pause_grace_seconds = pause_grace_seconds
+                            self.platform = platform
                             self.template = template
                             self.updated_at = updated_at
                             self.vcpus = vcpus
@@ -88998,6 +89261,7 @@ public enum Operations {
                             case memory_mb
                             case name
                             case pause_grace_seconds
+                            case platform
                             case template
                             case updated_at
                             case vcpus
@@ -102029,6 +102293,170 @@ public enum Operations {
             }
         }
     }
+    /// Start a device sign-in.
+    ///
+    /// Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/auth/device_codes`.
+    /// - Remark: Generated from `#/paths//api/auth/device_codes/post(createDeviceCode)`.
+    public enum createDeviceCode {
+        public static let id: Swift.String = "createDeviceCode"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createDeviceCode.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createDeviceCode.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createDeviceCode.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.createDeviceCode.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The secret code to poll for tokens with.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/device_code`.
+                        public var device_code: Swift.String
+                        /// Seconds until the codes expire.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/expires_in`.
+                        public var expires_in: Swift.Int
+                        /// Seconds to wait between polls.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/interval`.
+                        public var interval: Swift.Int
+                        /// The short code the person enters in the browser.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/user_code`.
+                        public var user_code: Swift.String
+                        /// The page where the person enters the code.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/verification_uri`.
+                        public var verification_uri: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - device_code: The secret code to poll for tokens with.
+                        ///   - expires_in: Seconds until the codes expire.
+                        ///   - interval: Seconds to wait between polls.
+                        ///   - user_code: The short code the person enters in the browser.
+                        ///   - verification_uri: The page where the person enters the code.
+                        public init(
+                            device_code: Swift.String,
+                            expires_in: Swift.Int,
+                            interval: Swift.Int,
+                            user_code: Swift.String,
+                            verification_uri: Swift.String
+                        ) {
+                            self.device_code = device_code
+                            self.expires_in = expires_in
+                            self.interval = interval
+                            self.user_code = user_code
+                            self.verification_uri = verification_uri
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case device_code
+                            case expires_in
+                            case interval
+                            case user_code
+                            case verification_uri
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/application\/json`.
+                    case json(Operations.createDeviceCode.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createDeviceCode.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createDeviceCode.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createDeviceCode.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The device sign-in was started
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/device_codes/post(createDeviceCode)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createDeviceCode.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createDeviceCode.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -102826,7 +103254,7 @@ public enum Operations {
             public struct Ok: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// A Firecracker sandbox VM.
+                    /// A persistent Linux or macOS sandbox VM.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
@@ -102860,8 +103288,19 @@ public enum Operations {
                         public var node_name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/paused_at`.
                         public var paused_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/platform`.
+                        public var platform: Operations.pauseSandbox.Output.Ok.Body.jsonPayload.platformPayload?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/residency_work_id`.
                         public var residency_work_id: Swift.String?
+                        /// Whether a macOS sandbox retains its process and capacity.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/resident`.
+                        public var resident: Swift.Bool?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/state`.
                         @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case creating = "creating"
@@ -102904,7 +103343,9 @@ public enum Operations {
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
+                        ///   - platform:
                         ///   - residency_work_id:
+                        ///   - resident: Whether a macOS sandbox retains its process and capacity.
                         ///   - state:
                         ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                         ///   - template:
@@ -102926,7 +103367,9 @@ public enum Operations {
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
+                            platform: Operations.pauseSandbox.Output.Ok.Body.jsonPayload.platformPayload? = nil,
                             residency_work_id: Swift.String? = nil,
+                            resident: Swift.Bool? = nil,
                             state: Operations.pauseSandbox.Output.Ok.Body.jsonPayload.statePayload,
                             status: Swift.String? = nil,
                             template: Swift.String,
@@ -102948,7 +103391,9 @@ public enum Operations {
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
+                            self.platform = platform
                             self.residency_work_id = residency_work_id
+                            self.resident = resident
                             self.state = state
                             self.status = status
                             self.template = template
@@ -102971,7 +103416,9 @@ public enum Operations {
                             case memory_mb
                             case node_name
                             case paused_at
+                            case platform
                             case residency_work_id
+                            case resident
                             case state
                             case status
                             case template
@@ -103585,6 +104032,13 @@ public enum Operations {
                         public var name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/pause_grace_seconds`.
                         public var pause_grace_seconds: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/platform`.
+                        public var platform: Operations.updateSandboxAgentEnvironment.Output.Ok.Body.jsonPayload.platformPayload
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/updated_at`.
@@ -103608,6 +104062,7 @@ public enum Operations {
                         ///   - memory_mb:
                         ///   - name:
                         ///   - pause_grace_seconds:
+                        ///   - platform:
                         ///   - template:
                         ///   - updated_at:
                         ///   - vcpus:
@@ -103625,6 +104080,7 @@ public enum Operations {
                             memory_mb: Swift.Int,
                             name: Swift.String? = nil,
                             pause_grace_seconds: Swift.Int,
+                            platform: Operations.updateSandboxAgentEnvironment.Output.Ok.Body.jsonPayload.platformPayload,
                             template: Swift.String,
                             updated_at: Foundation.Date,
                             vcpus: Swift.Int,
@@ -103642,6 +104098,7 @@ public enum Operations {
                             self.memory_mb = memory_mb
                             self.name = name
                             self.pause_grace_seconds = pause_grace_seconds
+                            self.platform = platform
                             self.template = template
                             self.updated_at = updated_at
                             self.vcpus = vcpus
@@ -103660,6 +104117,7 @@ public enum Operations {
                             case memory_mb
                             case name
                             case pause_grace_seconds
+                            case platform
                             case template
                             case updated_at
                             case vcpus
@@ -152471,7 +152929,7 @@ public enum Operations {
             public struct Accepted: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// A Firecracker sandbox VM.
+                    /// A persistent Linux or macOS sandbox VM.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
@@ -152505,8 +152963,19 @@ public enum Operations {
                         public var node_name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/paused_at`.
                         public var paused_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/platform`.
+                        public var platform: Operations.archiveSandbox.Output.Accepted.Body.jsonPayload.platformPayload?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/residency_work_id`.
                         public var residency_work_id: Swift.String?
+                        /// Whether a macOS sandbox retains its process and capacity.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/resident`.
+                        public var resident: Swift.Bool?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/state`.
                         @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case creating = "creating"
@@ -152549,7 +153018,9 @@ public enum Operations {
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
+                        ///   - platform:
                         ///   - residency_work_id:
+                        ///   - resident: Whether a macOS sandbox retains its process and capacity.
                         ///   - state:
                         ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                         ///   - template:
@@ -152571,7 +153042,9 @@ public enum Operations {
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
+                            platform: Operations.archiveSandbox.Output.Accepted.Body.jsonPayload.platformPayload? = nil,
                             residency_work_id: Swift.String? = nil,
+                            resident: Swift.Bool? = nil,
                             state: Operations.archiveSandbox.Output.Accepted.Body.jsonPayload.statePayload,
                             status: Swift.String? = nil,
                             template: Swift.String,
@@ -152593,7 +153066,9 @@ public enum Operations {
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
+                            self.platform = platform
                             self.residency_work_id = residency_work_id
+                            self.resident = resident
                             self.state = state
                             self.status = status
                             self.template = template
@@ -152616,7 +153091,9 @@ public enum Operations {
                             case memory_mb
                             case node_name
                             case paused_at
+                            case platform
                             case residency_work_id
+                            case resident
                             case state
                             case status
                             case template

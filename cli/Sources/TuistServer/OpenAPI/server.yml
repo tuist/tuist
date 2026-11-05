@@ -2,6 +2,43 @@
 components:
   responses: {}
   schemas:
+    DeviceAuthorization:
+      properties:
+        device_code:
+          description: The secret code to poll for tokens with.
+          type: string
+          x-struct:
+          x-validate:
+        expires_in:
+          description: Seconds until the codes expire.
+          type: integer
+          x-struct:
+          x-validate:
+        interval:
+          description: Seconds to wait between polls.
+          type: integer
+          x-struct:
+          x-validate:
+        user_code:
+          description: The short code the person enters in the browser.
+          type: string
+          x-struct:
+          x-validate:
+        verification_uri:
+          description: The page where the person enters the code.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - device_code
+        - user_code
+        - verification_uri
+        - expires_in
+        - interval
+      title: DeviceAuthorization
+      type: object
+      x-struct:
+      x-validate:
     AuthenticationTokens:
       description: A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
       properties:
@@ -7243,6 +7280,14 @@ components:
           type: integer
           x-struct:
           x-validate:
+        platform:
+          default: linux
+          enum:
+            - linux
+            - darwin
+          type: string
+          x-struct:
+          x-validate:
         template:
           type: string
           x-struct:
@@ -7263,6 +7308,7 @@ components:
       required:
         - id
         - anthropic_environment_id
+        - platform
         - template
         - vcpus
         - memory_mb
@@ -8135,6 +8181,7 @@ components:
             - 4096
             - 8192
             - 16384
+            - 24576
           type: integer
           x-struct:
           x-validate:
@@ -8150,6 +8197,14 @@ components:
           type: integer
           x-struct:
           x-validate:
+        platform:
+          default: linux
+          enum:
+            - linux
+            - darwin
+          type: string
+          x-struct:
+          x-validate:
         template:
           description: Sandbox template name.
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -8157,7 +8212,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+          description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
           enum:
             - 2
             - 4
@@ -11300,7 +11355,16 @@ components:
             - 4096
             - 8192
             - 16384
+            - 24576
           type: integer
+          x-struct:
+          x-validate:
+        platform:
+          default: linux
+          enum:
+            - linux
+            - darwin
+          type: string
           x-struct:
           x-validate:
         template:
@@ -11310,7 +11374,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+          description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
           enum:
             - 2
             - 4
@@ -12727,7 +12791,7 @@ components:
       x-struct:
       x-validate:
     Sandbox:
-      description: A Firecracker sandbox VM.
+      description: A persistent Linux or macOS sandbox VM.
       properties:
         agent_environment_id:
           nullable: true
@@ -12798,9 +12862,22 @@ components:
           type: string
           x-struct:
           x-validate:
+        platform:
+          default: linux
+          enum:
+            - linux
+            - darwin
+          type: string
+          x-struct:
+          x-validate:
         residency_work_id:
           nullable: true
           type: string
+          x-struct:
+          x-validate:
+        resident:
+          description: Whether a macOS sandbox retains its process and capacity.
+          type: boolean
           x-struct:
           x-validate:
         state:
@@ -17115,7 +17192,7 @@ components:
           x-validate:
         sandboxes:
           items:
-            description: A Firecracker sandbox VM.
+            description: A persistent Linux or macOS sandbox VM.
             properties:
               agent_environment_id:
                 nullable: true
@@ -17186,9 +17263,22 @@ components:
                 type: string
                 x-struct:
                 x-validate:
+              platform:
+                default: linux
+                enum:
+                  - linux
+                  - darwin
+                type: string
+                x-struct:
+                x-validate:
               residency_work_id:
                 nullable: true
                 type: string
+                x-struct:
+                x-validate:
+              resident:
+                description: Whether a macOS sandbox retains its process and capacity.
+                type: boolean
                 x-struct:
                 x-validate:
               state:
@@ -18821,7 +18911,7 @@ paths:
                     x-validate:
                   sandboxes:
                     items:
-                      description: A Firecracker sandbox VM.
+                      description: A persistent Linux or macOS sandbox VM.
                       properties:
                         agent_environment_id:
                           nullable: true
@@ -18892,9 +18982,22 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        platform:
+                          default: linux
+                          enum:
+                            - linux
+                            - darwin
+                          type: string
+                          x-struct:
+                          x-validate:
                         residency_work_id:
                           nullable: true
                           type: string
+                          x-struct:
+                          x-validate:
+                        resident:
+                          description: Whether a macOS sandbox retains its process and capacity.
+                          type: boolean
                           x-struct:
                           x-validate:
                         state:
@@ -19019,7 +19122,16 @@ paths:
                     - 4096
                     - 8192
                     - 16384
+                    - 24576
                   type: integer
+                  x-struct:
+                  x-validate:
+                platform:
+                  default: linux
+                  enum:
+                    - linux
+                    - darwin
+                  type: string
                   x-struct:
                   x-validate:
                 template:
@@ -19029,7 +19141,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                  description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
                   enum:
                     - 2
                     - 4
@@ -19054,7 +19166,7 @@ paths:
           content:
             application/json:
               schema:
-                description: A Firecracker sandbox VM.
+                description: A persistent Linux or macOS sandbox VM.
                 properties:
                   agent_environment_id:
                     nullable: true
@@ -19125,9 +19237,22 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   residency_work_id:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
                     x-struct:
                     x-validate:
                   state:
@@ -23811,7 +23936,7 @@ paths:
           content:
             application/json:
               schema:
-                description: A Firecracker sandbox VM.
+                description: A persistent Linux or macOS sandbox VM.
                 properties:
                   agent_environment_id:
                     nullable: true
@@ -23882,9 +24007,22 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   residency_work_id:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
                     x-struct:
                     x-validate:
                   state:
@@ -28718,7 +28856,7 @@ paths:
           content:
             application/json:
               schema:
-                description: A Firecracker sandbox VM.
+                description: A persistent Linux or macOS sandbox VM.
                 properties:
                   agent_environment_id:
                     nullable: true
@@ -28789,9 +28927,22 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   residency_work_id:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
                     x-struct:
                     x-validate:
                   state:
@@ -37605,6 +37756,14 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        platform:
+                          default: linux
+                          enum:
+                            - linux
+                            - darwin
+                          type: string
+                          x-struct:
+                          x-validate:
                         template:
                           type: string
                           x-struct:
@@ -37625,6 +37784,7 @@ paths:
                       required:
                         - id
                         - anthropic_environment_id
+                        - platform
                         - template
                         - vcpus
                         - memory_mb
@@ -37739,6 +37899,7 @@ paths:
                     - 4096
                     - 8192
                     - 16384
+                    - 24576
                   type: integer
                   x-struct:
                   x-validate:
@@ -37754,6 +37915,14 @@ paths:
                   type: integer
                   x-struct:
                   x-validate:
+                platform:
+                  default: linux
+                  enum:
+                    - linux
+                    - darwin
+                  type: string
+                  x-struct:
+                  x-validate:
                 template:
                   description: Sandbox template name.
                   pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -37761,7 +37930,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                  description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
                   enum:
                     - 2
                     - 4
@@ -37845,6 +38014,14 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   template:
                     type: string
                     x-struct:
@@ -37865,6 +38042,7 @@ paths:
                 required:
                   - id
                   - anthropic_environment_id
+                  - platform
                   - template
                   - vcpus
                   - memory_mb
@@ -42223,6 +42401,58 @@ paths:
       summary: Upload a commit's file listing.
       tags:
         - Tests
+  /api/auth/device_codes:
+    post:
+      callbacks: {}
+      description: |
+        Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+      operationId: createDeviceCode
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  device_code:
+                    description: The secret code to poll for tokens with.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  expires_in:
+                    description: Seconds until the codes expire.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  interval:
+                    description: Seconds to wait between polls.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  user_code:
+                    description: The short code the person enters in the browser.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  verification_uri:
+                    description: The page where the person enters the code.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - device_code
+                  - user_code
+                  - verification_uri
+                  - expires_in
+                  - interval
+                title: DeviceAuthorization
+                type: object
+                x-struct:
+                x-validate:
+          description: The device sign-in was started
+      summary: Start a device sign-in.
+      tags:
+        - Authentication
   /api/auth/device_code/{device_code}:
     get:
       callbacks: {}
@@ -42431,7 +42661,7 @@ paths:
           content:
             application/json:
               schema:
-                description: A Firecracker sandbox VM.
+                description: A persistent Linux or macOS sandbox VM.
                 properties:
                   agent_environment_id:
                     nullable: true
@@ -42502,9 +42732,22 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   residency_work_id:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
                     x-struct:
                     x-validate:
                   state:
@@ -42792,6 +43035,14 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   template:
                     type: string
                     x-struct:
@@ -42812,6 +43063,7 @@ paths:
                 required:
                   - id
                   - anthropic_environment_id
+                  - platform
                   - template
                   - vcpus
                   - memory_mb
@@ -60215,7 +60467,7 @@ paths:
           content:
             application/json:
               schema:
-                description: A Firecracker sandbox VM.
+                description: A persistent Linux or macOS sandbox VM.
                 properties:
                   agent_environment_id:
                     nullable: true
@@ -60286,9 +60538,22 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   residency_work_id:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
                     x-struct:
                     x-validate:
                   state:
