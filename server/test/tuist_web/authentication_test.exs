@@ -1092,7 +1092,9 @@ defmodule TuistWeb.AuthenticationTest do
       Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -604_800)])
 
       send(view.pid, :check_browser_session)
-      assert_redirect(view, path)
+      # The check runs asynchronously in the LiveView process and reads the
+      # session from the database, which can exceed the default 100ms in CI.
+      assert_redirect(view, path, 5_000)
       reloaded = get(conn, path)
       assert html_response(reloaded, 200)
       refute reloaded.assigns.current_user
