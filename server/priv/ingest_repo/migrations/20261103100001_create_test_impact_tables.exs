@@ -10,10 +10,12 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactTables do
   - `test_impact_runs`: one row per `tuist test` invocation that asked for a
     selection: the diff it used, the baseline's runs it read its tests from
     (so every shard's skip list matches the decision), its scope, the outcome
-    and why, the trace of the rules that decided it, and the counts, which
-    include the tests in the modules the client skipped because their hash
-    matched. Fallbacks are recorded too. Ordered for the overview's date-range read; the run page
-    finds a run by id through the bloom filter.
+    and why, the trace of the rules that decided it, and the counts. The
+    modules the client skipped because their hash matched are kept with their
+    number of tests in the baseline (`skipped_modules`), and those tests count
+    as requested and skipped. Fallbacks are recorded too. Ordered for the
+    overview's date-range read; the run page finds a run by id through the
+    bloom filter.
   - `test_impact_run_tests`: the tests a run selected, with the rule that
     selected each one, ordered so a run's tests, or a shard's suites, are one
     prefix read. Skipped tests are never stored: they are derived.
@@ -71,6 +73,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestImpactTables do
       `platform` LowCardinality(String),
       `build_context` Map(LowCardinality(String), String),
       `requested_modules` Array(LowCardinality(String)),
+      `skipped_modules` Map(LowCardinality(String), UInt32),
       `outcome` LowCardinality(String),
       `reason` LowCardinality(String),
       `matched_path` String,

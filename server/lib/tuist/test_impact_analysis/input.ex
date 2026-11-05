@@ -193,21 +193,28 @@ defmodule Tuist.TestImpactAnalysis.Input do
   end
 
   @doc """
-  How many distinct tests the baseline runs `run_ids` ran in `modules`.
+  How many distinct tests the baseline runs `run_ids` ran in each of
+  `modules`, as `%{module => count}`. A module they didn't run counts 0.
   """
-  def baseline_test_count(_project_id, [], _modules), do: 0
-  def baseline_test_count(_project_id, _run_ids, []), do: 0
+  def baseline_test_counts(_project_id, _run_ids, []), do: %{}
 
-  def baseline_test_count(project_id, run_ids, modules) do
-    ClickHouseRepo.one(
-      from(r in TestCaseRun,
-        where:
-          r.project_id == ^project_id and r.test_run_id in ^run_ids and not is_nil(r.test_case_id) and
-            r.module_name in ^modules,
-        select: fragment("uniqExact(?)", r.test_case_id)
-      ),
-      settings: [select_sequential_consistency: 1]
-    )
+  def baseline_test_counts(project_id, run_ids, modules) do
+    counts =
+      if run_ids == [] do
+        %{}
+      else
+        from(r in TestCaseRun,
+          where:
+            r.project_id == ^project_id and r.test_run_id in ^run_ids and not is_nil(r.test_case_id) and
+              r.module_name in ^modules,
+          group_by: r.module_name,
+          select: {r.module_name, fragment("toUInt32(uniqExact(?))", r.test_case_id)}
+        )
+        |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
+        |> Map.new()
+      end
+
+    Map.merge(Map.new(modules, &{&1, 0}), counts)
   end
 
   @doc """

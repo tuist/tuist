@@ -63,8 +63,8 @@ defmodule Tuist.TestImpactAnalysis.Runs do
           {:ok, %{run: run, skipped_tests: nil}}
         end
 
-      {:selected, input, result, baseline, hash_skipped} ->
-        record_selection(attrs, input, result, baseline, hash_skipped)
+      {:selected, input, result, baseline, skipped_modules} ->
+        record_selection(Map.put(attrs, :skipped_modules, skipped_modules), input, result, baseline)
     end
   end
 
@@ -86,6 +86,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
       platform: Map.get(params, :platform) || "",
       build_context: Map.get(params, :xcode) || %{},
       requested_modules: params.decided_modules,
+      skipped_modules: Map.new(params.skipped_modules, &{&1, 0}),
       rules_version: TestImpactAnalysis.rules_version()
     }
   end
@@ -112,19 +113,28 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   defp nothing_left_attrs(project, params, commit_sha, baseline_sha) do
     case resolve(project, scope(params, commit_sha), baseline_sha) do
       {:ok, baseline} ->
-        hash_skipped = hash_skipped_count(project, params, baseline)
-        %{baseline_run_ids: baseline.run_ids, requested_count: hash_skipped, skipped_count: hash_skipped}
+        skipped_modules = skipped_modules(project, params, baseline)
+        module_skipped = total(skipped_modules)
+
+        %{
+          baseline_run_ids: baseline.run_ids,
+          skipped_modules: skipped_modules,
+          requested_count: module_skipped,
+          skipped_count: module_skipped
+        }
 
       {:fallback, _reason, _extra} ->
         %{baseline_sha: nil}
     end
   end
 
-  # The baseline's tests in the modules the client skipped because their hash
+  # The baseline's tests in each module the client skipped because its hash
   # matched. No rule decides them, so they're counted, never listed.
-  defp hash_skipped_count(project, params, baseline) do
-    Input.baseline_test_count(project.id, baseline.run_ids, params.skipped_modules)
+  defp skipped_modules(project, params, baseline) do
+    Input.baseline_test_counts(project.id, baseline.run_ids, params.skipped_modules)
   end
+
+  defp total(skipped_modules), do: skipped_modules |> Map.values() |> Enum.sum()
 
   defp scope(params, commit_sha) do
     %{
@@ -140,7 +150,8 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     with {:ok, changed_files, changed_files_count} <- changed_files(project, params, commit_sha, baseline_sha),
          :ok <- within_diff_limit(changed_files_count),
          {:ok, baseline} <- resolve(project, scope(params, commit_sha), baseline_sha) do
-      hash_skipped = hash_skipped_count(project, params, baseline)
+      skipped_modules = skipped_modules(project, params, baseline)
+      module_skipped = total(skipped_modules)
 
       input =
         Input.load(project,
@@ -162,15 +173,16 @@ defmodule Tuist.TestImpactAnalysis.Runs do
             |> trace_attrs()
             |> Map.merge(%{
               matched_path: result.matched_path || "",
-              requested_count: requested + hash_skipped,
+              skipped_modules: skipped_modules,
+              requested_count: requested + module_skipped,
               selected_count: requested,
-              skipped_count: hash_skipped
+              skipped_count: module_skipped
             })
 
           {:fallback, result.reason, extra}
 
         result ->
-          {:selected, input, result, baseline, hash_skipped}
+          {:selected, input, result, baseline, skipped_modules}
       end
     end
   end
@@ -221,7 +233,8 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     end
   end
 
-  defp record_selection(attrs, input, result, baseline, hash_skipped) do
+  defp record_selection(attrs, input, result, baseline) do
+    module_skipped = total(attrs.skipped_modules)
     tests = Map.new(input.tests, &{&1.test_case_id, &1})
 
     selected =
@@ -244,9 +257,9 @@ defmodule Tuist.TestImpactAnalysis.Runs do
       |> Map.merge(%{
         outcome: "selected",
         baseline_run_ids: baseline.run_ids,
-        requested_count: result.counts.requested + hash_skipped,
+        requested_count: result.counts.requested + module_skipped,
         selected_count: result.counts.selected,
-        skipped_count: result.counts.skipped + hash_skipped
+        skipped_count: result.counts.skipped + module_skipped
       })
 
     with {:ok, run} <- Storage.create_run(attrs, selected) do
