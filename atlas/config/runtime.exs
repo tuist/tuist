@@ -614,13 +614,13 @@ case System.get_env("MCP_PROXY_SERVERS") do
       # governs anything beyond their memberships.
       tuist_mcp_base_url = System.get_env("TUIST_MCP_BASE_URL") || "https://tuist.dev"
 
-      # Pulso holds each Tuist cluster's metrics, logs, traces and Kubernetes
+      # Pulse holds each Tuist cluster's metrics, logs, traces and Kubernetes
       # events. Its MCP tools are read-only queries scoped to one tenant.
       # Atlas authenticates to each with its own projected ServiceAccount
-      # token (audience = that Pulso's host), so there is no shared secret.
-      # The chart renders PULSO_MCP_UPSTREAMS from `pulso.upstreams`.
-      pulso_servers =
-        case JSON.decode(System.get_env("PULSO_MCP_UPSTREAMS") || "[]") do
+      # token (audience = that Pulse's host), so there is no shared secret.
+      # The chart renders PULSE_MCP_UPSTREAMS from `pulse.upstreams`.
+      pulse_servers =
+        case JSON.decode(System.get_env("PULSE_MCP_UPSTREAMS") || "[]") do
           {:ok, upstreams} when is_list(upstreams) ->
             Enum.map(upstreams, fn upstream ->
               %{
@@ -635,7 +635,7 @@ case System.get_env("MCP_PROXY_SERVERS") do
             end)
 
           _ ->
-            raise "environment variable PULSO_MCP_UPSTREAMS must be a JSON array"
+            raise "environment variable PULSE_MCP_UPSTREAMS must be a JSON array"
         end
 
       config :atlas, :mcp_proxy,
@@ -732,7 +732,7 @@ case System.get_env("MCP_PROXY_SERVERS") do
               scopes: ["all"],
               tool_allowlist: ["get-order-list", "get-order-infos", "get-order-status", "get-order-details-list"]
             }
-          ] ++ pulso_servers
+          ] ++ pulse_servers
     end
 
   value ->

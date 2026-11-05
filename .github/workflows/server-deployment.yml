@@ -671,7 +671,7 @@ jobs:
           ref: ${{ env.DEPLOY_SHA }}
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked helm kubectl"
+          install_args: "--locked helm kubectl jq yq"
           cache: "false"
       - uses: 1password/install-cli-action@v4
         with:
@@ -695,6 +695,34 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Gate collector cutover on independent Pulse readiness
+        run: |
+          set -euo pipefail
+          # Intentional legacy identifier: reject historical monitoring charts
+          # that could resurrect the old writer after new storage rollups exist.
+          legacy_name=pulso
+          yq -o=json '.' "$OBSERVABILITY_CHART_PATH/Chart.yaml" \
+            | jq -e --arg legacy "$legacy_name" 'all(.dependencies[]?; .name != $legacy)' >/dev/null
+          # The release workflow owns backend publication and migration. A
+          # racing server cascade must leave the live old backend/collectors
+          # untouched until the independent instance has actually qualified.
+          kubectl -n "$OBSERVABILITY_NAMESPACE" get deployment pulse -o json \
+            | jq -e '
+              .metadata.annotations["meta.helm.sh/release-name"] == "pulse" and
+              .metadata.annotations["meta.helm.sh/release-namespace"] == "observability" and
+              .spec.replicas == 1 and .spec.strategy.type == "Recreate" and
+              .status.observedGeneration >= .metadata.generation and
+              .status.updatedReplicas == 1 and .status.readyReplicas == 1 and .status.availableReplicas == 1 and
+              ([.spec.template.spec.containers[].image] | length == 1 and
+                all(.[]; test("^ghcr.io/tuist/pulse:[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[0-9a-f]{64}$")))' >/dev/null
+          legacy=$(kubectl -n "$OBSERVABILITY_NAMESPACE" get deployment "$legacy_name" --ignore-not-found -o json)
+          if [[ -n "$legacy" ]]; then
+            jq -e '.spec.replicas == 0' <<< "$legacy" >/dev/null
+          fi
+          kubectl -n "$OBSERVABILITY_NAMESPACE" get pods -o json \
+            | jq -e --arg repository "ghcr.io/tuist/$legacy_name" '
+                all(.items[]; all(.spec.containers[];
+                  (.image | startswith($repository + ":") or startswith($repository + "@") or . == $repository) | not))' >/dev/null
       - name: helm dependency update
         run: helm dependency update "$OBSERVABILITY_CHART_PATH"
       - name: helm upgrade --install k8s-monitoring

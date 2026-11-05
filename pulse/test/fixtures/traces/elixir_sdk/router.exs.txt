@@ -1,0 +1,5 @@
+defmodule SDKFixtureRouter do
+  use Phoenix.Router
+
+  get "/fixture", SDKFixturePlug, :index
+end

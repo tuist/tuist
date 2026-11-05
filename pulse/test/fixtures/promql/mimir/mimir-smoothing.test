@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+clear
+
+# Tests for double_exponential_smoothing to trigger circular buffer boundary wrap around
+
+load 10s
+  http_requests{job="api-server", instance="0", group="production"}	8000-10x1000
+  http_requests{job="api-server", instance="1", group="production"}	0-20x1000
+  http_requests{job="api-server", instance="2", group="production"}	0-20x998 NaN Inf
+  http_requests{job="api-server", instance="0", group="canary"}		0+30x1000 300-80x1000
+  http_requests{job="api-server", instance="1", group="canary"}		0-40x1000 0+40x1000
+  http_requests{job="api-server", instance="2", group="canary"}		0-40x1000 NaN NaN Inf Inf 0+40x1000
+
+eval range from 0 to 20000s step 2000s double_exponential_smoothing(http_requests[5000s], 0.01, 0.1)
+  {job="api-server", instance="0", group="production"} _ 6000 4000 2000 0 -2000 -2000 -2000
+  {job="api-server", instance="1", group="production"} _ -4000 -8000 -12000 -16000 -20000 -20000 -20000
+  {job="api-server", instance="2", group="production"} _ -4000 -8000 -12000 -16000 NaN NaN NaN
+  {job="api-server", instance="0", group="canary"} _ 6000 12000 18000 24000 30000 -4774.4112298142 -27650.83746192864 -47620 -63620 -79620
+  {job="api-server", instance="1", group="canary"} _ -8000 -16000 -24000 -32000 -40000 -6689.664952482304 10592.070195990285 23960 31960 39960
+  {job="api-server", instance="2", group="canary"} _ -8000 -16000 -24000 -32000 -40000 NaN NaN 23800 31800 39800
+
+eval range from 0 to 20000s step 2000s holt_winters(http_requests[5000s], 0.01, 0.1)
+  {job="api-server", instance="0", group="production"} _ 6000 4000 2000 0 -2000 -2000 -2000
+  {job="api-server", instance="1", group="production"} _ -4000 -8000 -12000 -16000 -20000 -20000 -20000
+  {job="api-server", instance="2", group="production"} _ -4000 -8000 -12000 -16000 NaN NaN NaN
+  {job="api-server", instance="0", group="canary"} _ 6000 12000 18000 24000 30000 -4774.4112298142 -27650.83746192864 -47620 -63620 -79620
+  {job="api-server", instance="1", group="canary"} _ -8000 -16000 -24000 -32000 -40000 -6689.664952482304 10592.070195990285 23960 31960 39960
+  {job="api-server", instance="2", group="canary"} _ -8000 -16000 -24000 -32000 -40000 NaN NaN 23800 31800 39800
+
+# Test with variation of sf and tf
+load 2000s
+  sfUp 0.1+0.1x9
+  tfUp 0.1+0.15x4 0.1+0.15x4
+  sfDown 0.9-0.1x9
+  tfDown 0.9-0.15x4 0.9-0.15x4
+
+eval range from 0 to 20000s step 2000s double_exponential_smoothing(http_requests[5000s], scalar(sfUp), scalar(tfUp))
+  {job="api-server", instance="0", group="production"} _ 6000 4000 2000 0 -2000 -2000 -2000
+  {job="api-server", instance="1", group="production"} _ -4000 -8000 -12000 -16000 -20000 -20000 -20000
+  {job="api-server", instance="2", group="production"} _ -4000 -8000 -12000 -16000 NaN NaN NaN
+  {job="api-server", instance="0", group="canary"} _ 6000 12000 18000 24000 30000 -15620 -31620 -47620 -63620 NaN
+  {job="api-server", instance="1", group="canary"} _ -8000 -16000 -24000 -32000 -40000 7960 15960 23960 31960 NaN
+  {job="api-server", instance="2", group="canary"} _ -8000 -16000 -24000 -32000 -40000 NaN NaN 23800 31800 NaN
+
+eval range from 0 to 20000s step 2000s double_exponential_smoothing(http_requests[5000s], scalar(sfDown), scalar(tfDown))
+  {job="api-server", instance="0", group="production"} _ 6000 4000 2000 0 -2000 -2000 -2000
+  {job="api-server", instance="1", group="production"} _ -4000 -8000 -12000 -16000 -20000 -20000 -20000
+  {job="api-server", instance="2", group="production"} _ -4000 -8000 -12000 -16000 NaN NaN NaN
+  {job="api-server", instance="0", group="canary"} _ 6000 12000 18000 24000 30000 -15620 -31620 -47620 -63620 NaN
+  {job="api-server", instance="1", group="canary"} _ -8000 -16000 -24000 -32000 -40000 7960 15960 23960 31960 NaN
+  {job="api-server", instance="2", group="canary"} _ -8000 -16000 -24000 -32000 -40000 NaN NaN 23800 31800 NaN
+
+eval_fail instant at 0s double_exponential_smoothing(http_requests[5000s], 0, 0.1)
+  expected_fail_message invalid smoothing factor. Expected: 0 < sf < 1, got: 0.000000
+
+eval_fail instant at 0s double_exponential_smoothing(http_requests[5000s], 0.01, 0)
+  expected_fail_message invalid trend factor. Expected: 0 < tf < 1, got: 0.000000
+

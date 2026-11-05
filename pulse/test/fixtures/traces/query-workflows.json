@@ -1,0 +1,19 @@
+{
+  "accepted": "{ resource.service.namespace = \"fixture\" && resource.deployment.environment.name = \"local\" && resource.service.name =~ \"^(fixture-registry)$\" && span.http.route =~ \"^/fixture.*\" } with (most_recent=true)",
+  "expressions": [
+    "{ resource.service.namespace = \"fixture\" && span.http.route !~ \"^/(health|metrics)$\" } with (most_recent=true)",
+    "{ resource.service.namespace = \"fixture\" && (status = error || span.http.response.status_code >= 500) } with (most_recent=true)",
+    "{ resource.service.namespace = \"fixture\" && span.http.route !~ \"^/(health|metrics)$\" && duration > 500ms } with (most_recent=true)"
+  ],
+  "unsupported": [
+    "{ resource.service.namespace = \"fixture\" && trace:duration > 500ms } with (most_recent=true)",
+    "{ status = error } | count()",
+    "{ span.http.response.status_code >= 500.5 } with (most_recent=true)"
+  ],
+  "logs": [
+    "sum by (pod) (count_over_time({cluster=~\"fixture-local\", namespace=\"fixture\", container=\"fixture\"} | pod=~\"fixture\" [5m]))",
+    "{cluster=~\"fixture-local\", namespace=\"fixture\", container=\"fixture\"} | pod=~\"fixture\" | json",
+    "sum by (level) (count_over_time({cluster=~\"fixture-local\", namespace=\"fixture\", container=\"fixture\"} | pod=~\"fixture\" | json [5m]))",
+    "{cluster=~\"fixture-local\", namespace=\"fixture\", container=\"fixture\"} | pod=~\"fixture\" | json | level =~ \"ERROR|WARN\""
+  ]
+}

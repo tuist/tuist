@@ -23,11 +23,11 @@ defmodule Atlas.MCP.Proxy do
   @protocol_version "2025-03-26"
   # Revisions without the initialize handshake: every request carries its
   # version and client capabilities in `params._meta` and mirrors the version,
-  # method and tool name in headers. Pulso speaks only these.
+  # method and tool name in headers. Pulse speaks only these.
   @stateless_protocol_versions ["2026-07-28"]
   @client_info %{"name" => "atlas-mcp-proxy", "version" => "0.1.0"}
   # The Tuist server's tools read production customer data, so they sit in the
-  # same "observability" ("Production systems") group as the Grafana, Pulso and
+  # same "observability" ("Production systems") group as the Grafana, Pulse and
   # Tuist database tools — granted by the same identity toggle. OVH's reads
   # describe the production fleet, so they belong there too.
   @server_tool_groups %{
@@ -189,9 +189,9 @@ defmodule Atlas.MCP.Proxy do
     not restricted_mcp_session?(conn) or server_tool_group(server) in allowed_tool_groups(conn)
   end
 
-  # One Pulso upstream per Tuist environment (`pulso` for production,
-  # `pulso_canary`, ...), all reading cluster telemetry.
-  defp server_tool_group(%Server{name: "pulso" <> _}), do: "observability"
+  # One Pulse upstream per Tuist environment (`pulse` for production,
+  # `pulse_canary`, ...), all reading cluster telemetry.
+  defp server_tool_group(%Server{name: "pulse" <> _}), do: "observability"
   defp server_tool_group(%Server{name: name}), do: Map.get(@server_tool_groups, name, "default")
 
   defp restricted_mcp_session?(%{assigns: %{mcp_claims: %{"mcp_tool_groups" => groups}}}) when is_list(groups), do: true

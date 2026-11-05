@@ -1,0 +1,4090 @@
+{
+  "final-second-exclusive": [
+    {
+      "schema": {
+        "name": "Traces",
+        "meta": {
+          "typeVersion": [
+            0,
+            0
+          ],
+          "preferredVisualisationType": "table",
+          "uniqueRowIdFields": [
+            0
+          ]
+        },
+        "fields": [
+          {
+            "name": "traceID",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Trace ID",
+              "links": [
+                {
+                  "title": "Trace: ${__value.raw}",
+                  "internal": {
+                    "query": {
+                      "query": "${__value.raw}",
+                      "queryType": "traceql"
+                    },
+                    "datasourceUid": "fixture-tempo",
+                    "datasourceName": "Fixture Tempo"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "startTime",
+            "type": "time",
+            "typeInfo": {
+              "frame": "time.Time"
+            },
+            "config": {
+              "displayNameFromDS": "Start time"
+            }
+          },
+          {
+            "name": "traceService",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Service"
+            }
+          },
+          {
+            "name": "traceName",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Name"
+            }
+          },
+          {
+            "name": "traceDuration",
+            "type": "number",
+            "typeInfo": {
+              "frame": "float64",
+              "nullable": true
+            },
+            "config": {
+              "displayNameFromDS": "Duration",
+              "unit": "ms",
+              "noValue": "\u003c1 ms"
+            }
+          },
+          {
+            "name": "nested",
+            "type": "other",
+            "typeInfo": {
+              "frame": "json.RawMessage"
+            }
+          }
+        ]
+      },
+      "data": {
+        "values": [
+          [
+            "5",
+            "1",
+            "6"
+          ],
+          [
+            32000,
+            10000,
+            10000
+          ],
+          [
+            "",
+            "frontend",
+            "frontend"
+          ],
+          [
+            "",
+            "request",
+            "gap-root"
+          ],
+          [
+            15000,
+            40000,
+            61000
+          ],
+          [
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "5"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      32000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      15000000000
+                    ]
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "1"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      45000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "6"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      70000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ]
+          ]
+        ]
+      }
+    }
+  ],
+  "final-second-included": [
+    {
+      "schema": {
+        "name": "Traces",
+        "meta": {
+          "typeVersion": [
+            0,
+            0
+          ],
+          "preferredVisualisationType": "table",
+          "uniqueRowIdFields": [
+            0
+          ]
+        },
+        "fields": [
+          {
+            "name": "traceID",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Trace ID",
+              "links": [
+                {
+                  "title": "Trace: ${__value.raw}",
+                  "internal": {
+                    "query": {
+                      "query": "${__value.raw}",
+                      "queryType": "traceql"
+                    },
+                    "datasourceUid": "fixture-tempo",
+                    "datasourceName": "Fixture Tempo"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "startTime",
+            "type": "time",
+            "typeInfo": {
+              "frame": "time.Time"
+            },
+            "config": {
+              "displayNameFromDS": "Start time"
+            }
+          },
+          {
+            "name": "traceService",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Service"
+            }
+          },
+          {
+            "name": "traceName",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Name"
+            }
+          },
+          {
+            "name": "traceDuration",
+            "type": "number",
+            "typeInfo": {
+              "frame": "float64",
+              "nullable": true
+            },
+            "config": {
+              "displayNameFromDS": "Duration",
+              "unit": "ms",
+              "noValue": "\u003c1 ms"
+            }
+          },
+          {
+            "name": "nested",
+            "type": "other",
+            "typeInfo": {
+              "frame": "json.RawMessage"
+            }
+          }
+        ]
+      },
+      "data": {
+        "values": [
+          [
+            "4",
+            "7",
+            "5",
+            "1",
+            "6"
+          ],
+          [
+            41000,
+            40500,
+            32000,
+            10000,
+            10000
+          ],
+          [
+            "worker",
+            "worker",
+            "",
+            "frontend",
+            "frontend"
+          ],
+          [
+            "after",
+            "inside-final-second",
+            "",
+            "request",
+            "gap-root"
+          ],
+          [
+            4000,
+            400,
+            15000,
+            40000,
+            61000
+          ],
+          [
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "4"
+                    ],
+                    [
+                      "0000000000000001"
+                    ],
+                    [
+                      41000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      4000000000
+                    ]
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "7"
+                    ],
+                    [
+                      "0000000000000001"
+                    ],
+                    [
+                      40500
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      400000000
+                    ]
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "5"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      32000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      15000000000
+                    ]
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "1"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      45000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "6"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      70000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ]
+          ]
+        ]
+      }
+    }
+  ],
+  "gap-overlap": [
+    {
+      "schema": {
+        "name": "Traces",
+        "meta": {
+          "typeVersion": [
+            0,
+            0
+          ],
+          "preferredVisualisationType": "table",
+          "uniqueRowIdFields": [
+            0
+          ]
+        },
+        "fields": [
+          {
+            "name": "traceID",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Trace ID",
+              "links": [
+                {
+                  "title": "Trace: ${__value.raw}",
+                  "internal": {
+                    "query": {
+                      "query": "${__value.raw}",
+                      "queryType": "traceql"
+                    },
+                    "datasourceUid": "fixture-tempo",
+                    "datasourceName": "Fixture Tempo"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "startTime",
+            "type": "time",
+            "typeInfo": {
+              "frame": "time.Time"
+            },
+            "config": {
+              "displayNameFromDS": "Start time"
+            }
+          },
+          {
+            "name": "traceService",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Service"
+            }
+          },
+          {
+            "name": "traceName",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Name"
+            }
+          },
+          {
+            "name": "traceDuration",
+            "type": "number",
+            "typeInfo": {
+              "frame": "float64",
+              "nullable": true
+            },
+            "config": {
+              "displayNameFromDS": "Duration",
+              "unit": "ms",
+              "noValue": "\u003c1 ms"
+            }
+          },
+          {
+            "name": "nested",
+            "type": "other",
+            "typeInfo": {
+              "frame": "json.RawMessage"
+            }
+          }
+        ]
+      },
+      "data": {
+        "values": [
+          [
+            "1",
+            "6"
+          ],
+          [
+            10000,
+            10000
+          ],
+          [
+            "frontend",
+            "frontend"
+          ],
+          [
+            "request",
+            "gap-root"
+          ],
+          [
+            40000,
+            61000
+          ],
+          [
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "1"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      45000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "6"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      70000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ]
+          ]
+        ]
+      }
+    }
+  ],
+  "inclusive-left": [
+    {
+      "schema": {
+        "name": "Traces",
+        "meta": {
+          "typeVersion": [
+            0,
+            0
+          ],
+          "preferredVisualisationType": "table",
+          "uniqueRowIdFields": [
+            0
+          ]
+        },
+        "fields": [
+          {
+            "name": "traceID",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Trace ID",
+              "links": [
+                {
+                  "title": "Trace: ${__value.raw}",
+                  "internal": {
+                    "query": {
+                      "query": "${__value.raw}",
+                      "queryType": "traceql"
+                    },
+                    "datasourceUid": "fixture-tempo",
+                    "datasourceName": "Fixture Tempo"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "startTime",
+            "type": "time",
+            "typeInfo": {
+              "frame": "time.Time"
+            },
+            "config": {
+              "displayNameFromDS": "Start time"
+            }
+          },
+          {
+            "name": "traceService",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Service"
+            }
+          },
+          {
+            "name": "traceName",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Name"
+            }
+          },
+          {
+            "name": "traceDuration",
+            "type": "number",
+            "typeInfo": {
+              "frame": "float64",
+              "nullable": true
+            },
+            "config": {
+              "displayNameFromDS": "Duration",
+              "unit": "ms",
+              "noValue": "\u003c1 ms"
+            }
+          },
+          {
+            "name": "nested",
+            "type": "other",
+            "typeInfo": {
+              "frame": "json.RawMessage"
+            }
+          }
+        ]
+      },
+      "data": {
+        "values": [
+          [
+            "1",
+            "6"
+          ],
+          [
+            10000,
+            10000
+          ],
+          [
+            "frontend",
+            "frontend"
+          ],
+          [
+            "request",
+            "gap-root"
+          ],
+          [
+            40000,
+            61000
+          ],
+          [
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "1"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      45000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "6"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      70000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ]
+          ]
+        ]
+      }
+    }
+  ],
+  "most-recent-before-limit": [
+    {
+      "schema": {
+        "name": "Traces",
+        "meta": {
+          "typeVersion": [
+            0,
+            0
+          ],
+          "preferredVisualisationType": "table",
+          "uniqueRowIdFields": [
+            0
+          ]
+        },
+        "fields": [
+          {
+            "name": "traceID",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Trace ID",
+              "links": [
+                {
+                  "title": "Trace: ${__value.raw}",
+                  "internal": {
+                    "query": {
+                      "query": "${__value.raw}",
+                      "queryType": "traceql"
+                    },
+                    "datasourceUid": "fixture-tempo",
+                    "datasourceName": "Fixture Tempo"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "startTime",
+            "type": "time",
+            "typeInfo": {
+              "frame": "time.Time"
+            },
+            "config": {
+              "displayNameFromDS": "Start time"
+            }
+          },
+          {
+            "name": "traceService",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Service"
+            }
+          },
+          {
+            "name": "traceName",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Name"
+            }
+          },
+          {
+            "name": "traceDuration",
+            "type": "number",
+            "typeInfo": {
+              "frame": "float64",
+              "nullable": true
+            },
+            "config": {
+              "displayNameFromDS": "Duration",
+              "unit": "ms",
+              "noValue": "\u003c1 ms"
+            }
+          },
+          {
+            "name": "nested",
+            "type": "other",
+            "typeInfo": {
+              "frame": "json.RawMessage"
+            }
+          }
+        ]
+      },
+      "data": {
+        "values": [
+          [
+            "3"
+          ],
+          [
+            35000
+          ],
+          [
+            "frontend"
+          ],
+          [
+            "newer"
+          ],
+          [
+            3000
+          ],
+          [
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "3"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      37000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ]
+          ]
+        ]
+      }
+    }
+  ],
+  "no-match": [
+    {
+      "schema": {
+        "name": "Traces",
+        "meta": {
+          "typeVersion": [
+            0,
+            0
+          ],
+          "preferredVisualisationType": "table",
+          "uniqueRowIdFields": [
+            0
+          ]
+        },
+        "fields": [
+          {
+            "name": "traceID",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Trace ID",
+              "links": [
+                {
+                  "title": "Trace: ${__value.raw}",
+                  "internal": {
+                    "query": {
+                      "query": "${__value.raw}",
+                      "queryType": "traceql"
+                    },
+                    "datasourceUid": "fixture-tempo",
+                    "datasourceName": "Fixture Tempo"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "startTime",
+            "type": "time",
+            "typeInfo": {
+              "frame": "time.Time"
+            },
+            "config": {
+              "displayNameFromDS": "Start time"
+            }
+          },
+          {
+            "name": "traceService",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Service"
+            }
+          },
+          {
+            "name": "traceName",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Name"
+            }
+          },
+          {
+            "name": "traceDuration",
+            "type": "number",
+            "typeInfo": {
+              "frame": "float64",
+              "nullable": true
+            },
+            "config": {
+              "displayNameFromDS": "Duration",
+              "unit": "ms",
+              "noValue": "\u003c1 ms"
+            }
+          },
+          {
+            "name": "nested",
+            "type": "other",
+            "typeInfo": {
+              "frame": "json.RawMessage"
+            }
+          }
+        ]
+      },
+      "data": {
+        "values": [
+          [],
+          [],
+          [],
+          [],
+          [],
+          []
+        ]
+      }
+    }
+  ],
+  "overlap-and-outside-match": [
+    {
+      "schema": {
+        "name": "Traces",
+        "meta": {
+          "typeVersion": [
+            0,
+            0
+          ],
+          "preferredVisualisationType": "table",
+          "uniqueRowIdFields": [
+            0
+          ]
+        },
+        "fields": [
+          {
+            "name": "traceID",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Trace ID",
+              "links": [
+                {
+                  "title": "Trace: ${__value.raw}",
+                  "internal": {
+                    "query": {
+                      "query": "${__value.raw}",
+                      "queryType": "traceql"
+                    },
+                    "datasourceUid": "fixture-tempo",
+                    "datasourceName": "Fixture Tempo"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "startTime",
+            "type": "time",
+            "typeInfo": {
+              "frame": "time.Time"
+            },
+            "config": {
+              "displayNameFromDS": "Start time"
+            }
+          },
+          {
+            "name": "traceService",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Service"
+            }
+          },
+          {
+            "name": "traceName",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Name"
+            }
+          },
+          {
+            "name": "traceDuration",
+            "type": "number",
+            "typeInfo": {
+              "frame": "float64",
+              "nullable": true
+            },
+            "config": {
+              "displayNameFromDS": "Duration",
+              "unit": "ms",
+              "noValue": "\u003c1 ms"
+            }
+          },
+          {
+            "name": "nested",
+            "type": "other",
+            "typeInfo": {
+              "frame": "json.RawMessage"
+            }
+          }
+        ]
+      },
+      "data": {
+        "values": [
+          [
+            "3",
+            "5",
+            "1",
+            "6"
+          ],
+          [
+            35000,
+            32000,
+            10000,
+            10000
+          ],
+          [
+            "frontend",
+            "",
+            "frontend",
+            "frontend"
+          ],
+          [
+            "newer",
+            "",
+            "request",
+            "gap-root"
+          ],
+          [
+            3000,
+            15000,
+            40000,
+            61000
+          ],
+          [
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "3"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      37000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "5"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      32000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      15000000000
+                    ]
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "1"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      45000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "6"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      70000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ]
+          ]
+        ]
+      }
+    }
+  ],
+  "sample-not-matched-count": [
+    {
+      "schema": {
+        "name": "Traces",
+        "meta": {
+          "typeVersion": [
+            0,
+            0
+          ],
+          "preferredVisualisationType": "table",
+          "uniqueRowIdFields": [
+            0
+          ]
+        },
+        "fields": [
+          {
+            "name": "traceID",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Trace ID",
+              "links": [
+                {
+                  "title": "Trace: ${__value.raw}",
+                  "internal": {
+                    "query": {
+                      "query": "${__value.raw}",
+                      "queryType": "traceql"
+                    },
+                    "datasourceUid": "fixture-tempo",
+                    "datasourceName": "Fixture Tempo"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "startTime",
+            "type": "time",
+            "typeInfo": {
+              "frame": "time.Time"
+            },
+            "config": {
+              "displayNameFromDS": "Start time"
+            }
+          },
+          {
+            "name": "traceService",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Service"
+            }
+          },
+          {
+            "name": "traceName",
+            "type": "string",
+            "typeInfo": {
+              "frame": "string"
+            },
+            "config": {
+              "displayNameFromDS": "Name"
+            }
+          },
+          {
+            "name": "traceDuration",
+            "type": "number",
+            "typeInfo": {
+              "frame": "float64",
+              "nullable": true
+            },
+            "config": {
+              "displayNameFromDS": "Duration",
+              "unit": "ms",
+              "noValue": "\u003c1 ms"
+            }
+          },
+          {
+            "name": "nested",
+            "type": "other",
+            "typeInfo": {
+              "frame": "json.RawMessage"
+            }
+          }
+        ]
+      },
+      "data": {
+        "values": [
+          [
+            "8",
+            "6"
+          ],
+          [
+            55000,
+            10000
+          ],
+          [
+            "frontend",
+            "frontend"
+          ],
+          [
+            "many-root",
+            "gap-root"
+          ],
+          [
+            5000,
+            61000
+          ],
+          [
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "8"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      57000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "schema": {
+                  "name": "Spans",
+                  "meta": {
+                    "typeVersion": [
+                      0,
+                      0
+                    ],
+                    "preferredVisualisationType": "table"
+                  },
+                  "fields": [
+                    {
+                      "name": "traceIdHidden",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "spanID",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Span ID",
+                        "unit": "string",
+                        "links": [
+                          {
+                            "title": "Span: ${__value.raw}",
+                            "internal": {
+                              "query": {
+                                "query": "${__data.fields.traceIdHidden}",
+                                "queryType": "traceql"
+                              },
+                              "datasourceUid": "fixture-tempo",
+                              "datasourceName": "Fixture Tempo",
+                              "panelsState": {
+                                "trace": {
+                                  "spanId": "${__value.raw}"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "time",
+                      "type": "time",
+                      "typeInfo": {
+                        "frame": "time.Time"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Start time",
+                        "custom": {
+                          "width": 200
+                        }
+                      }
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Name",
+                        "custom": {
+                          "hideFrom": {
+                            "viz": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": "deployment.environment",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "deployment.environment"
+                      }
+                    },
+                    {
+                      "name": "service.name",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.name"
+                      }
+                    },
+                    {
+                      "name": "service.namespace",
+                      "type": "string",
+                      "typeInfo": {
+                        "frame": "string",
+                        "nullable": true
+                      },
+                      "config": {
+                        "displayNameFromDS": "service.namespace"
+                      }
+                    },
+                    {
+                      "name": "duration",
+                      "type": "number",
+                      "typeInfo": {
+                        "frame": "float64"
+                      },
+                      "config": {
+                        "displayNameFromDS": "Duration",
+                        "unit": "ns",
+                        "custom": {
+                          "width": 120
+                        }
+                      }
+                    }
+                  ]
+                },
+                "data": {
+                  "values": [
+                    [
+                      "6"
+                    ],
+                    [
+                      "0000000000000002"
+                    ],
+                    [
+                      70000
+                    ],
+                    [
+                      ""
+                    ],
+                    [
+                      "production"
+                    ],
+                    [
+                      "worker"
+                    ],
+                    [
+                      "example"
+                    ],
+                    [
+                      1000000000
+                    ]
+                  ]
+                }
+              }
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

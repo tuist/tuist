@@ -1,0 +1,125 @@
+// File-only public ProtoJSON oracle. No Pulse code or telemetry exporters.
+package main
+
+import (
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	logs "go.opentelemetry.io/proto/otlp/collector/logs/v1"
+	metrics "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
+	traces "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	common "go.opentelemetry.io/proto/otlp/common/v1"
+	metricspb "go.opentelemetry.io/proto/otlp/metrics/v1"
+	resource "go.opentelemetry.io/proto/otlp/resource/v1"
+	trace "go.opentelemetry.io/proto/otlp/trace/v1"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"math"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+func write(dir, name string, b []byte) { must(os.WriteFile(filepath.Join(dir, name), b, 0600)) }
+func ids(value any) {
+	switch v := value.(type) {
+	case map[string]any:
+		for k, item := range v {
+			if k == "traceId" || k == "spanId" || k == "parentSpanId" {
+				raw, e := base64.StdEncoding.DecodeString(item.(string))
+				must(e)
+				v[k] = hex.EncodeToString(raw)
+			} else {
+				ids(item)
+			}
+		}
+	case []any:
+		for _, item := range v {
+			ids(item)
+		}
+	}
+}
+func emit(dir, name, input string, out proto.Message) {
+	must(protojson.Unmarshal([]byte(input), out))
+	write(dir, name+"-google-input.json", []byte(input))
+	// Fixed context-property replacements preserve EVERY authored number token.
+	// An ordinary generic JSON round-trip of input would round its int64 values.
+	adapted := strings.ReplaceAll(input, `"traceId":"MDEyMzQ1Njc4OWFiY2RlZg=="`, `"traceId":"30313233343536373839616263646566"`)
+	adapted = strings.ReplaceAll(adapted, `"spanId":"YWJjZGVmZ2g="`, `"spanId":"6162636465666768"`)
+	write(dir, name+"-input.json", []byte(adapted))
+	expected, e := (protojson.MarshalOptions{UseEnumNumbers: true}).Marshal(out)
+	must(e)
+	write(dir, name+"-google.json", expected)
+	var tree any
+	must(json.Unmarshal(expected, &tree))
+	ids(tree)
+	expected, e = json.Marshal(tree)
+	must(e)
+	write(dir, name+"-canonical.json", expected)
+	wire, e := proto.Marshal(out)
+	must(e)
+	write(dir, name+".protobuf", wire)
+}
+func main() {
+	dir := os.Args[1]
+	must(os.MkdirAll(dir, 0700))
+	literals := []string{"0", "-0", "0.0", "-0.0", "1", "1.0", "1.000", "1e3", "1E+3", "1e-1", "10e-1", "1.00000000000000000001", "9007199254740993.0", "9.007199254740993e15", "9223372036854775807", "9.223372036854775807e18", "-9223372036854775808", "-9.223372036854775808e18", "9223372036854775808", "18446744073709551615", "18446744073709551616", "184467440737095516150e-1", "4294967295.0", "4294967296.0", "-1.0", "0e1000000", "1e1000000", "1e-1000000", "1e-99999999999999999999999", "1.00000000000000000001e-9999", "0.000000000000000000000001e-9999", "01", "+1", ".0", "1.", " 1", "1 ", "NaN", "Infinity"}
+	cases := []map[string]any{}
+	for _, kind := range []string{"int64", "uint64", "uint32", "enum"} {
+		for _, literal := range literals {
+			var out proto.Message
+			var field string
+			switch kind {
+			case "int64":
+				out = &common.AnyValue{}
+				field = "intValue"
+			case "uint64":
+				out = &metricspb.HistogramDataPoint{}
+				field = "count"
+			case "uint32":
+				out = &resource.Resource{}
+				field = "droppedAttributesCount"
+			case "enum":
+				out = &trace.Span{}
+				field = "kind"
+			}
+			body := []byte(fmt.Sprintf(`{"%s":%s}`, field, literal))
+			err := protojson.Unmarshal(body, out)
+			row := map[string]any{"kind": kind, "literal": literal, "accepted": err == nil}
+			if err == nil {
+				descriptor := out.ProtoReflect().Descriptor().Fields().ByJSONName(field)
+				value := out.ProtoReflect().Get(descriptor)
+				switch kind {
+				case "int64":
+					row["expected"] = fmt.Sprint(value.Int())
+				case "uint64", "uint32":
+					row["expected"] = fmt.Sprint(value.Uint())
+				case "enum":
+					row["expected"] = fmt.Sprint(value.Enum())
+				}
+			}
+			cases = append(cases, row)
+		}
+	}
+	encoded, e := json.Marshal(cases)
+	must(e)
+	write(dir, "cases.json", encoded)
+	zeros := []map[string]any{}
+	for _, literal := range []string{"-0", "-0.0", "-0e0", "-0E+99", "-0e-99", "-0.0e-999", "-1e-1000", "0", "0e0", "1e-0", "1.5e-0"} {
+		out := &common.AnyValue{}
+		must(protojson.Unmarshal([]byte(`{"doubleValue":`+literal+`}`), out))
+		zeros = append(zeros, map[string]any{"literal": literal, "bits": fmt.Sprintf("%016x", math.Float64bits(out.GetDoubleValue()))})
+	}
+	encoded, e = json.Marshal(zeros)
+	must(e)
+	write(dir, "floating-zeros.json", encoded)
+	emit(dir, "logs", `{"resourceLogs":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"number-fixture"}}],"droppedAttributesCount":1.0},"scopeLogs":[{"scope":{"name":"numbers","droppedAttributesCount":2e0},"logRecords":[{"timeUnixNano":1.700000000123456789e18,"observedTimeUnixNano":1.700000000123457789e18,"severityNumber":9,"flags":2.0,"body":{"intValue":9007199254740993.0},"attributes":[{"key":"minimum","value":{"intValue":-9.223372036854775808e18}},{"key":"zero","value":{"doubleValue":-0}}]}]}]}]}`, &logs.ExportLogsServiceRequest{})
+	emit(dir, "metrics", `{"resourceMetrics":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"number-fixture"}}]},"scopeMetrics":[{"scope":{"name":"numbers"},"metrics":[{"name":"exact.scalar","gauge":{"dataPoints":[{"timeUnixNano":1.700000000123456789e18,"asInt":9007199254740993.0,"exemplars":[{"timeUnixNano":1.700000000123456789e18,"asInt":-9.223372036854775808e18}]}]}},{"name":"exact.count","histogram":{"aggregationTemporality":2,"dataPoints":[{"timeUnixNano":1.700000000123456789e18,"startTimeUnixNano":0e1000000,"count":184467440737095516150e-1,"bucketCounts":[1.8446744073709551615e19],"sum":-0,"min":-0}]}},{"name":"exact.summary","summary":{"dataPoints":[{"timeUnixNano":1.700000000123456789e18,"count":2.0,"sum":2,"quantileValues":[{"quantile":0.5,"value":1}]}]}}]}]}]}`, &metrics.ExportMetricsServiceRequest{})
+	emit(dir, "traces", `{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"number-fixture"}}],"droppedAttributesCount":1.0},"scopeSpans":[{"scope":{"name":"numbers","droppedAttributesCount":2.0},"spans":[{"traceId":"MDEyMzQ1Njc4OWFiY2RlZg==","spanId":"YWJjZGVmZ2g=","name":"numeric","startTimeUnixNano":1.700000000123456789e18,"endTimeUnixNano":1.700000000123457789e18,"flags":257.0,"kind":2,"status":{"code":1},"droppedAttributesCount":1e0,"events":[{"name":"numeric","timeUnixNano":1.700000000123456789e18,"attributes":[{"key":"integer","value":{"intValue":9.007199254740993e15}}]}],"links":[{"traceId":"MDEyMzQ1Njc4OWFiY2RlZg==","spanId":"YWJjZGVmZ2g=","flags":256.0}]}]}]}]}`, &traces.ExportTraceServiceRequest{})
+}
+func must(e error) {
+	if e != nil {
+		panic(e)
+	}
+}

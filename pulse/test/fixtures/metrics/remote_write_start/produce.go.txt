@@ -1,0 +1,135 @@
+// Generate with the public Prometheus v0.305.0 or v0.308.0 module (3.5.0/3.8.0).
+// Optional -receiver points at that release's real remote-write receiver with
+// created-timestamp-zero-ingestion disabled (the default), native histograms on.
+package main
+
+import (
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"os"
+	"reflect"
+
+	"github.com/golang/snappy"
+	writev2 "github.com/prometheus/prometheus/prompb/io/prometheus/write/v2"
+)
+
+const timestamp int64 = 1700000000000
+
+func main() {
+	legacy := flag.Bool("legacy", false, "series-level created_timestamp schema")
+	receiver := flag.String("receiver", "", "public Prometheus base URL")
+	flag.Parse()
+	var cases []map[string]any
+	for _, kind := range []string{"float", "int_histogram", "float_histogram", "custom_histogram"} {
+		for i, start := range []int64{0, timestamp - 12000, timestamp, timestamp + 1, -1, math.MinInt64, math.MaxInt64} {
+			name := fmt.Sprintf("%s_%d", kind, i)
+			ts := writev2.TimeSeries{LabelsRefs: []uint32{1, 2}}
+			starts := []int64{start, start}
+			if !*legacy {
+				starts[1] = start + 1
+				if start == math.MaxInt64 {
+					starts[1] = -9
+				}
+			}
+			for j, st := range starts {
+				t := timestamp + int64(j)*15000
+				if kind == "float" {
+					s := writev2.Sample{Value: float64(7 + j), Timestamp: t}
+					setStart(&s, st, *legacy)
+					ts.Samples = append(ts.Samples, s)
+				} else {
+					h := writev2.Histogram{Count: &writev2.Histogram_CountInt{CountInt: 1}, Sum: 2, ZeroThreshold: 0.001, ZeroCount: &writev2.Histogram_ZeroCountInt{ZeroCountInt: 1}, Timestamp: t}
+					if kind == "float_histogram" {
+						h.Count = &writev2.Histogram_CountFloat{CountFloat: 1.5}
+						h.ZeroCount = &writev2.Histogram_ZeroCountFloat{ZeroCountFloat: 1.5}
+					}
+					if kind == "custom_histogram" {
+						h.Schema = -53
+						h.ZeroThreshold = 0
+						h.ZeroCount = nil
+						h.CustomValues = []float64{-2, 3}
+						h.PositiveSpans = []writev2.BucketSpan{{Offset: 1, Length: 1}}
+						h.PositiveDeltas = []int64{1}
+					}
+					setStart(&h, st, *legacy)
+					ts.Histograms = append(ts.Histograms, h)
+				}
+			}
+			if *legacy {
+				reflect.ValueOf(&ts).Elem().FieldByName("CreatedTimestamp").SetInt(start)
+			}
+			req := writev2.Request{Symbols: []string{"", "__name__", name}, Timeseries: []writev2.TimeSeries{ts}}
+			wire, err := req.Marshal()
+			must(err)
+			var decoded writev2.Request
+			must(decoded.Unmarshal(wire))
+			var observed []any
+			for _, s := range decoded.Timeseries[0].Samples {
+				observed = append(observed, getStart(s, decoded.Timeseries[0], *legacy))
+			}
+			for _, h := range decoded.Timeseries[0].Histograms {
+				observed = append(observed, getStart(h, decoded.Timeseries[0], *legacy))
+			}
+			body := snappy.Encode(nil, wire)
+			c := map[string]any{"name": name, "kind": kind, "starts_ms": observed, "snappy_base64": base64.StdEncoding.EncodeToString(body)}
+			if *receiver != "" {
+				r, err := http.NewRequest("POST", *receiver+"/api/v1/write", bytes.NewReader(body))
+				must(err)
+				r.Header.Set("Content-Type", "application/x-protobuf;proto=io.prometheus.write.v2.Request")
+				r.Header.Set("Content-Encoding", "snappy")
+				r.Header.Set("X-Prometheus-Remote-Write-Version", "2.0.0")
+				resp, err := http.DefaultClient.Do(r)
+				must(err)
+				b, err := io.ReadAll(resp.Body)
+				must(err)
+				resp.Body.Close()
+				c["status"] = resp.StatusCode
+				c["written"] = []string{resp.Header.Get("X-Prometheus-Remote-Write-Samples-Written"), resp.Header.Get("X-Prometheus-Remote-Write-Histograms-Written"), resp.Header.Get("X-Prometheus-Remote-Write-Exemplars-Written")}
+				if resp.StatusCode != 204 {
+					panic(string(b))
+				}
+				// A range selector returns actual stored samples, not a
+				// lookback-resampled range query. No synthetic zero rows.
+				q, err := http.Get(*receiver + "/api/v1/query?time=1700000020&query=" + name + "%5B1m%5D")
+				must(err)
+				var result map[string]any
+				must(json.NewDecoder(q.Body).Decode(&result))
+				q.Body.Close()
+				c["query"] = result
+			}
+			cases = append(cases, c)
+		}
+	}
+	e := json.NewEncoder(os.Stdout)
+	e.SetIndent("", "  ")
+	must(e.Encode(cases))
+}
+
+func setStart(v any, st int64, legacy bool) {
+	if !legacy {
+		reflect.ValueOf(v).Elem().FieldByName("StartTimestamp").SetInt(st)
+	}
+}
+func getStart(v any, ts writev2.TimeSeries, legacy bool) any {
+	var st int64
+	if legacy {
+		st = reflect.ValueOf(ts).FieldByName("CreatedTimestamp").Int()
+	} else {
+		st = reflect.ValueOf(v).FieldByName("StartTimestamp").Int()
+	}
+	if st == 0 {
+		return nil
+	}
+	return st
+}
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}

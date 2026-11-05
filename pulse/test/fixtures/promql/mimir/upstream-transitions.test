@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Testdata for resets() and changes().
+load 5m
+	http_requests{path="/foo"}	1 2 3 0 1 0 0 1 2 0
+	http_requests{path="/bar"}	1 2 3 4 5 1 2 3 4 5
+	http_requests{path="/biz"}  0 0 0 0 0 1 1 1 1 1
+    http_requests_histogram{path="/foo"}    {{schema:0 sum:1 count:1}}x9
+    http_requests_histogram{path="/bar"}    0 0 0 0 0 0 0 0 {{schema:0 sum:1 count:1}} {{schema:0 sum:1 count:1}}
+    http_requests_histogram{path="/biz"}    0 1 0 2 0 3 0 {{schema:0 sum:1 count:1 z_bucket_w:0.001 z_bucket:2}} {{schema:0 sum:2 count:2 z_bucket_w:0.001 z_bucket:1}} {{schema:0 sum:1 count:1 z_bucket_w:0.001 z_bucket:2}}
+
+# Tests for resets().
+eval instant at 50m resets(http_requests[5m])
+
+eval instant at 50m resets(http_requests[10m])
+	{path="/foo"} 0
+	{path="/bar"} 0
+	{path="/biz"} 0
+
+eval instant at 50m resets(http_requests[20m])
+	{path="/foo"} 1
+	{path="/bar"} 0
+	{path="/biz"} 0
+
+eval instant at 50m resets(http_requests[30m])
+	{path="/foo"} 1
+	{path="/bar"} 0
+	{path="/biz"} 0
+
+eval instant at 50m resets(http_requests[32m])
+	{path="/foo"} 2
+	{path="/bar"} 1
+	{path="/biz"} 0
+
+eval instant at 50m resets(http_requests[50m])
+	{path="/foo"} 3
+	{path="/bar"} 1
+	{path="/biz"} 0
+
+eval instant at 50m resets(nonexistent_metric[50m])
+
+# Test for mix of floats and histograms.
+
+eval instant at 50m resets(http_requests_histogram[6m])
+    {path="/foo"} 0
+    {path="/bar"} 0
+    {path="/biz"} 0
+
+eval instant at 50m resets(http_requests_histogram[60m])
+    {path="/foo"} 0
+    {path="/bar"} 1
+    {path="/biz"} 6
+
+# Tests for changes().
+eval instant at 50m changes(http_requests[5m])
+
+eval instant at 50m changes(http_requests[6m])
+	{path="/foo"} 0
+	{path="/bar"} 0
+	{path="/biz"} 0
+
+eval instant at 50m changes(http_requests[20m])
+	{path="/foo"} 2
+	{path="/bar"} 2
+	{path="/biz"} 0
+
+eval instant at 50m changes(http_requests[30m])
+	{path="/foo"} 3
+	{path="/bar"} 4
+	{path="/biz"} 0
+
+eval instant at 50m changes(http_requests[50m])
+	{path="/foo"} 7
+	{path="/bar"} 8
+	{path="/biz"} 1
+
+eval instant at 50m changes((http_requests[50m]))
+	{path="/foo"} 7
+	{path="/bar"} 8
+	{path="/biz"} 1
+
+eval instant at 50m changes(nonexistent_metric[50m])
+
+# Test for mix of floats and histograms.
+# Because of bug #14172 we are not able to test more complex cases like below:
+# 0 1 2 {{schema:0 sum:1 count:1}} 3 {{schema:0 sum:2 count:2}} 4 {{schema:0 sum:3 count:3}}.
+eval instant at 50m changes(http_requests_histogram[5m])
+
+eval instant at 50m changes(http_requests_histogram[6m])
+    {path="/foo"} 0
+    {path="/bar"} 0
+    {path="/biz"} 0
+
+eval instant at 50m changes(http_requests_histogram[60m])
+    {path="/foo"} 0
+    {path="/bar"} 1
+    {path="/biz"} 9
+
+clear
+
+load 5m
+  x{a="b"} NaN NaN NaN
+  x{a="c"} 0 NaN 0
+
+eval instant at 15m changes(x[20m])
+  {a="b"} 0
+  {a="c"} 2
+
+clear

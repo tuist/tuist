@@ -1,0 +1,686 @@
+[
+  {
+    "expected_error": "trace_root_conflict",
+    "query": "{}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "rootName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "query": "{span.case=\"normal\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "rootName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "query": "{span.case=\"duplicate\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "rootName"
+  },
+  {
+    "expected_error": "trace_root_unknown",
+    "query": "{span.case=\"missing\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "target": "rootName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "query": "{span.case=\"unknownservice\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "rootName"
+  },
+  {
+    "expected_error": "trace_root_conflict",
+    "query": "{span.case=\"ambiguous\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "rootName"
+  },
+  {
+    "expected_error": "trace_root_unknown",
+    "query": "{span.case=\"childlink\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "rootName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "query": "{span.case=\"empty\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "target": "rootName"
+  },
+  {
+    "expected_error": "trace_root_conflict",
+    "query": "{span.case=\"parentflip\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "rootName"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{span.case=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "rootName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.case=~\"norm.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "rootName"
+  },
+  {
+    "expected_error": "trace_root_conflict",
+    "query": "{}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "trace:rootName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "query": "{span.case=\"normal\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "trace:rootName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "query": "{span.case=\"duplicate\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "trace:rootName"
+  },
+  {
+    "expected_error": "trace_root_unknown",
+    "query": "{span.case=\"missing\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "target": "trace:rootName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "query": "{span.case=\"unknownservice\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "trace:rootName"
+  },
+  {
+    "expected_error": "trace_root_conflict",
+    "query": "{span.case=\"ambiguous\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "trace:rootName"
+  },
+  {
+    "expected_error": "trace_root_unknown",
+    "query": "{span.case=\"childlink\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "trace:rootName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "query": "{span.case=\"empty\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "target": "trace:rootName"
+  },
+  {
+    "expected_error": "trace_root_conflict",
+    "query": "{span.case=\"parentflip\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "trace:rootName"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{span.case=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "trace:rootName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.case=~\"norm.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "GET /api"
+        }
+      ]
+    },
+    "target": "trace:rootName"
+  },
+  {
+    "expected_error": "trace_root_conflict",
+    "query": "{}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "rootServiceName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "query": "{span.case=\"normal\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "rootServiceName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "query": "{span.case=\"duplicate\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "rootServiceName"
+  },
+  {
+    "expected_error": "trace_root_unknown",
+    "query": "{span.case=\"missing\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "target": "rootServiceName"
+  },
+  {
+    "expected_error": "trace_root_unknown",
+    "query": "{span.case=\"unknownservice\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "target": "rootServiceName"
+  },
+  {
+    "expected_error": "trace_root_conflict",
+    "query": "{span.case=\"ambiguous\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "rootServiceName"
+  },
+  {
+    "expected_error": "trace_root_unknown",
+    "query": "{span.case=\"childlink\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "rootServiceName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "query": "{span.case=\"empty\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "target": "rootServiceName"
+  },
+  {
+    "expected_error": "trace_root_conflict",
+    "query": "{span.case=\"parentflip\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "rootServiceName"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{span.case=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "rootServiceName"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.case=~\"norm.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "rootServiceName"
+  },
+  {
+    "expected_error": "trace_root_conflict",
+    "query": "{}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "trace:rootService"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "query": "{span.case=\"normal\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "trace:rootService"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "query": "{span.case=\"duplicate\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "trace:rootService"
+  },
+  {
+    "expected_error": "trace_root_unknown",
+    "query": "{span.case=\"missing\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "target": "trace:rootService"
+  },
+  {
+    "expected_error": "trace_root_unknown",
+    "query": "{span.case=\"unknownservice\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "target": "trace:rootService"
+  },
+  {
+    "expected_error": "trace_root_conflict",
+    "query": "{span.case=\"ambiguous\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "trace:rootService"
+  },
+  {
+    "expected_error": "trace_root_unknown",
+    "query": "{span.case=\"childlink\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "trace:rootService"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "query": "{span.case=\"empty\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "target": "trace:rootService"
+  },
+  {
+    "expected_error": "trace_root_conflict",
+    "query": "{span.case=\"parentflip\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "trace:rootService"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{span.case=\"absent\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "trace:rootService"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "query": "{resource.service.name=\"worker\" \u0026\u0026 span.case=~\"norm.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "gateway"
+        }
+      ]
+    },
+    "target": "trace:rootService"
+  }
+]

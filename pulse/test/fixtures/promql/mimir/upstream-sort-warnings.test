@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/range_queries.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+eval range from 1m to 2m step 1m sort(series)
+  expect warn msg: PromQL warning: sort is ineffective for range queries since results are always ordered by labels (1:1)
+
+eval range from 1m to 2m step 1m sort_desc(series)
+  expect warn msg: PromQL warning: sort is ineffective for range queries since results are always ordered by labels (1:1)
+
+eval range from 1m to 2m step 1m sort_by_label(series)
+  expect warn msg: PromQL warning: sort is ineffective for range queries since results are always ordered by labels (1:1)
+
+eval range from 1m to 2m step 1m sort_by_label_desc(series)
+  expect warn msg: PromQL warning: sort is ineffective for range queries since results are always ordered by labels (1:1)
+
+eval range from 1m to 2m step 1m sum(sort(series))
+  expect warn msg: PromQL warning: sort is ineffective for range queries since results are always ordered by labels (1:5)

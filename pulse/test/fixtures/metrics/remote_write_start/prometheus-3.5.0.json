@@ -1,0 +1,1528 @@
+[
+  {
+    "kind": "float",
+    "name": "float_0",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "metric": {
+              "__name__": "float_0"
+            },
+            "values": [
+              [
+                1700000000,
+                "7"
+              ],
+              [
+                1700000015,
+                "8"
+              ]
+            ]
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "QXgiACIIX19uYW1lX18iB2Zsb2F0XzAqKgoCAQISEAkABQEgHEAQgNCV/7wxFRIoIEAQmMWW/7wxKgA=",
+    "starts_ms": [
+      null,
+      null
+    ],
+    "status": 204,
+    "written": [
+      "2",
+      "0",
+      "0"
+    ]
+  },
+  {
+    "kind": "float",
+    "name": "float_1",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "metric": {
+              "__name__": "float_1"
+            },
+            "values": [
+              [
+                1700000000,
+                "7"
+              ],
+              [
+                1700000015,
+                "8"
+              ]
+            ]
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "SHgiACIIX19uYW1lX18iB2Zsb2F0XzEqMQoCAQISEAkABQEgHEAQgNCV/7wxFRJEIEAQmMWW/7wxKgAwoPKU/7wx",
+    "starts_ms": [
+      1699999988000,
+      1699999988000
+    ],
+    "status": 204,
+    "written": [
+      "2",
+      "0",
+      "0"
+    ]
+  },
+  {
+    "kind": "float",
+    "name": "float_2",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "metric": {
+              "__name__": "float_2"
+            },
+            "values": [
+              [
+                1700000000,
+                "7"
+              ],
+              [
+                1700000015,
+                "8"
+              ]
+            ]
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "SHgiACIIX19uYW1lX18iB2Zsb2F0XzIqMQoCAQISEAkABQEgHEAQgNCV/7wxFRJEIEAQmMWW/7wxKgAwgNCV/7wx",
+    "starts_ms": [
+      1700000000000,
+      1700000000000
+    ],
+    "status": 204,
+    "written": [
+      "2",
+      "0",
+      "0"
+    ]
+  },
+  {
+    "kind": "float",
+    "name": "float_3",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "metric": {
+              "__name__": "float_3"
+            },
+            "values": [
+              [
+                1700000000,
+                "7"
+              ],
+              [
+                1700000015,
+                "8"
+              ]
+            ]
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "SHgiACIIX19uYW1lX18iB2Zsb2F0XzMqMQoCAQISEAkABQEgHEAQgNCV/7wxFRJEIEAQmMWW/7wxKgAwgdCV/7wx",
+    "starts_ms": [
+      1700000000001,
+      1700000000001
+    ],
+    "status": 204,
+    "written": [
+      "2",
+      "0",
+      "0"
+    ]
+  },
+  {
+    "kind": "float",
+    "name": "float_4",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "metric": {
+              "__name__": "float_4"
+            },
+            "values": [
+              [
+                1700000000,
+                "7"
+              ],
+              [
+                1700000015,
+                "8"
+              ]
+            ]
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "THgiACIIX19uYW1lX18iB2Zsb2F0XzQqNQoCAQISEAkABQEgHEAQgNCV/7wxFRJUIEAQmMWW/7wxKgAw////////////AQ==",
+    "starts_ms": [
+      -1,
+      -1
+    ],
+    "status": 204,
+    "written": [
+      "2",
+      "0",
+      "0"
+    ]
+  },
+  {
+    "kind": "float",
+    "name": "float_5",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "metric": {
+              "__name__": "float_5"
+            },
+            "values": [
+              [
+                1700000000,
+                "7"
+              ],
+              [
+                1700000015,
+                "8"
+              ]
+            ]
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "THgiACIIX19uYW1lX18iB2Zsb2F0XzUqNQoCAQISEAkABQEgHEAQgNCV/7wxFRJUIEAQmMWW/7wxKgAwgICAgICAgICAAQ==",
+    "starts_ms": [
+      -9223372036854775808,
+      -9223372036854775808
+    ],
+    "status": 204,
+    "written": [
+      "2",
+      "0",
+      "0"
+    ]
+  },
+  {
+    "kind": "float",
+    "name": "float_6",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "metric": {
+              "__name__": "float_6"
+            },
+            "values": [
+              [
+                1700000000,
+                "7"
+              ],
+              [
+                1700000015,
+                "8"
+              ]
+            ]
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "S3giACIIX19uYW1lX18iB2Zsb2F0XzYqNAoCAQISEAkABQEgHEAQgNCV/7wxFRJQIEAQmMWW/7wxKgAw//////////9/",
+    "starts_ms": [
+      9223372036854775807,
+      9223372036854775807
+    ],
+    "status": 204,
+    "written": [
+      "2",
+      "0",
+      "0"
+    ]
+  },
+  {
+    "kind": "int_histogram",
+    "name": "int_histogram_0",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "int_histogram_0"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "Y6giACIIX19uYW1lX18iD2ludF9oaXN0b2dyYW1fMCpECgIBAhodCAEZAAAAAQJIQCn8qfHSTWJQPzABeIDQlf+8MWIfAByYxZb/vDEqAA==",
+    "starts_ms": [
+      null,
+      null
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "int_histogram",
+    "name": "int_histogram_1",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "int_histogram_1"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "aqgiACIIX19uYW1lX18iD2ludF9oaXN0b2dyYW1fMSpLCgIBAhodCAEZAAAAAQJIQCn8qfHSTWJQPzABeIDQlf+8MWIfADiYxZb/vDEqADCg8pT/vDE=",
+    "starts_ms": [
+      1699999988000,
+      1699999988000
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "int_histogram",
+    "name": "int_histogram_2",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "int_histogram_2"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "aqgiACIIX19uYW1lX18iD2ludF9oaXN0b2dyYW1fMipLCgIBAhodCAEZAAAAAQJIQCn8qfHSTWJQPzABeIDQlf+8MWIfADiYxZb/vDEqADCA0JX/vDE=",
+    "starts_ms": [
+      1700000000000,
+      1700000000000
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "int_histogram",
+    "name": "int_histogram_3",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "int_histogram_3"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "aqgiACIIX19uYW1lX18iD2ludF9oaXN0b2dyYW1fMypLCgIBAhodCAEZAAAAAQJIQCn8qfHSTWJQPzABeIDQlf+8MWIfADiYxZb/vDEqADCB0JX/vDE=",
+    "starts_ms": [
+      1700000000001,
+      1700000000001
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "int_histogram",
+    "name": "int_histogram_4",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "int_histogram_4"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "bqgiACIIX19uYW1lX18iD2ludF9oaXN0b2dyYW1fNCpPCgIBAhodCAEZAAAAAQJIQCn8qfHSTWJQPzABeIDQlf+8MWIfAEiYxZb/vDEqADD///////////8B",
+    "starts_ms": [
+      -1,
+      -1
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "int_histogram",
+    "name": "int_histogram_5",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "int_histogram_5"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "bqgiACIIX19uYW1lX18iD2ludF9oaXN0b2dyYW1fNSpPCgIBAhodCAEZAAAAAQJIQCn8qfHSTWJQPzABeIDQlf+8MWIfAEiYxZb/vDEqADCAgICAgICAgIAB",
+    "starts_ms": [
+      -9223372036854775808,
+      -9223372036854775808
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "int_histogram",
+    "name": "int_histogram_6",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "int_histogram_6"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "bagiACIIX19uYW1lX18iD2ludF9oaXN0b2dyYW1fNipOCgIBAhodCAEZAAAAAQJIQCn8qfHSTWJQPzABeIDQlf+8MWIfAESYxZb/vDEqADD//////////38=",
+    "starts_ms": [
+      9223372036854775807,
+      9223372036854775807
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "float_histogram",
+    "name": "float_histogram_0",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "float_histogram_0"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "gQHAIgAiCF9fbmFtZV9fIhFmbG9hdF9oaXN0b2dyYW1fMCpgCgIBAhorEQAAAAAAAPg/GQUIMAAAQCn8qfHSTWJQPzkJEiD4P3iA0JX/vDGaLQAcmMWW/7wxKgA=",
+    "starts_ms": [
+      null,
+      null
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "float_histogram",
+    "name": "float_histogram_1",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "float_histogram_1"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "iAHAIgAiCF9fbmFtZV9fIhFmbG9hdF9oaXN0b2dyYW1fMSpnCgIBAhorEQAAAAAAAPg/GQUIMAAAQCn8qfHSTWJQPzkJEiD4P3iA0JX/vDGaLQA4mMWW/7wxKgAwoPKU/7wx",
+    "starts_ms": [
+      1699999988000,
+      1699999988000
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "float_histogram",
+    "name": "float_histogram_2",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "float_histogram_2"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "iAHAIgAiCF9fbmFtZV9fIhFmbG9hdF9oaXN0b2dyYW1fMipnCgIBAhorEQAAAAAAAPg/GQUIMAAAQCn8qfHSTWJQPzkJEiD4P3iA0JX/vDGaLQA4mMWW/7wxKgAwgNCV/7wx",
+    "starts_ms": [
+      1700000000000,
+      1700000000000
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "float_histogram",
+    "name": "float_histogram_3",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "float_histogram_3"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "iAHAIgAiCF9fbmFtZV9fIhFmbG9hdF9oaXN0b2dyYW1fMypnCgIBAhorEQAAAAAAAPg/GQUIMAAAQCn8qfHSTWJQPzkJEiD4P3iA0JX/vDGaLQA4mMWW/7wxKgAwgdCV/7wx",
+    "starts_ms": [
+      1700000000001,
+      1700000000001
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "float_histogram",
+    "name": "float_histogram_4",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "float_histogram_4"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "jAHAIgAiCF9fbmFtZV9fIhFmbG9hdF9oaXN0b2dyYW1fNCprCgIBAhorEQAAAAAAAPg/GQUIMAAAQCn8qfHSTWJQPzkJEiD4P3iA0JX/vDGaLQBImMWW/7wxKgAw////////////AQ==",
+    "starts_ms": [
+      -1,
+      -1
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "float_histogram",
+    "name": "float_histogram_5",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "float_histogram_5"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "jAHAIgAiCF9fbmFtZV9fIhFmbG9hdF9oaXN0b2dyYW1fNSprCgIBAhorEQAAAAAAAPg/GQUIMAAAQCn8qfHSTWJQPzkJEiD4P3iA0JX/vDGaLQBImMWW/7wxKgAwgICAgICAgICAAQ==",
+    "starts_ms": [
+      -9223372036854775808,
+      -9223372036854775808
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "float_histogram",
+    "name": "float_histogram_6",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      3,
+                      "-0.001",
+                      "0.001",
+                      "1.5"
+                    ]
+                  ],
+                  "count": "1.5",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "float_histogram_6"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "iwHAIgAiCF9fbmFtZV9fIhFmbG9hdF9oaXN0b2dyYW1fNipqCgIBAhorEQAAAAAAAPg/GQUIMAAAQCn8qfHSTWJQPzkJEiD4P3iA0JX/vDGaLQBEmMWW/7wxKgAw//////////9/",
+    "starts_ms": [
+      9223372036854775807,
+      9223372036854775807
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "custom_histogram",
+    "name": "custom_histogram_0",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "custom_histogram_0"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "jAGwIgAiCF9fbmFtZV9fIhJjdXN0b21faGlzdG9ncmFtXzAqagoCAQIaMAgBGQAABQJUQCBpWgQIAhABYgECeIDQlf+8MYIBEAUbCAAAwAkICAhAGl4yAAiYxZZWMgAEKgA=",
+    "starts_ms": [
+      null,
+      null
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "custom_histogram",
+    "name": "custom_histogram_1",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "custom_histogram_1"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "kwGwIgAiCF9fbmFtZV9fIhJjdXN0b21faGlzdG9ncmFtXzEqcQoCAQIaMAgBGQAABQJUQCBpWgQIAhABYgECeIDQlf+8MYIBEAUbCAAAwAkICAhAGl4yAAiYxZZWMgAgKgAwoPKU/7wx",
+    "starts_ms": [
+      1699999988000,
+      1699999988000
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "custom_histogram",
+    "name": "custom_histogram_2",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "custom_histogram_2"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "kwGwIgAiCF9fbmFtZV9fIhJjdXN0b21faGlzdG9ncmFtXzIqcQoCAQIaMAgBGQAABQJUQCBpWgQIAhABYgECeIDQlf+8MYIBEAUbCAAAwAkICAhAGl4yAAiYxZZWMgAgKgAwgNCV/7wx",
+    "starts_ms": [
+      1700000000000,
+      1700000000000
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "custom_histogram",
+    "name": "custom_histogram_3",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "custom_histogram_3"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "kwGwIgAiCF9fbmFtZV9fIhJjdXN0b21faGlzdG9ncmFtXzMqcQoCAQIaMAgBGQAABQJUQCBpWgQIAhABYgECeIDQlf+8MYIBEAUbCAAAwAkICAhAGl4yAAiYxZZWMgAgKgAwgdCV/7wx",
+    "starts_ms": [
+      1700000000001,
+      1700000000001
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "custom_histogram",
+    "name": "custom_histogram_4",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "custom_histogram_4"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "lwGwIgAiCF9fbmFtZV9fIhJjdXN0b21faGlzdG9ncmFtXzQqdQoCAQIaMAgBGQAABQJUQCBpWgQIAhABYgECeIDQlf+8MYIBEAUbCAAAwAkICAhAGl4yAAiYxZZWMgAwKgAw////////////AQ==",
+    "starts_ms": [
+      -1,
+      -1
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "custom_histogram",
+    "name": "custom_histogram_5",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "custom_histogram_5"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "lwGwIgAiCF9fbmFtZV9fIhJjdXN0b21faGlzdG9ncmFtXzUqdQoCAQIaMAgBGQAABQJUQCBpWgQIAhABYgECeIDQlf+8MYIBEAUbCAAAwAkICAhAGl4yAAiYxZZWMgAwKgAwgICAgICAgICAAQ==",
+    "starts_ms": [
+      -9223372036854775808,
+      -9223372036854775808
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  },
+  {
+    "kind": "custom_histogram",
+    "name": "custom_histogram_6",
+    "query": {
+      "data": {
+        "result": [
+          {
+            "histograms": [
+              [
+                1700000000,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ],
+              [
+                1700000015,
+                {
+                  "buckets": [
+                    [
+                      0,
+                      "-2",
+                      "3",
+                      "1"
+                    ]
+                  ],
+                  "count": "1",
+                  "sum": "2"
+                }
+              ]
+            ],
+            "metric": {
+              "__name__": "custom_histogram_6"
+            }
+          }
+        ],
+        "resultType": "matrix"
+      },
+      "status": "success"
+    },
+    "snappy_base64": "lgGwIgAiCF9fbmFtZV9fIhJjdXN0b21faGlzdG9ncmFtXzYqdAoCAQIaMAgBGQAABQJUQCBpWgQIAhABYgECeIDQlf+8MYIBEAUbCAAAwAkICAhAGl4yAAiYxZZWMgAsKgAw//////////9/",
+    "starts_ms": [
+      9223372036854775807,
+      9223372036854775807
+    ],
+    "status": 204,
+    "written": [
+      "0",
+      "2",
+      "0"
+    ]
+  }
+]
