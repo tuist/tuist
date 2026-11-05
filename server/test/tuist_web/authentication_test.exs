@@ -800,7 +800,7 @@ defmodule TuistWeb.AuthenticationTest do
 
       assert conn.halted
       assert redirected_to(conn) == "/users/auth/google"
-      assert get_session(conn, :oauth_return_to) == "/#{organization.account.name}/settings"
+      assert get_session(conn, :user_return_to) == "/#{organization.account.name}/settings"
     end
 
     test "redirects to Okta SSO when org has Okta SSO enforced and session auth provider does not match",

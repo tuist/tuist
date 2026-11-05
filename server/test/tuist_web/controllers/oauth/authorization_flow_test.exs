@@ -97,7 +97,7 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     password_conn = get(conn, ~p"/oauth2/authorize", authorize_params(client_id))
 
     assert redirected_to(password_conn) == "/users/auth/google"
-    assert "/oauth2/authorize?" <> _ = get_session(password_conn, :oauth_return_to)
+    assert "/oauth2/authorize?" <> _ = get_session(password_conn, :user_return_to)
 
     google_token =
       Tuist.Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})

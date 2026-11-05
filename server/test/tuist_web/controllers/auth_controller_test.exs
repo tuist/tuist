@@ -13,6 +13,8 @@ defmodule TuistWeb.AuthControllerTest do
   alias Tuist.OAuth2.SSOClient
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AppBuildsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
   alias Ueberauth.Auth.Info
@@ -53,7 +55,7 @@ defmodule TuistWeb.AuthControllerTest do
       conn = get(conn, "/auth/device_codes/SSO-1234?type=cli")
 
       assert redirected_to(conn) == "/users/auth/google"
-      assert get_session(conn, :oauth_return_to) == "/auth/device_codes/SSO-1234?type=cli"
+      assert get_session(conn, :user_return_to) == "/auth/device_codes/SSO-1234?type=cli"
     end
 
     test "shows the confirmation to a session signed in with the provider", %{conn: conn, user: user} do
@@ -1514,7 +1516,7 @@ defmodule TuistWeb.AuthControllerTest do
       conn =
         sso_callback(conn, organization, %{
           user_token: Accounts.generate_user_session_token(member),
-          oauth_return_to: "/#{member.account.name}/projects"
+          user_return_to: "/#{member.account.name}/projects"
         })
 
       assert redirected_to(conn) == "/auth/sso/link"
@@ -1731,6 +1733,85 @@ defmodule TuistWeb.AuthControllerTest do
   end
 
   describe "callback/2 with OAuth" do
+    test "returns to the page that asked for the sign-in, not one from an abandoned SSO attempt", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(email: "member@example.com")
+
+      organization =
+        [creator: user, preload: [:account]]
+        |> AccountsFixtures.organization_fixture()
+        |> enforce_sso(:google, "example.com")
+
+      {:ok, _} =
+        Accounts.link_oauth_identity_to_user(user, %{
+          provider: :google,
+          id_in_provider: "google-member",
+          provider_organization_id: "example.com"
+        })
+
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      [first, second] = for _ <- 1..2, do: AppBuildsFixtures.preview_fixture(project: project)
+      previews_path = "/#{organization.account.name}/#{project.name}/previews"
+
+      # A session that did not sign in with Google is sent there, and the
+      # user leaves without finishing.
+      conn = conn |> log_in_user(user) |> get("#{previews_path}/#{first.id}")
+      assert redirected_to(conn) == "/users/auth/google"
+
+      # The session expires before they open another preview.
+      Repo.update_all(from(token in Accounts.UserToken, where: token.user_id == ^user.id),
+        set: [last_active_at: DateTime.add(DateTime.utc_now(), -30, :day)]
+      )
+
+      conn = conn |> recycle() |> get("#{previews_path}/#{second.id}")
+      assert redirected_to(conn) == "/users/log_in"
+
+      conn =
+        build_conn()
+        |> init_test_session(get_session(conn))
+        |> assign(:ueberauth_auth, %Ueberauth.Auth{
+          provider: :google,
+          uid: "google-member",
+          info: %Info{email: user.email},
+          extra: %{raw_info: %{user: %{"hd" => "example.com"}}}
+        })
+        |> TuistWeb.AuthController.callback(%{})
+
+      assert redirected_to(conn) == "#{previews_path}/#{second.id}"
+    end
+
+    test "honors the legacy return path key only for provider sign-ins, below the current key", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(email: "legacy@example.com")
+
+      {:ok, _} =
+        Accounts.link_oauth_identity_to_user(user, %{provider: :google, id_in_provider: "google-legacy"})
+
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-legacy",
+        info: %Info{email: user.email},
+        extra: %{raw_info: %{user: %{"hd" => nil}}}
+      }
+
+      callback = fn session ->
+        conn
+        |> init_test_session(session)
+        |> assign(:ueberauth_auth, auth)
+        |> TuistWeb.AuthController.callback(%{})
+        |> redirected_to()
+      end
+
+      assert callback.(%{oauth_return_to: "/legacy"}) == "/legacy"
+      assert callback.(%{oauth_return_to: "/legacy", user_return_to: "/current"}) == "/current"
+
+      # Only provider sign-ins ever honored the legacy key.
+      password_conn =
+        conn
+        |> init_test_session(%{oauth_return_to: "/legacy"})
+        |> TuistWeb.Authentication.log_in_user(user, %{auth_method: :password})
+
+      assert redirected_to(password_conn) == TuistWeb.Authentication.signed_in_path(user)
+    end
+
     test "links OAuth identity to existing user with same email and logs them in", %{conn: conn} do
       stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
       # Given: A user already exists with a specific email
