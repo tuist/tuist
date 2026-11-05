@@ -235,7 +235,7 @@ defmodule TuistWeb.Authentication do
   end
 
   defp complete_user_login(conn, user, token, params) do
-    user_return_to = get_session(conn, :user_return_to)
+    user_return_to = return_to(conn)
     auth_method = Map.get(params, :auth_method, :password)
 
     {post_invitation_return_to, post_invitation_token} =
@@ -763,7 +763,7 @@ defmodule TuistWeb.Authentication do
 
   defp redirect_to_sso_sign_in(conn, organization) do
     conn
-    |> put_session(:oauth_return_to, current_path(conn))
+    |> put_session(:user_return_to, current_path(conn))
     |> redirect(to: sso_provider_path(organization))
     |> halt()
   end
@@ -843,6 +843,18 @@ defmodule TuistWeb.Authentication do
     |> put_session(:user_token, token)
     |> put_session(:live_socket_id, "users_sessions:#{Base.url_encode64(token)}")
   end
+
+  @doc """
+  Where to send the user once they sign in. Every flow records it in
+  `:user_return_to`, so the latest page that asked for a sign-in wins.
+
+  Sessions written before the provider flows moved off `:oauth_return_to`,
+  including ones a pod from the previous release writes during the rollout,
+  can still carry that key, so it is read as a fallback. Cookie sessions
+  have no server-side expiry, so removing the fallback later costs those
+  sessions their pending return path and nothing else.
+  """
+  def return_to(conn), do: get_session(conn, :user_return_to) || get_session(conn, :oauth_return_to)
 
   defp maybe_store_return_to(%{method: "GET"} = conn) do
     put_session(conn, :user_return_to, current_path(conn))

@@ -53,7 +53,7 @@ defmodule TuistWeb.Oauth.AuthorizeController do
     oauth_return_url = "/oauth2/authorize?" <> URI.encode_query(params)
 
     conn
-    |> put_session(:oauth_return_to, oauth_return_url)
+    |> put_session(:user_return_to, oauth_return_url)
     |> redirect(to: "/users/auth/github")
     |> halt()
   end
@@ -62,7 +62,7 @@ defmodule TuistWeb.Oauth.AuthorizeController do
     oauth_return_url = "/oauth2/authorize?" <> URI.encode_query(params)
 
     conn
-    |> put_session(:oauth_return_to, oauth_return_url)
+    |> put_session(:user_return_to, oauth_return_url)
     |> redirect(to: "/users/auth/google")
     |> halt()
   end
@@ -71,7 +71,7 @@ defmodule TuistWeb.Oauth.AuthorizeController do
     oauth_return_url = "/oauth2/authorize?" <> URI.encode_query(params)
 
     conn
-    |> put_session(:oauth_return_to, oauth_return_url)
+    |> put_session(:user_return_to, oauth_return_url)
     |> redirect(to: "/users/auth/apple")
     |> halt()
   end

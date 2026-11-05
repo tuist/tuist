@@ -226,20 +226,10 @@ defmodule TuistWeb.AuthController do
 
     case Accounts.get_oauth2_identity(auth.provider, auth.uid, provider_organization_id) do
       {:ok, oauth2_identity} ->
-        user = oauth2_identity.user
-        oauth_return_url = get_session(conn, :oauth_return_to)
-
-        if oauth_return_url do
-          conn
-          |> put_session(:user_return_to, oauth_return_url)
-          |> delete_session(:oauth_return_to)
-          |> Authentication.log_in_user(user, auth_params)
-        else
-          Authentication.log_in_user(conn, user, auth_params)
-        end
+        Authentication.log_in_user(conn, oauth2_identity.user, auth_params)
 
       {:error, :not_found} ->
-        oauth_return_url = get_session(conn, :oauth_return_to)
+        return_to = Authentication.return_to(conn)
 
         case Accounts.get_user_by_email(auth.info.email) do
           {:error, :not_found} ->
@@ -259,7 +249,7 @@ defmodule TuistWeb.AuthController do
                   auth,
                   sso_organization,
                   provider_organization_id,
-                  oauth_return_url
+                  return_to
                 )
 
               new_sso_user_allowed?(auth.provider, sso_organization, auth.info.email, invitation) ->
@@ -269,12 +259,11 @@ defmodule TuistWeb.AuthController do
                   "email" => auth.info.email,
                   "provider_organization_id" => provider_organization_id,
                   "sso_organization_id" => get_in(sso_organization, [Access.key(:id)]),
-                  "oauth_return_url" => oauth_return_url,
+                  "oauth_return_url" => return_to,
                   "invitation_token" => invitation_token_for_signup(invitation, sso_organization, auth.info.email)
                 }
 
                 conn
-                |> delete_session(:oauth_return_to)
                 |> put_session(:pending_oauth_signup, oauth_data)
                 |> redirect(to: ~p"/users/choose-username")
                 |> halt()
@@ -291,7 +280,7 @@ defmodule TuistWeb.AuthController do
               auth_params,
               sso_organization,
               provider_organization_id,
-              oauth_return_url
+              return_to
             )
         end
     end
@@ -304,7 +293,7 @@ defmodule TuistWeb.AuthController do
          auth_params,
          sso_organization,
          provider_organization_id,
-         oauth_return_url
+         return_to
        ) do
     invitation =
       pending_invitation_for(
@@ -326,7 +315,7 @@ defmodule TuistWeb.AuthController do
               invitation,
               auth_params,
               sso_organization,
-              oauth_return_url
+              return_to
             )
 
           {:error, :email_not_proven} ->
@@ -348,15 +337,12 @@ defmodule TuistWeb.AuthController do
         end
 
       signed_in_user = signed_in_sso_link_user(conn, auth.provider, sso_organization) ->
-        confirm_sso_link(conn, signed_in_user, auth, sso_organization, provider_organization_id, oauth_return_url)
+        confirm_sso_link(conn, signed_in_user, auth, sso_organization, provider_organization_id, return_to)
 
       invitation ->
-        prior_return_to =
-          oauth_return_url || get_session(conn, :user_return_to)
-
         conn
         |> maybe_put_post_invitation_context(
-          prior_return_to,
+          return_to,
           existing_user.id,
           invitation.token
         )
@@ -376,32 +362,20 @@ defmodule TuistWeb.AuthController do
     end
   end
 
-  defp log_in_linked_sso_user(conn, existing_user, invitation, auth_params, sso_organization, oauth_return_url) do
-    cond do
-      invitation &&
-          not Accounts.sso_automatic_enrollment_allowed?(sso_organization, existing_user.email) ->
-        prior_return_to =
-          oauth_return_url || get_session(conn, :user_return_to)
-
-        conn
-        |> put_session(:user_return_to, ~p"/auth/invitations/#{invitation.token}")
-        |> delete_session(:oauth_return_to)
-        |> Authentication.log_in_user(
-          existing_user,
-          Map.merge(auth_params, %{
-            post_invitation_return_to: prior_return_to,
-            post_invitation_token: invitation.token
-          })
-        )
-
-      oauth_return_url ->
-        conn
-        |> put_session(:user_return_to, oauth_return_url)
-        |> delete_session(:oauth_return_to)
-        |> Authentication.log_in_user(existing_user, auth_params)
-
-      true ->
-        Authentication.log_in_user(conn, existing_user, auth_params)
+  defp log_in_linked_sso_user(conn, existing_user, invitation, auth_params, sso_organization, return_to) do
+    if invitation &&
+         not Accounts.sso_automatic_enrollment_allowed?(sso_organization, existing_user.email) do
+      conn
+      |> put_session(:user_return_to, ~p"/auth/invitations/#{invitation.token}")
+      |> Authentication.log_in_user(
+        existing_user,
+        Map.merge(auth_params, %{
+          post_invitation_return_to: return_to,
+          post_invitation_token: invitation.token
+        })
+      )
+    else
+      Authentication.log_in_user(conn, existing_user, auth_params)
     end
   end
 
@@ -433,8 +407,9 @@ defmodule TuistWeb.AuthController do
 
   defp signed_in_sso_link_user(_conn, _provider, _organization), do: nil
 
-  defp confirm_sso_link(conn, user, auth, organization, provider_organization_id, oauth_return_url) do
+  defp confirm_sso_link(conn, user, auth, organization, provider_organization_id, return_to) do
     conn
+    |> delete_session(:user_return_to)
     |> delete_session(:oauth_return_to)
     |> put_session(:pending_sso_link, %{
       "user_id" => user.id,
@@ -443,7 +418,7 @@ defmodule TuistWeb.AuthController do
       "uid" => to_string(auth.uid),
       "provider_organization_id" => provider_organization_id,
       "email" => auth.info.email,
-      "return_to" => oauth_return_url,
+      "return_to" => return_to,
       "issued_at" => System.system_time(:second)
     })
     |> redirect(to: ~p"/auth/sso/link")
@@ -568,7 +543,7 @@ defmodule TuistWeb.AuthController do
     auth_method = if pending, do: String.to_existing_atom(pending["provider"]), else: :password
 
     invitation_return_to = pending_invitation_return_to(pending)
-    prior_return_to = oauth_return_url || get_session(conn, :user_return_to)
+    prior_return_to = oauth_return_url || Authentication.return_to(conn)
 
     return_to =
       invitation_return_to ||
