@@ -65,6 +65,7 @@ Do not add README entries for internal operational details such as env var names
 - Transient OAuth refresh failures (transport errors, HTTP 429/5xx) preserve the refresh credential for a later attempt without returning an expired access token. Definitive refresh failures still require reauthorization.
 - Standalone deployment support is documented in [deploy/AGENTS.md](deploy/AGENTS.md) and lives in `compose.yaml` and the public `/docs/self-hosting` guide. The chart defaults require only an external database and application Secret; Tuist cluster integrations live in an excluded managed values overlay. Releases publish the chart and image with matching versions and attach a Compose bundle.
 - The monorepo release workflow is `.github/workflows/atlas-release.yml`, chart `infra/helm/atlas`, namespace `atlas-production` on the separate Atlas workload cluster. The Tuist production context does not target this deployment.
+- PR titles that need an Atlas release must include `atlas` in their conventional-commit scope, including cross-component changes such as `feat(atlas,server): ...`. `atlas/cliff.toml` skips other scoped commits even when they change Atlas paths; a successful release check can therefore skip publishing and deployment. Verify the release decision, not only the workflow conclusion.
 
 ## Tuist feature flag control
 
