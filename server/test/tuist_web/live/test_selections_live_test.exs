@@ -222,7 +222,8 @@ defmodule TuistWeb.TestSelectionsLiveTest do
         |> Enum.filter(&(&1 =~ ~r/^(Tests|Modules|Changed files|Shards) \(|^Configuration$/))
 
       assert [tests, modules, files, shards, configuration] = tabs
-      assert tests =~ "Tests"
+      # The tests in BillingTests, skipped by hash, aren't rows of the Tests sub-tab.
+      assert tests == "Tests (2)"
       assert modules =~ "Modules"
       assert files =~ "Changed files"
       assert shards =~ "Shards"

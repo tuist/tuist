@@ -902,7 +902,7 @@ defmodule TuistWeb.TestSelection.RunTab do
   end
 
   defp tab_label("tests", %{summary: summary}),
-    do: dgettext("dashboard_tests", "Tests (%{count})", count: format_number(summary.requested))
+    do: dgettext("dashboard_tests", "Tests (%{count})", count: format_number(summary.selected + summary.unaffected))
 
   defp tab_label("files", %{diff: diff}),
     do:
