@@ -62,6 +62,8 @@
     & > [data-part="extra-metadata"] {
       display: flex;
       flex-direction: row;
+      /* Previews for many platforms would otherwise run past the card. */
+      flex-wrap: wrap;
       align-items: center;
       gap: var(--noora-spacing-4);
 
@@ -86,6 +88,7 @@
         & > [data-part="label"] {
           color: var(--noora-surface-label-secondary);
           font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+          white-space: nowrap;
         }
       }
     }
