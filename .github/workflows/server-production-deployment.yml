@@ -511,6 +511,10 @@ jobs:
           tags: |
             ghcr.io/tuist/tuist-runners-controller:${{ needs.check-releases.outputs.runners-controller-next-version-number }}
             ghcr.io/tuist/tuist-runners-controller:latest
+          # Same scopes as runners-controller-image.yml, which builds these
+          # images on main, so releases reuse its layers.
+          cache-from: type=gha,scope=runners-controller
+          cache-to: type=gha,mode=max,scope=runners-controller
 
       - name: Build and push cache volume agent
         uses: docker/build-push-action@v6
@@ -523,6 +527,8 @@ jobs:
           tags: |
             ghcr.io/tuist/tuist-runner-cache-volumes:${{ needs.check-releases.outputs.runners-controller-next-version-number }}
             ghcr.io/tuist/tuist-runner-cache-volumes:latest
+          cache-from: type=gha,scope=runner-cache-volumes
+          cache-to: type=gha,mode=max,scope=runner-cache-volumes
 
   release-stable-egress-controller:
     name: Release stable-egress-controller
