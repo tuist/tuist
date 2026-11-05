@@ -204,16 +204,22 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			if err != nil && !os.IsNotExist(err) {
 				return err
 			}
+			warmLeft := false
 			for _, vm := range vms {
-				if strings.HasPrefix(vm.Name(), "sbx-") {
+				if strings.HasPrefix(vm.Name(), sandboxVMPrefix) {
 					return errors.New("orphan sandbox VM requires ownership reconciliation")
 				}
+				warmLeft = warmLeft || strings.HasPrefix(vm.Name(), warmVMPrefix)
 			}
-			s.mu.Lock()
-			s.ready = true
-			s.mu.Unlock()
-			if control == nil {
-				return nil
+			// An unclaimed warm VM still runs and takes a VM slot: stay closed
+			// until the full preparation below has deleted it.
+			if !warmLeft {
+				s.mu.Lock()
+				s.ready = true
+				s.mu.Unlock()
+				if control == nil {
+					return nil
+				}
 			}
 		}
 		var cfg Config
@@ -277,9 +283,22 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 		if err != nil {
 			return err
 		}
+		owned := map[string]bool{}
+		for _, r := range m.records {
+			owned[r.VMName()] = true
+		}
 		for _, vm := range vms {
-			if strings.HasPrefix(vm.Name, "sbx-") && m.records[strings.TrimPrefix(vm.Name, "sbx-")] == nil {
+			if owned[vm.Name] {
+				continue
+			}
+			if strings.HasPrefix(vm.Name, sandboxVMPrefix) {
 				return errors.New("orphan sandbox VM requires ownership reconciliation")
+			}
+			// Warm VMs live in memory only; one no record claimed is disposable.
+			if strings.HasPrefix(vm.Name, warmVMPrefix) {
+				if err = m.Runtime.Delete(ctx, &Record{VM: vm.Name}); err != nil {
+					return err
+				}
 			}
 		}
 		// Recreate reservations from durable local ownership before admitting CI,

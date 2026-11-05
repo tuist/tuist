@@ -47,6 +47,24 @@ func TestUnjournaledVMBlocksCIWithoutControlPod(t *testing.T) {
 	unlock()
 }
 
+// A warm VM still running after a restart takes a VM slot no journal
+// charges, so CI must not launch before preparation has deleted it.
+func TestLeftoverWarmVMKeepsCIClosed(t *testing.T) {
+	capacity, node, _ := capacityFixture()
+	s := &Service{Kube: capacity.Kube, Node: node.Name, Root: t.TempDir()}
+	if err := os.MkdirAll(filepath.Join(s.Root, "tart", "vms", warmVMPrefix+"pod-uid"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	var controlUID string
+	var cancel context.CancelFunc
+	ctx := context.Background()
+	_ = s.tick(ctx, ctx, &controlUID, &cancel)
+	if unlock, err := s.LaunchGuard(ctx, "ci-vm"); err == nil {
+		unlock()
+		t.Fatal("CI admitted while an unclaimed warm VM may still run")
+	}
+}
+
 // The fake API normally drops Pods immediately regardless of deletion grace.
 // Leave graceful deletes in the tracker, as the real API does without a kubelet
 // completing them, so lifecycle tests cannot hide leaked Terminating Pods.

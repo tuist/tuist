@@ -21,12 +21,28 @@ type fakeRuntime struct {
 	worker                   WorkerStatus
 	saveErr, errorRecovery   error
 	saveStarted, saveRelease chan struct{}
-	creates                  int
+	creates, warms           int
 	cpuPermille              int64
 }
 
 func (f *fakeRuntime) Create(_ context.Context, r *Record) error {
 	f.creates++
+	f.states[r.SandboxID] = "running"
+	f.memory[r.SandboxID] = "in-memory-session"
+	return nil
+}
+
+// A warm VM is keyed by its VM name until a claim moves it to its sandbox.
+func (f *fakeRuntime) Warm(_ context.Context, r *Record) error {
+	f.warms++
+	f.states[r.VMName()] = "warm"
+	return nil
+}
+func (f *fakeRuntime) Claim(_ context.Context, r *Record) error {
+	if f.states[r.VMName()] != "warm" {
+		return errors.New("not warm")
+	}
+	delete(f.states, r.VMName())
 	f.states[r.SandboxID] = "running"
 	f.memory[r.SandboxID] = "in-memory-session"
 	return nil

@@ -18,7 +18,7 @@ import (
 func diskRoom(vms []tart.VM, total, free uint64, nextMemoryMB int) error {
 	var ceiling uint64
 	for _, vm := range vms {
-		if !strings.HasPrefix(vm.Name, "sbx-") {
+		if !isSandboxVM(vm.Name) {
 			continue
 		}
 		if vm.Disk <= 0 || vm.Memory <= 0 || vm.Disk > 10000 || vm.Memory > 24576 {
@@ -33,6 +33,10 @@ func diskRoom(vms []tart.VM, total, free uint64, nextMemoryMB int) error {
 	}
 	return nil
 }
+func isSandboxVM(name string) bool {
+	return strings.HasPrefix(name, sandboxVMPrefix) || strings.HasPrefix(name, warmVMPrefix)
+}
+
 func (t *TartRuntime) checkDisk(ctx context.Context, r *Record) error {
 	var fs syscall.Statfs_t
 	if err := syscall.Statfs(t.Client.HomeDir, &fs); err != nil {
@@ -44,7 +48,7 @@ func (t *TartRuntime) checkDisk(ctx context.Context, r *Record) error {
 	}
 	// list omits CPU/RAM; get supplies the configured memory ceiling.
 	for i, vm := range vms {
-		if !strings.HasPrefix(vm.Name, "sbx-") {
+		if !isSandboxVM(vm.Name) {
 			continue
 		}
 		detail, err := t.client(r).Get(ctx, vm.Name)

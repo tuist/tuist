@@ -25,6 +25,10 @@ var ErrCapacity = errors.New("macOS sandbox capacity unavailable")
 // never cold boot or accept an old checkpoint for a disk that has since run.
 type Runtime interface {
 	Create(context.Context, *Record) error
+	// Warm boots a VM no sandbox owns yet; Claim finishes one for its
+	// sandbox. Create is Warm followed by Claim.
+	Warm(context.Context, *Record) error
+	Claim(context.Context, *Record) error
 	Busy(context.Context, *Record) (bool, error)
 	Resume(context.Context, *Record) error
 	Pause(context.Context, *Record) error
@@ -73,9 +77,29 @@ type Record struct {
 	// Operation is persisted before side effects. Uncertain saves/restores are
 	// reconciled against the runtime, never optimistically released.
 	Operation string `json:"operation,omitempty"`
+	// VM names a claimed warm VM (`sbw-<pod UID>`), which keeps the name and
+	// env share it booted with. Cold-created sandboxes leave it empty.
+	VM string `json:"vm,omitempty"`
 }
 
-func (r *Record) VMName() string { return "sbx-" + r.SandboxID }
+// Warm VMs carry their own prefix: a host restart deletes the unclaimed ones
+// instead of treating them as orphaned sandboxes.
+const sandboxVMPrefix, warmVMPrefix = "sbx-", "sbw-"
+
+func (r *Record) VMName() string {
+	if r.VM != "" {
+		return r.VM
+	}
+	return sandboxVMPrefix + r.SandboxID
+}
+
+// envName is the VM's env share directory, bound when it first boots.
+func (r *Record) envName() string {
+	if r.VM != "" {
+		return r.VM
+	}
+	return r.SandboxID
+}
 func (r *Record) Info() protocol.SandboxInfo {
 	return protocol.SandboxInfo{ID: r.SandboxID, State: r.State, Resident: r.Resident || r.Operation != "", Template: r.Template,
 		TemplateTag: r.TemplateTag, VCPUs: r.VCPUs, MemoryMB: r.MemoryMB, WorkspaceGB: r.WorkspaceGB,

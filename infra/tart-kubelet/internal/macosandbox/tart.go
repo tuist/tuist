@@ -76,9 +76,18 @@ func (t *TartRuntime) directory(r *Record) string {
 	return filepath.Join(t.Client.HomeDir, "vms", r.VMName())
 }
 func (t *TartRuntime) options(r *Record) tart.RunOptions {
-	return tart.RunOptions{Suspendable: true, DetachedLogs: true, SharedDirs: []string{"env:" + filepath.Join(t.Client.HomeDir, "env", r.SandboxID) + ":ro", "sandbox-tools:" + r.ToolsPath + ":ro"}}
+	return tart.RunOptions{Suspendable: true, DetachedLogs: true, SharedDirs: []string{"env:" + filepath.Join(t.Client.HomeDir, "env", r.envName()) + ":ro", "sandbox-tools:" + r.ToolsPath + ":ro"}}
 }
 func (t *TartRuntime) Create(ctx context.Context, r *Record) error {
+	if err := t.Warm(ctx, r); err != nil {
+		return err
+	}
+	return t.Claim(ctx, r)
+}
+
+// Warm clones and boots a VM up to a ready guest bridge. Nothing in it
+// belongs to a sandbox yet, so a warm VM can wait for one.
+func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 	if r.Template != t.Template {
 		return errors.New("unknown macOS template")
 	}
@@ -98,7 +107,7 @@ func (t *TartRuntime) Create(ctx context.Context, r *Record) error {
 	if err := c.RegenerateIdentity(ctx, r.VMName()); err != nil {
 		return err
 	}
-	env := filepath.Join(c.HomeDir, "env", r.SandboxID)
+	env := filepath.Join(c.HomeDir, "env", r.envName())
 	if err := os.MkdirAll(env, 0700); err != nil {
 		return err
 	}
@@ -109,18 +118,22 @@ func (t *TartRuntime) Create(ctx context.Context, r *Record) error {
 	if err != nil {
 		return err
 	}
-	if err = t.waitGuestReady(ctx, r, h); err != nil {
-		return err
-	}
+	return t.waitGuestReady(ctx, r, h)
+}
+
+// Claim finishes a booted VM for its sandbox: the workspace quota is the
+// sandbox's own, and the status call pins the runtime instance and PID.
+func (t *TartRuntime) Claim(ctx context.Context, r *Record) error {
+	c := t.client(r)
 	// The image's sandbox boot mode disables runner dispatch before its halt
 	// trap is armed. No runner service-account credential is shared with it.
-	if _, err = c.Exec(ctx, r.VMName(), "/bin/sh", "-c", fmt.Sprintf(`set -eu
+	if _, err := c.Exec(ctx, r.VMName(), "/bin/sh", "-c", fmt.Sprintf(`set -eu
 container=$(/usr/sbin/diskutil info -plist / | /usr/bin/plutil -extract APFSContainerReference raw -o - -)
 /usr/bin/sudo -n /usr/sbin/diskutil apfs addVolume "$container" APFS TuistSandboxWorkspace -quota %dg -mountpoint /Users/runner/work
 /usr/bin/sudo -n /usr/sbin/chown runner:staff /Users/runner/work`, r.WorkspaceGB)); err != nil {
 		return err
 	}
-	_, err = t.control(ctx, r, "status")
+	_, err := t.control(ctx, r, "status")
 	return err
 }
 func (t *TartRuntime) Resume(ctx context.Context, r *Record) error {
@@ -262,7 +275,7 @@ func (t *TartRuntime) Delete(ctx context.Context, r *Record) error {
 			return err
 		}
 	}
-	if err := os.RemoveAll(filepath.Join(c.HomeDir, "env", r.SandboxID)); err != nil {
+	if err := os.RemoveAll(filepath.Join(c.HomeDir, "env", r.envName())); err != nil {
 		return err
 	}
 	if err := os.Remove(filepath.Join(c.LogDir, r.VMName()+".log")); err != nil && !os.IsNotExist(err) {
