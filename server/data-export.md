@@ -46,6 +46,41 @@ Authenticated-subject snapshots are also stored in the separate ephemeral node-l
 
 ## Exportable Data
 
+### Managed outbound email delivery
+
+Managed Tuist Server (staging, canary and production), Atlas and Slack invitation
+mail use Amazon SES in `eu-west-1`, AWS account `881372579491`. SES receives the
+sender, recipients, subject, body, attachments and message headers to deliver
+mail. The identity's default `tuist-mail` configuration set publishes delivery
+events through SNS to the encrypted SQS queue `tuist-mail-events`. Event JSON
+contains sender/recipient addresses, SES message ID, timestamps, original
+headers (including subject and To/Cc), sending identity and IAM principal tags,
+and delivery, bounce or complaint diagnostics. It does not contain the message
+body or attachments. These operational records have no customer foreign key;
+relate them to the export subject by verified email addresses and message IDs.
+The shared queue covers all five senders, not just production Server.
+
+SQS expires events 14 days after enqueueing; there is no archival consumer or
+application-database copy. With an authorized AWS operator identity, use
+`sqs:ReceiveMessage` on
+`https://sqs.eu-west-1.amazonaws.com/881372579491/tuist-mail-events` with
+`VisibilityTimeout=0`, parse each raw JSON body, and deduplicate by SQS message
+ID while scanning the retained backlog. Do not delete messages during export.
+Select only events related to the subject's addresses/message IDs, and redact
+unrelated recipients, headers, identifiers and diagnostic text before disclosing
+them. SQS provides no recipient query or complete historical search: an export
+can retrieve only retained messages, not expired events. Retrieval of delivery,
+bounce and complaint JSON was verified with SES simulator messages.
+
+SES's regional account suppression list separately stores bounced/complaining
+addresses, reason and last-update time to prevent further sending. These entries
+remain until explicitly removed, except AWS deletes them after 90 days if
+account sending stays paused. Retrieve each subject address with
+`sesv2:GetSuppressedDestination`; a missing entry means that address has no
+current suppression record. Include only the requested subject's non-secret
+record, not the whole account list. Mailgun's existing suppression records and
+inbound routes remain separate during migration; do not discard them at cutover.
+
 ### Agent feedback reported through the MCP server
 
 The hosted Model Context Protocol server's `report_feedback` tool does not store

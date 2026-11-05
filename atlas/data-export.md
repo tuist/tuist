@@ -2,6 +2,19 @@
 
 Atlas's personal LLM connections are separate from Tuist Server customer data and from Atlas's operator-configured inference providers.
 
+## Managed outbound email delivery
+
+Atlas's managed deployment sends email through SES in Ireland, including support
+replies and newsletters previously owned by Hive. SES receives the message and
+recipients for delivery. Its shared encrypted feedback queue retains delivery,
+bounce and complaint metadata, recipient addresses and original headers/subjects
+for 14 days; account suppression records normally remain until removed (AWS
+deletes them after 90 days if account sending stays paused). These are separate
+from Atlas's PostgreSQL support messages and newsletter consent/unsubscribe state.
+Retrieve relevant provider records by the verified subject's email addresses
+and SES message IDs, redacting other recipients and authentication material.
+See [the shared provider inventory and retrieval procedure](../server/data-export.md#managed-outbound-email-delivery).
+
 ## Native device-only read projections
 
 iOS/macOS retain bounded, disposable copies of authorized Orbit inbox/history,

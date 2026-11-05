@@ -668,19 +668,34 @@ config :ueberauth, Ueberauth.Strategy.Google.OAuth,
   client_id: Tuist.Environment.google_oauth_client_id(secrets),
   client_secret: Tuist.Environment.google_oauth_client_secret(secrets)
 
-# Mailgun configuration
-if Tuist.Environment.mail_configured?(secrets) and Tuist.Environment.env() in [:prod, :can, :stag] do
-  base_uri =
-    cond do
-      env in [:prod, :can, :stag] -> "https://api.eu.mailgun.net/v3"
-      env in [:dev] -> "https://api.mailgun.net/v3"
-    end
+if Tuist.Environment.env() in [:prod, :can, :stag] do
+  case Tuist.Environment.mailing_provider(secrets) do
+    "mailgun" ->
+      if Tuist.Environment.mail_configured?(secrets) do
+        config :tuist, Tuist.Mailer,
+          adapter: Bamboo.MailgunAdapter,
+          api_key: Tuist.Environment.mailgun_api_key(secrets),
+          domain: Tuist.Environment.mailing_domain(secrets),
+          base_uri: "https://api.eu.mailgun.net/v3"
+      end
 
-  config :tuist, Tuist.Mailer,
-    adapter: Bamboo.MailgunAdapter,
-    api_key: Tuist.Environment.mailgun_api_key(secrets),
-    domain: Tuist.Environment.mailing_domain(secrets),
-    base_uri: base_uri
+    "ses" ->
+      if !Tuist.Environment.mail_configured?(secrets) do
+        raise "SES requires TUIST_SES_REGION, TUIST_SES_ACCESS_KEY_ID, TUIST_SES_SECRET_ACCESS_KEY and TUIST_MAILING_FROM_ADDRESS"
+      end
+
+      # Storage uses ExAws too. Never inherit its credentials or region.
+      config :tuist, Tuist.Mailer,
+        adapter: Bamboo.SesAdapter,
+        ex_aws: [
+          region: Tuist.Environment.get([:ses, :region], secrets),
+          access_key_id: Tuist.Environment.get([:ses, :access_key_id], secrets),
+          secret_access_key: Tuist.Environment.get([:ses, :secret_access_key], secrets)
+        ]
+
+    provider ->
+      raise "unsupported mailing provider: #{inspect(provider)}"
+  end
 end
 
 otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])

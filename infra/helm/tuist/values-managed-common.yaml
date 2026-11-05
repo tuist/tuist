@@ -196,9 +196,11 @@ server:
   google:
     managedSecrets: true
 
-  # Mailing identity (not secret — shared across managed envs). The Mailgun API
-  # key itself is the only mail secret and stays in the per-env MAILGUN 1P item.
+  # Each environment reads its own send-only SES credentials from its SES item.
+  # The verified identity and region are shared, not the credentials.
   mailing:
+    provider: ses
+    sesRegion: eu-west-1
     domain: mail.tuist.dev
     fromAddress: noreply@tuist.dev
     replyToAddress: contact@tuist.dev
