@@ -657,7 +657,11 @@ case System.get_env("MCP_PROXY_SERVERS") do
           # OVH login, which can reinstall, reboot and terminate servers, so
           # only the named reads are proxied. OVH's tools carry no readOnlyHint,
           # which is why this enumerates them rather than using read_only.
-          # Reinstalls, renames and prep stay human steps.
+          #
+          # The reinstall half of baremetal:prep-ovh is the one write, and each
+          # call waits for that person to approve its exact arguments in Atlas
+          # (/admin/mcps). OVH's MCP has no displayName write, so the rename
+          # that hands a prepped box to its fleet stays a human step.
           %{
             name: "ovh-servers",
             url: "https://mcp.us.ovhcloud.com/mcp/v1_dedicated_server",
@@ -677,8 +681,10 @@ case System.get_env("MCP_PROXY_SERVERS") do
               "get-dedicated-server-task-details",
               "list-dedicated-server-vracks",
               "list-dedicated-server-planned-interventions",
-              "list-dedicated-server-datacenter-availabilities"
-            ]
+              "list-dedicated-server-datacenter-availabilities",
+              "list-dedicated-server-compatible-templates"
+            ],
+            approval_required_tools: ["reinstall-dedicated-server"]
           },
           # A server's displayName (the fleet adoption prefix) lives on its
           # service, not under /dedicated/server.
@@ -691,6 +697,20 @@ case System.get_env("MCP_PROXY_SERVERS") do
             registration_url: "https://mcp.us.ovhcloud.com/oauth-proxy/register",
             scopes: ["all"],
             tool_allowlist: ["get-service-list", "get-service-details"]
+          },
+          # Orders live under /me, a section that also manages the account's
+          # users, API credentials and payment methods, so only the order
+          # reads pass. OVH's MCP has no cart or checkout tools: placing an
+          # order stays in the OVH console.
+          %{
+            name: "ovh-orders",
+            url: "https://mcp.us.ovhcloud.com/mcp/v1_me",
+            auth_type: "oauth2",
+            authorization_url: "https://mcp.us.ovhcloud.com/oauth-proxy/authorization",
+            token_url: "https://mcp.us.ovhcloud.com/oauth-proxy/token",
+            registration_url: "https://mcp.us.ovhcloud.com/oauth-proxy/register",
+            scopes: ["all"],
+            tool_allowlist: ["get-order-list", "get-order-infos", "get-order-status", "get-order-details-list"]
           }
         ]
     end
