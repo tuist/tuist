@@ -26,7 +26,6 @@ defmodule TuistWeb.API.SandboxesController do
 
   tags ["Sandboxes"]
 
-  @template_pattern "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
   @orb_admission_refusals [
     :no_capacity,
     :sandbox_concurrency_limit,
@@ -119,17 +118,7 @@ defmodule TuistWeb.API.SandboxesController do
   @sandbox_parameters @account_parameters ++
                         [sandbox_id: [in: :path, type: :string, required: true, description: "The sandbox identifier."]]
 
-  @shape_properties %{
-    platform: %Schema{type: :string, enum: ["linux", "darwin"], default: "linux"},
-    template: %Schema{type: :string, pattern: @template_pattern, description: "Sandbox template name."},
-    vcpus: %Schema{
-      type: :integer,
-      enum: [2, 4, 8],
-      description: "Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576."
-    },
-    memory_mb: %Schema{type: :integer, enum: [4096, 8192, 16_384, 24_576]},
-    workspace_gb: %Schema{type: :integer, minimum: 1, maximum: 100}
-  }
+  @shape_properties SandboxSchemas.shape()
 
   @error_responses %{
     forbidden: {"Forbidden", "application/json", Error},
@@ -401,10 +390,8 @@ defmodule TuistWeb.API.SandboxesController do
   )
 
   def create(%{assigns: %{selected_account: account}, body_params: body_params} = conn, _params) do
-    attrs = Map.take(body_params, [:platform, :template, :vcpus, :memory_mb, :workspace_gb])
-
-    case Sandboxes.create_sandbox(account, attrs) do
-      {:ok, sandbox} -> conn |> put_status(:created) |> json(Query.sandbox(sandbox))
+    case Query.run(:create, account, string_keys(body_params)) do
+      {:ok, sandbox} -> conn |> put_status(:created) |> json(sandbox)
       {:error, reason} -> sandbox_error(conn, reason)
     end
   end

@@ -55,6 +55,7 @@ defmodule Tuist.MCP.Server do
     Tools.DeleteRunnerVolume,
     Tools.ListSandboxes,
     Tools.GetSandbox,
+    Tools.CreateSandbox,
     Tools.GetSandboxAnalytics,
     Tools.PauseSandbox,
     Tools.ResumeSandbox,
