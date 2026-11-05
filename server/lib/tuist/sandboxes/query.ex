@@ -131,6 +131,11 @@ defmodule Tuist.Sandboxes.Query do
   def error(:archive_storage_full),
     do: {:conflict, "The account's archive storage is full. Delete archived sandboxes first."}
 
+  def error(:archive_store_unavailable),
+    do:
+      {:service_unavailable,
+       "The storage that holds this sandbox's archive is not configured on this server, so the archive can't be reached."}
+
   def error(:not_connected), do: {:service_unavailable, "The sandbox's node is not connected."}
   def error(:node_disconnected), do: {:service_unavailable, "The sandbox's node disconnected during the operation."}
   def error(:timeout), do: {:gateway_timeout, "The sandbox's node did not answer in time."}

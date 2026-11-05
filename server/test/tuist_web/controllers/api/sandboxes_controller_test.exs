@@ -455,12 +455,21 @@ defmodule TuistWeb.API.SandboxesControllerTest do
     test "answers 503 when no node can host the sandbox", %{conn: conn, account: account} do
       stub(Capacity, :place, fn _ -> {:error, :no_node} end)
 
-      response =
-        conn
-        |> post(~p"/api/accounts/#{account.name}/sandboxes", %{})
-        |> json_response(:service_unavailable)
+      conn = post(conn, ~p"/api/accounts/#{account.name}/sandboxes", %{})
 
-      assert response["message"] =~ "No sandbox node"
+      assert json_response(conn, :service_unavailable)["message"] =~ "No sandbox node"
+      # Longer than the CLI's retry budget, so it reports the error instead of replaying the wait.
+      assert get_resp_header(conn, "retry-after") == ["300"]
+    end
+
+    test "answers 503 with the reason when the sandbox's archive store is not configured",
+         %{conn: conn, account: account} do
+      sandbox =
+        sandbox_fixture(account: account, state: :archived, archive_key: "archives/gone", archive_store: "removed-store")
+
+      conn = delete(conn, ~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}")
+
+      assert json_response(conn, :service_unavailable)["message"] =~ "archive can't be reached"
     end
 
     test "answers 503 when no node has memory or disk left", %{conn: conn, account: account} do

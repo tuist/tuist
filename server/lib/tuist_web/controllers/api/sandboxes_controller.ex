@@ -551,10 +551,22 @@ defmodule TuistWeb.API.SandboxesController do
 
   defp not_found(conn, message), do: conn |> put_status(:not_found) |> json(%{message: message})
 
+  # Every sandbox 503 comes after the server has already waited for a node or
+  # for capacity, so an immediate retry only repeats that wait. The hint is
+  # longer than any client retry budget (`RetryMiddleware` waits at most 30
+  # seconds per retry, 10 retries at most), so the CLI reports it at once.
+  @service_unavailable_retry_after_seconds 300
+
   defp sandbox_error(conn, reason) do
     {status, message} = Query.error(reason)
-    conn |> put_status(status) |> json(%{message: message})
+
+    conn |> retry_after(status) |> put_status(status) |> json(%{message: message})
   end
+
+  defp retry_after(conn, :service_unavailable),
+    do: put_resp_header(conn, "retry-after", "#{@service_unavailable_retry_after_seconds}")
+
+  defp retry_after(conn, _status), do: conn
 
   defp serialize_agent_environment(%AgentEnvironment{} = agent_environment) do
     agent_environment
