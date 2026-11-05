@@ -2678,11 +2678,11 @@ sandboxes:
     image: ""
     # Pre-booted 8 vCPU / 8 GiB sandbox VMs that a create claims instead of
     # cold-booting. They are a RunnerPool on `fleetSelector` (default: the
-    # macOS runner fleet) and share its warm-pool budget with CI.
+    # macOS runner fleet) and share its warm-pool budget with CI. The pool
+    # keeps no always-on floor yet: the template renders `minWarmPoolFloor: 0`.
     warm:
       enabled: false
       fleetSelector: ""
-      minWarmPoolFloor: 1
       maxReplicas: 1
   namespace: tuist-sandboxes
   # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed

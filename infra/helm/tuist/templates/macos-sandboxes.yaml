@@ -94,7 +94,7 @@ spec:
 {{- $poolName := include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos-sandbox-warm") }}
 ---
 # Pre-booted sandbox VMs share the CI warm-pool budget: the runners-controller
-# funds this pool's floor like any CI pool's, and its idle VMs give way to CI
+# preempts and rolls this pool like any CI pool, and its idle VMs give way to CI
 # the same way. tart-kubelet's sandbox service, not the CI launch path, boots
 # them, and a sandbox create on the host claims one of the same shape. No job
 # routes here: the server ignores pools carrying the warm label.
@@ -122,7 +122,9 @@ spec:
   podMemoryMB: 8192
   autoscaling:
     enabled: true
-    minWarmPoolFloor: {{ .minWarmPoolFloor | default 1 }}
+    # No always-on warm VM yet. Rendered explicitly: the CRD defaults an
+    # absent floor to 1.
+    minWarmPoolFloor: 0
     maxReplicas: {{ .maxReplicas | default 1 }}
 {{- end }}
 {{- end }}

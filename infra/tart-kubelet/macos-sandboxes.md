@@ -101,10 +101,12 @@ turned off in the isolated store so it cannot decide environment retention.
 `sandboxes.macos.warm.enabled` renders a darwin RunnerPool labelled
 `tuist.dev/macos-sandbox-warm=true` whose Pods are pre-booted 8 vCPU / 8 GiB
 sandbox VMs. The pool shares the CI warm-pool budget: the runners-controller
-funds its floor, preempts it and rolls its image like a CI pool's, and its idle
+preempts it and rolls its image like a CI pool's, and its idle
 Pods give up their slot to CI and to sandbox growth. Unlike an idle CI runner,
 a warm VM counts as reclaimable room in sandbox grants immediately, without the
-CI preemption grace. The server never routes a job to the pool.
+CI preemption grace. The server never routes a job to the pool. The pool keeps no
+always-on floor yet: the chart renders `minWarmPoolFloor: 0` explicitly, since
+the CRD defaults an absent floor to 1.
 
 tart-kubelet's sandbox service, not the CI launch path, boots a warm Pod, and
 only on hosts advertising `tuist.dev/macos-sandbox-warm-host=v1`. The VM is
@@ -205,8 +207,7 @@ metadata needed for cleanup.
 
 ## Performance and future work
 
-The [research report](../../handbook/handbook/engineering/macos-sandbox-resume.md)
-records real staging API acceptance at 8/16/24 GiB: five resident cycles per shape
+Staging recorded real API acceptance at 8/16/24 GiB: five resident cycles per shape
 had medians of 534/788/520 ms through the first command. Heap preservation passed
 after eviction, kubelet restart and CI-priority eviction, followed by cleanup.
 One evicted restore per shape took 12.270/6.907/10.400 seconds, separately from
