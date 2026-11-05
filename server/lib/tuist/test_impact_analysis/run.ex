@@ -4,9 +4,10 @@ defmodule Tuist.TestImpactAnalysis.Run do
   invocation: the commits and diff it used, its scope, the outcome (`selected`,
   or `fallback` when the run continued as default selective testing) and why,
   the trace of the rules that decided it, and the counts. The counts cover
-  every test module in scope: the baseline's tests in modules the client
-  skipped because their hash matched count as requested and skipped. Shard plans and test
-  runs point to it; it knows nothing about either. This is a ClickHouse entity.
+  every test module in scope: `skipped_modules` maps each module the client
+  skipped because its hash matched to its number of tests in the baseline,
+  and those tests count as requested and skipped. Shard plans and test runs
+  point to it; it knows nothing about either. This is a ClickHouse entity.
   """
   use Ecto.Schema
 
@@ -27,6 +28,7 @@ defmodule Tuist.TestImpactAnalysis.Run do
     field :platform, Ch, type: "LowCardinality(String)", default: ""
     field :build_context, Ch, type: "Map(LowCardinality(String), String)", default: %{}
     field :requested_modules, Ch, type: "Array(LowCardinality(String))", default: []
+    field :skipped_modules, Ch, type: "Map(LowCardinality(String), UInt32)", default: %{}
     field :outcome, Ch, type: "LowCardinality(String)"
     field :reason, Ch, type: "LowCardinality(String)", default: ""
     field :matched_path, Ch, type: "String", default: ""
@@ -58,6 +60,7 @@ defmodule Tuist.TestImpactAnalysis.Run do
       :platform,
       :build_context,
       :requested_modules,
+      :skipped_modules,
       :outcome,
       :reason,
       :matched_path,
