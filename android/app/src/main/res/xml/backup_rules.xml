@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Push installation IDs identify one physical device and must not be restored onto another. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="tuist_push.xml" />
+</full-backup-content>
