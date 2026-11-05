@@ -430,6 +430,51 @@ jobs:
       - name: Run tests
         run: tuist test --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
 
+  # Compiles the coverage-based test selection acceptance tests without running
+  # them: canary doesn't serve the selection endpoints yet, so they can't join
+  # TuistAcceptanceTests. A plain build records no test results, selective
+  # testing hashes or coverage.
+  coverage-selection-acceptance-tests-build:
+    name: Build Coverage Selection Acceptance Tests
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
+    env:
+      TUIST_EE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      - name: Initialize TuistCacheEE submodule
+        run: bash mise/tasks/cli/ee.sh
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        uses: tuist/install@v1
+        with:
+          cache-key: cli-macos-workspace-cli-acceptance-tests-build
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - name: Build tests
+        run: |
+          tuist generate TuistCoverageSelectionAcceptanceTests --no-open
+          xcodebuild build-for-testing -workspace Tuist.xcworkspace \
+            -scheme TuistCoverageSelectionAcceptanceTests -destination platform=macOS
+
   # Only a complete commit joins the coverage trend, and pull request gates wait
   # for it. On a pull request it follows the unit and app tests whatever they
   # concluded (a fork's runs report nothing, so it has nothing to complete); on
