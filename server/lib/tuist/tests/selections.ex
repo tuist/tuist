@@ -18,14 +18,12 @@ defmodule Tuist.Tests.Selections do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
-  alias Tuist.Repo
   alias Tuist.Shards.ShardPlan
   alias Tuist.Shards.ShardPlanTestSuite
   alias Tuist.TestImpactAnalysis.Run
   alias Tuist.TestImpactAnalysis.RunTest
   alias Tuist.TestImpactAnalysis.Storage
   alias Tuist.Tests.Coverage.ExcludedPaths
-  alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
   alias Tuist.Tests.Test
@@ -814,88 +812,6 @@ defmodule Tuist.Tests.Selections do
   end
 
   def baseline_covered_paths(_project_id, _baseline_sha, _test), do: []
-
-  @doc """
-  A page of the project's default-branch commits that measured coverage,
-  newest first, with what makes each one usable as a baseline: whether its
-  coverage is complete, the schemes it measured fully and partly, how many
-  tests recorded per-test evidence, and how many reported impact runs used
-  it.
-  """
-  def baselines(project, opts \\ []) do
-    page = max(Keyword.get(opts, :page, 1), 1)
-    page_size = Keyword.get(opts, :page_size, 20)
-
-    query =
-      from(c in CoverageCommit,
-        where: c.project_id == ^project.id and c.git_branch == ^project.default_branch and c.executable_lines > 0
-      )
-
-    total_count = Repo.aggregate(query, :count)
-
-    commits =
-      Repo.all(from(c in query, order_by: [desc: c.ran_at], limit: ^page_size, offset: ^((page - 1) * page_size)))
-
-    shas = Enum.map(commits, & &1.git_commit_sha)
-    evidence = evidence_counts(project.id, commits)
-    used = baseline_usage(project.id, shas)
-
-    rows =
-      Enum.map(commits, fn commit ->
-        tests = Map.get(evidence, commit.git_commit_sha, 0)
-
-        %{
-          git_commit_sha: commit.git_commit_sha,
-          git_branch: commit.git_branch,
-          ran_at: commit.ran_at,
-          complete: commit.complete,
-          schemes: Enum.sort(commit.schemes),
-          partial_schemes: Enum.sort(commit.partial_schemes),
-          evidence_tests: tests,
-          selection_runs: Map.get(used, commit.git_commit_sha, 0),
-          status: baseline_status(commit, tests)
-        }
-      end)
-
-    {rows, %{current_page: page, total_pages: max(ceil_div(total_count, page_size), 1), total_count: total_count}}
-  end
-
-  defp baseline_status(_commit, 0), do: "no_test_evidence"
-  defp baseline_status(%{partial_schemes: [_ | _]}, _tests), do: "partial"
-  defp baseline_status(_commit, _tests), do: "baseline"
-
-  defp evidence_counts(_project_id, []), do: %{}
-
-  defp evidence_counts(project_id, commits) do
-    run_ids = Enum.flat_map(commits, & &1.test_run_ids)
-    commit_by_run = Map.new(for commit <- commits, id <- commit.test_run_ids, do: {id, commit.git_commit_sha})
-
-    if run_ids == [] do
-      %{}
-    else
-      from(f in CoverageFile,
-        where: f.project_id == ^project_id and f.scope_kind == "test" and f.test_run_id in ^run_ids,
-        group_by: [f.test_run_id, f.scope_id],
-        select: {f.test_run_id, f.scope_id}
-      )
-      |> ClickHouseRepo.all()
-      |> Enum.group_by(fn {run_id, _scope} -> Map.get(commit_by_run, run_id) end, &elem(&1, 1))
-      |> Map.new(fn {sha, scopes} -> {sha, scopes |> Enum.uniq() |> length()} end)
-    end
-  end
-
-  defp baseline_usage(_project_id, []), do: %{}
-
-  defp baseline_usage(project_id, shas) do
-    from(r in Run,
-      where: r.project_id == ^project_id and r.baseline_sha in ^shas,
-      where: r.id in subquery(reported_ids(project_id)),
-      group_by: r.baseline_sha,
-      select: {r.baseline_sha, count()}
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new(fn {sha, count} -> {sha, to_integer(count)} end)
-  end
 
   @doc "Whether any test run of the commit reported coverage."
   def coverage?(_project_id, sha) when sha in [nil, ""], do: false

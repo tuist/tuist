@@ -210,17 +210,7 @@
     </.async_section>
   </.card>
 
-  <.tab_menu_horizontal>
-    <.tab_menu_horizontal_item
-      :for={tab <- tabs()}
-      selected={@tab == tab}
-      label={tab_label(tab)}
-      patch={"?#{@uri.query |> Query.put("tab", tab) |> Query.drop("page")}"}
-    />
-  </.tab_menu_horizontal>
-
   <.card
-    :if={@tab == "runs"}
     title={dgettext("dashboard_tests", "Selection runs")}
     icon="filter"
     data-part="commits"
@@ -325,79 +315,6 @@
         title={dgettext("dashboard_tests", "No selection runs yet")}
         image="table"
         data-part="empty-runs"
-      />
-    </.card_section>
-  </.card>
-
-  <.card
-    :if={@tab == "baselines"}
-    title={dgettext("dashboard_tests", "Baselines")}
-    icon="git_commit"
-    data-part="commits"
-  >
-    <.card_section data-part="commits-section">
-      <div :if={@baselines != []} data-part="commits-table">
-        <.table
-          id="test-selection-baselines-table"
-          rows={@baselines}
-          row_key={& &1.git_commit_sha}
-          row_navigate={&coverage_href(assigns, &1.git_commit_sha)}
-        >
-          <:col :let={baseline} label={dgettext("dashboard_tests", "Commit")}>
-            <.text_and_description_cell
-              label={short_sha(baseline.git_commit_sha)}
-              description={baseline.git_branch}
-            />
-          </:col>
-          <:col :let={baseline} label={dgettext("dashboard_tests", "Status")}>
-            <.status_badge_cell
-              status={baseline_status(baseline.status)}
-              label={baseline_status_label(baseline.status)}
-            />
-          </:col>
-          <:col :let={baseline} label={dgettext("dashboard_tests", "Measured")}>
-            <.text_and_description_cell
-              label={Enum.join(baseline.schemes, ", ")}
-              description={
-                if baseline.partial_schemes != [],
-                  do:
-                    dgettext("dashboard_tests", "Partial: %{schemes}",
-                      schemes: Enum.join(baseline.partial_schemes, ", ")
-                    )
-              }
-            />
-          </:col>
-          <:col :let={baseline} label={dgettext("dashboard_tests", "Tests with evidence")}>
-            <.text_cell label={format_number(baseline.evidence_tests)} />
-          </:col>
-          <:col :let={baseline} label={dgettext("dashboard_tests", "Used by")}>
-            <.text_cell label={
-              dngettext(
-                "dashboard_tests",
-                "%{count} selection run",
-                "%{count} selection runs",
-                baseline.selection_runs,
-                count: baseline.selection_runs
-              )
-            } />
-          </:col>
-          <:col :let={baseline} label={dgettext("dashboard_tests", "Ran at")}>
-            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(baseline.ran_at)} />
-          </:col>
-        </.table>
-        <.pagination_group
-          :if={@baselines_meta.total_pages > 1}
-          current_page={@baselines_meta.current_page}
-          number_of_pages={@baselines_meta.total_pages}
-          page_patch={fn page -> "?#{Query.put(@uri.query, "page", page)}" end}
-        />
-      </div>
-
-      <.coverage_empty
-        :if={@baselines == []}
-        title={dgettext("dashboard_tests", "No default-branch commit measured coverage yet")}
-        image="table"
-        data-part="empty-baselines"
       />
     </.card_section>
   </.card>

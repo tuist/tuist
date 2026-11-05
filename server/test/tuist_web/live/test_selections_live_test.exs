@@ -131,13 +131,6 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "[data-part='empty-runs']")
     end
 
-    test "shows the baselines tab", %{conn: conn, organization: organization, project: project} do
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection?tab=baselines")
-
-      assert has_element?(lv, "[data-part='empty-baselines']")
-    end
-
     test "is not found without the test impact analysis flag", %{
       conn: conn,
       organization: organization,

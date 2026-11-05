@@ -2,13 +2,10 @@ defmodule TuistWeb.TestSelectionsLive do
   @moduledoc """
   The project's Test Selection page. The period's figures
   (`Selections.analytics/2`): how many requested tests the impact runs
-  selected and skipped, the skip rate and the runs. Then two tabs: the
-  impact runs, one per invocation, newest first
-  (`Selections.list_runs/2`), each opening the Selective Testing tab of the
-  test run that reported it (`TuistWeb.TestSelection.RunTab`); and the
-  baselines, the
-  default-branch commits that measured coverage and whether each can serve
-  as one (`Selections.baselines/2`).
+  selected and skipped, the skip rate and the runs. Then the impact runs,
+  one per invocation, newest first (`Selections.list_runs/2`), each opening
+  the Selective Testing tab of the test run that reported it
+  (`TuistWeb.TestSelection.RunTab`).
   """
   use TuistWeb, :live_view
   use Noora
@@ -28,7 +25,6 @@ defmodule TuistWeb.TestSelectionsLive do
   alias TuistWeb.Utilities.Query
 
   @widgets ~w(selected skipped skip_rate runs)
-  @tabs ~w(runs baselines)
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     if !FeatureFlags.test_impact_analysis_enabled?(account, project) do
@@ -45,21 +41,19 @@ defmodule TuistWeb.TestSelectionsLive do
     params = Query.query_params(uri)
     uri = URI.new!("?" <> URI.encode_query(params))
     %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
-    tab = if params["tab"] in @tabs, do: params["tab"], else: "runs"
 
     {:noreply,
      socket
      |> assign(:uri, uri)
-     |> assign(:tab, tab)
      |> assign(:analytics_preset, preset)
      |> assign(:analytics_period, period)
      |> assign(:analytics_trend_label, trend_label(preset))
      |> assign(:selected_widget, selected_widget(params["analytics-selected-widget"]))
-     |> assign_tab(tab, params)
+     |> assign_runs(params)
      |> assign_async(:analytics, fn -> {:ok, %{analytics: Selections.analytics(project.id, period)}} end)}
   end
 
-  defp assign_tab(%{assigns: %{selected_project: project}} = socket, "runs", params) do
+  defp assign_runs(%{assigns: %{selected_project: project}} = socket, params) do
     search = params["search"] || ""
     fallback? = params["fallback"] == "true"
 
@@ -71,14 +65,6 @@ defmodule TuistWeb.TestSelectionsLive do
     |> assign(:fallback?, fallback?)
     |> assign(:runs, rows)
     |> assign(:runs_meta, meta)
-  end
-
-  defp assign_tab(%{assigns: %{selected_project: project}} = socket, "baselines", params) do
-    {rows, meta} = Selections.baselines(project, page: parse_page(params["page"]))
-
-    socket
-    |> assign(:baselines, rows)
-    |> assign(:baselines_meta, meta)
   end
 
   def handle_event(
@@ -118,11 +104,6 @@ defmodule TuistWeb.TestSelectionsLive do
   defp path(%{assigns: %{selected_account: account, selected_project: project}}),
     do: "/#{account.name}/#{project.name}/tests/test-selection"
 
-  def tabs, do: @tabs
-
-  def tab_label("runs"), do: dgettext("dashboard_tests", "Selection runs")
-  def tab_label("baselines"), do: dgettext("dashboard_tests", "Baselines")
-
   @doc """
   An impact run opens the tab that shows it on the test run that reported
   it; one no test run reported has nowhere to go and stays on this page.
@@ -143,10 +124,6 @@ defmodule TuistWeb.TestSelectionsLive do
       test_plan -> test_plan
     end
   end
-
-  @doc false
-  def coverage_href(%{selected_account: account, selected_project: project}, sha),
-    do: "/#{account.name}/#{project.name}/tests/coverage/commits/#{sha}"
 
   @doc false
   def chart_series("runs", analytics) do
@@ -216,14 +193,4 @@ defmodule TuistWeb.TestSelectionsLive do
   defp trend_label("last-12-months"), do: dgettext("dashboard_tests", "since last year")
   defp trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
   defp trend_label(_preset), do: dgettext("dashboard_tests", "since last month")
-
-  @doc false
-  def baseline_status_label("baseline"), do: dgettext("dashboard_tests", "Baseline")
-  def baseline_status_label("partial"), do: dgettext("dashboard_tests", "Baseline, some schemes partial")
-  def baseline_status_label("no_test_evidence"), do: dgettext("dashboard_tests", "No per-test evidence")
-
-  @doc false
-  def baseline_status("baseline"), do: "success"
-  def baseline_status("partial"), do: "attention"
-  def baseline_status(_status), do: "disabled"
 end
