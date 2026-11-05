@@ -16,13 +16,18 @@ public struct NooraTestingTrait: TestTrait, SuiteTrait, TestScoping {
         testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
-        let (logger, handler) = Logger.initTestingLogger()
-        try await Logger.$current.withValue(logger) {
-            try await Logger.$testingLogHandler.withValue(handler) {
-                try await Noora.$current.withValue(NooraMock(terminal: Terminal(isInteractive: false))) {
-                    try await AlertController.$current.withValue(AlertController()) {
-                        try await function()
-                    }
+        try await TuistNooraTesting.withMockedNoora(function)
+    }
+}
+
+/// What `.withMockedNoora` does, for tests that can't take traits, such as XCTest.
+public func withMockedNoora(_ closure: () async throws -> Void) async throws {
+    let (logger, handler) = Logger.initTestingLogger()
+    try await Logger.$current.withValue(logger) {
+        try await Logger.$testingLogHandler.withValue(handler) {
+            try await Noora.$current.withValue(NooraMock(terminal: Terminal(isInteractive: false))) {
+                try await AlertController.$current.withValue(AlertController()) {
+                    try await closure()
                 }
             }
         }
