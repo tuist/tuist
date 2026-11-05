@@ -156,12 +156,6 @@ server:
     # vault before a deploy.
     grafanaClickHouse:
       enabled: true
-    # ChatGPT subscription sign-in. The CHATGPT_OAUTH item (client_id) must
-    # exist in the environment's vault before a deploy. It currently holds
-    # Pi's public Codex client ID; swap the value for Tuist's own client once
-    # OpenAI issues one, with no chart change.
-    chatgptClient:
-      enabled: true
   externalSecrets:
     refreshInterval: "1h"
     storeRef:

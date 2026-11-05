@@ -123,6 +123,12 @@ server:
       enabled: true
     fcm:
       enabled: true
+    # ChatGPT subscription sign-in. Only staging's vault has the CHATGPT_OAUTH
+    # item (client_id); enable it in canary and production once their vaults
+    # do. It currently holds Pi's public Codex client ID; swap the value for
+    # Tuist's own client once OpenAI issues one, with no chart change.
+    chatgptClient:
+      enabled: true
     externalSecrets:
       fields:
         sentryDsn: dsn_atlas
