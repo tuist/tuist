@@ -44,7 +44,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         bash coreutils ca-certificates curl wget git git-lfs openssh-client gnupg sudo tzdata locales \
         iproute2 iputils-ping dnsutils procps psmisc less vim-tiny nano jq ripgrep fd-find unzip zip tar \
-        xz-utils zstd bzip2 build-essential pkg-config cmake python3 python3-pip python3-venv \
+        xz-utils zstd bzip2 build-essential clang libclang-dev pkg-config cmake python3 python3-pip python3-venv \
         e2fsprogs util-linux lsof strace htop tmux rsync sqlite3 libssl-dev zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
