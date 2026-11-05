@@ -417,7 +417,7 @@ defmodule Tuist.Tests.Selections do
   derived from the baseline, with their outcome in `test_run_id` (`nil`
   when it reported none for the test) and the shard they were planned on.
   Options: `:search` (part of the module, suite or test name), `:decision`
-  (`selected` or `skipped`), `:reason`, `:flag` (`not_run`), `:shard`,
+  (`selected` or `skipped`), `:reason`, `:shard`,
   `:sort_by` (`decision`, `name`, `shard` or `duration`), `:sort_order`,
   `:page` and `:page_size`.
   """
@@ -428,7 +428,6 @@ defmodule Tuist.Tests.Selections do
       run
       |> tests_query(plan, test_run_id, opts)
       |> filter_shard(Keyword.get(opts, :shard), plan)
-      |> filter_flag(Keyword.get(opts, :flag))
       |> sort_tests(Keyword.get(opts, :sort_by, "decision"), Keyword.get(opts, :sort_order, "asc"), plan)
 
     {rows, meta} = paginate(query, opts)
@@ -525,7 +524,7 @@ defmodule Tuist.Tests.Selections do
 
   # Filters apply inside each branch of the union: ClickHouse fails to push
   # an outer filter into the skipped branch's subqueries.
-  defp requested_query(run, opts \\ []) do
+  defp requested_query(run, opts) do
     reason = Keyword.get(opts, :reason)
     filters = Keyword.take(opts, [:search, :test_case_id])
     selected = selected_branch(run, if(reason in [nil, "", "any"], do: filters, else: [{:reason, reason} | filters]))
@@ -550,11 +549,10 @@ defmodule Tuist.Tests.Selections do
     do:
       Keyword.get(opts, :decision) in [nil, "", "any", "selected"] and Keyword.get(opts, :reason) not in @skipped_reasons
 
-  # Skipped tests never ran, so they're never "planned, not run" and sit on
-  # no shard.
+  # Skipped tests never ran, so they sit on no shard.
   defp skipped_branch?(run, opts, reason) do
     has_baseline?(run) and Keyword.get(opts, :decision) in [nil, "", "any", "skipped"] and
-      Keyword.get(opts, :reason) in [nil, "", "any", reason] and Keyword.get(opts, :flag) != "not_run" and
+      Keyword.get(opts, :reason) in [nil, "", "any", reason] and
       not is_integer(Keyword.get(opts, :shard))
   end
 
@@ -652,9 +650,6 @@ defmodule Tuist.Tests.Selections do
       shard_index: if(test.decision == "selected", do: shard_index)
     })
   end
-
-  defp filter_flag(query, "not_run"), do: where(query, [t, o], fragment("ifNull(?, '') = ''", o.status))
-  defp filter_flag(query, _flag), do: query
 
   defp filter_shard(query, shard, %ShardPlan{}) when is_integer(shard),
     do: where(query, [t, o, s], s.shard_index == ^shard)

@@ -7,28 +7,6 @@
   flex-direction: column;
   gap: var(--noora-spacing-6);
 
-  & [data-part="widgets"] {
-    display: flex;
-    flex-direction: row;
-    gap: var(--noora-spacing-4);
-
-    & > * {
-      flex: 1;
-    }
-
-    @media (max-width: 768px) {
-      & {
-        flex-direction: column;
-      }
-    }
-  }
-
-  /* A widget's tooltip opens inside the widget, so the section holding
-     widgets may not clip it. */
-  & .noora-card__section:has(> [data-part="widgets"]) {
-    overflow: visible;
-  }
-
   & [data-part="selection-table-section"] {
     display: flex;
     flex-direction: column;

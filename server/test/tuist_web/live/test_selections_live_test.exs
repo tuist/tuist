@@ -166,10 +166,11 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "#widget-selection-skipped", "3 / 4")
       assert has_element?(lv, "#widget-selection-skip-rate", "75.0%")
       assert has_element?(lv, "#widget-selection-skipped-modules", "1 / 3")
-      assert has_element?(lv, "#widget-selection-not-affected", "1")
-      assert has_element?(lv, "#widget-selection-not-run", "0")
-      assert has_element?(lv, "[data-part='selection-summary-card']", "0f0f0f0")
-      refute has_element?(lv, "[data-part='selection-summary-card']", "Changed since the baseline")
+      refute has_element?(lv, "#widget-selection-not-affected")
+      refute has_element?(lv, "#widget-selection-not-run")
+      refute has_element?(lv, "#selection-flag-dropdown")
+      assert has_element?(lv, "[data-part='coverage-selection']", "0f0f0f0")
+      refute has_element?(lv, "[data-part='coverage-selection']", "Changed since the baseline")
 
       rows =
         lv

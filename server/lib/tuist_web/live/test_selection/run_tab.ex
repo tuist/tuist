@@ -91,7 +91,6 @@ defmodule TuistWeb.TestSelection.RunTab do
     search = params["selection-search"] || ""
     decision = if params["selection-decision"] in ~w(selected skipped), do: params["selection-decision"], else: "any"
     reason = if params["selection-reason"] in reasons(), do: params["selection-reason"], else: "any"
-    flag = if params["selection-flag"] in ~w(not_run), do: params["selection-flag"], else: "any"
     shard = parse_shard(params["selection-shard"], socket.assigns.selection_plan)
     sort_by = if params["selection-sort-by"] in @sort_fields, do: params["selection-sort-by"], else: "decision"
     sort_order = if params["selection-sort-order"] == "desc", do: "desc", else: "asc"
@@ -101,7 +100,6 @@ defmodule TuistWeb.TestSelection.RunTab do
         search: search,
         decision: decision,
         reason: reason,
-        flag: flag,
         shard: shard,
         sort_by: sort_by,
         sort_order: sort_order,
@@ -115,7 +113,6 @@ defmodule TuistWeb.TestSelection.RunTab do
         search: search,
         decision: decision,
         reason: reason,
-        flag: flag,
         shard: shard,
         sort_by: sort_by,
         sort_order: sort_order
@@ -194,7 +191,7 @@ defmodule TuistWeb.TestSelection.RunTab do
       <.card
         title={dgettext("dashboard_tests", "Coverage selection")}
         icon="filter"
-        data-part="selection-summary-card"
+        data-part="test-details"
       >
         <.card_section
           :if={Selections.fallback?(@selection_run)}
@@ -223,7 +220,7 @@ defmodule TuistWeb.TestSelection.RunTab do
         </.card_section>
         <.card_section
           :if={!Selections.fallback?(@selection_run)}
-          data-part="selection-widgets-section"
+          data-part="test-details-section"
         >
           <div data-part="widgets">
             <.widget
@@ -268,17 +265,6 @@ defmodule TuistWeb.TestSelection.RunTab do
               value={"#{format_number(@summary.skipped_modules)} / #{format_number(@summary.modules)}"}
             />
             <.widget
-              id="widget-selection-not-affected"
-              title={dgettext("dashboard_tests", "Not affected")}
-              description={
-                dgettext(
-                  "dashboard_tests",
-                  "Tests in the remaining modules skipped because the changes since the baseline don't reach them."
-                )
-              }
-              value={format_number(@summary.unaffected)}
-            />
-            <.widget
               id="widget-selection-time-saved"
               title={dgettext("dashboard_tests", "Est. time saved")}
               description={
@@ -288,17 +274,6 @@ defmodule TuistWeb.TestSelection.RunTab do
                 )
               }
               value={format_duration(@summary.skipped_duration)}
-            />
-            <.widget
-              id="widget-selection-not-run"
-              title={dgettext("dashboard_tests", "Planned, not run")}
-              description={
-                dgettext(
-                  "dashboard_tests",
-                  "Selected tests the test run reported no result for: removed or renamed since the baseline, or lost with a shard."
-                )
-              }
-              value={if @summary.reported, do: format_number(@summary.not_run), else: "–"}
             />
           </div>
         </.card_section>
@@ -423,22 +398,6 @@ defmodule TuistWeb.TestSelection.RunTab do
               data-selected={@filters.reason == reason}
             >
               <:right_icon :if={@filters.reason == reason}><.check /></:right_icon>
-            </.dropdown_item>
-          </.dropdown>
-          <.dropdown
-            :if={@summary.reported}
-            id="selection-flag-dropdown"
-            label={flag_filter_label(@filters.flag)}
-            secondary_text={dgettext("dashboard_tests", "Flag:")}
-          >
-            <.dropdown_item
-              :for={flag <- ~w(any not_run)}
-              value={flag}
-              label={flag_filter_label(flag)}
-              patch={filter_patch(@uri, "selection-flag", flag)}
-              data-selected={@filters.flag == flag}
-            >
-              <:right_icon :if={@filters.flag == flag}><.check /></:right_icon>
             </.dropdown_item>
           </.dropdown>
           <.dropdown
@@ -860,7 +819,7 @@ defmodule TuistWeb.TestSelection.RunTab do
 
   defp drop_tab_params(query) do
     Enum.reduce(
-      ~w(selection-search selection-decision selection-reason selection-flag selection-shard selection-tracked selection-sort-by selection-sort-order selection-page),
+      ~w(selection-search selection-decision selection-reason selection-shard selection-tracked selection-sort-by selection-sort-order selection-page),
       query,
       &Query.drop(&2, &1)
     )
@@ -885,9 +844,6 @@ defmodule TuistWeb.TestSelection.RunTab do
 
   defp decision_filter_label("any"), do: dgettext("dashboard_tests", "Any")
   defp decision_filter_label(decision), do: decision_label(decision)
-
-  defp flag_filter_label("not_run"), do: dgettext("dashboard_tests", "Planned, not run")
-  defp flag_filter_label(_flag), do: dgettext("dashboard_tests", "Any")
 
   defp shard_filter_label(nil), do: dgettext("dashboard_tests", "Any")
   defp shard_filter_label(index), do: dgettext("dashboard_tests", "Shard %{index}", index: index)

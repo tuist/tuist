@@ -197,10 +197,9 @@ defmodule Tuist.Tests.SelectionsTest do
       assert meta.total_count == 5
     end
 
-    test "filters by decision, reason, flag, shard and search, and sorts by duration", %{project: project} do
+    test "filters by decision, reason, shard and search, and sorts by duration", %{project: project} do
       %{run: run, test_run: test_run} = run(project)
 
-      assert {[%{name: "test_gone()"}], _meta} = Selections.run_tests(run, test_run.id, flag: "not_run")
       assert {[%{name: "test_gone()"}], _meta} = Selections.run_tests(run, test_run.id, shard: 1)
       assert {[%{name: "test_gone()"}], _meta} = Selections.run_tests(run, test_run.id, reason: "no_evidence")
       assert {rows, _meta} = Selections.run_tests(run, test_run.id, decision: "skipped")
