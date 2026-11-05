@@ -53,7 +53,7 @@ defmodule TuistWeb.TestSelection.Components do
   def reason_label("failed_last_run"), do: dgettext("dashboard_tests", "Failed last run")
   def reason_label("no_evidence"), do: dgettext("dashboard_tests", "No evidence")
   def reason_label("impacted"), do: dgettext("dashboard_tests", "Executed a changed file")
-  def reason_label("owned_without_evidence"), do: dgettext("dashboard_tests", "Its module changed")
+  def reason_label("owned_without_evidence"), do: dgettext("dashboard_tests", "Uncovered file changed")
   def reason_label("undecided"), do: dgettext("dashboard_tests", "Undecided")
   def reason_label("unaffected"), do: dgettext("dashboard_tests", "No executed file changed")
   def reason_label("module_skipped"), do: dgettext("dashboard_tests", "Module skipped")

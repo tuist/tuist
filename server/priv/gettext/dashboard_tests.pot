@@ -2924,11 +2924,6 @@ msgstr ""
 msgid "Its evidence shows it executed %{path}, which changed since, so it has to run again."
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:56
-#, elixir-autogen, elixir-format
-msgid "Its module changed"
-msgstr ""
-
 #: lib/tuist_web/live/test_selection/components.ex:71
 #, elixir-autogen, elixir-format
 msgid "Its newest run in the evidence window failed or flaked, so a past pass can't vouch for it."
@@ -3372,4 +3367,9 @@ msgstr ""
 #: lib/tuist_web/live/test_selections_live.html.heex:108
 #, elixir-autogen, elixir-format
 msgid "The share of requested tests that were skipped, in skipped modules or not affected."
+msgstr ""
+
+#: lib/tuist_web/live/test_selection/components.ex:56
+#, elixir-autogen, elixir-format
+msgid "Uncovered file changed"
 msgstr ""
