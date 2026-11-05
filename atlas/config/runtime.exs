@@ -2,6 +2,7 @@ import Config
 
 alias Atlas.Config.DevInstance
 alias Atlas.Demo.Config, as: DemoConfig
+alias Atlas.Engineering.Errors.PulseMirror
 alias Atlas.Environments.Tuist
 alias Atlas.LLMs.ChatGPT
 alias Atlas.Push.Config
@@ -768,6 +769,12 @@ config :atlas, :slack,
   bot_name: System.get_env("ATLAS_SLACK_BOT_NAME") || System.get_env("SLACK_COMPANY_BOT_NAME")
 
 config :atlas, :slack_agent, mcp_user_email: System.get_env("ATLAS_SLACK_AGENT_MCP_USER_EMAIL") || "pedro@tuist.dev"
+
+# No mirroring unless explicitly provisioned. This is independent of the SDK
+# DSN: the shared Atlas recorder also covers native LoggerHandler capture.
+if routes = System.get_env("ATLAS_PULSE_ERROR_ROUTES_JSON") do
+  config :atlas, PulseMirror, routes: Jason.decode!(routes)
+end
 
 # Sentry error reporting. Only configured when SENTRY_DSN is set so dev
 # and self-hosted boots don't try to ship events. SENTRY_RELEASE is
