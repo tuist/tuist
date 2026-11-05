@@ -1,6 +1,6 @@
 # Workload Cluster Onboarding — Tuist Server on Kubernetes
 
-Stand up a new Tuist workload cluster (staging / canary / production / preview / pentest) on Hetzner via our self-hosted Cluster API management cluster, and deploy the Tuist server to it. Production Kura regions are node pools inside the production workload cluster, not separate clusters.
+Stand up a new Tuist workload cluster (staging / canary / production / pentest) on Hetzner via our self-hosted Cluster API management cluster, and deploy the Tuist server to it. Production Kura regions are node pools inside the production workload cluster, not separate clusters.
 
 We run a **management cluster** (a single-node Talos VM in Hetzner project `tuist-mgmt`) that hosts CAPI v1.13 + caph v1.1. You apply [Cluster API](https://cluster-api.sigs.k8s.io/) CRs against it; caph spins up workload nodes in the workload Hetzner project. The mgmt cluster's manifests live in [`infra/k8s/mgmt/`](mgmt/); workload Cluster CRs (and the shared `tuist-hcloud` ClusterClass) live in [`infra/k8s/clusters/`](clusters/) and are auto-applied to the mgmt cluster on push to `main` by [`mgmt-cluster-apply.yml`](../../.github/workflows/mgmt-cluster-apply.yml).
 
@@ -162,7 +162,7 @@ existing CNPG parent writes; it does not undo a switchover already requested.
 - Hetzner Cloud project `tuist-workloads` (separate from `tuist-mgmt`) with API access. Token in 1Password as `tuist-workloads`.
 - A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault.
 - The `cloudflare-tuist-dns` token must be able to edit DNS for `tuist.dev`, read `tuist.dev` zone metadata, manage zone Load Balancers, and manage account-level Load Balancing pools/monitors.
-- Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview` / `tuist-k8s-pentest`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview and pentest, `TUIST_LICENSE_CERTIFICATE_BASE64` for production, Grafana Cloud tokens) and a Service Account token scoped to the vault.
+- Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-pentest`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for pentest, `TUIST_LICENSE_CERTIFICATE_BASE64` for production, Grafana Cloud tokens) and a Service Account token scoped to the vault.
 - CLI tools installed via mise:
   ```bash
   mise use -g kubectl helm clusterctl talosctl
@@ -187,7 +187,7 @@ The `org-tuist` namespace is where every Cluster CR + the `hetzner` Secret live.
 > routine changes are a reviewed PR — no `kubectl apply`. Use this kubeconfig
 > directly only for: the one-time Flux/ESO bootstrap, recovering a wedged Flux,
 > and the manifests still outside Flux (ClusterClass/bare-metal templates,
-> preview, mgmt-side workloads). Read access (`kubectl get`) for diagnosis is
+> mgmt-side workloads). Read access (`kubectl get`) for diagnosis is
 > always fine.
 
 ## 2. Author the Cluster CR
@@ -198,7 +198,7 @@ Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-
 - [`clusters/workloads/canary/cluster.yaml`](clusters/workloads/canary/cluster.yaml)
 - [`clusters/workloads/production/cluster.yaml`](clusters/workloads/production/cluster.yaml)
 - tenants: [`clusters/workloads/{hive,once,atlas}/cluster.yaml`](clusters/workloads/)
-- [`clusters/cluster-preview.yaml`](clusters/cluster-preview.yaml) — preview stays outside Flux (`mgmt-cluster-apply.yml`).
+- `tuist-preview`, which hosted ephemeral pull request and Slack-requested previews, is retired: its manifest, the preview workflows, and the Slack `/preview` command are removed. **Preview Cluster Retirement** (`.github/workflows/preview-cluster-retirement.yml`) deletes the live cluster; remove that workflow once it has run. `mise -C infra run helm:preview-up` still deploys the same embedded chart shape to a local kind cluster.
 
 For a new Flux-reconciled cluster, add `clusters/workloads/<cluster>/cluster.yaml` + a `kustomization.yaml` (copy the closest existing subdir) and a matching `infra/flux/mgmt/cluster-<cluster>.yaml` Flux `Kustomization`. Adjust `metadata.name`, replica counts, machine types, and per-pool labels/taints. 3-CP clusters get the absolute-`1` control-plane MHC override; single-CP clusters stay on the ClusterClass 33% default. Variables are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION`.
 
@@ -213,10 +213,10 @@ kubectl -n org-tuist get cluster <name> -w
 # Available=True once control plane is up. ~3–5 min cold start.
 ```
 
-Only under break-glass (a wedged Flux, or a cluster still outside Flux like preview) apply directly:
+Only under break-glass (a wedged Flux) apply directly:
 
 ```bash
-kubectl apply -k infra/k8s/clusters/workloads/<cluster>   # or -f cluster-preview.yaml
+kubectl apply -k infra/k8s/clusters/workloads/<cluster>
 ```
 
 ## 4. Bootstrap the workload cluster
@@ -236,7 +236,7 @@ CI uses a namespace-scoped ServiceAccount with a long-lived token, defined in [`
 
 ```bash
 WL_KUBECONFIG=~/.kube/<cluster_name>.yaml
-APP_NS=tuist-<env>   # production uses tuist (no suffix); preview uses preview-system
+APP_NS=tuist-<env>   # production uses tuist (no suffix)
 
 sed "s/__NAMESPACE__/${APP_NS}/g" infra/k8s/mgmt/ci-service-account.yaml \
   | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
@@ -536,35 +536,7 @@ available when a workload cluster is unreachable. Alert queries and setup
 instructions live in
 [`infra/helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md).
 
-## 8. Preview environments (ephemeral pull request / commit deploys)
-
-Preview environments live on the `tuist-preview` workload cluster, which runs Postgres / ClickHouse / MinIO embedded alongside the server. Each preview is its own Helm release in its own namespace, with auto-deletion driven by a time-to-live label and the in-cluster `preview-janitor` CronJob from the platform chart.
-
-Slack-requested, manual, and pull request previews use `.github/workflows/preview-deploy.yml` with `action=deploy` or `action=delete`. The workflow uses the same cluster and embedded dependency shape for every preview, and layers `infra/helm/tuist/values-preview-kura.yaml` after `values-preview.yaml` when Kura is enabled. App pods and the preview's Kura runtime pods both land on the tainted preview worker pool, so Kura previews colocate on `role=preview` with a matching toleration instead of a dedicated Kura node pool. Cluster-wide state is reconciled separately from previews. [`preview-platform-reconcile.yml`](../../.github/workflows/preview-platform-reconcile.yml) owns the platform chart and the single Kura controller in the `kura` namespace, and runs on push to `main` when those paths change, after the controller image publishes, or on manual dispatch. Preview deploys never touch cluster-wide releases: a server-only pull request no longer upgrades cert-manager, and two previews deploying at once cannot race on the shared `platform` release. A preview deploy fails fast when the controller is absent, so **dispatch that workflow once against a freshly bootstrapped cluster before deploying the first preview**.
-
-Because the controller is cluster-wide, previews run the controller from `main` rather than a per-pull-request build. Only the Kura *runtime* is built per pull request, and each preview pins its own runtime image. Controller changes are covered by `kura-controller-image.yml` and by staging.
-
-The controller install task requires `KURA_CONTROLLER_IMAGE_TAG` and refuses to run without it, so that no environment silently tracks a mutable tag. The reconcile workflow resolves it from `main` and `mise run helm:preview-up` passes the tag it built locally. To run the task by hand, pass the `sha-<short>` tag of a controller image published to `ghcr.io/tuist/kura-controller`.
-
-Each preview's `KuraInstance` is rendered by the Helm chart into that same `kura` namespace ([`templates/kura-instance.yaml`](../helm/tuist/templates/kura-instance.yaml)), so Helm owns it: `helm upgrade` patches it in place and `helm uninstall` reaps it. Managed environments leave `kuraRuntime.instance.enabled` off, because there the server's reconciler authors the CR from the `kura_servers` intent rows.
-
-Cleanup is self-healing. Deleting the `KuraInstance` makes the controller garbage-collect the StatefulSet, PVC, Service, Ingress, and Certificate it created in the `kura` namespace (all owned by the CR, and the StatefulSet's volume-claim retention is `WhenDeleted: Delete`, so no PVC leaks). Because that CR lives outside the preview namespace, it is additionally owned by the preview namespace itself: deleting the namespace garbage-collects the CR even if a teardown path never runs its explicit delete. So a preview leaves nothing behind whether the janitor's namespace delete finishes or is interrupted. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled inside the cluster by the `preview-janitor` CronJob.
-
-Previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks each account's Kura endpoint up through a `kura_servers` row. The deploy workflow runs the regular development seed with preview-sized counts, uses the seeded `tuist` organization, and wires that organization to the preview `KuraInstance`, so the preview is Kura-ready out of the box. The login page shows the test-user sign-in button in preview environments. Seeding is idempotent and is also what `mise run helm:preview-up` does locally.
-
-### 8.1 Wildcard domain record and certificate
-
-The preview platform chart annotates the ingress controller's LoadBalancer Service so [ExternalDNS](https://kubernetes-sigs.github.io/external-dns/) owns `*.preview.tuist.dev` and keeps it pointed at the current ingress address. The chart also replaces the wildcard in ExternalDNS's ownership text-record name with `_wildcard`, which Cloudflare accepts.
-
-Migrating from the previously hand-created wildcard is a one-time manual step, and it is required rather than optional. ExternalDNS only manages records that carry its ownership text record, so it will neither update nor delete a wildcard that an operator created by hand. Left in place, the stale record keeps resolving every per-pull-request subdomain to the old ingress address. After applying the platform chart to a cluster that still has one, delete the unowned `*.preview.tuist.dev` record in Cloudflare and let ExternalDNS recreate both the address record and its ownership record. Confirm the handover by checking that a `_wildcard.preview.tuist.dev` text record exists and names this cluster's owner id before relying on preview URLs.
-
-The platform chart issues the wildcard certificate through cert-manager's Cloudflare domain-validation flow; ingress-nginx picks it up through the `--default-ssl-certificate` flag set in the chart values.
-
-### 8.2 Preview-specific 1Password items
-
-In the `tuist-k8s-preview` vault: `TUIST_LICENSE_KEY` (Login or Password category, `password` field). The `Service Account Auth Token: tuist-preview-k8s` 1P item authorizes ESO to read it.
-
-### Production air-gapped license
+## 8. Production air-gapped license
 
 Production uses the signed air-gapped license so server startup does not depend
 on Keygen availability or outbound connectivity. Store the Base64-encoded
@@ -649,16 +621,6 @@ The server publishes `tuist_license_valid` and
 and 30-day warning rules from
 [`infra/helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md) before
 the first production deployment.
-
-### 8.3 First preview
-
-```bash
-gh workflow run preview-deploy.yml -f pr_number=1234 -f ttl_hours=24
-# or, for a one-off commit:
-gh workflow run preview-deploy.yml -f commit_sha=abc1234567890... -f ttl_hours=4
-```
-
-The platform chart's `preview-janitor` CronJob runs hourly inside the preview cluster, deleting expired preview `KuraInstance` resources and namespaces.
 
 ## 9. Dedicated pentest cluster
 
