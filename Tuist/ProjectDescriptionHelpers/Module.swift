@@ -2003,6 +2003,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.xcodeGraphMapper.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .target(name: Module.xcodeMetadata.targetName),

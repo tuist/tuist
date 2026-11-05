@@ -98,6 +98,7 @@ public struct CoverageUploadService: CoverageUploadServicing {
                     summary = parsed
                 }
                 await keep(ndjson, of: resultBundlePath)
+                let platform = await RunMetadataStorage.current.testPlatform?.rawValue
 
                 let deflated = directory.appending(component: "coverage.ndjson.deflate")
                 try Self.deflate(ndjson, to: deflated)
@@ -114,7 +115,7 @@ public struct CoverageUploadService: CoverageUploadServicing {
                 if size <= threshold {
                     let files = try XcodeCoverageParser.readFiles(at: ndjson).sorted { $0.path < $1.path }
                     return PreparedCoverage(
-                        coverage: TestRunCoverage(tool: tool, partial: summary.partial, files: files),
+                        coverage: TestRunCoverage(tool: tool, partial: summary.partial, files: files, platform: platform),
                         testRunId: testRunId
                     )
                 }
@@ -128,7 +129,12 @@ public struct CoverageUploadService: CoverageUploadServicing {
                 try await uploader.upload(file: deflated, to: upload.uploadURL)
                 Logger.current.debug("Uploaded \(size) bytes of coverage for \(summary.fileCount) files as \(upload.storageKey)")
                 return PreparedCoverage(
-                    coverage: TestRunCoverage(tool: tool, partial: summary.partial, storageKey: upload.storageKey),
+                    coverage: TestRunCoverage(
+                        tool: tool,
+                        partial: summary.partial,
+                        storageKey: upload.storageKey,
+                        platform: platform
+                    ),
                     testRunId: testRunId
                 )
             }
