@@ -57,7 +57,7 @@ defmodule TuistWeb.TestSelection.Components do
   def reason_label("undecided"), do: dgettext("dashboard_tests", "Undecided")
   def reason_label("unaffected"), do: dgettext("dashboard_tests", "No executed file changed")
   def reason_label("module_skipped"), do: dgettext("dashboard_tests", "Module skipped")
-  def reason_label(reason), do: reason
+  def reason_label(reason), do: fallback_label(reason)
 
   @doc "A test's reason, as the sentence its page explains it with."
   def reason_description("test_file_changed", path),
@@ -111,7 +111,7 @@ defmodule TuistWeb.TestSelection.Components do
         "Selective testing found its module not changed since a passing run, so the module was skipped before coverage decided anything."
       )
 
-  def reason_description(reason, _path), do: reason
+  def reason_description(reason, _path), do: fallback_description(reason)
 
   @doc "Why an impact run fell back to default selective testing."
   def fallback_label("no_baseline"), do: dgettext("dashboard_tests", "No baseline")

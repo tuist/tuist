@@ -331,6 +331,34 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert core =~ "–"
     end
 
+    test "shows a fallback that found its baseline as a selection", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      %{test_run: test_run} =
+        selection(project,
+          outcome: "fallback",
+          reason: "tracked_file_changed",
+          matched_path: "App/Project.swift",
+          selected: [],
+          requested_count: 4,
+          selected_count: 2,
+          skipped_count: 2
+        )
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
+        )
+
+      refute has_element?(lv, "#test-selection-fallback")
+      assert has_element?(lv, "#widget-selection-selected", "2 / 4")
+      assert has_element?(lv, "#selection-tests-table", "Tracked file changed")
+      assert has_element?(lv, "#selection-tests-table", "Project.swift")
+    end
+
     test "explains a fallback", %{conn: conn, organization: organization, project: project} do
       %{test_run: test_run} =
         selection(project,

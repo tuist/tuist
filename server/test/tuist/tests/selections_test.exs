@@ -246,6 +246,37 @@ defmodule Tuist.Tests.SelectionsTest do
     end
   end
 
+  describe "a fallback that found its baseline" do
+    test "lists the requested modules' baseline tests as ran under its reason and saves the hash-skipped ones' time",
+         %{project: project} do
+      %{run: run, test_run: test_run} =
+        run(project,
+          outcome: "fallback",
+          reason: "tracked_file_changed",
+          matched_path: "Package.resolved",
+          selected: [],
+          rule_trace: [%{rule: "tracked_files", selected: 0, skipped: 0, verdict: "abort"}],
+          requested_count: 7,
+          selected_count: 3,
+          skipped_count: 4
+        )
+
+      assert Selections.counted_fallback?(run)
+      assert Selections.selection?(run)
+      {rows, _meta} = Selections.run_tests(run, test_run.id)
+
+      assert Enum.map(rows, &{&1.name, &1.decision, &1.reason, &1.matched_path}) == [
+               {"test_refresh()", "selected", "tracked_file_changed", "Package.resolved"},
+               {"test_reset()", "selected", "tracked_file_changed", "Package.resolved"},
+               {"test_load()", "selected", "tracked_file_changed", "Package.resolved"},
+               {"test_total()", "skipped", "module_skipped", ""}
+             ]
+
+      assert {[_, _, _], _meta} = Selections.run_tests(run, test_run.id, reason: "tracked_file_changed")
+      assert Selections.run_summary(run, test_run.id).skipped_duration == 1000
+    end
+  end
+
   describe "get_run_test/3" do
     test "returns one of the run's tests with its outcome", %{project: project} do
       %{run: run, test_run: test_run} = run(project)

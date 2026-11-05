@@ -1888,7 +1888,7 @@
     <.selective_testing_tab
       :if={
         @has_selective_testing_data &&
-          (!@selection_run || Tuist.Tests.Selections.fallback?(@selection_run))
+          (!@selection_run || !Tuist.Tests.Selections.selection?(@selection_run))
       }
       project={@selected_project}
       selective_testing_analytics={@selective_testing_analytics}

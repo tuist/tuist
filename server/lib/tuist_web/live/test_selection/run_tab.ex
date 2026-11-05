@@ -90,7 +90,7 @@ defmodule TuistWeb.TestSelection.RunTab do
   defp assign_tab(socket, "tests", run, test_run_id, params) do
     search = params["selection-search"] || ""
     decision = if params["selection-decision"] in ~w(selected skipped), do: params["selection-decision"], else: "any"
-    reason = if params["selection-reason"] in reasons(), do: params["selection-reason"], else: "any"
+    reason = if params["selection-reason"] in reasons(run), do: params["selection-reason"], else: "any"
     shard = parse_shard(params["selection-shard"], socket.assigns.selection_plan)
     sort_by = if params["selection-sort-by"] in @sort_fields, do: params["selection-sort-by"], else: "decision"
     sort_order = if params["selection-sort-order"] == "desc", do: "desc", else: "asc"
@@ -160,9 +160,13 @@ defmodule TuistWeb.TestSelection.RunTab do
   @doc "The query that searches the current tab for `search`."
   def search_query(uri, search), do: uri.query |> Query.put("selection-search", search) |> Query.drop("selection-page")
 
-  defp tabs(%{outcome: "fallback"}, _plan), do: ["debug"]
-  defp tabs(_run, nil), do: List.delete(@tabs, "shards")
-  defp tabs(_run, _plan), do: @tabs
+  defp tabs(run, plan) do
+    cond do
+      !Selections.selection?(run) -> ["debug"]
+      is_nil(plan) -> List.delete(@tabs, "shards")
+      true -> @tabs
+    end
+  end
 
   attr :selection_run, :map, required: true
   attr :summary, :map, required: true
@@ -194,7 +198,7 @@ defmodule TuistWeb.TestSelection.RunTab do
         data-part="test-details"
       >
         <.card_section
-          :if={Selections.fallback?(@selection_run)}
+          :if={!Selections.selection?(@selection_run)}
           data-part="selection-verdict-section"
         >
           <.alert
@@ -225,7 +229,7 @@ defmodule TuistWeb.TestSelection.RunTab do
           />
         </.card_section>
         <.card_section
-          :if={!Selections.fallback?(@selection_run)}
+          :if={Selections.selection?(@selection_run)}
           data-part="test-details-section"
         >
           <div data-part="widgets">
@@ -310,7 +314,7 @@ defmodule TuistWeb.TestSelection.RunTab do
         </.card_section>
       </.card>
 
-      <.tab_menu_horizontal :if={!Selections.fallback?(@selection_run)}>
+      <.tab_menu_horizontal :if={Selections.selection?(@selection_run)}>
         <.tab_menu_horizontal_item
           :for={tab <- tabs(@selection_run, @plan)}
           selected={@tab == tab}
@@ -397,7 +401,7 @@ defmodule TuistWeb.TestSelection.RunTab do
             secondary_text={dgettext("dashboard_tests", "Reason:")}
           >
             <.dropdown_item
-              :for={reason <- ["any" | reasons()]}
+              :for={reason <- ["any" | reasons(@selection_run)]}
               value={reason}
               label={reason_filter_label(reason)}
               patch={filter_patch(@uri, "selection-reason", reason)}
@@ -844,7 +848,12 @@ defmodule TuistWeb.TestSelection.RunTab do
     "?#{uri.query |> Query.put("selection-sort-by", column) |> Query.put("selection-sort-order", order) |> Query.drop("selection-page")}"
   end
 
-  defp reasons, do: Selections.selected_reasons() ++ Selections.skipped_reasons()
+  # A fallback that found its baseline lists its tests under its own reason.
+  defp reasons(run) do
+    if Selections.counted_fallback?(run),
+      do: [run.reason | Selections.skipped_reasons()],
+      else: Selections.selected_reasons() ++ Selections.skipped_reasons()
+  end
 
   defp has_baseline?(run), do: run.baseline_sha not in [nil, ""]
 

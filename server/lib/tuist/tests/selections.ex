@@ -61,6 +61,17 @@ defmodule Tuist.Tests.Selections do
   def counted_by_module?(%Run{} = run), do: fallback?(run) and not run_all?(run) and run.requested_count == 0
 
   @doc """
+  Whether an impact run fell back to default selective testing after finding
+  its baseline: coverage decided no test, every test in the modules hashing
+  left ran, and the run reads like a selection, its tests derived from the
+  baseline.
+  """
+  def counted_fallback?(%Run{} = run), do: fallback?(run) and not run_all?(run) and run.requested_count > 0
+
+  @doc "Whether an impact run shows as a selection: one, or a fallback that found its baseline."
+  def selection?(%Run{} = run), do: not fallback?(run) or counted_fallback?(run)
+
+  @doc """
   The test modules an impact run ran out of those requested: the ones hashing
   left, out of those plus the ones it skipped. What a fallback to default
   selective testing is measured by, since it decides no test.
@@ -415,7 +426,9 @@ defmodule Tuist.Tests.Selections do
 
     skipped_duration =
       if has_baseline?(run) do
-        Enum.sum_by([unaffected_query(run), module_skipped_query(run)], fn query ->
+        run
+        |> skipped_queries()
+        |> Enum.sum_by(fn query ->
           from(t in subquery(query), select: sum(t.duration)) |> ClickHouseRepo.one() |> to_integer()
         end)
       else
@@ -511,6 +524,30 @@ defmodule Tuist.Tests.Selections do
     end
   end
 
+  # A fallback decided no test: the requested modules' tests all ran.
+  defp skipped_queries(run) do
+    if fallback?(run),
+      do: [module_skipped_query(run)],
+      else: [unaffected_query(run), module_skipped_query(run)]
+  end
+
+  # The requested modules' baseline tests a fallback that found its baseline
+  # ran, under its reason.
+  defp fallback_selected_query(run, filters) do
+    from(b in subquery(baseline_tests_query(run)))
+    |> filter_branch(filters)
+    |> select([b], %{
+      test_case_id: b.test_case_id,
+      module_name: b.module_name,
+      suite_name: b.suite_name,
+      name: b.name,
+      decision: fragment("'selected'"),
+      reason: fragment("?", ^run.reason),
+      matched_path: fragment("?", ^run.matched_path),
+      duration: b.duration
+    })
+  end
+
   # The requested modules' baseline tests coverage didn't select.
   defp unaffected_query(run, filters \\ []) do
     selected_ids = select(selected_query(run), [t], t.test_case_id)
@@ -553,15 +590,7 @@ defmodule Tuist.Tests.Selections do
     filters = Keyword.take(opts, [:search, :test_case_id])
     selected = selected_branch(run, if(reason in [nil, "", "any"], do: filters, else: [{:reason, reason} | filters]))
 
-    branches =
-      for {included?, branch} <- [
-            {selected_branch?(opts), fn -> selected end},
-            {skipped_branch?(run, opts, "unaffected"), fn -> unaffected_query(run, filters) end},
-            {skipped_branch?(run, opts, "module_skipped") and run.skipped_modules != %{} and
-               Keyword.get(opts, :module_skipped, true), fn -> module_skipped_query(run, filters) end}
-          ],
-          included?,
-          do: branch.()
+    branches = for {included?, branch} <- branches(run, opts, filters, selected), included?, do: branch.()
 
     case branches do
       [] -> where(selected, false)
@@ -569,11 +598,28 @@ defmodule Tuist.Tests.Selections do
     end
   end
 
+  # Each branch of the union, whether the options include it, and how to
+  # build it.
+  defp branches(run, opts, filters, selected) do
+    [
+      {selected_branch?(opts) and not counted_fallback?(run), fn -> selected end},
+      {counted_fallback?(run) and fallback_selected_branch?(run, opts), fn -> fallback_selected_query(run, filters) end},
+      {skipped_branch?(run, opts, "unaffected") and not fallback?(run), fn -> unaffected_query(run, filters) end},
+      {skipped_branch?(run, opts, "module_skipped") and run.skipped_modules != %{} and
+         Keyword.get(opts, :module_skipped, true), fn -> module_skipped_query(run, filters) end}
+    ]
+  end
+
   defp selected_branch?(opts),
     do:
       Keyword.get(opts, :decision) in [nil, "", "any", "selected"] and Keyword.get(opts, :reason) not in @skipped_reasons
 
   # Skipped tests never ran, so they sit on no shard.
+  defp fallback_selected_branch?(run, opts) do
+    Keyword.get(opts, :decision) in [nil, "", "any", "selected"] and
+      Keyword.get(opts, :reason) in [nil, "", "any", run.reason] and not is_integer(Keyword.get(opts, :shard))
+  end
+
   defp skipped_branch?(run, opts, reason) do
     has_baseline?(run) and Keyword.get(opts, :decision) in [nil, "", "any", "skipped"] and
       Keyword.get(opts, :reason) in [nil, "", "any", reason] and
