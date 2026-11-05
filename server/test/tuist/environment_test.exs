@@ -4,6 +4,53 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  describe "mail_configured?/1" do
+    setup do
+      stub(System, :get_env, fn name, default ->
+        if String.starts_with?(name, ["TUIST_MAILING_", "TUIST_MAILGUN_", "TUIST_SES_", "TUIST_SMTP_SETTINGS_"]) do
+          default
+        else
+          Mimic.call_original(System, :get_env, [name, default])
+        end
+      end)
+
+      :ok
+    end
+
+    test "SES requires email confirmation without Mailgun credentials" do
+      secrets = %{
+        "mailing" => %{"provider" => "ses", "from_address" => "noreply@tuist.dev"},
+        "ses" => %{"region" => "eu-west-1", "access_key_id" => "ses-key", "secret_access_key" => "ses-secret"}
+      }
+
+      assert Environment.mail_configured?(secrets)
+      refute Environment.skip_email_confirmation?(secrets)
+
+      for field <- ["region", "access_key_id", "secret_access_key"], value <- [nil, ""] do
+        refute Environment.mail_configured?(put_in(secrets, ["ses", field], value))
+      end
+
+      refute Environment.mail_configured?(put_in(secrets, ["mailing", "from_address"], ""))
+    end
+
+    test "Mailgun remains the default and still requires its sending domain" do
+      secrets = %{
+        "mailing" => %{"from_address" => "noreply@tuist.dev", "domain" => "mail.tuist.dev"},
+        "mailgun" => %{"api_key" => "mailgun-key"}
+      }
+
+      assert Environment.mail_configured?(secrets)
+      refute Environment.skip_email_confirmation?(secrets)
+      refute Environment.mail_configured?(update_in(secrets, ["mailing"], &Map.delete(&1, "domain")))
+    end
+
+    test "a misspelled provider cannot silently disable email confirmation" do
+      assert_raise ArgumentError, ~r/unsupported mailing provider/, fn ->
+        Environment.skip_email_confirmation?(%{"mailing" => %{"provider" => "sse"}})
+      end
+    end
+  end
+
   describe "kura_thin_region_ids/0" do
     test "reads the trimmed region IDs enrolled in thin Kura volumes" do
       stub(System, :get_env, fn

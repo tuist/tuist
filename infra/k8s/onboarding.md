@@ -372,6 +372,85 @@ Do not run creation during routine deploys or recovery. Preserve the existing it
 
 **Rotation and rollback:** this ExternalSecret uses `refreshPolicy: OnChange`, not periodic refresh. Source edits alone do not propagate into the runtime Secret; synchronization happens on creation or ExternalSecret metadata/spec changes. Existing `Ready=True` therefore does not attest that the current 1Password value is unchanged or still accessible. During an approved rotation, explicitly request synchronization by updating the ExternalSecret's `force-sync` annotation, then verify synchronization before replacing **every** participant. Changing the Kubernetes Secret does not update environment variables in already-running BEAMs. Coordinate source change, synchronization and process replacement as one maintenance operation, with membership and cross-node notifications checked afterwards. Never rotate incidentally to fix a deploy or missing key. Application rollback with a chart revision that retains this ExternalSecret preserves its Secret and cookie. A Helm rollback to a pre-ExternalSecret revision deletes the ESO resource and its owner-referenced runtime Secret, reverting to the earlier cookie behavior and membership islands; it does not delete the durable 1Password item. The first migration from image-baked cookies and the mixed-version qualification gates are documented in [multi-replica clustering](../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering).
 
+## Managed outbound email (SES)
+
+SES uses AWS account `881372579491`, region `eu-west-1`, verified Easy DKIM
+identity `tuist.dev` and custom MAIL FROM `ses-bounces.tuist.dev`. Production
+access is granted (initial quota: 50,000 recipients/day, 14/second). Keep the
+account on pay-as-you-go rather than an SES subscription plan. Sending uses
+the HTTPS API, not SMTP. AWS supports OIDC federation through STS, but this
+initial integration uses independently scoped send-only IAM users, not root
+keys or the applications' object-storage credentials.
+
+| Sender | IAM user | 1Password source |
+| --- | --- | --- |
+| Server staging | `tuist-server-staging-ses` | `tuist-k8s-staging/SES` |
+| Server canary | `tuist-server-canary-ses` | `tuist-k8s-canary/SES` |
+| Server production | `tuist-server-production-ses` | `tuist-k8s-production/SES` |
+| Atlas (including former Hive newsletters/support) | `tuist-atlas-production-ses` | `atlas-k8s-production/atlas-ses` |
+| Slack invitations | `tuist-slack-production-ses` | `tuist-k8s-production/SLACK_INVITATION_APP` |
+
+Server/Atlas items contain `access_key_id` and `secret_access_key`; Slack's
+existing item additionally contains `ses-access-key-id` and
+`ses-secret-access-key`. Keep unrelated fields and existing Mailgun credentials
+for rollback. Each environment's External Secrets store must access its own
+vault. Server keys permit only `noreply@tuist.dev`, Slack only
+`hello@tuist.dev`, and Atlas `*@tuist.dev`; all are restricted to Ireland's
+verified identity/configuration set and `ses:SendEmail`/`ses:SendRawEmail`.
+They cannot read account settings, suppressions or feedback queues.
+
+Managed-common selects `server.mailing.provider: ses` and
+`sesRegion: eu-west-1` for staging, canary and production. The same mailing
+environment reaches web, workers and migration runtimes. Atlas's managed overlay
+sets `ATLAS_MAILER_PROVIDER=ses` and maps its app-prefixed credentials; Slack's
+production overlay selects `mailer.provider: ses`. Standalone defaults retain
+Mailgun, and the Atlas demo receives no SES credentials. Applications do not
+fall back to Mailgun after a send error, avoiding duplicate deliveries.
+
+**Before cutover:** export Mailgun's hard bounces and complaints and import them
+with SES `PutSuppressedDestination` (`BOUNCE`/`COMPLAINT`) in Ireland. Preserve
+newsletter unsubscribe state in Atlas; SES suppression does not replace consent
+or unsubscribe checks. The initial migration on 2026-11-05 imported and verified
+all 332 bounces and 7 complaints exported from Mailgun; its unsubscribe list was
+empty. Reconcile any new suppressions accumulated before the actual cutover.
+Keep Mailgun inbound routes and the root domain's MX/SPF/DMARC records intact;
+outbound migration does not migrate incoming support email.
+
+The identity's default `tuist-mail` configuration set publishes send, delivery,
+bounce, complaint, reject and delivery-delay events through SNS to the encrypted
+`tuist-mail-events` SQS queue (14-day retention). Account suppression is enabled
+for bounces and complaints. CloudWatch alarms `tuist-mail-BounceRate` (3%) and
+`tuist-mail-ComplaintRate` (0.05%) notify SNS topic `tuist-mail-alerts`.
+Its email subscription at `contact@tuist.dev` was confirmed during initial
+provisioning. For a rebuild, confirm the subscription email and verify it is no
+longer `PendingConfirmation` before relying on alerts. Queue retrieval and
+personal-data export restrictions are documented in
+[the email delivery inventory](../../server/data-export.md#managed-outbound-email-delivery).
+
+**Validation and rollout:** first render the charts with CI placeholders, then
+deploy staging through the normal approved deployment path. Verify ExternalSecret
+readiness without reading Kubernetes Secrets. Send a confirmation/reset message
+from the deployed application to a controlled mailbox, inspect DKIM/SPF/DMARC
+and reply-to headers, and correlate its SES message ID with a delivery event.
+Repeat for canary before production, then validate Atlas's support reply headers
+and newsletter unsubscribe headers and Slack's confirmation flow in their
+independent releases. Simulator sends succeeded with all five IAM users;
+delivery/bounce/complaint events and IAM sender/region restrictions were checked.
+These synthetic checks do not establish inbox placement at Apple or validate
+the deployed applications. All environments share the account's quota and
+reputation; non-production sends must remain controlled and low volume.
+
+**Rollback:** select `server.mailing.provider: mailgun`,
+`mailer.provider: mailgun`, or `env.ATLAS_MAILER_PROVIDER: mailgun` in the
+appropriate managed values and redeploy that application. All three charts
+retain Mailgun secret mappings during cutover so restarting old images remain
+configured, including Server's email-confirmation requirement.
+Wait for ExternalSecret reconciliation before starting replacement pods. Rotate
+SES keys independently by creating a replacement IAM key, updating that user's
+1Password fields, verifying synchronization and a successful application send,
+then retiring the old key. Never rotate by rerunning bootstrap blindly or
+delete the Mailgun account while inbound routes or rollback still depend on it.
+
 ## 5f. ClickHouse tailnet ingress without public NodePorts
 
 The managed ClickHouse HTTP-only tailnet Service uses `loadBalancerClass: tailscale`

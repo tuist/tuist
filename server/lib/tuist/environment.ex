@@ -1489,6 +1489,10 @@ defmodule Tuist.Environment do
     get([:mailgun, :api_key], secrets)
   end
 
+  def mailing_provider(secrets \\ secrets()) do
+    get([:mailing, :provider], secrets, default_value: "mailgun")
+  end
+
   def mailing_domain(secrets \\ secrets()) do
     get([:mailing, :domain], secrets) || get([:smtp_settings, :domain], secrets)
   end
@@ -1511,8 +1515,25 @@ defmodule Tuist.Environment do
   end
 
   def mail_configured?(secrets \\ secrets()) do
-    mailgun_api_key(secrets) != nil and mailing_domain(secrets) != nil and
-      mailing_from_address(secrets) != nil
+    case mailing_provider(secrets) do
+      "mailgun" ->
+        mailgun_api_key(secrets) != nil and mailing_domain(secrets) != nil and
+          mailing_from_address(secrets) != nil
+
+      "ses" ->
+        Enum.all?(
+          [
+            get([:ses, :region], secrets),
+            get([:ses, :access_key_id], secrets),
+            get([:ses, :secret_access_key], secrets),
+            mailing_from_address(secrets)
+          ],
+          &(&1 not in [nil, ""])
+        )
+
+      provider ->
+        raise ArgumentError, "unsupported mailing provider: #{inspect(provider)}"
+    end
   end
 
   def skip_email_confirmation?(secrets \\ secrets()) do

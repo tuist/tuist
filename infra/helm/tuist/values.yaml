@@ -896,12 +896,11 @@ server:
   # secret store (server.config / 1Password STRIPE item).
   stripe:
     prices: {}
-  # Mailing identity (Mailgun sending domain + from/reply-to addresses). Not
-  # secrets — just the sender identity, shared across envs — so they live here,
-  # wired to TUIST_MAILING_* env vars. The Mailgun API key stays in the secret
-  # store (server.config / 1Password MAILGUN item). Empty by default; managed
-  # values set them.
+  # Mailing provider and sender identity. Credentials stay in server.config;
+  # managed SES reads SES/{access_key_id,secret_access_key} from each env's vault.
   mailing:
+    provider: mailgun
+    sesRegion: ""
     domain: ""
     fromAddress: ""
     replyToAddress: ""

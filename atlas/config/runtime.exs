@@ -7,6 +7,7 @@ alias Atlas.LLMs.ChatGPT
 alias Atlas.Push.Config
 alias AtlasWeb.NativeLinks.Config, as: NativeLinksConfig
 alias Cloak.Ciphers.AES.GCM
+alias Swoosh.Adapters.AmazonSES
 alias Swoosh.Adapters.Mailgun
 alias Ueberauth.Strategy.Google
 alias Ueberauth.Strategy.Google.OAuth
@@ -241,15 +242,25 @@ if support_ingest_jwks = System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_JWKS") do
     subject: System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_SUBJECT")
 end
 
-# Mailgun is the company's email provider: tuist.dev is already verified there
-# and has a sending history, which a second provider would not inherit. The
-# account is in Mailgun's EU region, so the base URL is not the default one.
-if mailgun_api_key = System.get_env("MAILGUN_API_KEY") do
-  config :atlas, Atlas.Mailer,
-    adapter: Mailgun,
-    api_key: mailgun_api_key,
-    domain: System.get_env("ATLAS_MAILGUN_DOMAIN", "mail.tuist.dev"),
-    base_url: System.get_env("ATLAS_MAILGUN_BASE_URL", "https://api.eu.mailgun.net/v3")
+case System.get_env("ATLAS_MAILER_PROVIDER", "mailgun") do
+  "mailgun" ->
+    if mailgun_api_key = System.get_env("MAILGUN_API_KEY") do
+      config :atlas, Atlas.Mailer,
+        adapter: Mailgun,
+        api_key: mailgun_api_key,
+        domain: System.get_env("ATLAS_MAILGUN_DOMAIN", "mail.tuist.dev"),
+        base_url: System.get_env("ATLAS_MAILGUN_BASE_URL", "https://api.eu.mailgun.net/v3")
+    end
+
+  "ses" ->
+    config :atlas, Atlas.Mailer,
+      adapter: AmazonSES,
+      region: System.fetch_env!("ATLAS_SES_REGION"),
+      access_key: System.fetch_env!("ATLAS_SES_ACCESS_KEY_ID"),
+      secret: System.fetch_env!("ATLAS_SES_SECRET_ACCESS_KEY")
+
+  provider ->
+    raise "unsupported mailing provider: #{inspect(provider)}"
 end
 
 allowed_email_domain =
