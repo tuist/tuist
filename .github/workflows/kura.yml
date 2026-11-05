@@ -9,6 +9,7 @@ on:
       - infra/certificate-trust/policy.json
       - infra/certificate-trust/pem-store.sh
       - .github/workflows/kura.yml
+      - .github/scripts/tuist-bazel-setup.sh
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -16,6 +17,7 @@ on:
       - infra/certificate-trust/policy.json
       - infra/certificate-trust/pem-store.sh
       - .github/workflows/kura.yml
+      - .github/scripts/tuist-bazel-setup.sh
   merge_group: {}
 
 permissions:
