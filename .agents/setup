@@ -11,6 +11,19 @@ step() {
   printf '\n==> %s (%s)\n' "$1" "$(date +%T)"
 }
 
+# mise's own retries back off for only a few seconds, which a GitHub release
+# outage (504s) outlasts. A failed setup publishes no snapshot, so retry with
+# longer pauses; each rerun installs only what is still missing.
+retry() {
+  local attempt
+  for attempt in 1 2 3; do
+    "$@" && return 0
+    ((attempt < 3)) || return 1
+    echo "Attempt $attempt failed; retrying in $((attempt * 30))s" >&2
+    sleep $((attempt * 30))
+  done
+}
+
 # --- System packages -------------------------------------------------------
 # Erlang builds from source (mise.lock has no Linux URL for core:erlang), so
 # keep its build dependencies alongside PostgreSQL 16, which the server
@@ -42,6 +55,8 @@ fi
 # --- PostgreSQL 16 ---------------------------------------------------------
 # Orbs are disposable: trade durability for speed and trust local
 # connections. Dev connects as the OS user, tests as postgres/postgres.
+# start.conf `manual` keeps systemd from booting the cluster in every orb;
+# threads that need it start it on demand (see the orb guidance below).
 step "Configuring PostgreSQL 16"
 pg_conf=/etc/postgresql/16/main
 sudo tee "$pg_conf/conf.d/amp-orb.conf" >/dev/null <<'EOF'
@@ -55,7 +70,8 @@ local all all trust
 host  all all 127.0.0.1/32 trust
 host  all all ::1/128 trust
 EOF
-sudo chown postgres:postgres "$pg_conf/pg_hba.conf" "$pg_conf/conf.d/amp-orb.conf"
+echo manual | sudo tee "$pg_conf/start.conf" >/dev/null
+sudo chown postgres:postgres "$pg_conf/pg_hba.conf" "$pg_conf/conf.d/amp-orb.conf" "$pg_conf/start.conf"
 # pg_ctlcluster goes through systemd when it runs and pg_ctl otherwise, since
 # some orb providers boot without systemd.
 sudo pg_ctlcluster 16 main restart
@@ -115,12 +131,12 @@ mise trust --quiet "$repo_root/server/mise.toml"
 printf '100' >"$(git rev-parse --path-format=absolute --git-path tuist-dev-instance)"
 
 step "Installing root tools"
-time mise install --quiet
+time retry mise install --quiet
 
 # The postinstall hook bootstraps databases before ClickHouse runs; its CI
 # guard skips it here and the bootstrap runs explicitly below.
 step "Installing server tools"
-(cd server && time CI=1 mise install --quiet)
+(cd server && time CI=1 retry mise install --quiet)
 mise reshim
 
 step "Installing root Node dependencies"
@@ -152,7 +168,8 @@ step "Compiling the server test build and migrating its databases"
 time env MIX_ENV=test mise exec -- mix "do" ecto.create --quiet + run priv/repo/timezone.exs + ecto.migrate --quiet
 
 # Stop the databases cleanly so their data directories are consistent in
-# the snapshot; .agents/resume starts them again.
+# the snapshot. Nothing restarts them on resume: most threads never touch the
+# server, so the server service and the orb guidance start them on demand.
 step "Stopping ClickHouse and PostgreSQL"
 mise run --no-deps clickhouse:stop
 sudo pg_ctlcluster 16 main stop
@@ -199,7 +216,10 @@ other_guidance=""
 - `.agents/setup` installed the root and `server/` mise toolchains (shims on PATH),
   PostgreSQL 16 (pg_ctlcluster, trust auth), compiled the server's dev and test builds, created and
   migrated its databases, and seeded the dev database.
-- `.agents/resume` starts PostgreSQL and ClickHouse; rerun `mise run clickhouse:start` from `server/` if ClickHouse is down.
+- PostgreSQL and ClickHouse are stopped when a thread starts. Before `mix test` or other
+  database work, run from `server/`:
+  `(pg_isready -q -h localhost || sudo pg_ctlcluster 16 main start) && mise run --no-deps clickhouse:start`.
+  The `server` service starts both itself.
 - This checkout's dev instance is 100: server on port 8180, databases `tuist_development_100`.
 - Start the server with `amp orb services ensure` (service `server`).
   Seed login: `tuistrocks@tuist.dev` / `tuistrocks`.
