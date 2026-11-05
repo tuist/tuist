@@ -140,7 +140,8 @@ jobs:
               .secret.name == "pulse-credentials" and .secret.namespace == "observability" and
               .extraLabels.env == $environment' >/dev/null
           # Consume Chart.lock, not the newest matching dependency versions.
-          helm dependency build "$chart" > "$RUNNER_TEMP/pulse-monitoring.log" 2>&1
+          helm repo add grafana https://grafana.github.io/helm-charts > "$RUNNER_TEMP/pulse-monitoring.log" 2>&1
+          helm dependency build "$chart" >> "$RUNNER_TEMP/pulse-monitoring.log" 2>&1
       - uses: 1password/install-cli-action@v4
       - name: Load deployment kubeconfig from 1Password
         env:
