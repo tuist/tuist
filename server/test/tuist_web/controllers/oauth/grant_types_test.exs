@@ -2,7 +2,10 @@ defmodule TuistWeb.Oauth.GrantTypesTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.Accounts
+  alias Tuist.Accounts.UserToken
   alias Tuist.Environment
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   @client_id "00000000-0000-0000-0000-000000000001"
@@ -47,6 +50,39 @@ defmodule TuistWeb.Oauth.GrantTypesTest do
                |> json_response(200)
 
       assert refreshed_access_token != access_token
+    end
+
+    test "a password reset ends grants issued before it", %{conn: conn, user: user} do
+      code = authorize(conn)
+
+      %{"access_token" => access_token, "refresh_token" => refresh_token} =
+        build_conn()
+        |> post(~p"/oauth2/token", %{
+          "grant_type" => "authorization_code",
+          "client_id" => @client_id,
+          "redirect_uri" => @redirect_uri,
+          "code" => code,
+          "code_verifier" => @code_verifier
+        })
+        |> json_response(200)
+
+      {reset_token, user_token} = UserToken.build_email_token(user, "reset_password")
+      Repo.insert!(user_token)
+      {:ok, _} = Accounts.reset_user_password(reset_token, %{password: "new valid password"})
+
+      refute Tuist.Authentication.authenticated_subject(access_token)
+
+      response =
+        build_conn()
+        |> post(~p"/oauth2/token", %{
+          "grant_type" => "refresh_token",
+          "client_id" => @client_id,
+          "client_secret" => @client_secret,
+          "refresh_token" => refresh_token
+        })
+        |> json_response(400)
+
+      assert response["error"] == "invalid_grant"
     end
 
     test "rejects the password grant", %{user: user} do
