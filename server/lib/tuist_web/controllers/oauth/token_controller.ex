@@ -38,6 +38,8 @@ defmodule TuistWeb.Oauth.TokenController do
     end
   end
 
+  plug TuistWeb.Plugs.OAuthRequestObjectPlug when action == :token
+
   @jwt_bearer_grant "urn:ietf:params:oauth:grant-type:jwt-bearer"
   @claim_grant "urn:workos:agent-auth:grant-type:claim"
 

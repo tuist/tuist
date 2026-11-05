@@ -197,6 +197,27 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       assert %{"access_token" => _} = client_id |> refresh_conn(second_refresh_token) |> json_response(200)
     end
 
+    test "a refresh smuggled in an unsigned request object does not skip the SSO check", %{conn: conn, user: user} do
+      client_id = register_client(conn)
+      %{"refresh_token" => refresh_token} = exchange_code(client_id, authorize(conn, client_id))
+      sso_member_of(user)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(DateTime.utc_now(), 29, :day) end)
+
+      unsigned_request =
+        Enum.map_join(
+          [%{"alg" => "none"}, %{"grant_type" => "refresh_token", "refresh_token" => refresh_token}],
+          ".",
+          &(&1 |> JSON.encode!() |> Base.url_encode64(padding: false))
+        ) <> "."
+
+      response =
+        build_conn()
+        |> post(~p"/oauth2/token", %{"client_id" => client_id, "request" => unsigned_request})
+        |> json_response(400)
+
+      refute Map.has_key?(response, "access_token")
+    end
+
     test "tokens whose SSO proof no longer matches the organization drop it for a grace period", %{user: user} do
       organization = sso_member_of(user)
       client_id = register_client(build_conn())
