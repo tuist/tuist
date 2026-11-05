@@ -43,6 +43,15 @@ Git forges, merge queues, and agent orchestrators that have no runner protocol o
 
 3. **Follow the job.** Subscribe a <.localized_link href="/guides/integrations/webhooks">webhook endpoint</.localized_link> to `runner_job.started` and `runner_job.completed`. The completed event carries the job's `conclusion`: `success`, `failure`, or `cancelled`. You can also poll `GET /api/accounts/my-org/runners/jobs/{workflow_job_id}` and read the log from `GET /api/accounts/my-org/runners/jobs/{workflow_job_id}/logs`.
 
+## Integrate a git forge {#integrate-a-git-forge}
+
+A forge without a runner protocol connects through a small bridge, which can be a service of the forge itself or a function it calls from its hooks:
+
+1. **On push**, the forge's push hook reaches the bridge. The bridge verifies the hook, decides which checks the commit needs, and mints a read-only clone token for the repository that expires after the job's timeout.
+2. **For each check**, the bridge creates a job with `idempotency_key` set to `<repository>:<commit>:<check>`, so a redelivered hook creates nothing new. It stores the returned `workflow_job_id` and can mark the check pending in the forge.
+3. **On `runner_job.started` and `runner_job.completed`**, the bridge verifies the `Tuist-Signature` header with the endpoint's secret, finds the check by `workflow_job_id` or `idempotency_key`, and updates the forge's commit status with the `conclusion`. It can link the status to the job's page in the Tuist dashboard.
+4. **When a push supersedes a commit**, the bridge cancels the jobs it created for the older commit.
+
 ## How the job runs {#how-the-job-runs}
 
 The machine fetches `commit_sha` from `repository_url` over HTTPS. When the server does not serve a commit by its SHA, it fetches `ref` instead, which must contain the commit. The `clone_token`, if you give one, is sent as `Authorization: Bearer <token>` to the repository's host only. It never reaches your script or the job log.
