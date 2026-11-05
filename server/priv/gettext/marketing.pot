@@ -978,11 +978,6 @@ msgstr ""
 msgid "Standard support via Slack and email"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:36
-#, elixir-autogen, elixir-format
-msgid "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:646
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter_verify.html.heex:48
 #, elixir-autogen, elixir-format
@@ -2784,11 +2779,6 @@ msgstr ""
 msgid "More shipping."
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
-#, elixir-autogen, elixir-format
-msgid "Build, test, and ship software on infrastructure that continuously optimizes performance, removes bottlenecks, and scales with your team."
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:603
 #, elixir-autogen, elixir-format
 msgid "%{vcpus} vCPU · %{memory} GB"
@@ -2893,4 +2883,10 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:1000
 #, elixir-autogen, elixir-format
 msgid "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes and 2,500 free Linux minutes a month, counted on a 2 vCPU / 8 GB Linux machine, and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:36
+#: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:41
+#, elixir-autogen, elixir-format
+msgid "Tuist connects to your existing build tools and CI to speed up builds, optimize testing, and scale compute, so you can focus on shipping software."
 msgstr ""
