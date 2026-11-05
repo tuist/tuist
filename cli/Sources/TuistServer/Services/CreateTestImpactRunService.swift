@@ -25,7 +25,7 @@ public struct CreateTestImpactRunService: CreateTestImpactRunServicing {
 
     public init(
         fullHandleService: FullHandleServicing = FullHandleService(),
-        timeout: Duration = .seconds(2)
+        timeout: Duration = .seconds(30)
     ) {
         self.fullHandleService = fullHandleService
         self.timeout = timeout
