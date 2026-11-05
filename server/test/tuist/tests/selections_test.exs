@@ -273,6 +273,9 @@ defmodule Tuist.Tests.SelectionsTest do
              ]
 
       assert {[_, _, _], _meta} = Selections.run_tests(run, test_run.id, reason: "tracked_file_changed")
+      # Derived rows come first here, and their ids must still be UUID strings.
+      assert Enum.all?(rows, &match?({:ok, _}, Ecto.UUID.cast(&1.test_case_id)))
+      assert Enum.all?(rows, &(byte_size(&1.test_case_id) == 36))
       assert Selections.run_summary(run, test_run.id).skipped_duration == 1000
     end
   end

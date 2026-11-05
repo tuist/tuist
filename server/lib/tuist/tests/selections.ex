@@ -500,7 +500,9 @@ defmodule Tuist.Tests.Selections do
         where: c.test_run_id in subquery(baseline_test_runs(run)),
         group_by: fragment("assumeNotNull(?)", c.test_case_id),
         select: %{
-          test_case_id: fragment("assumeNotNull(?)", c.test_case_id),
+          # Typed so derived rows carry the UUID string, whichever branch of a
+          # union comes first.
+          test_case_id: type(fragment("assumeNotNull(?)", c.test_case_id), Ecto.UUID),
           module_name: fragment("any(?)", c.module_name),
           suite_name: fragment("any(?)", c.suite_name),
           name: fragment("any(?)", c.name),
