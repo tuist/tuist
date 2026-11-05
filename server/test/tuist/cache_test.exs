@@ -224,7 +224,16 @@ defmodule Tuist.CacheTest do
       got = Cache.accessible_handles(user)
 
       # Then
-      assert got == %{accounts: [], projects: [], payment_required: [user.account.name], payment_failed: []}
+      assert got == %{
+               accounts: [],
+               projects: [],
+               cache_grants: %{
+                 "account" => %{"read" => [], "write" => []},
+                 "project" => %{"read" => [], "write" => []}
+               },
+               payment_required: [user.account.name],
+               payment_failed: []
+             }
     end
 
     # A node answers both with a payment refusal, but only this one tells the
@@ -275,9 +284,15 @@ defmodule Tuist.CacheTest do
       got = Cache.accessible_handles(user)
 
       # Then
+      handle = "#{user.account.name}/#{project.name}"
+
       assert got == %{
                accounts: [user.account.name],
-               projects: ["#{user.account.name}/#{project.name}"],
+               projects: [handle],
+               cache_grants: %{
+                 "account" => %{"read" => [user.account.name], "write" => [user.account.name]},
+                 "project" => %{"read" => [handle], "write" => [handle]}
+               },
                payment_required: [],
                payment_failed: []
              }
