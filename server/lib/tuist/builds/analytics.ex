@@ -13,6 +13,7 @@ defmodule Tuist.Builds.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
+  alias Tuist.Tests.SelectiveTestingCounts
   alias Tuist.Utilities.Decimals
   alias Tuist.Xcode.XcodeGraph
 
@@ -930,6 +931,58 @@ defmodule Tuist.Builds.Analytics do
         )
     }
   end
+
+  @doc """
+  Selective testing's effectiveness in tests: the share of the tests the
+  period's runs were asked for that selective testing skipped, summed over
+  the runs (`Tuist.Tests.SelectiveTestingCounts`), with the same shape as
+  `selective_testing_analytics/1`. Only runs counted since the counts were
+  introduced contribute; a period with none has a rate of zero.
+  """
+  def selective_testing_test_analytics(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+
+    current =
+      project_id
+      |> SelectiveTestingCounts.totals(start_datetime, end_datetime, is_ci: is_ci)
+      |> skipped_test_rate()
+
+    previous =
+      project_id
+      |> SelectiveTestingCounts.totals(DateTime.add(start_datetime, -days_delta, :day), start_datetime, is_ci: is_ci)
+      |> skipped_test_rate()
+
+    by_date =
+      project_id
+      |> SelectiveTestingCounts.totals_by_bucket(
+        start_datetime,
+        end_datetime,
+        selective_testing_date_format(date_period),
+        is_ci: is_ci
+      )
+      |> Map.new(&{normalise_date(&1.date, date_period), skipped_test_rate(&1)})
+
+    dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
+
+    %{
+      trend: trend(previous_value: previous, current_value: current),
+      hit_rate: current,
+      dates: dates,
+      values: Enum.map(dates, &Map.get(by_date, normalise_date(&1, date_period), 0.0))
+    }
+  end
+
+  defp skipped_test_rate(%{requested: requested, skipped: skipped}) when requested > 0, do: skipped / requested
+  defp skipped_test_rate(_totals), do: 0.0
+
+  defp selective_testing_date_format(:hour), do: "%Y-%m-%d %H:00:00"
+  defp selective_testing_date_format(:day), do: "%Y-%m-%d"
+  defp selective_testing_date_format(:month), do: "%Y-%m"
 
   def selective_testing_analytics_with_percentiles(opts \\ []) do
     project_id = Keyword.get(opts, :project_id)

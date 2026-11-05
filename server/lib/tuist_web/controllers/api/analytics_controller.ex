@@ -10,6 +10,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.SelectiveTestingCounts
   alias Tuist.VCS
   alias Tuist.VCS.RemoteURL
   alias Tuist.Xcode
@@ -649,6 +650,7 @@ defmodule TuistWeb.API.AnalyticsController do
     if not is_nil(xcode_graph) do
       Xcode.create_xcode_graph(%{command_event: command_event, xcode_graph: xcode_graph})
       Coverage.refold_after_selective_testing(command_event, xcode_graph)
+      SelectiveTestingCounts.count_after_command_event(command_event, xcode_graph)
     end
 
     module_cache_outputs = Map.get(body_params, :module_cache_outputs, [])

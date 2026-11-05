@@ -694,6 +694,46 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert external_target.resources_hash == ""
     end
 
+    test "schedules counting the tests selective testing skipped for the event's test run", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      test_run_id = UUIDv7.generate()
+
+      # When
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/analytics?project_id=#{account.name}/#{project.name}", %{
+        name: "test",
+        command_arguments: [],
+        duration: 100,
+        tuist_version: "1.0.0",
+        swift_version: "5.0",
+        macos_version: "10.15",
+        params: %{},
+        is_ci: true,
+        client_id: "client-id",
+        test_run_id: test_run_id,
+        xcode_graph: %{
+          name: "Graph",
+          projects: [
+            %{
+              name: "App",
+              path: ".",
+              targets: [%{name: "AppTests", selective_testing_metadata: %{hash: "hash", hit: "remote"}}]
+            }
+          ]
+        }
+      })
+
+      # Then
+      assert_enqueued(worker: Tuist.Tests.Workers.SelectiveTestingCountsWorker, args: %{test_run_id: test_run_id})
+    end
+
     test "returns newly created command event with selective_testing_metadata subhashes", %{
       conn: conn,
       user: user

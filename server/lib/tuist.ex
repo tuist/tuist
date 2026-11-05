@@ -167,6 +167,7 @@ defmodule Tuist do
       Tests.Workers.ProcessXcresultWorker,
       Tests.StressNewTests,
       Tests.Coverage,
+      Tests.SelectiveTestingCounts,
       Tests.Coverage.Commits,
       Tests.Coverage.Deltas,
       Tests.Coverage.Evidence,
