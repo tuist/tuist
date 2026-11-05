@@ -30,8 +30,8 @@ defmodule Tuist.MCP.WebMCPTest do
     assert WebMCP.dashboard_page("/acme/settings/tokens/1", user, nil) == "account-tokens"
     assert WebMCP.dashboard_page("/acme/settings", organization, nil) == "organization"
     assert WebMCP.dashboard_page("/acme/settings", user, nil) == nil
-    assert WebMCP.dashboard_page("/acme/settings/ai-subscriptions", user, nil) == "ai-subscriptions"
-    assert WebMCP.dashboard_page("/acme/settings/ai-subscriptions", organization, nil) == nil
+    assert WebMCP.dashboard_page("/acme/settings/ai", user, nil) == "ai-subscriptions"
+    assert WebMCP.dashboard_page("/acme/settings/ai", organization, nil) == nil
     assert WebMCP.dashboard_page("/acme", user, nil) == "projects"
     assert WebMCP.dashboard_page("/acme/cache", organization, nil) == nil
   end

@@ -195,7 +195,6 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       """
 
   database_config = Tuist.Environment.database_config_from_url(database_url)
-  database_hostname = Keyword.fetch!(database_config, :hostname)
   database_schema = Tuist.Environment.database_schema()
 
   # `{:keepalive, true}` enables SO_KEEPALIVE but inherits the OS default
@@ -286,12 +285,7 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
 
   database_options =
     if Tuist.Environment.use_ssl_for_database?() do
-      Keyword.put(database_options, :ssl,
-        server_name_indication: to_charlist(database_hostname),
-        verify: :verify_none
-      )
-
-      # TODO: Add proper certificate verification
+      Keyword.put(database_options, :ssl, Tuist.Environment.database_ssl_options())
     else
       database_options
     end

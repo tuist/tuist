@@ -165,11 +165,11 @@ defmodule Tuist.SandboxesTest do
   end
 
   describe "pause/1 and resume/1" do
-    test "pause/1 snapshots a running sandbox" do
+    test "pause/1 snapshots a running sandbox after syncing its disks" do
       sandbox = sandbox_fixture(state: :running, node_name: "node-a")
       sandbox_id = sandbox.id
 
-      expect(Nodes, :call, fn "node-a", "pause", %{sandbox_id: ^sandbox_id}, _opts ->
+      expect(Nodes, :call, fn "node-a", "pause", %{sandbox_id: ^sandbox_id, sync_disks: true}, _opts ->
         {:ok, %{"snapshot_ms" => 300, "mem_bytes" => 1024}}
       end)
 

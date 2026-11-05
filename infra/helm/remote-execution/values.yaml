@@ -22,7 +22,7 @@ gateway:
       cert-manager.io/cluster-issuer: letsencrypt-cloudflare
       external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
 workers:
-  image: ghcr.io/tuist/tuist-sandboxd
+  image: ghcr.io/tuist/sandboxd
   tag: ""
   templateImage: ghcr.io/tuist/tuist-sandbox-template
   templateTag: ""

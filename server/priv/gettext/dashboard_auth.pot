@@ -442,7 +442,7 @@ msgstr ""
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:584
+#: lib/tuist_web/controllers/auth_controller.ex:601
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
 msgstr ""
@@ -593,7 +593,7 @@ msgstr ""
 msgid "Link single sign-on?"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:441
+#: lib/tuist_web/controllers/auth_controller.ex:458
 #, elixir-autogen, elixir-format
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
 msgstr ""
@@ -1010,4 +1010,9 @@ msgstr ""
 #: lib/tuist_web/controllers/user_mfa_html.ex:23
 #, elixir-autogen, elixir-format
 msgid "this device only"
+msgstr ""
+
+#: lib/tuist_web/controllers/auth_controller.ex:341
+#, elixir-autogen, elixir-format
+msgid "An account with this email already exists. Log in with its email and password instead."
 msgstr ""

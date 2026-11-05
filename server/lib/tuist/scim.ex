@@ -33,6 +33,7 @@ defmodule Tuist.SCIM do
   alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
+  alias Tuist.Accounts.SSOLoginDomainTrust
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserRole
   alias Tuist.Base64
@@ -311,28 +312,51 @@ defmodule Tuist.SCIM do
         {:ok, user, :existing}
 
       {:error, :not_found} ->
-        # Recorded so the organization's identity provider can link the
-        # account it created without a verified login email domain.
-        case Accounts.create_user(email,
-               confirmed_at: default_confirmed_at(),
-               provisioned_by_organization_id: organization.id
-             ) do
-          {:ok, user} ->
-            {:ok, user, :created}
-
-          {:error, :email_taken} when retry_after_email_taken ->
-            provisionable_user(email, organization, retry_after_email_taken: false)
-
-          {:error, :email_taken} ->
-            {:error, :email_taken}
-
-          {:error, %Ecto.Changeset{} = changeset} ->
-            if email_taken?(changeset), do: {:error, :email_taken}, else: {:error, changeset}
-
-          {:error, reason} ->
-            {:error, reason}
+        if operator_email_refused?(organization, email) do
+          {:error, operator_email_error(%User{}, email)}
+        else
+          create_provisioned_user(email, organization, retry_after_email_taken)
         end
     end
+  end
+
+  defp create_provisioned_user(email, organization, retry_after_email_taken) do
+    # Recorded so the organization's identity provider can link the
+    # account it created without a verified login email domain.
+    case Accounts.create_user(email,
+           confirmed_at: default_confirmed_at(),
+           provisioned_by_organization_id: organization.id
+         ) do
+      {:ok, user} ->
+        {:ok, user, :created}
+
+      {:error, :email_taken} when retry_after_email_taken ->
+        provisionable_user(email, organization, retry_after_email_taken: false)
+
+      {:error, :email_taken} ->
+        {:error, :email_taken}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        if email_taken?(changeset), do: {:error, :email_taken}, else: {:error, changeset}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # An address in the operator domain makes its account a Tuist operator on
+  # self-hosted instances, so an organization's IdP may assign one only after
+  # the organization proved it owns that domain through DNS.
+  defp operator_email_refused?(organization, email) do
+    Accounts.operator_email_address?(email) and
+      not (SSOLoginDomainTrust.trust(organization) == :dns_verified and
+             SSOLoginDomainTrust.email_domain(email) == organization.sso_login_domain)
+  end
+
+  defp operator_email_error(user, email) do
+    user
+    |> Ecto.Changeset.change(email: email)
+    |> Ecto.Changeset.add_error(:email, "is reserved for Tuist operators")
   end
 
   defp email_taken?(%Ecto.Changeset{errors: errors}) do
@@ -387,7 +411,7 @@ defmodule Tuist.SCIM do
 
   defp apply_attrs(%User{} = user, organization, attrs) do
     Multi.new()
-    |> maybe_update_email(user, attrs)
+    |> maybe_update_email(user, organization, attrs)
     |> maybe_update_role(user, organization, attrs)
     |> Repo.transaction()
     |> case do
@@ -399,17 +423,22 @@ defmodule Tuist.SCIM do
     end
   end
 
-  defp maybe_update_email(multi, user, %{user_name: new_email}) when is_binary(new_email) do
+  defp maybe_update_email(multi, user, organization, %{user_name: new_email}) when is_binary(new_email) do
     downcased = String.downcase(new_email)
 
-    if downcased == user.email do
-      multi
-    else
-      Multi.update(multi, :email, User.email_changeset(user, %{email: downcased}))
+    cond do
+      downcased == user.email ->
+        multi
+
+      operator_email_refused?(organization, downcased) ->
+        Multi.error(multi, :email, operator_email_error(user, downcased))
+
+      true ->
+        Multi.update(multi, :email, User.email_changeset(user, %{email: downcased}))
     end
   end
 
-  defp maybe_update_email(multi, _user, _attrs), do: multi
+  defp maybe_update_email(multi, _user, _organization, _attrs), do: multi
 
   defp maybe_update_role(multi, user, organization, %{role: role}) when role in [:admin, :user, :viewer] do
     Multi.run(multi, :role, fn _repo, _ ->

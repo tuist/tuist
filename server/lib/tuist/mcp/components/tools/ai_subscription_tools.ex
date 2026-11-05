@@ -124,7 +124,7 @@ defmodule Tuist.MCP.Components.Tools.ConnectClaudeSubscription do
   def description do
     "Create or replace the authenticated user's personal Claude subscription token for threads. " <>
       "The token is a secret: only call this with a token the user explicitly gave you for this purpose, because it passes through the MCP client and model. " <>
-      "Prefer asking the user to paste it in the dashboard's AI subscriptions settings instead. " <>
+      "Prefer asking the user to paste it in the dashboard's AI settings instead. " <>
       "Validates the token's format, not that the subscription works; never returns credentials."
   end
 
