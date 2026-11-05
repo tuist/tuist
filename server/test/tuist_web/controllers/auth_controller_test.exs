@@ -1597,6 +1597,10 @@ defmodule TuistWeb.AuthControllerTest do
     end)
   end
 
+  defp github_auth(uid, email) do
+    %Ueberauth.Auth{provider: :github, uid: uid, info: %Info{email: email}, extra: %{raw_info: %{user: %{}}}}
+  end
+
   defp sso_callback(conn, organization, session \\ %{}) do
     conn
     |> init_test_session(
@@ -1610,6 +1614,7 @@ defmodule TuistWeb.AuthControllerTest do
 
   describe "callback/2 with OAuth" do
     test "links OAuth identity to existing user with same email and logs them in", %{conn: conn} do
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
       # Given: A user already exists with a specific email
       existing_user = AccountsFixtures.user_fixture(email: "existing@example.com")
 
@@ -1634,6 +1639,82 @@ defmodule TuistWeb.AuthControllerTest do
       # And: OAuth identity should be linked to the existing user
       {:ok, oauth_identity} = Accounts.get_oauth2_identity(:google, "google-uid-123")
       assert oauth_identity.user.id == existing_user.id
+
+      # And: The confirmed account keeps its password
+      assert {:ok, _} =
+               Accounts.get_user_by_email_and_password("existing@example.com", AccountsFixtures.valid_user_password())
+    end
+
+    test "a provider sign-in claims an unconfirmed account and voids the password it was registered with", %{
+      conn: conn
+    } do
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
+      attacker_password = "attacker password!"
+      {:ok, victim} = Accounts.create_user("victim@example.com", password: attacker_password, confirmed_at: nil)
+
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> assign(:ueberauth_auth, github_auth("victim-github-uid", "victim@example.com"))
+        |> TuistWeb.AuthController.callback(%{})
+
+      assert {:ok, %{user: %{id: user_id}}} = Accounts.get_oauth2_identity(:github, "victim-github-uid")
+      assert user_id == victim.id
+      assert get_session(conn, :user_token)
+
+      claimed = Accounts.get_user_by_id(victim.id)
+      assert claimed.confirmed_at
+
+      assert Accounts.get_user_by_email_and_password("victim@example.com", attacker_password) ==
+               {:error, :invalid_email_or_password}
+    end
+
+    test "does not link an email-matched account while email confirmation is skipped", %{conn: conn} do
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
+      attacker_password = "attacker password!"
+      # Without email confirmation the account is confirmed at registration.
+      {:ok, attacker_account} = Accounts.create_user("victim@example.com", password: attacker_password)
+      assert attacker_account.confirmed_at
+
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> fetch_flash()
+        |> assign(:ueberauth_auth, github_auth("victim-github-uid", "victim@example.com"))
+        |> TuistWeb.AuthController.callback(%{})
+
+      assert redirected_to(conn) == "/users/log_in"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "already exists"
+      refute get_session(conn, :user_token)
+      assert Accounts.get_oauth2_identity(:github, "victim-github-uid") == {:error, :not_found}
+    end
+
+    test "links another provider while email confirmation is skipped once a provider proved the email", %{
+      conn: conn
+    } do
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
+
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: :github,
+          uid: "owner-github-uid",
+          info: %{email: "owner@example.com"}
+        })
+
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> assign(:ueberauth_auth, %Ueberauth.Auth{
+          provider: :google,
+          uid: "owner-google-uid",
+          info: %Info{email: "owner@example.com"},
+          extra: %{raw_info: %{user: %{"hd" => nil}}}
+        })
+        |> TuistWeb.AuthController.callback(%{})
+
+      assert redirected_to(conn) =~ "/#{user.account.name}"
+      assert {:ok, %{user: %{id: user_id}}} = Accounts.get_oauth2_identity(:google, "owner-google-uid")
+      assert user_id == user.id
     end
 
     test "redirects to choose-username for new OAuth user without existing email", %{conn: conn} do
