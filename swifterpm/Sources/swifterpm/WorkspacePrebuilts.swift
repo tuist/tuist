@@ -203,3 +203,23 @@ enum WorkspacePrebuilts {
         return distribution.map { "\($0)_\(arch)" }
     }
 }
+
+extension SwifterPM {
+    /// Whether restoring the package would drop prebuilts that the `workspace-state.json` in `scratchDirectory`
+    /// records: built by another toolchain, for another pinned version, or no longer extracted. Projects generated
+    /// from that state link prebuilts the compiler cannot import, so callers can ask for a restore first.
+    public func recordsOutdatedPrebuilts(packageDirectory: URL, scratchDirectory: URL) async throws -> Bool {
+        let recorded = try await WorkspaceRestorer.existingWorkspacePrebuilts(scratchDir: scratchDirectory)
+        guard !recorded.isEmpty,
+              try await fileSystem.exists(packageDirectory.appendingPathComponent("Package.resolved").absolutePath)
+        else { return false }
+        let pins = try await ResolvedFile.read(packageDir: packageDirectory).pins
+        // The restore warns about dropped or unchecked prebuilts when it runs; here they only answer the question.
+        let carriedOver = try await Environment.$warningHandler.withValue(nil) {
+            try await WorkspacePrebuilts.carriedOver(recorded, pins: pins, scratchDir: scratchDirectory) {
+                try await WorkspacePrebuilts.nameProbe(packageDirectory)
+            }
+        }
+        return carriedOver.count != recorded.count
+    }
+}
