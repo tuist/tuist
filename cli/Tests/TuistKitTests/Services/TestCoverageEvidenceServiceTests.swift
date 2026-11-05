@@ -172,6 +172,37 @@ struct TestCoverageEvidenceServiceTests {
             nil)
     }
 
+    @Test(.inTemporaryDirectory) func readsAnImageFromADeletedSimulatorCloneOffTheTestProductsWhenRunWithoutBuilding() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let testProducts = directory.appending(component: "TestProducts.xctestproducts")
+        let bundle = testProducts.appending(
+            components: "Binaries",
+            "0",
+            "Debug-iphonesimulator",
+            "App.app",
+            "PlugIns",
+            "AppTests.xctest"
+        )
+        try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
+        let product = bundle.appending(component: "AppTests").pathString
+        FileManager.default.createFile(atPath: product, contents: Data())
+        let derivedData = directory.appending(component: "DerivedData")
+        try FileManager.default.createDirectory(
+            atPath: derivedData.appending(components: "Build", "ProfileData").pathString,
+            withIntermediateDirectories: true
+        )
+        let installed = directory.pathString
+            + "/XCTestDevices/CLONE/data/Containers/Bundle/Application/UUID/App.app/PlugIns/AppTests.xctest/AppTests"
+
+        let productsDirectories = TestCoverageEvidenceService.productsDirectories(
+            derivedDataDirectory: derivedData,
+            testProductsPath: testProducts
+        )
+
+        #expect(TestCoverageEvidenceService.buildProduct(ofInstalledImage: installed, productsDirectories: productsDirectories) ==
+            product)
+    }
+
     @Test func readsThePlatformOffAnXcodebuildDestination() {
         #expect(Platform(xcodebuildDestination: "platform=iOS Simulator,id=ABC") == .iOS)
         #expect(Platform(xcodebuildDestination: "generic/platform=iOS") == .iOS)

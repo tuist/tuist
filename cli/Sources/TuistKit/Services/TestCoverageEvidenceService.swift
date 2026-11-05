@@ -157,7 +157,10 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             // what it wrote there when recording fails.
             let processes = try FileManager.default
                 .contentsOfDirectory(at: URL(fileURLWithPath: session.directory.pathString), includingPropertiesForKeys: nil)
-            let productsDirectories = Self.productsDirectories(derivedDataDirectory: derivedDataDirectory)
+            let productsDirectories = Self.productsDirectories(
+                derivedDataDirectory: derivedDataDirectory,
+                testProductsPath: await RunMetadataStorage.current.testProductsPath
+            )
             let outputs = processes
                 .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("images.tsv").path) }
                 .compactMap { try? CoverageObserverOutput(directory: $0) }
@@ -533,11 +536,14 @@ extension TestCoverageEvidenceService {
             .first { FileManager.default.fileExists(atPath: $0) }
     }
 
-    private static func productsDirectories(derivedDataDirectory: AbsolutePath?) -> [String] {
-        guard let derivedDataDirectory else { return [] }
-        let products = derivedDataDirectory.appending(components: "Build", "Products").pathString
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: products)) ?? []
-        return names.sorted().map { (products as NSString).appendingPathComponent($0) }
+    /// Each configuration's products directory: the derived data's, and, for a run without
+    /// building, the `.xctestproducts` bundle's, since the derived data then holds no products.
+    static func productsDirectories(derivedDataDirectory: AbsolutePath?, testProductsPath: AbsolutePath?) -> [String] {
+        CoverageExportService.productRoots(derivedDataDirectory: derivedDataDirectory, testProductsPath: testProductsPath)
+            .flatMap { root in
+                let names = (try? FileManager.default.contentsOfDirectory(atPath: root.pathString)) ?? []
+                return names.sorted().map { root.appending(component: $0).pathString }
+            }
     }
 
     /// The test module a bundle's executable belongs to: the bundle's name, as XCTest names it
