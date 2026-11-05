@@ -721,9 +721,36 @@ defmodule TuistWeb.TestSelection.RunTab do
         </div>
         <.coverage_empty
           :if={@targets == []}
-          title={dgettext("dashboard_tests", "The invocation requested no tests")}
+          title={
+            if @selection_run.requested_modules == [],
+              do: dgettext("dashboard_tests", "Hashing left no module to decide"),
+              else: dgettext("dashboard_tests", "The invocation requested no tests")
+          }
           image="table"
         />
+      </.card_section>
+    </.card>
+    <.card
+      :if={@selection_run.skipped_modules != %{}}
+      title={dgettext("dashboard_tests", "Unchanged modules")}
+      icon="stack_2"
+      data-part="selection-unchanged-modules-card"
+    >
+      <.card_section data-part="selection-table-section">
+        <div data-part="selection-table">
+          <.table
+            id="selection-unchanged-modules-table"
+            rows={Selections.skipped_modules(@selection_run)}
+            row_key={& &1.module_name}
+          >
+            <:col :let={module} label={dgettext("dashboard_tests", "Module")}>
+              <.text_cell label={module.module_name} />
+            </:col>
+            <:col :let={module} label={dgettext("dashboard_tests", "Tests skipped")}>
+              <.text_cell label={format_number(module.tests)} />
+            </:col>
+          </.table>
+        </div>
       </.card_section>
     </.card>
     """
@@ -886,7 +913,7 @@ defmodule TuistWeb.TestSelection.RunTab do
   defp tab_label("modules", %{selection_run: run} = assigns),
     do:
       dgettext("dashboard_tests", "Modules (%{count})",
-        count: format_number(assigns.modules_count || length(run.requested_modules))
+        count: format_number(assigns.modules_count || length(run.requested_modules) + map_size(run.skipped_modules))
       )
 
   defp tab_label("shards", %{plan: plan}),

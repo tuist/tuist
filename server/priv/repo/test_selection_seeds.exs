@@ -433,16 +433,19 @@ seeded =
             0
           end
 
-        # The baseline's tests in the modules the run never reached, which
-        # selective testing skipped by hash.
-        module_skipped_count =
+        # The modules the run never reached, which selective testing skipped
+        # by hash, each with its number of tests in the baseline.
+        skipped_modules =
           if baseline && reason in ["", "tracked_file_changed"] do
             baseline.sha
             |> baseline_tests.(test_run.scheme)
-            |> Enum.count(&(not MapSet.member?(target_set, &1.module)))
+            |> Enum.reject(&MapSet.member?(target_set, &1.module))
+            |> Enum.frequencies_by(& &1.module)
           else
-            0
+            %{}
           end
+
+        module_skipped_count = skipped_modules |> Map.values() |> Enum.sum()
 
         # A fallback after the baseline still counts the modules left as
         # selected, as nothing was skipped in them.
@@ -489,6 +492,7 @@ seeded =
           requested_count: left_count + skipped_count + module_skipped_count,
           selected_count: left_count,
           skipped_count: skipped_count + module_skipped_count,
+          skipped_modules: skipped_modules,
           inserted_at: selected_at
         }
 

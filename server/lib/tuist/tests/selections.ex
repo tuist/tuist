@@ -154,7 +154,17 @@ defmodule Tuist.Tests.Selections do
   end
 
   @doc "The tests skipped because hashing found their module unchanged."
-  def module_skipped_count(%Run{} = run), do: max(run.skipped_count - unaffected_count(run), 0)
+  def module_skipped_count(%Run{skipped_modules: modules}), do: modules |> Map.values() |> Enum.sum()
+
+  @doc """
+  The modules hashing found unchanged, each with its number of tests in the
+  baseline, the largest first.
+  """
+  def skipped_modules(%Run{skipped_modules: modules}) do
+    modules
+    |> Enum.map(fn {module_name, tests} -> %{module_name: module_name, tests: tests} end)
+    |> Enum.sort_by(&{-&1.tests, &1.module_name})
+  end
 
   defp trend(previous, current) when previous in [0, +0.0] or current in [0, +0.0], do: 0.0
   defp trend(previous, current), do: Float.round((current - previous) / previous * 100, 1)

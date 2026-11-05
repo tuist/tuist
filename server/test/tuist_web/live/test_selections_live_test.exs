@@ -33,8 +33,8 @@ defmodule TuistWeb.TestSelectionsLiveTest do
           [
             project_id: project.id,
             commit_sha: @sha,
-            skipped_count: 3,
             requested_modules: ["SearchTests", "AuthTests"],
+            skipped_modules: %{"BillingTests" => 2},
             rules_version: "2026-11-01",
             rule_trace: [
               %{rule: "tracked_files", selected: 0, skipped: 0, verdict: "continue"},
@@ -234,6 +234,8 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=modules")
       assert has_element?(lv, "#selection-modules-table", "AuthTests")
+      assert has_element?(lv, "#selection-unchanged-modules-table", "BillingTests")
+      assert render(lv) =~ "Modules (3)"
 
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=shards")
       assert has_element?(lv, "#selection-shards-table", "Shard 0")

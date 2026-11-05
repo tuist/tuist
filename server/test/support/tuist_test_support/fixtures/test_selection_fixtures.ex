@@ -14,9 +14,9 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
   @doc """
   Inserts an impact run for `project_id` with the given `selected` tests
   (maps over a selected test's fields; `name` at least) and returns it. The
-  selected count is derived from them. `skipped_count` (all skipped tests,
-  those in unchanged modules included) defaults to the `unaffected` rule's
-  skips in `rule_trace`, else 0.
+  selected count is derived from them. `skipped_count` defaults to the
+  `unaffected` rule's skips in `rule_trace` plus the tests in
+  `skipped_modules` (the modules hashing found unchanged and their tests).
   """
   def run_fixture(attrs \\ []) do
     project_id = Keyword.fetch!(attrs, :project_id)
@@ -49,7 +49,8 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
     unaffected =
       Enum.find_value(rule_trace, 0, fn entry -> if entry.rule == "unaffected", do: entry.skipped end)
 
-    skipped_count = Keyword.get(attrs, :skipped_count, unaffected)
+    skipped_modules = Keyword.get(attrs, :skipped_modules, %{})
+    skipped_count = Keyword.get(attrs, :skipped_count, unaffected + Enum.sum(Map.values(skipped_modules)))
 
     run =
       struct(Run, %{
@@ -74,7 +75,8 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
         rule_trace: Enum.map(rule_trace, &{&1.rule, &1.selected, &1.skipped, &1.verdict}),
         requested_count: if(outcome == "fallback", do: 0, else: length(selected) + skipped_count),
         selected_count: if(outcome == "fallback", do: 0, else: length(selected)),
-        skipped_count: if(outcome == "fallback", do: 0, else: skipped_count)
+        skipped_count: if(outcome == "fallback", do: 0, else: skipped_count),
+        skipped_modules: skipped_modules
       })
 
     {:ok, _} = IngestRepo.insert(run)

@@ -45,8 +45,8 @@ defmodule Tuist.Tests.SelectionsTest do
         Keyword.merge(
           [
             project_id: project.id,
-            skipped_count: 6,
             requested_modules: ["SearchTests", "AuthTests"],
+            skipped_modules: %{"BillingTests" => 3, "ProfileTests" => 1},
             rule_trace: [%{rule: "unaffected", selected: 0, skipped: 2, verdict: "done"}],
             selected: [
               %{
@@ -213,7 +213,7 @@ defmodule Tuist.Tests.SelectionsTest do
 
     test "lists no test when hashing left no module to decide", %{project: project} do
       %{run: run, test_run: test_run} =
-        run(project, requested_modules: [], selected: [], skipped_count: 4, rule_trace: [])
+        run(project, requested_modules: [], selected: [], skipped_modules: %{"SearchTests" => 4}, rule_trace: [])
 
       assert {[], _meta} = Selections.run_tests(run, test_run.id)
 
@@ -253,6 +253,11 @@ defmodule Tuist.Tests.SelectionsTest do
                %{module_name: "SearchTests", requested: 2, selected: 2, skipped: 0},
                %{module_name: "AuthTests", requested: 2, selected: 0, skipped: 2, estimated_skipped_duration: 700}
              ] = Selections.run_targets(run)
+
+      assert Selections.skipped_modules(run) == [
+               %{module_name: "BillingTests", tests: 3},
+               %{module_name: "ProfileTests", tests: 1}
+             ]
     end
   end
 
