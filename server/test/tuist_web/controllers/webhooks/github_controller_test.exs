@@ -1194,7 +1194,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       |> assert_signature_accepted()
 
       run_dispatch_jobs()
-      assert Tuist.Runners.Jobs.status_counts(victim.id) == %{"queued" => 1}
+      assert Jobs.status_counts(victim.id) == %{"queued" => 1}
 
       # The attacker's own runner holds a live claim on one of its jobs.
       attacker_job_id = System.unique_integer([:positive])
