@@ -1661,7 +1661,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert redirected_to(conn) == "#{previews_path}/#{second.id}"
     end
 
-    test "honors the return path a session stored under the legacy key", %{conn: conn} do
+    test "honors the legacy return path key only for provider sign-ins, below the current key", %{conn: conn} do
       user = AccountsFixtures.user_fixture(email: "legacy@example.com")
 
       {:ok, _} =
@@ -1684,6 +1684,14 @@ defmodule TuistWeb.AuthControllerTest do
 
       assert callback.(%{oauth_return_to: "/legacy"}) == "/legacy"
       assert callback.(%{oauth_return_to: "/legacy", user_return_to: "/current"}) == "/current"
+
+      # Only provider sign-ins ever honored the legacy key.
+      password_conn =
+        conn
+        |> init_test_session(%{oauth_return_to: "/legacy"})
+        |> TuistWeb.Authentication.log_in_user(user, %{auth_method: :password})
+
+      assert redirected_to(password_conn) == TuistWeb.Authentication.signed_in_path(user)
     end
 
     test "links OAuth identity to existing user with same email and logs them in", %{conn: conn} do

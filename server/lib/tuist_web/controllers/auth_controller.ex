@@ -215,6 +215,7 @@ defmodule TuistWeb.AuthController do
   defp provider_auth_enabled?(_provider), do: true
 
   defp complete_oauth_callback(conn, auth, opts \\ []) do
+    conn = adopt_legacy_return_to(conn)
     sso_organization = Keyword.get(opts, :sso_organization)
     provider_organization_id = Accounts.extract_provider_organization_id(auth)
 
@@ -229,7 +230,7 @@ defmodule TuistWeb.AuthController do
         Authentication.log_in_user(conn, oauth2_identity.user, auth_params)
 
       {:error, :not_found} ->
-        return_to = Authentication.return_to(conn)
+        return_to = get_session(conn, :user_return_to)
 
         case Accounts.get_user_by_email(auth.info.email) do
           {:error, :not_found} ->
@@ -410,7 +411,6 @@ defmodule TuistWeb.AuthController do
   defp confirm_sso_link(conn, user, auth, organization, provider_organization_id, return_to) do
     conn
     |> delete_session(:user_return_to)
-    |> delete_session(:oauth_return_to)
     |> put_session(:pending_sso_link, %{
       "user_id" => user.id,
       "organization_id" => organization.id,
@@ -423,6 +423,25 @@ defmodule TuistWeb.AuthController do
     })
     |> redirect(to: ~p"/auth/sso/link")
     |> halt()
+  end
+
+  # Every flow records the return path in `:user_return_to`, so the latest
+  # page that asked for a sign-in wins. Sessions written before that, or by
+  # a pod from the previous release during the rollout, may still carry the
+  # provider-only `:oauth_return_to`. Only provider sign-ins ever honored it,
+  # so it is adopted here, and only when nothing newer was recorded. Cookie
+  # sessions have no server-side expiry, so removing this later costs such
+  # sessions their pending return path and nothing else.
+  defp adopt_legacy_return_to(conn) do
+    case get_session(conn, :oauth_return_to) do
+      nil ->
+        conn
+
+      legacy ->
+        conn
+        |> delete_session(:oauth_return_to)
+        |> put_session(:user_return_to, get_session(conn, :user_return_to) || legacy)
+    end
   end
 
   defp log_in_to_link_sso(conn, provider, organization) do
@@ -543,7 +562,7 @@ defmodule TuistWeb.AuthController do
     auth_method = if pending, do: String.to_existing_atom(pending["provider"]), else: :password
 
     invitation_return_to = pending_invitation_return_to(pending)
-    prior_return_to = oauth_return_url || Authentication.return_to(conn)
+    prior_return_to = oauth_return_url || get_session(conn, :user_return_to)
 
     return_to =
       invitation_return_to ||
