@@ -3467,7 +3467,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
 
       # When
-      authenticated_device_code = Accounts.authenticate_device_code(device_code.code, user)
+      {:ok, authenticated_device_code} = Accounts.authenticate_device_code(device_code.code, user)
 
       # Then
       assert device_code.authenticated == false

@@ -37,7 +37,7 @@ Each teammate runs the following to get access to the Tuist features on their ma
 mix tuist.login
 ```
 
-It opens a browser and waits for you to authorize. To log in without a browser, pass your credentials:
+It prints a short sign-in code, opens a browser where you enter it, and waits for you to authorize. To log in without a browser, pass your credentials:
 
 ```bash
 mix tuist.login --email person@example.com --password secret

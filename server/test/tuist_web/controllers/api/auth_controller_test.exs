@@ -32,6 +32,20 @@ defmodule TuistWeb.API.AuthControllerTest do
     :ok
   end
 
+  describe "POST /api/auth/device_codes" do
+    test "starts a device sign-in with a secret device code and a short user code", %{conn: conn} do
+      response = conn |> post(~p"/api/auth/device_codes") |> json_response(:ok)
+
+      assert %{"device_code" => device_code, "user_code" => user_code, "expires_in" => 300, "interval" => 1} = response
+      assert response["verification_uri"] =~ ~r{/auth/device$}
+      assert user_code =~ ~r/^[BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4}$/
+      assert byte_size(device_code) >= 43
+      assert Accounts.get_device_code(device_code).user_code == String.replace(user_code, "-", "")
+
+      assert json_response(get(build_conn(), ~p"/api/auth/device_code/#{device_code}"), :accepted) == %{}
+    end
+  end
+
   describe "GET /api/auth/device_code" do
     test "returns accepted response when a device code does not exist", %{conn: conn} do
       # Given
@@ -121,7 +135,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       conn = get(conn, ~p"/auth/device_codes/#{device_code}")
 
       # Then
-      html_response(conn, 302)
+      html_response(conn, 200)
       assert Accounts.get_device_code(device_code).code == device_code
     end
 
@@ -135,7 +149,7 @@ defmodule TuistWeb.API.AuthControllerTest do
       conn = get(conn, ~p"/auth/device_codes/#{device_code}")
 
       # Then
-      html_response(conn, 302)
+      html_response(conn, 200)
       assert length(Repo.all(DeviceCode)) == 1
     end
   end

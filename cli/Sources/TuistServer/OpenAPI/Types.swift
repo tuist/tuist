@@ -882,6 +882,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/git-history/listings`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/listings/post(uploadCommitListing)`.
     func uploadCommitListing(_ input: Operations.uploadCommitListing.Input) async throws -> Operations.uploadCommitListing.Output
+    /// Start a device sign-in.
+    ///
+    /// Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/auth/device_codes`.
+    /// - Remark: Generated from `#/paths//api/auth/device_codes/post(createDeviceCode)`.
+    func createDeviceCode(_ input: Operations.createDeviceCode.Input) async throws -> Operations.createDeviceCode.Output
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -3656,6 +3664,16 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Start a device sign-in.
+    ///
+    /// Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/auth/device_codes`.
+    /// - Remark: Generated from `#/paths//api/auth/device_codes/post(createDeviceCode)`.
+    public func createDeviceCode(headers: Operations.createDeviceCode.Input.Headers = .init()) async throws -> Operations.createDeviceCode.Output {
+        try await createDeviceCode(Operations.createDeviceCode.Input(headers: headers))
+    }
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -5206,6 +5224,57 @@ public enum Servers {}
 public enum Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
+        /// - Remark: Generated from `#/components/schemas/DeviceAuthorization`.
+        public struct DeviceAuthorization: Codable, Hashable, Sendable {
+            /// The secret code to poll for tokens with.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/device_code`.
+            public var device_code: Swift.String
+            /// Seconds until the codes expire.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/expires_in`.
+            public var expires_in: Swift.Int
+            /// Seconds to wait between polls.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/interval`.
+            public var interval: Swift.Int
+            /// The short code the person enters in the browser.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/user_code`.
+            public var user_code: Swift.String
+            /// The page where the person enters the code.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/verification_uri`.
+            public var verification_uri: Swift.String
+            /// Creates a new `DeviceAuthorization`.
+            ///
+            /// - Parameters:
+            ///   - device_code: The secret code to poll for tokens with.
+            ///   - expires_in: Seconds until the codes expire.
+            ///   - interval: Seconds to wait between polls.
+            ///   - user_code: The short code the person enters in the browser.
+            ///   - verification_uri: The page where the person enters the code.
+            public init(
+                device_code: Swift.String,
+                expires_in: Swift.Int,
+                interval: Swift.Int,
+                user_code: Swift.String,
+                verification_uri: Swift.String
+            ) {
+                self.device_code = device_code
+                self.expires_in = expires_in
+                self.interval = interval
+                self.user_code = user_code
+                self.verification_uri = verification_uri
+            }
+            public enum CodingKeys: String, CodingKey {
+                case device_code
+                case expires_in
+                case interval
+                case user_code
+                case verification_uri
+            }
+        }
         /// A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
         ///
         /// - Remark: Generated from `#/components/schemas/AuthenticationTokens`.
@@ -101993,6 +102062,170 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Start a device sign-in.
+    ///
+    /// Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/auth/device_codes`.
+    /// - Remark: Generated from `#/paths//api/auth/device_codes/post(createDeviceCode)`.
+    public enum createDeviceCode {
+        public static let id: Swift.String = "createDeviceCode"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createDeviceCode.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createDeviceCode.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createDeviceCode.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.createDeviceCode.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The secret code to poll for tokens with.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/device_code`.
+                        public var device_code: Swift.String
+                        /// Seconds until the codes expire.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/expires_in`.
+                        public var expires_in: Swift.Int
+                        /// Seconds to wait between polls.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/interval`.
+                        public var interval: Swift.Int
+                        /// The short code the person enters in the browser.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/user_code`.
+                        public var user_code: Swift.String
+                        /// The page where the person enters the code.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/verification_uri`.
+                        public var verification_uri: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - device_code: The secret code to poll for tokens with.
+                        ///   - expires_in: Seconds until the codes expire.
+                        ///   - interval: Seconds to wait between polls.
+                        ///   - user_code: The short code the person enters in the browser.
+                        ///   - verification_uri: The page where the person enters the code.
+                        public init(
+                            device_code: Swift.String,
+                            expires_in: Swift.Int,
+                            interval: Swift.Int,
+                            user_code: Swift.String,
+                            verification_uri: Swift.String
+                        ) {
+                            self.device_code = device_code
+                            self.expires_in = expires_in
+                            self.interval = interval
+                            self.user_code = user_code
+                            self.verification_uri = verification_uri
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case device_code
+                            case expires_in
+                            case interval
+                            case user_code
+                            case verification_uri
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/application\/json`.
+                    case json(Operations.createDeviceCode.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createDeviceCode.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createDeviceCode.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createDeviceCode.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The device sign-in was started
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/device_codes/post(createDeviceCode)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createDeviceCode.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createDeviceCode.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
                             response: self
                         )
                     }
