@@ -647,22 +647,6 @@ case System.get_env("MCP_PROXY_SERVERS") do
             scopes: ["grafana:read", "grafana:write"],
             headers: grafana_headers
           },
-          %{
-            name: "sentry",
-            url: System.get_env("SENTRY_MCP_URL") || "https://mcp.sentry.dev/mcp",
-            auth_type:
-              if(System.get_env("SENTRY_MCP_BEARER_TOKEN") in [nil, ""],
-                do: "oauth2",
-                else: "bearer_token"
-              ),
-            authorization_url: "https://mcp.sentry.dev/oauth/authorize",
-            token_url: "https://mcp.sentry.dev/oauth/token",
-            registration_url: "https://mcp.sentry.dev/oauth/register",
-            scopes: ["org:read", "project:write", "team:write", "event:write"],
-            shared_oauth: true,
-            shared_oauth_user_email: System.get_env("SENTRY_MCP_SHARED_USER_EMAIL"),
-            bearer_token: System.get_env("SENTRY_MCP_BEARER_TOKEN")
-          },
           # OVHcloud's MCP server serves one API section per URL, and every
           # fleet is on the OVHcloud US account. Each person connects their own
           # OVH login, which can reinstall, reboot and terminate servers, so
