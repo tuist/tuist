@@ -18,6 +18,7 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Runners.Sites
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSessions
+  alias Tuist.Sandboxes.AmpOrbs
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
@@ -59,7 +60,8 @@ defmodule Tuist.Sandboxes do
   def default_template, do: @default_template
   def default_shape, do: @default_shape
 
-  defdelegate dispatch_amp_orb(account, orb_id, params), to: Tuist.Sandboxes.AmpOrbs, as: :dispatch
+  defdelegate dispatch_amp_orb(account, orb_id, params), to: AmpOrbs, as: :dispatch
+  defdelegate amp_orb_type(orb_type), to: AmpOrbs, as: :orb_type
 
   @doc """
   Queues the archive of a paused sandbox (`Tuist.Sandboxes.Archives.request/1`);

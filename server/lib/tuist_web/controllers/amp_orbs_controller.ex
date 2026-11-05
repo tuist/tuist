@@ -10,7 +10,6 @@ defmodule TuistWeb.AmpOrbsController do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AmpIntegration
   alias Tuist.Sandboxes.AmpIntegrations
-  alias Tuist.Sandboxes.AmpOrbs
   alias Tuist.Sandboxes.AmpRuntime
 
   def dispatch(conn, %{"orb_id" => orb_id} = params) do
@@ -141,7 +140,7 @@ defmodule TuistWeb.AmpOrbsController do
 
   defp job(_, _), do: {:error, :invalid_job}
 
-  defp spawn_shape("spawn", orb_type) when is_nil(orb_type) or is_binary(orb_type), do: AmpOrbs.orb_type(orb_type)
+  defp spawn_shape("spawn", orb_type) when is_nil(orb_type) or is_binary(orb_type), do: Sandboxes.amp_orb_type(orb_type)
   defp spawn_shape("spawn", _orb_type), do: {:error, :invalid_job}
   defp spawn_shape(_operation, _orb_type), do: {:ok, %{}}
 
