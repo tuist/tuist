@@ -107,6 +107,8 @@ server:
       enabled: true
     apns:
       enabled: true
+    fcm:
+      enabled: true
     atlasEmail:
       enabled: true
     # Point server error reporting at the Atlas error-tracking ingest

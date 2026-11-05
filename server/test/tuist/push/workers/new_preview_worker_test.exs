@@ -20,6 +20,7 @@ defmodule Tuist.Push.Workers.NewPreviewWorkerTest do
     app_client_id = Ecto.UUID.generate()
     stub(Environment, :oauth_client_id, fn -> app_client_id end)
     stub(Environment, :apns_configured?, fn -> true end)
+    stub(Environment, :fcm_configured?, fn -> true end)
 
     creator = AccountsFixtures.user_fixture()
     organization = AccountsFixtures.organization_fixture(creator: creator)
@@ -60,7 +61,7 @@ defmodule Tuist.Push.Workers.NewPreviewWorkerTest do
     [worker: DeliveryWorker] |> all_enqueued() |> Enum.map(& &1.args["registration_id"]) |> Enum.sort()
   end
 
-  test "sends to the iOS devices of members who want the project's previews", %{
+  test "sends to the devices of members who want the project's previews", %{
     client: client,
     creator: creator,
     organization: organization,
@@ -75,8 +76,9 @@ defmodule Tuist.Push.Workers.NewPreviewWorkerTest do
 
     creator_device = register(creator, client, "ios")
     wants_device = register(wants, client, "ios")
-    register(wants, client, "android")
+    wants_android = register(wants, client, "android")
     register(opted_out, client, "ios")
+    register(opted_out, client, "android")
     register(outsider, client, "ios")
     :ok = Notifications.update_project_preference(opted_out, "new_preview", project.id, false)
 
@@ -84,11 +86,19 @@ defmodule Tuist.Push.Workers.NewPreviewWorkerTest do
 
     assert :ok = perform_job(NewPreviewWorker, %{"preview_id" => preview.id})
 
-    assert enqueued_registration_ids() == Enum.sort([creator_device.id, wants_device.id])
+    assert enqueued_registration_ids() == Enum.sort([creator_device.id, wants_device.id, wants_android.id])
 
-    [job | _] = all_enqueued(worker: DeliveryWorker)
+    payloads = Map.new(all_enqueued(worker: DeliveryWorker), &{&1.args["registration_id"], &1.args["payload"]})
 
-    assert job.args["payload"] == %{
+    assert payloads[wants_android.id] == %{
+             "title" => "TuistApp · #{account.name}/#{project.name}",
+             "body" => "Version 1.2 is ready to install.",
+             "preview_id" => preview.id,
+             "account_handle" => account.name,
+             "project_handle" => project.name
+           }
+
+    assert payloads[wants_device.id] == %{
              "aps" => %{
                "alert" => %{
                  "title" => "TuistApp",
@@ -132,6 +142,17 @@ defmodule Tuist.Push.Workers.NewPreviewWorkerTest do
     assert enqueued_registration_ids() == []
   end
 
+  test "skips the platforms whose provider isn't configured", %{client: client, creator: creator, project: project} do
+    stub(Environment, :fcm_configured?, fn -> false end)
+    ios = register(creator, client, "ios")
+    register(creator, client, "android")
+    preview = AppBuildsFixtures.preview_fixture(project: project)
+
+    assert :ok = perform_job(NewPreviewWorker, %{"preview_id" => preview.id})
+
+    assert enqueued_registration_ids() == [ios.id]
+  end
+
   describe "Push.notify_new_preview/1" do
     test "queues one notification per preview however many builds upload", %{project: project} do
       preview = AppBuildsFixtures.preview_fixture(project: project)
@@ -143,8 +164,9 @@ defmodule Tuist.Push.Workers.NewPreviewWorkerTest do
       assert preview_id == preview.id
     end
 
-    test "does nothing without an APNs key", %{project: project} do
+    test "does nothing without an APNs key or FCM credentials", %{project: project} do
       stub(Environment, :apns_configured?, fn -> false end)
+      stub(Environment, :fcm_configured?, fn -> false end)
 
       :ok = Push.notify_new_preview(AppBuildsFixtures.preview_fixture(project: project))
 

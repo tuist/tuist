@@ -1473,6 +1473,18 @@ defmodule Tuist.Environment do
       apns_private_key(secrets) != nil
   end
 
+  @doc """
+  The Firebase service account JSON (as downloaded from Google Cloud) the server
+  sends Android notifications with.
+  """
+  def fcm_service_account(secrets \\ secrets()) do
+    get([:fcm, :service_account], secrets)
+  end
+
+  def fcm_configured?(secrets \\ secrets()) do
+    fcm_service_account(secrets) not in [nil, ""]
+  end
+
   def mailgun_api_key(secrets \\ secrets()) do
     get([:mailgun, :api_key], secrets)
   end
