@@ -3120,7 +3120,7 @@ msgid "Sandbox limits are independent of CI. Creating, resuming and running sand
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:635
-#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:27
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:29
 #, elixir-autogen, elixir-format
 msgid "AI"
 msgstr ""

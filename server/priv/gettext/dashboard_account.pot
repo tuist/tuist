@@ -97,9 +97,11 @@ msgstr ""
 #: lib/tuist_web/live/account_settings_live.html.heex:303
 #: lib/tuist_web/live/account_token_live.html.heex:49
 #: lib/tuist_web/live/account_tokens_live.html.heex:250
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:145
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:202
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:239
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:247
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:283
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:347
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:404
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:441
 #: lib/tuist_web/live/authentication_settings_live.html.heex:910
 #: lib/tuist_web/live/cache_live.ex:376
 #: lib/tuist_web/live/cache_live.ex:441
@@ -496,6 +498,7 @@ msgstr ""
 #: lib/tuist_web/components/workload_identities.html.heex:74
 #: lib/tuist_web/live/account_token_live.html.heex:74
 #: lib/tuist_web/live/account_tokens_live.html.heex:277
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:240
 #: lib/tuist_web/live/authentication_settings_live.html.heex:930
 #: lib/tuist_web/live/cache_live.ex:354
 #: lib/tuist_web/live/cache_live.ex:395
@@ -613,6 +616,8 @@ msgstr ""
 msgid "Region"
 msgstr ""
 
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:187
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:290
 #: lib/tuist_web/live/members_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "Remove"
@@ -3125,122 +3130,123 @@ msgstr ""
 msgid "within your %{macos} free macOS and %{linux} free Linux minutes"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:136
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Claude token"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:81
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:89
 #, elixir-autogen, elixir-format
 msgid "Could not save your Claude token. Please try again."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:42
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:87
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:221
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:246
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:52
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:97
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:423
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "Disconnect"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:74
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:82
 #, elixir-autogen, elixir-format
 msgid "Paste the token printed by claude setup-token."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:178
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:264
 #, elixir-autogen, elixir-format
 msgid "The ChatGPT sign-in did not complete. Please try again."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:22
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:34
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:78
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:152
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:44
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:88
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:177
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "Connect"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:162
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:364
 #, elixir-autogen, elixir-format
 msgid "Connect ChatGPT"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:104
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:306
 #, elixir-autogen, elixir-format
 msgid "Connect Claude"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:66
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Connected. Threads run on your ChatGPT subscription. Updated %{date}."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:22
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Connected. Threads run on your Claude subscription. Updated %{date}."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:189
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:391
 #, elixir-autogen, elixir-format
 msgid "Enter this one-time code:"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:121
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:323
 #, elixir-autogen, elixir-format
 msgid "Install Claude Code on your computer."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:209
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:411
 #, elixir-autogen, elixir-format
 msgid "Open ChatGPT"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:183
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:385
 #, elixir-autogen, elixir-format
 msgid "Open ChatGPT and sign in with the account that has your subscription."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:129
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "Paste the token it prints below."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:179
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:381
 #, elixir-autogen, elixir-format
 msgid "Requesting a sign-in code from OpenAI…"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:140
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted and never shown again."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:194
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "This page updates once you approve. The code expires in 15 minutes; only enter it if you started this sign-in."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:223
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:425
 #, elixir-autogen, elixir-format
 msgid "Tuist deletes the credentials it stored for this subscription. To revoke the access itself, do so in your Claude or OpenAI account."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:60
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:70
 #, elixir-autogen, elixir-format
 msgid "Use your ChatGPT Plus, Pro, or Team subscription in threads."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:19
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Use your Claude Pro or Max subscription in threads."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:150
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "Could not start the ChatGPT sign-in. Please try again in a few minutes."
 msgstr ""
@@ -3280,12 +3286,127 @@ msgstr ""
 msgid "Two-factor authentication"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:123
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Run the following command and sign in with your Claude account."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:11
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:13
 #, elixir-autogen, elixir-format
 msgid "Subscriptions"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:204
+#, elixir-autogen, elixir-format
+msgid "Add MCP server"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:254
+#, elixir-autogen, elixir-format
+msgid "Add and sign in"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:121
+#, elixir-autogen, elixir-format
+msgid "Add server"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:112
+#, elixir-autogen, elixir-format
+msgid "Connect MCP servers so AI features can use their tools on your behalf. Tuist manages the sessions for you, so your connections are portable."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:16
+#, elixir-autogen, elixir-format
+msgid "Connect your Claude or ChatGPT subscription so AI features run inference on your subscription's tokens."
+msgstr ""
+
+#: lib/tuist_web/controllers/mcp_server_oauth_controller.ex:20
+#, elixir-autogen, elixir-format
+msgid "Connected to %{name}."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:162
+#, elixir-autogen, elixir-format
+msgid "Connected. Updated %{date}."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:324
+#, elixir-autogen, elixir-format
+msgid "Could not sign in to this server. Check that the URL is right and that the server supports MCP OAuth sign-in with dynamic client registration."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:242
+#, elixir-autogen, elixir-format
+msgid "Defaults to the server's host name."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:312
+#, elixir-autogen, elixir-format
+msgid "Enter the server's HTTPS endpoint, for example https://example.com/mcp."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:109
+#, elixir-autogen, elixir-format
+msgid "MCP servers"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:320
+#, elixir-autogen, elixir-format
+msgid "Names can be up to 64 characters long."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:144
+#, elixir-autogen, elixir-format
+msgid "No MCP servers yet."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:166
+#, elixir-autogen, elixir-format
+msgid "Not connected."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Reconnect"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:265
+#, elixir-autogen, elixir-format
+msgid "Remove MCP server"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:231
+#, elixir-autogen, elixir-format
+msgid "Server URL"
+msgstr ""
+
+#: lib/tuist_web/controllers/mcp_server_oauth_controller.ex:32
+#, elixir-autogen, elixir-format
+msgid "The MCP server sign-in did not complete. Please try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/mcp_server_oauth_controller.ex:25
+#, elixir-autogen, elixir-format
+msgid "The MCP server sign-in was cancelled."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:318
+#, elixir-autogen, elixir-format
+msgid "Too many sign-in attempts. Please try again in a few minutes."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:267
+#, elixir-autogen, elixir-format
+msgid "Tuist deletes the server and the session it stored for it. To revoke the access itself, do so on the server."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:221
+#, elixir-autogen, elixir-format
+msgid "Tuist signs in to the server with OAuth. You approve access on the server's sign-in page and come back here."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:315
+#, elixir-autogen, elixir-format
+msgid "You can add up to 25 MCP servers. Remove one to add another."
 msgstr ""
