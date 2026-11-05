@@ -11,6 +11,35 @@ const workflow = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/ru
 const cascade = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/server-production-deployment.yml'), 'utf8'));
 const deployment = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/server-deployment.yml'), 'utf8'));
 
+test('native Linux ImageOS matches the actual Ubuntu release, not a fixed profile', () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-image-os-'));
+  try {
+    const script = path.join(__dirname, 'linux-runtime.sh');
+    // Run the image metadata assertions before the hardware-specific probes.
+    const runtime = fs.readFileSync(script, 'utf8');
+    const hardware = runtime.indexOf('test -c /dev/kvm');
+    assert.ok(hardware > 0);
+    const release = path.join(work, 'os-release');
+    for (const [id, version, imageOS, valid] of [
+      ['ubuntu', '22.04', 'ubuntu22', true],
+      ['ubuntu', '24.04', 'ubuntu24', true],
+      ['ubuntu', '22.04', 'ubuntu24', false],
+      ['ubuntu', '24.04', 'ubuntu22', false],
+      ['ubuntu', '24.04', '', false],
+      ['debian', '24.04', 'ubuntu24', false],
+    ]) {
+      fs.writeFileSync(release, `ID=${id}\nVERSION_ID=${version}\n`);
+      const result = spawnSync('bash', ['-c', `id() { echo 1001; }\n${runtime.slice(0, hardware).replace('/etc/os-release', release)}`, script], {
+        encoding: 'utf8', env: { ...process.env, ImageOS: imageOS, GITHUB_STEP_SUMMARY: path.join(work, 'summary') },
+      });
+      assert.equal(result.status, valid ? 0 : 1, `${id} ${version}, ImageOS=${imageOS}: ${result.stdout}${result.stderr}`);
+      if (!valid) assert.match(result.stdout, /::error title=Linux image\/runtime::/);
+    }
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true });
+  }
+});
+
 test('Linux staging waits and fails closed in canary; other environments preserve background holds', () => {
   const deploy = deployment.jobs.deploy;
   const helm = deploy.steps.find(step => step.name === 'helm upgrade --install');
