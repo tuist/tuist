@@ -10,6 +10,7 @@ defmodule TuistWeb.AmpOrbsController do
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AmpIntegration
   alias Tuist.Sandboxes.AmpIntegrations
+  alias Tuist.Sandboxes.AmpOrbs
   alias Tuist.Sandboxes.AmpRuntime
 
   def dispatch(conn, %{"orb_id" => orb_id} = params) do
@@ -58,12 +59,25 @@ defmodule TuistWeb.AmpOrbsController do
           |> put_resp_header("x-tuist-orb-retry", "admission")
           |> send_resp(:service_unavailable, "No sandbox capacity available")
 
+        {:error, :orb_type_mismatch} ->
+          conn
+          |> put_resp_header("x-tuist-orb-refusal", "orb-type-mismatch")
+          |> send_resp(:conflict, "The Orb exists on another platform than its orb type")
+
         _ ->
           send_resp(conn, :service_unavailable, "Orb operation could not complete")
       end
     else
-      {:error, :invalid_job} -> send_resp(conn, :bad_request, "Invalid Orb job")
-      _ -> send_resp(conn, :unauthorized, "Invalid provider identity")
+      {:error, :unknown_orb_type} ->
+        conn
+        |> put_resp_header("x-tuist-orb-refusal", "unknown-orb-type")
+        |> send_resp(:bad_request, "Unknown orb type")
+
+      {:error, :invalid_job} ->
+        send_resp(conn, :bad_request, "Invalid Orb job")
+
+      _ ->
+        send_resp(conn, :unauthorized, "Invalid provider identity")
     end
   end
 
@@ -104,22 +118,21 @@ defmodule TuistWeb.AmpOrbsController do
     if Regex.match?(~r/^[a-zA-Z0-9_-]+$/, orb_id) and operation in ["spawn", "pause", "delete"] and
          (operation != "spawn" or (is_binary(token) and byte_size(token) in 1..16_384)) and
          valid_snapshot_id?(snapshot_id) do
-      # Managed connections have a server-selected template/shape and Amp origin.
-      # Neither workload credentials nor client params grant arbitrary guest exec.
-      {:ok,
-       %{
-         operation: operation,
-         orb_token: token,
-         snapshot_id: snapshot_id,
-         template: "default",
-         vcpus: 2,
-         memory_mb: 4096,
-         workspace_gb: 10
-       }}
+      # Managed connections take their template and shape from the server's
+      # orb type catalog and their Amp origin from the server. Neither workload
+      # credentials nor client params grant arbitrary guest exec. Pause and
+      # delete act on the existing row, so only a spawn reads the type.
+      with {:ok, shape} <- spawn_shape(operation, params["orb_type"]) do
+        {:ok, Map.merge(%{operation: operation, orb_token: token, snapshot_id: snapshot_id}, shape)}
+      end
     else
       {:error, :invalid_job}
     end
   end
+
+  defp spawn_shape("spawn", orb_type) when is_nil(orb_type) or is_binary(orb_type), do: AmpOrbs.orb_type(orb_type)
+  defp spawn_shape("spawn", _orb_type), do: {:error, :invalid_job}
+  defp spawn_shape(_operation, _orb_type), do: {:ok, %{}}
 
   defp job(_, _), do: {:error, :invalid_job}
 

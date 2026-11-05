@@ -157,6 +157,31 @@ test('managed dispatch rereads the rotated workload token and ignores a requeste
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
+test('managed spawns forward the orb type and explain an unknown one; standalone spawns keep their shape', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tuist-orb-type-'));
+  const identity = join(directory, 'token');
+  try {
+    await writeFile(identity, 'identity');
+    const managed = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity, ORB_TYPE: 'macos' });
+    assert.equal(managed.code, 0, managed.output);
+    assert.equal(managed.requests[0].body.orb_type, 'macos');
+
+    const unknown = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity, ORB_TYPE: 'gpu' },
+      () => ({ status: 400, headers: { 'X-Tuist-Orb-Refusal': 'unknown-orb-type' } }));
+    assert.notEqual(unknown.code, 0);
+    assert.equal(unknown.requests.length, 1);
+    assert.match(unknown.output, /does not offer the orb type 'gpu'/);
+
+    const pause = await dispatch({ TUIST_WORKLOAD_TOKEN_FILE: identity, ORB_TYPE: 'macos', ORB_OPERATION: 'pause', ORB_TOKEN: '' });
+    assert.equal(pause.requests[0].body.orb_type, undefined);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+
+  const standalone = await dispatch({ ORB_TYPE: 'macos' });
+  assert.equal(standalone.code, 0, standalone.output);
+  assert.equal(standalone.requests[0].body.orb_type, undefined);
+  assert.equal(standalone.requests[0].body.template, 'default');
+});
+
 const admission = status => ({ status, headers: { 'X-Tuist-Orb-Retry': 'admission' } });
 
 test('never retries an ambiguous transport failure', async () => {

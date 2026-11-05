@@ -36,6 +36,28 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   @cache_scopes ["account:cache:read", "project:cache:read"]
   @cache_token_ttl_hours 6
 
+  # The orb types a managed provider offers. An account administrator adds
+  # these names under Orb types in Amp's provider settings; Amp passes the
+  # thread's type to every spawn as `ORB_TYPE`, and a thread keeps it for
+  # life. Threads created before the provider had types arrive without one
+  # and get Linux.
+  @orb_types %{
+    "linux" => %{platform: :linux, template: "default", vcpus: 2, memory_mb: 4096, workspace_gb: 10},
+    "macos" => %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192, workspace_gb: 10}
+  }
+
+  def orb_types, do: @orb_types |> Map.keys() |> Enum.sort()
+
+  @doc "The platform and shape of an Orb type; `nil` is a thread without one."
+  def orb_type(nil), do: orb_type("linux")
+
+  def orb_type(name) do
+    case Map.fetch(@orb_types, name) do
+      {:ok, shape} -> {:ok, shape}
+      :error -> {:error, :unknown_orb_type}
+    end
+  end
+
   def dispatch(account, orb_id, params) do
     Sandboxes.with_sandbox_lock(
       "amp:#{account.id}:#{orb_id}",
@@ -171,7 +193,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp find_or_create(account, orb_id, nil, params) do
     attrs =
       params
-      |> Map.take([:template, :vcpus, :memory_mb, :workspace_gb, :amp_integration_id])
+      |> Map.take([:platform, :template, :vcpus, :memory_mb, :workspace_gb, :amp_integration_id])
       |> Map.put(:amp_orb_id, orb_id)
 
     Sandboxes.create_sandbox(account, attrs, from_disk_snapshot: disk_snapshot(account, attrs, params))
@@ -181,6 +203,15 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   # that allocation; errors on a placed sandbox retain its disks for repair.
   defp find_or_create(account, orb_id, %Sandbox{state: :error, node_name: nil} = sandbox, params) do
     with {:ok, _deleted} <- Sandboxes.delete(sandbox), do: find_or_create(account, orb_id, nil, params)
+  end
+
+  # An Orb keeps the platform it was created on. A spawn asking for another
+  # one (a type renamed in Amp, or a provider pointed at another catalog)
+  # must not boot the wrong guest or migrate its disks.
+  defp find_or_create(_account, _orb_id, sandbox, %{platform: platform}) when not is_nil(platform) do
+    if to_string(sandbox.platform) == to_string(platform),
+      do: {:ok, sandbox},
+      else: {:error, :orb_type_mismatch}
   end
 
   defp find_or_create(_account, _orb_id, sandbox, _params), do: {:ok, sandbox}
@@ -235,7 +266,9 @@ defmodule Tuist.Sandboxes.AmpOrbs do
 
     env = %{"TUIST_TOKEN" => token, "TUIST_URL" => Environment.app_url()}
 
-    case Kura.runner_cache_endpoint_url(account, :linux, Sites.node_site(sandbox.node_name)) do
+    platform = if sandbox.platform == :darwin, do: :macos, else: :linux
+
+    case Kura.runner_cache_endpoint_url(account, platform, Sites.node_site(sandbox.node_name)) do
       url when is_binary(url) and url != "" -> Map.put(env, "TUIST_CACHE_ENDPOINT", url)
       _ -> env
     end

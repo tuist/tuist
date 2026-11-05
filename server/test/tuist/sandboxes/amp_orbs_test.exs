@@ -261,6 +261,16 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert {:error, :no_capacity} = AmpOrbs.dispatch(account, "amp-thread", spawn_params())
   end
 
+  test "a spawn for another platform never boots the existing Orb", %{account: account} do
+    sandbox = sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
+    reject(&Nodes.call/4)
+
+    assert {:error, :orb_type_mismatch} =
+             AmpOrbs.dispatch(account, "amp-thread", Map.put(spawn_params(), :platform, :darwin))
+
+    assert %{platform: :linux, state: :running, residency_work_id: nil} = Repo.reload!(sandbox)
+  end
+
   test "a placed errored Orb retains its disk instead of being recreated", %{account: account} do
     sandbox = sandbox_fixture(account: account, amp_orb_id: "amp-thread", state: :error)
     reject(&Nodes.call/4)
