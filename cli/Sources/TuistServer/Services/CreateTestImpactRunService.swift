@@ -72,6 +72,10 @@ public struct CreateTestImpactRunService: CreateTestImpactRunServicing {
         case let .fallback(reason):
             fallbackReason = reason.rawValue
         }
+        let skipped = Set(request.skippedModules)
+        let modules = Set(request.modules).union(skipped).sorted().map {
+            Operations.createTestImpactRun.Input.Body.jsonPayload.modulesPayloadPayload(name: $0, skipped: skipped.contains($0))
+        }
         let hasScope = request.scheme != nil || request.testPlan != nil || request.destination != nil
         return .init(
             ancestor_shas: request.ancestorSHAs.isEmpty ? nil : request.ancestorSHAs,
@@ -84,10 +88,9 @@ public struct CreateTestImpactRunService: CreateTestImpactRunServicing {
             fallback_reason: fallbackReason,
             git_branch: request.gitBranch,
             head_sha: request.headSHA,
-            modules: request.modules,
+            modules: modules,
             parent_shas: request.parentSHAs.isEmpty ? nil : request.parentSHAs,
             platform: request.platform,
-            skipped_modules: request.skippedModules,
             xcode: hasScope ? .init(destination: request.destination, scheme: request.scheme, test_plan: request.testPlan) : nil
         )
     }

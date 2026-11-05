@@ -78,6 +78,7 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
         head_sha: "c2",
         baseline_sha: "c1",
         git_branch: "feature",
+        modules: [%{name: "AppTests", skipped: false}, %{name: "CoreTests", skipped: false}],
         changed_files: [%{path: "Sources/Math.swift", status: "M", blob: "new", affected_modules: ["AppTests"]}],
         xcode: %{scheme: "App"}
       },
@@ -117,31 +118,38 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {:ok, %{changed_files_count: 1}} = Storage.get_diff(project.id, "c2", "c1")
     end
 
-    test "counts the tests of the modules the client skipped by hash", %{project: project} do
-      assert {:ok, %{run: run}} = Runs.create(project, params(%{modules: ["AppTests"], skipped_modules: ["CoreTests"]}))
+    test "counts the tests of modules skipped by hash as requested and skipped", %{project: project} do
+      modules = [%{name: "AppTests", skipped: false}, %{name: "CoreTests", skipped: true}]
+      assert {:ok, %{run: run, skipped_tests: skip}} = Runs.create(project, params(%{modules: modules}))
 
-      assert {run.outcome, run.requested_count, run.selected_count, run.skipped_count, run.module_skipped_count} ==
-               {"selected", 4, 2, 2, 1}
+      assert {run.outcome, run.requested_modules} == {"selected", ["AppTests"]}
+      assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 2, 3}
+      refute Enum.any?(skip, &(&1.module == "CoreTests"))
     end
 
-    test "records a selection of nothing when hashing left no module, whatever the diff", %{project: project} do
+    test "counts every test of the modules left as selected on a fallback after the baseline", %{project: project} do
+      modules = [%{name: "AppTests", skipped: false}, %{name: "CoreTests", skipped: true}]
+      changed = [%{path: "Package.resolved", status: "M", blob: "new"}]
+
+      assert {:ok, %{run: run}} = Runs.create(project, params(%{modules: modules, changed_files: changed}))
+
+      assert {run.outcome, run.reason} == {"fallback", "tracked_file_changed"}
+      assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 4, 1}
+    end
+
+    test "records a selection of nothing when hashing skipped every module, whatever the diff", %{project: project} do
+      modules = [%{name: "AppTests", skipped: true}, %{name: "CoreTests", skipped: true}]
       changed = [%{path: "Package.resolved", status: "M", blob: "new"}]
 
       assert {:ok, %{run: run, skipped_tests: []}} =
-               Runs.create(
-                 project,
-                 params(%{modules: [], skipped_modules: ["AppTests", "CoreTests"], changed_files: changed})
-               )
+               Runs.create(project, params(%{modules: modules, changed_files: changed}))
 
-      assert {run.outcome, run.reason, run.rule_trace} == {"selected", "", []}
-      assert {run.requested_count, run.selected_count, run.skipped_count, run.module_skipped_count} == {0, 0, 0, 5}
+      assert {run.outcome, run.reason, run.rule_trace, run.requested_modules} == {"selected", "", [], []}
+      assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 0, 5}
       assert Storage.get_diff(project.id, "c2", "c1") == {:error, :not_found}
 
-      assert {:ok, %{run: %{outcome: "selected", baseline_sha: nil, module_skipped_count: 0}}} =
-               Runs.create(
-                 project,
-                 params(%{modules: [], skipped_modules: ["AppTests"], baseline_sha: nil, fallback_reason: "no_baseline"})
-               )
+      assert {:ok, %{run: %{outcome: "selected", baseline_sha: nil, requested_count: 0}}} =
+               Runs.create(project, params(%{modules: modules, baseline_sha: nil, fallback_reason: "no_baseline"}))
     end
 
     test "reuses the stored diff when the client sends none", %{project: project} do
@@ -182,7 +190,7 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {:ok, %{run: run, skipped_tests: nil}} = Runs.create(project, params(%{changed_files: changed_files}))
       assert {run.outcome, run.reason, run.matched_path} == {"fallback", "tracked_file_changed", "Package.resolved"}
       assert [%{rule: "tracked_files", verdict: "abort"}] = run.rule_trace
-      assert {run.requested_count, run.selected_count, run.skipped_count} == {0, 0, 0}
+      assert {run.requested_count, run.selected_count, run.skipped_count} == {5, 5, 0}
     end
 
     test "falls back with history_unknown when the history doesn't have the checkout", %{project: project} do
@@ -209,7 +217,7 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
     end
 
     test "keeps to the requested modules", %{project: project} do
-      assert {:ok, %{run: run, skipped_tests: skip}} = Runs.create(project, params(%{modules: ["CoreTests"]}))
+      assert {:ok, %{run: run, skipped_tests: skip}} = Runs.create(project, params(%{modules: [%{name: "CoreTests"}]}))
       assert {run.requested_count, run.selected_count, run.requested_modules} == {1, 0, ["CoreTests"]}
       assert skip == [%{module: "CoreTests"}]
     end

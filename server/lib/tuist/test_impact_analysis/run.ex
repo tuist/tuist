@@ -3,9 +3,9 @@ defmodule Tuist.TestImpactAnalysis.Run do
   The selection coverage-based test selection made for one `tuist test`
   invocation: the commits and diff it used, its scope, the outcome (`selected`,
   or `fallback` when the run continued as default selective testing) and why,
-  the trace of the rules that decided it, and the counts. `module_skipped_count`
-  is the number of the baseline's tests in the modules the client skipped
-  because their hash matched, which no rule decided. Shard plans and test
+  the trace of the rules that decided it, and the counts. The counts cover
+  every test module in scope: the baseline's tests in modules the client
+  skipped because their hash matched count as requested and skipped. Shard plans and test
   runs point to it; it knows nothing about either. This is a ClickHouse entity.
   """
   use Ecto.Schema
@@ -39,7 +39,6 @@ defmodule Tuist.TestImpactAnalysis.Run do
     field :requested_count, Ch, type: "UInt32", default: 0
     field :skipped_count, Ch, type: "UInt32", default: 0
     field :selected_count, Ch, type: "UInt32", default: 0
-    field :module_skipped_count, Ch, type: "UInt32", default: 0
   end
 
   def create_changeset(run \\ %__MODULE__{}, attrs) do
@@ -66,8 +65,7 @@ defmodule Tuist.TestImpactAnalysis.Run do
       :rule_trace,
       :requested_count,
       :skipped_count,
-      :selected_count,
-      :module_skipped_count
+      :selected_count
     ])
     |> validate_required([:id, :project_id, :inserted_at, :head_sha, :commit_sha, :build_system, :outcome])
   end

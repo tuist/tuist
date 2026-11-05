@@ -37,8 +37,14 @@ defmodule TuistWeb.API.Schemas.Tests.TestImpact.Run do
         type: :object,
         description: "Test counts for the client's output. Present when the outcome is `selected`.",
         properties: %{
-          requested: %Schema{type: :integer, description: "The tests in scope."},
-          skipped: %Schema{type: :integer, description: "The tests coverage skipped."},
+          requested: %Schema{
+            type: :integer,
+            description: "The tests in scope, the ones in modules skipped because their hash matched included."
+          },
+          skipped: %Schema{
+            type: :integer,
+            description: "The tests not to run: those coverage skipped plus those in modules skipped by hash."
+          },
           selected: %Schema{type: :integer, description: "The tests that will run."}
         }
       },

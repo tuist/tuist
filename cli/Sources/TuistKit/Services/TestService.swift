@@ -879,10 +879,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
         case nil:
             return
         case let .selected(selection, skippedModules):
+            // The server's counts include the tests in the modules hashing skipped.
             let counts = [
-                selection.selected.map { "\($0) selected" },
-                selection.skipped.map { "\($0) skipped" },
-                selection.requested.map { "of \($0) tests" },
+                selection.selected
+                    .map { selected in
+                        selection.requested.map { "\(selected) of \($0) tests selected" } ?? "\(selected) selected"
+                    },
+                selection.skipped.map { "\($0) skipped by hashing or coverage" },
             ].compactMap { $0 }.joined(separator: ", ")
             let skipped = skippedModules.isEmpty ? "" : " No test selected in: \(skippedModules.joined(separator: ", "))."
             Logger.current.notice("Coverage-based test selection: \(counts.isEmpty ? "tests selected" : counts).\(skipped)")

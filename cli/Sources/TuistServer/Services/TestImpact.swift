@@ -92,10 +92,10 @@ public struct TestImpactRunRequest: Equatable, Sendable {
     public let parentSHAs: [String]
     public let ancestorSHAs: [String]
     public let basis: Basis
-    /// The test modules left to decide, nil when nothing narrowed the scope. Empty when hashing left
-    /// nothing to decide: the server then records a selection of nothing.
-    public let modules: [String]?
-    /// The test modules hashing skipped, which the server counts without deciding them.
+    /// The test modules in scope that hashing left to decide. Empty when hashing left nothing to
+    /// decide: the server then records a selection of nothing.
+    public let modules: [String]
+    /// The test modules in scope that hashing skipped, which the server counts without deciding them.
     public let skippedModules: [String]
     public let platform: String?
     public let gitBranch: String?
@@ -110,7 +110,7 @@ public struct TestImpactRunRequest: Equatable, Sendable {
         parentSHAs: [String] = [],
         ancestorSHAs: [String] = [],
         basis: Basis,
-        modules: [String]?,
+        modules: [String],
         skippedModules: [String] = [],
         platform: String?,
         gitBranch: String?,
