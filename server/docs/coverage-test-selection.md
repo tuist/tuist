@@ -393,3 +393,22 @@ A listed test is removed, not marked skipped: it's absent from the result bundle
 
 - **Flags don't scale.** One `-skip-testing` per test hits `ARG_MAX` (1 MiB on macOS, arguments and environment together) at around 15,000 tests, and xcodebuild reads no argument file.
 - **The `.xctestrun` doesn't cover everything and changes the command.** Its `SkipTestIdentifiers` can't skip single Swift Testing tests, and using it would split `tuist test` into build-for-testing, an edit, and test-without-building.
+
+### Acceptance tests
+
+`cli/Tests/TuistCoverageSelectionAcceptanceTests` checks selection end to end against a real server. Each test copies the `CoverageTestSelection` fixture, creates a fresh organization and project, records a baseline on `main`, makes one change on a branch, runs `tuist test` and asserts a few tests that change must or mustn't run.
+
+- **Baselines run with `--no-selective-testing`**, as a default branch's CI does, since the default branch gets no automatic full run ([Baselines come from runs without selection](#baselines-come-from-runs-without-selection)).
+- **Assertions read the CLI's output:** its selection line, which also tells a selection from a fallback, and xcodebuild's per-test results. No API returns a run's stored counts to the client, so the tests don't assert them.
+- **XCTest, not Swift Testing,** so selection can later skip these tests one by one: Swift Testing records no test-scoped evidence ([Swift Testing](#swift-testing)). Not XCUITest either: the tests drive the CLI, and the fixture's own UI tests run through its nested xcodebuild.
+- **The CLI runs in process and inherits only `PATH`, `DEVELOPER_DIR` and `TUIST_URL`.** The CLI hands `Environment.current.variables` to the fixture's xcodebuild, so inheriting the whole environment would pass the outer test process's coverage and TestCoverageAttribution variables (`LLVM_PROFILE_FILE`, `TEST_COVERAGE_ATTRIBUTION_DIR`, `TEST_COVERAGE_ATTRIBUTION_SKIP_FILE`) to the fixture when the suite runs with coverage.
+- **The sharded test plans at module granularity.** A fresh project has no suite timings, and suite granularity would put every suite in the one catch-all shard.
+- **A target and scheme of their own, outside CI until canary serves the selection endpoints.** The target then joins `TuistAcceptanceTests`, which collects coverage, so these tests record the evidence selection needs to skip them. Each test does two or three full iOS simulator runs, so they stay off the production deploy path. The scheme sets `coverage: false` so `Tuist.swift`'s `coverage` option doesn't turn it on.
+
+To run them against a dev server:
+
+```bash
+TUIST_EE=1 tuist generate --no-open TuistCoverageSelectionAcceptanceTests
+TEST_RUNNER_TUIST_URL=http://127.0.0.1:8080 xcodebuild test -workspace Tuist.xcworkspace \
+  -scheme TuistCoverageSelectionAcceptanceTests -destination platform=macOS
+```
