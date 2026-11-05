@@ -319,6 +319,23 @@ defmodule Tuist.SandboxesTest do
       assert %Sandbox{state: :running} = Repo.reload!(sandbox)
     end
 
+    test "waits out a pause the command raced with, then resumes the sandbox and runs it" do
+      sandbox = sandbox_fixture(state: :running, node_name: "node-a")
+
+      # The idle pause reached the node first; by the time the exec retries,
+      # the row says paused.
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts ->
+        sandbox |> Ecto.Changeset.change(state: :paused) |> Repo.update!()
+        {:error, "sandbox is being paused: #{sandbox.id}"}
+      end)
+
+      expect(Nodes, :call, fn "node-a", "resume", _args, _opts -> {:ok, %{}} end)
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, %{exit_code: 0}} = Sandboxes.exec(sandbox, ["/bin/true"])
+      assert %Sandbox{state: :running} = Repo.reload!(sandbox)
+    end
+
     test "returns the node error" do
       sandbox = sandbox_fixture(state: :running, node_name: "node-a")
       expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:error, :timeout} end)

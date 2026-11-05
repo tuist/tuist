@@ -87,6 +87,11 @@
   since the archive is a bad upload and retries won't heal it. Other
   extraction errors still bubble up as `{:error, reason}` so Oban retries
   them and the final attempt marks the build as `failed_processing`.
+- Archive contents are tenant-controlled. Never atomize keys read from them:
+  `ProcessBuildWorker` picks known machine-metric fields explicitly, because
+  unique keys in `machine_metrics.jsonl` would otherwise exhaust the atom table
+  and abort the VM. `BuildProcessor` skips a `machine_metrics.jsonl` over
+  32 MiB, since one highly compressed line can otherwise exhaust memory.
 
 ## Subsystem contracts
 

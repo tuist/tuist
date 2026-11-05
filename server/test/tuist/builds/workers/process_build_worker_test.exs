@@ -75,6 +75,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     Map.put(parsed_data(), "machine_metrics", [
       %{
         "timestamp" => 1_710_000_000,
+        "offset_ms" => 0,
         "cpu_usage_percent" => 75.5,
         "memory_used_bytes" => 8_000_000_000,
         "memory_total_bytes" => 16_000_000_000,
@@ -85,6 +86,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       },
       %{
         "timestamp" => 1_710_000_005,
+        "offset_ms" => 5000,
         "cpu_usage_percent" => 82.3,
         "memory_used_bytes" => 8_500_000_000,
         "memory_total_bytes" => 16_000_000_000,
@@ -153,22 +155,35 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       assert :ok == ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
-    test "atomizes machine metrics keys", %{
+    test "atomizes known machine metric fields without creating atoms for unknown keys", %{
       account: account,
       project: project,
       build: build
     } do
+      # Built at runtime so the compiler does not create the atom.
+      unknown_key = "client_field_#{System.unique_integer([:positive])}"
+
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
       expect(BuildProcessor, :process_build, fn _path, true, consume ->
-        consume.(parsed_data_with_machine_metrics())
+        parsed_data_with_machine_metrics()
+        |> update_in(["machine_metrics"], fn samples -> Enum.map(samples, &Map.put(&1, unknown_key, 1)) end)
+        |> consume.()
       end)
 
       expect(Builds, :create_build, fn attrs ->
         assert length(attrs.machine_metrics) == 2
 
         [first, second] = attrs.machine_metrics
+        assert_raise ArgumentError, fn -> String.to_existing_atom(unknown_key) end
+
+        assert Enum.sort(Map.keys(first)) ==
+                 Enum.sort(
+                   ~w(timestamp offset_ms cpu_usage_percent memory_used_bytes memory_total_bytes network_bytes_in network_bytes_out disk_bytes_read disk_bytes_written)a
+                 )
+
         assert first.timestamp == 1_710_000_000
+        assert first.offset_ms == 0
         assert first.cpu_usage_percent == 75.5
         assert first.memory_used_bytes == 8_000_000_000
         assert first.memory_total_bytes == 16_000_000_000
@@ -178,6 +193,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         assert first.disk_bytes_written == 1_500_000
 
         assert second.timestamp == 1_710_000_005
+        assert second.offset_ms == 5000
         assert second.cpu_usage_percent == 82.3
         {:ok, %{id: build.id}}
       end)

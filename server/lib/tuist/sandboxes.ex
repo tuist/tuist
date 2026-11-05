@@ -698,7 +698,14 @@ defmodule Tuist.Sandboxes do
 
     case ensure_exec_capacity(sandbox) do
       {:ok, %Sandbox{node_name: node_name} = sandbox} when is_binary(node_name) ->
-        result = run_exec(sandbox, cmd, Keyword.put(opts, :timeout_ms, timeout_ms))
+        opts = Keyword.put(opts, :timeout_ms, timeout_ms)
+
+        result =
+          case run_exec(sandbox, cmd, opts) do
+            {:error, "sandbox is being paused" <> _} -> exec_after_pause(sandbox, cmd, opts)
+            result -> result
+          end
+
         record_activity(sandbox)
         result
 
@@ -707,6 +714,19 @@ defmodule Tuist.Sandboxes do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  # A sandbox on a shared node is paused as soon as it is idle
+  # (`schedule_pause/1`), and its row says running until the node's snapshot
+  # is done, so an exec can reach the node mid-pause. The pause holds the
+  # sandbox's lock: wait for it, resume the sandbox and run the command once
+  # more.
+  defp exec_after_pause(%Sandbox{id: id}, cmd, opts) do
+    case with_sandbox_lock(id, fn -> with_fresh(id, &running_or_resume/1) end) do
+      {:ok, %Sandbox{node_name: node_name} = sandbox} when is_binary(node_name) -> run_exec(sandbox, cmd, opts)
+      {:ok, %Sandbox{}} -> {:error, :no_node}
+      {:error, reason} -> {:error, reason}
     end
   end
 

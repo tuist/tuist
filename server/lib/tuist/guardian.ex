@@ -46,25 +46,34 @@ defmodule Tuist.Guardian do
       {:ok, account} ->
         user = load_user_from_claims(claims)
 
-        {:ok,
-         %AuthenticatedAccount{
-           account: account,
-           scopes: claims["scopes"],
-           all_projects: Map.get(claims, "all_projects", false),
-           project_ids: extract_project_ids(claims),
-           issued_by: user,
-           agent_registration_id: claims["agent_registration_id"],
-           withheld_scopes: extract_withheld_scopes(claims)
-         }}
+        if user && Accounts.credentials_revoked?(user, claims) do
+          {:error, :credentials_revoked}
+        else
+          {:ok,
+           %AuthenticatedAccount{
+             account: account,
+             scopes: claims["scopes"],
+             all_projects: Map.get(claims, "all_projects", false),
+             project_ids: extract_project_ids(claims),
+             issued_by: user,
+             agent_registration_id: claims["agent_registration_id"],
+             withheld_scopes: extract_withheld_scopes(claims)
+           }}
+        end
 
       {:error, :not_found} ->
         {:error, :resource_not_found}
     end
   end
 
-  def resource_from_claims(%{"sub" => id}) do
-    resource = Accounts.get_user_by_id(id)
-    {:ok, resource}
+  def resource_from_claims(%{"sub" => id} = claims) do
+    case Accounts.get_user_by_id(id) do
+      %User{} = user ->
+        if Accounts.credentials_revoked?(user, claims), do: {:error, :credentials_revoked}, else: {:ok, user}
+
+      nil ->
+        {:ok, nil}
+    end
   end
 
   defp load_user_from_claims(%{"user_id" => user_id}) when not is_nil(user_id) do

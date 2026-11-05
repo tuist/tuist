@@ -663,6 +663,84 @@ defmodule Tuist.Sandboxes.CapacityTest do
       assert Capacity.memory_limit_bytes(node_info(node)) == 5 * @gib
     end
 
+    defp connect_execution(overrides) do
+      image = "sha-" <> String.duplicate("e", 40)
+
+      node =
+        connect_elastic(
+          "bazel-#{TuistTestSupport.Utilities.unique_integer()}",
+          Map.merge(
+            %{
+              execution_slots: 8,
+              execution_deadlines: true,
+              capacity: %{memory_bytes: 9 * @gib, cpus: 16},
+              templates: [%{name: "bazel", tag: image, ready: true}],
+              elastic: %{memory_floor_bytes: 9 * @gib, memory_ceiling_bytes: 17 * @gib}
+            },
+            overrides
+          )
+        )
+
+      {node, %{node_names: [node]}, image}
+    end
+
+    defp execution_vm(node \\ nil) do
+      sandbox_fixture(purpose: :remote_execution, template: "bazel", state: :creating, node_name: node, memory_mb: 4096)
+    end
+
+    defp set_grant(node, attrs) do
+      SandboxNode |> Repo.get!(node) |> Ecto.Changeset.change(attrs) |> Repo.update!()
+    end
+
+    test "execution VMs use a shared host's floor while CI has revoked its grant" do
+      {node, settings, image} = connect_execution(%{})
+      set_grant(node, allocation_reclaim: true, allocation_memory_bytes: 0)
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+
+      # A 9 GiB floor holds two 4160 MiB guests beside the 512 MiB reserve.
+      assert {:ok, ^node} = Capacity.place_execution(execution_vm(), settings, image)
+      assert {:ok, ^node} = Capacity.place_execution(execution_vm(), settings, image)
+      # Past the floor, a revoked grant refuses the growth.
+      assert {:error, :no_capacity} = Capacity.place_execution(execution_vm(), settings, image)
+      assert Repo.get!(SandboxNode, node).memory_limit_bytes == 9 * @gib
+    end
+
+    test "execution VMs grow a shared host's carve-out past the grant, up to its ceiling" do
+      {node, settings, image} = connect_execution(%{})
+      # The grant has no memory to offer beyond what the daemon holds: every runner is busy.
+      set_grant(node, allocation_memory_bytes: 9 * @gib, allocation_free_bytes: 0)
+      apply_resizes(node)
+      for _ <- 1..2, do: execution_vm(node)
+
+      assert {:ok, ^node} = Capacity.place_execution(execution_vm(), settings, image)
+      assert Repo.get!(SandboxNode, node).memory_limit_bytes == 13 * @gib
+      assert {:ok, ^node} = Capacity.place_execution(execution_vm(), settings, image)
+      assert Repo.get!(SandboxNode, node).memory_limit_bytes == 17 * @gib
+      # Five guests would pass the 17 GiB ceiling.
+      assert {:error, :no_capacity} = Capacity.place_execution(execution_vm(), settings, image)
+    end
+
+    test "agent sandboxes still need the grant's memory to grow", %{template: template} do
+      node = connect_elastic(template)
+      set_grant(node, allocation_memory_bytes: 8 * @gib, allocation_free_bytes: 0)
+      resident(template, node)
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+
+      assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
+    end
+
+    test "a carve-out row created at 1 GiB before the daemon connected budgets and shrinks from the floor" do
+      {node, settings, image} = connect_execution(%{})
+      set_grant(node, memory_limit_bytes: @gib)
+      # Shrinking the Pod below its floor would be refused by nothing else.
+      reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
+      stub(Nodes, :call, fn ^node, "reclaim", _args, _opts -> {:ok, %{}} end)
+
+      assert Capacity.memory_limit_bytes(node_info(node)) == 9 * @gib
+      assert :unchanged = Capacity.shrink(node_info(node))
+      assert {:ok, ^node} = Capacity.place_execution(execution_vm(), settings, image)
+    end
+
     defp insert_row(node, pod_name, limit, grown_at) do
       %SandboxNode{}
       |> SandboxNode.changeset(%{

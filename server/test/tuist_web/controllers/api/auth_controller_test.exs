@@ -456,6 +456,54 @@ defmodule TuistWeb.API.AuthControllerTest do
                "message" => "The refresh token is expired or invalid"
              }
     end
+
+    test "rejects refresh tokens of deactivated users", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      refresh_token = refresh_token_fixture(user)
+      user |> Ecto.Changeset.change(active: false) |> Repo.update!()
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+
+      assert json_response(conn, :unauthorized) == %{"message" => "The refresh token is expired or invalid"}
+    end
+
+    test "a refresh racing a password reset yields no usable credentials", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      refresh_token = refresh_token_fixture(user)
+      reset_token = reset_password_token(user)
+
+      # The reset commits after the refresh verified the old token and before
+      # it signs the new one, so the reset cannot see the new stored row.
+      expect(Tuist.Authentication, :encode_and_sign, fn subject, claims, opts ->
+        {:ok, _} = Accounts.reset_user_password(reset_token, %{password: "new valid password"})
+        call_original(Tuist.Authentication, :encode_and_sign, [subject, claims, opts])
+      end)
+
+      %{"access_token" => access_token, "refresh_token" => new_refresh_token} = refresh(conn, refresh_token)
+      stub(Tuist.Authentication, :encode_and_sign, &call_original(Tuist.Authentication, :encode_and_sign, [&1, &2, &3]))
+
+      refute Tuist.Authentication.authenticated_subject(access_token)
+
+      assert build_conn()
+             |> put_req_header("content-type", "application/json")
+             |> post("/api/auth/refresh_token", %{refresh_token: new_refresh_token})
+             |> json_response(:unauthorized)
+    end
+  end
+
+  describe "device codes and credential revocation" do
+    test "a device code approved before a password reset grants nothing after it", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      device_code = Accounts.create_device_code("RESET-#{System.unique_integer([:positive])}")
+      Accounts.authenticate_device_code(device_code.code, user, session(user, %{auth_method: :password}))
+
+      {:ok, _} = Accounts.reset_user_password(reset_password_token(user), %{password: "new valid password"})
+
+      assert conn |> get(~p"/api/auth/device_code/#{device_code.code}") |> json_response(:accepted) == %{}
+    end
   end
 
   describe "POST /api/auth/refresh_token with SSO enforcement" do
@@ -837,6 +885,12 @@ defmodule TuistWeb.API.AuthControllerTest do
 
   defp session(user, auth) do
     user |> Accounts.generate_user_session_token(auth) |> Accounts.get_user_session()
+  end
+
+  defp reset_password_token(user) do
+    {token, user_token} = Accounts.UserToken.build_email_token(user, "reset_password")
+    Repo.insert!(user_token)
+    token
   end
 
   defp device_code_tokens(conn, user, session) do

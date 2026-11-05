@@ -2493,12 +2493,64 @@ defmodule Tuist.Accounts do
 
       session_tokens = Repo.all(UserToken.by_user_and_contexts_query(user, ["session"]))
       Repo.delete_all(UserToken.by_user_and_contexts_query(user, :all))
+      revoke_user_api_credentials(user)
 
       %{
         user: user,
         revoked_session_live_socket_ids: Enum.map(session_tokens, &UserToken.live_socket_id/1)
       }
     end)
+  end
+
+  @doc """
+  Revokes the credentials that act for the user and outlive browser sessions:
+  CLI, app, OAuth and agent tokens, device codes, and the legacy `users.token`.
+
+  `credentials_revoked_at` rejects every user-issued JWT authenticated at or
+  before now (see `credentials_revoked?/2`), including access tokens, which are
+  not stored, and tokens a refresh racing this call mints from a revoked one.
+  The stored refresh tokens and OAuth grants are also deleted or revoked so
+  they stop rotating. Account tokens share `guardian_tokens` with an account
+  ID as `sub`, which can equal a user ID, so they are excluded by their `type`
+  claim. Callers hold the user row lock.
+  """
+  def revoke_user_api_credentials(%User{id: id}) do
+    now = DateTime.utc_now()
+    sub = to_string(id)
+
+    Repo.update_all(from(u in User, where: u.id == ^id),
+      set: [token: Tuist.Tokens.generate_token(), credentials_revoked_at: DateTime.truncate(now, :second)]
+    )
+
+    Repo.delete_all(
+      from(t in "guardian_tokens",
+        where: t.sub == ^sub and fragment("coalesce(?->>'type', '') <> 'account'", t.claims)
+      )
+    )
+
+    Repo.update_all(
+      from(t in Boruta.Ecto.Token,
+        where: t.sub == ^sub and (is_nil(t.revoked_at) or is_nil(t.refresh_token_revoked_at))
+      ),
+      set: [revoked_at: now, refresh_token_revoked_at: now]
+    )
+
+    Repo.delete_all(from(d in DeviceCode, where: d.user_id == ^id))
+    :ok
+  end
+
+  @doc """
+  Whether `claims` were authenticated at or before the user's last credential
+  revocation. Refreshed tokens carry the `auth_time` of the token they replace,
+  so refreshing cannot move a credential past a revocation.
+  """
+  def credentials_revoked?(%User{credentials_revoked_at: nil}, _claims), do: false
+
+  def credentials_revoked?(%User{credentials_revoked_at: revoked_at}, claims) do
+    case Map.get(claims, "auth_time") || Map.get(claims, "iat") do
+      authenticated_at when is_integer(authenticated_at) -> authenticated_at <= DateTime.to_unix(revoked_at)
+      _ -> true
+    end
   end
 
   defp recently_sent_reset_password_instructions?(%User{id: user_id}) do

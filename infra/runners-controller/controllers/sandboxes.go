@@ -25,8 +25,14 @@ import (
 // pools shrink while a carve-out is grown and refill once it shrinks, and it
 // retires idle warm runners on a node whose growth the kubelet deferred for
 // lack of room. Runners executing a job are never chosen.
+//
+// A remote execution worker (infra/helm/remote-execution) on a shared host
+// is a second daemon on the node with its own carve-out. It connects to the
+// server as `<node>.remote-execution`, so its grants carry that name.
 const (
 	sandboxdLabel           = "tuist.dev/sandboxd"
+	executionDaemonLabel    = "tuist.dev/remote-execution-daemon"
+	executionDaemonSuffix   = ".remote-execution"
 	sandboxdContainer       = "sandboxd"
 	preemptedForSandboxes   = "sandboxes"
 	podResizePendingType    = corev1.PodConditionType("PodResizePending")
@@ -45,6 +51,22 @@ type sandboxDaemon struct {
 	// deferred is how many more bytes a growth the kubelet deferred is
 	// waiting for on the node.
 	deferred int64
+	// execution marks a remote execution worker rather than the node's
+	// agent sandbox daemon.
+	execution bool
+}
+
+// grantNode is the name the daemon connects to the server as, which its
+// grants are published under.
+func (d sandboxDaemon) grantNode() string {
+	if d.execution {
+		return d.node + executionDaemonSuffix
+	}
+	return d.node
+}
+
+func isSandboxDaemon(pod *corev1.Pod) bool {
+	return pod.Labels[sandboxdLabel] == "true" || pod.Labels[executionDaemonLabel] == "true"
 }
 
 // sandboxDaemons lists the bound sandbox daemon Pods. The sandboxes namespace
@@ -63,17 +85,18 @@ func listSandboxDaemons(ctx context.Context, reader client.Reader, namespace str
 		return nil, nil
 	}
 	var pods corev1.PodList
-	if err := reader.List(ctx, &pods, client.InNamespace(namespace), client.MatchingLabels{sandboxdLabel: "true"}); err != nil {
+	if err := reader.List(ctx, &pods, client.InNamespace(namespace)); err != nil {
 		return nil, fmt.Errorf("list sandbox daemons: %w", err)
 	}
 	daemons := make([]sandboxDaemon, 0, len(pods.Items))
 	for i := range pods.Items {
 		pod := &pods.Items[i]
-		if pod.Spec.NodeName == "" || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+		if !isSandboxDaemon(pod) || pod.Spec.NodeName == "" || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
 			continue
 		}
 		asked, allocated := daemonMemory(pod)
 		daemon := sandboxDaemon{name: pod.Name, node: pod.Spec.NodeName, memory: max(asked, allocated)}
+		daemon.execution = pod.Labels[executionDaemonLabel] == "true"
 		daemon.terminating = !pod.DeletionTimestamp.IsZero()
 		footprint := podFootprint(pod)
 		daemon.cpuMilli = footprint.Cpu().MilliValue()

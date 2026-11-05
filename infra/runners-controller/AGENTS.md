@@ -222,6 +222,10 @@ cancellable and leaves the reserve intact. See
     Per-node shape caps and reservation calculations subtract the same
     allocation plus the daemon's CPU request, including pending shrinks and
     terminating daemons. Never write the adjusted allocatable back to a Node.
+    Remote execution workers on shared hosts (`tuist.dev/remote-execution-daemon`
+    Pods in the same namespace) are a second daemon per node: they are
+    subtracted the same way, and their grants and revocations are published as
+    `<node>.remote-execution`, the name they connect to the server with.
     See [sharing policy](../sandboxd/fleet-sharing.md) for the proposed
     coordination between CI demand and sandbox growth.
   - macOS: budget = sum of allocatable memory across nodes labeled
