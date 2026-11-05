@@ -94,6 +94,11 @@ func (m *Manager) Archive(ctx context.Context, args protocol.ArchiveArgs) (res p
 	if meta.State != protocol.StatePaused {
 		return res, fmt.Errorf("%w: %s is %s", ErrNotPaused, args.SandboxID, meta.State)
 	}
+	// The archive holds no memory image, so writes still in the guest's
+	// page cache would restore as zeroed blocks.
+	if !meta.DisksSynced {
+		return res, fmt.Errorf("%w: %s", ErrDisksNotSynced, args.SandboxID)
+	}
 
 	sources := make([]archive.Source, 0, len(archivedFiles))
 	for _, name := range archivedFiles {

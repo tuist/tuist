@@ -578,13 +578,12 @@ defmodule Tuist.Sandboxes do
   end
 
   @doc """
-  Pauses a running sandbox. `sync_disks: true` flushes the guest's page
-  cache first, which saving its disks as a disk snapshot requires.
+  Pauses a running sandbox.
   """
-  def pause(%Sandbox{id: id}, opts \\ []) do
+  def pause(%Sandbox{id: id}) do
     with_sandbox_lock(id, fn ->
       with_fresh(id, fn
-        %Sandbox{state: :running} = sandbox -> do_pause(sandbox, opts)
+        %Sandbox{state: :running} = sandbox -> do_pause(sandbox)
         %Sandbox{state: state} -> {:error, {:invalid_state, state}}
       end)
     end)
@@ -607,7 +606,7 @@ defmodule Tuist.Sandboxes do
         with_fresh(sandbox_id, fn
           %Sandbox{state: :running, residency_work_id: nil} = sandbox
           when is_nil(epoch) or sandbox.residency_epoch == epoch ->
-            do_pause(sandbox, [])
+            do_pause(sandbox)
 
           %Sandbox{} ->
             {:ok, :skipped}
@@ -617,13 +616,11 @@ defmodule Tuist.Sandboxes do
     )
   end
 
-  defp do_pause(%Sandbox{state: :running, node_name: node_name} = sandbox, opts) when is_binary(node_name) do
-    args =
-      if Keyword.get(opts, :sync_disks, false),
-        do: %{sandbox_id: sandbox.id, sync_disks: true},
-        else: %{sandbox_id: sandbox.id}
-
-    case Nodes.call(node_name, "pause", args, []) do
+  # Every pause flushes the guest's page cache first: an archive or disk
+  # snapshot keeps only the disks, and the node refuses either one after a
+  # pause that did not sync.
+  defp do_pause(%Sandbox{state: :running, node_name: node_name} = sandbox) when is_binary(node_name) do
+    case Nodes.call(node_name, "pause", %{sandbox_id: sandbox.id, sync_disks: true}, []) do
       {:ok, data} ->
         Logger.info("sandboxes: sandbox paused",
           sandbox_id: sandbox.id,
@@ -643,7 +640,7 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  defp do_pause(%Sandbox{state: :running}, _opts), do: {:error, :no_node}
+  defp do_pause(%Sandbox{state: :running}), do: {:error, :no_node}
 
   @doc """
   Tears the VM down on its node and removes the row. An archived
