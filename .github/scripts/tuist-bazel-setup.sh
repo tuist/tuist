@@ -21,4 +21,8 @@ fi
 endpoint="$(jq -r '.endpoint' <<<"${capabilities}")"
 image="$(jq -r '.image' <<<"${capabilities}")"
 tuist bazel setup --remote-executor "${endpoint}" --execution-image "${image}"
+# A workspace that defines this config registers the execution environment's toolchains with it.
+if grep -q '^build:tuist-remote-execution ' .bazelrc 2>/dev/null; then
+  echo "build --config=tuist-remote-execution" >>.bazelrc.tuist
+fi
 echo "Remote execution: ${endpoint} with image ${image}, up to $(jq -r '.max_concurrency' <<<"${capabilities}") concurrent actions."
