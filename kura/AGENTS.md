@@ -133,7 +133,10 @@ does not repair embedded/native verification or qualify running processes.
   could hash every row it listed and the source's count of retained records
   committed without a feed row (sibling pulls, unfed tombstones), read before
   the walk's first page, is unchanged at begin: begin then answers
-  `barrier_delta` and the frozen source verifies in full only those records.
+  `barrier_delta_records`, the frozen source pages that list from
+  `/_internal/handover/barrier-delta` (bounded pages, held corpus and current
+  intent only) and verifies in full only those records. Keep the list out of
+  begin's answer: other verification answers stay within 16 KiB.
   Staging and commit both move that count, so a record staged before the walk
   and committed after it falls back. The source rejects its barrier if the
   count moves while frozen. Any other case, or an older peer, keeps the

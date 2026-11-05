@@ -337,6 +337,10 @@ fn internal_routes() -> Router<SharedState> {
             post(crate::handover::verify_descriptors),
         )
         .route(
+            "/_internal/handover/barrier-delta",
+            post(crate::handover::barrier_delta),
+        )
+        .route(
             ROUTE_INTERNAL_BACKFILL_ENTRIES,
             get(internal_backfill_entries),
         )
