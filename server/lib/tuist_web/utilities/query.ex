@@ -166,6 +166,24 @@ defmodule TuistWeb.Utilities.Query do
   def positive_integer(value, _default) when is_integer(value) and value > 0, do: value
   def positive_integer(_value, default), do: default
 
+  @doc """
+  Parses a sort-order query parameter into `:asc` or `:desc`, falling back to
+  `default` for anything else. Never convert the raw value with
+  `String.to_atom/1`: atoms are not garbage-collected, so every unique value a
+  client sends would grow the atom table until the VM aborts.
+
+  ## Examples
+
+      iex> TuistWeb.Utilities.Query.sort_order("asc", :desc)
+      :asc
+
+      iex> TuistWeb.Utilities.Query.sort_order("anything", :desc)
+      :desc
+  """
+  def sort_order("asc", _default), do: :asc
+  def sort_order("desc", _default), do: :desc
+  def sort_order(_value, default), do: default
+
   @default_max_page 100
 
   @doc """
