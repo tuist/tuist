@@ -54,10 +54,11 @@
 - Missing cache-volume metadata returns `delete` until the authenticated agent
   reports state `deleted`, then `forget` to release its durable local journal.
 
-- `API.RunnerVolumesController` exposes dashboard volume data and clearing via
-  `Runners.CacheVolumes.Query`. Reads require runners-read; clearing requires
-  account-update. Keep the runners feature flag and no-store responses. This
-  public controller must not expose privileged agent allocation/report methods.
+- `API.RunnerVolumesController` exposes dashboard volume data and deletion via
+  `Runners.CacheVolumes.Query`. Reads require runners-read; deletion requires
+  account-update. Keep the deprecated `POST .../clear` route for released
+  CLIs, the runners feature flag and no-store responses. This public controller
+  must not expose privileged agent allocation/report methods.
 
 - The internal cache-volume image endpoint shares agent authentication and
   node-bound allocation lookup. It serves download/upload/retain/publication

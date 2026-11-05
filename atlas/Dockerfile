@@ -62,7 +62,8 @@ COPY --from=aube-builder /aube/target/release/aube /usr/local/bin/aube
 
 # Install from the manifest alone so the install layer survives source
 # changes, then copy only what the build reads: the web component generator
-# walks components/ and lib/noora/icons/, and esbuild bundles js/ and css/.
+# walks components/ and lib/noora/icons/, reads the RTL-mirrored icon list
+# from lib/noora/icon.ex, and esbuild bundles js/ and css/.
 # A rebuilt stage hands the builder new bytes even when the bundles are the
 # same, so changes to noora's docs, storybook, or tests must not reach it.
 WORKDIR /noora
@@ -71,6 +72,7 @@ RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
 COPY noora/scripts scripts
 COPY noora/components components
 COPY noora/lib/noora/icons lib/noora/icons
+COPY noora/lib/noora/icon.ex lib/noora/icon.ex
 COPY noora/js js
 COPY noora/css css
 RUN aube run build

@@ -63,7 +63,7 @@ struct PreviewRowView: View {
                         Spacer()
                     }
 
-                    Text(preview.displayName ?? "App")
+                    Text(preview.displayName ?? String(localized: "App"))
                         .font(.headline.weight(.medium))
                         .foregroundColor(Noora.Colors.surfaceLabelPrimary)
                         .lineLimit(1)

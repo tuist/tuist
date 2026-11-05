@@ -44,7 +44,8 @@ The design and the alternatives considered are in [`sites.md`](sites.md).
 
 ## Linux cache paths
 
-Linux profiles and legacy labels keep one shared runner pool. Every account uses
+Linux profiles share one runner pool per shape and Ubuntu release
+(`Catalog.pool_name/1`); accounts never get pools of their own. Every account uses
 the existing regional Kura Service directly; vRack enrollment changes transport
 at the host level. Keep profile sizing, fleet accounting and macOS site selection
 independent. Old internal cohort labels remain hidden during rolling upgrades.
@@ -68,3 +69,20 @@ independent. Old internal cohort labels remain hidden during rolling upgrades.
 - `sweep/1` (hourly) deletes abandoned reservations, entries unused for seven
   days and a repository's least recently used entries beyond 50 GB. A stored
   entry's row goes only after its object was deleted.
+
+## Linux OS versions
+
+- A Linux profile's `os_version` selects its pool the way a macOS profile's
+  Xcode does. The catalog default's pools keep the shape-only names; every
+  other release appends its tag (`-ubuntu-22-04`), and
+  `infra/helm/tuist/templates/runner-pool.yaml` applies the same rule. Never
+  rename the default's pools: queued rows name them.
+- Existing profiles are pinned to the release they ran (`ubuntu-24.04`);
+  only new profiles take the default. Moving the default therefore moves no
+  one, and the pinned release's pools gain a suffix in the same deploy, so
+  rewrite unclaimed queued `fleet_name`s with it, as the Xcode retirements do.
+- Helm tells the server only the releases it rendered pools for
+  (`TUIST_RUNNER_LINUX_OS_VERSIONS`). Retiring a release needs a migration
+  moving its profiles and unclaimed queued jobs first; see
+  `infra/linux-runner-image/image-rollout.md`.
+- OS does not change billing: metering is per shape (`billing_multiplier/3`).

@@ -84,4 +84,17 @@ describe("scroll indicators", () => {
       expect(bar.viewport[bar.position]).toBe(400);
     });
   }
+  it("starts the horizontal thumb at the right edge in right-to-left viewports", () => {
+    const bar = setup("horizontal", { autoUpdate: false });
+    bar.viewport.style.direction = "rtl";
+    document.body.appendChild(bar.viewport);
+    bar.viewport.scrollLeft = 0;
+    bar.update();
+    expect(bar.thumb.style.transform).toBe("translateX(76px)");
+    bar.viewport.scrollLeft = -400;
+    bar.update();
+    expect(bar.thumb.style.transform).toBe("translateX(38px)");
+    bar.viewport.remove();
+    bar.destroy();
+  });
 });

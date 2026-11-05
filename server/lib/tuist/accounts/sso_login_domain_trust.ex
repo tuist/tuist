@@ -2,7 +2,9 @@ defmodule Tuist.Accounts.SSOLoginDomainTrust do
   @moduledoc """
   Resolves login-domain trust without persisting instance policy as DNS proof.
   Instances trust saved custom-provider domains by default; requiring DNS
-  verification is an explicit deployment policy.
+  verification is an explicit deployment policy. The operator email domain is
+  never instance-trusted: its accounts reach `/ops`, so a tenant's provider may
+  only assert it after DNS verification.
   """
 
   import Ecto.Query
@@ -19,8 +21,7 @@ defmodule Tuist.Accounts.SSOLoginDomainTrust do
 
   def trust(%Organization{sso_login_domain: domain} = organization) when is_binary(domain) do
     cond do
-      organization.sso_provider in [:okta, :oauth2] and
-          not Environment.sso_require_login_domain_verification?() ->
+      organization.sso_provider in [:okta, :oauth2] and instance_trust_allowed?(domain) ->
         :instance
 
       not is_nil(organization.sso_login_domain_verified_at) ->
@@ -60,9 +61,7 @@ defmodule Tuist.Accounts.SSOLoginDomainTrust do
   def shared_domain?(_organization), do: false
 
   def discover(domain) when is_binary(domain) do
-    if Environment.sso_require_login_domain_verification?() do
-      :unbound
-    else
+    if instance_trust_allowed?(domain) do
       organizations =
         Repo.all(
           from(o in Organization,
@@ -85,8 +84,15 @@ defmodule Tuist.Accounts.SSOLoginDomainTrust do
         _ ->
           {:error, :login_domain_ambiguous}
       end
+    else
+      :unbound
     end
   end
 
   def discover(_domain), do: :unbound
+
+  defp instance_trust_allowed?(domain) do
+    not Environment.sso_require_login_domain_verification?() and
+      domain != String.downcase(Environment.operator_email_domain())
+  end
 end

@@ -9,6 +9,8 @@
 
 Pick the path that matches how your app is built today. Each one walks through what to install, how to enable caching, insights, and testing features, and how to verify the setup end-to-end. You can adopt them independently, or combine them if you ship on more than one platform.
 
+Before any of these, <.localized_link href="/guides/install-tuist">install the Tuist command-line interface</.localized_link>. Elixir projects are the exception: the Hex package is all they need.
+
 ## Xcode project {#existing-xcode-project}
 
 Keep your existing Xcode project or workspace and add Tuist capabilities one at a time. No project generation required.
@@ -44,5 +46,3 @@ Run Cargo through the Tuist CLI to report builds and individual test results, in
 Point a Bazel workspace at Tuist's Remote Execution API cache and Build Event Service to share cache hits and insights across your team and CI.
 
 <.localized_link href="/guides/get-started/bazel-project">Start with a Bazel project →</.localized_link>
-
-Before any of these, <.localized_link href="/guides/install-tuist">install the Tuist command-line interface</.localized_link>. Elixir projects are the exception: the Hex package is all they need.

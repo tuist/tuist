@@ -1,0 +1,356 @@
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"%@ simulator" = "%@ simulator";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"AI subscriptions" = "AI subscriptions";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Access token or refresh token missing from response" = "Access token or refresh token missing from response";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All" = "All";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All tracks" = "All tracks";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Device" = "Android Device";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Emulator" = "Android Emulator";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Android Emulators" = "Android Emulators";
+
+/* TuistPreviews/PreviewView/PreviewViewHeader.swift, TuistPreviews/PreviewsView/PreviewRowView.swift */
+"App" = "App";
+
+/* TuistProfile/ProfileView.swift */
+"App version" = "App version";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Apple Sign In failed" = "Apple Sign In failed";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Apps in" = "Apps in";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Are you sure you want to delete this preview? This action cannot be undone." = "Are you sure you want to delete this preview? This action cannot be undone.";
+
+/* TuistProfile/ProfileView.swift */
+"Are you sure you want to delete your account? This action cannot be undone." = "Are you sure you want to delete your account? This action cannot be undone.";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Authorization code not found" = "Authorization code not found";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Branch" = "Branch";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Bundle identifier" = "Bundle identifier";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/AISubscriptionsSection.swift, TuistProfile/ProfileView.swift */
+"Cancel" = "Cancel";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Check for updates" = "Check for updates";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Commit SHA" = "Commit SHA";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect" = "Connect";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect ChatGPT" = "Connect ChatGPT";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect Claude" = "Connect Claude";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features." = "Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Connected" = "Connected";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Copy code" = "Copy code";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy identifier" = "Copy identifier";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy name" = "Copy name";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find APK file in the downloaded archive" = "Could not find APK file in the downloaded archive";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find app bundle in the downloaded archive" = "Could not find app bundle in the downloaded archive";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "Couldn't install the app for %@ as it doesn't include any valid app builds.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created at" = "Created at";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created by" = "Created by";
+
+/* TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Delete" = "Delete";
+
+/* TuistProfile/ProfileView.swift */
+"Delete Account" = "Delete Account";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete Preview" = "Delete Preview";
+
+/* TuistProfile/ProfileView.swift */
+"Delete account" = "Delete account";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete preview" = "Delete preview";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Details" = "Details";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Devices" = "Devices";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect" = "Disconnect";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect subscription" = "Disconnect subscription";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Disconnected" = "Disconnected";
+
+/* TuistProfile/ProfileView.swift */
+"Email" = "Email";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "Enter a valid HTTPS server URL without credentials, a query, or a fragment.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Enter the code on the OpenAI sign-in page. This screen closes once you approve it." = "Enter the code on the OpenAI sign-in page. This screen closes once you approve it.";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Error" = "Error";
+
+/* TuistMenuBar/StatusView.swift */
+"Finished" = "Finished";
+
+/* TuistProfile/ProfileView.swift */
+"Get help" = "Get help";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"Install latest previews with one click." = "Install latest previews with one click.";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installation failed" = "Installation failed";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@" = "Installed %@";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@@%@" = "Installed %@@%@";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installing preview" = "Installing preview";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid callback URL received" = "Invalid callback URL received";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid response format" = "Invalid response format";
+
+/* TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Launch" = "Launch";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Launching preview" = "Launching preview";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Log out" = "Log out";
+
+/* TuistMenuBar/Views/MenuBarView/MenuHeader.swift */
+"Logged out" = "Logged out";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Missing Apple credentials from authorization" = "Missing Apple credentials from authorization";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"No Previews" = "No Previews";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No Tuist projects found" = "No Tuist projects found";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews found" = "No previews found";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews match your filters" = "No previews match your filters";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Ok" = "Ok";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Open the OpenAI sign-in page" = "Open the OpenAI sign-in page";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Other devices" = "Other devices";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Pin" = "Pin";
+
+/* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews" = "Previews";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews: %lld" = "Previews: %lld";
+
+/* TuistProfile/ProfileView.swift */
+"Privacy Policy" = "Privacy Policy";
+
+/* TuistApp/TuistApp.swift */
+"Profile" = "Profile";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your previews." = "Pull down to refresh your previews.";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your projects." = "Pull down to refresh your projects.";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Quit Tuist" = "Quit Tuist";
+
+/* TuistMenuBar/StatusView.swift */
+"Ready" = "Ready";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Release notes" = "Release notes";
+
+/* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
+"Run" = "Run";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Run claude setup-token in a terminal and paste the token it prints." = "Run claude setup-token in a terminal and paste the token it prints.";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Search" = "Search";
+
+/* TuistOnboarding/SelfHostedServerAlert.swift */
+"Self-hosted" = "Self-hosted";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Self-hosted server" = "Self-hosted server";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Share logs" = "Share logs";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Sign in" = "Sign in";
+
+/* TuistOnboarding/LogInView.swift */
+"Sign in to access your projects and\ncollaborate with your team" = "Sign in to access your projects and\ncollaborate with your team";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift */
+"Sign in to run previews" = "Sign in to run previews";
+
+/* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Apple" = "Sign in with Apple";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with GitHub" = "Sign in with GitHub";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Google" = "Sign in with Google";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Tuist" = "Sign in with Tuist";
+
+/* TuistProfile/ProfileView.swift */
+"Sign out" = "Sign out";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Simulators" = "Simulators";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Subscription token" = "Subscription token";
+
+/* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
+"Supported platforms" = "Supported platforms";
+
+/* TuistProfile/ProfileView.swift */
+"Terms of Service" = "Terms of Service";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The app preview %@ was not found." = "The app preview %@ was not found.";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The latest preview for %@ was not found. Has any preview been published?" = "The latest preview for %@ was not found. Has any preview been published?";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The preview %@ does not have a package name set." = "The preview %@ does not have a package name set.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"The preview deeplink %@ is invalid." = "The preview deeplink %@ is invalid.";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The server returned a preview page that did not advance. Update your server or try again." = "The server returned a preview page that did not advance. Update your server or try again.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"The sign-in expired. Close this screen and connect again." = "The sign-in expired. Close this screen and connect again.";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks.";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "This server does not support searching previews. Update your self-hosted Tuist server, or clear the search.";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "This server doesn't support signing in from the Tuist app. Ask your administrator to update it.";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"To run a preview, you must have a simulator selected." = "To run a preview, you must have a simulator selected.";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Token exchange failed with status code: %lld" = "Token exchange failed with status code: %lld";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Track" = "Track";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Tracks" = "Tracks";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Try a different search or select another track." = "Try a different search or select another track.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Tuist will delete the saved %@ credentials." = "Tuist will delete the saved %@ credentials.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Unavailable" = "Unavailable";
+
+/* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
+"Unknown" = "Unknown";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Unpin" = "Unpin";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Update your self-hosted Tuist server to select a track." = "Update your self-hosted Tuist server to select a track.";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Use the root address of your Tuist server" = "Use the root address of your Tuist server";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Welcome to Tuist" = "Welcome to Tuist";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"or" = "or";

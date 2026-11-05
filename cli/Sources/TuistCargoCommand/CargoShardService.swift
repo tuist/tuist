@@ -54,7 +54,8 @@ struct CargoShardService {
             fullHandle: fullHandle, serverURL: serverURL, reference: reference, modules: inventory.modules,
             parallelizableModules: nil, testSuites: nil, skippedTestSuites: nil,
             shardMin: options["--shard-min"], shardMax: options["--shard-max"], shardTotal: options["--shard-total"],
-            shardMaxDuration: options["--shard-max-duration"], shardGranularity: .module, buildRunId: nil, gitBranch: nil
+            shardMaxDuration: options["--shard-max-duration"], shardGranularity: .module, buildRunId: nil, gitBranch: nil,
+            testImpactRunId: nil
         )
         if environment["TUIST_TEST_SHARD_ARCHIVE_PATH"] == nil {
             try await upload(archive, planID: plan.id, reference: reference, fullHandle: fullHandle, serverURL: serverURL)

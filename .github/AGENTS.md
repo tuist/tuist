@@ -413,21 +413,25 @@ off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage of `tuist/tuist` comes
 from `tuist-project-tests.yml` (`tuist/tuist Tests`), which runs every macOS `tuist test` of the
 CLI and the app (cli.yml and app.yml keep builds, lint and the Linux suite). On
-a pull request the unit and app tests run selectively, acceptance as before, and
-`coverage-complete` runs `tuist coverage complete` once the unit and app tests
-finished, whatever their result (not on drafts or forks). On a push to main the
+a pull request the unit, app and acceptance tests run selectively, and
+`coverage-complete` runs `tuist coverage complete` once all three finished,
+whatever their result (not on drafts or forks). On a push to main the
 `cache` job warms the binary cache first, uploading the compilation-cache plugin's `cas.log`
 and the CLI session logs when it fails, then the unit and app tests run in full
 (`--no-selective-testing`) and `coverage-complete`
-follows when both passed. The unit and app tests record per-target evidence on both,
-which the CLI reads from Xcode's raw profiles (the targets don't link
-TestCoverageAttribution, so there is no per-test evidence): the server carries
-targets selective testing skipped only from runs that recorded evidence, main's
-full runs for every selective run and a pull request's own runs for its later
-pushes. Targets are carried only whole: a skipped target no run recorded
-under the same hash (or whose source run fails the server's checks) has no
-per-test fallback, and neither do tests skipped by identifier
-(`--skip-test-targets`, `-skip-testing`), so both stay gaps (`not_linked`).
+follows when both passed and the selective acceptance run has finished. The unit, app and acceptance tests record per-target evidence,
+which the CLI reads from Xcode's raw profiles: the server carries
+targets selective testing skipped only from runs that recorded evidence under
+the same hash: main's runs (full for unit and app, selective for acceptance)
+for every selective run and a pull request's own runs for its later pushes.
+The CLI's unit test targets and the app's `TuistMenuBarTests` also
+link TestCoverageAttribution (as a dynamic framework), so their XCTest tests
+record per-test evidence: when a
+skipped target has no such same-hash run (or it fails the server's checks),
+those tests still carry one by one from the latest run whose executed files
+match, and so do tests skipped by identifier (`--skip-test-targets`,
+`-skip-testing`). Acceptance and Swift Testing tests have no per-test evidence,
+so in those cases they stay gaps (`not_linked`).
 Quarantined tests are outside the figure either way. Every merge runs on its own (no queue); a new push to a
 pull request cancels its run in progress, so a superseded commit is never
 signalled. The default checkout is enough: every job of a run reports the same
@@ -438,7 +442,7 @@ full run of an earlier commit on main, tested with main's `mise.toml`. The
 selective runs upload coverage too; the server drops from their skips whatever a
 full run of the scheme at the commit executed. The coverage settings are set once, in the
 root `Tuist.swift`'s `coverage: .coverage(enabled: true, prefixMapping: true)`
-(behind the root `mise.toml`'s `TUIST_FEATURE_FLAG_COVERAGE`), so every job and
+and `testInsights: .testInsights(coverage: .coverage(upload: true))`, so every job and
 every developer resolve the same variant and the same prefix mapping; both are
 hashed into binary-cache and selective-testing keys, so never override them per
 step with `TUIST_COVERAGE_ENABLED` or `TUIST_COVERAGE_PREFIX_MAPPING`. The test runs pass no
@@ -600,7 +604,10 @@ covered only by the production schedule.
   GitHub-hosted publication-window jobs. Require every phase in `gate.sh`,
   including final reuse, and pass the deploy's intended Linux image digest
   before staging holds. A mounted cache, correct compile output and actual
-  cross-job layer/mutable-cache reuse are mandatory. The 120-second pauses are
+  cross-job layer/mutable-cache reuse are mandatory. The Build jobs and their
+  callers grant `id-token: write` so the job-started hook binds the pod through
+  its OIDC token; without it binding races GitHub's webhook and API within the
+  agent's 25-second wait and the attach fails as `timeout`. The 120-second pauses are
   allowances, not publication proof; slow publication fails rather than retries.
   Keep production's scheduled probes usable while its Docker cache is disabled.
 - Health checks are not enough: a Kura that cannot reach the server's token

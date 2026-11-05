@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "eabfa2c91858e893c22a2d7df8a5e529ef5737ecd221cf69aadeb721dd7f37b1",
+  "hash": "3c5faaf60c7a40921add87572f52b43116344fbb5a962be47b6b2f641285fd87",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Test Insights {#test-insights}": {
-                  "content_hash": "6c2e61d2571dab4512f87bba992b494f16908661a605dd1f754b557bdf47c046"
+                  "content_hash": "16e9c7b1b5e944555f4ab13ea17222bbb16c23c3d98aa14a980a16aec3a4eb4d"
                 },
                 "Preamble": {
                   "content_hash": "f4b965eb4565f658590e6db5fa9ecd8002dca9b27c8861d9ce968051c8f728c2"
@@ -20,11 +20,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "dacfba9619eaf7b9ba3cb943c5a4fb7a1d147338788ffe3a4e7a484137168a86",
+          "hash": "d716e925f3966e44c56fe3b2f88d5bb01515be9603e534e0c9efe42c93664861",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights.md",
           "metadata": {
-            "content_hash": "a29690ff4e929a2e9b2528bce69b11940a339e305b2b7ce50e74ffd5a6443b10"
+            "content_hash": "9c3ff967ed343c804ff74e57907ba85f7380baf8dc0442a935b52e74b669c2cf"
           }
         },
         {
@@ -233,14 +233,14 @@
         }
       ],
       "details": {},
-      "hash": "eabfa2c91858e893c22a2d7df8a5e529ef5737ecd221cf69aadeb721dd7f37b1",
+      "hash": "3c5faaf60c7a40921add87572f52b43116344fbb5a962be47b6b2f641285fd87",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "9b556bcb111f8d2ab7d8b1fdcc9cca3730811b35becd23b6d48873a1e905d0c2",
+  "output_hash": "232e199fbdd1859f7a10718efdbe984b7f9286db411332d3f830fc96211d7b70",
   "output_path": "server/priv/docs/ja/guides/features/test-insights.md",
   "protection_state": "recorded",
   "provider": "",
@@ -262,8 +262,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "7a484041d7b5ba8b1c69eabc1dfec14c4763f258",
+  "source_commit_sha": "5d3b71d287f98022f86e99d1cecc81e4bafb3d65",
   "source_path": "server/priv/docs/en/guides/features/test-insights.md",
-  "translated_at": "2026-11-02T14:35:47.748109Z",
-  "translation_session_id": "01a19cab-55ad-799c-80bc-aed3e71e4bd0"
+  "translated_at": "2026-11-03T22:18:51.708078Z",
+  "translation_session_id": "01a1a37c-d07a-7871-8ca2-a48fe94f6976"
 }

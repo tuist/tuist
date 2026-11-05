@@ -54,6 +54,7 @@ defmodule Atlas.MixProject do
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:swoosh, "~> 1.16"},
+      {:gen_smtp, "~> 1.3"},
       {:mdex, "~> 0.13.0"},
       {:lumis, "~> 0.1"},
       {:req, "~> 0.6"},

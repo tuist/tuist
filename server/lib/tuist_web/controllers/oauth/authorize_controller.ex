@@ -8,20 +8,29 @@ defmodule TuistWeb.Oauth.AuthorizeController do
   alias Boruta.Oauth.AuthorizeResponse
   alias Boruta.Oauth.Error
   alias Boruta.Oauth.ResourceOwner
+  alias Tuist.Accounts.UserToken
   alias TuistWeb.Errors.BadRequestError
 
   require Logger
 
   @max_state_length 10_000
 
+  plug TuistWeb.Plugs.OAuthRequestObjectPlug when action == :authorize
+
   def authorize(%Plug.Conn{assigns: %{current_user: %Tuist.Accounts.User{} = current_user}} = conn, params) do
     :ok = validate_state_length!(params)
 
     case params["response_type"] do
       "code" ->
+        # The authorization code, and the tokens exchanged for it, carry the
+        # SSO sign-in of this session (see `Tuist.OAuth.TokenGenerator`).
         Oauth.authorize(
           conn,
-          %ResourceOwner{sub: to_string(current_user.id), username: current_user.email},
+          %ResourceOwner{
+            sub: to_string(current_user.id),
+            username: current_user.email,
+            extra_claims: UserToken.sso_claims(conn.assigns[:current_user_session])
+          },
           __MODULE__
         )
 

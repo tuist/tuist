@@ -542,12 +542,15 @@ defmodule Tuist.Authorization.ChecksTest do
       assert Checks.internal_ops_access(operator, :ops) == true
     end
 
-    test "returns true on a self-hosted instance for an operator-domain user (no Google check)" do
+    test "returns true on a self-hosted instance for a user in the configured operator domain (no Google check)" do
       stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Environment, :operator_email_domain, fn -> "example.com" end)
+      stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
 
       operator =
         AccountsFixtures.user_fixture(
-          email: "operator-#{TuistTestSupport.Utilities.unique_integer()}@tuist.dev",
+          email: "operator-#{TuistTestSupport.Utilities.unique_integer()}@example.com",
+          email_verified_at: ~U[2026-11-01 00:00:00Z],
           preload: [:account]
         )
 

@@ -18,12 +18,21 @@ import TuistHTTP
         public let partial: Bool
         public let files: [XcodeCoverageFile]?
         public let storageKey: String?
+        /// The platform the tests ran on (`ios`, `macos`, …).
+        public let platform: String?
 
-        public init(tool: String, partial: Bool, files: [XcodeCoverageFile]? = nil, storageKey: String? = nil) {
+        public init(
+            tool: String,
+            partial: Bool,
+            files: [XcodeCoverageFile]? = nil,
+            storageKey: String? = nil,
+            platform: String? = nil
+        ) {
             self.tool = tool
             self.partial = partial
             self.files = files
             self.storageKey = storageKey
+            self.platform = platform
         }
     }
 #endif

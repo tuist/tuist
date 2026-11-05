@@ -21,24 +21,14 @@ struct BinaryCacheCoverageResolutionTests {
     ])
     func resolvesTheEnvironmentThenTheConfig(variable: String?, option: Bool, expected: BinaryCacheCoverage) throws {
         let environment = try #require(Environment.mocked)
-        environment.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
         environment.variables["TUIST_COVERAGE_ENABLED"] = variable
 
         #expect(BinaryCacheCoverage.resolved(config: config(coverage: option)) == expected)
     }
 
     @Test(.withMockedEnvironment())
-    func staysOff_withoutTheFeatureFlag() throws {
-        let environment = try #require(Environment.mocked)
-        environment.variables["TUIST_COVERAGE_ENABLED"] = "1"
-
-        #expect(BinaryCacheCoverage.resolved(config: config(coverage: true)) == .off)
-    }
-
-    @Test(.withMockedEnvironment())
     func staysOff_forProjectsThatAreNotGenerated() throws {
         let environment = try #require(Environment.mocked)
-        environment.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
 
         #expect(BinaryCacheCoverage.resolved(config: .test(project: .testXcodeProject())) == .off)
     }

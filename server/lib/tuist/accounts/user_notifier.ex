@@ -8,7 +8,9 @@ defmodule Tuist.Accounts.UserNotifier do
 
   alias Tuist.Accounts.User
   alias Tuist.Environment
+  alias Tuist.Locale
   alias Tuist.Mailer
+  alias Tuist.Runners.Allowance
   alias Tuist.Utilities.ByteFormatter
 
   # Delivers the email using the application mailer.
@@ -161,7 +163,7 @@ defmodule Tuist.Accounts.UserNotifier do
 
     """
     <!DOCTYPE html>
-    <html lang="#{String.replace(locale, "_", "-")}">
+    <html lang="#{String.replace(locale, "_", "-")}" dir="#{Locale.direction(locale)}">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -652,7 +654,14 @@ defmodule Tuist.Accounts.UserNotifier do
   end
 
   defp air_usage_label(:runner_minutes, usage, limit),
-    do: dgettext("dashboard_account", "%{usage} of %{limit} baseline runner minutes used", usage: usage, limit: limit)
+    do:
+      dgettext(
+        "dashboard_account",
+        "%{usage} of %{limit} free runner minutes used, counted in macOS minutes (%{linux} Linux minutes count as %{limit})",
+        usage: delimit(usage),
+        limit: delimit(limit),
+        linux: delimit(Allowance.free_monthly_minutes(:linux))
+      )
 
   defp air_usage_label(:cache_egress_megabytes, usage, limit) do
     dgettext("dashboard_account", "%{usage} of %{limit} of cache egress used",

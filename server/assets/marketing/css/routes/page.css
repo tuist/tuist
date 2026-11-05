@@ -94,7 +94,7 @@
         /* Media hangs past the 650px text column to the blog post's 780px. */
         & img,
         & video {
-          margin-left: calc((650px - 780px) / 2);
+          margin-inline-start: calc((650px - 780px) / 2);
           width: 780px;
           max-width: 780px;
         }

@@ -210,6 +210,7 @@ side-by-side under their respective tags, and the customer
 fleet's profile picker chooses between them.
 
 The current Tahoe-era profile set is:
+- `:27-3-beta` (channel `:27-3-beta`)
 - `:27-2` (stable; the `:27-2-beta` channel and its beta tags remain in
   GHCR, but are no longer an active runner profile)
 - `:27-1` (stable; historical RC base and `.xip` tags remain in GHCR,

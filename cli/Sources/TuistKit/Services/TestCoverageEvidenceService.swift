@@ -8,6 +8,7 @@ import TuistEnvironment
 import TuistLogging
 import TuistProcess
 import TuistXCResultService
+import XcodeGraph
 import XCResultParser
 
 /// A run that collects per-test coverage evidence: where the test processes write, and the
@@ -41,10 +42,31 @@ public enum TestCoverageEvidencePlatform: Equatable, Sendable {
     }
 }
 
+extension XcodeGraph.Platform {
+    /// The platform an xcodebuild `-destination` value runs tests on, a simulator's or a device's
+    /// alike (`platform=iOS Simulator,…` and `generic/platform=iOS` are both iOS); nil when it
+    /// names none Tuist knows.
+    public init?(xcodebuildDestination destination: String) {
+        let value = destination.split(separator: ",").lazy.compactMap { component -> String? in
+            let pair = component.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+            guard pair.count == 2, pair[0].lowercased().hasSuffix("platform") else { return nil }
+            return pair[1].lowercased()
+        }.first
+        switch value?.replacingOccurrences(of: " simulator", with: "") {
+        case "ios": self = .iOS
+        case "macos", "os x": self = .macOS
+        case "tvos": self = .tvOS
+        case "watchos": self = .watchOS
+        case "visionos", "xros": self = .visionOS
+        default: return nil
+        }
+    }
+}
+
 /// Collects which files each test executed (`TestCoverageEvidence`).
 ///
-/// Collected whenever the run uploads coverage (`UploadResultBundleService.uploadsCoverage`,
-/// behind the `COVERAGE` client flag). Each test target's own evidence, everything its processes
+/// Collected whenever the run uploads coverage (`UploadResultBundleService.uploadsCoverage`).
+/// Each test target's own evidence, everything its processes
 /// executed, comes from the raw profiles Xcode writes per test process
 /// (`TestTargetProcessCoverage`), so every target has it. Per-test and per-suite evidence needs
 /// the test targets to link the TestCoverageAttribution package
@@ -135,7 +157,10 @@ public struct TestCoverageEvidenceService: TestCoverageEvidenceServicing {
             // what it wrote there when recording fails.
             let processes = try FileManager.default
                 .contentsOfDirectory(at: URL(fileURLWithPath: session.directory.pathString), includingPropertiesForKeys: nil)
-            let productsDirectories = Self.productsDirectories(derivedDataDirectory: derivedDataDirectory)
+            let productsDirectories = Self.productsDirectories(
+                derivedDataDirectory: derivedDataDirectory,
+                testProductsPath: await RunMetadataStorage.current.testProductsPath
+            )
             let outputs = processes
                 .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("images.tsv").path) }
                 .compactMap { try? CoverageObserverOutput(directory: $0) }
@@ -511,11 +536,14 @@ extension TestCoverageEvidenceService {
             .first { FileManager.default.fileExists(atPath: $0) }
     }
 
-    private static func productsDirectories(derivedDataDirectory: AbsolutePath?) -> [String] {
-        guard let derivedDataDirectory else { return [] }
-        let products = derivedDataDirectory.appending(components: "Build", "Products").pathString
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: products)) ?? []
-        return names.sorted().map { (products as NSString).appendingPathComponent($0) }
+    /// Each configuration's products directory: the derived data's, and, for a run without
+    /// building, the `.xctestproducts` bundle's, since the derived data then holds no products.
+    static func productsDirectories(derivedDataDirectory: AbsolutePath?, testProductsPath: AbsolutePath?) -> [String] {
+        CoverageExportService.productRoots(derivedDataDirectory: derivedDataDirectory, testProductsPath: testProductsPath)
+            .flatMap { root in
+                let names = (try? FileManager.default.contentsOfDirectory(atPath: root.pathString)) ?? []
+                return names.sorted().map { root.appending(component: $0).pathString }
+            }
     }
 
     /// The test module a bundle's executable belongs to: the bundle's name, as XCTest names it

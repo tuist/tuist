@@ -247,9 +247,9 @@ body {
   gap: var(--noora-spacing-2);
   box-sizing: border-box;
   margin-top: 0;
-  margin-right: 0;
+  margin-inline-end: 0;
   margin-bottom: 0;
-  margin-left: 0;
+  margin-inline-start: 0;
   background: var(--noora-surface-background-primary);
   padding: 0px;
   overflow-x: clip;

@@ -39,6 +39,10 @@ defmodule TuistWeb.UserPasskeyControllerTest do
 
     assert Phoenix.Flash.get(registered.assigns.flash, :info) == "Passkey added."
 
+    settings = registered |> recycle() |> get(~p"/users/settings/mfa") |> html_response(200)
+    assert settings =~ "Passkey added."
+    assert settings =~ "MacBook"
+
     # Enabling the authenticator app afterwards must not make passkey sign-in
     # ask for a code: a user-verified passkey is already multi-factor.
     enable_mfa(user, now)
@@ -110,6 +114,7 @@ defmodule TuistWeb.UserPasskeyControllerTest do
 
     pending = login(user)
     assert redirected_to(pending) == ~p"/users/mfa"
+    assert pending |> recycle() |> get(~p"/users/mfa") |> html_response(200) =~ "Use a passkey"
 
     # MFA passkey options require a pending challenge in this browser.
     assert build_conn() |> post(~p"/users/mfa/passkey/options") |> json_response(404)
@@ -179,8 +184,12 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     authenticator = authenticator()
     signed_in = login(user)
     register(signed_in, authenticator, "MacBook")
+    assert build_conn() |> get(~p"/users/log_in") |> html_response(200) =~ "passkey-login"
+    assert signed_in |> recycle() |> get(~p"/users/settings/mfa") |> html_response(200) =~ "Add a passkey"
     stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
 
+    refute build_conn() |> get(~p"/users/log_in") |> html_response(200) =~ "passkey-login"
+    refute signed_in |> recycle() |> get(~p"/users/settings/mfa") |> html_response(200) =~ "Add a passkey"
     assert build_conn() |> post(~p"/users/log_in/passkey/options") |> response(404)
     assert signed_in |> recycle() |> post(~p"/users/settings/passkeys/options") |> response(404)
 

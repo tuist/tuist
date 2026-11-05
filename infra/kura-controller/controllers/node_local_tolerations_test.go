@@ -57,10 +57,10 @@ func TestNodeLocalTolerationsAdoption(t *testing.T) {
 				for _, key := range []string{corev1.TaintNodeNotReady, corev1.TaintNodeUnreachable} {
 					protected := false
 					for _, tol := range sts.Spec.Template.Spec.Tolerations {
-						if tol.ToleratesTaint(&corev1.Taint{Key: key, Effect: corev1.TaintEffectNoSchedule}) {
+						if toleratesTaint(tol, &corev1.Taint{Key: key, Effect: corev1.TaintEffectNoSchedule}) {
 							t.Fatal("allowed scheduling on an unavailable node")
 						}
-						if tol.ToleratesTaint(&corev1.Taint{Key: key, Effect: corev1.TaintEffectNoExecute}) {
+						if toleratesTaint(tol, &corev1.Taint{Key: key, Effect: corev1.TaintEffectNoExecute}) {
 							// Kubernetes uses the first matching toleration.
 							protected = tol.TolerationSeconds == nil
 							break
@@ -149,7 +149,7 @@ func TestNodeLocalTolerationsExplicitDeadlineReplacesRetainedDefault(t *testing.
 	got := nodeLocalTolerations(instance, sts)
 	matches := 0
 	for _, tol := range got {
-		if !tol.ToleratesTaint(&corev1.Taint{Key: corev1.TaintNodeUnreachable, Effect: corev1.TaintEffectNoExecute}) {
+		if !toleratesTaint(tol, &corev1.Taint{Key: corev1.TaintNodeUnreachable, Effect: corev1.TaintEffectNoExecute}) {
 			continue
 		}
 		matches++
@@ -172,13 +172,13 @@ func TestNodeLocalTolerationsRespectExplicitPolicy(t *testing.T) {
 		got := nodeLocalTolerations(instance, &appsv1.StatefulSet{})
 		count := 0
 		for _, tol := range got {
-			if tol.ToleratesTaint(&corev1.Taint{Key: corev1.TaintNodeUnreachable, Effect: corev1.TaintEffectNoExecute}) {
+			if toleratesTaint(tol, &corev1.Taint{Key: corev1.TaintNodeUnreachable, Effect: corev1.TaintEffectNoExecute}) {
 				count++
 				if !reflect.DeepEqual(tol, explicit) {
 					t.Fatalf("overrode explicit eviction policy: %#v", tol)
 				}
 			}
-			if tol.ToleratesTaint(&corev1.Taint{Key: corev1.TaintNodeUnreachable, Effect: corev1.TaintEffectNoSchedule}) {
+			if toleratesTaint(tol, &corev1.Taint{Key: corev1.TaintNodeUnreachable, Effect: corev1.TaintEffectNoSchedule}) {
 				t.Fatal("allowed scheduling on an unreachable node")
 			}
 		}

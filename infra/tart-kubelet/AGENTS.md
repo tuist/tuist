@@ -361,6 +361,15 @@ workflow code runs in the guest. Never expose host credentials or masters.
   Run the real-tools test with `TUIST_CHECKOUT_E2E=1 go test -run CheckoutMasterEndToEnd .` in
   `infra/runner-cache`; the podagent tests cover the mailbox and collection.
 
+## macOS sandboxes
+
+For flag-controlled native sandbox placement, capacity, recovery and rollout,
+read [macOS sandbox operation](macos-sandboxes.md). Pods and RunnerPools
+labelled `tuist.dev/macos-sandbox-warm=true` belong to the sandbox service:
+podagent, the prewarmer and image GC must never launch or stage them as CI.
+Keep sandbox save/restore work outside the single Pod reconcile worker, and never
+treat a suspend CLI exit or snapshot file alone as released capacity.
+
 ## Tart versions
 
 The operator installs Tart in place (see

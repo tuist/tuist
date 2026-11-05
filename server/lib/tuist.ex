@@ -179,6 +179,9 @@ defmodule Tuist do
       Tests.Coverage.Workers.CommitWorker,
       Tests.CoverageCommit,
       Tests.TestRunStressCandidate,
+      TestImpactAnalysis.Baselines,
+      TestImpactAnalysis.Runs,
+      TestImpactAnalysis.Storage,
       Shards,
       Shards.Analytics,
       Shards.ShardPlan,
@@ -186,6 +189,7 @@ defmodule Tuist do
       Shards.ShardPlanTestSuite,
       Shards.ShardRun,
       MCP.Server,
+      MCP.WebMCP,
       MCP.Transport.StreamableHTTP,
       # App
       # -----
@@ -198,6 +202,7 @@ defmodule Tuist do
       Accounts.Organization,
       Accounts.AuthenticatedAccount,
       Accounts.AccountToken,
+      Accounts.AISubscriptions,
       Accounts.User,
       Accounts.UserMFA,
       Accounts.UserPasskey,
@@ -223,6 +228,8 @@ defmodule Tuist do
       Artifacts,
       Artifacts.Package,
       Projects,
+      Push,
+      Notifications,
       Projects.Project,
       Accounts.OIDCTrustPolicy,
       Projects.Workers.CleanProjectWorker,
@@ -312,6 +319,7 @@ defmodule Tuist do
       # Firecracker sandboxes for coding-agent sessions (control plane
       # for infra/sandboxd; see lib/tuist/sandboxes/AGENTS.md).
       Sandboxes,
+      RemoteExecution,
       Sandboxes.AtlasIdentity,
       Sandboxes.ProviderEnvironments,
       Sandboxes.AmpIntegrations,
@@ -320,10 +328,14 @@ defmodule Tuist do
       Sandboxes.AgentEnvironment,
       Sandboxes.AgentSession,
       Sandboxes.Anthropic.Client,
+      Sandboxes.Analytics,
       Sandboxes.Concurrency,
       Sandboxes.Nodes,
+      Sandboxes.Pricing,
+      Sandboxes.Query,
       Sandboxes.Router,
       Sandboxes.Sandbox,
+      Sandboxes.Schemas,
       # Customer-runner pool. The Tuist GitHub App fires
       # `workflow_job: queued` events into the webhook controller,
       # which delegates to Tuist.Runners.Dispatch; the

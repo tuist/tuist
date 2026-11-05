@@ -456,13 +456,19 @@ defmodule Tuist.Runners.Jobs do
   `{:error, :not_found}` when none does (delivery race where
   `completed` arrives before `queued`).
 
+  With `account_id:`, a row owned by another account is left untouched
+  and `{:error, :account_mismatch}` is returned.
+
   Per-step data lives in `runner_job_steps`; the caller writes it
   via `Tuist.Runners.JobSteps.record/1` before invoking this.
   """
-  def complete(workflow_job_id, conclusion) when is_integer(workflow_job_id) and is_binary(conclusion) do
+  def complete(workflow_job_id, conclusion, opts \\ []) when is_integer(workflow_job_id) and is_binary(conclusion) do
+    account_id = Keyword.get(opts, :account_id)
+
     with_workflow_job_ordering_lock(workflow_job_id, fn ->
       case Repo.get(WorkflowJob, workflow_job_id) do
         nil -> {:error, :not_found}
+        %WorkflowJob{account_id: owner} when not is_nil(account_id) and owner != account_id -> {:error, :account_mismatch}
         %WorkflowJob{} = row -> complete_locked(row, conclusion)
       end
     end)

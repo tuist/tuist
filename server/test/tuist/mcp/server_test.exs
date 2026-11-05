@@ -47,7 +47,11 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_runner_volume_jobs" in tool_names
       assert "list_runner_job_volumes" in tool_names
       assert "get_runner_volume_analytics" in tool_names
-      assert "clear_runner_volume" in tool_names
+      assert "delete_runner_volume" in tool_names
+      refute "clear_runner_volume" in tool_names
+      assert "list_sandboxes" in tool_names
+      assert "get_sandbox_analytics" in tool_names
+      assert "delete_sandbox" in tool_names
       assert "list_webhook_endpoints" in tool_names
       assert "get_webhook_endpoint" in tool_names
       assert "list_webhook_delivery_attempts" in tool_names
@@ -110,7 +114,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.47.0"
+      assert server.version == "1.50.0"
 
       assert server.instructions =~
                "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."

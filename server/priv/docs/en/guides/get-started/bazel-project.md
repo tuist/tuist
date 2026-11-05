@@ -27,9 +27,6 @@ Every section below opens with what's missing today and then walks you through t
 
 ## Connect the workspace
 
-> [!NOTE]
-> The Bazel workflow inside `tuist init` requires a version of the Tuist CLI that ships with it. On earlier releases, `tuist init` will not list "Integrate a Bazel workspace" as an option. Fall back to `tuist auth login` followed by `tuist bazel setup` from the workspace root, which walks through the same steps below.
-
 From the root of the Bazel workspace, run `tuist init`. Tuist detects the `WORKSPACE` / `MODULE.bazel` and offers **Integrate a Bazel workspace**. Authenticate in the browser and pick the account that should own the project.
 
 ```bash

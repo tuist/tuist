@@ -157,6 +157,8 @@
         & pre {
           margin: 0;
           font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+          direction: ltr;
+          unicode-bidi: isolate;
           white-space: pre-wrap;
           overflow-wrap: anywhere;
         }

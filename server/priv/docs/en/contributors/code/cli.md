@@ -30,7 +30,7 @@ The CLI is the heart of Tuist. It handles project generation, automation workflo
 The generated project opens automatically. If you need to reopen it later, run `open Tuist.xcworkspace`.
 
 > [!NOTE]
-> **Xed .**
+> **`xed .`**
 >
 > If you try to open the project using `xed .`, it will open the package, not the Tuist-generated workspace. Use `Tuist.xcworkspace`.
 
@@ -42,7 +42,7 @@ The generated project opens automatically. If you need to reopen it later, run `
 Edit the `tuist` scheme and set arguments like `generate --no-open`. Set the working directory to the project root (or use `--path`).
 
 > [!WARNING]
-> **Projectdescription Compilation**
+> **ProjectDescription compilation**
 >
 > The CLI depends on `ProjectDescription` being built. If it fails to run, build the `Tuist-Workspace` scheme first.
 

@@ -119,7 +119,7 @@
       min-width: 0;
       color: inherit;
       font: inherit;
-      text-align: left;
+      text-align: start;
 
       @media (hover: hover) {
         &:hover {
@@ -352,7 +352,8 @@
       gap: var(--noora-spacing-3);
       border-radius: var(--noora-radius-3);
       background: var(--noora-surface-background-tertiary);
-      padding: var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-5);
+      padding-inline: var(--noora-spacing-5) var(--noora-spacing-3);
+      padding-block: var(--noora-spacing-3);
       min-width: 0;
 
       & > code {
@@ -361,6 +362,8 @@
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-small);
         font-family: "Geist Mono", monospace;
+        direction: ltr;
+        unicode-bidi: isolate;
         text-overflow: ellipsis;
         white-space: nowrap;
       }

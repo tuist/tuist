@@ -160,8 +160,13 @@ defmodule Tuist.Accounts.UserMFA do
   defp notify_factor_change(error, _user, _enabled?), do: error
 
   def create_challenge(user, auth) do
-    {token, session} = UserToken.build_session_token(user, auth)
-    Repo.insert!(%{session | context: "mfa"})
+    {:ok, token} =
+      Accounts.issue_user_credential(user, fn ->
+        {token, session} = UserToken.build_session_token(user, auth)
+        Repo.insert!(%{session | context: "mfa"})
+        {:ok, token}
+      end)
+
     token
   end
 

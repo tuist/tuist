@@ -156,6 +156,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetMonthlyInvoiceTotals
   alias Atlas.MCP.Tools.GetMoodboardResource
   alias Atlas.MCP.Tools.GetMyBusinessProfile
+  alias Atlas.MCP.Tools.GetMyGmailMessage
   alias Atlas.MCP.Tools.GetMyProfile
   alias Atlas.MCP.Tools.GetNote
   alias Atlas.MCP.Tools.GetNudgeAnalyticsStatus
@@ -292,6 +293,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SearchAtlas
   alias Atlas.MCP.Tools.SearchDocuments
   alias Atlas.MCP.Tools.SearchMoodboardResources
+  alias Atlas.MCP.Tools.SearchMyGmail
+  alias Atlas.MCP.Tools.SearchMySlack
   alias Atlas.MCP.Tools.SearchNotes
   alias Atlas.MCP.Tools.SearchWeb
   alias Atlas.MCP.Tools.SendAccountEmail
@@ -572,6 +575,9 @@ defmodule Atlas.MCP.Server do
     GetMyBusinessProfile,
     UpdateMyBusinessProfile,
     ManageAccountConnections,
+    SearchMyGmail,
+    GetMyGmailMessage,
+    SearchMySlack,
     ListCodingRepositories,
     UpdateCodingRepositorySettings,
     ListLLMProviderConnections,
@@ -1020,8 +1026,9 @@ defmodule Atlas.MCP.Server do
       (not restricted_mcp_session?(conn) or tool_group(tool_module) in allowed_tool_groups(conn))
   end
 
-  defp personal_connection_tool_allowed?(conn, ManageAccountConnections),
-    do: ManageAccountConnections.allowed_context?(conn)
+  defp personal_connection_tool_allowed?(conn, module)
+       when module in [ManageAccountConnections, SearchMyGmail, GetMyGmailMessage, SearchMySlack],
+       do: ManageAccountConnections.allowed_context?(conn)
 
   defp personal_connection_tool_allowed?(conn, module)
        when module in [ListCodingRepositories, UpdateCodingRepositorySettings],
@@ -1141,7 +1148,7 @@ defmodule Atlas.MCP.Server do
   end
 
   defp audit_arguments(name, _arguments)
-       when name in ~w(create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
+       when name in ~w(create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login search_my_gmail get_my_gmail_message search_my_slack),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments

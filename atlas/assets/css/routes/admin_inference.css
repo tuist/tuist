@@ -4,7 +4,7 @@
 #admin-inference-providers {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-7);
+  gap: var(--noora-spacing-6);
 
   & [data-part="page-header"] {
     display: flex;

@@ -18,11 +18,13 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Runners.Sites
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSessions
+  alias Tuist.Sandboxes.AmpOrbs
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
   alias Tuist.Sandboxes.DiskSnapshot
   alias Tuist.Sandboxes.DiskSnapshots
+  alias Tuist.Sandboxes.Events
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
@@ -48,14 +50,9 @@ defmodule Tuist.Sandboxes do
   # belongs to a caller that died mid-operation (a web pod stopped during a
   # deploy): the node's report decides what it is now.
   @stuck_after_seconds 150
-  # Running sandboxes hold CPU and memory; the account CPU and memory quota
-  # bounds those as well. Paused sandboxes hold only disk on their node, so
-  # they count toward the larger on-node cap instead, and Amp Orbs past
-  # `Archives.max_paused_on_node_per_account/0` move to object storage.
-  @max_running_sandboxes_per_account 5
-  @max_on_node_sandboxes_per_account 15
-  @running_states [:creating, :running, :resuming]
-  @on_node_states [:creating, :running, :resuming, :paused]
+  @report_settle_seconds 10
+  # Sandboxes are bounded by the account's CPU, memory and disk quota
+  # (`Concurrency`), not by a count.
   # A running Amp Orb whose guest has used under 2% of one vCPU for this
   # long is paused, in case Amp's own pause never arrives.
   @orb_idle_pause_after_seconds 600
@@ -64,15 +61,37 @@ defmodule Tuist.Sandboxes do
   def default_template, do: @default_template
   def default_shape, do: @default_shape
 
-  defdelegate dispatch_amp_orb(account, orb_id, params), to: Tuist.Sandboxes.AmpOrbs, as: :dispatch
+  defdelegate dispatch_amp_orb(account, orb_id, params), to: AmpOrbs, as: :dispatch
+  defdelegate amp_orb_type(orb_type), to: AmpOrbs, as: :orb_type
+
+  @doc """
+  Queues the archive of a paused sandbox (`Tuist.Sandboxes.Archives.request/1`);
+  `resume/1` restores it.
+  """
+  defdelegate archive(sandbox), to: Archives, as: :request
+  defdelegate archivable?(sandbox), to: Archives
 
   # ----- Agent environments -----
 
   def create_agent_environment(%Account{id: account_id}, attrs) when is_map(attrs) do
     %AgentEnvironment{}
-    |> AgentEnvironment.create_changeset(Map.put(attrs, :account_id, account_id))
+    |> AgentEnvironment.create_changeset(attrs |> platform_defaults() |> Map.put(:account_id, account_id))
     |> Repo.insert()
   end
+
+  defp platform_defaults(attrs) do
+    defaults =
+      if Map.get(attrs, :platform) in [:darwin, "darwin"] do
+        %{vcpus: 8, memory_mb: 8192, workspace_gb: 10, template: "macos"}
+      else
+        Map.put(@default_shape, :template, @default_template)
+      end
+
+    Map.merge(defaults, attrs |> Enum.reject(fn {_key, value} -> is_nil(value) end) |> Map.new())
+  end
+
+  def workspace(%{platform: :darwin}), do: "/Users/runner/work"
+  def workspace(_sandbox), do: "/workspace"
 
   def list_agent_environments(%Account{id: account_id}) do
     Repo.all(from e in AgentEnvironment, where: e.account_id == ^account_id, order_by: [asc: e.id])
@@ -142,12 +161,109 @@ defmodule Tuist.Sandboxes do
 
   # ----- Sandboxes -----
 
-  def list_sandboxes(%Account{id: account_id}) do
+  @doc """
+  The account's sandboxes, newest first unless `sort_by:` (`:created`,
+  `:last_active` or `:name`) and `sort_order:` say otherwise.
+
+  `search:` keeps those whose id or Amp Orb id contains the text,
+  `status: {:== | :!=, status}` filters by the status the dashboard shows
+  (`:active`, `:idle`, `:starting`, `:resuming`, `:paused`, `:archived` or
+  `:failed`), `vcpus: {:== | :!=, vcpus}` by size, and `limit:` with
+  `offset:` reads one page.
+  """
+  def list_sandboxes(%Account{} = account, opts \\ []) do
+    sort_by = Keyword.get(opts, :sort_by, :created)
+    direction = Keyword.get(opts, :sort_order, :desc)
+
+    query =
+      account
+      |> filtered_sandboxes(opts)
+      |> order_by(^[{direction, sort_field(sort_by)}, {direction, dynamic([s], s.id)}])
+
+    query =
+      case Keyword.get(opts, :limit) do
+        nil -> query
+        limit -> query |> limit(^limit) |> offset(^Keyword.get(opts, :offset, 0))
+      end
+
+    Repo.all(query)
+  end
+
+  @doc """
+  How many of the account's sandboxes `list_sandboxes/2` would list with
+  the same filters, across every page.
+  """
+  def count_sandboxes(%Account{} = account, opts \\ []) do
+    account |> filtered_sandboxes(opts) |> Repo.aggregate(:count)
+  end
+
+  defp filtered_sandboxes(%Account{id: account_id}, opts) do
+    from(s in Sandbox, where: s.account_id == ^account_id and s.state != ^:deleted and s.purpose == :agent)
+    |> where_search(Keyword.get(opts, :search))
+    |> where_status(Keyword.get(opts, :status))
+    |> where_vcpus(Keyword.get(opts, :vcpus))
+  end
+
+  defp where_search(query, search) when search in [nil, ""], do: query
+
+  defp where_search(query, search) do
+    pattern = "%" <> String.replace(search, ~r/[\\%_]/, "\\\\\\0") <> "%"
+
+    where(
+      query,
+      [s],
+      ilike(type(s.id, :string), ^pattern) or ilike(s.amp_orb_id, ^pattern) or
+        ilike(s.anthropic_session_id, ^pattern)
+    )
+  end
+
+  defp where_status(query, nil), do: query
+  defp where_status(query, {:==, status}), do: where(query, ^status_condition(status))
+  defp where_status(query, {:!=, status}), do: where(query, ^dynamic(not (^status_condition(status))))
+
+  defp status_condition(:active), do: dynamic([s], s.state == :running and not is_nil(s.residency_work_id))
+  defp status_condition(:idle), do: dynamic([s], s.state == :running and is_nil(s.residency_work_id))
+  defp status_condition(:starting), do: dynamic([s], s.state == :creating)
+  defp status_condition(:resuming), do: dynamic([s], s.state == :resuming)
+  defp status_condition(:paused), do: dynamic([s], s.state == :paused)
+  defp status_condition(:archived), do: dynamic([s], s.state == :archived)
+  defp status_condition(:failed), do: dynamic([s], s.state == :error)
+
+  defp where_vcpus(query, nil), do: query
+  defp where_vcpus(query, {:==, vcpus}), do: where(query, [s], s.vcpus == ^vcpus)
+  defp where_vcpus(query, {:!=, vcpus}), do: where(query, [s], s.vcpus != ^vcpus)
+
+  defp sort_field(:last_active), do: dynamic([s], coalesce(s.last_active_at, s.inserted_at))
+  defp sort_field(:name), do: dynamic([s], coalesce(s.amp_orb_id, coalesce(s.anthropic_session_id, type(s.id, :string))))
+  defp sort_field(:created), do: dynamic([s], s.inserted_at)
+
+  @doc """
+  The vCPU sizes of the account's sandboxes, for filtering by size.
+  """
+  def sandbox_vcpus(%Account{id: account_id}) do
     Repo.all(
       from s in Sandbox,
-        where: s.account_id == ^account_id and s.state != ^:deleted,
-        order_by: [desc: s.inserted_at, desc: s.id]
+        where: s.account_id == ^account_id and s.state != ^:deleted and s.purpose == :agent,
+        distinct: true,
+        order_by: s.vcpus,
+        select: s.vcpus
     )
+  end
+
+  @doc """
+  How many of the account's sandboxes are in each state, with every state
+  present.
+  """
+  def count_sandboxes_by_state(%Account{id: account_id}) do
+    counts =
+      Repo.all(
+        from s in Sandbox,
+          where: s.account_id == ^account_id and s.state != ^:deleted and s.purpose == :agent,
+          group_by: s.state,
+          select: {s.state, count(s.id)}
+      )
+
+    Map.merge(Map.new(Sandbox.states() -- [:deleted], &{&1, 0}), Map.new(counts))
   end
 
   @doc """
@@ -156,10 +272,17 @@ defmodule Tuist.Sandboxes do
   paused without the server pausing it has no `paused_at`; its last
   update stands in.
   """
-  def list_sandboxes_idle_before(%DateTime{} = cutoff) do
+  def list_sandboxes_idle_before(%DateTime{} = cutoff, orbs \\ :exclude) do
+    orb_filter =
+      case orbs do
+        :exclude -> dynamic([s], is_nil(s.amp_orb_id))
+        :macos -> dynamic([s], not is_nil(s.amp_orb_id) and s.platform == :darwin)
+      end
+
     Repo.all(
       from s in Sandbox,
-        where: is_nil(s.amp_orb_id),
+        where: ^orb_filter,
+        where: s.purpose == :agent,
         where:
           (s.state == :paused and coalesce(s.paused_at, s.updated_at) < ^cutoff) or
             (s.state == :error and s.updated_at < ^cutoff),
@@ -169,7 +292,7 @@ defmodule Tuist.Sandboxes do
 
   def get_sandbox(%Account{id: account_id}, id) do
     with {:ok, uuid} <- Ecto.UUID.cast(id),
-         %Sandbox{} = sandbox <- Repo.get_by(Sandbox, id: uuid, account_id: account_id) do
+         %Sandbox{} = sandbox <- Repo.get_by(Sandbox, id: uuid, account_id: account_id, purpose: :agent) do
       {:ok, sandbox}
     else
       _ -> {:error, :not_found}
@@ -205,49 +328,39 @@ defmodule Tuist.Sandboxes do
   sandbox or the clone fails, the sandbox boots from the template instead.
   """
   def create_sandbox(%Account{id: account_id}, attrs \\ %{}, opts \\ []) when is_map(attrs) do
+    attrs = Map.drop(attrs, [:purpose, "purpose"])
+
     attrs =
-      @default_shape
-      |> Map.put(:template, @default_template)
-      |> Map.merge(attrs |> Enum.reject(fn {_key, value} -> is_nil(value) end) |> Map.new())
+      attrs
+      |> platform_defaults()
       |> Map.put(:account_id, account_id)
 
     changeset = Sandbox.create_changeset(%Sandbox{}, attrs)
 
     with {:ok, requested} <- Ecto.Changeset.apply_action(changeset, :insert),
-         {:ok, sandbox} <-
-           Concurrency.admit(account_id, requested, fn ->
-             with :ok <- check_sandbox_limit(account_id) do
-               Repo.insert(changeset)
-             end
-           end) do
+         {:ok, sandbox} <- admit_onto_node(account_id, requested, fn -> Repo.insert(changeset) end) do
+      Events.record(sandbox, "created")
       boot(sandbox, Keyword.get(opts, :from_disk_snapshot))
     end
   end
 
-  def max_running_sandboxes_per_account, do: @max_running_sandboxes_per_account
-  def max_on_node_sandboxes_per_account, do: @max_on_node_sandboxes_per_account
+  # Admits one more sandbox onto a node: a create or a restore. Past the
+  # account's disk limit, archiving its oldest paused Orb makes room, so the
+  # refusal is retryable while one is on its way (`:sandbox_disk_limit`), and
+  # final otherwise (`:sandbox_limit`): only deleting sandboxes frees disk.
+  defp admit_onto_node(account_id, requested, reserve) do
+    case Concurrency.admit(account_id, requested, reserve) do
+      {:error, :sandbox_disk_limit} ->
+        if Archives.make_room(account_id), do: {:error, :sandbox_disk_limit}, else: {:error, :sandbox_limit}
 
-  # Admits one more sandbox onto a node: a create or a restore.
-  defp check_sandbox_limit(account_id) do
-    with :ok <- check_running_limit(account_id) do
-      if count_in_states(account_id, @on_node_states) < @max_on_node_sandboxes_per_account,
-        do: :ok,
-        else: {:error, :sandbox_limit}
+      other ->
+        other
     end
-  end
-
-  defp check_running_limit(account_id) do
-    if count_in_states(account_id, @running_states) < @max_running_sandboxes_per_account,
-      do: :ok,
-      else: {:error, :sandbox_running_limit}
-  end
-
-  defp count_in_states(account_id, states) do
-    Repo.aggregate(from(s in Sandbox, where: s.account_id == ^account_id and s.state in ^states), :count)
   end
 
   defp boot(%Sandbox{} = sandbox, source) do
     hostname = "sbx-" <> String.slice(sandbox.id, 0, 8)
+    started_at = System.monotonic_time(:millisecond)
 
     args = %{
       sandbox_id: sandbox.id,
@@ -269,16 +382,25 @@ defmodule Tuist.Sandboxes do
           boot_ms: data["boot_ms"]
         )
 
+        boot_event = Events.boot(boot_source(source, data), System.monotonic_time(:millisecond) - started_at)
+
+        # Placement recorded the node (and, for macOS, its incarnation) on
+        # the row behind this struct.
         result =
           sandbox
-          |> update_sandbox(%{
-            state: :running,
-            node_name: node_name,
-            hostname: hostname,
-            template_tag: data["template_tag"],
-            last_active_at: now(),
-            error_message: nil
-          })
+          |> Repo.reload!()
+          |> update_sandbox(
+            %{
+              state: :running,
+              node_name: node_name,
+              resident: sandbox.platform == :darwin,
+              hostname: hostname,
+              template_tag: data["template_tag"],
+              last_active_at: now(),
+              error_message: nil
+            },
+            boot_event
+          )
           |> schedule_idle_pause()
 
         with {:ok, running} <- result, {:archive, _source} <- source, do: Archives.delete_restored(running)
@@ -309,9 +431,16 @@ defmodule Tuist.Sandboxes do
     end
   end
 
+  # A disk snapshot clone that failed fell back to the template.
+  defp boot_source({:archive, _source}, _data), do: "archive"
+  defp boot_source(_source, %{"disk_snapshot_id" => id}) when is_binary(id), do: "disk_snapshot"
+  defp boot_source(_source, %{"warm" => true}), do: "warm"
+  defp boot_source(_source, _data), do: "template"
+
   defp place_and_create(sandbox, args, nil) do
     with {:ok, node_name} <- Capacity.place(sandbox),
-         {:ok, data} <- Nodes.call(node_name, "create", args, timeout: @create_timeout) do
+         sandbox = Repo.reload!(sandbox),
+         {:ok, data} <- node_call(%{sandbox | node_name: node_name}, "create", args, timeout: @create_timeout) do
       {:ok, node_name, data}
     end
   end
@@ -411,16 +540,23 @@ defmodule Tuist.Sandboxes do
   @doc """
   Makes the session's sandbox run and records the residency of `work_id`
   in one step under the sandbox's lock, so a scheduled pause cannot slip
-  between the resume and the residency that keeps it running.
+  between the resume and the residency that keeps it running. Pass
+  `created: true` when the caller has just created the sandbox.
   """
-  def prepare_residency(%Sandbox{id: id}, work_id) when is_binary(work_id) do
-    with_sandbox_lock(id, fn ->
-      with_fresh(id, fn sandbox ->
-        with {:ok, sandbox} <- running_or_resume(sandbox) do
-          begin_residency(sandbox, work_id)
-        end
-      end)
-    end)
+  def prepare_residency(%Sandbox{id: id}, work_id, opts \\ []) when is_binary(work_id) do
+    with_sandbox_lock(id, fn -> with_fresh(id, &prepare_fresh_residency(&1, work_id, opts)) end)
+  end
+
+  defp prepare_fresh_residency(sandbox, work_id, opts) do
+    admitted? = sandbox.platform == :darwin and (sandbox.state != :running or Keyword.get(opts, :created, false))
+
+    with {:ok, sandbox} <- running_or_resume(sandbox) do
+      # A macOS create or resume was just admitted, by the server and
+      # under the host's CI-first check. A grant that closed while the VM
+      # booted or restored must not refuse the turn: the VM already holds
+      # its slot, and the refusal would only fail the spawn for a retry.
+      if admitted?, do: record_residency(sandbox, work_id), else: begin_residency(sandbox, work_id)
+    end
   end
 
   defp with_fresh(id, fun) do
@@ -436,24 +572,36 @@ defmodule Tuist.Sandboxes do
   defp running_or_resume(%Sandbox{state: state}), do: {:error, {:invalid_state, state}}
 
   defp do_resume(%Sandbox{state: :paused, node_name: node_name} = sandbox) when is_binary(node_name) do
-    with :ok <- check_running_limit(sandbox.account_id),
-         {:ok, sandbox} <- Capacity.admit(sandbox) do
-      case Nodes.call(node_name, "resume", %{sandbox_id: sandbox.id}, timeout: @resume_timeout) do
+    started = System.monotonic_time(:millisecond)
+
+    with {:ok, sandbox} <- Capacity.admit(sandbox) do
+      admitted = System.monotonic_time(:millisecond)
+
+      case node_call(sandbox, "resume", %{sandbox_id: sandbox.id}, timeout: @resume_timeout) do
         {:ok, data} ->
           Logger.info("sandboxes: sandbox resumed",
             sandbox_id: sandbox.id,
             node: node_name,
-            restore_ms: data["restore_ms"]
+            restore_ms: data["restore_ms"],
+            admit_ms: admitted - started,
+            node_call_ms: System.monotonic_time(:millisecond) - admitted
           )
 
           sandbox
           |> update_sandbox(%{state: :running, paused_at: nil, last_active_at: now(), error_message: nil})
           |> schedule_idle_pause()
 
+        {:error, :no_capacity} ->
+          # CI can revoke the grant after server admission. The host refused
+          # the launch, so the checkpoint remains retryable. Keep the residency
+          # charge until an authoritative host report confirms its release.
+          {:ok, _} = update_sandbox(sandbox, %{state: :paused, error_message: nil})
+          {:error, :no_capacity}
+
         # The snapshot is intact on the node's disk; a node that is away or
         # slow is not a reason to give the sandbox up.
         {:error, reason} when reason in @transient_node_errors ->
-          {:ok, _} = update_sandbox(sandbox, %{state: :paused})
+          {:ok, _} = update_sandbox(sandbox, %{state: if(sandbox.platform == :darwin, do: :resuming, else: :paused)})
           {:error, reason}
 
         {:error, reason} ->
@@ -471,23 +619,20 @@ defmodule Tuist.Sandboxes do
   defp restore(%Sandbox{state: :archived} = sandbox) do
     with {:ok, source} <- Archives.restore_source(sandbox),
          {:ok, creating} <-
-           Concurrency.admit(sandbox.account_id, sandbox, fn ->
-             with :ok <- check_sandbox_limit(sandbox.account_id) do
-               update_sandbox(sandbox, %{state: :creating, node_name: nil, error_message: nil})
-             end
+           admit_onto_node(sandbox.account_id, sandbox, fn ->
+             update_sandbox(sandbox, %{state: :creating, node_name: nil, error_message: nil})
            end) do
       boot(creating, {:archive, source})
     end
   end
 
   @doc """
-  Pauses a running sandbox. `sync_disks: true` flushes the guest's page
-  cache first, which saving its disks as a disk snapshot requires.
+  Pauses a running sandbox.
   """
-  def pause(%Sandbox{id: id}, opts \\ []) do
+  def pause(%Sandbox{id: id}) do
     with_sandbox_lock(id, fn ->
       with_fresh(id, fn
-        %Sandbox{state: :running} = sandbox -> do_pause(sandbox, opts)
+        %Sandbox{state: :running} = sandbox -> do_pause(sandbox)
         %Sandbox{state: state} -> {:error, {:invalid_state, state}}
       end)
     end)
@@ -510,7 +655,7 @@ defmodule Tuist.Sandboxes do
         with_fresh(sandbox_id, fn
           %Sandbox{state: :running, residency_work_id: nil} = sandbox
           when is_nil(epoch) or sandbox.residency_epoch == epoch ->
-            do_pause(sandbox, [])
+            do_pause(sandbox)
 
           %Sandbox{} ->
             {:ok, :skipped}
@@ -520,13 +665,11 @@ defmodule Tuist.Sandboxes do
     )
   end
 
-  defp do_pause(%Sandbox{state: :running, node_name: node_name} = sandbox, opts) when is_binary(node_name) do
-    args =
-      if Keyword.get(opts, :sync_disks, false),
-        do: %{sandbox_id: sandbox.id, sync_disks: true},
-        else: %{sandbox_id: sandbox.id}
-
-    case Nodes.call(node_name, "pause", args, []) do
+  # Every pause flushes the guest's page cache first: an archive or disk
+  # snapshot keeps only the disks, and the node refuses either one after a
+  # pause that did not sync.
+  defp do_pause(%Sandbox{state: :running, node_name: node_name} = sandbox) when is_binary(node_name) do
+    case node_call(sandbox, "pause", %{sandbox_id: sandbox.id, sync_disks: true}, []) do
       {:ok, data} ->
         Logger.info("sandboxes: sandbox paused",
           sandbox_id: sandbox.id,
@@ -536,7 +679,13 @@ defmodule Tuist.Sandboxes do
           disks_synced: data["disks_synced"]
         )
 
-        with {:ok, paused} <- update_sandbox(sandbox, %{state: :paused, paused_at: now(), guest_cpu_ms: nil}) do
+        with {:ok, paused} <-
+               update_sandbox(sandbox, %{
+                 state: :paused,
+                 paused_at: now(),
+                 guest_cpu_ms: nil,
+                 resident: data["resident"] == true
+               }) do
           if Capacity.shared_node?(node_name), do: Capacity.enqueue_reclaim(node_name, true)
           {:ok, paused}
         end
@@ -546,7 +695,7 @@ defmodule Tuist.Sandboxes do
     end
   end
 
-  defp do_pause(%Sandbox{state: :running}, _opts), do: {:error, :no_node}
+  defp do_pause(%Sandbox{state: :running}), do: {:error, :no_node}
 
   @doc """
   Tears the VM down on its node and removes the row. An archived
@@ -563,7 +712,10 @@ defmodule Tuist.Sandboxes do
       with {:ok, sandbox} <- update_sandbox(sandbox, %{state: :deleted, residency_work_id: nil}),
            :ok <- delete_on_node(sandbox),
            :ok <- Archives.delete_object(sandbox) do
-        Repo.delete(sandbox)
+        with {:ok, deleted} <- Repo.delete(sandbox) do
+          Events.record(deleted, "deleted")
+          {:ok, deleted}
+        end
       else
         {:error, reason} ->
           {:ok, _} = update_sandbox(sandbox, %{state: :error, error_message: error_message(reason)})
@@ -574,8 +726,8 @@ defmodule Tuist.Sandboxes do
 
   defp delete_on_node(%Sandbox{node_name: nil}), do: :ok
 
-  defp delete_on_node(%Sandbox{node_name: node_name} = sandbox) do
-    case Nodes.call(node_name, "delete", %{sandbox_id: sandbox.id}, []) do
+  defp delete_on_node(%Sandbox{} = sandbox) do
+    case node_call(sandbox, "delete", %{sandbox_id: sandbox.id}, []) do
       {:ok, _data} -> :ok
       {:error, :not_connected} -> :ok
       {:error, reason} -> {:error, reason}
@@ -598,42 +750,78 @@ defmodule Tuist.Sandboxes do
 
     case ensure_exec_capacity(sandbox) do
       {:ok, %Sandbox{node_name: node_name} = sandbox} when is_binary(node_name) ->
-        args = %{
-          sandbox_id: sandbox.id,
-          cmd: cmd,
-          env: Keyword.get(opts, :env, %{}),
-          cwd: Keyword.get(opts, :cwd, "/workspace"),
-          timeout_ms: timeout_ms
-        }
-
-        ref = make_ref()
-        caller = self()
-        on_stream = fn {stream, data} -> capture_output(caller, ref, stream, data) end
+        opts = Keyword.put(opts, :timeout_ms, timeout_ms)
 
         result =
-          Nodes.call(node_name, "exec", args, timeout: timeout_ms + @exec_timeout_slack_ms, on_stream: on_stream)
+          case run_exec(sandbox, cmd, opts) do
+            {:error, "sandbox is being paused" <> _} -> exec_after_pause(sandbox, cmd, opts)
+            result -> result
+          end
 
-        {stdout, stderr} = drain_output(ref)
-        Process.delete({ref, :stdout})
-        Process.delete({ref, :stderr})
         record_activity(sandbox)
-
-        case result do
-          {:ok, data} when is_map(data) ->
-            {:ok, %{exit_code: data["exit_code"], stdout: stdout, stderr: stderr}}
-
-          {:ok, _data} ->
-            {:ok, %{exit_code: nil, stdout: stdout, stderr: stderr}}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+        result
 
       {:ok, %Sandbox{}} ->
         {:error, :no_node}
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  # A sandbox on a shared node is paused as soon as it is idle
+  # (`schedule_pause/1`), and its row says running until the node's snapshot
+  # is done, so an exec can reach the node mid-pause. The pause holds the
+  # sandbox's lock: wait for it, resume the sandbox and run the command once
+  # more.
+  defp exec_after_pause(%Sandbox{id: id}, cmd, opts) do
+    case with_sandbox_lock(id, fn -> with_fresh(id, &running_or_resume/1) end) do
+      {:ok, %Sandbox{node_name: node_name} = sandbox} when is_binary(node_name) -> run_exec(sandbox, cmd, opts)
+      {:ok, %Sandbox{}} -> {:error, :no_node}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Runs `cmd` in a sandbox that is already running, without resuming it,
+  admitting a turn or counting as activity: for the server's own short
+  reads of the guest, such as before a pause.
+  """
+  def exec_running(sandbox, cmd, opts \\ [])
+
+  def exec_running(%Sandbox{state: :running, node_name: node_name} = sandbox, cmd, opts)
+      when is_binary(node_name) and is_list(cmd) do
+    run_exec(sandbox, cmd, Keyword.update(opts, :timeout_ms, @exec_default_timeout_ms, &min(&1, @exec_max_timeout_ms)))
+  end
+
+  def exec_running(%Sandbox{}, _cmd, _opts), do: {:error, :not_running}
+
+  defp run_exec(%Sandbox{} = sandbox, cmd, opts) do
+    timeout_ms = Keyword.fetch!(opts, :timeout_ms)
+
+    args = %{
+      sandbox_id: sandbox.id,
+      cmd: cmd,
+      env: Keyword.get(opts, :env, %{}),
+      cwd: Keyword.get(opts, :cwd, workspace(sandbox)),
+      timeout_ms: timeout_ms
+    }
+
+    ref = make_ref()
+    caller = self()
+    on_stream = fn {stream, data} -> capture_output(caller, ref, stream, data) end
+
+    result =
+      node_call(sandbox, "exec", args, timeout: timeout_ms + @exec_timeout_slack_ms, on_stream: on_stream)
+
+    {stdout, stderr} = drain_output(ref)
+    Process.delete({ref, :stdout})
+    Process.delete({ref, :stderr})
+
+    case result do
+      {:ok, data} when is_map(data) -> {:ok, %{exit_code: data["exit_code"], stdout: stdout, stderr: stderr}}
+      {:ok, _data} -> {:ok, %{exit_code: nil, stdout: stdout, stderr: stderr}}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -678,14 +866,14 @@ defmodule Tuist.Sandboxes do
 
   def start_worker(%Sandbox{state: :running, node_name: node_name} = sandbox, env)
       when is_binary(node_name) and is_map(env) do
-    Nodes.call(node_name, "start_worker", %{sandbox_id: sandbox.id, env: env}, [])
+    node_call(sandbox, "start_worker", %{sandbox_id: sandbox.id, env: env}, [])
   end
 
   def start_worker(%Sandbox{state: :running}, _env), do: {:error, :no_node}
   def start_worker(%Sandbox{state: state}, _env), do: {:error, {:invalid_state, state}}
 
   def stop_worker(%Sandbox{state: :running, node_name: node_name} = sandbox) when is_binary(node_name) do
-    Nodes.call(node_name, "stop_worker", %{sandbox_id: sandbox.id}, [])
+    node_call(sandbox, "stop_worker", %{sandbox_id: sandbox.id}, [])
   end
 
   def stop_worker(%Sandbox{state: :running}), do: {:error, :no_node}
@@ -720,6 +908,26 @@ defmodule Tuist.Sandboxes do
   end
 
   @doc """
+  Tells a macOS host that detached guest work (an Amp Orb's turn) holds the
+  running VM, so its idle eviction waits for the pause that ends the turn.
+  Linux nodes keep no host-side residency; the server's row is enough there.
+  """
+  def hold_host_residency(%Sandbox{platform: :darwin} = sandbox, work_id) when is_binary(work_id) do
+    with {:ok, _data} <- node_call(sandbox, "hold_residency", %{sandbox_id: sandbox.id, work_id: work_id}, []),
+         do: :ok
+  end
+
+  def hold_host_residency(%Sandbox{}, _work_id), do: :ok
+
+  def release_host_residency(%Sandbox{platform: :darwin, node_name: node_name} = sandbox, work_id)
+      when is_binary(node_name) and is_binary(work_id) do
+    with {:ok, _data} <- node_call(sandbox, "release_residency", %{sandbox_id: sandbox.id, work_id: work_id}, []),
+         do: :ok
+  end
+
+  def release_host_residency(%Sandbox{}, _work_id), do: :ok
+
+  @doc """
   Clears the residency, bumps the epoch and schedules the pause that
   follows the grace period. The bump is what lets the scheduled job
   recognise that a newer residency started after it was enqueued.
@@ -727,6 +935,9 @@ defmodule Tuist.Sandboxes do
   def end_residency(%Sandbox{id: id} = sandbox) do
     timestamp = now()
     query = from(s in Sandbox, where: s.id == ^id and s.state != :deleted, select: s)
+
+    query =
+      if sandbox.platform == :darwin, do: where(query, [s], s.residency_epoch == ^sandbox.residency_epoch), else: query
 
     case Repo.update_all(query,
            set: [residency_work_id: nil, last_active_at: timestamp, updated_at: timestamp],
@@ -778,7 +989,11 @@ defmodule Tuist.Sandboxes do
   defp schedule_pause(%Sandbox{} = sandbox) do
     %{sandbox_id: sandbox.id, residency_epoch: sandbox.residency_epoch}
     |> PauseSandboxWorker.new(
-      schedule_in: if(Capacity.shared_node?(sandbox.node_name), do: 0, else: pause_grace_seconds(sandbox)),
+      schedule_in:
+        if(sandbox.platform == :darwin or Capacity.shared_node?(sandbox.node_name),
+          do: 0,
+          else: pause_grace_seconds(sandbox)
+        ),
       replace: [scheduled: [:args, :scheduled_at], available: [:args, :scheduled_at]]
     )
     |> Oban.insert()
@@ -805,7 +1020,12 @@ defmodule Tuist.Sandboxes do
           duration_ms: event["duration_ms"]
         )
 
-        {:ok, _sandbox} = end_residency(sandbox)
+        if sandbox.platform != :darwin or
+             (sandbox.node_name == node_name and sandbox.node_uid == event["generation"] and
+                sandbox.residency_work_id == event["work_id"]) do
+          {:ok, _sandbox} = end_residency(sandbox)
+        end
+
         :ok
 
       _ ->
@@ -817,7 +1037,11 @@ defmodule Tuist.Sandboxes do
     case get_sandbox_by_id(sandbox_id) do
       %Sandbox{state: state} = sandbox when state != :deleted ->
         Logger.warning("sandboxes: sandbox died", sandbox_id: sandbox.id, node: node_name, reason: event["reason"])
-        error_or_revert(sandbox, event["reason"] || "sandbox died")
+
+        if sandbox.platform != :darwin or (sandbox.node_name == node_name and sandbox.node_uid == event["generation"]) do
+          error_or_revert(sandbox, event["reason"] || "sandbox died")
+        end
+
         :ok
 
       _ ->
@@ -860,39 +1084,71 @@ defmodule Tuist.Sandboxes do
     known = Repo.all(from s in Sandbox, where: s.id in ^reported_ids)
 
     Enum.each(known, fn sandbox ->
-      reconcile_reported(sandbox, node_name, Map.fetch!(reported_by_id, sandbox.id))
+      reconcile_known_report(sandbox, node_name, report["generation"], Map.fetch!(reported_by_id, sandbox.id))
     end)
 
     reported_ids
     |> Kernel.--(Enum.map(known, & &1.id))
     |> Enum.each(&delete_orphan(node_name, &1))
 
+    reconcile_missing(node_name, reported_ids, report["generation"])
+  end
+
+  def reconcile_node_report(_node_name, _report), do: :ok
+
+  defp reconcile_missing(node_name, reported_ids, generation) do
     stuck_before = DateTime.add(now(), -@stuck_after_seconds, :second)
+    # A node builds a report before sending it, so one can arrive just after
+    # a create or resume it predates and not list that sandbox. Only a row
+    # unchanged for two report intervals is missing; a later report settles it.
+    settled_before = DateTime.add(now(), -@report_settle_seconds, :second)
 
     Sandbox
-    |> where([s], s.node_name == ^node_name and s.id not in ^reported_ids)
+    |> where([s], s.node_name == ^node_name and s.id not in ^reported_ids and s.purpose == :agent)
     |> where(
       [s],
-      s.state in ^[:running, :paused, :resuming] or (s.state == :creating and s.updated_at < ^stuck_before)
+      (s.state in ^[:running, :paused, :resuming] and s.updated_at < ^settled_before) or
+        (s.state == :creating and s.updated_at < ^stuck_before)
     )
     |> Repo.all()
     |> Enum.each(fn sandbox ->
       Logger.warning("sandboxes: sandbox missing on node", sandbox_id: sandbox.id, node: node_name, state: sandbox.state)
-      error_or_revert(sandbox, "missing on node", sandbox.state)
+
+      if sandbox.platform != :darwin or sandbox.node_uid == generation do
+        error_or_revert(sandbox, "missing on node", sandbox.state)
+      end
     end)
 
     :ok
   end
 
-  def reconcile_node_report(_node_name, _report), do: :ok
+  defp reconcile_known_report(sandbox, node_name, generation, reported) do
+    if sandbox.platform != :darwin or (sandbox.node_name == node_name and sandbox.node_uid == generation) do
+      reconcile_reported(sandbox, node_name, reported)
+
+      if sandbox.platform == :darwin and is_binary(sandbox.residency_work_id) and
+           reported["finished_work_id"] == sandbox.residency_work_id do
+        end_residency(sandbox)
+      end
+    end
+  end
 
   defp reconcile_reported(%Sandbox{state: :deleted}, _node_name, _reported), do: :ok
+
+  # Execution VMs are tracked by their scheduler and lease, not node reports.
+  defp reconcile_reported(%Sandbox{purpose: :remote_execution}, _node_name, _reported), do: :ok
 
   # Archiving deletes the jail after the row is archived; a node that missed
   # that delete still lists it.
   defp reconcile_reported(%Sandbox{state: :archived, id: id}, node_name, _reported), do: delete_orphan(node_name, id)
 
   defp reconcile_reported(%Sandbox{} = sandbox, _node_name, %{"state" => "error"} = reported) do
+    if sandbox.platform == :darwin and is_boolean(reported["resident"]) do
+      Repo.update_all(from(s in Sandbox, where: s.id == ^sandbox.id and s.node_uid == ^sandbox.node_uid),
+        set: [resident: reported["resident"]]
+      )
+    end
+
     if sandbox.state != :error do
       Logger.warning("sandboxes: node reports sandbox in error", sandbox_id: sandbox.id, reason: reported["error"])
       error_or_revert(sandbox, reported["error"] || "error on the node", sandbox.state)
@@ -904,6 +1160,7 @@ defmodule Tuist.Sandboxes do
   defp reconcile_reported(%Sandbox{} = sandbox, node_name, reported) do
     attrs =
       %{node_name: node_name}
+      |> maybe_put(:resident, reported["resident"])
       |> maybe_put(:template_tag, reported["template_tag"])
       |> maybe_put_state(reported["state"])
       |> keep_in_flight_state(sandbox, reported["state"])
@@ -991,7 +1248,11 @@ defmodule Tuist.Sandboxes do
   defp error_or_revert(%Sandbox{state: :creating, archived_at: %DateTime{}} = sandbox, _message, _from_state),
     do: Archives.revert_restore(sandbox.id)
 
-  defp error_or_revert(%Sandbox{} = sandbox, message, from_state), do: mark_error(sandbox.id, message, from_state)
+  defp error_or_revert(%Sandbox{} = sandbox, message, from_state) do
+    if mark_error(sandbox.id, message, from_state) == 1 and sandbox.state != :error, do: Events.record(sandbox, "failed")
+
+    :ok
+  end
 
   # Errors a sandbox from outside its lock (the node's socket process must
   # never wait on one), so it only applies when the row is still in the
@@ -1002,12 +1263,13 @@ defmodule Tuist.Sandboxes do
         if from_state, do: where(query, [s], s.state == ^from_state), else: query
       end)
 
-    Repo.update_all(query,
-      set: [state: :error, error_message: message, residency_work_id: nil, updated_at: now()],
-      inc: [residency_epoch: 1]
-    )
+    {count, _} =
+      Repo.update_all(query,
+        set: [state: :error, error_message: message, residency_work_id: nil, updated_at: now()],
+        inc: [residency_epoch: 1]
+      )
 
-    :ok
+    count
   end
 
   defp maybe_put(attrs, _key, nil), do: attrs
@@ -1023,7 +1285,7 @@ defmodule Tuist.Sandboxes do
     Logger.warning("sandboxes: deleting sandbox unknown to the server", sandbox_id: sandbox_id, node: node_name)
 
     Tasks.run_async(fn ->
-      case Nodes.call(node_name, "delete", %{sandbox_id: sandbox_id}, []) do
+      case Nodes.call(node_name, "delete", orphan_args(node_name, sandbox_id), []) do
         {:ok, _data} ->
           :ok
 
@@ -1039,10 +1301,11 @@ defmodule Tuist.Sandboxes do
 
   # ----- Helpers -----
 
-  defp update_sandbox(%Sandbox{} = sandbox, attrs) do
-    sandbox
-    |> Sandbox.update_changeset(attrs)
-    |> Repo.update()
+  defp update_sandbox(%Sandbox{} = sandbox, attrs, event_attrs \\ %{}) do
+    with {:ok, updated} <- sandbox |> Sandbox.update_changeset(attrs) |> Repo.update() do
+      Events.record_transition(sandbox, updated, event_attrs)
+      {:ok, updated}
+    end
   end
 
   defp now, do: DateTime.truncate(DateTime.utc_now(), :second)
@@ -1055,4 +1318,23 @@ defmodule Tuist.Sandboxes do
   defp error_message(:node_disconnected), do: "node disconnected during the operation"
   defp error_message(:timeout), do: "node did not answer in time"
   defp error_message(reason), do: inspect(reason)
+
+  defp node_call(sandbox, op, args, opts) do
+    args = if sandbox.platform == :darwin, do: Map.put(args, :node_uid, sandbox.node_uid), else: args
+
+    case Nodes.call(sandbox.node_name, op, args, opts) do
+      # This exact native sentinel means admission refused the operation.
+      # Joined cleanup/fencing errors must remain failures, not retryable
+      # capacity denials. This also works with already-deployed host versions.
+      {:error, "macOS sandbox capacity unavailable"} when sandbox.platform == :darwin -> {:error, :no_capacity}
+      result -> result
+    end
+  end
+
+  defp orphan_args(node_name, sandbox_id) do
+    case Nodes.lookup(node_name) do
+      {:ok, _pid, %{platform: "darwin", generation: generation}} -> %{sandbox_id: sandbox_id, node_uid: generation}
+      _ -> %{sandbox_id: sandbox_id}
+    end
+  end
 end

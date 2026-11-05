@@ -60,6 +60,60 @@ hcloudLoadBalancerExporter:
       cpu: 250m
       memory: 192Mi
 
+# Pulso credentials, synced by `templates/externalsecret-pulso.yaml` into the
+# Secret named by `pulso.existingSecret`. Each environment's 1Password vault
+# holds its own token, Phoenix secret key base, and bucket access key; the
+# tenant name is the same everywhere because each cluster runs its own Pulso.
+pulsoCredentials:
+  tenant: tuist
+  token:
+    item: PULSO_TOKEN
+    field: password
+  secretKeyBase:
+    item: PULSO_SECRET_KEY_BASE
+    field: password
+  storage:
+    item: PULSO_S3_CREDENTIALS
+    accessKeyField: access_key_id
+    secretKeyField: secret_access_key
+
+# In-cluster Pulso (https://github.com/tuist/pulso). Receives the same metrics,
+# logs, events, and traces as Grafana Cloud through the `pulso-*` destinations
+# below, and stores them in a per-environment bucket. Pulso supports a single
+# node per bucket today, so it stays at one replica. Per-env overlays set the
+# bucket and, where Atlas needs to reach it, the MCP ingress. Opt-in per
+# environment: clusters without a bucket or ESO (management, pentest) leave it
+# off. The pulso-* destinations live in the enabled overlays, and the
+# hand-written scrapes below fan out to Pulso only when they exist.
+pulso:
+  enabled: false
+  fullnameOverride: pulso
+  existingSecret: pulso-credentials
+  # Self-monitoring (/metrics on the HTTP port) through annotationAutodiscovery,
+  # so Grafana Cloud keeps an independent view of Pulso's health.
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "4000"
+  storage:
+    # Tigris, like the rest of the managed object storage (CNPG backups,
+    # server storage). It honors the conditional writes Pulso needs.
+    endpoint: https://t3.storage.dev
+    region: auto
+    bucket: ""
+  ingress:
+    # Only Atlas reaches Pulso from outside the cluster, and only over MCP.
+    # Collectors use the in-cluster Service, so ingestion and the
+    # Prometheus/Loki query APIs stay private.
+    paths:
+      - path: /mcp
+        pathType: Exact
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+
 # Upstream grafana/k8s-monitoring chart values. Everything under this key
 # is passed verbatim to the subchart — see
 # https://github.com/grafana/k8s-monitoring-helm/tree/main/charts/k8s-monitoring
@@ -1470,7 +1524,7 @@ k8s-monitoring:
           }
           {{ end }}
 
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulso-metrics" }}, prometheus.remote_write.pulso_metrics.receiver{{ end }}]
         }
 
         prometheus.scrape "tuist_etcd" {
@@ -1491,7 +1545,7 @@ k8s-monitoring:
             action = "keep"
           }
 
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulso-metrics" }}, prometheus.remote_write.pulso_metrics.receiver{{ end }}]
         }
 
     # Clustering lets multiple alloy-metrics replicas hash-partition the
@@ -1696,9 +1750,9 @@ k8s-monitoring:
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
           // scope here. Forward straight to the concrete Grafana Cloud
-          // metrics destination (matches the `destinations` key in
+          // and Pulso metrics destinations (match the `destinations` keys in
           // values.yaml, dashes to underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulso-metrics" }}, prometheus.remote_write.pulso_metrics.receiver{{ end }}]
         }
 
         // tart-kubelet's controller-runtime metrics endpoint. Carries
@@ -1723,9 +1777,9 @@ k8s-monitoring:
           // Top-level extraConfig sits OUTSIDE the chart's `declare`
           // blocks, so `argument.metrics_destinations.value` is out of
           // scope here. Forward straight to the concrete Grafana Cloud
-          // metrics destination (matches the `destinations` key in
+          // and Pulso metrics destinations (match the `destinations` keys in
           // values.yaml — dashes → underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulso-metrics" }}, prometheus.remote_write.pulso_metrics.receiver{{ end }}]
           job_name = "tuist-macos-tart-kubelet"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -1777,7 +1831,7 @@ k8s-monitoring:
           // scope here. Forward straight to the concrete Grafana Cloud
           // metrics destination (matches the `destinations` key in
           // values.yaml — dashes → underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulso-metrics" }}, prometheus.remote_write.pulso_metrics.receiver{{ end }}]
           job_name = "tuist-macos-pod-metrics"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -1878,7 +1932,7 @@ k8s-monitoring:
             replacement = ""
           }
 
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulso-metrics" }}, prometheus.remote_write.pulso_metrics.receiver{{ end }}]
         }
 
         // PgBouncer pooler metrics for the processor's transaction-mode
@@ -1929,7 +1983,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_cnpg_pooler" {
           targets = discovery.relabel.tuist_cnpg_pooler.output
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulso-metrics" }}, prometheus.remote_write.pulso_metrics.receiver{{ end }}]
           job_name = "tuist-cnpg-pooler"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -1979,7 +2033,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_cnpg_operator" {
           targets = discovery.relabel.tuist_cnpg_operator.output
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulso-metrics" }}, prometheus.remote_write.pulso_metrics.receiver{{ end }}]
           job_name = "tuist-cnpg-operator"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -2053,7 +2107,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_kura_unready" {
           targets = discovery.relabel.tuist_kura_unready.output
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulso-metrics" }}, prometheus.remote_write.pulso_metrics.receiver{{ end }}]
           job_name = "kura"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -2140,7 +2194,7 @@ k8s-monitoring:
         }
 
         prometheus.relabel "tuist_kura_ingress_nginx" {
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulso-metrics" }}, prometheus.remote_write.pulso_metrics.receiver{{ end }}]
           rule {
             source_labels = ["__name__"]
             regex = "nginx_ingress_controller_requests|up|scrape_samples_scraped"
@@ -2206,11 +2260,22 @@ k8s-monitoring:
         }
 
         prometheus.relabel "tuist_hubble" {
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulso-metrics" }}, prometheus.remote_write.pulso_metrics.receiver{{ end }}]
           rule {
             source_labels = ["__name__"]
             regex = "hubble_drop_total|up|scrape_samples_scraped"
             action = "keep"
+          }
+          // Cilium runs IPv4-only, so every IPv6 packet reaching a node,
+          // whatever its L4 protocol, is dropped as UNSUPPORTED_L3_PROTOCOL
+          // with its raw address as `source`. Most of it is router and
+          // neighbour discovery from the hosting network. Per node, those addresses grow without bound and are
+          // most of the job's series, while saying nothing about workload
+          // traffic.
+          rule {
+            source_labels = ["__name__", "reason"]
+            regex = "hubble_drop_total;UNSUPPORTED_L3_PROTOCOL"
+            action = "drop"
           }
         }
 
@@ -2664,7 +2729,7 @@ k8s-monitoring:
             listen_address = "0.0.0.0"
             listen_port = 3100
           }
-          forward_to = [loki.write.grafana_cloud_logs.receiver]
+          forward_to = [loki.write.grafana_cloud_logs.receiver{{ if hasKey .Values.destinations "pulso-logs" }}, loki.write.pulso_logs.receiver{{ end }}]
         }
 
         // Prometheus remote write from collectors the cluster cannot scrape
@@ -2674,7 +2739,7 @@ k8s-monitoring:
             listen_address = "0.0.0.0"
             listen_port = 9009
           }
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulso-metrics" }}, prometheus.remote_write.pulso_metrics.receiver{{ end }}]
         }
 
         // Browser real user monitoring for tuist.dev. The Grafana Faro Web SDK
@@ -2698,6 +2763,6 @@ k8s-monitoring:
           }
 
           output {
-            logs = [loki.write.grafana_cloud_logs.receiver]
+            logs = [loki.write.grafana_cloud_logs.receiver{{ if hasKey .Values.destinations "pulso-logs" }}, loki.write.pulso_logs.receiver{{ end }}]
           }
         }

@@ -2,37 +2,37 @@
 {
   "title": "ტესტების ანალიტიკა",
   "titleTemplate": ":title · ფუნქციები · სახელმძღვანელოები · Tuist",
-  "description": "გამოავლინეთ არასტაბილური და ნელი ტესტები Xcode, Gradle, Bazel, Elixir და Rust პროექტებში Tuist Test Insights-ის საშუალებით."
+  "description": "აღმოაჩინეთ არასტაბილური და ნელი ტესტები Xcode, Gradle, Bazel, Elixir და Rust პროექტებში Tuist Test Insights-ის საშუალებით."
 }
 ---
 # ტესტების ანალიტიკა {#test-insights}
 
-გამოიყენეთ ტესტების ანალიტიკა თქვენი ტესტების ნაკრების ჯანმრთელობის მონიტორინგისთვის: აღმოაჩინეთ ნელი ტესტები, დააკვირდით არასტაბილურ ტესტებს და სწრაფად გაარკვიეთ CI-ს ვერცხლის ჩავარდნის მიზეზები. ამჟამად მხარდაჭერილია Xcode, Gradle, Bazel, Elixir და Rust.
+გამოიყენეთ ტესტების ანალიტიკა თქვენი ტესტების ნაკრების ჯანმრთელობის მონიტორინგისთვის: გამოავლინეთ ნელი ტესტები, დააკვირდით არასტაბილურ ტესტებს და სწრაფად გაერკვეთ CI-ს წარუმატებელ გაშვებებში. ამჟამად ის მხარდაჭერილია Xcode-ის, Gradle-ის, Bazel-ის, Elixir-ისა და Rust-ისთვის. იმისთვის, რომ დააკვირდეთ, თუ რომელ კოდს ასრულებენ თქვენი ტესტები, იხილეთ <.localized_link href="/guides/features/test-code-coverage">კოდის დაფარვა</.localized_link>.
 
 <.home_cards>
   <.home_card
     title="Xcode"
-    details="Xcode-ის ტესტების ანალიტიკის თვალყურის დევნება სქემის post-actions-ისა და Tuist CLI-ის გამოყენებით."
+    details="დააკვირდით Xcode-ის ტესტების ანალიტიკას სქემის post-actions-ისა და Tuist CLI-ის გამოყენებით."
     link="/guides/features/test-insights/xcode"
 />
   <.home_card
     title="Gradle"
-    details="Gradle-ის ტესტების ანალიტიკის თვალყურის დევნება Tuist Gradle პლაგინით."
+    details="დააკვირდით Gradle-ის ტესტების ანალიტიკას Tuist Gradle პლაგინის საშუალებით."
     link="/guides/features/test-insights/gradle"
 />
   <.home_card
     title="Bazel"
-    details="Bazel-ის ტესტების ანალიტიკის თვალყურის დევნება tuist bazel test ბრძანების მეშვეობით ტესტების გაშვებით."
+    details="დააკვირდით Bazel-ის ტესტების ანალიტიკას tuist bazel test ბრძანების მეშვეობით ტესტების გაშვებით."
     link="/guides/features/test-insights/bazel"
 />
   <.home_card
     title="Elixir"
-    details="თქვენი Elixir პროექტის ტესტების თვალყურის დევნება Tuist Hex პაკეტით."
+    details="დააკვირდით თქვენი Elixir პროექტის ტესტებს Tuist Hex პაკეტის საშუალებით."
     link="/guides/features/test-insights/elixir"
 />
   <.home_card
     title="Rust"
-    details="Cargo-ს ტესტების შედეგების, ტესტების ნაკრების ხანგრძლივობისა და doctests-ის თვალყურის დევნება ჩვეულებრივი ტესტების ბრძანებით."
+    details="დააკვირდით Cargo ტესტების შედეგებს, ნაკრების ხანგრძლივობებსა და doctests-ებს თქვენი ჩვეულებრივი ტესტების ბრძანებით."
     link="/guides/features/test-insights/rust"
 />
 </.home_cards>

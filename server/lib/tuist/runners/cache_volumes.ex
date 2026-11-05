@@ -472,7 +472,7 @@ defmodule Tuist.Runners.CacheVolumes do
     volume_bytes = allocation_volume_bytes(volume, saved_head, requested)
 
     reset? =
-      not is_nil(saved_head) and full?(saved_head.size_bytes, volume_bytes) and clone_ran_out_of_space?(saved_head.id)
+      not is_nil(saved_head) and full?(saved_head.size_bytes, volume_bytes) and clone_ran_out_of_space?(saved_head)
 
     {saved_head, volume_bytes} =
       if reset?,
@@ -733,11 +733,17 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def out_of_space?(_size, _capacity), do: false
 
-  defp clone_ran_out_of_space?(head_id) do
+  # Clones of the head's own parent count too: when concurrent jobs start from
+  # one snapshot, a sibling that saved replaces the head the others filled, and
+  # checking only the new head would let every save restart the wait while jobs
+  # keep running out of space.
+  defp clone_ran_out_of_space?(head) do
+    parents = Enum.reject([head.id, head.parent_id], &is_nil/1)
+
     Repo.exists?(
       from(u in Usage,
         where:
-          u.parent_id == ^head_id and u.capacity_bytes > 0 and
+          u.parent_id in ^parents and u.capacity_bytes > 0 and
             u.size_bytes * 100 >= u.capacity_bytes * @out_of_space_percent
       )
     )
@@ -1787,7 +1793,7 @@ defmodule Tuist.Runners.CacheVolumes do
   defp inventory_query(account_id, search, opts) do
     query =
       from(v in Volume,
-        where: v.account_id == ^account_id
+        where: v.account_id == ^account_id and is_nil(v.deleted_at)
       )
 
     query =

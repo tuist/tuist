@@ -503,6 +503,31 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_USE_SSL_FOR_DATABASE", "1"))
   end
 
+  # Verification is opt-in so upgrades keep connecting to databases whose
+  # certificates chain to a private CA (RDS, Cloud SQL, self-managed).
+  # Postgrex verifies the peer and hostname by default for `true` and keyword
+  # lists, and sets SNI from the host of each connection, so neither is pinned
+  # here. `true` also defers loading the OS trust store to connect time.
+  def database_ssl_options do
+    ca_cert_file = System.get_env("TUIST_DATABASE_SSL_CA_CERT_FILE")
+
+    cond do
+      not truthy?(System.get_env("TUIST_DATABASE_SSL_VERIFY", "0")) -> [verify: :verify_none]
+      ca_cert_file in [nil, ""] -> true
+      true -> [cacertfile: validate_database_ca_cert_file!(ca_cert_file)]
+    end
+  end
+
+  defp validate_database_ca_cert_file!(path) do
+    with {:ok, pem} <- File.read(path),
+         true <- Enum.any?(:public_key.pem_decode(pem), &match?({:Certificate, _, _}, &1)) do
+      path
+    else
+      _ ->
+        raise "TUIST_DATABASE_SSL_CA_CERT_FILE must point to a readable PEM file with CA certificates, got: #{inspect(path)}"
+    end
+  end
+
   def dev_use_remote_storage? do
     not dev?() or truthy?(System.get_env("TUIST_DEV_USE_REMOTE_STORAGE", "0"))
   end
@@ -621,6 +646,11 @@ defmodule Tuist.Environment do
 
   def kura_tuist_base_url do
     System.get_env("TUIST_KURA_TUIST_BASE_URL")
+  end
+
+  @doc "The public gRPC endpoint of the remote execution gateways, such as `grpcs://execution.tuist.dev`."
+  def remote_execution_endpoint do
+    System.get_env("TUIST_REMOTE_EXECUTION_ENDPOINT")
   end
 
   @doc """
@@ -923,7 +953,15 @@ defmodule Tuist.Environment do
   verification. Defaults to `tuist.dev`.
   """
   def operator_email_domain(secrets \\ secrets()) do
-    get([:operator_email_domain], secrets, default_value: "tuist.dev")
+    [:operator_email_domain] |> get(secrets, default_value: "tuist.dev") |> String.trim() |> String.downcase()
+  end
+
+  @doc "Whether the operator email domain is set explicitly instead of using the `tuist.dev` default."
+  def operator_email_domain_configured?(secrets \\ secrets()) do
+    case get([:operator_email_domain], secrets) do
+      domain when is_binary(domain) -> String.trim(domain) != ""
+      _ -> false
+    end
   end
 
   @doc "Configured immutable shard target IDs; malformed configuration disables enrollment."
@@ -1260,6 +1298,15 @@ defmodule Tuist.Environment do
     slack_client_id(secrets) != nil and slack_client_secret(secrets) != nil
   end
 
+  @doc """
+  OAuth client ID for personal ChatGPT connections
+  (`Tuist.Accounts.AISubscriptions.ChatGPT`). The client must have OpenAI's
+  device authorization enabled; without it, ChatGPT sign-in stays unavailable.
+  """
+  def chatgpt_client_id(secrets \\ secrets()) do
+    get([:chatgpt, :client_id], secrets)
+  end
+
   def stripe_api_key(secrets \\ secrets()) do
     get([:stripe, :secret_key], secrets)
   end
@@ -1443,8 +1490,45 @@ defmodule Tuist.Environment do
       apple_private_key_id(secrets) != nil and apple_private_key(secrets) != nil
   end
 
+  def apns_key_id(secrets \\ secrets()) do
+    get([:apns, :key_id], secrets)
+  end
+
+  def apns_team_id(secrets \\ secrets()) do
+    get([:apns, :team_id], secrets)
+  end
+
+  def apns_topic(secrets \\ secrets()) do
+    get([:apns, :topic], secrets)
+  end
+
+  def apns_private_key(secrets \\ secrets()) do
+    get([:apns, :private_key], secrets)
+  end
+
+  def apns_configured?(secrets \\ secrets()) do
+    apns_key_id(secrets) != nil and apns_team_id(secrets) != nil and apns_topic(secrets) != nil and
+      apns_private_key(secrets) != nil
+  end
+
+  @doc """
+  The Firebase service account JSON (as downloaded from Google Cloud) the server
+  sends Android notifications with.
+  """
+  def fcm_service_account(secrets \\ secrets()) do
+    get([:fcm, :service_account], secrets)
+  end
+
+  def fcm_configured?(secrets \\ secrets()) do
+    fcm_service_account(secrets) not in [nil, ""]
+  end
+
   def mailgun_api_key(secrets \\ secrets()) do
     get([:mailgun, :api_key], secrets)
+  end
+
+  def mailing_provider(secrets \\ secrets()) do
+    get([:mailing, :provider], secrets, default_value: "mailgun")
   end
 
   def mailing_domain(secrets \\ secrets()) do
@@ -1469,8 +1553,25 @@ defmodule Tuist.Environment do
   end
 
   def mail_configured?(secrets \\ secrets()) do
-    mailgun_api_key(secrets) != nil and mailing_domain(secrets) != nil and
-      mailing_from_address(secrets) != nil
+    case mailing_provider(secrets) do
+      "mailgun" ->
+        mailgun_api_key(secrets) != nil and mailing_domain(secrets) != nil and
+          mailing_from_address(secrets) != nil
+
+      "ses" ->
+        Enum.all?(
+          [
+            get([:ses, :region], secrets),
+            get([:ses, :access_key_id], secrets),
+            get([:ses, :secret_access_key], secrets),
+            mailing_from_address(secrets)
+          ],
+          &(&1 not in [nil, ""])
+        )
+
+      provider ->
+        raise ArgumentError, "unsupported mailing provider: #{inspect(provider)}"
+    end
   end
 
   def skip_email_confirmation?(secrets \\ secrets()) do
@@ -2143,77 +2244,13 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  OpenBao Transit and dedicated projected Kubernetes identity. Any partial
-  configuration fails closed. Persisted key IDs pin the HTTPS origin, mount
-  and key, so changing an endpoint cannot silently redirect existing shares.
-  """
-  def kura_volume_openbao(environment \\ System.get_env()) do
-    prefix = "TUIST_KURA_VOLUME_OPENBAO_"
-    configured = Enum.any?(environment, fn {key, _} -> String.starts_with?(key, prefix) end)
-
-    if configured do
-      address = environment |> Map.get(prefix <> "ADDRESS", "") |> String.trim_trailing("/")
-      uri = URI.parse(address)
-      key_name = Map.get(environment, prefix <> "KEY_NAME", "")
-      role = Map.get(environment, prefix <> "ROLE", "")
-      transit_mount = Map.get(environment, prefix <> "TRANSIT_MOUNT", "transit")
-      auth_mount = Map.get(environment, prefix <> "AUTH_MOUNT", "kubernetes")
-      token_file = Map.get(environment, prefix <> "TOKEN_FILE", "/var/run/tuist/kura-openbao/token")
-      ca_cert_file = Map.get(environment, prefix <> "CA_CERT_FILE")
-      wrap_new_shares = Map.get(environment, prefix <> "WRAP_NEW_SHARES", "true")
-
-      decrypt_names =
-        environment
-        |> Map.get(prefix <> "DECRYPT_KEY_NAMES", "")
-        |> String.split(",", trim: true)
-        |> Enum.map(&String.trim/1)
-
-      names = [key_name, role, transit_mount, auth_mount | decrypt_names]
-
-      if valid_openbao_origin?(uri) and
-           Enum.all?(names, &Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9_-]*\z/, &1)) and
-           Path.type(token_file) == :absolute and
-           (is_nil(ca_cert_file) or Path.type(ca_cert_file) == :absolute) and
-           wrap_new_shares in ["true", "false"] do
-        key_id = "#{address}/v1/#{transit_mount}/keys/#{key_name}"
-
-        {:ok,
-         %{
-           address: address,
-           key_id: key_id,
-           key_name: key_name,
-           transit_mount: transit_mount,
-           auth_mount: auth_mount,
-           role: role,
-           token_file: token_file,
-           ca_cert_file: ca_cert_file,
-           wrap_new_shares: wrap_new_shares == "true",
-           decrypt_keys: Map.new([key_name | decrypt_names], &{"#{address}/v1/#{transit_mount}/keys/#{&1}", &1})
-         }}
-      else
-        {:error, :invalid_openbao_configuration}
-      end
-    else
-      :disabled
-    end
-  rescue
-    _ -> {:error, :invalid_openbao_configuration}
-  end
-
-  defp valid_openbao_origin?(uri) do
-    uri.scheme == "https" and is_binary(uri.host) and uri.host != "" and
-      uri.path in [nil, ""] and is_nil(uri.userinfo) and is_nil(uri.query) and is_nil(uri.fragment)
-  end
-
-  @doc """
-  Legacy wrapping roots (`TUIST_KURA_VOLUME_ROOT_KEYS`), as `[{id, key}]`.
-  The first wraps new shares when OpenBao is disabled or explicitly configured
-  for decrypt-only migration; all entries decrypt.
+  Wrapping roots (`TUIST_KURA_VOLUME_ROOT_KEYS`), as `[{id, key}]`.
+  The first wraps new shares; all entries decrypt.
   Prepending a replacement does not rewrap existing shares. Use
   `Tuist.Kura.VolumeKeys.Rotation` before retiring a root, including backups.
 
   Outside canary/production an unset value derives a development root from
-  secret_key_base. Canary/production require explicit roots or OpenBao.
+  secret_key_base. Canary/production require explicit roots.
   """
   def kura_volume_root_keys(secrets \\ secrets()) do
     case get([:kura, :volume_root_keys], secrets) do

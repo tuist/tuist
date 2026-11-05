@@ -24,6 +24,7 @@ defmodule TuistOps.JIT.Request do
     field :requester_slack_id, :string
     field :target_group, :string
     field :github_login, :string
+    field :orb_thread_id, :string
     field :intent, :string
     field :ttl_seconds, :integer
     field :status, :string, default: "pending"
@@ -52,6 +53,7 @@ defmodule TuistOps.JIT.Request do
       :requester_slack_id,
       :target_group,
       :github_login,
+      :orb_thread_id,
       :intent,
       :ttl_seconds,
       :slack_channel_id,
@@ -70,6 +72,7 @@ defmodule TuistOps.JIT.Request do
     |> validate_number(:ttl_seconds, greater_than: 0, less_than_or_equal_to: 3600)
     |> validate_length(:intent, min: 5, max: 500)
     |> validate_github_login()
+    |> validate_orb_thread_id()
   end
 
   # GitHub logins: alphanumerics and single inner hyphens, max 39 chars.
@@ -87,6 +90,32 @@ defmodule TuistOps.JIT.Request do
       |> validate_format(:github_login, @github_login_format)
     else
       changeset
+    end
+  end
+
+  # Amp thread IDs, as `/elevate --thread` takes them and as the Amp
+  # workload identity token's `thread_id` claim carries them.
+  @orb_thread_id_format ~r/^T-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+  def orb_thread_id?(value), do: is_binary(value) and Regex.match?(@orb_thread_id_format, value)
+
+  # A thread elevation only means something for a cluster env.
+  defp validate_orb_thread_id(changeset) do
+    case get_field(changeset, :orb_thread_id) do
+      nil ->
+        changeset
+
+      thread_id ->
+        cond do
+          not orb_thread_id?(thread_id) ->
+            add_error(changeset, :orb_thread_id, "is not an Amp thread ID")
+
+          is_nil(Policy.env_for(get_field(changeset, :target_group))) ->
+            add_error(changeset, :orb_thread_id, "only applies to cluster elevations")
+
+          true ->
+            changeset
+        end
     end
   end
 

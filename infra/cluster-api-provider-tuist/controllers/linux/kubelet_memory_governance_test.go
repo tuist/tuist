@@ -16,16 +16,31 @@ import (
 // (k8s.io/kubelet is not a dependency), so a typo'd key would still slip
 // through as an ignored field.
 func TestKubeletConfigContentParses(t *testing.T) {
-	var parsed map[string]any
-	if err := yaml.Unmarshal([]byte(kubeletConfigContent("10.96.0.10", kubeletClientCAPath)), &parsed); err != nil {
-		t.Fatalf("rendered kubelet config is not valid YAML: %v", err)
-	}
+	for _, exclusiveCPUs := range []bool{false, true} {
+		var parsed map[string]any
+		if err := yaml.Unmarshal([]byte(kubeletConfigContent("10.96.0.10", kubeletClientCAPath, exclusiveCPUs)), &parsed); err != nil {
+			t.Fatalf("exclusiveCPUs=%v: rendered kubelet config is not valid YAML: %v", exclusiveCPUs, err)
+		}
 
-	if got := parsed["clusterDomain"]; got != "cluster.local" {
-		t.Fatalf("clusterDomain = %v, want cluster.local", got)
-	}
-	if got := parsed["clusterDNS"]; got == nil {
-		t.Fatal("clusterDNS must survive rendering; a node without it falls back to host DNS")
+		if got := parsed["clusterDomain"]; got != "cluster.local" {
+			t.Fatalf("exclusiveCPUs=%v: clusterDomain = %v, want cluster.local", exclusiveCPUs, got)
+		}
+		if got := parsed["clusterDNS"]; got == nil {
+			t.Fatalf("exclusiveCPUs=%v: clusterDNS must survive rendering; a node without it falls back to host DNS", exclusiveCPUs)
+		}
+		// The static policy rejects a CPU reservation it cannot map to CPU ids,
+		// and the kubelet ignores the reserved quantities once reservedSystemCPUs
+		// is set, so the two must never be rendered together.
+		_, hasPolicy := parsed["cpuManagerPolicy"]
+		cpuReserved := parsed["systemReserved"].(map[string]any)["cpu"] != nil
+		if hasPolicy != exclusiveCPUs || cpuReserved == exclusiveCPUs {
+			t.Fatalf("exclusiveCPUs=%v: cpuManagerPolicy present=%v, systemReserved cpu present=%v", exclusiveCPUs, hasPolicy, cpuReserved)
+		}
+		// Without an age limit the kubelet only collects images at the same 85% at
+		// which imagefs eviction starts, so released runner images pile up.
+		if got := parsed["imageMaximumGCAge"]; got != "24h" {
+			t.Fatalf("exclusiveCPUs=%v: imageMaximumGCAge = %v, want 24h", exclusiveCPUs, got)
+		}
 	}
 }
 
@@ -44,7 +59,7 @@ func TestKubeletConfigDisablesEarlyMemoryThrottling(t *testing.T) {
 		SystemReserved         map[string]string `json:"systemReserved"`
 		KubeReserved           map[string]string `json:"kubeReserved"`
 	}
-	if err := yaml.Unmarshal([]byte(kubeletConfigContent("", kubeletClientCAPath)), &parsed); err != nil {
+	if err := yaml.Unmarshal([]byte(kubeletConfigContent("", kubeletClientCAPath, false)), &parsed); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
@@ -76,7 +91,7 @@ func TestKubeletConfigEvictionHardCoversEverySignal(t *testing.T) {
 	var parsed struct {
 		EvictionHard map[string]string `json:"evictionHard"`
 	}
-	if err := yaml.Unmarshal([]byte(kubeletConfigContent("", kubeletClientCAPath)), &parsed); err != nil {
+	if err := yaml.Unmarshal([]byte(kubeletConfigContent("", kubeletClientCAPath, false)), &parsed); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 

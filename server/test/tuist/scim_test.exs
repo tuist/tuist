@@ -96,7 +96,9 @@ defmodule Tuist.SCIMTest do
 
   describe "users" do
     setup do
-      organization = organization_fixture()
+      organization =
+        organization_fixture(sso_login_domain: "example.com", sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z])
+
       %{organization: organization}
     end
 
@@ -190,7 +192,7 @@ defmodule Tuist.SCIMTest do
       organization: org
     } do
       {:ok, org} = Accounts.update_organization(org, %{sso_default_role: "viewer"})
-      existing = user_fixture()
+      existing = user_fixture(email: "non-member-#{System.unique_integer([:positive])}@example.com")
 
       assert {:ok, user} = SCIM.provision_user(org, %{user_name: existing.email})
       assert user.id == existing.id
@@ -228,6 +230,17 @@ defmodule Tuist.SCIMTest do
         worker: AttachmentNotifierWorker,
         args: %{"user_id" => existing.id, "organization_id" => org.id}
       )
+    end
+
+    test "provision_user/2 refuses to attach a user another organization provisioned", %{organization: org} do
+      other = organization_fixture()
+
+      {:ok, outsider} =
+        SCIM.provision_user(other, %{user_name: "outsider-#{System.unique_integer([:positive])}@corp.test"})
+
+      assert {:error, :email_taken} = SCIM.provision_user(org, %{user_name: outsider.email})
+      refute Accounts.belongs_to_organization?(outsider, org)
+      refute_enqueued(worker: AttachmentNotifierWorker)
     end
 
     test "provision_user/2 attaches a user when creation reports the email was taken after lookup", %{
@@ -456,7 +469,7 @@ defmodule Tuist.SCIMTest do
           sso_organization_id: "sso-deactivate-#{System.unique_integer([:positive])}.com"
         )
 
-      {:ok, user} = SCIM.provision_user(org, %{user_name: "sso-deactivate@example.com"})
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "sso-deactivate@sso-corp.test"})
 
       {:ok, _oauth_identity} =
         Accounts.link_oauth_identity_to_user(user, %{

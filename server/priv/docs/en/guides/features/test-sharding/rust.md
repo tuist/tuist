@@ -9,7 +9,9 @@
 
 Tuist distributes Cargo test targets across CI workers using historical target durations. Unit-test targets, integration-test targets, and each library's doctests are separate modules. Tests within one target stay together.
 
-> [!IMPORTANT] Requirements
+> [!IMPORTANT]
+> **Requirements**
+>
 > - Configure <.localized_link href="/guides/features/test-insights/rust">Rust Test Insights</.localized_link> and authenticate the CLI on the planning job and workers.
 > - Select one package, using `-p <package>` in a workspace. Multi-package sharding is not supported.
 > - Use the same revision, Rust toolchain, package selection, features, and test filters in every job.
@@ -41,7 +43,7 @@ Set the plan ID and shard index on each worker, then use the same Cargo test arg
 TUIST_SHARD_PLAN_ID=<plan-id> TUIST_SHARD_INDEX=0 tuist cargo test -p store
 ```
 
-Alternatively, set `TUIST_SHARD_REFERENCE` to the planning job's reference instead of passing the plan ID. Tuist fetches the assignment and asks Cargo to execute only those targets. Invalid or incompatible assignments fail the command rather than running all tests. Empty assignments execute no tests. Results from the workers are linked to the plan in Test Insights, and <.localized_link href="/guides/features/test-insights/flaky-tests/rust#quarantine">quarantine</.localized_link> applies within each shard.
+Alternatively, set `TUIST_SHARD_REFERENCE` to the planning job's reference instead of passing the plan ID. Tuist fetches the assignment and asks Cargo to execute only those targets. Invalid or incompatible assignments fail the command rather than running all tests. Empty assignments execute no tests. Results from the workers are linked to the plan in Test Insights, and <.localized_link href="/guides/features/test-insights/flaky-tests/rust#quarantining">quarantine</.localized_link> applies within each shard.
 
 ## Limits {#limits}
 

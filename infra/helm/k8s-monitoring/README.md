@@ -74,9 +74,13 @@ Prerequisites:
    | `PROMETHEUS_TOKEN` | Password | `password` |
    | `LOKI_TOKEN` | Password | `password` |
    | `TEMPO_TOKEN` | Password | `password` |
+   | `PULSO_TOKEN` | Password | `password` (random, e.g. `openssl rand -hex 32`) |
+   | `PULSO_SECRET_KEY_BASE` | Password | `password` (`openssl rand -base64 48`) |
+   | `PULSO_S3_CREDENTIALS` | Login | `access_key_id`, `secret_access_key` |
 
-3. **Grafana Cloud endpoints / usernames** — baked into `values.yaml`. Sanity-check they match the stack before installing a fresh cluster.
-4. **Worker nodes sized for the footprint.** The Alloy collectors, kube-state-metrics, and node-exporter want ~1.5 GB per node on top of the app. Staging/canary clusters run on `cpx31` (8 GB/node), production on `ccx23` (16 GB/node). `cpx22` (4 GB) is too small — a rolling server update can't fit a fresh pod alongside the old one while the node-local collectors are pinned to the node.
+3. **Pulso bucket** `tuist-pulso-<env>` in Tigris, private, without snapshots, soft delete, or lifecycle rules, reachable with the `PULSO_S3_CREDENTIALS` key. Pulso needs conditional writes (`If-None-Match: *` and `If-Match`); see the [Pulso object storage requirements](https://github.com/tuist/pulso/blob/main/docs/configuration.md#object-storage).
+4. **Grafana Cloud endpoints / usernames** — baked into `values.yaml`. Sanity-check they match the stack before installing a fresh cluster.
+5. **Worker nodes sized for the footprint.** The Alloy collectors, kube-state-metrics, and node-exporter want ~1.5 GB per node on top of the app. Staging/canary clusters run on `cpx31` (8 GB/node), production on `ccx23` (16 GB/node). `cpx22` (4 GB) is too small — a rolling server update can't fit a fresh pod alongside the old one while the node-local collectors are pinned to the node.
 
 ## Workload-side wiring
 
@@ -129,6 +133,12 @@ A rack can live in a non-production env (BER1 was in staging while it was built 
 
 The rack's switches report through the Omada controller rather than a scrape of their own: [`rack-switch-controller`](../../rack-switch-controller/AGENTS.md) exports `rack_switch_*` and carries the `prometheus.io/scrape` annotation.
 
+## Pulso
+
+The chart also runs a single-node [Pulso](https://github.com/tuist/pulso) (`pulso` Service, port 4000) backed by the per-environment bucket. Every feature sends to all compatible destinations, so the `pulso-metrics`, `pulso-logs`, and `pulso-traces` destinations receive the same metrics, pod and node logs, events, and traces as Grafana Cloud, each through its own write queue. Custom `extraConfig` scrapes forward to both explicitly.
+
+Pulso runs only where an overlay sets `pulso.enabled` (staging, canary, production); management and pentest have no bucket and keep their Grafana Cloud-only destinations. Data lives in the `tuist` tenant. Each cluster exposes only `/mcp`, at `pulso-staging.tuist.dev`, `pulso-canary.tuist.dev` and `pulso.tuist.dev`, for Atlas, which authenticates with its projected ServiceAccount token through Pulso's `workloadIdentity` trust (read-only, one token audience per host). Ingestion and the Prometheus/Loki query APIs stay in-cluster, where Alloy uses the `PULSO_TOKEN` tenant token. Grafana Cloud scrapes Pulso's own `/metrics` through annotation autodiscovery, so its health is visible independently of Pulso.
+
 ## What gets deployed
 
 Seven Alloy instances, split by role (managed by the upstream `alloy-operator`):
@@ -162,7 +172,11 @@ Plus the telemetry services themselves:
 named `hubble-metrics` port once per minute with clustered target ownership.
 It retains `hubble_drop_total`, `up`, and `scrape_samples_scraped`, labelled with
 `node`, `instance=<node>`, `namespace`, and `pod`. Source, destination, reason,
-and protocol labels on drop counters are preserved. Unready agents remain
+and protocol labels on drop counters are preserved. Drops with reason
+`UNSUPPORTED_L3_PROTOCOL` are discarded, whatever their L4 protocol. Cilium runs
+IPv4-only, so these are IPv6 packets, mostly router and neighbour discovery from
+the hosting network. They are keyed by raw source address, so per-node
+collection turned them into an unbounded series count. Unready agents remain
 targets: `up=0` distinguishes a failed scrape from a missing discovery target.
 The existing Cilium-agent scrape is unchanged.
 

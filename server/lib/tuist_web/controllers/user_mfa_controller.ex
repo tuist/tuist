@@ -133,7 +133,7 @@ defmodule TuistWeb.UserMFAController do
     |> configure_session(renew: true)
     |> put_session(:user_token, result.session.token)
     |> put_session(:live_socket_id, UserToken.live_socket_id(result.session))
-    |> delete_resp_cookie("_tuist_web_user_remember_me")
+    |> Authentication.delete_remember_me_cookie()
   end
 
   defp private_response(conn, _opts) do
@@ -142,8 +142,12 @@ defmodule TuistWeb.UserMFAController do
 
   defp render_challenge(conn, assigns) do
     case UserMFA.get_challenge(get_session(conn, :pending_mfa)) do
-      nil -> redirect(conn, to: ~p"/users/log_in")
-      challenge -> render_page(conn, :challenge, Keyword.put(assigns, :email, challenge.user.email))
+      nil ->
+        redirect(conn, to: ~p"/users/log_in")
+
+      challenge ->
+        passkeys? = UserPasskeyController.enabled?() and UserPasskey.list(challenge.user) != []
+        render_page(conn, :challenge, Keyword.merge(assigns, email: challenge.user.email, passkeys?: passkeys?))
     end
   end
 
@@ -152,9 +156,21 @@ defmodule TuistWeb.UserMFAController do
     |> put_view(TuistWeb.UserMFAHTML)
     |> render(
       template,
-      Keyword.put(assigns, :head_title, dgettext("dashboard_auth", "Two-factor authentication · Tuist"))
+      assigns
+      |> Keyword.put(:head_title, dgettext("dashboard_auth", "Two-factor authentication · Tuist"))
+      |> put_passkeys(conn, template)
     )
   end
+
+  # Every settings render lists the user's passkeys, including after a
+  # rejected authenticator-app change.
+  defp put_passkeys(assigns, conn, :settings) do
+    enabled? = UserPasskeyController.enabled?()
+    passkeys = if enabled?, do: UserPasskey.list(conn.assigns.current_user), else: []
+    Keyword.merge(assigns, passkeys: passkeys, passkeys_enabled?: enabled?)
+  end
+
+  defp put_passkeys(assigns, _conn, _template), do: assigns
 
   defp reauthenticate,
     do: dgettext("dashboard_auth", "Sign out and sign in again before changing two-factor authentication.")

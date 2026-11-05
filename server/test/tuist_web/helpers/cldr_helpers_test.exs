@@ -63,6 +63,8 @@ defmodule TuistWeb.CldrHelpersTest do
   test "formats counts in full with locale grouping" do
     assert format_count(658_422, locale: "en") == "658,422"
     assert format_count(1_234_567, locale: "es") == "1.234.567"
+    assert format_count(1_234_567, locale: "tr") == "1.234.567"
+    assert format_percent(12.5, locale: "tr") == "12,5%"
     assert format_count(42, locale: "en") == "42"
   end
 

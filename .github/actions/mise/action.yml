@@ -10,7 +10,11 @@ description: |
   The version below is a dependency pin: mise must stay at or above 2026.5.15,
   the first release where --locked installs download from the lockfile's direct
   CDN URLs instead of api.github.com, which gets rate-limited under CI
-  concurrency. Renovate bumps it from here.
+  concurrency. Renovate bumps both copies from here.
+
+  The action runs a second time after a pause when the first attempt fails.
+  mise-action downloads mise from GitHub releases with a single curl and no
+  retry, so a GitHub 504 would otherwise fail the job.
 
 inputs:
   install:
@@ -41,12 +45,30 @@ inputs:
 outputs:
   cache-hit:
     description: Whether the tool cache was hit
-    value: ${{ steps.mise.outputs.cache-hit }}
+    value: ${{ steps.retry.outputs.cache-hit || steps.mise.outputs.cache-hit }}
 
 runs:
   using: composite
   steps:
     - id: mise
+      continue-on-error: true
+      uses: jdx/mise-action@v4.0.1
+      with:
+        # renovate: datasource=github-releases depName=jdx/mise
+        version: "2026.5.15"
+        install: ${{ inputs.install }}
+        install_args: ${{ inputs.install_args }}
+        cache: ${{ inputs.cache }}
+        cache_key: ${{ inputs.cache_key }}
+        working_directory: ${{ inputs.working_directory }}
+        github_token: ${{ inputs.github_token || env.MISE_GITHUB_TOKEN || github.token }}
+        env: ${{ inputs.env }}
+    - name: Wait before retrying mise setup
+      if: ${{ steps.mise.outcome == 'failure' }}
+      shell: bash
+      run: sleep 30
+    - id: retry
+      if: ${{ steps.mise.outcome == 'failure' }}
       uses: jdx/mise-action@v4.0.1
       with:
         # renovate: datasource=github-releases depName=jdx/mise

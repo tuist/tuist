@@ -202,22 +202,22 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/helpers/failure_message.ex:35
+#: lib/tuist_web/helpers/failure_message.ex:46
 #, elixir-autogen, elixir-format
 msgid "Caught error"
 msgstr ""
 
-#: lib/tuist_web/helpers/failure_message.ex:60
+#: lib/tuist_web/helpers/failure_message.ex:71
 #, elixir-autogen, elixir-format
 msgid "Caught error at %{location}"
 msgstr ""
 
-#: lib/tuist_web/helpers/failure_message.ex:63
+#: lib/tuist_web/helpers/failure_message.ex:74
 #, elixir-autogen, elixir-format
 msgid "Caught error at %{location}: %{message}"
 msgstr ""
 
-#: lib/tuist_web/helpers/failure_message.ex:38
+#: lib/tuist_web/helpers/failure_message.ex:49
 #, elixir-autogen, elixir-format
 msgid "Caught error: %{message}"
 msgstr ""
@@ -332,22 +332,22 @@ msgstr ""
 msgid "Exception"
 msgstr ""
 
-#: lib/tuist_web/helpers/failure_message.ex:30
+#: lib/tuist_web/helpers/failure_message.ex:41
 #, elixir-autogen, elixir-format
 msgid "Expectation failed"
 msgstr ""
 
-#: lib/tuist_web/helpers/failure_message.ex:50
+#: lib/tuist_web/helpers/failure_message.ex:61
 #, elixir-autogen, elixir-format
 msgid "Expectation failed at %{location}"
 msgstr ""
 
-#: lib/tuist_web/helpers/failure_message.ex:53
+#: lib/tuist_web/helpers/failure_message.ex:64
 #, elixir-autogen, elixir-format
 msgid "Expectation failed at %{location}: %{message}"
 msgstr ""
 
-#: lib/tuist_web/helpers/failure_message.ex:33
+#: lib/tuist_web/helpers/failure_message.ex:44
 #, elixir-autogen, elixir-format
 msgid "Expectation failed: %{message}"
 msgstr ""
@@ -565,22 +565,22 @@ msgstr ""
 msgid "Image"
 msgstr ""
 
-#: lib/tuist_web/helpers/failure_message.ex:40
+#: lib/tuist_web/helpers/failure_message.ex:51
 #, elixir-autogen, elixir-format
 msgid "Issue recorded"
 msgstr ""
 
-#: lib/tuist_web/helpers/failure_message.ex:70
+#: lib/tuist_web/helpers/failure_message.ex:81
 #, elixir-autogen, elixir-format
 msgid "Issue recorded at %{location}"
 msgstr ""
 
-#: lib/tuist_web/helpers/failure_message.ex:73
+#: lib/tuist_web/helpers/failure_message.ex:84
 #, elixir-autogen, elixir-format
 msgid "Issue recorded at %{location}: %{message}"
 msgstr ""
 
-#: lib/tuist_web/helpers/failure_message.ex:43
+#: lib/tuist_web/helpers/failure_message.ex:54
 #, elixir-autogen, elixir-format
 msgid "Issue recorded: %{message}"
 msgstr ""
@@ -1442,7 +1442,7 @@ msgstr ""
 msgid "Unknown"
 msgstr ""
 
-#: lib/tuist_web/helpers/failure_message.ex:45
+#: lib/tuist_web/helpers/failure_message.ex:56
 #, elixir-autogen, elixir-format
 msgid "Unknown error"
 msgstr ""

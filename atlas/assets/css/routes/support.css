@@ -33,6 +33,11 @@
     font: var(--noora-font-body-small);
   }
 
+  & > [data-part="header"] > [data-part="text"] > [data-part="description"] {
+    margin: 0;
+    font: var(--noora-font-body-medium);
+  }
+
   & [data-part="threads-table-section"],
   & [data-part="messages-section"],
   & [data-part="composer-section"],

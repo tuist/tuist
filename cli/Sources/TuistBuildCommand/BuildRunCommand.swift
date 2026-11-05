@@ -134,6 +134,7 @@
         public static var configuration: CommandConfiguration {
             CommandConfiguration(
                 commandName: "run",
+                _superCommandName: "build",
                 abstract: "Builds a project (deprecated: Use 'tuist xcodebuild build' instead)",
                 discussion: "Use 'tuist build list' and 'tuist build show' to manage builds.",
                 shouldDisplay: false

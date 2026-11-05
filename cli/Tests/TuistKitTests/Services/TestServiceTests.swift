@@ -629,7 +629,6 @@ final class TestServiceTests: TuistUnitTestCase {
     func test_run_bumps_coverage_counters_atomically_when_coverage_is_uploaded() async throws {
         for uploadsCoverage in [true, false] {
             try await withMockedEnvironment {
-                Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
                 Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = uploadsCoverage ? "1" : "0"
                 // Given
                 xcodebuildController.reset()
@@ -1232,6 +1231,43 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(testedSchemes, ["ProjectSchemeOne"])
+    }
+
+    func test_run_tests_individual_scheme_records_the_test_platform() async throws {
+        for (platform, passthroughXcodeBuildArguments, expected) in [
+            (nil, ["-destination", "platform=iOS Simulator,id=device-id"], XcodeGraph.Platform.iOS),
+            ("macos", [], .macOS),
+        ] as [(String?, [String], XcodeGraph.Platform)] {
+            // Given
+            runMetadataStorage = RunMetadataStorage()
+            givenGenerator()
+            given(simulatorController)
+                .findAvailableDevice(udid: .any)
+                .willReturn(.test(device: .test(name: "Test iPhone")))
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([Scheme.test(name: "ProjectSchemeOne")])
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne")])), MapperEnvironment())
+                }
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
+
+            // When
+            try await testRun(
+                schemeName: "ProjectSchemeOne",
+                path: try temporaryPath(),
+                platform: platform,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            )
+
+            // Then
+            let testPlatform = await runMetadataStorage.testPlatform
+            XCTAssertEqual(testPlatform, expected)
+        }
     }
 
     func test_run_tests_individual_scheme_with_no_test_actions() async throws {
@@ -4966,9 +5002,10 @@ final class TestServiceTests: TuistUnitTestCase {
                     stressNewTests: .any,
                     gitHistory: .any,
                     coverage: .any,
-                    coverageEnabled: .any
+                    coverageEnabled: .any,
+                    testImpactRunId: .any
                 )
-                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _, _, _, _ in
+                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _, _, _, _, _ in
                     uploadedReports += 1
                     XCTAssertEqual(summary.testPlanName, "ProjectSchemeOne")
                     XCTAssertEqual(summary.status, .passed)
@@ -5889,7 +5926,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -5940,7 +5978,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -5985,7 +6024,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -6295,7 +6335,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 buildRunId: .any,
                 requestedTestIdentifiers: .any,
                 skipUpload: .any,
-                archivePath: .any
+                archivePath: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.ShardPlan(
@@ -6333,7 +6374,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 buildRunId: .any,
                 requestedTestIdentifiers: .any,
                 skipUpload: .value(false),
-                archivePath: .value(shardArchivePath)
+                archivePath: .value(shardArchivePath),
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -6674,7 +6716,6 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_testWithoutBuilding_fromBundle_collects_coverage_under_the_passthrough_derived_data() async throws {
         try await withMockedEnvironment {
-            Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
             Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
             // Given
             let path = try temporaryPath()
@@ -6732,7 +6773,6 @@ final class TestServiceTests: TuistUnitTestCase {
     func test_run_shard_collects_coverage_under_a_run_scoped_derived_data_when_none_is_passed() async throws {
         for uploadsCoverage in [true, false] {
             try await withMockedEnvironment {
-                Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
                 Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = uploadsCoverage ? "1" : "0"
                 // Given
                 let path = try temporaryPath()
@@ -6769,7 +6809,6 @@ final class TestServiceTests: TuistUnitTestCase {
     func test_run_testWithoutBuilding_fromBundle_collects_coverage_under_a_run_scoped_derived_data_when_none_is_passed(
     ) async throws {
         try await withMockedEnvironment {
-            Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
             Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
             // Given
             let path = try temporaryPath()
@@ -8173,6 +8212,71 @@ struct TestServiceShardingTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_stores_no_selective_testing_hash_for_a_target_coverage_ran_part_of() async throws {
+        // Coverage-based test selection skipped one of the target's tests through the skip file, so
+        // the target passed without all its tests running.
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(
+            rootDirectory: temporaryDirectory,
+            testSummary: TestSummary(
+                testPlanName: nil,
+                status: .passed,
+                duration: nil,
+                testModules: [
+                    TestModule(
+                        name: "AppTests",
+                        status: .passed,
+                        duration: 0,
+                        testSuites: [],
+                        testCases: [
+                            TestCase(
+                                name: "testAdd",
+                                testSuite: "CartTests",
+                                module: "AppTests",
+                                duration: nil,
+                                status: .passed,
+                                failures: []
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+        let extractedTestProductsPath = temporaryDirectory.appending(component: "Extracted.xctestproducts")
+        try await FileSystem().makeDirectory(at: extractedTestProductsPath)
+        given(fixture.shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppTests"],
+                    selectiveTestingGraph: SelectiveTestingGraph(testTargetHashes: ["AppTests": "app-hash"]),
+                    skippedTests: [SkippedTest(module: "AppTests", suite: "CartTests", name: "testRemove")]
+                )
+            )
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(path: temporaryDirectory, shardIndex: 0)
+        }
+
+        verify(fixture.cacheStorage)
+            .store(.any, cacheCategory: .value(.selectiveTests))
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func without_building_passes_shard_plan_and_archive_path_to_shard_service() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
@@ -8942,23 +9046,20 @@ struct TestServiceBinaryCacheCoverageTests {
         .withMockedDependencies(),
         .withMockedEnvironment(),
         arguments: [
-            // COVERAGE feature flag, TUIST_COVERAGE_ENABLED, Tuist.swift, expected
-            (true, String?.none, false, BinaryCacheCoverage.off),
-            (true, nil, true, .on),
-            (true, "1", false, .on),
-            (true, "0", true, .off),
-            (false, "1", true, .off),
+            // TUIST_COVERAGE_ENABLED, Tuist.swift, expected
+            (String?.none, false, BinaryCacheCoverage.off),
+            (nil, true, .on),
+            ("1", false, .on),
+            ("0", true, .off),
         ]
     )
     func run_readsTheResolvedVariant(
-        featureFlag: Bool,
         variable: String?,
         option: Bool,
         expected: BinaryCacheCoverage
     ) async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let environment = try #require(Environment.mocked)
-        environment.variables["TUIST_FEATURE_FLAG_COVERAGE"] = featureFlag ? "1" : nil
         environment.variables["TUIST_COVERAGE_ENABLED"] = variable
         let fixture = TestServiceSchemePlanningFixture(
             scenario: SchemePlanningScenario(rootDirectory: temporaryDirectory),
@@ -9592,11 +9693,12 @@ private struct TestServiceStressNewTestsFixture {
                 firstPassFailed: .any,
                 fullHandle: .any,
                 serverURL: .any,
+                coverage: .any,
                 mutedTests: .any,
                 resultBundleDirectory: .any,
                 stressPass: .any
             )
-            .willProduce { _, _, _, _, _, _, _, _ in
+            .willProduce { _, _, _, _, _, _, _, _, _ in
                 state.stressResults.isEmpty ? nil : state.stressResults.removeFirst()
             }
 
@@ -9715,7 +9817,7 @@ struct TestServiceCoverageEnabledTests {
 
     @Test(.withMockedEnvironment())
     func prefersThePassthroughFlagOverTheScheme() {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
         let config = TuistConfig.Tuist.test(fullHandle: "tuist/tuist")
 
         #expect(
@@ -9736,7 +9838,7 @@ struct TestServiceCoverageEnabledTests {
 
     @Test(.withMockedEnvironment())
     func readsTheSchemeAndLeavesTestPlansUnknown() throws {
-        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
         let config = TuistConfig.Tuist.test(fullHandle: "tuist/tuist")
         let plan = TestPlan(
             path: try AbsolutePath(validating: "/Project/App.xctestplan"),

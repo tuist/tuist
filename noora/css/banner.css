@@ -91,7 +91,7 @@
     display: flex;
     position: absolute;
     top: 50%;
-    right: var(--noora-spacing-5);
+    inset-inline-end: var(--noora-spacing-5);
     justify-content: center;
     transform: translateY(-50%);
     cursor: pointer;

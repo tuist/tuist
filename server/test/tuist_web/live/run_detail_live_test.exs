@@ -321,6 +321,27 @@ defmodule TuistWeb.RunDetailLiveTest do
       assert has_element?(lv, "#selective-testing-table span", "UtilsTests")
     end
 
+    test "does not create atoms from client-supplied sort orders", %{
+      conn: conn,
+      organization: organization,
+      project: project,
+      user: user
+    } do
+      run = CommandEventsFixtures.command_event_fixture(project: project, name: "test", user_id: user.id)
+      base = ~p"/#{organization.account.name}/#{project.name}/runs/#{run.id}"
+      {:ok, lv, _html} = live(conn, base <> "?tab=test-optimizations")
+      unique = "sort_order_#{System.unique_integer([:positive])}"
+
+      for {tab, key} <- [
+            {"test-optimizations", "selective-testing-sort-order"},
+            {"module-cache", "binary-cache-sort-order"}
+          ] do
+        render_patch(lv, base <> "?tab=#{tab}&#{key}=#{unique}_#{key}")
+
+        assert_raise ArgumentError, fn -> String.to_existing_atom("#{unique}_#{key}") end
+      end
+    end
+
     test "does not show download result button when not available", %{
       conn: conn,
       organization: organization,

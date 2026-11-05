@@ -11,7 +11,7 @@
 
   & [data-part="custom-metadata-link"] {
     display: block;
-    padding-left: var(--noora-spacing-7);
+    padding-inline-start: var(--noora-spacing-7);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
     text-decoration: underline;
@@ -114,6 +114,8 @@
 
             & code {
               font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+              direction: ltr;
+              unicode-bidi: isolate;
             }
           }
         }
@@ -241,7 +243,7 @@
         flex-direction: column;
         gap: var(--noora-spacing-2);
         margin: 0;
-        padding-left: var(--noora-spacing-5);
+        padding-inline-start: var(--noora-spacing-5);
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
       }

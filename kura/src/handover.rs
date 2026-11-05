@@ -19,15 +19,26 @@ use futures_util::{StreamExt, stream::FuturesOrdered};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::HashSet, sync::atomic::Ordering, time::Duration};
-use tokio_util::sync::CancellationToken;
+use tokio_util::{sync::CancellationToken, task::AbortOnDropHandle};
 use tracing::Instrument;
 
 const MAX_BATCH_RECORDS: usize = 32;
 const MAX_BATCH_BODY_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_BATCH_METADATA_BYTES: usize = 64 * 1024;
 // Content descriptors hashed per page while the source serves.
-const DESCRIPTOR_PAGE_RECORDS: usize = 64;
+const DESCRIPTOR_PAGE_RECORDS: usize = 1024;
 const DESCRIPTOR_PAGE_BODY_BYTES: u64 = 128 * 1024 * 1024;
+// Records read and hashed at once by each side of the content walk. Each read
+// costs a few milliseconds of disk latency, so a sequential walk of a million
+// records outlasts the preparation deadline.
+const RECORDS_IN_FLIGHT: usize = 16;
+// Ranges of the source's index the content walk requests at once, out of up
+// to `DESCRIPTOR_RANGES`, cut every `RANGE_SAMPLE_ROWS` rows of this
+// destination's index at the finest. A source that hashes one record at a
+// time per request is otherwise the whole walk's speed limit.
+const DESCRIPTOR_RANGES_IN_FLIGHT: usize = 8;
+const DESCRIPTOR_RANGES: usize = 64;
+const RANGE_SAMPLE_ROWS: usize = 16;
 // Metadata-only descriptors checked per request inside the barrier.
 const DESCRIPTOR_BATCH_RECORDS: usize = 1024;
 const DESCRIPTOR_BATCH_METADATA_BYTES: usize = 256 * 1024;
@@ -57,6 +68,7 @@ pub struct Preparation {
     pub source: Holder,
     pub epoch: u64,
     pub complete: bool,
+    pub content_verified: bool,
     pub error: Option<String>,
 }
 
@@ -238,6 +250,25 @@ pub(crate) async fn record(
         size: bytes,
         digest: format!("{:x}", digest.finalize()),
     }))
+}
+
+/// [`record`] for each row on its own task, a bounded number at once, yielded
+/// in row order. Segment reads block their thread, so only separate tasks
+/// overlap them. Dropping the stream aborts the records still in flight.
+fn records_in_order(
+    state: &SharedState,
+    rows: Vec<(BackfillRecordKind, String, u64)>,
+) -> impl futures_util::Stream<Item = Result<Option<Record>, String>> {
+    let state = state.clone();
+    futures_util::stream::iter(rows)
+        .map(move |(kind, id, version)| {
+            let state = state.clone();
+            AbortOnDropHandle::new(tokio::spawn(async move {
+                record(&state, kind, &id, version).await
+            }))
+        })
+        .buffered(RECORDS_IN_FLIGHT)
+        .map(|joined| joined.map_err(|error| error.to_string())?)
 }
 
 pub async fn verify(
@@ -651,6 +682,13 @@ async fn prepare_live_destination(
     require_current_preparation(state, &request, preparation.epoch)?;
     reconcile_retained_corpus(state, &request, Some(preparation.epoch), None, None).await?;
     let walk = verify_content_while_serving(state, &request, preparation.epoch).await?;
+    // Content left unverified would be hashed under the frozen source, which
+    // cannot finish within the barrier deadline on a large corpus.
+    if !walk.complete {
+        return Err(
+            "content walk did not finish while the source served; refusing to freeze it".into(),
+        );
+    }
     // A live cache may evict on every walk. Waiting for an eviction-free pass
     // can starve until the deadline while the source keeps accepting writes.
     // Quiescing still repairs, atomically freezes and verifies the full corpus.
@@ -818,10 +856,17 @@ async fn descriptor_page(
         .backfill_index_page(after.as_deref(), DESCRIPTOR_PAGE_RECORDS)?;
     let mut records = Vec::new();
     let mut body_bytes = 0u64;
-    for row in page.entries {
+    let mut hashed = std::pin::pin!(records_in_order(
+        state,
+        page.entries
+            .iter()
+            .map(|row| (row.kind, row.record_id.clone(), row.version_ms))
+            .collect(),
+    ));
+    for row in &page.entries {
         // Live writes and eviction can retire a row between listing and
         // hashing; the frozen barrier verifies whatever this pass missed.
-        if let Ok(Some(record)) = record(state, row.kind, &row.record_id, row.version_ms).await {
+        if let Some(Ok(Some(record))) = hashed.next().await {
             body_bytes = body_bytes.saturating_add(record.size);
             records.push(record);
         }
@@ -841,11 +886,194 @@ async fn descriptor_page(
     })
 }
 
+/// One range of the source's index for the content walk: the records after
+/// the `after` cursor down to, but excluding, version `stop`.
+struct DescriptorRange {
+    after: Option<String>,
+    stop: Option<u64>,
+}
+
+enum PageFailure {
+    // The walk stops short of the end, which fails preparation.
+    Unreachable(String),
+    // Preparation fails outright.
+    Fatal(String),
+}
+
+/// A range's page of descriptors with this destination's copy of each
+/// (None when missing or unreadable), and where the range continues.
+struct CheckedPage {
+    records: Vec<Record>,
+    kinds: Vec<BackfillRecordKind>,
+    held: Vec<Option<Record>>,
+    frontier_ms: Option<u64>,
+    next: Option<DescriptorRange>,
+}
+
+async fn source_descriptor_page(
+    state: &SharedState,
+    request: &VerifyRequest,
+    after: Option<String>,
+) -> Result<DescriptorPage, PageFailure> {
+    let response = state
+        .peer_request(
+            reqwest::Method::POST,
+            &request.intent.source_url,
+            &format!(
+                "{}/_internal/handover/descriptors",
+                request.intent.source_url
+            ),
+        )
+        .map_err(PageFailure::Fatal)?
+        .json(&DescriptorRequest {
+            intent: request.intent.clone(),
+            source: request.source.clone(),
+            after,
+        })
+        .timeout(Duration::from_secs(120))
+        .send()
+        .await;
+    // A source that predates the route, refuses it or cannot be reached
+    // ends the walk incomplete, which fails preparation.
+    match response {
+        Ok(response) if response.status().is_success() => response
+            .json::<DescriptorPage>()
+            .await
+            .map_err(|e| PageFailure::Unreachable(e.to_string())),
+        Ok(response) => Err(PageFailure::Unreachable(format!("{}", response.status()))),
+        Err(error) => Err(PageFailure::Unreachable(error.to_string())),
+    }
+}
+
+/// Reads this destination's copy of each descriptor. With `watch`, first
+/// lowers the retained watch to the page's oldest record, so a later eviction
+/// of its segment is counted.
+async fn held_records(
+    state: &SharedState,
+    records: &[Record],
+    watch: bool,
+) -> Result<(Vec<BackfillRecordKind>, Vec<Option<Record>>, Option<u64>), PageFailure> {
+    let frontier_ms = records
+        .iter()
+        .map(|record| record.version)
+        .min()
+        .filter(|_| watch)
+        .map(|oldest| state.store.lower_retained_watch(oldest));
+    let kinds = records
+        .iter()
+        .map(|expected| {
+            BackfillRecordKind::from_wire_name(&expected.kind)
+                .ok_or_else(|| PageFailure::Fatal("unknown retained record kind".into()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    // A transient read or eviction leaves the record to the frozen barrier.
+    let held = records_in_order(
+        state,
+        records
+            .iter()
+            .zip(&kinds)
+            .map(|(expected, kind)| (*kind, expected.id.clone(), expected.version))
+            .collect(),
+    )
+    .map(|held| held.ok().flatten())
+    .collect()
+    .await;
+    Ok((kinds, held, frontier_ms))
+}
+
+/// Requests and checks the next page of one range of the source's index.
+async fn checked_range_page(
+    state: &SharedState,
+    request: &VerifyRequest,
+    range: DescriptorRange,
+    watch: bool,
+) -> Result<CheckedPage, PageFailure> {
+    let page = source_descriptor_page(state, request, range.after).await?;
+    let (records, next) = within_range(page, range.stop);
+    let (kinds, held, frontier_ms) = held_records(state, &records, watch).await?;
+    Ok(CheckedPage {
+        records,
+        kinds,
+        held,
+        frontier_ms,
+        next,
+    })
+}
+
+/// A page's records that belong to its range, and where the range continues.
+/// Pages run past a range's end; the next range covers the rest.
+fn within_range(page: DescriptorPage, stop: Option<u64>) -> (Vec<Record>, Option<DescriptorRange>) {
+    let mut records = page.records;
+    let mut ended = page.next_after.is_none();
+    if let Some(stop) = stop {
+        if let Some(cut) = records.iter().position(|record| record.version <= stop) {
+            records.truncate(cut);
+            ended = true;
+        }
+        if page
+            .next_after
+            .as_deref()
+            .and_then(cursor_version)
+            .is_some_and(|version| version <= stop)
+        {
+            ended = true;
+        }
+    }
+    let next = (!ended).then_some(DescriptorRange {
+        after: page.next_after,
+        stop,
+    });
+    (records, next)
+}
+
+/// The version of a source index cursor (the key of the last row of a page).
+fn cursor_version(cursor: &str) -> Option<u64> {
+    let key = hex::decode(cursor).ok()?;
+    let version = key
+        .strip_prefix(crate::utils::BACKFILL_IDX_PREFIX.as_bytes())?
+        .get(..8)?;
+    Some(!u64::from_be_bytes(version.try_into().ok()?))
+}
+
+/// A cursor just before every source index row at `version`: the index is
+/// ordered newest first, so the rows after it are this version and older.
+fn version_cursor(version: u64) -> String {
+    let mut key = crate::utils::BACKFILL_IDX_PREFIX.as_bytes().to_vec();
+    key.extend_from_slice(&(!version).to_be_bytes());
+    hex::encode(key)
+}
+
+/// Versions, newest first, that cut the source's index into up to
+/// `DESCRIPTOR_RANGES` ranges of similar size. They come from this
+/// destination's own index, which holds nearly the same corpus; a poor cut
+/// only unbalances the ranges, since together they still cover the index.
+fn range_cuts(state: &SharedState) -> Result<Vec<u64>, String> {
+    let (mut samples, mut after, mut seen) = (Vec::new(), None::<Vec<u8>>, 0usize);
+    loop {
+        let page = state.store.backfill_index_page(after.as_deref(), 4096)?;
+        for row in &page.entries {
+            if seen % RANGE_SAMPLE_ROWS == 0 {
+                samples.push(row.version_ms);
+            }
+            seen += 1;
+        }
+        match page.next_after {
+            Some(next) => after = Some(next),
+            None => break,
+        }
+    }
+    let step = samples.len().div_ceil(DESCRIPTOR_RANGES).max(1);
+    let mut cuts: Vec<u64> = samples.into_iter().step_by(step).skip(1).collect();
+    cuts.dedup();
+    Ok(cuts)
+}
+
 /// Confirms, while the source still serves, that this destination holds the
 /// same content as the source for each retained record version, so the frozen
-/// barrier only has to recheck metadata. Stops short of the intent deadline and
-/// keeps what it confirmed; a source that predates this route verifies
-/// everything inside the barrier as before.
+/// barrier only has to recheck metadata. Stops short of the intent deadline;
+/// preparation fails unless the walk reached the end of the source's index.
+/// After the first page, ranges of the source's index are requested at once:
+/// a source that hashes one record at a time still serves requests in parallel.
 async fn verify_content_while_serving(
     state: &SharedState,
     request: &VerifyRequest,
@@ -866,55 +1094,37 @@ async fn verify_content_while_serving(
         losses_at: 0,
         missing_records: 0,
         missing_bytes: 0,
+        complete: false,
     };
-    let (mut unverified, mut after) = (0u64, None::<String>);
-    loop {
-        require_current_preparation(state, request, epoch)?;
-        if crate::utils::now_ms().saturating_add(CONTENT_WALK_DEADLINE_MARGIN_MS)
+    let mut unverified = 0u64;
+    let near_deadline = || {
+        crate::utils::now_ms().saturating_add(CONTENT_WALK_DEADLINE_MARGIN_MS)
             >= request.intent.deadline_ms
-        {
-            break;
-        }
-        let response = state
-            .peer_request(
-                reqwest::Method::POST,
-                &request.intent.source_url,
-                &format!(
-                    "{}/_internal/handover/descriptors",
-                    request.intent.source_url
-                ),
-            )?
-            .json(&DescriptorRequest {
-                intent: request.intent.clone(),
-                source: request.source.clone(),
-                after: after.clone(),
-            })
-            .timeout(Duration::from_secs(120))
-            .send()
-            .await;
-        // A source that predates the route, refuses it or cannot be reached
-        // leaves the remaining records to the frozen barrier's full
-        // verification; it never fails preparation.
-        let page = match response {
-            Ok(response) if response.status().is_success() => response
-                .json::<DescriptorPage>()
-                .await
-                .map_err(|e| e.to_string()),
-            Ok(response) => Err(format!("{}", response.status())),
-            Err(error) => Err(error.to_string()),
-        };
-        let page = match page {
-            Ok(page) => page,
-            Err(error) => {
-                tracing::warn!(event.name = "kura.handover.content_unverified", id = %request.intent.id,
-                    error = %bounded_detail(&error),
-                    "Stopped verifying content while serving; the barrier verifies the rest");
-                break;
+    };
+    let stopped_short = |error: &str| {
+        tracing::warn!(event.name = "kura.handover.content_unverified", id = %request.intent.id,
+            error = %bounded_detail(error),
+            "Stopped verifying content while serving; preparation fails");
+    };
+    require_current_preparation(state, request, epoch)?;
+    let local = state.clone();
+    let cuts = tokio::task::spawn_blocking(move || range_cuts(&local))
+        .await
+        .map_err(|error| error.to_string())??;
+    let first = if near_deadline() {
+        None
+    } else {
+        match source_descriptor_page(state, request, None).await {
+            Ok(page) => Some(page),
+            Err(PageFailure::Fatal(error)) => return Err(error),
+            Err(PageFailure::Unreachable(error)) => {
+                stopped_short(&error);
+                None
             }
-        };
-        if after.is_none()
-            && let Some(frontier) = page.oldest_version_ms
-        {
+        }
+    };
+    if let Some(first) = first {
+        if let Some(frontier) = first.oldest_version_ms {
             // Evictions from here on that may reach the source's retained
             // range are counted against this preparation.
             state.store.watch_retained_evictions(frontier);
@@ -922,78 +1132,86 @@ async fn verify_content_while_serving(
             walk.frontier_ms = Some(frontier);
             verified.feed_from = state.store.sync_cursor(&request.intent.source_url)?;
         }
-        // Watch the oldest record on this page before checking that it is
-        // held, so a later eviction of its segment is counted.
-        if walk.frontier_ms.is_some()
-            && let Some(oldest) = page.records.iter().map(|record| record.version).min()
-        {
-            walk.frontier_ms = Some(state.store.lower_retained_watch(oldest));
+        let watch = walk.frontier_ms.is_some();
+        // The first page starts the first range; every cut starts another.
+        let (records, first_range) = within_range(first, cuts.first().copied());
+        let mut waiting: std::collections::VecDeque<_> = first_range.into_iter().collect();
+        let stops = cuts
+            .iter()
+            .skip(1)
+            .copied()
+            .map(Some)
+            .chain(std::iter::once(None));
+        waiting.extend(cuts.iter().zip(stops).map(|(cut, stop)| DescriptorRange {
+            after: Some(version_cursor(*cut)),
+            stop,
+        }));
+        let (kinds, held, frontier_ms) = match held_records(state, &records, watch).await {
+            Ok(checked) => checked,
+            Err(PageFailure::Fatal(error) | PageFailure::Unreachable(error)) => return Err(error),
+        };
+        if let Some(frontier) = frontier_ms {
+            walk.frontier_ms = Some(frontier);
         }
-        for expected in &page.records {
-            let kind = BackfillRecordKind::from_wire_name(&expected.kind)
-                .ok_or("unknown retained record kind")?;
-            // A transient read or eviction leaves the record to the frozen barrier.
-            match record(state, kind, &expected.id, expected.version)
-                .await
-                .unwrap_or(None)
+        apply_checked_records(
+            &mut verified,
+            &mut walk,
+            &mut unverified,
+            &records,
+            &kinds,
+            held,
+        )?;
+        let mut pages = futures_util::stream::FuturesUnordered::new();
+        let finished;
+        loop {
+            while pages.len() < DESCRIPTOR_RANGES_IN_FLIGHT
+                && let Some(range) = waiting.pop_front()
             {
-                Some(actual)
-                    if actual.size == expected.size && actual.digest == expected.digest =>
-                {
-                    if verified.keys.len() < MAX_VERIFIED_CONTENT {
-                        verified.keys.insert(content_key(
-                            &expected.kind,
-                            &expected.id,
-                            expected.version,
-                        ));
-                    } else {
-                        unverified += 1;
-                    }
+                require_current_preparation(state, request, epoch)?;
+                if near_deadline() {
+                    waiting.push_front(range);
+                    break;
                 }
-                // The same version with different bytes is a corrupt or
-                // divergent copy: refuse the handover before any pause.
-                Some(_) => {
-                    return Err(format!(
-                        "{}; retained content differs at the same version",
-                        record_context(expected)
-                    ));
-                }
-                None => {
-                    unverified += 1;
-                    walk.missing_records += 1;
-                    walk.missing_bytes = walk.missing_bytes.saturating_add(expected.size);
-                    if verified
-                        .missing
-                        .as_ref()
-                        .is_some_and(|missing| missing.len() >= MAX_DELTA_REPAIR_RECORDS)
-                    {
-                        verified.missing = None;
-                    }
-                    if let Some(missing) = verified.missing.as_mut() {
-                        missing.push(BackfillEntry {
-                            record_kind: expected.kind.clone(),
-                            record_id: expected.id.clone(),
-                            version_ms: expected.version,
-                            size: (kind != BackfillRecordKind::NamespaceTombstone)
-                                .then_some(expected.size),
-                        });
-                    }
-                }
+                pages.push(checked_range_page(state, request, range, watch));
             }
-        }
-        match page.next_after {
-            Some(next) => after = Some(next),
-            None => {
-                verified.complete = true;
+            let Some(page) = pages.next().await else {
+                finished = waiting.is_empty();
                 break;
+            };
+            let page = match page {
+                Ok(page) => page,
+                Err(PageFailure::Fatal(error)) => return Err(error),
+                Err(PageFailure::Unreachable(error)) => {
+                    stopped_short(&error);
+                    finished = false;
+                    break;
+                }
+            };
+            if let Some(frontier) = page.frontier_ms {
+                walk.frontier_ms = Some(walk.frontier_ms.map_or(frontier, |at| at.min(frontier)));
+            }
+            apply_checked_records(
+                &mut verified,
+                &mut walk,
+                &mut unverified,
+                &page.records,
+                &page.kinds,
+                page.held,
+            )?;
+            // A range continues ahead of the ranges not started yet, so the
+            // number in flight holds.
+            if let Some(next) = page.next {
+                waiting.push_front(next);
             }
         }
+        verified.complete = finished;
     }
     tracing::info!(event.name = "kura.handover.content_verified", id = %request.intent.id,
         verified = verified.keys.len(), unverified, missing = walk.missing_records,
         missing_bytes = walk.missing_bytes, frontier_ms = ?walk.frontier_ms,
         complete = verified.complete, elapsed_ms = started.elapsed().as_millis() as u64,
         "Verified retained content while the source serves");
+    walk.complete = verified.complete;
     verified.frontier_ms = walk.frontier_ms;
     verified.losses_at = walk.losses_at;
     *state
@@ -1005,6 +1223,63 @@ async fn verify_content_while_serving(
     Ok(walk)
 }
 
+/// Records each descriptor this destination holds with the same bytes, or as
+/// missing; the same version with different bytes fails preparation.
+fn apply_checked_records(
+    verified: &mut VerifiedContent,
+    walk: &mut ContentWalk,
+    unverified: &mut u64,
+    records: &[Record],
+    kinds: &[BackfillRecordKind],
+    held: Vec<Option<Record>>,
+) -> Result<(), String> {
+    for ((expected, kind), actual) in records.iter().zip(kinds).zip(held) {
+        match actual {
+            Some(actual) if actual.size == expected.size && actual.digest == expected.digest => {
+                if verified.keys.len() < MAX_VERIFIED_CONTENT {
+                    verified.keys.insert(content_key(
+                        &expected.kind,
+                        &expected.id,
+                        expected.version,
+                    ));
+                } else {
+                    *unverified += 1;
+                }
+            }
+            // The same version with different bytes is a corrupt or
+            // divergent copy: refuse the handover before any pause.
+            Some(_) => {
+                return Err(format!(
+                    "{}; retained content differs at the same version",
+                    record_context(expected)
+                ));
+            }
+            None => {
+                *unverified += 1;
+                walk.missing_records += 1;
+                walk.missing_bytes = walk.missing_bytes.saturating_add(expected.size);
+                if verified
+                    .missing
+                    .as_ref()
+                    .is_some_and(|missing| missing.len() >= MAX_DELTA_REPAIR_RECORDS)
+                {
+                    verified.missing = None;
+                }
+                if let Some(missing) = verified.missing.as_mut() {
+                    missing.push(BackfillEntry {
+                        record_kind: expected.kind.clone(),
+                        record_id: expected.id.clone(),
+                        version_ms: expected.version,
+                        size: (*kind != BackfillRecordKind::NamespaceTombstone)
+                            .then_some(expected.size),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// What a preparation's content walk found missing, and from which retained
 /// frontier and eviction count it watches for further losses.
 struct ContentWalk {
@@ -1012,6 +1287,7 @@ struct ContentWalk {
     losses_at: u64,
     missing_records: u64,
     missing_bytes: u64,
+    complete: bool,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -1556,6 +1832,7 @@ pub fn spawn(state: SharedState) {
                     source: grant.holder,
                     epoch: grant.epoch,
                     complete: false,
+                    content_verified: false,
                     error: None,
                 };
                 {
@@ -1582,7 +1859,9 @@ pub fn spawn(state: SharedState) {
                 )
                 .await
                 {
-                    Ok(Ok(())) => preparation.complete = true,
+                    Ok(Ok(())) => {
+                        (preparation.complete, preparation.content_verified) = (true, true)
+                    }
                     Ok(Err(error)) => preparation.error = Some(bounded_detail(&error)),
                     Err(_) => preparation.error = Some("live preparation deadline exceeded".into()),
                 }
@@ -1753,11 +2032,15 @@ mod tests {
             source: request.source.clone(),
             epoch: grant.epoch,
             complete: false,
+            content_verified: false,
             error: None,
         };
-        prepare_live_destination(&target.state, &preparation)
+        // This source serves no descriptors for the intent, so preparation
+        // copies what it lacks and then refuses to report itself complete.
+        let error = prepare_live_destination(&target.state, &preparation)
             .await
-            .unwrap();
+            .unwrap_err();
+        assert!(error.contains("content walk did not finish"), "{error}");
         let expected = record(
             &source.state,
             BackfillRecordKind::SegmentArtifact,
@@ -1857,6 +2140,7 @@ mod tests {
                 source: request.source,
                 epoch: grant.epoch,
                 complete: false,
+                content_verified: false,
                 error: None,
             };
             let state = target.state.clone();
@@ -2483,15 +2767,17 @@ mod tests {
             source: request.source.clone(),
             epoch: grant.epoch,
             complete: false,
+            content_verified: false,
             error: None,
         };
-        tokio::time::timeout(
+        let error = tokio::time::timeout(
             Duration::from_secs(3),
             prepare_live_destination(&target.state, &preparation),
         )
         .await
         .expect("live preparation must finish despite concurrent eviction")
-        .unwrap();
+        .unwrap_err();
+        assert!(error.contains("content walk did not finish"), "{error}");
         assert!(walks.load(Ordering::SeqCst) > 0);
         assert!(target.state.store.handover_hold.lock().unwrap().is_none());
         assert!(
@@ -3384,12 +3670,23 @@ mod tests {
             move |request: axum::extract::Request, next: axum::middleware::Next| {
                 let counted = counted.clone();
                 async move {
+                    let path = request.uri().path().to_owned();
+                    {
+                        let mut counts = counted.lock().unwrap();
+                        *counts.entry(path.clone()).or_default() += 1;
+                        let in_flight = counts.entry(format!("in-flight:{path}")).or_default();
+                        *in_flight += 1;
+                        let now = *in_flight;
+                        let peak = counts.entry(format!("peak:{path}")).or_default();
+                        *peak = (*peak).max(now);
+                    }
+                    let response = next.run(request).await;
                     *counted
                         .lock()
                         .unwrap()
-                        .entry(request.uri().path().to_owned())
-                        .or_default() += 1;
-                    next.run(request).await
+                        .entry(format!("in-flight:{path}"))
+                        .or_default() -= 1;
+                    response
                 }
             },
         ));
@@ -3409,6 +3706,13 @@ mod tests {
         async fn new() -> Self {
             let source = fenced_context("source").await;
             let target = fenced_context("destination").await;
+            // Peer requests use the runtime's idle read timeout, not the test
+            // client's total cap, so a slow peer batch under load still completes.
+            for state in [&source.state, &target.state] {
+                state
+                    .client
+                    .store(Arc::new(state.peer_client_factory.build().unwrap()));
+            }
             source.state.store.sync_feed_activate().await.unwrap();
             let (source_url, source_requests) = serve_counting(source.state.clone()).await;
             let (target_url, target_requests) = serve_counting(target.state.clone()).await;
@@ -3500,6 +3804,7 @@ mod tests {
                     source: self.source.state.runtime.authority.identity().clone(),
                     epoch: 1,
                     complete: false,
+                    content_verified: false,
                     error: None,
                 },
             )
@@ -3541,8 +3846,11 @@ mod tests {
         }
 
         async fn seed(&self, key: &str, body: &[u8]) {
-            self.source
-                .state
+            Self::seed_into(&self.source.state, key, body).await;
+        }
+
+        async fn seed_into(state: &SharedState, key: &str, body: &[u8]) {
+            state
                 .store
                 .persist_artifact_from_bytes(
                     ArtifactProducer::Xcode,
@@ -3621,10 +3929,33 @@ mod tests {
     async fn overlapping_descriptor_batches_still_verify_every_record_in_order() {
         let pair = ContentPair::new().await;
         let batches = DESCRIPTOR_BATCHES_IN_FLIGHT + 1;
-        for index in 0..DESCRIPTOR_BATCH_RECORDS * (batches - 1) + 8 {
-            pair.seed(&format!("record-{index}"), &index.to_be_bytes())
-                .await;
-        }
+        let seeded = DESCRIPTOR_BATCH_RECORDS * (batches - 1) + 8;
+        // Both peers already hold the corpus at the same versions, so live
+        // preparation verifies it without first repairing it record by record.
+        let oldest = crate::utils::now_ms() - seeded as u64;
+        let states = [pair.source.state.clone(), pair.target.state.clone()];
+        futures_util::stream::iter(
+            (0..seeded).flat_map(|index| states.clone().map(move |state| (state, index))),
+        )
+        .map(|(state, index)| {
+            tokio::spawn(async move {
+                state
+                    .store
+                    .apply_replicated_artifact_from_bytes(
+                        ArtifactProducer::Xcode,
+                        "ios",
+                        &format!("record-{index}"),
+                        "application/octet-stream",
+                        &index.to_be_bytes(),
+                        oldest + index as u64,
+                    )
+                    .await
+                    .unwrap();
+            })
+        })
+        .buffer_unordered(64)
+        .for_each(|applied| async { applied.unwrap() })
+        .await;
         pair.catch_up_cursor();
         let renew = pair.keep_granted("Serving");
         pair.prepare_while_serving().await.unwrap();
@@ -3633,10 +3964,7 @@ mod tests {
 
         let receipt = pair.freeze().await.unwrap();
 
-        assert_eq!(
-            receipt.records as usize,
-            DESCRIPTOR_BATCH_RECORDS * (batches - 1) + 9
-        );
+        assert_eq!(receipt.records as usize, seeded + 1);
         assert_eq!(
             pair.requests("/_internal/handover/verify-descriptors"),
             batches
@@ -3822,8 +4150,155 @@ mod tests {
         assert_eq!(pair.requests("/_internal/handover/verify"), 0);
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn the_content_walk_reads_records_concurrently_on_both_sides() {
+        let pair = ContentPair::new().await;
+        for index in 0..48u32 {
+            pair.seed(&format!("slow-{index}"), &index.to_be_bytes())
+                .await;
+        }
+        pair.source.state.store.run_backfill_index_build().unwrap();
+        // Each authoritative read takes 20 ms, as a cold disk read would.
+        let overlap = |state: &SharedState| {
+            let in_flight = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let most = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let (counter, peak) = (in_flight.clone(), most.clone());
+            state
+                .store
+                .set_manifest_read_observer(Some(Arc::new(move || {
+                    let now = counter.fetch_add(1, Ordering::SeqCst) + 1;
+                    peak.fetch_max(now, Ordering::SeqCst);
+                    std::thread::sleep(Duration::from_millis(20));
+                    counter.fetch_sub(1, Ordering::SeqCst);
+                })));
+            most
+        };
+        let (source_peak, destination_peak) =
+            (overlap(&pair.source.state), overlap(&pair.target.state));
+        pair.install("Serving");
+        let renew = pair.keep_granted("Serving");
+        let request = VerifyRequest {
+            begin: false,
+            intent: pair.intent.clone(),
+            source: pair.source.state.runtime.authority.identity().clone(),
+            record: None,
+            records: Vec::new(),
+            receipt: None,
+        };
+
+        let walk = verify_content_while_serving(&pair.target.state, &request, 1)
+            .await
+            .unwrap();
+        renew.abort();
+
+        assert!(walk.complete);
+        assert_eq!(walk.missing_records, 48);
+        let (source_peak, destination_peak) = (
+            source_peak.load(Ordering::SeqCst),
+            destination_peak.load(Ordering::SeqCst),
+        );
+        assert!(
+            source_peak > 1 && destination_peak > 1,
+            "at most {source_peak} source and {destination_peak} destination reads overlapped"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn the_content_walk_requests_ranges_of_the_source_index_concurrently() {
+        // A source that predates concurrent hashing reads one record at a
+        // time per request, so only concurrent requests overlap its reads.
+        let pair = ContentPair::new().await;
+        for index in 0..512u32 {
+            let key = format!("ranged-{index}");
+            pair.seed(&key, &index.to_be_bytes()).await;
+            // The destination's own index tells it where to cut the source's.
+            ContentPair::seed_into(&pair.target.state, &key, &index.to_be_bytes()).await;
+        }
+        pair.source.state.store.run_backfill_index_build().unwrap();
+        pair.target.state.store.run_backfill_index_build().unwrap();
+        pair.source
+            .state
+            .store
+            .set_manifest_read_observer(Some(Arc::new(|| {
+                std::thread::sleep(Duration::from_millis(2))
+            })));
+        pair.install("Serving");
+        let renew = pair.keep_granted("Serving");
+        let request = VerifyRequest {
+            begin: false,
+            intent: pair.intent.clone(),
+            source: pair.source.state.runtime.authority.identity().clone(),
+            record: None,
+            records: Vec::new(),
+            receipt: None,
+        };
+
+        let walk = verify_content_while_serving(&pair.target.state, &request, 1)
+            .await
+            .unwrap();
+        renew.abort();
+
+        assert!(walk.complete);
+        // Every source record is checked exactly once, verified or missing,
+        // with no gap or overlap between ranges.
+        assert_eq!(walk.missing_records as usize + pair.verified(), 512);
+        let missing = pair
+            .target
+            .state
+            .runtime
+            .authority
+            .verified_content
+            .lock()
+            .unwrap()
+            .as_ref()
+            .and_then(|verified| verified.missing.clone())
+            .unwrap();
+        let distinct: HashSet<_> = missing.iter().map(|entry| &entry.record_id).collect();
+        assert_eq!(distinct.len(), missing.len());
+        let peak = pair.source_requests("peak:/_internal/handover/descriptors");
+        assert!(peak > 1, "at most {peak} descriptor requests overlapped");
+    }
+
     #[tokio::test]
-    async fn a_source_without_content_descriptors_keeps_full_barrier_verification() {
+    async fn a_content_walk_that_does_not_reach_the_end_fails_preparation_before_any_pause() {
+        let pair = ContentPair::new().await;
+        pair.seed("segment", &vec![42; 128 * 1024]).await;
+        pair.catch_up_cursor();
+        pair.install("Serving");
+        // The source never published this intent, so it refuses descriptors
+        // and the walk stops before the end of its index.
+        let other = Grant {
+            epoch: 1,
+            holder: pair.source.state.runtime.authority.identity().clone(),
+            phase: "Serving".into(),
+            expires_ms: crate::utils::now_ms() + 14_500,
+            handover: None,
+            barrier: None,
+            resume_epoch: None,
+            exit_resume: None,
+        };
+        pair.source.state.runtime.authority.install(other).unwrap();
+
+        let error = prepare_live_destination(
+            &pair.target.state,
+            &Preparation {
+                intent: pair.intent.clone(),
+                source: pair.source.state.runtime.authority.identity().clone(),
+                epoch: 1,
+                complete: false,
+                content_verified: false,
+                error: None,
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(error.contains("content walk did not finish"), "{error}");
+        assert_eq!(pair.verified(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_source_without_content_descriptors_leaves_the_walk_incomplete() {
         let pair = ContentPair::new().await;
         pair.seed("segment", &vec![42; 128 * 1024]).await;
         // The source never published this intent, so it refuses descriptors.
@@ -3848,10 +4323,11 @@ mod tests {
             receipt: None,
         };
 
-        verify_content_while_serving(&pair.target.state, &request, 1)
+        let walk = verify_content_while_serving(&pair.target.state, &request, 1)
             .await
             .unwrap();
 
+        assert!(!walk.complete);
         assert_eq!(pair.verified(), 0);
     }
 }

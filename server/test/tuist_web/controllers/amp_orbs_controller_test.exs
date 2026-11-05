@@ -67,20 +67,18 @@ defmodule TuistWeb.AmpOrbsControllerTest do
              "Account sandbox CPU or memory limit reached"
   end
 
-  test "marks the account's on-node cap, which paused Orbs count toward, as a non-retryable refusal", %{
+  test "marks the account's disk limit, which paused Orbs count toward, as final when nothing can be archived", %{
     conn: conn,
     integration: integration,
     user: user
   } do
     identity(integration)
-
-    for _ <- 1..Tuist.Sandboxes.max_on_node_sandboxes_per_account() do
-      SandboxesFixtures.sandbox_fixture(account: user.account, state: :paused)
-    end
+    {:ok, _} = Concurrency.update_limits(user.account, %{sandbox_disk_gb_limit: 14})
+    SandboxesFixtures.sandbox_fixture(account: user.account, state: :paused)
 
     result = request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture"})
 
-    assert response(result, 429) == "Account sandbox limit reached"
+    assert response(result, 429) == "Account sandbox disk limit reached"
     assert get_resp_header(result, "x-tuist-orb-refusal") == ["sandbox-limit"]
     assert get_resp_header(result, "x-tuist-orb-retry") == []
   end
@@ -96,7 +94,7 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     for {reason, status, hint} <- [
           {:no_capacity, 503, ["admission"]},
           {:sandbox_concurrency_limit, 429, ["admission"]},
-          {:sandbox_running_limit, 429, ["admission"]},
+          {:sandbox_disk_limit, 429, ["admission"]},
           {:sandbox_limit, 429, []},
           {:sandbox_account_busy, 409, ["admission"]},
           {:locked, 409, ["admission"]},
@@ -145,6 +143,35 @@ defmodule TuistWeb.AmpOrbsControllerTest do
   test "rejects missing guest credentials before dispatch", %{conn: conn, integration: integration} do
     identity(integration)
     assert response(request(conn, %{"operation" => "spawn"}), 400)
+  end
+
+  test "spawns take the platform and shape of their orb type; threads without one get Linux", %{
+    conn: conn,
+    integration: integration
+  } do
+    identity(integration)
+    parent = self()
+
+    stub(Tuist.Sandboxes, :dispatch_amp_orb, fn _account, _orb_id, attrs ->
+      send(parent, {:shape, Map.take(attrs, [:platform, :template, :vcpus, :memory_mb])})
+      {:ok, nil}
+    end)
+
+    request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture", "orb_type" => "macos"})
+    assert_received {:shape, %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192}}
+
+    request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture", "template" => "macos", "vcpus" => 8})
+    assert_received {:shape, %{platform: :linux, template: "default", vcpus: 2, memory_mb: 4096}}
+  end
+
+  test "an unknown orb type is refused before dispatch", %{conn: conn, integration: integration} do
+    identity(integration)
+    reject(&Tuist.Sandboxes.dispatch_amp_orb/3)
+
+    conn = request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture", "orb_type" => "gpu"})
+
+    assert response(conn, 400) == "Unknown orb type"
+    assert get_resp_header(conn, "x-tuist-orb-refusal") == ["unknown-orb-type"]
   end
 
   test "failed dispatch retains the sandbox identity and recovery state", %{

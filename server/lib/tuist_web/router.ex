@@ -18,6 +18,7 @@ defmodule TuistWeb.Router do
   alias TuistWeb.Plugs.LegacyRedirectsPlug
   alias TuistWeb.Plugs.LocalePlug
   alias TuistWeb.Plugs.MarkdownNegotiationPlug
+  alias TuistWeb.Plugs.MCPRateLimitPlug
   alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.PublicPageChallengePlug
   alias TuistWeb.Plugs.SameOriginCSRFExemptionPlug
@@ -35,6 +36,10 @@ defmodule TuistWeb.Router do
 
   pipeline :oidc_exchange_rate_limit do
     plug :rate_limit, limit: 300
+  end
+
+  pipeline :device_authorization_rate_limit do
+    plug :rate_limit, limit: 30
   end
 
   pipeline :open_graph_image do
@@ -328,7 +333,41 @@ defmodule TuistWeb.Router do
     plug :accept_atlas_identity_header
     plug SentryContextPlug
     plug ObservabilityContextPlug
-    plug TuistWeb.Plugs.MCPRateLimitPlug
+    plug MCPRateLimitPlug
+  end
+
+  # WebMCP tools the dashboard registers in the browser run as the signed-in
+  # user, scoped to the account in the path, so the session cookie authenticates
+  # them, CSRF protection applies, and that account's SSO enforcement applies
+  # as it does on its dashboard. Bearer tokens, operator grants and Atlas
+  # identities are not accepted.
+  pipeline :webmcp do
+    plug :put_request_kind, "webmcp"
+    plug :accepts, ["json"]
+    plug :fetch_session
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug :fetch_current_user
+    plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
+    plug :require_sso_authentication_for_account_api
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+    plug MCPRateLimitPlug
+  end
+
+  # The documentation tools every website page registers with WebMCP need no
+  # identity, so no session or CSRF token is involved, and callers are rate
+  # limited by address.
+  pipeline :public_webmcp do
+    plug :put_request_kind, "webmcp"
+    plug :accepts, ["json"]
+    plug MCPRateLimitPlug
+  end
+
+  # Pages that issue credentials acting for the user everywhere, which must not
+  # become a way around an organization's SSO enforcement.
+  pipeline :require_sso_for_credentials do
+    plug :require_sso_authentication_for_credentials
   end
 
   pipeline :authenticated_api do
@@ -734,6 +773,18 @@ defmodule TuistWeb.Router do
     forward "/mcp", Tuist.MCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
   end
 
+  scope "/api/webmcp", TuistWeb do
+    pipe_through [:public_webmcp]
+
+    post "/public", WebMCPController, :public
+  end
+
+  scope "/api/webmcp", TuistWeb do
+    pipe_through [:webmcp]
+
+    post "/accounts/:account_handle", WebMCPController, :account
+  end
+
   scope "/scim/v2", TuistWeb.SCIM do
     pipe_through [:scim_api]
 
@@ -801,6 +852,7 @@ defmodule TuistWeb.Router do
         get "/volumes/analytics", RunnerVolumesController, :analytics
         get "/volumes/:volume_id", RunnerVolumesController, :show
         get "/volumes/:volume_id/jobs", RunnerVolumesController, :jobs
+        delete "/volumes/:volume_id", RunnerVolumesController, :delete
         post "/volumes/:volume_id/clear", RunnerVolumesController, :clear
         get "/jobs/:workflow_job_id/volumes", RunnerVolumesController, :job_volumes
       end
@@ -815,8 +867,8 @@ defmodule TuistWeb.Router do
             :show_delivery_attempt
       end
 
-      # The literal agent-environments and agent-sessions routes must
-      # precede `/:sandbox_id`.
+      # The literal analytics, agent-environments and agent-sessions routes
+      # must precede `/:sandbox_id`.
       scope "/sandboxes" do
         post "/amp-orbs/:orb_id", SandboxesController, :dispatch_amp_orb
         post "/agent-environments", SandboxesController, :create_agent_environment
@@ -829,12 +881,14 @@ defmodule TuistWeb.Router do
         post "/agent-sessions/:agent_session_id/messages", AgentSessionsController, :create_message
         get "/agent-sessions/:agent_session_id/events", AgentSessionsController, :index_events
         post "/agent-sessions/:agent_session_id/archive", AgentSessionsController, :archive
+        get "/analytics", SandboxesController, :analytics
         get "/", SandboxesController, :index
         post "/", SandboxesController, :create
         get "/:sandbox_id", SandboxesController, :show
         post "/:sandbox_id/exec", SandboxesController, :exec
         post "/:sandbox_id/pause", SandboxesController, :pause
         post "/:sandbox_id/resume", SandboxesController, :resume
+        post "/:sandbox_id/archive", SandboxesController, :archive
         delete "/:sandbox_id", SandboxesController, :delete
       end
     end
@@ -927,6 +981,11 @@ defmodule TuistWeb.Router do
             get "/commits/:git_commit_sha/file", CoverageController, :show_file
             post "/uploads", CoverageController, :create_upload
             post "/commits/:git_commit_sha/complete", CoverageController, :complete_commit
+          end
+
+          scope "/selective-testing/coverage" do
+            post "/baseline", SelectiveTestingCoverageController, :baseline
+            post "/runs", SelectiveTestingCoverageController, :create_run
           end
 
           get "/:test_run_id/modules", TestModuleRunsController, :index
@@ -1129,6 +1188,28 @@ defmodule TuistWeb.Router do
     put "/organizations/:organization_name/members/:user_name",
         OrganizationsController,
         :update_member
+
+    get "/me/push-devices", PushDevicesController, :index
+    put "/me/push-devices/:installation_id", PushDevicesController, :update
+    delete "/me/push-devices/:installation_id", PushDevicesController, :delete
+    delete "/me/push-device-registrations/:registration_id", PushDevicesController, :remove
+    get "/me/notification-preferences/:kind", NotificationPreferencesController, :show
+
+    put "/me/notification-preferences/:kind/accounts/:account_handle",
+        NotificationPreferencesController,
+        :update_account
+
+    put "/me/notification-preferences/:kind/projects/:account_handle/:project_handle",
+        NotificationPreferencesController,
+        :update_project
+
+    get "/me/feature-flags", FeatureFlagsController, :index
+    get "/me/ai-subscriptions", AISubscriptionsController, :index
+    put "/me/ai-subscriptions/claude", AISubscriptionsController, :connect_claude
+    post "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :start_chatgpt_login
+    post "/me/ai-subscriptions/chatgpt/login/poll", AISubscriptionsController, :poll_chatgpt_login
+    delete "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :cancel_chatgpt_login
+    delete "/me/ai-subscriptions/:provider", AISubscriptionsController, :delete
   end
 
   scope "/api" do
@@ -1152,6 +1233,21 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :non_authenticated_api, :oidc_exchange_rate_limit]
 
     post "/auth/oidc/token", OIDCController, :exchange_token
+  end
+
+  scope "/api", TuistWeb.API do
+    pipe_through [:open_api, :non_authenticated_api, :device_authorization_rate_limit]
+
+    post "/auth/device_codes", AuthController, :create_device_code
+  end
+
+  scope "/api/remote-execution", TuistWeb do
+    pipe_through [:non_authenticated_api]
+
+    get "/:account/:project/capabilities", RemoteExecutionController, :capabilities
+    post "/:account/:project/operations", RemoteExecutionController, :create
+    post "/:account/:project/leases", RemoteExecutionController, :lease
+    get "/:account/:project/operations/:id", RemoteExecutionController, :show
   end
 
   # Runner Pod dispatch + autoscaler signals endpoints.
@@ -1237,9 +1333,14 @@ defmodule TuistWeb.Router do
   end
 
   scope "/oauth2", TuistWeb.Oauth do
-    pipe_through [:browser_app, :fetch_current_user]
+    pipe_through [:browser_app, :fetch_current_user, :require_sso_for_credentials]
 
     get "/authorize", AuthorizeController, :authorize
+  end
+
+  scope "/oauth2", TuistWeb.Oauth do
+    pipe_through [:browser_app, :fetch_current_user]
+
     get "/github", AuthorizeController, :authorize_with_github
     get "/google", AuthorizeController, :authorize_with_google
     get "/apple", AuthorizeController, :authorize_with_apple
@@ -1436,16 +1537,31 @@ defmodule TuistWeb.Router do
     live_session :auth,
       on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
       live "/device_codes/:device_code/success", DeviceCodesSuccessLive, :new
+      live "/device/success", DeviceCodesSuccessLive, :new
       live "/invitations/:token", AcceptInvitationLive, :new
     end
 
     get "/sso/link", SSOLinkController, :show
     post "/sso/link", SSOLinkController, :create
     delete "/sso/link", SSOLinkController, :delete
+  end
+
+  scope "/auth", TuistWeb do
+    pipe_through [:browser_app, :require_authenticated_user, :require_sso_for_credentials]
 
     # This route is deprecated and will be removed in future versions.
     get "/cli/:device_code", AuthController, :authenticate_cli_deprecated
     get "/device_codes/:device_code", AuthController, :authenticate_device_code
+    post "/device_codes/:device_code", AuthController, :confirm_device_code
+
+    # The standard device flow (RFC 8628): the person types the code their
+    # terminal shows, and the confirmation POST approves it.
+    live_session :device_authorization,
+      on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
+      live "/device", DeviceAuthorizationLive, :new
+    end
+
+    post "/device", AuthController, :confirm_user_code
   end
 
   # Anonymous Turnstile challenge shown before public-project and
@@ -1635,6 +1751,9 @@ defmodule TuistWeb.Router do
       live "/runners/profiles", RunnerProfilesLive
       live "/runners/volumes", RunnerVolumesLive
       live "/runners/volumes/:id", RunnerVolumesLive
+      live "/sandboxes", SandboxesLive
+      live "/sandboxes/instances", SandboxInstancesLive
+      live "/sandboxes/:sandbox_id", SandboxLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
@@ -1647,6 +1766,7 @@ defmodule TuistWeb.Router do
       live "/settings/integrations", IntegrationsLive
       live "/settings/authentication", AuthenticationSettingsLive
       live "/settings/authentication/workload-identities", AuthenticationSettingsLive, :workload_identities
+      live "/settings/ai", AISubscriptionsSettingsLive
     end
   end
 

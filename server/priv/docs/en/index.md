@@ -16,8 +16,8 @@ Start by <.localized_link href="/guides/install-tuist">installing the Tuist comm
 <.home_cards>
   <.home_card
     title="Cache"
-    details="Share compilation outputs across your team and CI. Works with Xcode's compilation cache, Tuist's module cache, Gradle's build cache, Bazel's remote cache, and Rust's experimental compilation cache."
-    supported_for="apple,gradle,bazel,rust"
+    details="Share compilation outputs across your team and CI. Works with Xcode's compilation cache, Tuist's module cache, Gradle's build cache, Bazel's remote cache, Elixir's dependency cache, and Rust's experimental compilation cache."
+    supported_for="apple,gradle,bazel,elixir,rust"
     link="/guides/features/cache"
 />
   <.home_card
@@ -28,7 +28,7 @@ Start by <.localized_link href="/guides/install-tuist">installing the Tuist comm
 />
   <.home_card
     title="Selective testing"
-    details="Run only the tests affected by a change, on Xcode and generated projects, so feedback lands in seconds."
+    details="Run only the tests affected by a change in generated Xcode projects, so feedback lands in seconds."
     link="/guides/features/selective-testing"
 />
   <.home_card

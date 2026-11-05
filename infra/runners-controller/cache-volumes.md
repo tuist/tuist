@@ -211,8 +211,10 @@ object cleanup through the existing URL-TTL grace. Running branches cannot
 resurrect it. Account deletion uses the existing master-prefix cleanup.
 
 Allocation applies the same clear when the saved head's last measurement uses
-80% or more of its capacity and a use cloned from that head measured at 99% or
-more of its own. A large cold fill alone never clears, so keys that are merely
+80% or more of its capacity and a use cloned from that head, or from the head's
+own parent, measured at 99% or more of its own. The parent counts because
+concurrent jobs start from one snapshot: a sibling that saved replaces the head
+the others filled, and each such save would otherwise restart the wait. A large cold fill alone never clears, so keys that are merely
 big keep chaining warm. The new use starts cold and begins a fresh lineage;
 running clones of the old lineage cannot publish. Unknown measurements never
 trigger it. Without this, a nearly full head fails every job that mounts it and

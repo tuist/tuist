@@ -33,4 +33,12 @@ defmodule TuistWeb.Marketing.MarketingHTMLTest do
     assert Floki.attribute(image, "loading") == ["eager"]
     assert Floki.attribute(image, "decoding") == ["async"]
   end
+
+  test "content_html keeps the space between adjacent inline elements" do
+    html =
+      ~s(<ul>\n<li><strong>Android:</strong> <a href="https://example.com">Navigation</a> and <code>adb</code> <em>work</em></li>\n</ul>)
+
+    assert MarketingHTML.content_html(html) =~
+             ~s(<strong>Android:</strong> <a href="https://example.com">Navigation</a> and <code>adb</code> <em>work</em>)
+  end
 end

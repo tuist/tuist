@@ -12,7 +12,7 @@ Tuist empaqueta sus habilidades para agentes y su servidor MCP alojado como plug
 
 ## Claude Code
 
-El [marketplace de Tuist para Claude Code](https://github.com/tuist/claude-plugin) incluye el plugin de Tuist para instalarlo con:
+El [marketplace de Tuist para Claude Code](https://github.com/tuist/claude-plugin) empaqueta el plugin de Tuist para instalarlo con:
 
 ```bash
 claude plugin marketplace add tuist/claude-plugin
@@ -31,11 +31,11 @@ Instala el [plugin de Tuist para Cursor](https://github.com/tuist/cursor-plugin)
 
 También puedes escribir `/add-plugin` en Cursor para abrir el mismo flujo de instalación. El plugin proporciona habilidades de Tuist y conecta Cursor al servidor MCP alojado.
 
-Si tu organización gestiona los marketplaces de Cursor, importa primero `https://github.com/tuist/cursor-plugin` desde **Configuración → Plugins → Marketplaces del equipo → Importar marketplace**.
+Si tu organización gestiona los marketplaces de Cursor, importa primero `https://github.com/tuist/cursor-plugin` desde **Configuración → Plugins → Marketplaces de equipo → Importar marketplace**.
 
 ## Otros agentes de programación
 
-El [Plugin de Agente de Tuist](https://github.com/tuist/agent-plugin) sigue el estándar abierto e independiente del proveedor [Agent Plugins](https://agent-plugins.org/). Apunta un cliente compatible al repositorio siguiendo las instrucciones de ese cliente para instalar o hacer referencia a directorios de plugins:
+El [Plugin de Agente de Tuist](https://github.com/tuist/agent-plugin) sigue el estándar abierto e independiente del proveedor [Agent Plugins](https://agent-plugins.org/). Apunta un cliente compatible al repositorio, siguiendo las instrucciones de ese cliente para instalar o referenciar directorios de plugins:
 
 ```bash
 git clone https://github.com/tuist/agent-plugin.git
@@ -51,4 +51,4 @@ La mayoría de las habilidades usan la interfaz de línea de comandos de Tuist, 
 tuist auth login
 ```
 
-El servidor MCP alojado solicita su propio inicio de sesión cuando es necesario. Consulta la [guía de MCP](/guides/features/agentic-coding/mcp) para obtener detalles sobre la configuración y la autenticación específicas del cliente.
+El servidor MCP alojado solicita su propio inicio de sesión cuando es necesario. Consulta la [guía de MCP](/guides/features/agentic-coding/mcp) para conocer los detalles de configuración y autenticación específicos de cada cliente.

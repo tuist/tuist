@@ -16,41 +16,44 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
         if case .none = configGeneratedProjectOptions.generationOptions.staticSideEffectsWarningTargets {
             return []
         }
+        let nodes = Nodes(graphTraverser: graphTraverser)
         return warnings(
-            in: Array(graphTraverser.dependencies.keys),
+            nodes: nodes,
             graphTraverser: graphTraverser,
             configGeneratedProjectOptions: configGeneratedProjectOptions
         )
-        .sorted()
-        .map(lintIssue)
+        // Comparing descriptions directly would rebuild both strings on every comparison.
+        .map { (description: nodes.description(of: $0), warning: $0) }
+        .sorted { $0.description < $1.description }
+        .map { lintIssue(from: $0.warning, nodes: nodes) }
     }
 
     private func warnings(
-        in dependencies: [GraphDependency],
+        nodes: Nodes,
         graphTraverser: GraphTraversing,
         configGeneratedProjectOptions: TuistGeneratedProjectOptions
     ) -> Set<StaticDependencyWarning> {
         var warnings = Set<StaticDependencyWarning>()
-        let cache = Cache()
-        for dependency in dependencies {
+        var cache = [StaticProducts?](repeating: nil, count: nodes.count)
+        var active = [Bool](repeating: false, count: nodes.count)
+        for root in nodes.roots {
             // Skip already evaluated nodes
-            guard cache.results(for: dependency) == nil else {
+            guard cache[root] == nil else {
                 continue
             }
-            let results = buildStaticProductsMap(
-                visiting: dependency,
-                graphTraverser: graphTraverser,
-                cache: cache
-            )
+            let results = buildStaticProductsMap(visiting: root, nodes: nodes, cache: &cache, active: &active)
 
-            warnings.formUnion(results.linked.flatMap {
-                staticDependencyWarning(
-                    staticProduct: $0.key,
-                    linkedBy: $0.value,
+            for (staticProduct, linkedBy) in results.linked {
+                if let warning = staticDependencyWarning(
+                    staticProduct: staticProduct,
+                    linkedBy: linkedBy,
+                    nodes: nodes,
                     graphTraverser: graphTraverser,
                     configGeneratedProjectOptions: configGeneratedProjectOptions
-                )
-            })
+                ) {
+                    warnings.insert(warning)
+                }
+            }
         }
         return warnings
     }
@@ -72,149 +75,109 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
     /// - In the event a node is a node capable of linking static products, it removes all the nodes
     ///   from the unlinked bucket and places them in the linked bucket in format of _staticNode > [linkingNode]_.
     private func buildStaticProductsMap(
-        visiting dependency: GraphDependency,
-        graphTraverser: GraphTraversing,
-        cache: Cache
+        visiting node: Int,
+        nodes: Nodes,
+        cache: inout [StaticProducts?],
+        active: inout [Bool]
     ) -> StaticProducts {
-        if let cachedResult = cache.results(for: dependency) {
+        if let cachedResult = cache[node] {
             return cachedResult
         }
 
-        var activeDependencies = Set<GraphDependency>()
-        var stack = [
-            StaticProductsFrame(
-                dependency: dependency,
-                dependencies: dependencies(for: dependency, graphTraverser: graphTraverser),
-                nextDependencyIndex: 0,
-                results: StaticProducts()
-            ),
-        ]
-        activeDependencies.insert(dependency)
+        var stack = [StaticProductsFrame(node: node, nextChildIndex: 0, results: StaticProducts())]
+        active[node] = true
 
         while let frame = stack.last {
             let frameIndex = stack.count - 1
-            if frame.nextDependencyIndex < frame.dependencies.count {
-                let childDependency = frame.dependencies[frame.nextDependencyIndex]
+            let children = nodes.children[frame.node]
+            if frame.nextChildIndex < children.count {
+                let child = children[frame.nextChildIndex]
 
-                if let cachedResult = cache.results(for: childDependency) {
-                    stack[frameIndex].nextDependencyIndex += 1
-                    stack[frameIndex].results = cachedResult.merged(with: stack[frameIndex].results)
+                if let cachedResult = cache[child] {
+                    stack[frameIndex].nextChildIndex += 1
+                    stack[frameIndex].results.merge(cachedResult)
                     continue
                 }
 
-                if activeDependencies.contains(childDependency) {
-                    stack[frameIndex].nextDependencyIndex += 1
+                if active[child] {
+                    stack[frameIndex].nextChildIndex += 1
                     continue
                 }
 
-                activeDependencies.insert(childDependency)
-                stack.append(
-                    StaticProductsFrame(
-                        dependency: childDependency,
-                        dependencies: dependencies(for: childDependency, graphTraverser: graphTraverser),
-                        nextDependencyIndex: 0,
-                        results: StaticProducts()
-                    )
-                )
+                active[child] = true
+                stack.append(StaticProductsFrame(node: child, nextChildIndex: 0, results: StaticProducts()))
             } else {
-                let completedFrame = stack.removeLast()
-                let results = finalize(
-                    results: completedFrame.results,
-                    for: completedFrame.dependency,
-                    graphTraverser: graphTraverser
-                )
-                cache.cache(results: results, for: completedFrame.dependency)
-                activeDependencies.remove(completedFrame.dependency)
+                var completedFrame = stack.removeLast()
+                finalize(results: &completedFrame.results, for: completedFrame.node, nodes: nodes)
+                cache[completedFrame.node] = completedFrame.results
+                active[completedFrame.node] = false
 
                 if let parentFrameIndex = stack.indices.last {
-                    stack[parentFrameIndex].nextDependencyIndex += 1
-                    stack[parentFrameIndex].results = results.merged(with: stack[parentFrameIndex].results)
+                    stack[parentFrameIndex].nextChildIndex += 1
+                    stack[parentFrameIndex].results.merge(completedFrame.results)
                 } else {
-                    return results
+                    return completedFrame.results
                 }
             }
         }
 
-        return cache.results(for: dependency) ?? StaticProducts()
+        return cache[node] ?? StaticProducts()
     }
 
-    private func finalize(
-        results: StaticProducts,
-        for dependency: GraphDependency,
-        graphTraverser: GraphTraversing
-    ) -> StaticProducts {
-        var results = results
-
+    private func finalize(results: inout StaticProducts, for node: Int, nodes: Nodes) {
         // Static node case
-        if isStaticProduct(dependency, graphTraverser: graphTraverser) {
-            results.unlinked.insert(dependency)
-            return results
+        if nodes.isStaticProduct[node] {
+            results.unlinked.insert(node)
+            return
         }
 
         // Linking node case
-        guard case let GraphDependency.target(targetName, targetPath, _) = dependency,
-              let dependencyTarget = graphTraverser.target(path: targetPath, name: targetName),
-              dependencyTarget.target.canLinkStaticProducts()
-        else {
-            return results
-        }
+        guard nodes.canLinkStaticProducts[node] else { return }
 
-        while let staticProduct = results.unlinked.popFirst() {
-            results.linked[staticProduct, default: Set()].insert(dependency)
+        for staticProduct in results.unlinked {
+            results.linked[staticProduct, default: Set()].insert(node)
         }
-
-        return results
+        results.unlinked.removeAll()
     }
 
     private func staticDependencyWarning(
-        staticProduct: GraphDependency,
-        linkedBy: Set<GraphDependency>,
+        staticProduct: Int,
+        linkedBy: Set<Int>,
+        nodes: Nodes,
         graphTraverser: GraphTraversing,
         configGeneratedProjectOptions: TuistGeneratedProjectOptions
-    ) -> [StaticDependencyWarning] {
-        guard linkedBy.count > 1 else { return [] }
+    ) -> StaticDependencyWarning? {
+        guard linkedBy.count > 1 else { return nil }
 
-        if shouldSkipDependency(staticProduct, configGeneratedProjectOptions: configGeneratedProjectOptions) {
-            return []
+        if shouldSkipDependency(nodes.dependencies[staticProduct], configGeneratedProjectOptions: configGeneratedProjectOptions) {
+            return nil
         }
 
         // Statically linking a macro does not present a problem so it should not be flagged
-        if case let .target(name, path, _) = staticProduct,
-           !graphTraverser.directSwiftMacroExecutables(path: path, name: name).isEmpty
-        {
-            return []
+        if nodes.hasDirectSwiftMacroExecutables(staticProduct, graphTraverser: graphTraverser) {
+            return nil
         }
 
         // Common dependencies between test bundles and their hosts are automatically omitted
         // during generation - as such those shouldn't be flagged
         //
         // reference: https://github.com/tuist/tuist/pull/664
-        let hosts: Set<GraphDependency> = linkedBy.filter { dependency -> Bool in
-            guard case let GraphDependency.target(targetName, targetPath, _) = dependency else { return false }
-            guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
-            return target.target.product.canHostTests()
-        }
-        let hostedTestBundles = linkedBy.filter { dependency -> Bool in
-            guard case let GraphDependency.target(targetName, targetPath, _) = dependency else { return false }
-            guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
-
-            let isTestsBundle = target.target.product.testsBundle
-            let hasHost = dependencies(for: dependency, graphTraverser: graphTraverser).contains(where: { hosts.contains($0) })
-            return isTestsBundle && hasHost
+        let hosts = linkedBy.filter { nodes.products[$0]?.canHostTests() == true }
+        let hostedTestBundles = linkedBy.filter { node in
+            guard nodes.products[node]?.testsBundle == true else { return false }
+            return nodes.children[node].contains(where: hosts.contains)
         }
 
         let links = linkedBy.subtracting(hostedTestBundles)
 
         guard links.count > 1 else {
-            return []
+            return nil
         }
 
-        return [
-            .init(
-                staticProduct: staticProduct,
-                linkingDependencies: links.sorted()
-            ),
-        ]
+        return StaticDependencyWarning(
+            staticProduct: staticProduct,
+            linkingDependencies: links.sorted { (nodes.descriptions[$0], $0) < (nodes.descriptions[$1], $1) }
+        )
     }
 
     private func shouldSkipDependency(
@@ -228,7 +191,7 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
         }
     }
 
-    private func isStaticProduct(_ dependency: GraphDependency, graphTraverser: GraphTraversing) -> Bool {
+    private static func isStaticProduct(_ dependency: GraphDependency, target: GraphTarget?) -> Bool {
         switch dependency {
         case let .foreignBuildOutput(output):
             return output.linking == .static
@@ -249,27 +212,20 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
             case .macro: return false
             case .plugin: return false
             }
-        case let .target(name, path, _):
-            guard let target = graphTraverser.target(path: path, name: name) else { return false }
-            return target.target.product.isStatic
+        case .target:
+            return target?.target.product.isStatic ?? false
         case .sdk, .macro:
             return false
         }
     }
 
-    private func dependencies(for dependency: GraphDependency, graphTraverser: GraphTraversing) -> [GraphDependency] {
-        Array(graphTraverser.dependencies[dependency, default: Set()])
-            .filter { canVisit(dependency: $0, from: dependency, graphTraverser: graphTraverser) }
-    }
+    private static func canVisit(from: GraphDependency, fromProduct: Product?, to: GraphDependency, toProduct: Product?) -> Bool {
+        guard case .target = from else { return true }
+        guard case .target = to else { return true }
 
-    private func canVisit(dependency: GraphDependency, from: GraphDependency, graphTraverser: GraphTraversing) -> Bool {
-        guard case let GraphDependency.target(fromTargetName, fromTargetPath, _) = from else { return true }
-        guard case let GraphDependency.target(toTargetName, toTargetPath, _) = dependency else { return true }
+        guard let fromProduct, let toProduct else { return false }
 
-        guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return false }
-        guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName) else { return false }
-
-        switch (fromTarget.target.product, toTarget.target.product) {
+        switch (fromProduct, toProduct) {
         case (.uiTests, .app):
             // UITest bundles are hosted in a separate app (App-TestRunner) as such
             // it should be treated as a separate graph that isn't connected to the main
@@ -313,10 +269,10 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
         }
     }
 
-    private func lintIssue(from warning: StaticDependencyWarning) -> LintingIssue {
-        let names = warning.linkingDependencies.map(\.description).listed()
+    private func lintIssue(from warning: StaticDependencyWarning, nodes: Nodes) -> LintingIssue {
+        let names = warning.linkingDependencies.map { nodes.descriptions[$0] }.listed()
         return LintingIssue(
-            reason: "\(warning.staticProduct) has been linked from \(names), it is a static product so may introduce unwanted side effects."
+            reason: "\(nodes.descriptions[warning.staticProduct]) has been linked from \(names), it is a static product so may introduce unwanted side effects."
                 .uppercasingFirst,
             severity: .warning,
             category: .staticSideEffects
@@ -325,63 +281,127 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
 
     // MARK: - Helper Types
 
-    private struct StaticProductsFrame {
-        let dependency: GraphDependency
+    /// The graph's dependencies numbered once, together with everything the lint reads about them.
+    ///
+    /// The traversal merges large sets of static products and their linking nodes at every edge. Working with
+    /// integers rather than `GraphDependency` values, whose hashing walks names and paths, and resolving each
+    /// target once rather than on every visit, keeps that merging cheap.
+    private final class Nodes {
         let dependencies: [GraphDependency]
-        var nextDependencyIndex: Int
+        /// The graph's dependency keys, in the order the graph iterates them.
+        let roots: [Int]
+        /// Each node's visitable dependencies, in the order the graph iterates them.
+        let children: [[Int]]
+        let products: [Product?]
+        let isStaticProduct: [Bool]
+        let canLinkStaticProducts: [Bool]
+        let descriptions: [String]
+        private let debugDescriptions: [String]
+        private var hasDirectSwiftMacroExecutables: [Bool?]
+
+        var count: Int { dependencies.count }
+
+        init(graphTraverser: GraphTraversing) {
+            let graphDependencies = graphTraverser.dependencies
+            var dependencies: [GraphDependency] = []
+            var ids: [GraphDependency: Int] = [:]
+            func id(of dependency: GraphDependency) -> Int {
+                if let id = ids[dependency] { return id }
+                ids[dependency] = dependencies.count
+                dependencies.append(dependency)
+                return dependencies.count - 1
+            }
+
+            roots = graphDependencies.keys.map { id(of: $0) }
+            let edges = graphDependencies.map { dependency, children in (id(of: dependency), Array(children)) }
+            for (_, children) in edges {
+                for child in children {
+                    _ = id(of: child)
+                }
+            }
+
+            let targets = dependencies.map { dependency -> GraphTarget? in
+                guard case let .target(name, path, _) = dependency else { return nil }
+                return graphTraverser.target(path: path, name: name)
+            }
+            let products = targets.map { $0?.target.product }
+
+            var children = [[Int]](repeating: [], count: dependencies.count)
+            for (node, nodeChildren) in edges {
+                children[node] = nodeChildren.compactMap { child in
+                    let childID = ids[child]!
+                    return StaticProductsGraphLinter.canVisit(
+                        from: dependencies[node],
+                        fromProduct: products[node],
+                        to: child,
+                        toProduct: products[childID]
+                    ) ? childID : nil
+                }
+            }
+
+            self.dependencies = dependencies
+            self.children = children
+            self.products = products
+            isStaticProduct = zip(dependencies, targets).map { StaticProductsGraphLinter.isStaticProduct($0, target: $1) }
+            canLinkStaticProducts = targets.map { $0?.target.canLinkStaticProducts() ?? false }
+            descriptions = dependencies.map(\.description)
+            debugDescriptions = descriptions.map(\.debugDescription)
+            hasDirectSwiftMacroExecutables = Array(repeating: nil, count: dependencies.count)
+        }
+
+        func hasDirectSwiftMacroExecutables(_ node: Int, graphTraverser: GraphTraversing) -> Bool {
+            if let cached = hasDirectSwiftMacroExecutables[node] { return cached }
+            var result = false
+            if case let .target(name, path, _) = dependencies[node] {
+                result = !graphTraverser.directSwiftMacroExecutables(path: path, name: name).isEmpty
+            }
+            hasDirectSwiftMacroExecutables[node] = result
+            return result
+        }
+
+        /// The same text as `"\(staticProduct) > \(linkingDependencies.map(\.description))"`, which orders the warnings.
+        func description(of warning: StaticDependencyWarning) -> String {
+            let linking = warning.linkingDependencies.map { debugDescriptions[$0] }.joined(separator: ", ")
+            return "\(descriptions[warning.staticProduct]) > [\(linking)]"
+        }
+    }
+
+    private struct StaticProductsFrame {
+        let node: Int
+        var nextChildIndex: Int
         var results: StaticProducts
     }
 
-    private struct StaticDependencyWarning: Hashable, Comparable {
-        var staticProduct: GraphDependency
-        var linkingDependencies: [GraphDependency]
-
-        var debugDescription: String {
-            stringDescription
-        }
-
-        private var stringDescription: String {
-            "\(staticProduct) > \(linkingDependencies.map(\.description))"
-        }
-
-        static func < (
-            lhs: StaticDependencyWarning,
-            rhs: StaticDependencyWarning
-        ) -> Bool {
-            lhs.stringDescription < rhs.stringDescription
-        }
+    private struct StaticDependencyWarning: Hashable {
+        var staticProduct: Int
+        var linkingDependencies: [Int]
     }
 
     private struct StaticProducts {
         /// Unlinked static products
-        var unlinked: Set<GraphDependency> = Set()
+        var unlinked: Set<Int> = Set()
 
         /// Map of static product to nodes that link it
         /// e.g.
         ///    - MyStaticFrameworkA > [MyDynamicFrameworkA, MyTestsTarget]
         ///    - MyStaticFrameworkB > [MyDynamicFrameworkA, MyTestsTarget]
-        var linked: [GraphDependency: Set<GraphDependency>] = [:]
+        var linked: [Int: Set<Int>] = [:]
 
-        func merged(with other: StaticProducts) -> StaticProducts {
-            StaticProducts(
-                unlinked: unlinked.union(other.unlinked),
-                linked: linked.merging(other.linked, uniquingKeysWith: { $0.union($1) })
-            )
-        }
-    }
-
-    private class Cache {
-        private var cachedResults: [GraphDependency: StaticProducts] = [:]
-
-        func results(for dependency: GraphDependency) -> StaticProducts? {
-            cachedResults[dependency]
-        }
-
-        func cache(
-            results: StaticProducts,
-            for dependency: GraphDependency
-        ) {
-            cachedResults[dependency] = results
+        /// Merges in place: the accumulator is usually uniquely owned, and adopting `other` wholesale when
+        /// the accumulator is still empty shares its storage instead of copying it.
+        mutating func merge(_ other: StaticProducts) {
+            if unlinked.isEmpty { unlinked = other.unlinked } else { unlinked.formUnion(other.unlinked) }
+            if linked.isEmpty {
+                linked = other.linked
+                return
+            }
+            for (staticProduct, linkingDependencies) in other.linked {
+                if let index = linked.index(forKey: staticProduct) {
+                    linked.values[index].formUnion(linkingDependencies)
+                } else {
+                    linked[staticProduct] = linkingDependencies
+                }
+            }
         }
     }
 }

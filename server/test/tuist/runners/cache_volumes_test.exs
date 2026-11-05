@@ -205,7 +205,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     })
   end
 
-  defp volume(account), do: hd(CacheVolumes.list(account.id).volumes)
+  defp volume(account), do: Repo.one!(from(v in Volume, where: v.account_id == ^account.id))
 
   defp main_identity, do: Map.merge(identity(), %{default_branch: "main", writer_branch: "main"})
 
@@ -1061,6 +1061,29 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert [%{used_bytes: 0}] = CacheVolumes.saved_size_history(account.id, volume(account).id, {now, now})
     assert {:ok, %{action: "delete"}} = publish_report("node", running.id)
     assert {:ok, %{action: "seal"}} = CacheVolumes.report("node", fresh.id, report())
+  end
+
+  test "a nearly full snapshot a sibling saved starts a fresh lineage when its parent's clone ran out of space", %{
+    job: job,
+    account: account
+  } do
+    {:ok, parent} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    complete(job)
+    publish_report("node", parent.id, %{"size_bytes" => 16_000_000_000, "capacity_bytes" => 20_000_000_000})
+    {:ok, filled} = CacheVolumes.allocate_for_job(job, identity(), attrs("filled"))
+    {:ok, sibling} = CacheVolumes.allocate_for_job(job, identity(), attrs("sibling"))
+    assert filled.parent_id == parent.id and sibling.parent_id == parent.id
+    assert {:ok, %{action: "hold"}} = report_size("node", filled.id, 19_800_000_000)
+
+    assert {:ok, %{action: "keep"}} =
+             publish_report("node", sibling.id, %{"size_bytes" => 17_000_000_000, "capacity_bytes" => 20_000_000_000})
+
+    assert volume(account).head_id == sibling.id
+
+    {:ok, fresh} = CacheVolumes.allocate_for_job(job, identity(), attrs("fresh"))
+
+    assert is_nil(fresh.parent_id)
+    refute fresh.scope == parent.scope
   end
 
   test "a nearly full saved snapshot keeps chaining warm while its clones have room", %{job: job} do

@@ -66,13 +66,8 @@ spec:
         - name: server
           image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
-          {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.config.kuraVolumeOpenBao.enabled .Values.server.atlasSupportIngest.enabled }}
+          {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.atlasSupportIngest.enabled }}
           volumeMounts:
-            {{- if .Values.server.config.kuraVolumeOpenBao.enabled }}
-            - name: kura-openbao-identity
-              mountPath: /var/run/tuist/kura-openbao
-              readOnly: true
-            {{- end }}
             {{- if .Values.server.seedAccountCredentials.secretName }}
             - name: seed-account-credentials
               mountPath: /var/run/tuist/seed-account
@@ -103,29 +98,6 @@ spec:
               containerPort: {{ .Values.server.cluster.distributionPort }}
             {{- end }}
           env:
-            {{- if .Values.server.config.kuraVolumeOpenBao.enabled }}
-            {{- if not (kindIs "bool" .Values.server.config.kuraVolumeOpenBao.wrapNewShares) }}
-            {{- fail "kuraVolumeOpenBao.wrapNewShares must be a boolean" }}
-            {{- end }}
-            - name: TUIST_KURA_VOLUME_OPENBAO_WRAP_NEW_SHARES
-              value: {{ .Values.server.config.kuraVolumeOpenBao.wrapNewShares | quote }}
-            - name: TUIST_KURA_VOLUME_OPENBAO_ADDRESS
-              value: {{ required "kuraVolumeOpenBao.address is required" .Values.server.config.kuraVolumeOpenBao.address | quote }}
-            - name: TUIST_KURA_VOLUME_OPENBAO_KEY_NAME
-              value: {{ required "kuraVolumeOpenBao.keyName is required" .Values.server.config.kuraVolumeOpenBao.keyName | quote }}
-            - name: TUIST_KURA_VOLUME_OPENBAO_ROLE
-              value: {{ required "kuraVolumeOpenBao.role is required" .Values.server.config.kuraVolumeOpenBao.role | quote }}
-            - name: TUIST_KURA_VOLUME_OPENBAO_TRANSIT_MOUNT
-              value: {{ required "kuraVolumeOpenBao.transitMount is required" .Values.server.config.kuraVolumeOpenBao.transitMount | quote }}
-            - name: TUIST_KURA_VOLUME_OPENBAO_AUTH_MOUNT
-              value: {{ required "kuraVolumeOpenBao.authMount is required" .Values.server.config.kuraVolumeOpenBao.authMount | quote }}
-            - name: TUIST_KURA_VOLUME_OPENBAO_DECRYPT_KEY_NAMES
-              value: {{ join "," .Values.server.config.kuraVolumeOpenBao.decryptKeyNames | quote }}
-            {{- if .Values.server.config.kuraVolumeOpenBao.caConfigMap }}
-            - name: TUIST_KURA_VOLUME_OPENBAO_CA_CERT_FILE
-              value: /var/run/tuist/kura-openbao/ca.crt
-            {{- end }}
-            {{- end }}
             {{- if .Values.server.externalSecrets.shardStorage.item }}
             - name: TUIST_SHARD_STORAGE_TARGETS
               valueFrom:
@@ -360,7 +332,7 @@ spec:
             - name: TUIST_AMP_PROVIDER_NODE_SELECTOR
               value: {{ .Values.ampOrbProvider.nodeSelector | toJson | quote }}
             {{- end }}
-            {{- if .Values.sandboxes.enabled }}
+            {{- if or .Values.sandboxes.enabled .Values.sandboxes.macos.enabled }}
             # Sandboxes namespace: the principal namespace the server requires
             # on the sandboxd node connection's TokenReview.
             - name: TUIST_SANDBOXES_NAMESPACE
@@ -409,6 +381,16 @@ spec:
             {{- end }}
             - name: TUIST_RUNNER_LINUX_SHAPES
               value: {{ $serverShapes | toJson | quote }}
+            # The Ubuntu releases the shape pools above run on, limited to
+            # those with an image, so profiles only offer an OS with pools.
+            {{- $serverOSVersions := list }}
+            {{- range include "tuist.runnersLinuxOSVersions" $ | fromJsonArray }}
+            {{- $entry := dict "osVersion" .osVersion }}
+            {{- if .default }}{{- $_ := set $entry "default" true }}{{- end }}
+            {{- $serverOSVersions = append $serverOSVersions $entry }}
+            {{- end }}
+            - name: TUIST_RUNNER_LINUX_OS_VERSIONS
+              value: {{ $serverOSVersions | toJson | quote }}
             {{- end }}
             {{- end }}
             {{- if .Values.runnersFleet.enabled }}
@@ -660,25 +642,8 @@ spec:
                 command: ["sh", "-c", "touch /tmp/tuist-server-draining; sleep 15"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
-      {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.config.kuraVolumeOpenBao.enabled .Values.server.atlasSupportIngest.enabled }}
+      {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.atlasSupportIngest.enabled }}
       volumes:
-        {{- if .Values.server.config.kuraVolumeOpenBao.enabled }}
-        - name: kura-openbao-identity
-          projected:
-            sources:
-              - serviceAccountToken:
-                  audience: openbao.kura.tuist.dev
-                  expirationSeconds: 3600
-                  path: token
-              {{- with .Values.server.config.kuraVolumeOpenBao.caConfigMap }}
-              - configMap:
-                  name: {{ . | quote }}
-                  items:
-                    - key: ca.crt
-                      path: ca.crt
-              {{- end }}
-
-        {{- end }}
         {{- with .Values.server.seedAccountCredentials.secretName }}
         - name: seed-account-credentials
           secret:

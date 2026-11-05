@@ -9,6 +9,7 @@
 #confirmation-instructions,
 #agent-auth,
 #sso-link,
+#device-code,
 #forgot-password,
 #reset-password,
 #create-project,
@@ -195,8 +196,8 @@
 
     position: absolute;
     top: 0px;
-    left: 0px;
     z-index: -1;
+    inset-inline-start: 0px;
     width: 100%;
     height: 100%;
     overflow: hidden;
@@ -289,7 +290,7 @@
     padding: var(--noora-spacing-5);
     width: 100%;
     color: var(--noora-surface-label-primary);
-    text-align: left;
+    text-align: start;
 
     &:hover {
       background: var(--noora-surface-background-secondary);
@@ -329,7 +330,8 @@
 }
 
 #agent-auth,
-#sso-link {
+#sso-link,
+#device-code {
   & [data-part="wrapper"] {
     display: flex;
     justify-content: center;
@@ -377,6 +379,78 @@
     }
   }
 
+  & [data-part="passkey"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+    width: 100%;
+
+    & > .noora-button {
+      width: 100%;
+    }
+  }
+
+  & [data-part="passkeys"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding-top: var(--noora-spacing-8);
+    width: 100%;
+
+    & [data-part="section-title"] {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+    }
+  }
+
+  & [data-part="passkey-form"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="passkey-list"] {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    box-shadow: var(--noora-border-section);
+    border-radius: var(--noora-radius-4);
+    padding: 0;
+    list-style: none;
+
+    & > li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+      padding: var(--noora-spacing-5) var(--noora-spacing-6);
+
+      & + li {
+        border-top: 1px solid var(--noora-surface-border-primary);
+      }
+    }
+  }
+
+  & [data-part="passkey-details"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+    min-width: 0;
+  }
+
+  & [data-part="passkey-name"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    overflow-wrap: anywhere;
+  }
+
+  & [data-part="passkey-meta"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
   & .otp {
     box-shadow: var(--noora-border-light-default);
     border-radius: var(--noora-radius-6);
@@ -387,6 +461,25 @@
     font: var(--noora-font-weight-semibold) var(--noora-font-heading-2xlarge);
     letter-spacing: 0.2em;
     text-align: center;
+  }
+
+  /* Eight boxes, grouped four and four like the `WDJB-MJHT` the terminal
+     shows, shrinking to fit narrow screens. */
+  & [data-part="user-code"] .noora-digit-input [data-part="root"] {
+    justify-content: center;
+    gap: var(--noora-spacing-2);
+    direction: ltr;
+
+    & input {
+      flex: 1 1 0;
+      min-width: 0;
+      max-width: 48px;
+      text-transform: uppercase;
+    }
+
+    & input:nth-child(4) {
+      margin-inline-end: var(--noora-spacing-4);
+    }
   }
 }
 
@@ -419,6 +512,22 @@
 }
 
 #login {
+  /* Hidden until the PasskeyLogin hook confirms WebAuthn support. */
+  & [data-part="passkey"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+    width: 100%;
+
+    &[hidden] {
+      display: none;
+    }
+
+    & > .noora-button {
+      width: 100%;
+    }
+  }
+
   & [data-part="remember-me"] {
     display: flex;
     justify-content: space-between;
@@ -572,6 +681,18 @@
 
     &:hover {
       color: var(--noora-surface-label-primary);
+    }
+  }
+}
+
+#login,
+#sso-link {
+  & [data-part="passkey-status"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+
+    &:empty {
+      display: none;
     }
   }
 }

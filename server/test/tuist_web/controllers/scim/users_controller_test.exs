@@ -1,5 +1,6 @@
 defmodule TuistWeb.SCIM.UsersControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -7,7 +8,9 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
   alias Tuist.SCIM
 
   setup %{conn: conn} do
-    organization = organization_fixture()
+    organization =
+      organization_fixture(sso_login_domain: "example.com", sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z])
+
     {:ok, {_token, plaintext}} = SCIM.create_token(organization, %{name: "test"})
 
     conn =
@@ -96,12 +99,55 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
       assert json_response(conn, 400)["scimType"] == "invalidValue"
     end
 
+    test "refuses to provision a user in another organization's verified login domain", %{conn: conn} do
+      organization_fixture(sso_login_domain: "victim.test", sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z])
+
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: "ceo@victim.test", active: true}))
+
+      assert json_response(conn, 400)["scimType"] == "invalidValue"
+      assert {:error, :not_found} = Accounts.get_user_by_email("ceo@victim.test")
+    end
+
+    test "refuses to attach an account in its login domain that another organization provisioned", %{conn: conn} do
+      {:ok, other_org_user} =
+        Accounts.create_user("provisioned-elsewhere@example.com",
+          provisioned_by_organization_id: organization_fixture().id
+        )
+
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: other_org_user.email, active: true}))
+
+      assert json_response(conn, 409)["scimType"] == "uniqueness"
+    end
+
+    test "refuses to provision a user in the operator email domain", %{conn: conn} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: "probe@tuist.dev", active: true}))
+
+      assert json_response(conn, 400)["scimType"] == "invalidValue"
+      assert {:error, :not_found} = Accounts.get_user_by_email("probe@tuist.dev")
+    end
+
     test "rejects an invalid email", %{conn: conn} do
       conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: "not-an-email"}))
       assert json_response(conn, 400)["scimType"] == "invalidValue"
     end
 
-    test "attaches an existing Tuist user to the organization on POST", %{conn: conn, organization: org} do
+    test "refuses to attach a user another organization provisioned", %{
+      conn: conn,
+      organization: org
+    } do
+      {:ok, outsider} =
+        SCIM.provision_user(organization_fixture(), %{
+          user_name: "outsider-#{System.unique_integer([:positive])}@corp.test"
+        })
+
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: outsider.email, active: true}))
+
+      assert json_response(conn, 409)["scimType"] == "uniqueness"
+      refute Accounts.belongs_to_organization?(outsider, org)
+    end
+
+    test "attaches an existing self-registered Tuist user on POST", %{conn: conn, organization: org} do
       existing = user_fixture(email: "taken@example.com")
       refute Accounts.belongs_to_organization?(existing, org)
 
@@ -145,6 +191,16 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
   end
 
   describe "PUT /Users/:id" do
+    test "refuses to change the userName of an attached user", %{conn: conn, organization: org} do
+      victim = user_fixture(email: "put-victim-#{System.unique_integer([:positive])}@example.com")
+      {:ok, _} = SCIM.provision_user(org, %{user_name: victim.email})
+
+      conn = put(conn, "/scim/v2/Users/#{victim.id}", JSON.encode!(%{userName: "mine@example.com", active: true}))
+
+      assert json_response(conn, 400)["scimType"] == "mutability"
+      assert Accounts.get_user_by_id(victim.id).email == victim.email
+    end
+
     test "updates the role from a roles list", %{conn: conn, organization: org} do
       {:ok, user} = SCIM.provision_user(org, %{user_name: "alice@example.com"})
 
@@ -231,6 +287,166 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
       assert Accounts.get_user_by_id(user.id).active == true
     end
 
+    test "renames a user the organization provisioned and forgets the old address's proof", %{
+      conn: conn,
+      organization: org
+    } do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "before-rename@example.com"})
+      {:ok, _} = Accounts.record_mailbox_proof(user)
+
+      conn = patch(conn, "/scim/v2/Users/#{user.id}", rename_body("after-rename@example.com"))
+
+      assert json_response(conn, 200)["userName"] == "after-rename@example.com"
+      renamed = Accounts.get_user_by_id(user.id)
+      assert renamed.email == "after-rename@example.com"
+      assert is_nil(renamed.email_verified_at)
+    end
+
+    test "renames a provisioned user who signs in through the organization's own single sign-on", %{
+      conn: conn,
+      organization: org
+    } do
+      org =
+        org |> Ecto.Changeset.change(sso_provider: :google, sso_organization_id: "example.com") |> Tuist.Repo.update!()
+
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "sso-member@example.com"})
+
+      {:ok, _} =
+        Accounts.link_oauth_identity_to_user(user, %{
+          provider: :google,
+          id_in_provider: "sso-member-google-id",
+          provider_organization_id: "example.com"
+        })
+
+      conn = patch(conn, "/scim/v2/Users/#{user.id}", rename_body("sso-member-renamed@example.com"))
+
+      assert json_response(conn, 200)["userName"] == "sso-member-renamed@example.com"
+    end
+
+    test "refuses to rename a provisioned account that claimed an agent registration", %{
+      conn: conn,
+      organization: org
+    } do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "claimed-by-agent@example.com"})
+
+      Tuist.Repo.insert!(%Tuist.Accounts.AgentRegistration{
+        registration_type: :email_verification,
+        status: :claimed,
+        requested_credential_type: :api_key,
+        email: user.email,
+        claim_token_hash: :crypto.strong_rand_bytes(32),
+        claim_token_expires_at: ~U[2026-11-05 13:00:00Z],
+        claimed_by_user_id: user.id
+      })
+
+      conn = patch(conn, "/scim/v2/Users/#{user.id}", rename_body("loot@example.com"))
+
+      assert json_response(conn, 400)["scimType"] == "mutability"
+    end
+
+    test "refuses to rename a provisioned account that also belongs to another organization", %{
+      conn: conn,
+      organization: org
+    } do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "two-orgs@example.com"})
+      :ok = Accounts.add_user_to_organization(user, organization_fixture(), role: :user)
+
+      conn = patch(conn, "/scim/v2/Users/#{user.id}", rename_body("loot@example.com"))
+
+      assert json_response(conn, 400)["scimType"] == "mutability"
+    end
+
+    test "refuses to rename a provisioned user into another organization's verified login domain", %{
+      conn: conn,
+      organization: org
+    } do
+      organization_fixture(sso_login_domain: "victim.test", sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z])
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "would-be-cfo@example.com"})
+
+      conn = patch(conn, "/scim/v2/Users/#{user.id}", rename_body("cfo@victim.test"))
+
+      assert json_response(conn, 400)["scimType"] == "invalidValue"
+    end
+
+    test "refuses to rename an attached user who signed up on their own", %{conn: conn, organization: org} do
+      victim = user_fixture(email: "victim-#{System.unique_integer([:positive])}@example.com")
+      post(conn, "/scim/v2/Users", JSON.encode!(%{userName: victim.email, active: true}))
+      assert Accounts.belongs_to_organization?(victim, org)
+
+      conn = patch(conn, "/scim/v2/Users/#{victim.id}", rename_body("mine@example.com"))
+
+      assert json_response(conn, 400)["scimType"] == "mutability"
+      assert Accounts.get_user_by_id(victim.id).email == victim.email
+    end
+
+    test "refuses to rename a provisioned account that its owner signed into with their own Google account", %{
+      conn: conn,
+      organization: org
+    } do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "claimed-by-google@example.com"})
+      {:ok, _} = Accounts.link_oauth_identity_to_user(user, %{provider: :google, id_in_provider: "owner-google-id"})
+
+      conn = patch(conn, "/scim/v2/Users/#{user.id}", rename_body("loot@example.com"))
+
+      assert json_response(conn, 400)["scimType"] == "mutability"
+      assert Accounts.get_user_by_id(user.id).email == "claimed-by-google@example.com"
+    end
+
+    test "refuses to rename a provisioned account that its owner set a password for", %{conn: conn, organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "claimed-by-reset@example.com"})
+
+      {:ok, _} =
+        user |> Tuist.Accounts.User.password_changeset(%{password: "StrongP@ssword!2034"}) |> Tuist.Repo.update()
+
+      conn = patch(conn, "/scim/v2/Users/#{user.id}", rename_body("loot@example.com"))
+
+      assert json_response(conn, 400)["scimType"] == "mutability"
+      assert Accounts.get_user_by_id(user.id).email == "claimed-by-reset@example.com"
+    end
+
+    test "still deactivates a user when the rename in the same request is refused", %{conn: conn, organization: org} do
+      member = user_fixture(email: "leaver-#{System.unique_integer([:positive])}@example.com")
+      {:ok, _} = SCIM.provision_user(org, %{user_name: member.email})
+
+      body =
+        JSON.encode!(%{
+          schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+          Operations: [
+            %{op: "replace", path: "userName", value: "renamed-leaver@example.com"},
+            %{op: "replace", path: "active", value: false}
+          ]
+        })
+
+      conn = patch(conn, "/scim/v2/Users/#{member.id}", body)
+
+      assert json_response(conn, 400)["scimType"] == "mutability"
+      refute Accounts.belongs_to_organization?(member, org)
+    end
+
+    test "provisions a user in a self-hosted instance's operator email domain without making them an operator", %{
+      conn: conn
+    } do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Environment, :operator_email_domain, fn -> "example.com" end)
+      stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
+
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: "employee@example.com", active: true}))
+
+      assert json_response(conn, 201)
+      {:ok, user} = Accounts.get_user_by_email("employee@example.com")
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "refuses to rename a provisioned user into the operator email domain", %{conn: conn, organization: org} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "would-be-operator@example.com"})
+
+      conn = patch(conn, "/scim/v2/Users/#{user.id}", rename_body("probe@TUIST.dev"))
+
+      assert json_response(conn, 400)["scimType"] == "invalidValue"
+      assert Accounts.get_user_by_id(user.id).email == "would-be-operator@example.com"
+    end
+
     test "deactivates when Entra ID sends active as a string", %{conn: conn, organization: org} do
       {:ok, user} = SCIM.provision_user(org, %{user_name: "entra@example.com"})
 
@@ -243,6 +459,80 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
       conn = patch(conn, "/scim/v2/Users/#{user.id}", body)
       assert json_response(conn, 200)["active"] == false
       assert {:error, :not_found} = SCIM.get_user(org, user.id)
+    end
+  end
+
+  describe "operator email domain" do
+    setup do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      %{operator_email: "x@#{Tuist.Environment.operator_email_domain()}"}
+    end
+
+    test "refuses to create an operator-domain user", %{conn: conn, operator_email: operator_email} do
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: operator_email, active: true}))
+
+      assert json_response(conn, 400)["scimType"] == "invalidValue"
+      assert {:error, :not_found} = Accounts.get_user_by_email(operator_email)
+    end
+
+    test "refuses to rename a member into the operator domain", %{
+      conn: conn,
+      organization: org,
+      operator_email: operator_email
+    } do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "member@example.com"})
+
+      body =
+        JSON.encode!(%{
+          schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+          Operations: [%{op: "replace", path: "userName", value: String.upcase(operator_email)}]
+        })
+
+      conn = patch(conn, "/scim/v2/Users/#{user.id}", body)
+
+      assert json_response(conn, 400)["scimType"] == "invalidValue"
+      assert Accounts.get_user_by_id(user.id).email == "member@example.com"
+      refute Accounts.tuist_operator?(Accounts.get_user_by_id(user.id))
+    end
+
+    test "creates operator-domain users for an organization that DNS-verified that domain", %{
+      operator_email: operator_email
+    } do
+      organization =
+        organization_fixture(
+          sso_provider: :oauth2,
+          sso_organization_id: "https://idp.operator.example",
+          sso_login_domain: Tuist.Environment.operator_email_domain(),
+          sso_login_domain_verified_at: ~U[2026-01-01 00:00:00Z],
+          oauth2_client_id: "client",
+          oauth2_client_secret: "secret",
+          oauth2_authorize_url: "https://idp.operator.example/authorize",
+          oauth2_token_url: "https://idp.operator.example/token",
+          oauth2_user_info_url: "https://idp.operator.example/userinfo"
+        )
+
+      {:ok, {_token, plaintext}} = SCIM.create_token(organization, %{name: "verified"})
+
+      conn =
+        build_conn()
+        |> put_req_header("authorization", "Bearer #{plaintext}")
+        |> put_req_header("content-type", "application/scim+json")
+        |> post("/scim/v2/Users", JSON.encode!(%{userName: operator_email, active: true}))
+
+      assert json_response(conn, 201)["userName"] == operator_email
+    end
+
+    test "still attaches an existing operator-domain user", %{
+      conn: conn,
+      organization: org,
+      operator_email: operator_email
+    } do
+      existing = user_fixture(email: operator_email)
+
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: operator_email, active: true}))
+
+      assert json_response(conn, 201)["id"] == to_string(existing.id)
+      assert Accounts.belongs_to_organization?(existing, org)
     end
   end
 
@@ -275,5 +565,12 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
       ids = MapSet.new(body["Resources"], & &1["id"])
       assert MapSet.equal?(ids, MapSet.new(["User", "Group"]))
     end
+  end
+
+  defp rename_body(email) do
+    JSON.encode!(%{
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+      Operations: [%{op: "replace", path: "userName", value: email}]
+    })
   end
 end

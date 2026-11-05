@@ -155,7 +155,7 @@
       align-items: center;
       gap: var(--noora-spacing-4);
       /* Keeps the buttons at the right edge next to the narrow dropdown. */
-      margin-left: auto;
+      margin-inline-start: auto;
     }
   }
 
@@ -253,7 +253,7 @@
           &::before {
             position: absolute;
             top: calc(7px + (1.5rem - 9px) / 2);
-            right: calc(-1 * var(--changelog-rail-gap) / 2 - 5px);
+            inset-inline-end: calc(-1 * var(--changelog-rail-gap) / 2 - 5px);
             border-radius: var(--noora-radius-99);
             background: light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-700));
             width: 9px;
@@ -269,7 +269,7 @@
         font: var(--noora-font-weight-regular) var(--noora-font-body-large);
 
         @media (min-width: 1024px) {
-          text-align: right;
+          text-align: end;
           white-space: nowrap;
         }
       }
@@ -296,7 +296,7 @@
           position: absolute;
           top: 19px;
           bottom: calc(-1 * var(--noora-spacing-16) - 19px);
-          left: calc(-1 * var(--changelog-rail-gap) / 2 - 0.5px);
+          inset-inline-start: calc(-1 * var(--changelog-rail-gap) / 2 - 0.5px);
           background: var(--marketing-stroke-default);
           width: 1px;
           content: "";

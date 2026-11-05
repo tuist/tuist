@@ -645,6 +645,7 @@ defmodule Tuist.Accounts.AgentAuth do
         end
       end
       |> Repo.transaction()
+      |> tap(fn _ -> Accounts.disconnect_revoked_sessions() end)
       |> unwrap_repo_transaction()
     end
   end
@@ -814,6 +815,7 @@ defmodule Tuist.Accounts.AgentAuth do
       end
     end
     |> Repo.transaction()
+    |> tap(fn _ -> Accounts.disconnect_revoked_sessions() end)
     |> unwrap_repo_transaction()
   end
 
@@ -1516,7 +1518,18 @@ defmodule Tuist.Accounts.AgentAuth do
     end
   end
 
+  # The claimed credential acts in every account of the user, so beyond the
+  # email domain's organization, the session must also satisfy every
+  # organization the user belongs to, as OAuth authorizations and device
+  # codes do.
   defp ensure_browser_sso_policy_satisfied(%User{} = user, session) do
+    case Accounts.sso_requirement(user, session) do
+      :ok -> ensure_email_domain_sso_policy_satisfied(user, session)
+      _requirement -> {:error, :sso_required}
+    end
+  end
+
+  defp ensure_email_domain_sso_policy_satisfied(user, session) do
     if Accounts.sso_enforced_for_email?(user.email) do
       with {:ok, organization} <- Accounts.sso_organization_for_user_email(user.email),
            true <- UserToken.satisfies_sso?(session, organization),
@@ -1923,7 +1936,10 @@ defmodule Tuist.Accounts.AgentAuth do
         maybe_confirm_user!(user)
 
       {:error, :not_found} ->
-        case Accounts.create_user(email, confirmed_at: NaiveDateTime.utc_now()) do
+        case Accounts.create_user(email,
+               confirmed_at: NaiveDateTime.utc_now(),
+               email_verified_at: DateTime.truncate(DateTime.utc_now(), :second)
+             ) do
           {:ok, user} ->
             user
 
@@ -1934,16 +1950,8 @@ defmodule Tuist.Accounts.AgentAuth do
     end
   end
 
-  defp maybe_confirm_user!(%User{confirmed_at: nil} = user) do
-    {:ok, user} =
-      user
-      |> User.confirm_changeset()
-      |> Repo.update()
-
-    Repo.preload(user, :account)
-  end
-
   defp maybe_confirm_user!(%User{} = user) do
+    {:ok, user} = Accounts.record_mailbox_proof(user)
     Repo.preload(user, :account)
   end
 
