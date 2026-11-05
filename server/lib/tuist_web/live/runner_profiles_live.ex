@@ -466,7 +466,7 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   Named at whatever granularity the image actually holds still.
   Linux pins an exact release (the runner Dockerfile is `FROM
-  ubuntu:22.04`), so the label states it. macOS cannot: the image
+  ubuntu:24.04`), so the label states it. macOS cannot: the image
   builds on a floating Tahoe base and the Mac minis hosting it adopt
   on the family rather than a point release, both by design — Scaleway
   retires point releases without notice, and pinning one stranded the
@@ -474,7 +474,7 @@ defmodule TuistWeb.RunnerProfilesLive do
   Claiming a point release here would be telling customers something
   we don't actually guarantee.
   """
-  def os_label_for_form("linux"), do: dgettext("dashboard_runners", "Ubuntu 22.04 LTS")
+  def os_label_for_form("linux"), do: dgettext("dashboard_runners", "Ubuntu 24.04 LTS")
   def os_label_for_form("macos"), do: dgettext("dashboard_runners", "Tahoe")
   def os_label_for_form(_), do: ""
 
