@@ -413,8 +413,11 @@ off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage of `tuist/tuist` comes
 from `tuist-project-tests.yml` (`tuist/tuist Tests`), which runs every macOS `tuist test` of the
 CLI and the app (cli.yml and app.yml keep builds, lint and the Linux suite). On
-a pull request the unit, app and acceptance tests run selectively (hashing,
-then coverage-based test selection, below), and
+a pull request the unit, app and acceptance tests run selectively: hashing
+skips whole targets, then `Tuist.swift`'s `.coverage()` strategy asks the server
+which XCTest tests of the targets left to run (Swift Testing and the
+acceptance targets, which don't link TestCoverageAttribution, always run when
+their target does; see `server/docs/coverage-test-selection.md`), and
 `coverage-complete` runs `tuist coverage complete` once all three finished,
 whatever their result (not on drafts or forks). On a push to main the
 `cache` job warms the binary cache first, uploading the compilation-cache plugin's `cas.log`
