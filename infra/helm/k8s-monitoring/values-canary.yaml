@@ -150,6 +150,10 @@ pulso:
   # reader/writer/compactor runs the same version.
   logCompaction:
     enabled: true
+  # Tempo HTTP search/metrics (/api/search, /api/metrics) and the MCP TraceQL
+  # tools, so the Grafana trace panels (event., >>, | select) can run on Pulso.
+  tempoSearch:
+    enabled: true
   # Proposed production retention, previewed only: observe mode computes the
   # floor but expires nothing. Switching to enforce deletes data and needs an
   # explicit decision. 1.32.0+ keeps enforced prefixes on the paged manifest,
