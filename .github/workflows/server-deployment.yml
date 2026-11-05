@@ -1555,6 +1555,18 @@ jobs:
             echo "linux_runner_image=ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}" >> "$GITHUB_OUTPUT"
             add_set "runnersFleetLinux.shapeRunnerImage" \
               "ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}"
+            # Each other Ubuntu release a profile can pick ships as
+            # `<version>-<os-tag>` from the same release. A version that
+            # predates it has no such tag: the chart then renders no pools
+            # for that release and the server stops offering it.
+            for os_tag in ubuntu-22-04; do
+              if os_digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-linux-runner "${linux_runner_image_version}-${os_tag}" 2>/dev/null)"; then
+                add_set "runnersFleetLinux.osRunnerImages.${os_tag}" \
+                  "ghcr.io/tuist/tuist-linux-runner@${os_digest}"
+              else
+                echo "::warning::No ${linux_runner_image_version}-${os_tag} Linux runner image; its profiles have no pool this deploy."
+              fi
+            done
           fi
 
           helm_values_args=(

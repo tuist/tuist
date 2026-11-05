@@ -523,6 +523,16 @@ config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1
 config :tuist, :runner_free_monthly_minutes, 100
 config :tuist, :runner_linux_free_monthly_minutes, 2_500
 
+# Linux OS catalog: the Ubuntu releases a Linux profile can run on. Same
+# role as `:runner_macos_xcode_versions`. Managed deploys override it at
+# boot from `TUIST_RUNNER_LINUX_OS_VERSIONS`, which Helm injects from the
+# `runnersFleetLinux.osVersions` entries it renders pools for. Exactly one
+# entry should carry `default: true`; its pools keep the shape-only names.
+config :tuist, :runner_linux_os_versions, [
+  %{os_version: "ubuntu-24.04", default: true},
+  %{os_version: "ubuntu-22.04"}
+]
+
 # Runner Profiles shape catalog — the (vCPU, RAM) pairs customers can
 # pick when creating a profile. This is the **dev/test/CI default**;
 # managed deploys override it at boot from `TUIST_RUNNER_LINUX_SHAPES`,

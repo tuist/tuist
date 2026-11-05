@@ -886,6 +886,18 @@ defmodule Tuist.Runners.DispatchTest do
                Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-default"])
     end
 
+    test "routes each OS version to its own pool", %{account: account} do
+      {:ok, _} =
+        Profiles.create(account, %{"name" => "jammy", "vcpus" => 4, "memory_gb" => 16, "os_version" => "ubuntu-22.04"})
+
+      assert {:ok,
+              %{pool_name: "tuist-runner-pool-linux-4vcpu-16gb-ubuntu-22-04", requested_dispatch_label: "tuist-jammy"}} =
+               Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-jammy"])
+
+      assert {:ok, %{pool_name: "tuist-runner-pool-linux-4vcpu-16gb"}} =
+               Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-default"])
+    end
+
     test "falls back to legacy pool match for non-Linux labels (macOS)", %{account: account} do
       stub(Client, :list_runner_pools, fn _ns ->
         {:ok,

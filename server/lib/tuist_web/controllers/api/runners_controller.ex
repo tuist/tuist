@@ -124,6 +124,11 @@ defmodule TuistWeb.API.RunnersController do
       vcpus: %Schema{type: :integer},
       memory_gb: %Schema{type: :integer},
       xcode_version: %Schema{type: :string, nullable: true},
+      os_version: %Schema{
+        type: :string,
+        nullable: true,
+        description: "The Ubuntu release of a Linux profile, for example ubuntu-24.04. Null on macOS."
+      },
       protected: %Schema{type: :boolean},
       runs_on_label: %Schema{
         type: :string,
@@ -236,6 +241,7 @@ defmodule TuistWeb.API.RunnersController do
     :vcpus,
     :memory_gb,
     :xcode_version,
+    :os_version,
     :cache_writer_all_branches,
     :cache_writer_default_branch,
     :cache_writer_branches
@@ -247,6 +253,11 @@ defmodule TuistWeb.API.RunnersController do
     xcode_version: %Schema{
       type: :string,
       description: "An available Xcode version, for example 26.5. Required for macOS profiles."
+    },
+    os_version: %Schema{
+      type: :string,
+      description:
+        "An available Ubuntu release for Linux profiles, for example ubuntu-24.04. Defaults to the catalog default."
     },
     cache_writer_all_branches: %Schema{
       type: :boolean,
@@ -293,9 +304,22 @@ defmodule TuistWeb.API.RunnersController do
           },
           required: [:xcode_version, :default]
         }
+      },
+      os_versions: %Schema{
+        type: :array,
+        items: %Schema{
+          title: "RunnerOSVersion",
+          type: :object,
+          properties: %{
+            os_version: %Schema{type: :string},
+            label: %Schema{type: :string},
+            default: %Schema{type: :boolean}
+          },
+          required: [:os_version, :label, :default]
+        }
       }
     },
-    required: [:shapes, :xcode_versions]
+    required: [:shapes, :xcode_versions, :os_versions]
   }
 
   @pagination_parameters [
@@ -803,6 +827,7 @@ defmodule TuistWeb.API.RunnersController do
       :vcpus,
       :memory_gb,
       :xcode_version,
+      :os_version,
       :protected,
       :cache_writer_all_branches,
       :cache_writer_default_branch,

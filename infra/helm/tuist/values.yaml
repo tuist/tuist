@@ -3252,6 +3252,22 @@ runnersFleetLinux:
   # desired image prepares in the background. Recomputed on every deploy;
   # empty in source values so holds do not become permanent image pins.
   imageHolds: {}
+  # Ubuntu releases a Linux Runner Profile can pick (`os_version` on the
+  # profile). Every shape renders one pool per entry that has an image;
+  # the server is told the same list (TUIST_RUNNER_LINUX_OS_VERSIONS), so
+  # it offers only an OS with pools. Exactly one entry is `default: true`:
+  # it runs `shapeRunnerImage` under the shape-only pool names, and new
+  # profiles get it. Other entries take `runnerImage`, or the
+  # deploy-resolved `osRunnerImages.<tag>` (tag = osVersion with dots as
+  # dashes), and their pools start at a warm floor of 0 unless their
+  # `autoscaling` block says otherwise. See
+  # infra/linux-runner-image/image-rollout.md for retiring an entry.
+  osVersions:
+    - osVersion: ubuntu-24.04
+      default: true
+  # Deployment-resolved digest per non-default OS tag, e.g.
+  # `ubuntu-22-04: ghcr.io/tuist/tuist-linux-runner@sha256:...`.
+  osRunnerImages: {}
   shapeRuntimeClass: "kata-qemu"
   shapeAutoscaling:
     enabled: true
