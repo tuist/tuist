@@ -127,6 +127,10 @@ config :tuist, TuistWeb.Endpoint,
 # transition machinery so its invariants remain covered while that work lands.
 config :tuist, :kura_warm_handoffs_enabled, true
 
+# Mirror production's Secure session and remember-me cookies. Conn tests reach
+# the endpoint over :http, as production's origin does behind Cloudflare.
+config :tuist, :session_cookie_secure, true
+
 # Exercise the hosted DNS-verification policy unless a test explicitly stubs it.
 config :tuist, :sso_require_login_domain_verification, true
 
