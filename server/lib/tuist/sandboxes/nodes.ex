@@ -29,6 +29,14 @@ defmodule Tuist.Sandboxes.Nodes do
 
   def presence_topic, do: @presence_topic
 
+  @doc """
+  Suffix a remote execution worker on a shared runner host appends to its
+  Kubernetes node name, so it connects beside that host's agent sandbox
+  daemon instead of superseding it. The runners controller publishes the
+  worker's grants under the same name.
+  """
+  def execution_daemon_suffix, do: ".remote-execution"
+
   def topic(node_name) when is_binary(node_name), do: "sandbox_node:" <> node_name
 
   @doc """

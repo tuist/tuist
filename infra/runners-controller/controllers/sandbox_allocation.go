@@ -62,14 +62,14 @@ func (r *AutoscalerReconciler) publishSandboxAllocations(ctx context.Context, po
 			if err := r.SignalsClient.PublishSandboxAllocation(ctx, allocation); err != nil {
 				return fmt.Errorf("publish sandbox allocation for %s: %w", node.Name, err)
 			}
-			metrics.RecordSandboxAllocation(node.Name, daemon.memory, allocation.MemoryBytes, allocation.FreeBytes, float64(observed.Unix()))
+			metrics.RecordSandboxAllocation(daemon.grantNode(), daemon.memory, allocation.MemoryBytes, allocation.FreeBytes, float64(observed.Unix()))
 		}
 	}
 	return nil
 }
 
 func planSandboxAllocation(node *corev1.Node, daemon sandboxDaemon, pods []corev1.Pod, fleet *fleetAllocation) scaling.SandboxAllocation {
-	allocation := scaling.SandboxAllocation{Node: node.Name, Pod: daemon.name, Reclaim: fleet == nil || isReserved(node) || node.Spec.Unschedulable || daemon.terminating}
+	allocation := scaling.SandboxAllocation{Node: daemon.grantNode(), Pod: daemon.name, Reclaim: fleet == nil || isReserved(node) || node.Spec.Unschedulable || daemon.terminating}
 	ready := false
 	for _, condition := range node.Status.Conditions {
 		if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
@@ -95,7 +95,7 @@ func planSandboxAllocation(node *corev1.Node, daemon sandboxDaemon, pods []corev
 		memory := allocationPodMemory(pod)
 		// The target daemon is counted separately using max(requested,
 		// allocated, applied). Other daemon Pods remain ordinary occupancy.
-		if pod.Name == daemon.name && pod.Labels[sandboxdLabel] == "true" {
+		if pod.Name == daemon.name && isSandboxDaemon(pod) {
 			memory = daemon.memory
 		}
 		used += memory
