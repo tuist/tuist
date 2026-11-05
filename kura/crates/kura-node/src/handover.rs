@@ -913,6 +913,17 @@ pub struct DescriptorRequest {
     source: Holder,
     #[serde(default)]
     after: Option<String>,
+    // The destination's feed cursor on this source when its walk begins,
+    // sent with the first page; older destinations omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    feed_incarnation: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    feed_seq: Option<u64>,
+}
+
+/// The feed consumer that holds this source's feed for a handover's delta.
+fn handover_feed_pin(intent: &Intent) -> String {
+    format!("handover:{}", intent.id)
 }
 
 #[derive(Deserialize, Serialize)]
@@ -962,6 +973,19 @@ async fn descriptor_page(
         .map(hex::decode)
         .transpose()
         .map_err(|_| "invalid descriptor cursor")?;
+    // The frozen barrier repairs what the source added after the walk began
+    // from its feed, so hold the feed there against the sibling link's trim
+    // until the receipt (or the stale-consumer window). Already trimmed past
+    // it, the barrier falls back to the full repair as before.
+    if after.is_none() {
+        let feed = state.store.sync_feed();
+        if let (Some(incarnation), Some(seq)) = (request.feed_incarnation, request.feed_seq)
+            && incarnation == feed.incarnation()
+            && seq >= feed.floor()
+        {
+            feed.note_consumer_snapshot(&handover_feed_pin(&request.intent), seq);
+        }
+    }
     let records_without_feed_rows = after.is_none().then(|| {
         state
             .store
@@ -1047,6 +1071,7 @@ async fn source_descriptor_page(
     state: &SharedState,
     request: &VerifyRequest,
     after: Option<String>,
+    feed_from: Option<SyncPosition>,
 ) -> Result<DescriptorPage, PageFailure> {
     let response = state
         .peer_request(
@@ -1062,6 +1087,8 @@ async fn source_descriptor_page(
             intent: request.intent.clone(),
             source: request.source.clone(),
             after,
+            feed_incarnation: feed_from.map(|from| from.incarnation),
+            feed_seq: feed_from.map(|from| from.seq),
         })
         .timeout(Duration::from_secs(120))
         .send()
@@ -1121,7 +1148,7 @@ async fn checked_range_page(
     range: DescriptorRange,
     watch: bool,
 ) -> Result<CheckedPage, PageFailure> {
-    let page = source_descriptor_page(state, request, range.after).await?;
+    let page = source_descriptor_page(state, request, range.after, None).await?;
     let unhashed = page.unhashed;
     let (records, next) = within_range(page, range.stop);
     let (kinds, held, frontier_ms) = held_records(state, &records, watch).await?;
@@ -1248,10 +1275,12 @@ async fn verify_content_while_serving(
     let cuts = tokio::task::spawn_blocking(move || range_cuts(&local))
         .await
         .map_err(|error| error.to_string())??;
+    // Read before the first page, so the source can hold its feed here.
+    let feed_from = state.store.sync_cursor(&request.intent.source_url)?;
     let first = if near_deadline() {
         None
     } else {
-        match source_descriptor_page(state, request, None).await {
+        match source_descriptor_page(state, request, None, feed_from).await {
             Ok(page) => Some(page),
             Err(PageFailure::Fatal(error)) => return Err(error),
             Err(PageFailure::Unreachable(error)) => {
@@ -1267,7 +1296,7 @@ async fn verify_content_while_serving(
             state.store.watch_retained_evictions(frontier);
             walk.losses_at = state.store.retained_loss_evictions();
             walk.frontier_ms = Some(frontier);
-            verified.feed_from = state.store.sync_cursor(&request.intent.source_url)?;
+            verified.feed_from = feed_from;
         }
         verified.records_without_feed_rows = first.records_without_feed_rows;
         let mut unhashed = first.unhashed;
@@ -2058,6 +2087,7 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
         .store
         .persist_handover_receipt(&serde_json::to_vec(&receipt).map_err(|e| e.to_string())?)
         .await?;
+    feed.forget_consumer(&handover_feed_pin(intent));
     Ok(receipt)
 }
 
@@ -4187,6 +4217,39 @@ mod tests {
             pair.requests("/_internal/handover/verify"),
             3,
             "begin, the late record in full, and the receipt"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_source_keeps_its_feed_from_the_walk_until_the_barrier() {
+        let pair = ContentPair::new().await;
+        pair.seed("early", &vec![1; 64 * 1024]).await;
+        pair.catch_up_cursor();
+        pair.prepare_while_serving().await.unwrap();
+        // Enough writes for the sibling link's progress to trim the feed
+        // past where the walk began.
+        let late = crate::constants::SYNC_FEED_TRIM_BATCH_ROWS as usize + 64;
+        for index in 0..late {
+            pair.seed(&format!("late-{index}"), &(index as u64).to_be_bytes())
+                .await;
+        }
+        let feed = pair.source.state.store.sync_feed();
+        feed.note_consumer("sibling", feed.head());
+        pair.source
+            .state
+            .store
+            .sync_feed_trim_below_consumers()
+            .await
+            .unwrap();
+        let listings = pair.source_requests("/_internal/backfill/entries");
+
+        let receipt = pair.freeze().await.unwrap();
+
+        assert_eq!(receipt.records as usize, late);
+        assert_eq!(
+            pair.source_requests("/_internal/backfill/entries"),
+            listings,
+            "the frozen repair never lists the source's whole index"
         );
     }
 

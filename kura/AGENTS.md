@@ -127,6 +127,10 @@ does not repair embedded/native verification or qualify running processes.
   records. When it reached the end of the index and nothing counted was evicted
   since it began, the frozen repair fetches only those records plus the record
   rows the source's feed added after that cursor, read once without waiting.
+  The destination reads that cursor before its first descriptor page and
+  sends it; the source pins its feed there (a pinned `handover:<id>` consumer,
+  outside the drain gate) until the receipt or the stale-consumer window, so
+  the sibling link's trim cannot remove the rows the delta needs.
   A different incarnation, a trimmed floor or too many rows runs the full walk.
   The delta repair skips the revisit on uncounted evictions.
   The delta also replaces the frozen full-corpus verification when the walk
