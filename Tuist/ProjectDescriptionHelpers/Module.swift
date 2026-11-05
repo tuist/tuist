@@ -325,6 +325,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.projectDescription.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.testCommand.targetName),
                     .target(name: Module.testing.targetName),
