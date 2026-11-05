@@ -7,6 +7,9 @@
     current_path={@current_path}
     current_user={@current_user}
   />
+  <h2 data-part="subtitle">
+    {dgettext("dashboard_account", "Subscriptions")}
+  </h2>
 
   <.card_section id="claude-subscription" data-part="subscription-card-section">
     <div data-part="header-row">
@@ -117,9 +120,11 @@
         <ol>
           <li>{dgettext("dashboard_account", "Install Claude Code on your computer.")}</li>
           <li>
-            {dgettext("dashboard_account", "Run %{command} and sign in with your Claude account.",
-              command: "claude setup-token"
+            {dgettext(
+              "dashboard_account",
+              "Run the following command and sign in with your Claude account."
             )}
+            <.terminal id="claude-setup-token" command="claude setup-token" />
           </li>
           <li>{dgettext("dashboard_account", "Paste the token it prints below.")}</li>
         </ol>

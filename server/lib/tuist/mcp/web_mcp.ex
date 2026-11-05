@@ -159,7 +159,7 @@ defmodule Tuist.MCP.WebMCP do
   defp account_page(["webhooks" | _]), do: "webhooks"
   defp account_page(["sandboxes" | _]), do: "sandboxes"
   defp account_page(["settings", "tokens" | _]), do: "account-tokens"
-  defp account_page(["settings", "ai-subscriptions" | _]), do: "ai-subscriptions"
+  defp account_page(["settings", "ai" | _]), do: "ai-subscriptions"
 
   defp account_page([organization | _]) when organization in ["settings", "members", "billing", "usage"],
     do: "organization"

@@ -18,9 +18,9 @@ defmodule TuistWeb.AISubscriptionsSettingsLiveTest do
   end
 
   test "connects and disconnects a Claude subscription from the personal settings", %{conn: conn, user: user} do
-    {:ok, lv, html} = live(conn, ~p"/#{user.account.name}/settings/ai-subscriptions")
+    {:ok, lv, html} = live(conn, ~p"/#{user.account.name}/settings/ai")
 
-    assert html =~ "AI subscriptions"
+    assert html =~ "Subscriptions"
     assert html =~ "claude setup-token"
     assert has_element?(lv, "#connect-claude")
     # Without an OAuth client, ChatGPT sign-in cannot work, so its card stays hidden.
@@ -55,7 +55,7 @@ defmodule TuistWeb.AISubscriptionsSettingsLiveTest do
       {:ok, %Req.Response{status: 200, body: %{"device_auth_id" => "dev-1", "user_code" => "ABCD-1234", "interval" => 5}}}
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/ai-subscriptions")
+    {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/ai")
 
     lv |> element("#connect-chatgpt") |> render_click()
     html = render_async(lv, 2_000)
@@ -66,14 +66,14 @@ defmodule TuistWeb.AISubscriptionsSettingsLiveTest do
   test "links the tab from the personal account's settings", %{conn: conn, user: user} do
     {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings")
 
-    assert has_element?(lv, ~s(a[href="/#{user.account.name}/settings/ai-subscriptions"]))
+    assert has_element?(lv, ~s(a[href="/#{user.account.name}/settings/ai"]))
   end
 
   test "is not available on another user's personal account", %{conn: conn} do
     other_user = AccountsFixtures.user_fixture(preload: [:account])
 
     assert_raise NotFoundError, fn ->
-      live(conn, ~p"/#{other_user.account.name}/settings/ai-subscriptions")
+      live(conn, ~p"/#{other_user.account.name}/settings/ai")
     end
   end
 
@@ -81,10 +81,10 @@ defmodule TuistWeb.AISubscriptionsSettingsLiveTest do
     organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
 
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings")
-    refute has_element?(lv, ~s(a[href="/#{organization.account.name}/settings/ai-subscriptions"]))
+    refute has_element?(lv, ~s(a[href="/#{organization.account.name}/settings/ai"]))
 
     assert_raise NotFoundError, fn ->
-      live(conn, ~p"/#{organization.account.name}/settings/ai-subscriptions")
+      live(conn, ~p"/#{organization.account.name}/settings/ai")
     end
   end
 
@@ -92,14 +92,14 @@ defmodule TuistWeb.AISubscriptionsSettingsLiveTest do
     stub(Environment, :env, fn -> :prod end)
 
     {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings")
-    refute has_element?(lv, ~s(a[href="/#{user.account.name}/settings/ai-subscriptions"]))
+    refute has_element?(lv, ~s(a[href="/#{user.account.name}/settings/ai"]))
 
     assert_raise NotFoundError, fn ->
-      live(conn, ~p"/#{user.account.name}/settings/ai-subscriptions")
+      live(conn, ~p"/#{user.account.name}/settings/ai")
     end
 
     FunWithFlags.enable(:ai, for_actor: user)
 
-    assert {:ok, _lv, _html} = live(conn, ~p"/#{user.account.name}/settings/ai-subscriptions")
+    assert {:ok, _lv, _html} = live(conn, ~p"/#{user.account.name}/settings/ai")
   end
 end
