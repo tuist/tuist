@@ -254,7 +254,7 @@ private struct Shop {
         defer { mockedEnvironment.variables = previous }
         mockedEnvironment.variables.merge(environment) { _, new in new }
 
-        let passthrough = (selectiveTesting ? [] : ["--no-selective-testing"]) + self.passthrough
+        let options = (selectiveTesting ? [] : ["--no-selective-testing"]) + passthrough
         Logger.testingLogHandler.flush()
         if sharded {
             let reference = "acceptance-\(UUID().uuidString.prefix(8))"
@@ -263,7 +263,7 @@ private struct Shop {
             try await TuistTest.run(TestCommand.self, [
                 "Shop", "--build-only", "--shard-total", "2", "--shard-granularity", "module",
                 "--shard-reference", reference, "--derived-data-path", derivedData("plan").pathString,
-            ] + passthrough)
+            ] + options)
             let matrix = try JSONSerialization.jsonObject(
                 with: Data(contentsOf: directory.appending(component: ".tuist-shard-matrix.json").url)
             ) as? [String: Any]
@@ -273,12 +273,12 @@ private struct Shop {
                 try await TuistTest.run(TestCommand.self, [
                     "Shop", "--without-building", "--shard-index", "\(index)", "--shard-reference", reference,
                     "--derived-data-path", derivedData("shard-\(index)").pathString,
-                ] + passthrough)
+                ] + options)
             }
         } else {
             try await TuistTest.run(TestCommand.self, [
                 "Shop", "--derived-data-path", derivedData("test").pathString,
-            ] + passthrough)
+            ] + options)
         }
         let output = Logger.testingLogHandler.collected[.trace, <=] + "\n" + ui()
         resetUI()
