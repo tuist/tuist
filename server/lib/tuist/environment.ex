@@ -503,6 +503,31 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_USE_SSL_FOR_DATABASE", "1"))
   end
 
+  # Verification is opt-in so upgrades keep connecting to databases whose
+  # certificates chain to a private CA (RDS, Cloud SQL, self-managed).
+  # Postgrex verifies the peer and hostname by default for `true` and keyword
+  # lists, and sets SNI from the host of each connection, so neither is pinned
+  # here. `true` also defers loading the OS trust store to connect time.
+  def database_ssl_options do
+    ca_cert_file = System.get_env("TUIST_DATABASE_SSL_CA_CERT_FILE")
+
+    cond do
+      not truthy?(System.get_env("TUIST_DATABASE_SSL_VERIFY", "0")) -> [verify: :verify_none]
+      ca_cert_file in [nil, ""] -> true
+      true -> [cacertfile: validate_database_ca_cert_file!(ca_cert_file)]
+    end
+  end
+
+  defp validate_database_ca_cert_file!(path) do
+    with {:ok, pem} <- File.read(path),
+         true <- Enum.any?(:public_key.pem_decode(pem), &match?({:Certificate, _, _}, &1)) do
+      path
+    else
+      _ ->
+        raise "TUIST_DATABASE_SSL_CA_CERT_FILE must point to a readable PEM file with CA certificates, got: #{inspect(path)}"
+    end
+  end
+
   def dev_use_remote_storage? do
     not dev?() or truthy?(System.get_env("TUIST_DEV_USE_REMOTE_STORAGE", "0"))
   end
