@@ -1153,6 +1153,16 @@ defmodule Tuist.Runners.CacheVolumesTest do
       assert Repo.get!(Usage, next.id).volume_bytes == gb(50)
     end
 
+    test "tells the host when the copy a job starts from was saved", %{job: job} do
+      complete(job)
+      assert {:ok, %{head_saved_at: nil} = first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+      publish_report("node", first.id)
+      saved = Repo.get!(Usage, first.id).finished_at
+
+      assert {:ok, %{head_saved_at: at}} = CacheVolumes.allocate_for_job(job, identity(), attrs("next"))
+      assert at == saved |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+    end
+
     test "a smaller request waits for the volume to start empty and is shown as pending", %{job: job, account: account} do
       complete(job)
       {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))

@@ -27,9 +27,12 @@ defmodule Tuist.Runners.CacheVolumes.Query do
   def run(:jobs, account_id, params) do
     with {:ok, found} <- find(account_id, params),
          {:ok, page, size} <- pagination(params) do
+      history = CacheVolumes.history(account_id, found.id, page, size)
+      reasons = CacheVolumes.discard_reasons(Enum.map(history, &{&1, found}))
+
       {:ok,
        %{
-         jobs: Enum.map(CacheVolumes.history(account_id, found.id, page, size), &usage(&1, found)),
+         jobs: Enum.map(history, &usage(&1, found, reasons)),
          pagination_metadata: metadata(page, size, CacheVolumes.history_count(account_id, found.id))
        }}
     end
@@ -40,12 +43,13 @@ defmodule Tuist.Runners.CacheVolumes.Query do
       {:ok, job} ->
         uses = CacheVolumes.for_job(account_id, job.workflow_run_id, job.workflow_job_id)
         stats = CacheVolumes.statistics(Enum.map(uses, & &1.volume_id))
+        reasons = CacheVolumes.discard_reasons(Enum.map(uses, &{&1, &1.volume}))
 
         {:ok,
          %{
            volumes:
              Enum.map(uses, fn use ->
-               %{volume: volume(use.volume, Map.get(stats, use.volume_id, %{})), usage: usage(use, use.volume)}
+               %{volume: volume(use.volume, Map.get(stats, use.volume_id, %{})), usage: usage(use, use.volume, reasons)}
              end)
          }}
 
@@ -179,8 +183,14 @@ defmodule Tuist.Runners.CacheVolumes.Query do
     }
   end
 
-  defp usage(use, volume) do
+  defp usage(use, volume, reasons) do
     {status, description} = status(use, volume)
+
+    description =
+      case reasons[use.id] do
+        nil -> description
+        reason -> description <> " " <> discard_reason(reason)
+      end
 
     description =
       if CacheVolumes.older_copy?(use),
@@ -219,6 +229,16 @@ defmodule Tuist.Runners.CacheVolumes.Query do
   defp status("published"), do: {"saved", "Changes from this job were saved to the volume for future job runs."}
   defp status("discarded"), do: {"discarded", "Changes from this job were not saved for future job runs."}
   defp status(_), do: {"unknown", "The cache status is unavailable."}
+
+  defp discard_reason(:read_only),
+    do:
+      "This job could only read the volume, for example a pull request from a fork or a branch its runner profile does not save from."
+
+  defp discard_reason(:started_empty),
+    do:
+      "The job started empty because its runner host did not have the saved copy yet. A job that starts empty replaces the saved copy only when the volume ends up more than twice its size."
+
+  defp discard_reason(:saved_first), do: "Another job that started from the same saved copy saved its changes first."
 
   defp activity(data) do
     %{

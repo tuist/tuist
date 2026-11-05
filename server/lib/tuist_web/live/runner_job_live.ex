@@ -85,10 +85,7 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:buildkite_job, buildkite_job)
          |> assign(:gitlab_job, gitlab_job)
          |> assign(:bitrise_build, bitrise_build)
-         |> assign(
-           :volumes,
-           CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id)
-         )
+         |> assign_volumes(CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id))
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
@@ -154,6 +151,7 @@ defmodule TuistWeb.RunnerJobLive do
   def header_title(job), do: job_title(job)
 
   attr :volumes, :list, required: true
+  attr :discard_reasons, :map, default: %{}
   attr :account_name, :string, required: true
   attr :failed, :boolean, default: false
 
@@ -225,6 +223,12 @@ defmodule TuistWeb.RunnerJobLive do
             />
             <.text_cell :if={is_nil(usage.warm)} label="—" />
           </:col>
+          <:col :let={usage} label={dgettext("dashboard_runners", "Changes")}>
+            <.text_cell
+              label={changes_label(usage)}
+              sublabel={discard_reason_label(@discard_reasons[usage.id])}
+            />
+          </:col>
           <:col :let={usage} label={dgettext("dashboard_runners", "Used space")}>
             <.text_cell label={volume_bytes(usage.size_bytes)} />
           </:col>
@@ -236,6 +240,27 @@ defmodule TuistWeb.RunnerJobLive do
     </.card>
     """
   end
+
+  defp assign_volumes(socket, volumes) do
+    socket
+    |> assign(:volumes, volumes)
+    |> assign(:discard_reasons, CacheVolumes.discard_reasons(Enum.map(volumes, &{&1, &1.volume})))
+  end
+
+  # A checkout volume is never saved by a job: its host fills it from GitHub.
+  defp changes_label(%{volume: %{key: "checkout"}}), do: "—"
+  defp changes_label(%{status: "published"}), do: dgettext("dashboard_runners", "Saved")
+  defp changes_label(%{status: "discarded"}), do: dgettext("dashboard_runners", "Not saved")
+  defp changes_label(_usage), do: dgettext("dashboard_runners", "Not saved yet")
+
+  defp discard_reason_label(:read_only), do: dgettext("dashboard_runners", "This job can only read the volume")
+
+  defp discard_reason_label(:started_empty),
+    do: dgettext("dashboard_runners", "Started empty: the saved copy was not on its host yet")
+
+  defp discard_reason_label(:saved_first), do: dgettext("dashboard_runners", "Another job from the same copy saved first")
+
+  defp discard_reason_label(nil), do: nil
 
   defp volume_bytes(nil), do: "—"
   defp volume_bytes(value), do: ByteFormatter.format_bytes(value)

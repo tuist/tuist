@@ -221,6 +221,7 @@
 
     <.job_volumes
       volumes={@volumes}
+      discard_reasons={@discard_reasons}
       account_name={@selected_account.name}
       failed={@job.conclusion == "failure"}
     />

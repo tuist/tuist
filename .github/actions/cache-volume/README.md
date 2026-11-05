@@ -65,6 +65,22 @@ dependency required by the current commit. The action attaches the volume;
 the service saves eligible successful jobs after teardown. No post action or
 additional workflow permissions are required.
 
+The action logs which copy the job started from: the latest saved copy, an
+older one or an empty volume, with the saved copy's generation and save time.
+A job starts from an older copy or empty when its runner host does not have the
+latest copy yet; the host downloads it in the background for later jobs.
+
+The job page's Volumes card shows whether each job's changes were saved, and
+why not when the reason is known:
+
+- The job could only read the volume, such as a pull request from a fork or a
+  branch the runner profile does not save from.
+- It started empty although a copy was saved. Its changes replace that copy only
+  when the volume ends up more than twice its size, so a job that started empty
+  does not replace a fuller cache. To start over, clear the volume or use a new
+  key.
+- Another job that started from the same copy saved first.
+
 A missing client fails with a Tuist Linux or macOS runner requirement. Unavailable
 storage warns and falls back to a job-local directory. Invalid or nonempty paths
 and invalid sizes fail without replacing their contents. When saved contents

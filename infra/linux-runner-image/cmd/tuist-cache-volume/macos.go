@@ -406,7 +406,10 @@ func attachMac(key string, targets []string, root string, size int64) error {
 	if err := validateMacTargets(targets); err != nil {
 		return err
 	}
-	return attachUsing(key, targets, root, func() (string, string, bool, error) { return acquireMac(key, size) }, func(_ string, source, target string) error { return linkMacDirectory(root, source, target) })
+	return attachUsing(key, targets, root, func() (grant, error) {
+		directory, lease, warm, err := acquireMac(key, size)
+		return grant{Directory: directory, ID: lease, Warm: warm}, err
+	}, func(_ string, source, target string) error { return linkMacDirectory(root, source, target) })
 }
 func validateMacTargets(targets []string) error {
 	for _, target := range targets {

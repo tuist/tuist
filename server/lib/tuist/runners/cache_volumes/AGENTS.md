@@ -50,6 +50,12 @@ these schemas persist volume identities and per-job uses.
   `allocated_reserved_bytes/2` is the same room for the volumes running jobs
   already allocated, which `VolumeAffinities` subtracts from a host's advertised
   capacity so affinity never prefers a host that cannot fit a job's volumes.
+- Allocation returns the saved head's publication time (`head_saved_at`, its
+  use's `finished_at`) so the guest can say which copy it started from.
+  `discard_reasons/1` explains a discarded use from stored fields only:
+  `read_only` (no `can_publish`), `started_empty` (`warm: false` with a base) or
+  `saved_first` (another use of the same clear generation and base published).
+  The API status description and the job page's Changes column show it.
 - A report's `mounted_generation` records the older saved generation a host
   mounted when the use's base was not local; only values below the base are kept.
   Such uses may still publish (last publication wins). `older_copy?/1` drives the

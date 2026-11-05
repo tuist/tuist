@@ -2294,6 +2294,23 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute html =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
   end
 
+  test "says whether a job's changes were saved and why not" do
+    volume = %Volume{id: Ecto.UUID.generate(), key: "gradle-build-cache"}
+    saved = %Usage{id: Ecto.UUID.generate(), volume_id: volume.id, volume: volume, warm: true, status: "published"}
+    withheld = %{saved | id: Ecto.UUID.generate(), warm: false, status: "discarded"}
+
+    html =
+      render_component(&TuistWeb.RunnerJobLive.job_volumes/1,
+        volumes: [saved, withheld],
+        discard_reasons: %{withheld.id => :started_empty},
+        account_name: "org"
+      )
+
+    assert html =~ "Saved"
+    assert html =~ "Not saved"
+    assert html =~ "Started empty: the saved copy was not on its host yet"
+  end
+
   test "names managed volumes after the caches they hold" do
     xcode = %Volume{id: Ecto.UUID.generate(), key: "tuist-xcode"}
     gradle = %Volume{id: Ecto.UUID.generate(), key: "tuist-gradle"}

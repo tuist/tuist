@@ -137,9 +137,9 @@ func TestMultiplePathsShareOneVolumeInSeparateDirectories(t *testing.T) {
 	t.Chdir(workspace)
 	acquisitions := 0
 	sources := map[string]string{}
-	err := attachUsing("dependencies", []string{"./.npm/", ".cache/pip"}, cache, func() (string, string, bool, error) {
+	err := attachUsing("dependencies", []string{"./.npm/", ".cache/pip"}, cache, func() (grant, error) {
 		acquisitions++
-		return scope, "lease", true, nil
+		return grant{Directory: scope, ID: "lease", Warm: true}, nil
 	}, func(socket, source, target string) error {
 		sources[target] = source
 		return os.Symlink(filepath.Join(cache, source), filepath.Join(target, "mounted"))
@@ -364,7 +364,7 @@ func TestAcquireSendsTheRequestedSizeOnlyWhenGiven(t *testing.T) {
 			w.Write([]byte(`{"directory":"` + digest("scope") + `","id":"lease","warm":true}`))
 		}))
 		t.Setenv("TUIST_CACHE_VOLUME_URL", agent.URL)
-		if _, _, _, err := acquire(agent.Client(), "deps", size); err != nil {
+		if _, err := acquire(agent.Client(), "deps", size); err != nil {
 			t.Fatal(err)
 		}
 		agent.Close()
@@ -373,6 +373,30 @@ func TestAcquireSendsTheRequestedSizeOnlyWhenGiven(t *testing.T) {
 		}
 		if _, sent := body["requested_volume_bytes"]; size == 0 && sent {
 			t.Fatal("sent a size that was not requested")
+		}
+	}
+}
+
+func TestAttachSaysWhichCopyTheJobStartedFrom(t *testing.T) {
+	for answer, want := range map[string]string{
+		`"warm":true`:                      "Tuist cache volume attached (warm=true)",
+		`"warm":false,"base_generation":0`: "Tuist cache volume attached (warm=false): nothing has been saved to this volume yet",
+		`"warm":true,"base_generation":3,"head_saved_at":"2026-11-03T16:36:23Z"`:  "Tuist cache volume attached (warm=true): started from the latest copy (generation 3, saved 2026-11-03T16:36:23Z)",
+		`"warm":true,"base_generation":3,"mounted_generation":2`:                  "Tuist cache volume attached (warm=true): started from an older copy (generation 2) because the latest copy (generation 3) is not on this runner host yet",
+		`"warm":false,"base_generation":2,"head_saved_at":"2026-10-29T09:12:04Z"`: "::notice::Tuist cache volume attached (warm=false): started empty because the latest copy (generation 2, saved 2026-10-29T09:12:04Z) is not on this runner host yet. Changes from this job will not replace that copy unless the volume ends up more than twice its size.",
+		`"warm":true,"base_generation":3,"head_saved_at":"tomorrow\n::error::x"`:  "Tuist cache volume attached (warm=true): started from the latest copy (generation 3)",
+	} {
+		agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(`{"directory":"` + digest("scope") + `","id":"lease",` + answer + `}`))
+		}))
+		t.Setenv("TUIST_CACHE_VOLUME_URL", agent.URL)
+		granted, err := acquire(agent.Client(), "deps", 0)
+		agent.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := granted.attached(); got != want {
+			t.Errorf("%s printed\n%s\nwant\n%s", answer, got, want)
 		}
 	}
 }

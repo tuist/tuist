@@ -176,6 +176,54 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
     })
   end
 
+  test "says why a job's changes were not saved", %{account: account, uses: [use | _]} do
+    job = %{
+      account_id: account.id,
+      workflow_job_id: System.unique_integer([:positive]),
+      workflow_run_id: 322,
+      run_attempt: 1,
+      repository: "org/repo"
+    }
+
+    {:ok, first} =
+      CacheVolumes.allocate_for_job(job, %{repository_id: 123, trusted: true, same_repository: true}, %{
+        pod_name: "alpha-2",
+        pod_uid: "alpha-2",
+        node_name: "node",
+        key: "alpha",
+        architecture: "amd64",
+        uid: 1001
+      })
+
+    now = DateTime.utc_now()
+
+    Usage
+    |> Repo.get!(first.id)
+    |> Ecto.Changeset.change(status: "published", published_generation: 1, warm: false, attached_at: now)
+    |> Repo.update!()
+
+    description = fn changes ->
+      Usage
+      |> Repo.get!(use.id)
+      |> Ecto.Changeset.change(Keyword.merge([status: "discarded", attached_at: now], changes))
+      |> Repo.update!()
+
+      {:ok, %{jobs: jobs}} = Query.run(:jobs, account.id, %{"volume_id" => use.volume_id})
+      Enum.find(jobs, &(&1.id == use.id)).cache_status_description
+    end
+
+    assert description.(warm: false, can_publish: true) =~
+             "Another job that started from the same saved copy saved its changes first."
+
+    assert description.(warm: false, can_publish: true, base_generation: 1) =~
+             "The job started empty because its runner host did not have the saved copy yet."
+
+    assert description.(warm: true, can_publish: false, base_generation: 0) =~ "This job could only read the volume"
+
+    assert description.(warm: true, can_publish: true, base_generation: 1) ==
+             "Changes from this job were not saved for future job runs."
+  end
+
   test "analytics compares known outcomes in equal periods and preserves empty buckets", %{
     account: account,
     uses: [first, second, third]
