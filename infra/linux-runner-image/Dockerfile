@@ -17,6 +17,10 @@
 # Renovate auto-bumps RUNNER_VERSION via `renovate.json` config
 # matching the same pattern as the macOS image.
 
+# Global scope: `FROM base-${OS_VERSION}` below only sees ARGs declared
+# before the first FROM.
+ARG OS_VERSION=ubuntu-24.04
+
 FROM --platform=$BUILDPLATFORM golang:1.26.10-bookworm AS runner-shell-agent-builder
 
 WORKDIR /src
@@ -144,7 +148,6 @@ ENV ImageOS=ubuntu24
 FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b AS base-ubuntu-22.04
 ENV ImageOS=ubuntu22
 
-ARG OS_VERSION=ubuntu-24.04
 FROM base-${OS_VERSION} AS runner
 
 # Set runtime defaults so customer workflows see UTF-8 locales out
