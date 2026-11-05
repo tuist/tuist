@@ -32,7 +32,7 @@ defmodule Tuist.Tests.Selections do
   alias Tuist.Tests.TestCaseRun
 
   @selected_reasons ~w(test_file_changed failed_last_run no_evidence impacted owned_without_evidence undecided)
-  @skipped_reasons ~w(unaffected)
+  @skipped_reasons ~w(unaffected unchanged_module)
   @fallback_reasons ~w(no_baseline baseline_too_old no_baseline_evidence history_unavailable tracked_file_changed diff_too_large diff_unavailable history_unknown)
 
   @doc "Why an impact run selects a test (`RunTest.reason`), in the rules' order."
@@ -391,9 +391,9 @@ defmodule Tuist.Tests.Selections do
 
     skipped_duration =
       if has_baseline?(run) do
-        from(t in subquery(skipped_query(run)), select: sum(t.duration))
-        |> ClickHouseRepo.one()
-        |> to_integer()
+        Enum.sum_by([unaffected_query(run), module_skipped_query(run)], fn query ->
+          from(t in subquery(query), select: sum(t.duration)) |> ClickHouseRepo.one() |> to_integer()
+        end)
       else
         0
       end
@@ -404,6 +404,8 @@ defmodule Tuist.Tests.Selections do
       skipped: run.skipped_count,
       unaffected: unaffected,
       module_skipped: module_skipped_count(run),
+      skipped_modules: map_size(run.skipped_modules),
+      modules: length(run.requested_modules) + map_size(run.skipped_modules),
       skip_rate: skip_rate(run),
       skipped_duration: skipped_duration,
       reasons: Enum.sort_by(selected_reasons ++ skipped_reasons, &{&1.decision != "selected", -&1.count, &1.reason})
@@ -453,9 +455,9 @@ defmodule Tuist.Tests.Selections do
 
   defp has_baseline?(%Run{baseline_sha: baseline}), do: baseline not in [nil, ""]
 
-  # The baseline run's tests in the requested modules, with their average
-  # duration there.
-  defp baseline_tests_query(%Run{project_id: project_id} = run) do
+  # The baseline run's tests in `modules` (by default the requested ones),
+  # with their average duration there.
+  defp baseline_tests_query(%Run{project_id: project_id} = run, modules \\ nil) do
     query =
       from(c in TestCaseRun,
         where: c.project_id == ^project_id and not is_nil(c.test_case_id),
@@ -470,7 +472,7 @@ defmodule Tuist.Tests.Selections do
         }
       )
 
-    where(query, [c], c.module_name in ^run.requested_modules)
+    where(query, [c], c.module_name in ^(modules || run.requested_modules))
   end
 
   defp baseline_test_runs(%Run{project_id: project_id, baseline_sha: baseline_sha, build_context: context}) do
@@ -486,12 +488,28 @@ defmodule Tuist.Tests.Selections do
     end
   end
 
-  defp skipped_query(run, filters \\ []) do
+  # The requested modules' baseline tests coverage didn't select.
+  defp unaffected_query(run, filters \\ []) do
     selected_ids = select(selected_query(run), [t], t.test_case_id)
 
-    from(b in subquery(baseline_tests_query(run)),
-      where: b.test_case_id not in subquery(selected_ids)
+    skipped_branch(
+      from(b in subquery(baseline_tests_query(run)), where: b.test_case_id not in subquery(selected_ids)),
+      filters,
+      "unaffected"
     )
+  end
+
+  # The baseline tests of the modules selective testing skipped by hash.
+  defp module_skipped_query(run, filters \\ []) do
+    skipped_branch(
+      from(b in subquery(baseline_tests_query(run, Map.keys(run.skipped_modules)))),
+      filters,
+      "unchanged_module"
+    )
+  end
+
+  defp skipped_branch(query, filters, reason) do
+    query
     |> filter_branch(filters)
     |> select([b], %{
       test_case_id: b.test_case_id,
@@ -499,7 +517,7 @@ defmodule Tuist.Tests.Selections do
       suite_name: b.suite_name,
       name: b.name,
       decision: fragment("'skipped'"),
-      reason: fragment("'unaffected'"),
+      reason: fragment("?", ^reason),
       matched_path: fragment("''"),
       duration: b.duration
     })
@@ -512,11 +530,19 @@ defmodule Tuist.Tests.Selections do
     filters = Keyword.take(opts, [:search, :test_case_id])
     selected = selected_branch(run, if(reason in [nil, "", "any"], do: filters, else: [{:reason, reason} | filters]))
 
-    case {selected_branch?(opts), skipped_branch?(run, opts)} do
-      {true, true} -> union_all(selected, ^skipped_query(run, filters))
-      {false, true} -> skipped_query(run, filters)
-      {true, false} -> selected
-      {false, false} -> where(selected, false)
+    branches =
+      for {included?, branch} <- [
+            {selected_branch?(opts), fn -> selected end},
+            {skipped_branch?(run, opts, "unaffected"), fn -> unaffected_query(run, filters) end},
+            {skipped_branch?(run, opts, "unchanged_module") and run.skipped_modules != %{} and
+               Keyword.get(opts, :module_skipped, true), fn -> module_skipped_query(run, filters) end}
+          ],
+          included?,
+          do: branch.()
+
+    case branches do
+      [] -> where(selected, false)
+      [first | rest] -> Enum.reduce(rest, first, &union_all(&2, ^&1))
     end
   end
 
@@ -526,9 +552,9 @@ defmodule Tuist.Tests.Selections do
 
   # Skipped tests never ran, so they're never "planned, not run" and sit on
   # no shard.
-  defp skipped_branch?(run, opts) do
+  defp skipped_branch?(run, opts, reason) do
     has_baseline?(run) and Keyword.get(opts, :decision) in [nil, "", "any", "skipped"] and
-      Keyword.get(opts, :reason) in [nil, "", "any" | @skipped_reasons] and Keyword.get(opts, :flag) != "not_run" and
+      Keyword.get(opts, :reason) in [nil, "", "any", reason] and Keyword.get(opts, :flag) != "not_run" and
       not is_integer(Keyword.get(opts, :shard))
   end
 
@@ -741,7 +767,7 @@ defmodule Tuist.Tests.Selections do
   selected first.
   """
   def run_targets(%Run{} = run) do
-    from(t in subquery(requested_query(run)),
+    from(t in subquery(requested_query(run, module_skipped: false)),
       group_by: t.module_name,
       select: %{
         module_name: t.module_name,

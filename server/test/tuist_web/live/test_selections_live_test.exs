@@ -23,7 +23,8 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       project_id: project.id,
       tests: [
         %{test_case_id: load, module_name: "SearchTests", suite_name: "SearchViewModelTests", name: "test_load()"},
-        %{test_case_id: refresh, module_name: "AuthTests", suite_name: "SessionTests", name: "test_refresh()"}
+        %{test_case_id: refresh, module_name: "AuthTests", suite_name: "SessionTests", name: "test_refresh()"},
+        %{test_case_id: UUIDv7.generate(), module_name: "BillingTests", suite_name: "InvoiceTests", name: "test_total()"}
       ]
     )
 
@@ -162,12 +163,13 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       {:ok, lv, _html} = live(conn, path <> "?tab=test-optimizations")
 
       assert has_element?(lv, "#widget-selection-selected", "1 / 4")
-      assert has_element?(lv, "#widget-selection-module-skipped", "2")
-      assert has_element?(lv, "#widget-selection-skipped", "1")
+      assert has_element?(lv, "#widget-selection-skipped", "3 / 4")
       assert has_element?(lv, "#widget-selection-skip-rate", "75.0%")
+      assert has_element?(lv, "#widget-selection-skipped-modules", "1 / 3")
+      assert has_element?(lv, "#widget-selection-not-affected", "1")
       assert has_element?(lv, "#widget-selection-not-run", "0")
       assert has_element?(lv, "[data-part='selection-summary-card']", "0f0f0f0")
-      assert has_element?(lv, "[data-part='selection-summary-card']", "2 files")
+      refute has_element?(lv, "[data-part='selection-summary-card']", "Changed since the baseline")
 
       rows =
         lv
@@ -177,13 +179,14 @@ defmodule TuistWeb.TestSelectionsLiveTest do
         |> Floki.find("tbody tr")
         |> Enum.map(&(&1 |> Floki.text() |> String.replace(~r/\s+/, " ") |> String.trim()))
 
-      assert [first, second] = rows
+      assert [first, second, third] = rows
       assert first =~ "test_load()"
       assert first =~ "Selected"
-      assert first =~ "Passed"
+      refute first =~ "Passed"
       assert second =~ "test_refresh()"
-      assert second =~ "Skipped"
-      assert second =~ "Not run"
+      assert second =~ "No executed file changed"
+      assert third =~ "test_total()"
+      assert third =~ "Its module is unchanged"
 
       assert has_element?(
                lv,
@@ -191,7 +194,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
              )
     end
 
-    test "shows the modules, changed files, shards and configuration", %{
+    test "shows the modules, changed files, shards and debug tabs", %{
       conn: conn,
       organization: organization,
       project: project
@@ -219,15 +222,14 @@ defmodule TuistWeb.TestSelectionsLiveTest do
         |> Floki.find("a")
         |> Enum.map(&Floki.text/1)
         |> Enum.map(&String.trim/1)
-        |> Enum.filter(&(&1 =~ ~r/^(Tests|Modules|Changed files|Shards) \(|^Configuration$/))
+        |> Enum.filter(&(&1 =~ ~r/^(Tests|Modules|Changed files|Shards) \(|^Debug$/))
 
-      assert [tests, modules, files, shards, configuration] = tabs
-      # The tests in BillingTests, skipped by hash, aren't rows of the Tests sub-tab.
-      assert tests == "Tests (2)"
+      assert [tests, modules, files, shards, debug] = tabs
+      assert tests == "Tests (4)"
       assert modules =~ "Modules"
       assert files =~ "Changed files"
       assert shards =~ "Shards"
-      assert configuration == "Configuration"
+      assert debug == "Debug"
 
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=files")
       assert has_element?(lv, "#selection-files-table", "SearchViewModel.swift")
@@ -241,8 +243,8 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=shards")
       assert has_element?(lv, "#selection-shards-table", "Shard 0")
 
-      {:ok, lv, _html} = live(conn, path <> "&selection-tab=configuration")
-      assert has_element?(lv, "#selection-rules-version", "2026-11-01")
+      {:ok, lv, _html} = live(conn, path <> "&selection-tab=debug")
+      refute has_element?(lv, "[data-part='selection-debug-card']", "Rules version")
       assert has_element?(lv, "#selection-rule-trace-table", "unaffected")
       assert has_element?(lv, "#selection-rule-trace-table", "done")
       assert has_element?(lv, "#selection-tracked-files", "**/Package.resolved")

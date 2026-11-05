@@ -36,7 +36,14 @@ defmodule Tuist.Tests.SelectionsTest do
           name: "test_refresh()",
           duration: 500
         },
-        %{test_case_id: reset, module_name: "AuthTests", suite_name: "SessionTests", name: "test_reset()", duration: 200}
+        %{test_case_id: reset, module_name: "AuthTests", suite_name: "SessionTests", name: "test_reset()", duration: 200},
+        %{
+          test_case_id: UUIDv7.generate(),
+          module_name: "BillingTests",
+          suite_name: "InvoiceTests",
+          name: "test_total()",
+          duration: 1000
+        }
       ]
     )
 
@@ -157,8 +164,11 @@ defmodule Tuist.Tests.SelectionsTest do
       assert summary.skipped == 6
       assert summary.unaffected == 2
       assert summary.module_skipped == 4
+      assert summary.skipped_modules == 2
+      assert summary.modules == 4
       assert summary.skip_rate == 75.0
-      assert summary.skipped_duration == 700
+      # The not-affected AuthTests and BillingTests, which hashing skipped.
+      assert summary.skipped_duration == 1700
       assert summary.not_run == 1
       assert summary.reported
 
@@ -171,7 +181,7 @@ defmodule Tuist.Tests.SelectionsTest do
   end
 
   describe "run_tests/3" do
-    test "lists the selected tests, then the skipped ones derived from the baseline, with their outcomes and shards",
+    test "lists the selected tests, then the skipped ones derived from the baseline, those in modules hashing skipped included",
          %{project: project} do
       %{run: run, test_run: test_run} = run(project)
       {rows, meta} = Selections.run_tests(run, test_run.id)
@@ -180,10 +190,11 @@ defmodule Tuist.Tests.SelectionsTest do
                {"test_gone()", "selected", nil, 1, 0},
                {"test_load()", "selected", "success", 0, 300},
                {"test_refresh()", "skipped", nil, nil, 500},
-               {"test_reset()", "skipped", nil, nil, 200}
+               {"test_reset()", "skipped", nil, nil, 200},
+               {"test_total()", "skipped", nil, nil, 1000}
              ]
 
-      assert meta.total_count == 4
+      assert meta.total_count == 5
     end
 
     test "filters by decision, reason, flag, shard and search, and sorts by duration", %{project: project} do
@@ -193,11 +204,12 @@ defmodule Tuist.Tests.SelectionsTest do
       assert {[%{name: "test_gone()"}], _meta} = Selections.run_tests(run, test_run.id, shard: 1)
       assert {[%{name: "test_gone()"}], _meta} = Selections.run_tests(run, test_run.id, reason: "no_evidence")
       assert {rows, _meta} = Selections.run_tests(run, test_run.id, decision: "skipped")
-      assert Enum.map(rows, & &1.name) == ["test_refresh()", "test_reset()"]
+      assert Enum.map(rows, & &1.name) == ["test_refresh()", "test_reset()", "test_total()"]
+      assert {[%{name: "test_total()"}], _meta} = Selections.run_tests(run, test_run.id, reason: "unchanged_module")
       assert {[%{name: "test_load()"}], _meta} = Selections.run_tests(run, test_run.id, search: "load")
 
       assert {rows, _meta} = Selections.run_tests(run, test_run.id, sort_by: "duration", sort_order: "desc")
-      assert Enum.map(rows, & &1.duration) == [500, 300, 200, 0]
+      assert Enum.map(rows, & &1.duration) == [1000, 500, 300, 200, 0]
     end
 
     test "lists only the selected tests without a baseline", %{project: project} do
@@ -211,11 +223,14 @@ defmodule Tuist.Tests.SelectionsTest do
       assert {[%{name: "test_a()", decision: "selected"}], _meta} = Selections.run_tests(run, UUIDv7.generate())
     end
 
-    test "lists no test when hashing left no module to decide", %{project: project} do
+    test "lists only the tests of modules hashing skipped when it left no module to decide", %{project: project} do
       %{run: run, test_run: test_run} =
         run(project, requested_modules: [], selected: [], skipped_modules: %{"SearchTests" => 4}, rule_trace: [])
 
-      assert {[], _meta} = Selections.run_tests(run, test_run.id)
+      {tests, _meta} = Selections.run_tests(run, test_run.id)
+      assert tests != []
+      assert Enum.all?(tests, &(&1.module_name == "SearchTests" and &1.reason == "unchanged_module"))
+      assert {[], _meta} = Selections.run_tests(run, test_run.id, reason: "unaffected")
 
       assert %{requested: 4, module_skipped: 4, unaffected: 0, skip_rate: 100.0} =
                Selections.run_summary(run, test_run.id)

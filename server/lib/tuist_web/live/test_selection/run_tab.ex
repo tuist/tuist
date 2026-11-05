@@ -1,24 +1,23 @@
 defmodule TuistWeb.TestSelection.RunTab do
   @moduledoc """
   The impact run a test run points to, in the test run's Selective Testing
-  tab: the outcome, the baseline, the counts and the invocation; then these
+  tab: the outcome, the counts and the baseline; then these
   tabs:
 
-  - Tests: every test coverage decided with its decision, the rule that
-    decided it, the shard, the estimated duration and the outcome, the
-    selected tests that never reported flagged; each opens its test case
-    run's Selective Testing tab (`TuistWeb.TestSelection.TestCaseRunTab`).
-    Skipped tests are derived from the baseline run.
+  - Tests: every requested test with its decision, the rule that decided it,
+    the shard and the estimated duration; each opens its test case run's
+    Selective Testing tab (`TuistWeb.TestSelection.TestCaseRunTab`).
+    Skipped tests, by coverage or in a module skipped by hash, are derived
+    from the baseline run.
   - Modules: the tests per module. The test run page fills it with its
     module-level selective testing table instead when it has one.
   - Changed files: what changed since the baseline, whether each file is
     tracked and how many tests it selected.
   - Shards, for a run a shard plan distributed: per shard, what was planned
     and what ran.
-  - Configuration: the rules version, the trace of the rules that decided
-    it and the tracked files.
+  - Debug: the trace of the rules that decided it and the tracked files.
 
-  A fallback shows the outcome and the Configuration tab only.
+  A fallback shows the outcome and the Debug tab only.
 
   Its query parameters are prefixed with `selection-` so they don't clash
   with the test run page's own.
@@ -27,14 +26,13 @@ defmodule TuistWeb.TestSelection.RunTab do
   use Noora
 
   import TuistWeb.Coverage.Components, only: [coverage_empty: 1, short_sha: 1, parent_dir: 1]
-  import TuistWeb.Helpers.TestLabels
   import TuistWeb.TestSelection.Components
 
   alias Tuist.Tests.Selections
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
 
-  @tabs ~w(tests modules files shards configuration)
+  @tabs ~w(tests modules files shards debug)
   @sort_fields ~w(decision name shard duration)
 
   @doc "What the tab shows before its data is loaded."
@@ -160,12 +158,12 @@ defmodule TuistWeb.TestSelection.RunTab do
         Selections.run_shards(run, socket.assigns.selection_plan, test_run_id)
       )
 
-  defp assign_tab(socket, "configuration", _run, _test_run_id, _params), do: socket
+  defp assign_tab(socket, "debug", _run, _test_run_id, _params), do: socket
 
   @doc "The query that searches the current tab for `search`."
   def search_query(uri, search), do: uri.query |> Query.put("selection-search", search) |> Query.drop("selection-page")
 
-  defp tabs(%{outcome: "fallback"}, _plan), do: ["configuration"]
+  defp tabs(%{outcome: "fallback"}, _plan), do: ["debug"]
   defp tabs(_run, nil), do: List.delete(@tabs, "shards")
   defp tabs(_run, _plan), do: @tabs
 
@@ -230,30 +228,47 @@ defmodule TuistWeb.TestSelection.RunTab do
           <div data-part="widgets">
             <.widget
               id="widget-selection-selected"
-              title={dgettext("dashboard_tests", "Ran")}
+              title={dgettext("dashboard_tests", "Selected tests")}
               description={
                 dgettext(
                   "dashboard_tests",
-                  "Tests the selection kept, out of all requested, including those in unchanged modules."
+                  "Tests the selection kept, out of all requested, including those in skipped modules."
                 )
               }
               value={"#{format_number(@summary.selected)} / #{format_number(@summary.requested)}"}
-              legend_color="primary"
-            />
-            <.widget
-              id="widget-selection-module-skipped"
-              title={dgettext("dashboard_tests", "In unchanged modules")}
-              description={
-                dgettext(
-                  "dashboard_tests",
-                  "Tests skipped because selective testing found their module unchanged, counted from the baseline's tests."
-                )
-              }
-              value={format_number(@summary.module_skipped)}
-              legend_color="secondary"
             />
             <.widget
               id="widget-selection-skipped"
+              title={dgettext("dashboard_tests", "Skipped tests")}
+              description={
+                dgettext(
+                  "dashboard_tests",
+                  "Tests skipped out of all requested: those in skipped modules and those the changes since the baseline don't reach."
+                )
+              }
+              value={"#{format_number(@summary.skipped)} / #{format_number(@summary.requested)}"}
+            />
+            <.widget
+              id="widget-selection-skip-rate"
+              title={dgettext("dashboard_tests", "Skip rate")}
+              description={
+                dgettext("dashboard_tests", "The share of requested tests that were skipped.")
+              }
+              value={"#{@summary.skip_rate}%"}
+            />
+            <.widget
+              id="widget-selection-skipped-modules"
+              title={dgettext("dashboard_tests", "Skipped modules")}
+              description={
+                dgettext(
+                  "dashboard_tests",
+                  "Test modules selective testing found unchanged and skipped whole, out of all requested modules."
+                )
+              }
+              value={"#{format_number(@summary.skipped_modules)} / #{format_number(@summary.modules)}"}
+            />
+            <.widget
+              id="widget-selection-not-affected"
               title={dgettext("dashboard_tests", "Not affected")}
               description={
                 dgettext(
@@ -262,19 +277,6 @@ defmodule TuistWeb.TestSelection.RunTab do
                 )
               }
               value={format_number(@summary.unaffected)}
-              legend_color="secondary"
-            />
-            <.widget
-              id="widget-selection-skip-rate"
-              title={dgettext("dashboard_tests", "Skip rate")}
-              description={
-                dgettext(
-                  "dashboard_tests",
-                  "The share of requested tests that were skipped, in unchanged modules or not affected."
-                )
-              }
-              value={"#{@summary.skip_rate}%"}
-              legend_color="tertiary"
             />
             <.widget
               id="widget-selection-time-saved"
@@ -282,7 +284,7 @@ defmodule TuistWeb.TestSelection.RunTab do
               description={
                 dgettext(
                   "dashboard_tests",
-                  "The not-affected tests' durations in the baseline run, one after another."
+                  "The skipped tests' durations in the baseline run, one after another."
                 )
               }
               value={format_duration(@summary.skipped_duration)}
@@ -322,41 +324,6 @@ defmodule TuistWeb.TestSelection.RunTab do
                   {dgettext("dashboard_tests", "None")}
                 </span>
               </dd>
-            </div>
-            <div>
-              <dt>{dgettext("dashboard_tests", "Changed since the baseline")}</dt>
-              <dd>
-                {if @diff,
-                  do:
-                    dngettext(
-                      "dashboard_tests",
-                      "%{count} file",
-                      "%{count} files",
-                      @diff.changed_files_count,
-                      count: format_number(@diff.changed_files_count)
-                    ),
-                  else: "–"}
-              </dd>
-            </div>
-            <div :if={context(@selection_run, "scheme") != ""}>
-              <dt>{scheme_label(@project)}</dt>
-              <dd>{context(@selection_run, "scheme")}</dd>
-            </div>
-            <div :if={context(@selection_run, "test_plan") != ""}>
-              <dt>{dgettext("dashboard_tests", "Test plan")}</dt>
-              <dd>{context(@selection_run, "test_plan")}</dd>
-            </div>
-            <div :if={context(@selection_run, "destination") != ""}>
-              <dt>{dgettext("dashboard_tests", "Destination")}</dt>
-              <dd>{context(@selection_run, "destination")}</dd>
-            </div>
-            <div :if={@plan}>
-              <dt>{dgettext("dashboard_tests", "Shards")}</dt>
-              <dd>{format_number(@plan.shard_count)}</dd>
-            </div>
-            <div>
-              <dt>{dgettext("dashboard_tests", "Selected at")}</dt>
-              <dd>{DateFormatter.from_now(@selection_run.inserted_at)}</dd>
             </div>
           </dl>
         </.card_section>
@@ -401,7 +368,7 @@ defmodule TuistWeb.TestSelection.RunTab do
   defp tab_card(%{tab: "modules", modules: [_ | _]} = assigns), do: ~H"{render_slot(@modules)}"
   defp tab_card(%{tab: "modules"} = assigns), do: modules_card(assigns)
   defp tab_card(%{tab: "shards"} = assigns), do: shards_card(assigns)
-  defp tab_card(%{tab: "configuration"} = assigns), do: configuration_card(assigns)
+  defp tab_card(%{tab: "debug"} = assigns), do: debug_card(assigns)
 
   defp tests_card(assigns) do
     ~H"""
@@ -547,13 +514,6 @@ defmodule TuistWeb.TestSelection.RunTab do
               sort_order={@filters.sort_by == "duration" && @filters.sort_order}
             >
               <.text_cell label={format_duration(test.duration)} icon="history" />
-            </:col>
-            <:col :let={test} label={dgettext("dashboard_tests", "Outcome")}>
-              <.outcome_cell
-                outcome={test.outcome}
-                decision={test.decision}
-                reported={@summary.reported}
-              />
             </:col>
           </.table>
           <.pagination_group
@@ -818,45 +778,15 @@ defmodule TuistWeb.TestSelection.RunTab do
     """
   end
 
-  defp configuration_card(assigns) do
+  defp debug_card(assigns) do
     assigns = assign(assigns, :tracked_file_globs, Selections.tracked_file_globs(assigns.project))
 
     ~H"""
     <.card
-      title={dgettext("dashboard_tests", "Configuration")}
+      title={dgettext("dashboard_tests", "Debug")}
       icon="settings"
-      data-part="selection-configuration-card"
+      data-part="selection-debug-card"
     >
-      <.card_section data-part="selection-details-section">
-        <dl data-part="details">
-          <div>
-            <dt>{dgettext("dashboard_tests", "Strategy")}</dt>
-            <dd>{@selection_run.strategy}</dd>
-          </div>
-          <div>
-            <dt>{dgettext("dashboard_tests", "Rules version")}</dt>
-            <dd id="selection-rules-version">
-              {if @selection_run.rules_version != "", do: @selection_run.rules_version, else: "–"}
-            </dd>
-          </div>
-          <div>
-            <dt>{dgettext("dashboard_tests", "Build system")}</dt>
-            <dd>{@selection_run.build_system}</dd>
-          </div>
-          <div :if={@selection_run.platform != ""}>
-            <dt>{dgettext("dashboard_tests", "Platform")}</dt>
-            <dd>{@selection_run.platform}</dd>
-          </div>
-          <div>
-            <dt>{dgettext("dashboard_tests", "Requested modules")}</dt>
-            <dd>
-              {if @selection_run.requested_modules == [],
-                do: dgettext("dashboard_tests", "None: every module was unchanged"),
-                else: Enum.join(@selection_run.requested_modules, ", ")}
-            </dd>
-          </div>
-        </dl>
-      </.card_section>
       <.card_section data-part="selection-table-section">
         <div :if={@selection_run.rule_trace != []} data-part="selection-table">
           <.table
@@ -902,7 +832,7 @@ defmodule TuistWeb.TestSelection.RunTab do
   end
 
   defp tab_label("tests", %{summary: summary}),
-    do: dgettext("dashboard_tests", "Tests (%{count})", count: format_number(summary.selected + summary.unaffected))
+    do: dgettext("dashboard_tests", "Tests (%{count})", count: format_number(summary.requested))
 
   defp tab_label("files", %{diff: diff}),
     do:
@@ -919,7 +849,7 @@ defmodule TuistWeb.TestSelection.RunTab do
   defp tab_label("shards", %{plan: plan}),
     do: dgettext("dashboard_tests", "Shards (%{count})", count: format_number(plan.shard_count))
 
-  defp tab_label("configuration", _assigns), do: dgettext("dashboard_tests", "Configuration")
+  defp tab_label("debug", _assigns), do: dgettext("dashboard_tests", "Debug")
 
   # A test that ran opens its test case run's Selective Testing tab; one the
   # selection skipped never ran, so it opens the test case.
@@ -952,8 +882,6 @@ defmodule TuistWeb.TestSelection.RunTab do
   defp reasons, do: Selections.selected_reasons() ++ Selections.skipped_reasons()
 
   defp has_baseline?(run), do: run.baseline_sha not in [nil, ""]
-
-  defp context(run, key), do: Map.get(run.build_context || %{}, key, "")
 
   defp decision_filter_label("any"), do: dgettext("dashboard_tests", "Any")
   defp decision_filter_label(decision), do: decision_label(decision)

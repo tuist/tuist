@@ -56,6 +56,7 @@ defmodule TuistWeb.TestSelection.Components do
   def reason_label("owned_without_evidence"), do: dgettext("dashboard_tests", "Its module changed")
   def reason_label("undecided"), do: dgettext("dashboard_tests", "Undecided")
   def reason_label("unaffected"), do: dgettext("dashboard_tests", "No executed file changed")
+  def reason_label("unchanged_module"), do: dgettext("dashboard_tests", "Its module is unchanged")
   def reason_label(reason), do: reason
 
   @doc "A test's reason, as the sentence its page explains it with."
@@ -101,6 +102,13 @@ defmodule TuistWeb.TestSelection.Components do
       dgettext(
         "dashboard_tests",
         "It passed in the baseline and none of the files it executed changed since, so running it again is not expected to add signal."
+      )
+
+  def reason_description("unchanged_module", _path),
+    do:
+      dgettext(
+        "dashboard_tests",
+        "Selective testing found its module unchanged since a passing run, so the module was skipped before coverage decided anything."
       )
 
   def reason_description(reason, _path), do: reason
@@ -153,47 +161,6 @@ defmodule TuistWeb.TestSelection.Components do
       )
 
   def fallback_description(reason), do: reason
-
-  attr :outcome, :string, default: nil
-  attr :decision, :string, required: true
-  attr :reported, :boolean, default: true
-
-  @doc "What happened to a requested test in the run that reported its results; a skipped test never ran."
-  def outcome_cell(%{decision: "skipped"} = assigns) do
-    ~H"""
-    <.status_badge_cell status="disabled" label={dgettext("dashboard_tests", "Not run")} />
-    """
-  end
-
-  def outcome_cell(assigns) do
-    ~H"""
-    <.status_badge_cell
-      :if={@outcome == "failure"}
-      status="error"
-      label={dgettext("dashboard_tests", "Failed")}
-    />
-    <.status_badge_cell
-      :if={@outcome == "success"}
-      status="success"
-      label={dgettext("dashboard_tests", "Passed")}
-    />
-    <.status_badge_cell
-      :if={@outcome == "skipped"}
-      status="disabled"
-      label={dgettext("dashboard_tests", "Skipped")}
-    />
-    <.status_badge_cell
-      :if={is_nil(@outcome) and @reported}
-      status="warning"
-      label={dgettext("dashboard_tests", "Planned, not run")}
-    />
-    <.status_badge_cell
-      :if={is_nil(@outcome) and !@reported}
-      status="disabled"
-      label={dgettext("dashboard_tests", "Not run")}
-    />
-    """
-  end
 
   def file_status_label("added"), do: dgettext("dashboard_tests", "Added")
   def file_status_label("deleted"), do: dgettext("dashboard_tests", "Deleted")
