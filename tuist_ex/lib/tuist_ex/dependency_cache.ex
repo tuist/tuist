@@ -802,6 +802,13 @@ defmodule TuistEx.DependencyCache do
   defp model_term(term), do: term
 
   defp observation(dependency, outcome, reason, key, duration, saved) do
+    # The compile report carries these observations, but a client that cannot
+    # submit it (a read-only cache token) would otherwise never see them.
+    Report.debug(
+      "tuist cache: #{dependency.app} #{outcome}" <>
+        if(reason == "", do: "", else: " (#{reason})") <> if(key == "", do: "", else: " #{key}")
+    )
+
     %{
       dependency: Atom.to_string(dependency.app),
       outcome: outcome,
