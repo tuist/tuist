@@ -133,7 +133,7 @@ defmodule TuistWeb.UserMFAController do
     |> configure_session(renew: true)
     |> put_session(:user_token, result.session.token)
     |> put_session(:live_socket_id, UserToken.live_socket_id(result.session))
-    |> delete_resp_cookie("_tuist_web_user_remember_me")
+    |> Authentication.delete_remember_me_cookie()
   end
 
   defp private_response(conn, _opts) do
