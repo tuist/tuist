@@ -4,7 +4,7 @@ defmodule Tuist.Sandboxes.Schemas do
   alias Tuist.Sandboxes.Sandbox
 
   @statuses ["active", "idle", "starting", "resuming", "paused", "archived", "failed"]
-  @sorts ["created", "last_active", "name"]
+  @sorts ["created", "last_active", "identifier"]
 
   def statuses, do: @statuses
   def sorts, do: @sorts

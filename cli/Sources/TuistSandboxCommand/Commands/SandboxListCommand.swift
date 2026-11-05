@@ -9,7 +9,7 @@ enum SandboxStatus: String, ExpressibleByArgument, CaseIterable {
 enum SandboxSort: String, ExpressibleByArgument, CaseIterable {
     case created
     case lastActive = "last_active"
-    case name
+    case identifier
 }
 
 enum SandboxSortOrder: String, ExpressibleByArgument, CaseIterable {

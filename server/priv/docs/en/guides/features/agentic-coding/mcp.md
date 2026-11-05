@@ -327,7 +327,7 @@ Sandbox tools expose the same data and actions as the Sandboxes dashboard. Sandb
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_sandboxes` | Paginate sandboxes with their status, shape and timestamps. Optional `search` (text in the sandbox, Amp Orb or Anthropic session ID), `status`, `vcpus`, `sort_by` (`created`, `last_active`, `name`) and `sort_order`. | `account_handle` |
+| `list_sandboxes` | Paginate sandboxes with their status, shape and timestamps. Optional `search` (text in the sandbox, Amp Orb or Anthropic session ID), `status`, `vcpus`, `sort_by` (`created`, `last_active`, `identifier`) and `sort_order`. | `account_handle` |
 | `get_sandbox` | A sandbox's status, shape, node, archive and timestamps. | `account_handle`, `sandbox_id` |
 | `get_sandbox_analytics` | vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, with trends. Optional `start` and `end` (ISO 8601); defaults to 30 days, maximum 90. | `account_handle` |
 | `pause_sandbox` | Snapshot a running sandbox to its node's disk. | `account_handle`, `sandbox_id` |

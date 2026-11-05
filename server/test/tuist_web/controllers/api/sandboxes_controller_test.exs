@@ -390,7 +390,20 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert %{"sandboxes" => [%{"id" => ^failed_id}]} =
                conn |> get(~p"/api/accounts/#{account.name}/sandboxes?status=failed") |> json_response(:ok)
 
+      by_identifier =
+        [failed, active, idle]
+        |> Enum.sort_by(&(&1.amp_orb_id || &1.anthropic_session_id || &1.id))
+        |> Enum.map(& &1.id)
+
+      assert by_identifier ==
+               conn
+               |> get(~p"/api/accounts/#{account.name}/sandboxes?sort_by=identifier")
+               |> json_response(:ok)
+               |> Map.fetch!("sandboxes")
+               |> Enum.map(& &1["id"])
+
       conn |> get(~p"/api/accounts/#{account.name}/sandboxes?status=sleeping") |> json_response(:bad_request)
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes?sort_by=name") |> json_response(:bad_request)
     end
 
     test "queues the archive of a paused sandbox and refuses a running one", %{conn: conn, account: account} do

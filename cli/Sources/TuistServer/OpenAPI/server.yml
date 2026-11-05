@@ -18368,7 +18368,7 @@ paths:
             enum:
               - created
               - last_active
-              - name
+              - identifier
             type: string
             x-struct:
             x-validate:

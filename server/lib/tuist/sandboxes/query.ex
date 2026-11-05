@@ -206,14 +206,15 @@ defmodule Tuist.Sandboxes.Query do
 
   defp filters(params) do
     sort = Map.get(params, "sort_by", "created")
-    order = Map.get(params, "sort_order", if(sort == "name", do: "asc", else: "desc"))
+    order = Map.get(params, "sort_order", if(sort == "identifier", do: "asc", else: "desc"))
     %{"search" => search, "status" => status, "vcpus" => vcpus} = Map.merge(@no_filters, params)
 
     if sort in Schemas.sorts() and order in ["asc", "desc"] and valid_search?(search) and
          status in [nil | Schemas.statuses()] and valid_vcpus?(vcpus) do
       {:ok,
        [
-         sort_by: String.to_existing_atom(sort),
+         # `identifier` rather than `name`: generated Kotlin enums cannot have an entry called `name`.
+         sort_by: if(sort == "identifier", do: :name, else: String.to_existing_atom(sort)),
          sort_order: String.to_existing_atom(order),
          search: search,
          status: status && {:==, String.to_existing_atom(status)},
