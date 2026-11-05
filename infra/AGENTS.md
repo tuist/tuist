@@ -102,8 +102,7 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 - Production Kura regions are node pools in `clusters/workloads/production/cluster.yaml` (US East/West moved to OVH fleets in the tuist chart), not separate workload clusters.
 - The preview cluster (`tuist-preview`) is retired: its Cluster CR, the
   preview workflows, and the Slack `/preview` command were removed, and
-  **Preview Cluster Retirement** deletes the live cluster. Remove that
-  workflow once it has run.
+  the live cluster was deleted on 2026-11-05.
 - The isolated security-assessment cluster (`tuist-pentest`) is retired: its
   Cluster CR was removed, and **Pentest Cluster Retirement** deletes the live
   cluster. Its pentest workflows and values files remain until that has run.

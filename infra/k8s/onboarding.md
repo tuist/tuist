@@ -198,7 +198,7 @@ Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-
 - [`clusters/workloads/canary/cluster.yaml`](clusters/workloads/canary/cluster.yaml)
 - [`clusters/workloads/production/cluster.yaml`](clusters/workloads/production/cluster.yaml)
 - tenants: [`clusters/workloads/{hive,once,atlas}/cluster.yaml`](clusters/workloads/)
-- `tuist-preview`, which hosted ephemeral pull request and Slack-requested previews, is retired: its manifest, the preview workflows, and the Slack `/preview` command are removed. **Preview Cluster Retirement** (`.github/workflows/preview-cluster-retirement.yml`) deletes the live cluster; remove that workflow once it has run. `mise -C infra run helm:preview-up` still deploys the same embedded chart shape to a local kind cluster.
+- `tuist-preview`, which hosted ephemeral pull request and Slack-requested previews, is retired: its manifest, the preview workflows, and the Slack `/preview` command are removed, and the live cluster was deleted on 2026-11-05. `mise -C infra run helm:preview-up` still deploys the same embedded chart shape to a local kind cluster.
 
 For a new Flux-reconciled cluster, add `clusters/workloads/<cluster>/cluster.yaml` + a `kustomization.yaml` (copy the closest existing subdir) and a matching `infra/flux/mgmt/cluster-<cluster>.yaml` Flux `Kustomization`. Adjust `metadata.name`, replica counts, machine types, and per-pool labels/taints. 3-CP clusters get the absolute-`1` control-plane MHC override; single-CP clusters stay on the ClusterClass 33% default. Variables are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION`.
 
