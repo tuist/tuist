@@ -623,6 +623,11 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_KURA_TUIST_BASE_URL")
   end
 
+  @doc "The public gRPC endpoint of the remote execution gateways, such as `grpcs://execution.tuist.dev`."
+  def remote_execution_endpoint do
+    System.get_env("TUIST_REMOTE_EXECUTION_ENDPOINT")
+  end
+
   @doc """
   The placement apply budgets an operator has written, as counts keyed by the
   name of the proposal kind they were written for.

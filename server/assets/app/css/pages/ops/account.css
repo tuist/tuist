@@ -166,7 +166,8 @@
   }
 
   & #runner-concurrency-form,
-  & #sandbox-concurrency-form {
+  & #sandbox-concurrency-form,
+  & #remote-execution-concurrency-form {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
