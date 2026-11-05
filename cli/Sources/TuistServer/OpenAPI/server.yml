@@ -2,6 +2,43 @@
 components:
   responses: {}
   schemas:
+    DeviceAuthorization:
+      properties:
+        device_code:
+          description: The secret code to poll for tokens with.
+          type: string
+          x-struct:
+          x-validate:
+        expires_in:
+          description: Seconds until the codes expire.
+          type: integer
+          x-struct:
+          x-validate:
+        interval:
+          description: Seconds to wait between polls.
+          type: integer
+          x-struct:
+          x-validate:
+        user_code:
+          description: The short code the person enters in the browser.
+          type: string
+          x-struct:
+          x-validate:
+        verification_uri:
+          description: The page where the person enters the code.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - device_code
+        - user_code
+        - verification_uri
+        - expires_in
+        - interval
+      title: DeviceAuthorization
+      type: object
+      x-struct:
+      x-validate:
     AuthenticationTokens:
       description: A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
       properties:
@@ -41725,6 +41762,58 @@ paths:
       summary: Upload a commit's file listing.
       tags:
         - Tests
+  /api/auth/device_codes:
+    post:
+      callbacks: {}
+      description: |
+        Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+      operationId: createDeviceCode
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  device_code:
+                    description: The secret code to poll for tokens with.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  expires_in:
+                    description: Seconds until the codes expire.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  interval:
+                    description: Seconds to wait between polls.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  user_code:
+                    description: The short code the person enters in the browser.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  verification_uri:
+                    description: The page where the person enters the code.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - device_code
+                  - user_code
+                  - verification_uri
+                  - expires_in
+                  - interval
+                title: DeviceAuthorization
+                type: object
+                x-struct:
+                x-validate:
+          description: The device sign-in was started
+      summary: Start a device sign-in.
+      tags:
+        - Authentication
   /api/auth/device_code/{device_code}:
     get:
       callbacks: {}

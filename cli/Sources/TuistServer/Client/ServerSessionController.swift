@@ -25,11 +25,14 @@ public enum DeviceCodeType {
 
 public enum ServerSessionControllerError: Equatable, LocalizedError {
     case unauthenticated
+    case deviceCodeExpired
 
     public var errorDescription: String? {
         switch self {
         case .unauthenticated:
             "You are not logged in. Run 'tuist auth login'."
+        case .deviceCodeExpired:
+            "The sign-in code expired before it was approved. Run 'tuist auth login' again."
         }
     }
 }
@@ -40,11 +43,13 @@ public protocol ServerSessionControlling {
     /// - Parameters:
     ///     - serverURL: Server URL.
     ///     - deviceCodeType: Type of device origin used for authentication.
+    ///     - onUserCode: Triggered with the code the user has to enter in the browser, before the browser opens.
     ///     - onOpeningBrowser: Triggered when we begin opening the browser at the given authentication url.
     ///     - onAuthWaitBegin: Custom callback when we started waiting for the authentication to finish in the browser.
     func authenticate(
         serverURL: URL,
         deviceCodeType: DeviceCodeType,
+        onUserCode: @escaping (String) async -> Void,
         onOpeningBrowser: @escaping (URL) async -> Void,
         onAuthWaitBegin: @escaping () async -> Void
     ) async throws
@@ -64,6 +69,7 @@ public struct ServerSessionController: ServerSessionControlling {
     static let port: UInt16 = 4545
 
     private let getAuthTokenService: GetAuthTokenServicing
+    private let createDeviceCodeService: CreateDeviceCodeServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let opener: Opening
     private let uniqueIDGenerator: UniqueIDGenerating
@@ -72,6 +78,7 @@ public struct ServerSessionController: ServerSessionControlling {
         self.init(
             opener: Opener(),
             getAuthTokenService: GetAuthTokenService(),
+            createDeviceCodeService: CreateDeviceCodeService(),
             uniqueIDGenerator: UniqueIDGenerator(),
             serverAuthenticationController: ServerAuthenticationController()
         )
@@ -80,11 +87,13 @@ public struct ServerSessionController: ServerSessionControlling {
     init(
         opener: Opening,
         getAuthTokenService: GetAuthTokenServicing,
+        createDeviceCodeService: CreateDeviceCodeServicing,
         uniqueIDGenerator: UniqueIDGenerating,
         serverAuthenticationController: ServerAuthenticationControlling
     ) {
         self.opener = opener
         self.getAuthTokenService = getAuthTokenService
+        self.createDeviceCodeService = createDeviceCodeService
         self.uniqueIDGenerator = uniqueIDGenerator
         self.serverAuthenticationController = serverAuthenticationController
     }
@@ -94,19 +103,32 @@ public struct ServerSessionController: ServerSessionControlling {
     public func authenticate(
         serverURL: URL,
         deviceCodeType: DeviceCodeType,
+        onUserCode: @escaping (String) async -> Void,
         onOpeningBrowser: @escaping (URL) async -> Void,
         onAuthWaitBegin: () async -> Void
     ) async throws {
-        var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)!
-        let deviceCode = uniqueIDGenerator.uniqueID()
-        components.path = "/auth/device_codes/\(deviceCode)"
-        components.queryItems = [
-            URLQueryItem(
-                name: "type",
-                value: deviceCodeType.apiValue
-            ),
-        ]
-        let authURL = components.url!
+        // The `/auth/device` page is worded for the CLI, so the app stays on the link flow.
+        let deviceAuthorization: ServerDeviceAuthorization? = switch deviceCodeType {
+        case .cli: try await createDeviceCodeService.createDeviceCode(serverURL: serverURL)
+        case .app: nil
+        }
+
+        let authURL: URL
+        let deviceCode: String
+        let pollInterval: Int
+        let deadline: Date?
+        if let deviceAuthorization {
+            authURL = deviceAuthorization.verificationURL
+            deviceCode = deviceAuthorization.deviceCode
+            pollInterval = max(deviceAuthorization.interval, 1)
+            deadline = Date().addingTimeInterval(TimeInterval(deviceAuthorization.expiresIn))
+            await onUserCode(deviceAuthorization.userCode)
+        } else {
+            deviceCode = uniqueIDGenerator.uniqueID()
+            authURL = linkFlowURL(serverURL: serverURL, deviceCode: deviceCode, deviceCodeType: deviceCodeType)
+            pollInterval = 1
+            deadline = nil
+        }
 
         await onOpeningBrowser(authURL)
 
@@ -119,10 +141,20 @@ public struct ServerSessionController: ServerSessionControlling {
                 kind: .auth,
                 message: "Complete sign-in in your browser"
             ) {
-                try await getAuthTokens(serverURL: serverURL, deviceCode: deviceCode)
+                try await getAuthTokens(
+                    serverURL: serverURL,
+                    deviceCode: deviceCode,
+                    pollInterval: pollInterval,
+                    deadline: deadline
+                )
             }
         #else
-            let tokens = try await getAuthTokens(serverURL: serverURL, deviceCode: deviceCode)
+            let tokens = try await getAuthTokens(
+                serverURL: serverURL,
+                deviceCode: deviceCode,
+                pollInterval: pollInterval,
+                deadline: deadline
+            )
         #endif
         let credentials = ServerCredentials(
             accessToken: tokens.accessToken,
@@ -169,18 +201,35 @@ public struct ServerSessionController: ServerSessionControlling {
         #endif
     }
 
+    private func linkFlowURL(serverURL: URL, deviceCode: String, deviceCodeType: DeviceCodeType) -> URL {
+        var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)!
+        components.path = "/auth/device_codes/\(deviceCode)"
+        components.queryItems = [
+            URLQueryItem(
+                name: "type",
+                value: deviceCodeType.apiValue
+            ),
+        ]
+        return components.url!
+    }
+
     private func getAuthTokens(
         serverURL: URL,
-        deviceCode: String
+        deviceCode: String,
+        pollInterval: Int,
+        deadline: Date?
     ) async throws -> ServerAuthenticationTokens {
-        if let token = try await getAuthTokenService.getAuthToken(
-            serverURL: serverURL,
-            deviceCode: deviceCode
-        ) {
-            return token
-        } else {
-            try await Task.sleep(nanoseconds: 1_000_000_000)
-            return try await getAuthTokens(serverURL: serverURL, deviceCode: deviceCode)
+        while true {
+            if let tokens = try await getAuthTokenService.getAuthToken(
+                serverURL: serverURL,
+                deviceCode: deviceCode
+            ) {
+                return tokens
+            }
+            if let deadline, Date() >= deadline {
+                throw ServerSessionControllerError.deviceCodeExpired
+            }
+            try await Task.sleep(nanoseconds: UInt64(pollInterval) * 1_000_000_000)
         }
     }
 }
