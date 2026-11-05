@@ -130,16 +130,6 @@ npm ls >/dev/null 2>&1 || time npm ci --ignore-scripts --no-audit --no-fund
 # --- Server ----------------------------------------------------------------
 cd "$repo_root/server"
 
-# Let tuist_ex restore compiled dependencies from the tuist/server remote cache
-# instead of compiling all of them for dev and again for test. It exchanges
-# this Amp workload identity through the tuist account's OIDC trust policy for
-# the Amp issuer; without that policy, or offline, compilation falls back to
-# building locally. Exported for setup only, never persisted into the snapshot.
-if [[ -z "${TUIST_TOKEN:-}${TUIST_OIDC_TOKEN:-}" ]] &&
-  token="$(amp orb id-token --audience tuist --subject-scope project --ttl-seconds 3600 2>/dev/null)"; then
-  export TUIST_OIDC_TOKEN="$token" TUIST_OIDC_ACCOUNT=tuist
-fi
-
 step "Starting ClickHouse"
 mise run --no-deps clickhouse:start
 
