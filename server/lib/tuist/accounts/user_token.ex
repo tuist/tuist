@@ -17,7 +17,7 @@ defmodule Tuist.Accounts.UserToken do
   @confirm_validity_in_days 7
   @change_email_validity_in_days 7
   @session_idle_seconds 7 * 24 * 60 * 60
-  @session_absolute_seconds 14 * 24 * 60 * 60
+  @session_absolute_seconds 30 * 24 * 60 * 60
 
   schema "users_tokens" do
     field :token, :binary

@@ -9,8 +9,11 @@
 - Every request needs an account administrator; the server enforces it, the CLI
   does not check roles. `--account` overrides the project full-handle account.
 - `exec` joins the arguments after `--` with spaces and the server runs them with
-  `/bin/bash -lc`; it prints the streams and fails with the command's exit status.
-  Deleting requires `--yes`.
+  `/bin/bash -lc`; it prints the streams and exits with the command's exit status
+  (`ExitCode`), without an error message. Pausing a sandbox that is already paused
+  succeeds. Deleting requires `--yes`.
+- An error status whose body is not the server's `{"message": …}`, such as a
+  proxy's error page, reports the status, not the generated client's decoding error.
 - Show the dashboard `status` and fall back to `state` for servers that do not
   send it. `status` and `bucket` are open strings: never switch on them exhaustively.
 - Test through the generated Xcode workspace and Swift Testing, not SwiftPM.

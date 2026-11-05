@@ -204,10 +204,13 @@ other_guidance=""
   `/elevate <env> --thread $AMP_CURRENT_THREAD_ID [duration] <intent>` in Slack and approve it.
   Never run `/elevate` or approve it yourself, and never run `infra/k8s/orb-kube-credential`
   directly (its output is a bearer token). Follow infra/AGENTS.md "Cluster access for agents".
-- OVH reads (datacenter, range, state, install tasks, displayName) go through the
-  Atlas MCP tools `ovh-servers__*` and `ovh-services__*`, which run as your own OVH login.
-  Reinstalls, renames, and `baremetal:prep-ovh` stay with people: never ask for
-  or use the fleet's `OVH_API` token, and never use 1Password from an orb.
+- OVH reads (datacenter, range, state, install tasks, displayName, orders) go through
+  the Atlas MCP tools `ovh-servers__*`, `ovh-services__*` and `ovh-orders__*`, which run
+  as your own OVH login. To prep a box, use `ovh-servers__reinstall-dedicated-server`
+  as infra/AGENTS.md "From an Amp orb" describes, not `baremetal:prep-ovh`: each call
+  needs the person to approve it at the link it returns, and the final rename stays
+  with them. Never approve it yourself, never ask for or use the fleet's `OVH_API`
+  token, and never use 1Password from an orb.
 EOF
 } >"$guidance.tmp"
 mv "$guidance.tmp" "$guidance"

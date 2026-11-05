@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 import Noora
 import TuistConfigLoader
@@ -7,14 +8,14 @@ import TuistServer
 
 enum SandboxCommandError: LocalizedError, Equatable {
     case missingAccount
-    case commandFailed(exitCode: Int?)
+    case commandKilled
 
     var errorDescription: String? {
         switch self {
         case .missingAccount:
             return "Pass --account or configure a project full handle."
-        case let .commandFailed(exitCode):
-            return exitCode.map { "The command exited with status \($0)." } ?? "The command was killed before it exited."
+        case .commandKilled:
+            return "The command was killed before it exited."
         }
     }
 }
@@ -126,7 +127,7 @@ struct SandboxCommandService {
         try output(sandbox, options: options) { SandboxOutput.details($0) }
     }
 
-    /// Prints the command's output and fails with its exit status, so scripts can rely on it as on a local command.
+    /// Prints the command's output and exits with its status, so scripts can rely on it as on a local command.
     func exec(options: SandboxOptions.Values, sandboxID: String, command: String, timeoutMs: Int?) async throws {
         let (accountHandle, serverURL) = try await resolve(options)
         // Outside a terminal Noora prints progress as lines on stdout, which would mix with the command's output.
@@ -146,23 +147,38 @@ struct SandboxCommandService {
             FileHandle.standardOutput.write(Data(result.stdout.utf8))
             FileHandle.standardError.write(Data(result.stderr.utf8))
         }
-        guard result.exit_code == 0 else { throw SandboxCommandError.commandFailed(exitCode: result.exit_code) }
+        switch result.exit_code {
+        case 0?: return
+        case let exitCode?: throw ExitCode(Int32(clamping: exitCode))
+        case nil: throw SandboxCommandError.commandKilled
+        }
     }
 
     func transition(_ transition: SandboxTransition, options: SandboxOptions.Values, sandboxID: String) async throws {
         let (accountHandle, serverURL) = try await resolve(options)
         let (message, done) = switch transition {
-        case .pause: ("Pausing sandbox...", "Paused sandbox \(sandboxID)")
+        case .pause: ("Pausing sandbox...", "Sandbox \(sandboxID) is paused")
         case .resume: ("Resuming sandbox...", "Resumed sandbox \(sandboxID)")
         case .archive: ("Queuing the archive...", "Archive queued")
         }
-        let sandbox = try await step(message, done: done, options: options) {
-            try await sandboxesService.transitionSandbox(
-                transition,
-                accountHandle: accountHandle,
-                serverURL: serverURL,
-                sandboxID: sandboxID
-            )
+        let sandbox = try await step(message, done: done, options: options) { () async throws -> ServerSandbox in
+            do {
+                return try await sandboxesService.transitionSandbox(
+                    transition,
+                    accountHandle: accountHandle,
+                    serverURL: serverURL,
+                    sandboxID: sandboxID
+                )
+            } catch let SandboxesServiceError.refused(reason) where transition == .pause {
+                // The server refuses to pause a paused sandbox, such as one it paused itself after it went idle, but
+                // that sandbox is already where the caller wants it.
+                guard let sandbox = try? await sandboxesService.getSandbox(
+                    accountHandle: accountHandle,
+                    serverURL: serverURL,
+                    sandboxID: sandboxID
+                ), sandbox.state == .paused else { throw SandboxesServiceError.refused(reason) }
+                return sandbox
+            }
         }
         guard options.json || transition == .archive else { return }
         try output(sandbox, options: options) { sandbox in

@@ -2745,11 +2745,11 @@ defmodule Tuist.AccountsTest do
     end
 
     @tag :browser_session
-    test "activity cannot extend the 14-day absolute deadline", %{token: token} do
+    test "activity cannot extend the 30-day absolute deadline", %{token: token} do
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
 
       Repo.update_all(UserToken,
-        set: [inserted_at: now |> DateTime.add(-1_209_599) |> DateTime.to_naive(), last_active_at: now]
+        set: [inserted_at: now |> DateTime.add(-2_591_999) |> DateTime.to_naive(), last_active_at: now]
       )
 
       assert Accounts.get_user_session(token, touch: true)

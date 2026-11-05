@@ -3,7 +3,7 @@
 #USAGE flag "--namespace <ns>" help="Kubernetes namespace where the preview server runs" default="default"
 
 # Environment-driven inputs (so the same script works for both kind and the
-# preview-deploy workflow):
+# pentest deployment workflow):
 #
 #   PREVIEW_ACCOUNT_HANDLE  Account handle to create (matches the
 #                           KuraInstance's tenantID so the Lua hook's

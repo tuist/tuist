@@ -1,15 +1,22 @@
 <.link_frame
   title={dgettext("dashboard_auth", "Two-factor authentication")}
   subtitle={
-    dgettext(
-      "dashboard_auth",
-      "Protect your account with an authenticator app and recovery codes."
-    )
+    if @passkeys_enabled?,
+      do:
+        dgettext(
+          "dashboard_auth",
+          "Protect your account with an authenticator app, passkeys, and recovery codes."
+        ),
+      else:
+        dgettext(
+          "dashboard_auth",
+          "Protect your account with an authenticator app and recovery codes."
+        )
   }
 >
   <.alert :if={@error} type="secondary" status="error" size="small" title={@error} />
   <%= if @enabled do %>
-    <p>
+    <p data-part="security-note">
       {dgettext(
         "dashboard_auth",
         "Two-factor authentication is enabled for all new browser sign-ins, including single sign-on."
@@ -35,7 +42,7 @@
     </form>
   <% else %>
     <%= if @secret do %>
-      <p>
+      <p data-part="security-note">
         {dgettext(
           "dashboard_auth",
           "Add this setup key to your authenticator app, then enter its six-digit code. The key expires in five minutes."
@@ -91,14 +98,102 @@
       </form>
     <% end %>
   <% end %>
-  <p>
-    {dgettext(
-      "dashboard_auth",
-      "Changing your factor requires signing in within the last five minutes. Password resets do not remove it. Keep recovery codes somewhere safe."
-    )}
+  <section :if={@passkeys_enabled?} id="passkeys" data-part="passkeys">
+    <h2 data-part="section-title">{dgettext("dashboard_auth", "Passkeys")}</h2>
+    <p data-part="security-note">
+      {dgettext(
+        "dashboard_auth",
+        "Sign in with your fingerprint, face, or device PIN instead of a password. A passkey also completes two-factor authentication."
+      )}
+    </p>
+    <.alert
+      :if={Phoenix.Flash.get(@flash, :info)}
+      type="secondary"
+      status="success"
+      size="small"
+      title={Phoenix.Flash.get(@flash, :info)}
+    />
+    <.alert
+      :if={Phoenix.Flash.get(@flash, :error)}
+      type="secondary"
+      status="error"
+      size="small"
+      title={Phoenix.Flash.get(@flash, :error)}
+    />
+    <ul :if={@passkeys != []} id="passkey-list" data-part="passkey-list">
+      <li :for={passkey <- @passkeys} data-part="passkey-item">
+        <div data-part="passkey-details">
+          <span data-part="passkey-name">{passkey.name}</span>
+          <span data-part="passkey-meta">{passkey_details(passkey)}</span>
+        </div>
+        <form method="post" action={~p"/users/settings/passkeys/#{passkey.id}/delete"}>
+          <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+          <.button
+            variant="secondary"
+            size="small"
+            type="submit"
+            label={dgettext("dashboard_auth", "Remove")}
+            aria-label={dgettext("dashboard_auth", "Remove %{name}", name: passkey.name)}
+          />
+        </form>
+      </li>
+    </ul>
+    <div data-part="passkey-form">
+      <.text_input
+        id="passkey-name"
+        name="name"
+        value=""
+        label={dgettext("dashboard_auth", "Passkey name")}
+        placeholder={dgettext("dashboard_auth", "For example, MacBook Touch ID")}
+        show_prefix={false}
+        autocomplete="off"
+      />
+      <.button
+        id="passkey-add"
+        type="button"
+        variant="primary"
+        size="large"
+        label={dgettext("dashboard_auth", "Add a passkey")}
+        data-passkey-ceremony="register"
+        data-options-url={~p"/users/settings/passkeys/options"}
+        data-action-url={~p"/users/settings/passkeys"}
+        data-name-input="passkey-name"
+        data-status="passkey-status"
+      >
+        <:icon_left>
+          <.lock_password />
+        </:icon_left>
+      </.button>
+      <span
+        id="passkey-status"
+        data-part="passkey-status"
+        role="status"
+        data-cancelled={dgettext("dashboard_auth", "Adding the passkey was cancelled.")}
+        data-failed={dgettext("dashboard_auth", "The passkey could not be added. Try again.")}
+        data-already-registered={
+          dgettext("dashboard_auth", "This passkey is already registered.")
+        }
+        data-unsupported={dgettext("dashboard_auth", "This browser does not support passkeys.")}
+      ></span>
+    </div>
+  </section>
+  <p data-part="security-note">
+    {if @passkeys_enabled?,
+      do:
+        dgettext(
+          "dashboard_auth",
+          "Changing your authenticator app or passkeys requires signing in within the last five minutes. Password resets do not remove them. Keep recovery codes somewhere safe."
+        ),
+      else:
+        dgettext(
+          "dashboard_auth",
+          "Changing your factor requires signing in within the last five minutes. Password resets do not remove it. Keep recovery codes somewhere safe."
+        )}
   </p>
-  <a href={TuistWeb.Authentication.signed_in_path(@current_user)}>{dgettext(
-    "dashboard_auth",
-    "Back to dashboard"
-  )}</a>
+  <.link_button
+    href={TuistWeb.Authentication.signed_in_path(@current_user)}
+    variant="primary"
+    size="large"
+    label={dgettext("dashboard_auth", "Back to dashboard")}
+  />
 </.link_frame>

@@ -1634,7 +1634,7 @@ defmodule TuistWeb.BuildRunLive do
        when not is_nil(command_event) do
     page = Query.bounded_page(params["binary-cache-page"])
     sort_by = params["binary-cache-sort-by"] || "name"
-    sort_order = params["binary-cache-sort-order"] || "asc"
+    sort_order = Atom.to_string(Query.sort_order(params["binary-cache-sort-order"], :asc))
     filter_text = params["binary-cache-filter"] || ""
 
     filters = Filter.Operations.decode_filters_from_query(params, available_filters)
@@ -1644,7 +1644,7 @@ defmodule TuistWeb.BuildRunLive do
       page: page,
       page_size: @binary_cache_page_size,
       order_by: [ensure_binary_cache_sort_by(sort_by)],
-      order_directions: [String.to_atom(sort_order)]
+      order_directions: [Query.sort_order(sort_order, :asc)]
     }
 
     {filtered_analytics, meta} = Xcode.binary_cache_analytics(command_event, flop_params)
@@ -1667,7 +1667,7 @@ defmodule TuistWeb.BuildRunLive do
     socket
     |> assign(:binary_cache_page, Query.bounded_page(params["binary-cache-page"]))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
-    |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
+    |> assign(:binary_cache_sort_order, Atom.to_string(Query.sort_order(params["binary-cache-sort-order"], :asc)))
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
     |> assign(:binary_cache_active_filters, filters)
   end

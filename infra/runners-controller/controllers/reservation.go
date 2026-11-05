@@ -507,7 +507,7 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 	kept := map[string]corev1.ResourceList{}
 	for i := range fleetPods.Items {
 		pod := &fleetPods.Items[i]
-		if pod.Namespace == r.SandboxesNamespace && pod.Labels[sandboxdLabel] == "true" {
+		if pod.Namespace == r.SandboxesNamespace && isSandboxDaemon(pod) {
 			continue // Already subtracted from the node, even if namespaces coincide.
 		}
 		if pod.Spec.NodeName == "" || !pod.DeletionTimestamp.IsZero() {
@@ -656,7 +656,7 @@ func permanentFootprints(pods []corev1.Pod, pool *tuistv1.RunnerPool, sandboxesN
 	permanent := map[string]corev1.ResourceList{}
 	for i := range pods {
 		pod := &pods[i]
-		if pod.Namespace == sandboxesNamespace && pod.Labels[sandboxdLabel] == "true" {
+		if pod.Namespace == sandboxesNamespace && isSandboxDaemon(pod) {
 			continue
 		}
 		if !isAlive(pod) || pod.Spec.NodeName == "" {
@@ -862,7 +862,7 @@ func (r *RunnerPoolReconciler) reserveNode(
 			if r.SignalsClient == nil {
 				return fmt.Errorf("cannot revoke sandbox allocation without signals client")
 			}
-			if err := r.SignalsClient.PublishSandboxAllocation(ctx, scaling.SandboxAllocation{Node: node.Name, Pod: daemon.name, ObservedAt: time.Now().UTC(), Reclaim: true}); err != nil {
+			if err := r.SignalsClient.PublishSandboxAllocation(ctx, scaling.SandboxAllocation{Node: daemon.grantNode(), Pod: daemon.name, ObservedAt: time.Now().UTC(), Reclaim: true}); err != nil {
 				return err
 			}
 		}
