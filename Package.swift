@@ -61,6 +61,7 @@ var tuistDependencies: [Target.Dependency] = [
     "TuistShareCommand",
     "TuistRunCommand",
     "TuistRunnerCommand",
+    "TuistSandboxCommand",
     "TuistInspectCommand",
     argumentParserDependency,
     "TuistServer",
@@ -425,6 +426,15 @@ var tuistRunnerCommandDependencies: [Target.Dependency] = [
     "TuistServer",
     "TuistEnvironment",
     "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistHTTP",
+    "TuistNooraExtension",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistSandboxCommandDependencies: [Target.Dependency] = [
+    argumentParserDependency,
+    "TuistServer",
+    "TuistEnvironment",
     "TuistConfigLoader",
     "TuistHTTP",
     "TuistNooraExtension",
@@ -1017,6 +1027,14 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistSandboxCommand",
+        dependencies: tuistSandboxCommandDependencies,
+        path: "cli/Sources/TuistSandboxCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
         name: "TuistInspectCommand",
         dependencies: tuistInspectCommandDependencies,
         path: "cli/Sources/TuistInspectCommand",
@@ -1298,6 +1316,22 @@ var targets: [Target] = [
             mockableDependency,
         ],
         path: "cli/Tests/TuistRunnerCommandTests"
+    ),
+    .testTarget(
+        name: "TuistSandboxCommandTests",
+        dependencies: [
+            "TuistSandboxCommand",
+            "TuistConfig",
+            "TuistConfigLoader",
+            "TuistEnvironment",
+            "TuistEnvironmentTesting",
+            "TuistHTTP",
+            "TuistNooraTesting",
+            "TuistServer",
+            argumentParserDependency,
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistSandboxCommandTests"
     ),
     .testTarget(
         name: "TuistInitCommandTests",

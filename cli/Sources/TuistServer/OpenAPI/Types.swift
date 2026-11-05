@@ -46,6 +46,8 @@ public protocol APIProtocol: Sendable {
     func createCoverageUpload(_ input: Operations.createCoverageUpload.Input) async throws -> Operations.createCoverageUpload.Output
     /// List the account's sandboxes.
     ///
+    /// Newest first by default. Deleted sandboxes are not listed.
+    ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/get(listSandboxes)`.
     func listSandboxes(_ input: Operations.listSandboxes.Input) async throws -> Operations.listSandboxes.Output
@@ -1481,6 +1483,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/token`.
     /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)`.
     func getCacheToken(_ input: Operations.getCacheToken.Input) async throws -> Operations.getCacheToken.Output
+    /// Get the account's sandbox analytics for a time range.
+    ///
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
+    func getSandboxAnalytics(_ input: Operations.getSandboxAnalytics.Input) async throws -> Operations.getSandboxAnalytics.Output
+    /// Archive a paused sandbox.
+    ///
+    /// Queues moving the paused sandbox's disks to object storage, which frees them on its node. The sandbox stays `paused` until the upload completes and then becomes `archived`; resuming restores it.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)`.
+    func archiveSandbox(_ input: Operations.archiveSandbox.Input) async throws -> Operations.archiveSandbox.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -1570,14 +1586,18 @@ extension APIProtocol {
     }
     /// List the account's sandboxes.
     ///
+    /// Newest first by default. Deleted sandboxes are not listed.
+    ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/get(listSandboxes)`.
     public func listSandboxes(
         path: Operations.listSandboxes.Input.Path,
+        query: Operations.listSandboxes.Input.Query = .init(),
         headers: Operations.listSandboxes.Input.Headers = .init()
     ) async throws -> Operations.listSandboxes.Output {
         try await listSandboxes(Operations.listSandboxes.Input(
             path: path,
+            query: query,
             headers: headers
         ))
     }
@@ -5074,6 +5094,38 @@ extension APIProtocol {
     ) async throws -> Operations.getCacheToken.Output {
         try await getCacheToken(Operations.getCacheToken.Input(
             query: query,
+            headers: headers
+        ))
+    }
+    /// Get the account's sandbox analytics for a time range.
+    ///
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
+    public func getSandboxAnalytics(
+        path: Operations.getSandboxAnalytics.Input.Path,
+        query: Operations.getSandboxAnalytics.Input.Query = .init(),
+        headers: Operations.getSandboxAnalytics.Input.Headers = .init()
+    ) async throws -> Operations.getSandboxAnalytics.Output {
+        try await getSandboxAnalytics(Operations.getSandboxAnalytics.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Archive a paused sandbox.
+    ///
+    /// Queues moving the paused sandbox's disks to object storage, which frees them on its node. The sandbox stays `paused` until the upload completes and then becomes `archived`; resuming restores it.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)`.
+    public func archiveSandbox(
+        path: Operations.archiveSandbox.Input.Path,
+        headers: Operations.archiveSandbox.Input.Headers = .init()
+    ) async throws -> Operations.archiveSandbox.Output {
+        try await archiveSandbox(Operations.archiveSandbox.Input(
+            path: path,
             headers: headers
         ))
     }
@@ -22791,6 +22843,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/Sandbox/state`.
             public var state: Components.Schemas.Sandbox.statePayload
+            /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Sandbox/status`.
+            public var status: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Sandbox/template`.
             public var template: Swift.String
             /// - Remark: Generated from `#/components/schemas/Sandbox/template_tag`.
@@ -22819,6 +22875,7 @@ public enum Components {
             ///   - paused_at:
             ///   - residency_work_id:
             ///   - state:
+            ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
             ///   - template:
             ///   - template_tag:
             ///   - updated_at:
@@ -22840,6 +22897,7 @@ public enum Components {
                 paused_at: Foundation.Date? = nil,
                 residency_work_id: Swift.String? = nil,
                 state: Components.Schemas.Sandbox.statePayload,
+                status: Swift.String? = nil,
                 template: Swift.String,
                 template_tag: Swift.String? = nil,
                 updated_at: Foundation.Date,
@@ -22861,6 +22919,7 @@ public enum Components {
                 self.paused_at = paused_at
                 self.residency_work_id = residency_work_id
                 self.state = state
+                self.status = status
                 self.template = template
                 self.template_tag = template_tag
                 self.updated_at = updated_at
@@ -22883,6 +22942,7 @@ public enum Components {
                 case paused_at
                 case residency_work_id
                 case state
+                case status
                 case template
                 case template_tag
                 case updated_at
@@ -27540,6 +27600,2818 @@ public enum Components {
                 case token
             }
         }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency`.
+        public struct SandboxAnalyticsConcurrency: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use`.
+            public struct in_usePayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/disk_gb`.
+                public var disk_gb: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/memory_gb`.
+                public var memory_gb: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/vcpus`.
+                public var vcpus: Swift.Int
+                /// Creates a new `in_usePayload`.
+                ///
+                /// - Parameters:
+                ///   - disk_gb:
+                ///   - memory_gb:
+                ///   - vcpus:
+                public init(
+                    disk_gb: Swift.Double,
+                    memory_gb: Swift.Double,
+                    vcpus: Swift.Int
+                ) {
+                    self.disk_gb = disk_gb
+                    self.memory_gb = memory_gb
+                    self.vcpus = vcpus
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case disk_gb
+                    case memory_gb
+                    case vcpus
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.disk_gb = try container.decode(
+                        Swift.Double.self,
+                        forKey: .disk_gb
+                    )
+                    self.memory_gb = try container.decode(
+                        Swift.Double.self,
+                        forKey: .memory_gb
+                    )
+                    self.vcpus = try container.decode(
+                        Swift.Int.self,
+                        forKey: .vcpus
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "disk_gb",
+                        "memory_gb",
+                        "vcpus"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use`.
+            public var in_use: Components.Schemas.SandboxAnalyticsConcurrency.in_usePayload
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits`.
+            public struct limitsPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/disk_gb`.
+                public var disk_gb: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/memory_gb`.
+                public var memory_gb: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/vcpus`.
+                public var vcpus: Swift.Int
+                /// Creates a new `limitsPayload`.
+                ///
+                /// - Parameters:
+                ///   - disk_gb:
+                ///   - memory_gb:
+                ///   - vcpus:
+                public init(
+                    disk_gb: Swift.Double,
+                    memory_gb: Swift.Double,
+                    vcpus: Swift.Int
+                ) {
+                    self.disk_gb = disk_gb
+                    self.memory_gb = memory_gb
+                    self.vcpus = vcpus
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case disk_gb
+                    case memory_gb
+                    case vcpus
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.disk_gb = try container.decode(
+                        Swift.Double.self,
+                        forKey: .disk_gb
+                    )
+                    self.memory_gb = try container.decode(
+                        Swift.Double.self,
+                        forKey: .memory_gb
+                    )
+                    self.vcpus = try container.decode(
+                        Swift.Int.self,
+                        forKey: .vcpus
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "disk_gb",
+                        "memory_gb",
+                        "vcpus"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits`.
+            public var limits: Components.Schemas.SandboxAnalyticsConcurrency.limitsPayload
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload`.
+            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/at`.
+                public var at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/disk_gb`.
+                public var disk_gb: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/memory_gb`.
+                public var memory_gb: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/vcpus`.
+                public var vcpus: Swift.Int
+                /// Creates a new `pointsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - at:
+                ///   - disk_gb:
+                ///   - memory_gb:
+                ///   - vcpus:
+                public init(
+                    at: Foundation.Date,
+                    disk_gb: Swift.Double,
+                    memory_gb: Swift.Double,
+                    vcpus: Swift.Int
+                ) {
+                    self.at = at
+                    self.disk_gb = disk_gb
+                    self.memory_gb = memory_gb
+                    self.vcpus = vcpus
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case at
+                    case disk_gb
+                    case memory_gb
+                    case vcpus
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.at = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .at
+                    )
+                    self.disk_gb = try container.decode(
+                        Swift.Double.self,
+                        forKey: .disk_gb
+                    )
+                    self.memory_gb = try container.decode(
+                        Swift.Double.self,
+                        forKey: .memory_gb
+                    )
+                    self.vcpus = try container.decode(
+                        Swift.Int.self,
+                        forKey: .vcpus
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "at",
+                        "disk_gb",
+                        "memory_gb",
+                        "vcpus"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/points`.
+            public typealias pointsPayload = [Components.Schemas.SandboxAnalyticsConcurrency.pointsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/points`.
+            public var points: Components.Schemas.SandboxAnalyticsConcurrency.pointsPayload
+            /// Creates a new `SandboxAnalyticsConcurrency`.
+            ///
+            /// - Parameters:
+            ///   - in_use:
+            ///   - limits:
+            ///   - points:
+            public init(
+                in_use: Components.Schemas.SandboxAnalyticsConcurrency.in_usePayload,
+                limits: Components.Schemas.SandboxAnalyticsConcurrency.limitsPayload,
+                points: Components.Schemas.SandboxAnalyticsConcurrency.pointsPayload
+            ) {
+                self.in_use = in_use
+                self.limits = limits
+                self.points = points
+            }
+            public enum CodingKeys: String, CodingKey {
+                case in_use
+                case limits
+                case points
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.in_use = try container.decode(
+                    Components.Schemas.SandboxAnalyticsConcurrency.in_usePayload.self,
+                    forKey: .in_use
+                )
+                self.limits = try container.decode(
+                    Components.Schemas.SandboxAnalyticsConcurrency.limitsPayload.self,
+                    forKey: .limits
+                )
+                self.points = try container.decode(
+                    Components.Schemas.SandboxAnalyticsConcurrency.pointsPayload.self,
+                    forKey: .points
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "in_use",
+                    "limits",
+                    "points"
+                ])
+            }
+        }
+        /// Run sessions that ended in the range. Points without any have null figures.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration`.
+        public struct SandboxAnalyticsSessionDuration: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/avg_ms`.
+            public var avg_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/count`.
+            public var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/p50_ms`.
+            public var p50_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/p90_ms`.
+            public var p90_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/p99_ms`.
+            public var p99_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/pointsPayload`.
+            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/pointsPayload/at`.
+                public var at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/pointsPayload/avg_ms`.
+                public var avg_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/pointsPayload/p50_ms`.
+                public var p50_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/pointsPayload/p90_ms`.
+                public var p90_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/pointsPayload/p99_ms`.
+                public var p99_ms: Swift.Int?
+                /// Creates a new `pointsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - at:
+                ///   - avg_ms:
+                ///   - p50_ms:
+                ///   - p90_ms:
+                ///   - p99_ms:
+                public init(
+                    at: Foundation.Date,
+                    avg_ms: Swift.Int? = nil,
+                    p50_ms: Swift.Int? = nil,
+                    p90_ms: Swift.Int? = nil,
+                    p99_ms: Swift.Int? = nil
+                ) {
+                    self.at = at
+                    self.avg_ms = avg_ms
+                    self.p50_ms = p50_ms
+                    self.p90_ms = p90_ms
+                    self.p99_ms = p99_ms
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case at
+                    case avg_ms
+                    case p50_ms
+                    case p90_ms
+                    case p99_ms
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.at = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .at
+                    )
+                    self.avg_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .avg_ms
+                    )
+                    self.p50_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p50_ms
+                    )
+                    self.p90_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p90_ms
+                    )
+                    self.p99_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p99_ms
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "at",
+                        "avg_ms",
+                        "p50_ms",
+                        "p90_ms",
+                        "p99_ms"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/points`.
+            public typealias pointsPayload = [Components.Schemas.SandboxAnalyticsSessionDuration.pointsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/points`.
+            public var points: Components.Schemas.SandboxAnalyticsSessionDuration.pointsPayload
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/trend_avg`.
+            public var trend_avg: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/trend_p50`.
+            public var trend_p50: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/trend_p90`.
+            public var trend_p90: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/trend_p99`.
+            public var trend_p99: Swift.Double
+            /// Creates a new `SandboxAnalyticsSessionDuration`.
+            ///
+            /// - Parameters:
+            ///   - avg_ms:
+            ///   - count:
+            ///   - p50_ms:
+            ///   - p90_ms:
+            ///   - p99_ms:
+            ///   - points:
+            ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+            public init(
+                avg_ms: Swift.Int,
+                count: Swift.Int,
+                p50_ms: Swift.Int,
+                p90_ms: Swift.Int,
+                p99_ms: Swift.Int,
+                points: Components.Schemas.SandboxAnalyticsSessionDuration.pointsPayload,
+                trend_avg: Swift.Double,
+                trend_p50: Swift.Double,
+                trend_p90: Swift.Double,
+                trend_p99: Swift.Double
+            ) {
+                self.avg_ms = avg_ms
+                self.count = count
+                self.p50_ms = p50_ms
+                self.p90_ms = p90_ms
+                self.p99_ms = p99_ms
+                self.points = points
+                self.trend_avg = trend_avg
+                self.trend_p50 = trend_p50
+                self.trend_p90 = trend_p90
+                self.trend_p99 = trend_p99
+            }
+            public enum CodingKeys: String, CodingKey {
+                case avg_ms
+                case count
+                case p50_ms
+                case p90_ms
+                case p99_ms
+                case points
+                case trend_avg
+                case trend_p50
+                case trend_p90
+                case trend_p99
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.avg_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .avg_ms
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.p50_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p50_ms
+                )
+                self.p90_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p90_ms
+                )
+                self.p99_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p99_ms
+                )
+                self.points = try container.decode(
+                    Components.Schemas.SandboxAnalyticsSessionDuration.pointsPayload.self,
+                    forKey: .points
+                )
+                self.trend_avg = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_avg
+                )
+                self.trend_p50 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p50
+                )
+                self.trend_p90 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p90
+                )
+                self.trend_p99 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p99
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "avg_ms",
+                    "count",
+                    "p50_ms",
+                    "p90_ms",
+                    "p99_ms",
+                    "points",
+                    "trend_avg",
+                    "trend_p50",
+                    "trend_p90",
+                    "trend_p99"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDurationPoint`.
+        public struct SandboxAnalyticsSessionDurationPoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDurationPoint/at`.
+            public var at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDurationPoint/avg_ms`.
+            public var avg_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDurationPoint/p50_ms`.
+            public var p50_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDurationPoint/p90_ms`.
+            public var p90_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDurationPoint/p99_ms`.
+            public var p99_ms: Swift.Int?
+            /// Creates a new `SandboxAnalyticsSessionDurationPoint`.
+            ///
+            /// - Parameters:
+            ///   - at:
+            ///   - avg_ms:
+            ///   - p50_ms:
+            ///   - p90_ms:
+            ///   - p99_ms:
+            public init(
+                at: Foundation.Date,
+                avg_ms: Swift.Int? = nil,
+                p50_ms: Swift.Int? = nil,
+                p90_ms: Swift.Int? = nil,
+                p99_ms: Swift.Int? = nil
+            ) {
+                self.at = at
+                self.avg_ms = avg_ms
+                self.p50_ms = p50_ms
+                self.p90_ms = p90_ms
+                self.p99_ms = p99_ms
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case avg_ms
+                case p50_ms
+                case p90_ms
+                case p99_ms
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                self.avg_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .avg_ms
+                )
+                self.p50_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p50_ms
+                )
+                self.p90_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p90_ms
+                )
+                self.p99_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p99_ms
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "at",
+                    "avg_ms",
+                    "p50_ms",
+                    "p90_ms",
+                    "p99_ms"
+                ])
+            }
+        }
+        /// How long sandboxes took to boot (create or restore). Points without any have null figures.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart`.
+        public struct SandboxAnalyticsTimeToStart: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/avg_ms`.
+            public var avg_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/count`.
+            public var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/p50_ms`.
+            public var p50_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/p90_ms`.
+            public var p90_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/p99_ms`.
+            public var p99_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/pointsPayload`.
+            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/pointsPayload/at`.
+                public var at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/pointsPayload/avg_ms`.
+                public var avg_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/pointsPayload/p50_ms`.
+                public var p50_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/pointsPayload/p90_ms`.
+                public var p90_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/pointsPayload/p99_ms`.
+                public var p99_ms: Swift.Int?
+                /// Creates a new `pointsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - at:
+                ///   - avg_ms:
+                ///   - p50_ms:
+                ///   - p90_ms:
+                ///   - p99_ms:
+                public init(
+                    at: Foundation.Date,
+                    avg_ms: Swift.Int? = nil,
+                    p50_ms: Swift.Int? = nil,
+                    p90_ms: Swift.Int? = nil,
+                    p99_ms: Swift.Int? = nil
+                ) {
+                    self.at = at
+                    self.avg_ms = avg_ms
+                    self.p50_ms = p50_ms
+                    self.p90_ms = p90_ms
+                    self.p99_ms = p99_ms
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case at
+                    case avg_ms
+                    case p50_ms
+                    case p90_ms
+                    case p99_ms
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.at = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .at
+                    )
+                    self.avg_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .avg_ms
+                    )
+                    self.p50_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p50_ms
+                    )
+                    self.p90_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p90_ms
+                    )
+                    self.p99_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p99_ms
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "at",
+                        "avg_ms",
+                        "p50_ms",
+                        "p90_ms",
+                        "p99_ms"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/points`.
+            public typealias pointsPayload = [Components.Schemas.SandboxAnalyticsTimeToStart.pointsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/points`.
+            public var points: Components.Schemas.SandboxAnalyticsTimeToStart.pointsPayload
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/trend_avg`.
+            public var trend_avg: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/trend_p50`.
+            public var trend_p50: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/trend_p90`.
+            public var trend_p90: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/trend_p99`.
+            public var trend_p99: Swift.Double
+            /// Creates a new `SandboxAnalyticsTimeToStart`.
+            ///
+            /// - Parameters:
+            ///   - avg_ms:
+            ///   - count:
+            ///   - p50_ms:
+            ///   - p90_ms:
+            ///   - p99_ms:
+            ///   - points:
+            ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+            public init(
+                avg_ms: Swift.Int,
+                count: Swift.Int,
+                p50_ms: Swift.Int,
+                p90_ms: Swift.Int,
+                p99_ms: Swift.Int,
+                points: Components.Schemas.SandboxAnalyticsTimeToStart.pointsPayload,
+                trend_avg: Swift.Double,
+                trend_p50: Swift.Double,
+                trend_p90: Swift.Double,
+                trend_p99: Swift.Double
+            ) {
+                self.avg_ms = avg_ms
+                self.count = count
+                self.p50_ms = p50_ms
+                self.p90_ms = p90_ms
+                self.p99_ms = p99_ms
+                self.points = points
+                self.trend_avg = trend_avg
+                self.trend_p50 = trend_p50
+                self.trend_p90 = trend_p90
+                self.trend_p99 = trend_p99
+            }
+            public enum CodingKeys: String, CodingKey {
+                case avg_ms
+                case count
+                case p50_ms
+                case p90_ms
+                case p99_ms
+                case points
+                case trend_avg
+                case trend_p50
+                case trend_p90
+                case trend_p99
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.avg_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .avg_ms
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.p50_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p50_ms
+                )
+                self.p90_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p90_ms
+                )
+                self.p99_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p99_ms
+                )
+                self.points = try container.decode(
+                    Components.Schemas.SandboxAnalyticsTimeToStart.pointsPayload.self,
+                    forKey: .points
+                )
+                self.trend_avg = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_avg
+                )
+                self.trend_p50 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p50
+                )
+                self.trend_p90 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p90
+                )
+                self.trend_p99 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p99
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "avg_ms",
+                    "count",
+                    "p50_ms",
+                    "p90_ms",
+                    "p99_ms",
+                    "points",
+                    "trend_avg",
+                    "trend_p50",
+                    "trend_p90",
+                    "trend_p99"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsPeriod`.
+        public struct SandboxAnalyticsPeriod: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsPeriod/end`.
+            public var end: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsPeriod/start`.
+            public var start: Foundation.Date
+            /// Creates a new `SandboxAnalyticsPeriod`.
+            ///
+            /// - Parameters:
+            ///   - end:
+            ///   - start:
+            public init(
+                end: Foundation.Date,
+                start: Foundation.Date
+            ) {
+                self.end = end
+                self.start = start
+            }
+            public enum CodingKeys: String, CodingKey {
+                case end
+                case start
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.end = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .end
+                )
+                self.start = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .start
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "end",
+                    "start"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint`.
+        public struct SandboxAnalyticsConcurrencyPoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/at`.
+            public var at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/disk_gb`.
+            public var disk_gb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/memory_gb`.
+            public var memory_gb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/vcpus`.
+            public var vcpus: Swift.Int
+            /// Creates a new `SandboxAnalyticsConcurrencyPoint`.
+            ///
+            /// - Parameters:
+            ///   - at:
+            ///   - disk_gb:
+            ///   - memory_gb:
+            ///   - vcpus:
+            public init(
+                at: Foundation.Date,
+                disk_gb: Swift.Double,
+                memory_gb: Swift.Double,
+                vcpus: Swift.Int
+            ) {
+                self.at = at
+                self.disk_gb = disk_gb
+                self.memory_gb = memory_gb
+                self.vcpus = vcpus
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case disk_gb
+                case memory_gb
+                case vcpus
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                self.disk_gb = try container.decode(
+                    Swift.Double.self,
+                    forKey: .disk_gb
+                )
+                self.memory_gb = try container.decode(
+                    Swift.Double.self,
+                    forKey: .memory_gb
+                )
+                self.vcpus = try container.decode(
+                    Swift.Int.self,
+                    forKey: .vcpus
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "at",
+                    "disk_gb",
+                    "memory_gb",
+                    "vcpus"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount`.
+        public struct SandboxAnalyticsCount: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/count`.
+            public var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/pointsPayload`.
+            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/pointsPayload/at`.
+                public var at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/pointsPayload/value`.
+                public var value: Swift.Int
+                /// Creates a new `pointsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - at:
+                ///   - value:
+                public init(
+                    at: Foundation.Date,
+                    value: Swift.Int
+                ) {
+                    self.at = at
+                    self.value = value
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case at
+                    case value
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.at = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .at
+                    )
+                    self.value = try container.decode(
+                        Swift.Int.self,
+                        forKey: .value
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "at",
+                        "value"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/points`.
+            public typealias pointsPayload = [Components.Schemas.SandboxAnalyticsCount.pointsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/points`.
+            public var points: Components.Schemas.SandboxAnalyticsCount.pointsPayload
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/trend`.
+            public var trend: Swift.Double
+            /// Creates a new `SandboxAnalyticsCount`.
+            ///
+            /// - Parameters:
+            ///   - count:
+            ///   - points:
+            ///   - trend: Percent change against the range of the same length before it; 0 when either is 0.
+            public init(
+                count: Swift.Int,
+                points: Components.Schemas.SandboxAnalyticsCount.pointsPayload,
+                trend: Swift.Double
+            ) {
+                self.count = count
+                self.points = points
+                self.trend = trend
+            }
+            public enum CodingKeys: String, CodingKey {
+                case count
+                case points
+                case trend
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.points = try container.decode(
+                    Components.Schemas.SandboxAnalyticsCount.pointsPayload.self,
+                    forKey: .points
+                )
+                self.trend = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "count",
+                    "points",
+                    "trend"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxPagination`.
+        public struct SandboxPagination: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxPagination/current_page`.
+            public var current_page: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxPagination/has_next_page`.
+            public var has_next_page: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/SandboxPagination/has_previous_page`.
+            public var has_previous_page: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/SandboxPagination/page_size`.
+            public var page_size: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxPagination/total_count`.
+            public var total_count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxPagination/total_pages`.
+            public var total_pages: Swift.Int
+            /// Creates a new `SandboxPagination`.
+            ///
+            /// - Parameters:
+            ///   - current_page:
+            ///   - has_next_page:
+            ///   - has_previous_page:
+            ///   - page_size:
+            ///   - total_count:
+            ///   - total_pages:
+            public init(
+                current_page: Swift.Int,
+                has_next_page: Swift.Bool,
+                has_previous_page: Swift.Bool,
+                page_size: Swift.Int,
+                total_count: Swift.Int,
+                total_pages: Swift.Int
+            ) {
+                self.current_page = current_page
+                self.has_next_page = has_next_page
+                self.has_previous_page = has_previous_page
+                self.page_size = page_size
+                self.total_count = total_count
+                self.total_pages = total_pages
+            }
+            public enum CodingKeys: String, CodingKey {
+                case current_page
+                case has_next_page
+                case has_previous_page
+                case page_size
+                case total_count
+                case total_pages
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.current_page = try container.decode(
+                    Swift.Int.self,
+                    forKey: .current_page
+                )
+                self.has_next_page = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .has_next_page
+                )
+                self.has_previous_page = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .has_previous_page
+                )
+                self.page_size = try container.decode(
+                    Swift.Int.self,
+                    forKey: .page_size
+                )
+                self.total_count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .total_count
+                )
+                self.total_pages = try container.decode(
+                    Swift.Int.self,
+                    forKey: .total_pages
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "current_page",
+                    "has_next_page",
+                    "has_previous_page",
+                    "page_size",
+                    "total_count",
+                    "total_pages"
+                ])
+            }
+        }
+        /// How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup`.
+        public struct SandboxAnalyticsSetup: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/avg_ms`.
+            public var avg_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/count`.
+            public var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/p50_ms`.
+            public var p50_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/p90_ms`.
+            public var p90_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/p99_ms`.
+            public var p99_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/pointsPayload`.
+            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/pointsPayload/at`.
+                public var at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/pointsPayload/avg_ms`.
+                public var avg_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/pointsPayload/p50_ms`.
+                public var p50_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/pointsPayload/p90_ms`.
+                public var p90_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/pointsPayload/p99_ms`.
+                public var p99_ms: Swift.Int?
+                /// Creates a new `pointsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - at:
+                ///   - avg_ms:
+                ///   - p50_ms:
+                ///   - p90_ms:
+                ///   - p99_ms:
+                public init(
+                    at: Foundation.Date,
+                    avg_ms: Swift.Int? = nil,
+                    p50_ms: Swift.Int? = nil,
+                    p90_ms: Swift.Int? = nil,
+                    p99_ms: Swift.Int? = nil
+                ) {
+                    self.at = at
+                    self.avg_ms = avg_ms
+                    self.p50_ms = p50_ms
+                    self.p90_ms = p90_ms
+                    self.p99_ms = p99_ms
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case at
+                    case avg_ms
+                    case p50_ms
+                    case p90_ms
+                    case p99_ms
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.at = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .at
+                    )
+                    self.avg_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .avg_ms
+                    )
+                    self.p50_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p50_ms
+                    )
+                    self.p90_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p90_ms
+                    )
+                    self.p99_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p99_ms
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "at",
+                        "avg_ms",
+                        "p50_ms",
+                        "p90_ms",
+                        "p99_ms"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/points`.
+            public typealias pointsPayload = [Components.Schemas.SandboxAnalyticsSetup.pointsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/points`.
+            public var points: Components.Schemas.SandboxAnalyticsSetup.pointsPayload
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/trend_avg`.
+            public var trend_avg: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/trend_p50`.
+            public var trend_p50: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/trend_p90`.
+            public var trend_p90: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/trend_p99`.
+            public var trend_p99: Swift.Double
+            /// Creates a new `SandboxAnalyticsSetup`.
+            ///
+            /// - Parameters:
+            ///   - avg_ms:
+            ///   - count:
+            ///   - p50_ms:
+            ///   - p90_ms:
+            ///   - p99_ms:
+            ///   - points:
+            ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+            public init(
+                avg_ms: Swift.Int,
+                count: Swift.Int,
+                p50_ms: Swift.Int,
+                p90_ms: Swift.Int,
+                p99_ms: Swift.Int,
+                points: Components.Schemas.SandboxAnalyticsSetup.pointsPayload,
+                trend_avg: Swift.Double,
+                trend_p50: Swift.Double,
+                trend_p90: Swift.Double,
+                trend_p99: Swift.Double
+            ) {
+                self.avg_ms = avg_ms
+                self.count = count
+                self.p50_ms = p50_ms
+                self.p90_ms = p90_ms
+                self.p99_ms = p99_ms
+                self.points = points
+                self.trend_avg = trend_avg
+                self.trend_p50 = trend_p50
+                self.trend_p90 = trend_p90
+                self.trend_p99 = trend_p99
+            }
+            public enum CodingKeys: String, CodingKey {
+                case avg_ms
+                case count
+                case p50_ms
+                case p90_ms
+                case p99_ms
+                case points
+                case trend_avg
+                case trend_p50
+                case trend_p90
+                case trend_p99
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.avg_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .avg_ms
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.p50_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p50_ms
+                )
+                self.p90_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p90_ms
+                )
+                self.p99_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p99_ms
+                )
+                self.points = try container.decode(
+                    Components.Schemas.SandboxAnalyticsSetup.pointsPayload.self,
+                    forKey: .points
+                )
+                self.trend_avg = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_avg
+                )
+                self.trend_p50 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p50
+                )
+                self.trend_p90 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p90
+                )
+                self.trend_p99 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p99
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "avg_ms",
+                    "count",
+                    "p50_ms",
+                    "p90_ms",
+                    "p99_ms",
+                    "points",
+                    "trend_avg",
+                    "trend_p50",
+                    "trend_p90",
+                    "trend_p99"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStartPoint`.
+        public struct SandboxAnalyticsTimeToStartPoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStartPoint/at`.
+            public var at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStartPoint/avg_ms`.
+            public var avg_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStartPoint/p50_ms`.
+            public var p50_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStartPoint/p90_ms`.
+            public var p90_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStartPoint/p99_ms`.
+            public var p99_ms: Swift.Int?
+            /// Creates a new `SandboxAnalyticsTimeToStartPoint`.
+            ///
+            /// - Parameters:
+            ///   - at:
+            ///   - avg_ms:
+            ///   - p50_ms:
+            ///   - p90_ms:
+            ///   - p99_ms:
+            public init(
+                at: Foundation.Date,
+                avg_ms: Swift.Int? = nil,
+                p50_ms: Swift.Int? = nil,
+                p90_ms: Swift.Int? = nil,
+                p99_ms: Swift.Int? = nil
+            ) {
+                self.at = at
+                self.avg_ms = avg_ms
+                self.p50_ms = p50_ms
+                self.p90_ms = p90_ms
+                self.p99_ms = p99_ms
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case avg_ms
+                case p50_ms
+                case p90_ms
+                case p99_ms
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                self.avg_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .avg_ms
+                )
+                self.p50_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p50_ms
+                )
+                self.p90_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p90_ms
+                )
+                self.p99_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p99_ms
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "at",
+                    "avg_ms",
+                    "p50_ms",
+                    "p90_ms",
+                    "p99_ms"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCountPoint`.
+        public struct SandboxAnalyticsCountPoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCountPoint/at`.
+            public var at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCountPoint/value`.
+            public var value: Swift.Int
+            /// Creates a new `SandboxAnalyticsCountPoint`.
+            ///
+            /// - Parameters:
+            ///   - at:
+            ///   - value:
+            public init(
+                at: Foundation.Date,
+                value: Swift.Int
+            ) {
+                self.at = at
+                self.value = value
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case value
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                self.value = try container.decode(
+                    Swift.Int.self,
+                    forKey: .value
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "at",
+                    "value"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetupPoint`.
+        public struct SandboxAnalyticsSetupPoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetupPoint/at`.
+            public var at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetupPoint/avg_ms`.
+            public var avg_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetupPoint/p50_ms`.
+            public var p50_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetupPoint/p90_ms`.
+            public var p90_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetupPoint/p99_ms`.
+            public var p99_ms: Swift.Int?
+            /// Creates a new `SandboxAnalyticsSetupPoint`.
+            ///
+            /// - Parameters:
+            ///   - at:
+            ///   - avg_ms:
+            ///   - p50_ms:
+            ///   - p90_ms:
+            ///   - p99_ms:
+            public init(
+                at: Foundation.Date,
+                avg_ms: Swift.Int? = nil,
+                p50_ms: Swift.Int? = nil,
+                p90_ms: Swift.Int? = nil,
+                p99_ms: Swift.Int? = nil
+            ) {
+                self.at = at
+                self.avg_ms = avg_ms
+                self.p50_ms = p50_ms
+                self.p90_ms = p90_ms
+                self.p99_ms = p99_ms
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case avg_ms
+                case p50_ms
+                case p90_ms
+                case p99_ms
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                self.avg_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .avg_ms
+                )
+                self.p50_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p50_ms
+                )
+                self.p90_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p90_ms
+                )
+                self.p99_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p99_ms
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "at",
+                    "avg_ms",
+                    "p50_ms",
+                    "p90_ms",
+                    "p99_ms"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/Sandboxes`.
+        public struct Sandboxes: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata`.
+            public struct pagination_metadataPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata/current_page`.
+                public var current_page: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata/has_next_page`.
+                public var has_next_page: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata/has_previous_page`.
+                public var has_previous_page: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata/page_size`.
+                public var page_size: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata/total_count`.
+                public var total_count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata/total_pages`.
+                public var total_pages: Swift.Int
+                /// Creates a new `pagination_metadataPayload`.
+                ///
+                /// - Parameters:
+                ///   - current_page:
+                ///   - has_next_page:
+                ///   - has_previous_page:
+                ///   - page_size:
+                ///   - total_count:
+                ///   - total_pages:
+                public init(
+                    current_page: Swift.Int,
+                    has_next_page: Swift.Bool,
+                    has_previous_page: Swift.Bool,
+                    page_size: Swift.Int,
+                    total_count: Swift.Int,
+                    total_pages: Swift.Int
+                ) {
+                    self.current_page = current_page
+                    self.has_next_page = has_next_page
+                    self.has_previous_page = has_previous_page
+                    self.page_size = page_size
+                    self.total_count = total_count
+                    self.total_pages = total_pages
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case current_page
+                    case has_next_page
+                    case has_previous_page
+                    case page_size
+                    case total_count
+                    case total_pages
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.current_page = try container.decode(
+                        Swift.Int.self,
+                        forKey: .current_page
+                    )
+                    self.has_next_page = try container.decode(
+                        Swift.Bool.self,
+                        forKey: .has_next_page
+                    )
+                    self.has_previous_page = try container.decode(
+                        Swift.Bool.self,
+                        forKey: .has_previous_page
+                    )
+                    self.page_size = try container.decode(
+                        Swift.Int.self,
+                        forKey: .page_size
+                    )
+                    self.total_count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .total_count
+                    )
+                    self.total_pages = try container.decode(
+                        Swift.Int.self,
+                        forKey: .total_pages
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "current_page",
+                        "has_next_page",
+                        "has_previous_page",
+                        "page_size",
+                        "total_count",
+                        "total_pages"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata`.
+            public var pagination_metadata: Components.Schemas.Sandboxes.pagination_metadataPayload
+            /// A Firecracker sandbox VM.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload`.
+            public struct sandboxesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/agent_environment_id`.
+                public var agent_environment_id: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/amp_orb_id`.
+                public var amp_orb_id: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/anthropic_session_id`.
+                public var anthropic_session_id: Swift.String?
+                /// Size of the stored archive in bytes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/archive_bytes`.
+                public var archive_bytes: Swift.Int?
+                /// When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/archived_at`.
+                public var archived_at: Foundation.Date?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/error_message`.
+                public var error_message: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/hostname`.
+                public var hostname: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/id`.
+                public var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/inserted_at`.
+                public var inserted_at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/last_active_at`.
+                public var last_active_at: Foundation.Date?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/memory_mb`.
+                public var memory_mb: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/node_name`.
+                public var node_name: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/paused_at`.
+                public var paused_at: Foundation.Date?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/residency_work_id`.
+                public var residency_work_id: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/state`.
+                @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case creating = "creating"
+                    case running = "running"
+                    case resuming = "resuming"
+                    case paused = "paused"
+                    case archived = "archived"
+                    case error = "error"
+                    case deleted = "deleted"
+                }
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/state`.
+                public var state: Components.Schemas.Sandboxes.sandboxesPayloadPayload.statePayload
+                /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/status`.
+                public var status: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/template`.
+                public var template: Swift.String
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/template_tag`.
+                public var template_tag: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/updated_at`.
+                public var updated_at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/vcpus`.
+                public var vcpus: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/workspace_gb`.
+                public var workspace_gb: Swift.Int
+                /// Creates a new `sandboxesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - agent_environment_id:
+                ///   - amp_orb_id:
+                ///   - anthropic_session_id:
+                ///   - archive_bytes: Size of the stored archive in bytes.
+                ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                ///   - error_message:
+                ///   - hostname:
+                ///   - id:
+                ///   - inserted_at:
+                ///   - last_active_at:
+                ///   - memory_mb:
+                ///   - node_name:
+                ///   - paused_at:
+                ///   - residency_work_id:
+                ///   - state:
+                ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                ///   - template:
+                ///   - template_tag:
+                ///   - updated_at:
+                ///   - vcpus:
+                ///   - workspace_gb:
+                public init(
+                    agent_environment_id: Swift.Int? = nil,
+                    amp_orb_id: Swift.String? = nil,
+                    anthropic_session_id: Swift.String? = nil,
+                    archive_bytes: Swift.Int? = nil,
+                    archived_at: Foundation.Date? = nil,
+                    error_message: Swift.String? = nil,
+                    hostname: Swift.String? = nil,
+                    id: Swift.String,
+                    inserted_at: Foundation.Date,
+                    last_active_at: Foundation.Date? = nil,
+                    memory_mb: Swift.Int,
+                    node_name: Swift.String? = nil,
+                    paused_at: Foundation.Date? = nil,
+                    residency_work_id: Swift.String? = nil,
+                    state: Components.Schemas.Sandboxes.sandboxesPayloadPayload.statePayload,
+                    status: Swift.String? = nil,
+                    template: Swift.String,
+                    template_tag: Swift.String? = nil,
+                    updated_at: Foundation.Date,
+                    vcpus: Swift.Int,
+                    workspace_gb: Swift.Int
+                ) {
+                    self.agent_environment_id = agent_environment_id
+                    self.amp_orb_id = amp_orb_id
+                    self.anthropic_session_id = anthropic_session_id
+                    self.archive_bytes = archive_bytes
+                    self.archived_at = archived_at
+                    self.error_message = error_message
+                    self.hostname = hostname
+                    self.id = id
+                    self.inserted_at = inserted_at
+                    self.last_active_at = last_active_at
+                    self.memory_mb = memory_mb
+                    self.node_name = node_name
+                    self.paused_at = paused_at
+                    self.residency_work_id = residency_work_id
+                    self.state = state
+                    self.status = status
+                    self.template = template
+                    self.template_tag = template_tag
+                    self.updated_at = updated_at
+                    self.vcpus = vcpus
+                    self.workspace_gb = workspace_gb
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case agent_environment_id
+                    case amp_orb_id
+                    case anthropic_session_id
+                    case archive_bytes
+                    case archived_at
+                    case error_message
+                    case hostname
+                    case id
+                    case inserted_at
+                    case last_active_at
+                    case memory_mb
+                    case node_name
+                    case paused_at
+                    case residency_work_id
+                    case state
+                    case status
+                    case template
+                    case template_tag
+                    case updated_at
+                    case vcpus
+                    case workspace_gb
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxes`.
+            public typealias sandboxesPayload = [Components.Schemas.Sandboxes.sandboxesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxes`.
+            public var sandboxes: Components.Schemas.Sandboxes.sandboxesPayload
+            /// Creates a new `Sandboxes`.
+            ///
+            /// - Parameters:
+            ///   - pagination_metadata:
+            ///   - sandboxes:
+            public init(
+                pagination_metadata: Components.Schemas.Sandboxes.pagination_metadataPayload,
+                sandboxes: Components.Schemas.Sandboxes.sandboxesPayload
+            ) {
+                self.pagination_metadata = pagination_metadata
+                self.sandboxes = sandboxes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case pagination_metadata
+                case sandboxes
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.pagination_metadata = try container.decode(
+                    Components.Schemas.Sandboxes.pagination_metadataPayload.self,
+                    forKey: .pagination_metadata
+                )
+                self.sandboxes = try container.decode(
+                    Components.Schemas.Sandboxes.sandboxesPayload.self,
+                    forKey: .sandboxes
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "pagination_metadata",
+                    "sandboxes"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalytics`.
+        public struct SandboxAnalytics: Codable, Hashable, Sendable {
+            /// `hour` for ranges of up to 36 hours, otherwise `day`: the span of each point.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/bucket`.
+            public var bucket: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency`.
+            public struct concurrencyPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use`.
+                public struct in_usePayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/disk_gb`.
+                    public var disk_gb: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/memory_gb`.
+                    public var memory_gb: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/vcpus`.
+                    public var vcpus: Swift.Int
+                    /// Creates a new `in_usePayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - disk_gb:
+                    ///   - memory_gb:
+                    ///   - vcpus:
+                    public init(
+                        disk_gb: Swift.Double,
+                        memory_gb: Swift.Double,
+                        vcpus: Swift.Int
+                    ) {
+                        self.disk_gb = disk_gb
+                        self.memory_gb = memory_gb
+                        self.vcpus = vcpus
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case disk_gb
+                        case memory_gb
+                        case vcpus
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.disk_gb = try container.decode(
+                            Swift.Double.self,
+                            forKey: .disk_gb
+                        )
+                        self.memory_gb = try container.decode(
+                            Swift.Double.self,
+                            forKey: .memory_gb
+                        )
+                        self.vcpus = try container.decode(
+                            Swift.Int.self,
+                            forKey: .vcpus
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "disk_gb",
+                            "memory_gb",
+                            "vcpus"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use`.
+                public var in_use: Components.Schemas.SandboxAnalytics.concurrencyPayload.in_usePayload
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits`.
+                public struct limitsPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/disk_gb`.
+                    public var disk_gb: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/memory_gb`.
+                    public var memory_gb: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/vcpus`.
+                    public var vcpus: Swift.Int
+                    /// Creates a new `limitsPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - disk_gb:
+                    ///   - memory_gb:
+                    ///   - vcpus:
+                    public init(
+                        disk_gb: Swift.Double,
+                        memory_gb: Swift.Double,
+                        vcpus: Swift.Int
+                    ) {
+                        self.disk_gb = disk_gb
+                        self.memory_gb = memory_gb
+                        self.vcpus = vcpus
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case disk_gb
+                        case memory_gb
+                        case vcpus
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.disk_gb = try container.decode(
+                            Swift.Double.self,
+                            forKey: .disk_gb
+                        )
+                        self.memory_gb = try container.decode(
+                            Swift.Double.self,
+                            forKey: .memory_gb
+                        )
+                        self.vcpus = try container.decode(
+                            Swift.Int.self,
+                            forKey: .vcpus
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "disk_gb",
+                            "memory_gb",
+                            "vcpus"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits`.
+                public var limits: Components.Schemas.SandboxAnalytics.concurrencyPayload.limitsPayload
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload`.
+                public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/at`.
+                    public var at: Foundation.Date
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/disk_gb`.
+                    public var disk_gb: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/memory_gb`.
+                    public var memory_gb: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/vcpus`.
+                    public var vcpus: Swift.Int
+                    /// Creates a new `pointsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - at:
+                    ///   - disk_gb:
+                    ///   - memory_gb:
+                    ///   - vcpus:
+                    public init(
+                        at: Foundation.Date,
+                        disk_gb: Swift.Double,
+                        memory_gb: Swift.Double,
+                        vcpus: Swift.Int
+                    ) {
+                        self.at = at
+                        self.disk_gb = disk_gb
+                        self.memory_gb = memory_gb
+                        self.vcpus = vcpus
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case at
+                        case disk_gb
+                        case memory_gb
+                        case vcpus
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.at = try container.decode(
+                            Foundation.Date.self,
+                            forKey: .at
+                        )
+                        self.disk_gb = try container.decode(
+                            Swift.Double.self,
+                            forKey: .disk_gb
+                        )
+                        self.memory_gb = try container.decode(
+                            Swift.Double.self,
+                            forKey: .memory_gb
+                        )
+                        self.vcpus = try container.decode(
+                            Swift.Int.self,
+                            forKey: .vcpus
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "at",
+                            "disk_gb",
+                            "memory_gb",
+                            "vcpus"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/points`.
+                public typealias pointsPayload = [Components.Schemas.SandboxAnalytics.concurrencyPayload.pointsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/points`.
+                public var points: Components.Schemas.SandboxAnalytics.concurrencyPayload.pointsPayload
+                /// Creates a new `concurrencyPayload`.
+                ///
+                /// - Parameters:
+                ///   - in_use:
+                ///   - limits:
+                ///   - points:
+                public init(
+                    in_use: Components.Schemas.SandboxAnalytics.concurrencyPayload.in_usePayload,
+                    limits: Components.Schemas.SandboxAnalytics.concurrencyPayload.limitsPayload,
+                    points: Components.Schemas.SandboxAnalytics.concurrencyPayload.pointsPayload
+                ) {
+                    self.in_use = in_use
+                    self.limits = limits
+                    self.points = points
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case in_use
+                    case limits
+                    case points
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.in_use = try container.decode(
+                        Components.Schemas.SandboxAnalytics.concurrencyPayload.in_usePayload.self,
+                        forKey: .in_use
+                    )
+                    self.limits = try container.decode(
+                        Components.Schemas.SandboxAnalytics.concurrencyPayload.limitsPayload.self,
+                        forKey: .limits
+                    )
+                    self.points = try container.decode(
+                        Components.Schemas.SandboxAnalytics.concurrencyPayload.pointsPayload.self,
+                        forKey: .points
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "in_use",
+                        "limits",
+                        "points"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency`.
+            public var concurrency: Components.Schemas.SandboxAnalytics.concurrencyPayload
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created`.
+            public struct createdPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/count`.
+                public var count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/pointsPayload`.
+                public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/pointsPayload/at`.
+                    public var at: Foundation.Date
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/pointsPayload/value`.
+                    public var value: Swift.Int
+                    /// Creates a new `pointsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - at:
+                    ///   - value:
+                    public init(
+                        at: Foundation.Date,
+                        value: Swift.Int
+                    ) {
+                        self.at = at
+                        self.value = value
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case at
+                        case value
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.at = try container.decode(
+                            Foundation.Date.self,
+                            forKey: .at
+                        )
+                        self.value = try container.decode(
+                            Swift.Int.self,
+                            forKey: .value
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "at",
+                            "value"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/points`.
+                public typealias pointsPayload = [Components.Schemas.SandboxAnalytics.createdPayload.pointsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/points`.
+                public var points: Components.Schemas.SandboxAnalytics.createdPayload.pointsPayload
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/trend`.
+                public var trend: Swift.Double
+                /// Creates a new `createdPayload`.
+                ///
+                /// - Parameters:
+                ///   - count:
+                ///   - points:
+                ///   - trend: Percent change against the range of the same length before it; 0 when either is 0.
+                public init(
+                    count: Swift.Int,
+                    points: Components.Schemas.SandboxAnalytics.createdPayload.pointsPayload,
+                    trend: Swift.Double
+                ) {
+                    self.count = count
+                    self.points = points
+                    self.trend = trend
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case count
+                    case points
+                    case trend
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .count
+                    )
+                    self.points = try container.decode(
+                        Components.Schemas.SandboxAnalytics.createdPayload.pointsPayload.self,
+                        forKey: .points
+                    )
+                    self.trend = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "count",
+                        "points",
+                        "trend"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created`.
+            public var created: Components.Schemas.SandboxAnalytics.createdPayload
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/period`.
+            public struct periodPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/period/end`.
+                public var end: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/period/start`.
+                public var start: Foundation.Date
+                /// Creates a new `periodPayload`.
+                ///
+                /// - Parameters:
+                ///   - end:
+                ///   - start:
+                public init(
+                    end: Foundation.Date,
+                    start: Foundation.Date
+                ) {
+                    self.end = end
+                    self.start = start
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case end
+                    case start
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.end = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .end
+                    )
+                    self.start = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .start
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "end",
+                        "start"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/period`.
+            public var period: Components.Schemas.SandboxAnalytics.periodPayload
+            /// Run sessions that ended in the range. Points without any have null figures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration`.
+            public struct session_durationPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/avg_ms`.
+                public var avg_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/count`.
+                public var count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/p50_ms`.
+                public var p50_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/p90_ms`.
+                public var p90_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/p99_ms`.
+                public var p99_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/pointsPayload`.
+                public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/pointsPayload/at`.
+                    public var at: Foundation.Date
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/pointsPayload/avg_ms`.
+                    public var avg_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/pointsPayload/p50_ms`.
+                    public var p50_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/pointsPayload/p90_ms`.
+                    public var p90_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/pointsPayload/p99_ms`.
+                    public var p99_ms: Swift.Int?
+                    /// Creates a new `pointsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - at:
+                    ///   - avg_ms:
+                    ///   - p50_ms:
+                    ///   - p90_ms:
+                    ///   - p99_ms:
+                    public init(
+                        at: Foundation.Date,
+                        avg_ms: Swift.Int? = nil,
+                        p50_ms: Swift.Int? = nil,
+                        p90_ms: Swift.Int? = nil,
+                        p99_ms: Swift.Int? = nil
+                    ) {
+                        self.at = at
+                        self.avg_ms = avg_ms
+                        self.p50_ms = p50_ms
+                        self.p90_ms = p90_ms
+                        self.p99_ms = p99_ms
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case at
+                        case avg_ms
+                        case p50_ms
+                        case p90_ms
+                        case p99_ms
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.at = try container.decode(
+                            Foundation.Date.self,
+                            forKey: .at
+                        )
+                        self.avg_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .avg_ms
+                        )
+                        self.p50_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p50_ms
+                        )
+                        self.p90_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p90_ms
+                        )
+                        self.p99_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p99_ms
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "at",
+                            "avg_ms",
+                            "p50_ms",
+                            "p90_ms",
+                            "p99_ms"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/points`.
+                public typealias pointsPayload = [Components.Schemas.SandboxAnalytics.session_durationPayload.pointsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/points`.
+                public var points: Components.Schemas.SandboxAnalytics.session_durationPayload.pointsPayload
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/trend_avg`.
+                public var trend_avg: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/trend_p50`.
+                public var trend_p50: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/trend_p90`.
+                public var trend_p90: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/trend_p99`.
+                public var trend_p99: Swift.Double
+                /// Creates a new `session_durationPayload`.
+                ///
+                /// - Parameters:
+                ///   - avg_ms:
+                ///   - count:
+                ///   - p50_ms:
+                ///   - p90_ms:
+                ///   - p99_ms:
+                ///   - points:
+                ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+                public init(
+                    avg_ms: Swift.Int,
+                    count: Swift.Int,
+                    p50_ms: Swift.Int,
+                    p90_ms: Swift.Int,
+                    p99_ms: Swift.Int,
+                    points: Components.Schemas.SandboxAnalytics.session_durationPayload.pointsPayload,
+                    trend_avg: Swift.Double,
+                    trend_p50: Swift.Double,
+                    trend_p90: Swift.Double,
+                    trend_p99: Swift.Double
+                ) {
+                    self.avg_ms = avg_ms
+                    self.count = count
+                    self.p50_ms = p50_ms
+                    self.p90_ms = p90_ms
+                    self.p99_ms = p99_ms
+                    self.points = points
+                    self.trend_avg = trend_avg
+                    self.trend_p50 = trend_p50
+                    self.trend_p90 = trend_p90
+                    self.trend_p99 = trend_p99
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case avg_ms
+                    case count
+                    case p50_ms
+                    case p90_ms
+                    case p99_ms
+                    case points
+                    case trend_avg
+                    case trend_p50
+                    case trend_p90
+                    case trend_p99
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.avg_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .avg_ms
+                    )
+                    self.count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .count
+                    )
+                    self.p50_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p50_ms
+                    )
+                    self.p90_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p90_ms
+                    )
+                    self.p99_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p99_ms
+                    )
+                    self.points = try container.decode(
+                        Components.Schemas.SandboxAnalytics.session_durationPayload.pointsPayload.self,
+                        forKey: .points
+                    )
+                    self.trend_avg = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_avg
+                    )
+                    self.trend_p50 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p50
+                    )
+                    self.trend_p90 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p90
+                    )
+                    self.trend_p99 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p99
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "avg_ms",
+                        "count",
+                        "p50_ms",
+                        "p90_ms",
+                        "p99_ms",
+                        "points",
+                        "trend_avg",
+                        "trend_p50",
+                        "trend_p90",
+                        "trend_p99"
+                    ])
+                }
+            }
+            /// Run sessions that ended in the range. Points without any have null figures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration`.
+            public var session_duration: Components.Schemas.SandboxAnalytics.session_durationPayload
+            /// How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup`.
+            public struct setupPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/avg_ms`.
+                public var avg_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/count`.
+                public var count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/p50_ms`.
+                public var p50_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/p90_ms`.
+                public var p90_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/p99_ms`.
+                public var p99_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/pointsPayload`.
+                public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/pointsPayload/at`.
+                    public var at: Foundation.Date
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/pointsPayload/avg_ms`.
+                    public var avg_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/pointsPayload/p50_ms`.
+                    public var p50_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/pointsPayload/p90_ms`.
+                    public var p90_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/pointsPayload/p99_ms`.
+                    public var p99_ms: Swift.Int?
+                    /// Creates a new `pointsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - at:
+                    ///   - avg_ms:
+                    ///   - p50_ms:
+                    ///   - p90_ms:
+                    ///   - p99_ms:
+                    public init(
+                        at: Foundation.Date,
+                        avg_ms: Swift.Int? = nil,
+                        p50_ms: Swift.Int? = nil,
+                        p90_ms: Swift.Int? = nil,
+                        p99_ms: Swift.Int? = nil
+                    ) {
+                        self.at = at
+                        self.avg_ms = avg_ms
+                        self.p50_ms = p50_ms
+                        self.p90_ms = p90_ms
+                        self.p99_ms = p99_ms
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case at
+                        case avg_ms
+                        case p50_ms
+                        case p90_ms
+                        case p99_ms
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.at = try container.decode(
+                            Foundation.Date.self,
+                            forKey: .at
+                        )
+                        self.avg_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .avg_ms
+                        )
+                        self.p50_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p50_ms
+                        )
+                        self.p90_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p90_ms
+                        )
+                        self.p99_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p99_ms
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "at",
+                            "avg_ms",
+                            "p50_ms",
+                            "p90_ms",
+                            "p99_ms"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/points`.
+                public typealias pointsPayload = [Components.Schemas.SandboxAnalytics.setupPayload.pointsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/points`.
+                public var points: Components.Schemas.SandboxAnalytics.setupPayload.pointsPayload
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/trend_avg`.
+                public var trend_avg: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/trend_p50`.
+                public var trend_p50: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/trend_p90`.
+                public var trend_p90: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/trend_p99`.
+                public var trend_p99: Swift.Double
+                /// Creates a new `setupPayload`.
+                ///
+                /// - Parameters:
+                ///   - avg_ms:
+                ///   - count:
+                ///   - p50_ms:
+                ///   - p90_ms:
+                ///   - p99_ms:
+                ///   - points:
+                ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+                public init(
+                    avg_ms: Swift.Int,
+                    count: Swift.Int,
+                    p50_ms: Swift.Int,
+                    p90_ms: Swift.Int,
+                    p99_ms: Swift.Int,
+                    points: Components.Schemas.SandboxAnalytics.setupPayload.pointsPayload,
+                    trend_avg: Swift.Double,
+                    trend_p50: Swift.Double,
+                    trend_p90: Swift.Double,
+                    trend_p99: Swift.Double
+                ) {
+                    self.avg_ms = avg_ms
+                    self.count = count
+                    self.p50_ms = p50_ms
+                    self.p90_ms = p90_ms
+                    self.p99_ms = p99_ms
+                    self.points = points
+                    self.trend_avg = trend_avg
+                    self.trend_p50 = trend_p50
+                    self.trend_p90 = trend_p90
+                    self.trend_p99 = trend_p99
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case avg_ms
+                    case count
+                    case p50_ms
+                    case p90_ms
+                    case p99_ms
+                    case points
+                    case trend_avg
+                    case trend_p50
+                    case trend_p90
+                    case trend_p99
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.avg_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .avg_ms
+                    )
+                    self.count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .count
+                    )
+                    self.p50_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p50_ms
+                    )
+                    self.p90_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p90_ms
+                    )
+                    self.p99_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p99_ms
+                    )
+                    self.points = try container.decode(
+                        Components.Schemas.SandboxAnalytics.setupPayload.pointsPayload.self,
+                        forKey: .points
+                    )
+                    self.trend_avg = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_avg
+                    )
+                    self.trend_p50 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p50
+                    )
+                    self.trend_p90 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p90
+                    )
+                    self.trend_p99 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p99
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "avg_ms",
+                        "count",
+                        "p50_ms",
+                        "p90_ms",
+                        "p99_ms",
+                        "points",
+                        "trend_avg",
+                        "trend_p50",
+                        "trend_p90",
+                        "trend_p99"
+                    ])
+                }
+            }
+            /// How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup`.
+            public var setup: Components.Schemas.SandboxAnalytics.setupPayload
+            /// How long sandboxes took to boot (create or restore). Points without any have null figures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start`.
+            public struct time_to_startPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/avg_ms`.
+                public var avg_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/count`.
+                public var count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/p50_ms`.
+                public var p50_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/p90_ms`.
+                public var p90_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/p99_ms`.
+                public var p99_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/pointsPayload`.
+                public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/pointsPayload/at`.
+                    public var at: Foundation.Date
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/pointsPayload/avg_ms`.
+                    public var avg_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/pointsPayload/p50_ms`.
+                    public var p50_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/pointsPayload/p90_ms`.
+                    public var p90_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/pointsPayload/p99_ms`.
+                    public var p99_ms: Swift.Int?
+                    /// Creates a new `pointsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - at:
+                    ///   - avg_ms:
+                    ///   - p50_ms:
+                    ///   - p90_ms:
+                    ///   - p99_ms:
+                    public init(
+                        at: Foundation.Date,
+                        avg_ms: Swift.Int? = nil,
+                        p50_ms: Swift.Int? = nil,
+                        p90_ms: Swift.Int? = nil,
+                        p99_ms: Swift.Int? = nil
+                    ) {
+                        self.at = at
+                        self.avg_ms = avg_ms
+                        self.p50_ms = p50_ms
+                        self.p90_ms = p90_ms
+                        self.p99_ms = p99_ms
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case at
+                        case avg_ms
+                        case p50_ms
+                        case p90_ms
+                        case p99_ms
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.at = try container.decode(
+                            Foundation.Date.self,
+                            forKey: .at
+                        )
+                        self.avg_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .avg_ms
+                        )
+                        self.p50_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p50_ms
+                        )
+                        self.p90_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p90_ms
+                        )
+                        self.p99_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p99_ms
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "at",
+                            "avg_ms",
+                            "p50_ms",
+                            "p90_ms",
+                            "p99_ms"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/points`.
+                public typealias pointsPayload = [Components.Schemas.SandboxAnalytics.time_to_startPayload.pointsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/points`.
+                public var points: Components.Schemas.SandboxAnalytics.time_to_startPayload.pointsPayload
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/trend_avg`.
+                public var trend_avg: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/trend_p50`.
+                public var trend_p50: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/trend_p90`.
+                public var trend_p90: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/trend_p99`.
+                public var trend_p99: Swift.Double
+                /// Creates a new `time_to_startPayload`.
+                ///
+                /// - Parameters:
+                ///   - avg_ms:
+                ///   - count:
+                ///   - p50_ms:
+                ///   - p90_ms:
+                ///   - p99_ms:
+                ///   - points:
+                ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+                public init(
+                    avg_ms: Swift.Int,
+                    count: Swift.Int,
+                    p50_ms: Swift.Int,
+                    p90_ms: Swift.Int,
+                    p99_ms: Swift.Int,
+                    points: Components.Schemas.SandboxAnalytics.time_to_startPayload.pointsPayload,
+                    trend_avg: Swift.Double,
+                    trend_p50: Swift.Double,
+                    trend_p90: Swift.Double,
+                    trend_p99: Swift.Double
+                ) {
+                    self.avg_ms = avg_ms
+                    self.count = count
+                    self.p50_ms = p50_ms
+                    self.p90_ms = p90_ms
+                    self.p99_ms = p99_ms
+                    self.points = points
+                    self.trend_avg = trend_avg
+                    self.trend_p50 = trend_p50
+                    self.trend_p90 = trend_p90
+                    self.trend_p99 = trend_p99
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case avg_ms
+                    case count
+                    case p50_ms
+                    case p90_ms
+                    case p99_ms
+                    case points
+                    case trend_avg
+                    case trend_p50
+                    case trend_p90
+                    case trend_p99
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.avg_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .avg_ms
+                    )
+                    self.count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .count
+                    )
+                    self.p50_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p50_ms
+                    )
+                    self.p90_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p90_ms
+                    )
+                    self.p99_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p99_ms
+                    )
+                    self.points = try container.decode(
+                        Components.Schemas.SandboxAnalytics.time_to_startPayload.pointsPayload.self,
+                        forKey: .points
+                    )
+                    self.trend_avg = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_avg
+                    )
+                    self.trend_p50 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p50
+                    )
+                    self.trend_p90 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p90
+                    )
+                    self.trend_p99 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p99
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "avg_ms",
+                        "count",
+                        "p50_ms",
+                        "p90_ms",
+                        "p99_ms",
+                        "points",
+                        "trend_avg",
+                        "trend_p50",
+                        "trend_p90",
+                        "trend_p99"
+                    ])
+                }
+            }
+            /// How long sandboxes took to boot (create or restore). Points without any have null figures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start`.
+            public var time_to_start: Components.Schemas.SandboxAnalytics.time_to_startPayload
+            /// vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/vcpu_hours`.
+            public var vcpu_hours: Swift.Double
+            /// Creates a new `SandboxAnalytics`.
+            ///
+            /// - Parameters:
+            ///   - bucket: `hour` for ranges of up to 36 hours, otherwise `day`: the span of each point.
+            ///   - concurrency:
+            ///   - created:
+            ///   - period:
+            ///   - session_duration: Run sessions that ended in the range. Points without any have null figures.
+            ///   - setup: How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+            ///   - time_to_start: How long sandboxes took to boot (create or restore). Points without any have null figures.
+            ///   - vcpu_hours: vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.
+            public init(
+                bucket: Swift.String,
+                concurrency: Components.Schemas.SandboxAnalytics.concurrencyPayload,
+                created: Components.Schemas.SandboxAnalytics.createdPayload,
+                period: Components.Schemas.SandboxAnalytics.periodPayload,
+                session_duration: Components.Schemas.SandboxAnalytics.session_durationPayload,
+                setup: Components.Schemas.SandboxAnalytics.setupPayload,
+                time_to_start: Components.Schemas.SandboxAnalytics.time_to_startPayload,
+                vcpu_hours: Swift.Double
+            ) {
+                self.bucket = bucket
+                self.concurrency = concurrency
+                self.created = created
+                self.period = period
+                self.session_duration = session_duration
+                self.setup = setup
+                self.time_to_start = time_to_start
+                self.vcpu_hours = vcpu_hours
+            }
+            public enum CodingKeys: String, CodingKey {
+                case bucket
+                case concurrency
+                case created
+                case period
+                case session_duration
+                case setup
+                case time_to_start
+                case vcpu_hours
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.bucket = try container.decode(
+                    Swift.String.self,
+                    forKey: .bucket
+                )
+                self.concurrency = try container.decode(
+                    Components.Schemas.SandboxAnalytics.concurrencyPayload.self,
+                    forKey: .concurrency
+                )
+                self.created = try container.decode(
+                    Components.Schemas.SandboxAnalytics.createdPayload.self,
+                    forKey: .created
+                )
+                self.period = try container.decode(
+                    Components.Schemas.SandboxAnalytics.periodPayload.self,
+                    forKey: .period
+                )
+                self.session_duration = try container.decode(
+                    Components.Schemas.SandboxAnalytics.session_durationPayload.self,
+                    forKey: .session_duration
+                )
+                self.setup = try container.decode(
+                    Components.Schemas.SandboxAnalytics.setupPayload.self,
+                    forKey: .setup
+                )
+                self.time_to_start = try container.decode(
+                    Components.Schemas.SandboxAnalytics.time_to_startPayload.self,
+                    forKey: .time_to_start
+                )
+                self.vcpu_hours = try container.decode(
+                    Swift.Double.self,
+                    forKey: .vcpu_hours
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "bucket",
+                    "concurrency",
+                    "created",
+                    "period",
+                    "session_duration",
+                    "setup",
+                    "time_to_start",
+                    "vcpu_hours"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse`.
+        public struct SandboxResourcesInUse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/disk_gb`.
+            public var disk_gb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/memory_gb`.
+            public var memory_gb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/vcpus`.
+            public var vcpus: Swift.Int
+            /// Creates a new `SandboxResourcesInUse`.
+            ///
+            /// - Parameters:
+            ///   - disk_gb:
+            ///   - memory_gb:
+            ///   - vcpus:
+            public init(
+                disk_gb: Swift.Double,
+                memory_gb: Swift.Double,
+                vcpus: Swift.Int
+            ) {
+                self.disk_gb = disk_gb
+                self.memory_gb = memory_gb
+                self.vcpus = vcpus
+            }
+            public enum CodingKeys: String, CodingKey {
+                case disk_gb
+                case memory_gb
+                case vcpus
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.disk_gb = try container.decode(
+                    Swift.Double.self,
+                    forKey: .disk_gb
+                )
+                self.memory_gb = try container.decode(
+                    Swift.Double.self,
+                    forKey: .memory_gb
+                )
+                self.vcpus = try container.decode(
+                    Swift.Int.self,
+                    forKey: .vcpus
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "disk_gb",
+                    "memory_gb",
+                    "vcpus"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits`.
+        public struct SandboxResourceLimits: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/disk_gb`.
+            public var disk_gb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/memory_gb`.
+            public var memory_gb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/vcpus`.
+            public var vcpus: Swift.Int
+            /// Creates a new `SandboxResourceLimits`.
+            ///
+            /// - Parameters:
+            ///   - disk_gb:
+            ///   - memory_gb:
+            ///   - vcpus:
+            public init(
+                disk_gb: Swift.Double,
+                memory_gb: Swift.Double,
+                vcpus: Swift.Int
+            ) {
+                self.disk_gb = disk_gb
+                self.memory_gb = memory_gb
+                self.vcpus = vcpus
+            }
+            public enum CodingKeys: String, CodingKey {
+                case disk_gb
+                case memory_gb
+                case vcpus
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.disk_gb = try container.decode(
+                    Swift.Double.self,
+                    forKey: .disk_gb
+                )
+                self.memory_gb = try container.decode(
+                    Swift.Double.self,
+                    forKey: .memory_gb
+                )
+                self.vcpus = try container.decode(
+                    Swift.Int.self,
+                    forKey: .vcpus
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "disk_gb",
+                    "memory_gb",
+                    "vcpus"
+                ])
+            }
+        }
     }
     /// Types generated from the `#/components/parameters` section of the OpenAPI document.
     public enum Parameters {}
@@ -30248,6 +33120,8 @@ public enum Operations {
     }
     /// List the account's sandboxes.
     ///
+    /// Newest first by default. Deleted sandboxes are not listed.
+    ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/get(listSandboxes)`.
     public enum listSandboxes {
@@ -30255,19 +33129,99 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/path`.
             public struct Path: Sendable, Hashable {
-                /// The account handle.
+                ///
                 ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/path/account_handle`.
                 public var account_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - account_handle: The account handle.
+                ///   - account_handle:
                 public init(account_handle: Swift.String) {
                     self.account_handle = account_handle
                 }
             }
             public var path: Operations.listSandboxes.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query`.
+            public struct Query: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/page`.
+                public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/search`.
+                public var search: Swift.String?
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/sort_by`.
+                @frozen public enum sort_byPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case created = "created"
+                    case last_active = "last_active"
+                    case identifier = "identifier"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/sort_by`.
+                public var sort_by: Operations.listSandboxes.Input.Query.sort_byPayload?
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/sort_order`.
+                @frozen public enum sort_orderPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case asc = "asc"
+                    case desc = "desc"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/sort_order`.
+                public var sort_order: Operations.listSandboxes.Input.Query.sort_orderPayload?
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case active = "active"
+                    case idle = "idle"
+                    case starting = "starting"
+                    case resuming = "resuming"
+                    case paused = "paused"
+                    case archived = "archived"
+                    case failed = "failed"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/status`.
+                public var status: Operations.listSandboxes.Input.Query.statusPayload?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/vcpus`.
+                public var vcpus: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - page:
+                ///   - page_size:
+                ///   - search:
+                ///   - sort_by:
+                ///   - sort_order:
+                ///   - status:
+                ///   - vcpus:
+                public init(
+                    page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil,
+                    search: Swift.String? = nil,
+                    sort_by: Operations.listSandboxes.Input.Query.sort_byPayload? = nil,
+                    sort_order: Operations.listSandboxes.Input.Query.sort_orderPayload? = nil,
+                    status: Operations.listSandboxes.Input.Query.statusPayload? = nil,
+                    vcpus: Swift.Int? = nil
+                ) {
+                    self.page = page
+                    self.page_size = page_size
+                    self.search = search
+                    self.sort_by = sort_by
+                    self.sort_order = sort_order
+                    self.status = status
+                    self.vcpus = vcpus
+                }
+            }
+            public var query: Operations.listSandboxes.Input.Query
             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/header`.
             public struct Headers: Sendable, Hashable {
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listSandboxes.AcceptableContentType>]
@@ -30284,12 +33238,15 @@ public enum Operations {
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
             public init(
                 path: Operations.listSandboxes.Input.Path,
+                query: Operations.listSandboxes.Input.Query = .init(),
                 headers: Operations.listSandboxes.Input.Headers = .init()
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
             }
         }
@@ -30299,6 +33256,90 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata`.
+                        public struct pagination_metadataPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata/current_page`.
+                            public var current_page: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata/has_next_page`.
+                            public var has_next_page: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata/has_previous_page`.
+                            public var has_previous_page: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata/page_size`.
+                            public var page_size: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata/total_count`.
+                            public var total_count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata/total_pages`.
+                            public var total_pages: Swift.Int
+                            /// Creates a new `pagination_metadataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - current_page:
+                            ///   - has_next_page:
+                            ///   - has_previous_page:
+                            ///   - page_size:
+                            ///   - total_count:
+                            ///   - total_pages:
+                            public init(
+                                current_page: Swift.Int,
+                                has_next_page: Swift.Bool,
+                                has_previous_page: Swift.Bool,
+                                page_size: Swift.Int,
+                                total_count: Swift.Int,
+                                total_pages: Swift.Int
+                            ) {
+                                self.current_page = current_page
+                                self.has_next_page = has_next_page
+                                self.has_previous_page = has_previous_page
+                                self.page_size = page_size
+                                self.total_count = total_count
+                                self.total_pages = total_pages
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case current_page
+                                case has_next_page
+                                case has_previous_page
+                                case page_size
+                                case total_count
+                                case total_pages
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.current_page = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .current_page
+                                )
+                                self.has_next_page = try container.decode(
+                                    Swift.Bool.self,
+                                    forKey: .has_next_page
+                                )
+                                self.has_previous_page = try container.decode(
+                                    Swift.Bool.self,
+                                    forKey: .has_previous_page
+                                )
+                                self.page_size = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .page_size
+                                )
+                                self.total_count = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .total_count
+                                )
+                                self.total_pages = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .total_pages
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "current_page",
+                                    "has_next_page",
+                                    "has_previous_page",
+                                    "page_size",
+                                    "total_count",
+                                    "total_pages"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Operations.listSandboxes.Output.Ok.Body.jsonPayload.pagination_metadataPayload
                         /// A Firecracker sandbox VM.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload`.
@@ -30347,6 +33388,10 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/state`.
                             public var state: Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayloadPayload.statePayload
+                            /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/status`.
+                            public var status: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/template`.
                             public var template: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/template_tag`.
@@ -30375,6 +33420,7 @@ public enum Operations {
                             ///   - paused_at:
                             ///   - residency_work_id:
                             ///   - state:
+                            ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                             ///   - template:
                             ///   - template_tag:
                             ///   - updated_at:
@@ -30396,6 +33442,7 @@ public enum Operations {
                                 paused_at: Foundation.Date? = nil,
                                 residency_work_id: Swift.String? = nil,
                                 state: Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayloadPayload.statePayload,
+                                status: Swift.String? = nil,
                                 template: Swift.String,
                                 template_tag: Swift.String? = nil,
                                 updated_at: Foundation.Date,
@@ -30417,6 +33464,7 @@ public enum Operations {
                                 self.paused_at = paused_at
                                 self.residency_work_id = residency_work_id
                                 self.state = state
+                                self.status = status
                                 self.template = template
                                 self.template_tag = template_tag
                                 self.updated_at = updated_at
@@ -30439,6 +33487,7 @@ public enum Operations {
                                 case paused_at
                                 case residency_work_id
                                 case state
+                                case status
                                 case template
                                 case template_tag
                                 case updated_at
@@ -30453,12 +33502,33 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - pagination_metadata:
                         ///   - sandboxes:
-                        public init(sandboxes: Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayload) {
+                        public init(
+                            pagination_metadata: Operations.listSandboxes.Output.Ok.Body.jsonPayload.pagination_metadataPayload,
+                            sandboxes: Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayload
+                        ) {
+                            self.pagination_metadata = pagination_metadata
                             self.sandboxes = sandboxes
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case pagination_metadata
                             case sandboxes
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.pagination_metadata = try container.decode(
+                                Operations.listSandboxes.Output.Ok.Body.jsonPayload.pagination_metadataPayload.self,
+                                forKey: .pagination_metadata
+                            )
+                            self.sandboxes = try container.decode(
+                                Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayload.self,
+                                forKey: .sandboxes
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "pagination_metadata",
+                                "sandboxes"
+                            ])
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/application\/json`.
@@ -30504,6 +33574,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listSandboxes.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listSandboxes.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/get(listSandboxes)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listSandboxes.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listSandboxes.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -30835,6 +33956,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/state`.
                         public var state: Operations.createSandbox.Output.Created.Body.jsonPayload.statePayload
+                        /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/status`.
+                        public var status: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/template_tag`.
@@ -30863,6 +33988,7 @@ public enum Operations {
                         ///   - paused_at:
                         ///   - residency_work_id:
                         ///   - state:
+                        ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                         ///   - template:
                         ///   - template_tag:
                         ///   - updated_at:
@@ -30884,6 +34010,7 @@ public enum Operations {
                             paused_at: Foundation.Date? = nil,
                             residency_work_id: Swift.String? = nil,
                             state: Operations.createSandbox.Output.Created.Body.jsonPayload.statePayload,
+                            status: Swift.String? = nil,
                             template: Swift.String,
                             template_tag: Swift.String? = nil,
                             updated_at: Foundation.Date,
@@ -30905,6 +34032,7 @@ public enum Operations {
                             self.paused_at = paused_at
                             self.residency_work_id = residency_work_id
                             self.state = state
+                            self.status = status
                             self.template = template
                             self.template_tag = template_tag
                             self.updated_at = updated_at
@@ -30927,6 +34055,7 @@ public enum Operations {
                             case paused_at
                             case residency_work_id
                             case state
+                            case status
                             case template
                             case template_tag
                             case updated_at
@@ -45152,6 +48281,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/state`.
                         public var state: Operations.getSandbox.Output.Ok.Body.jsonPayload.statePayload
+                        /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/status`.
+                        public var status: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/template_tag`.
@@ -45180,6 +48313,7 @@ public enum Operations {
                         ///   - paused_at:
                         ///   - residency_work_id:
                         ///   - state:
+                        ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                         ///   - template:
                         ///   - template_tag:
                         ///   - updated_at:
@@ -45201,6 +48335,7 @@ public enum Operations {
                             paused_at: Foundation.Date? = nil,
                             residency_work_id: Swift.String? = nil,
                             state: Operations.getSandbox.Output.Ok.Body.jsonPayload.statePayload,
+                            status: Swift.String? = nil,
                             template: Swift.String,
                             template_tag: Swift.String? = nil,
                             updated_at: Foundation.Date,
@@ -45222,6 +48357,7 @@ public enum Operations {
                             self.paused_at = paused_at
                             self.residency_work_id = residency_work_id
                             self.state = state
+                            self.status = status
                             self.template = template
                             self.template_tag = template_tag
                             self.updated_at = updated_at
@@ -45244,6 +48380,7 @@ public enum Operations {
                             case paused_at
                             case residency_work_id
                             case state
+                            case status
                             case template
                             case template_tag
                             case updated_at
@@ -60433,6 +63570,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/state`.
                         public var state: Operations.resumeSandbox.Output.Ok.Body.jsonPayload.statePayload
+                        /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/status`.
+                        public var status: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/template_tag`.
@@ -60461,6 +63602,7 @@ public enum Operations {
                         ///   - paused_at:
                         ///   - residency_work_id:
                         ///   - state:
+                        ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                         ///   - template:
                         ///   - template_tag:
                         ///   - updated_at:
@@ -60482,6 +63624,7 @@ public enum Operations {
                             paused_at: Foundation.Date? = nil,
                             residency_work_id: Swift.String? = nil,
                             state: Operations.resumeSandbox.Output.Ok.Body.jsonPayload.statePayload,
+                            status: Swift.String? = nil,
                             template: Swift.String,
                             template_tag: Swift.String? = nil,
                             updated_at: Foundation.Date,
@@ -60503,6 +63646,7 @@ public enum Operations {
                             self.paused_at = paused_at
                             self.residency_work_id = residency_work_id
                             self.state = state
+                            self.status = status
                             self.template = template
                             self.template_tag = template_tag
                             self.updated_at = updated_at
@@ -60525,6 +63669,7 @@ public enum Operations {
                             case paused_at
                             case residency_work_id
                             case state
+                            case status
                             case template
                             case template_tag
                             case updated_at
@@ -98135,6 +101280,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/state`.
                         public var state: Operations.pauseSandbox.Output.Ok.Body.jsonPayload.statePayload
+                        /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/status`.
+                        public var status: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/template_tag`.
@@ -98163,6 +101312,7 @@ public enum Operations {
                         ///   - paused_at:
                         ///   - residency_work_id:
                         ///   - state:
+                        ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                         ///   - template:
                         ///   - template_tag:
                         ///   - updated_at:
@@ -98184,6 +101334,7 @@ public enum Operations {
                             paused_at: Foundation.Date? = nil,
                             residency_work_id: Swift.String? = nil,
                             state: Operations.pauseSandbox.Output.Ok.Body.jsonPayload.statePayload,
+                            status: Swift.String? = nil,
                             template: Swift.String,
                             template_tag: Swift.String? = nil,
                             updated_at: Foundation.Date,
@@ -98205,6 +101356,7 @@ public enum Operations {
                             self.paused_at = paused_at
                             self.residency_work_id = residency_work_id
                             self.state = state
+                            self.status = status
                             self.template = template
                             self.template_tag = template_tag
                             self.updated_at = updated_at
@@ -98227,6 +101379,7 @@ public enum Operations {
                             case paused_at
                             case residency_work_id
                             case state
+                            case status
                             case template
                             case template_tag
                             case updated_at
@@ -145524,6 +148677,2110 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "code402",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get the account's sandbox analytics for a time range.
+    ///
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
+    public enum getSandboxAnalytics {
+        public static let id: Swift.String = "getSandboxAnalytics"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/path`.
+            public struct Path: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.getSandboxAnalytics.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/query`.
+            public struct Query: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/query/end`.
+                public var end: Foundation.Date?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/query/start`.
+                public var start: Foundation.Date?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - end:
+                ///   - start:
+                public init(
+                    end: Foundation.Date? = nil,
+                    start: Foundation.Date? = nil
+                ) {
+                    self.end = end
+                    self.start = start
+                }
+            }
+            public var query: Operations.getSandboxAnalytics.Input.Query
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSandboxAnalytics.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSandboxAnalytics.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getSandboxAnalytics.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.getSandboxAnalytics.Input.Path,
+                query: Operations.getSandboxAnalytics.Input.Query = .init(),
+                headers: Operations.getSandboxAnalytics.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// `hour` for ranges of up to 36 hours, otherwise `day`: the span of each point.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/bucket`.
+                        public var bucket: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency`.
+                        public struct concurrencyPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use`.
+                            public struct in_usePayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/disk_gb`.
+                                public var disk_gb: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/memory_gb`.
+                                public var memory_gb: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/vcpus`.
+                                public var vcpus: Swift.Int
+                                /// Creates a new `in_usePayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - disk_gb:
+                                ///   - memory_gb:
+                                ///   - vcpus:
+                                public init(
+                                    disk_gb: Swift.Double,
+                                    memory_gb: Swift.Double,
+                                    vcpus: Swift.Int
+                                ) {
+                                    self.disk_gb = disk_gb
+                                    self.memory_gb = memory_gb
+                                    self.vcpus = vcpus
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case disk_gb
+                                    case memory_gb
+                                    case vcpus
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.disk_gb = try container.decode(
+                                        Swift.Double.self,
+                                        forKey: .disk_gb
+                                    )
+                                    self.memory_gb = try container.decode(
+                                        Swift.Double.self,
+                                        forKey: .memory_gb
+                                    )
+                                    self.vcpus = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .vcpus
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "disk_gb",
+                                        "memory_gb",
+                                        "vcpus"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use`.
+                            public var in_use: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.in_usePayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits`.
+                            public struct limitsPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/disk_gb`.
+                                public var disk_gb: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/memory_gb`.
+                                public var memory_gb: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/vcpus`.
+                                public var vcpus: Swift.Int
+                                /// Creates a new `limitsPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - disk_gb:
+                                ///   - memory_gb:
+                                ///   - vcpus:
+                                public init(
+                                    disk_gb: Swift.Double,
+                                    memory_gb: Swift.Double,
+                                    vcpus: Swift.Int
+                                ) {
+                                    self.disk_gb = disk_gb
+                                    self.memory_gb = memory_gb
+                                    self.vcpus = vcpus
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case disk_gb
+                                    case memory_gb
+                                    case vcpus
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.disk_gb = try container.decode(
+                                        Swift.Double.self,
+                                        forKey: .disk_gb
+                                    )
+                                    self.memory_gb = try container.decode(
+                                        Swift.Double.self,
+                                        forKey: .memory_gb
+                                    )
+                                    self.vcpus = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .vcpus
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "disk_gb",
+                                        "memory_gb",
+                                        "vcpus"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits`.
+                            public var limits: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.limitsPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload`.
+                            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/at`.
+                                public var at: Foundation.Date
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/disk_gb`.
+                                public var disk_gb: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/memory_gb`.
+                                public var memory_gb: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/vcpus`.
+                                public var vcpus: Swift.Int
+                                /// Creates a new `pointsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - at:
+                                ///   - disk_gb:
+                                ///   - memory_gb:
+                                ///   - vcpus:
+                                public init(
+                                    at: Foundation.Date,
+                                    disk_gb: Swift.Double,
+                                    memory_gb: Swift.Double,
+                                    vcpus: Swift.Int
+                                ) {
+                                    self.at = at
+                                    self.disk_gb = disk_gb
+                                    self.memory_gb = memory_gb
+                                    self.vcpus = vcpus
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case at
+                                    case disk_gb
+                                    case memory_gb
+                                    case vcpus
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.at = try container.decode(
+                                        Foundation.Date.self,
+                                        forKey: .at
+                                    )
+                                    self.disk_gb = try container.decode(
+                                        Swift.Double.self,
+                                        forKey: .disk_gb
+                                    )
+                                    self.memory_gb = try container.decode(
+                                        Swift.Double.self,
+                                        forKey: .memory_gb
+                                    )
+                                    self.vcpus = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .vcpus
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "at",
+                                        "disk_gb",
+                                        "memory_gb",
+                                        "vcpus"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/points`.
+                            public typealias pointsPayload = [Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.pointsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/points`.
+                            public var points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.pointsPayload
+                            /// Creates a new `concurrencyPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - in_use:
+                            ///   - limits:
+                            ///   - points:
+                            public init(
+                                in_use: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.in_usePayload,
+                                limits: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.limitsPayload,
+                                points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.pointsPayload
+                            ) {
+                                self.in_use = in_use
+                                self.limits = limits
+                                self.points = points
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case in_use
+                                case limits
+                                case points
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.in_use = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.in_usePayload.self,
+                                    forKey: .in_use
+                                )
+                                self.limits = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.limitsPayload.self,
+                                    forKey: .limits
+                                )
+                                self.points = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.pointsPayload.self,
+                                    forKey: .points
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "in_use",
+                                    "limits",
+                                    "points"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency`.
+                        public var concurrency: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created`.
+                        public struct createdPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/count`.
+                            public var count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/pointsPayload`.
+                            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/pointsPayload/at`.
+                                public var at: Foundation.Date
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/pointsPayload/value`.
+                                public var value: Swift.Int
+                                /// Creates a new `pointsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - at:
+                                ///   - value:
+                                public init(
+                                    at: Foundation.Date,
+                                    value: Swift.Int
+                                ) {
+                                    self.at = at
+                                    self.value = value
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case at
+                                    case value
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.at = try container.decode(
+                                        Foundation.Date.self,
+                                        forKey: .at
+                                    )
+                                    self.value = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .value
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "at",
+                                        "value"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/points`.
+                            public typealias pointsPayload = [Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload.pointsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/points`.
+                            public var points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload.pointsPayload
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/trend`.
+                            public var trend: Swift.Double
+                            /// Creates a new `createdPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - count:
+                            ///   - points:
+                            ///   - trend: Percent change against the range of the same length before it; 0 when either is 0.
+                            public init(
+                                count: Swift.Int,
+                                points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload.pointsPayload,
+                                trend: Swift.Double
+                            ) {
+                                self.count = count
+                                self.points = points
+                                self.trend = trend
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case count
+                                case points
+                                case trend
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.count = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .count
+                                )
+                                self.points = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload.pointsPayload.self,
+                                    forKey: .points
+                                )
+                                self.trend = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "count",
+                                    "points",
+                                    "trend"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created`.
+                        public var created: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/period`.
+                        public struct periodPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/period/end`.
+                            public var end: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/period/start`.
+                            public var start: Foundation.Date
+                            /// Creates a new `periodPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - end:
+                            ///   - start:
+                            public init(
+                                end: Foundation.Date,
+                                start: Foundation.Date
+                            ) {
+                                self.end = end
+                                self.start = start
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case end
+                                case start
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.end = try container.decode(
+                                    Foundation.Date.self,
+                                    forKey: .end
+                                )
+                                self.start = try container.decode(
+                                    Foundation.Date.self,
+                                    forKey: .start
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "end",
+                                    "start"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/period`.
+                        public var period: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.periodPayload
+                        /// Run sessions that ended in the range. Points without any have null figures.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration`.
+                        public struct session_durationPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/avg_ms`.
+                            public var avg_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/count`.
+                            public var count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/p50_ms`.
+                            public var p50_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/p90_ms`.
+                            public var p90_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/p99_ms`.
+                            public var p99_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/pointsPayload`.
+                            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/pointsPayload/at`.
+                                public var at: Foundation.Date
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/pointsPayload/avg_ms`.
+                                public var avg_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/pointsPayload/p50_ms`.
+                                public var p50_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/pointsPayload/p90_ms`.
+                                public var p90_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/pointsPayload/p99_ms`.
+                                public var p99_ms: Swift.Int?
+                                /// Creates a new `pointsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - at:
+                                ///   - avg_ms:
+                                ///   - p50_ms:
+                                ///   - p90_ms:
+                                ///   - p99_ms:
+                                public init(
+                                    at: Foundation.Date,
+                                    avg_ms: Swift.Int? = nil,
+                                    p50_ms: Swift.Int? = nil,
+                                    p90_ms: Swift.Int? = nil,
+                                    p99_ms: Swift.Int? = nil
+                                ) {
+                                    self.at = at
+                                    self.avg_ms = avg_ms
+                                    self.p50_ms = p50_ms
+                                    self.p90_ms = p90_ms
+                                    self.p99_ms = p99_ms
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case at
+                                    case avg_ms
+                                    case p50_ms
+                                    case p90_ms
+                                    case p99_ms
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.at = try container.decode(
+                                        Foundation.Date.self,
+                                        forKey: .at
+                                    )
+                                    self.avg_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .avg_ms
+                                    )
+                                    self.p50_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p50_ms
+                                    )
+                                    self.p90_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p90_ms
+                                    )
+                                    self.p99_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p99_ms
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "at",
+                                        "avg_ms",
+                                        "p50_ms",
+                                        "p90_ms",
+                                        "p99_ms"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/points`.
+                            public typealias pointsPayload = [Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload.pointsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/points`.
+                            public var points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload.pointsPayload
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/trend_avg`.
+                            public var trend_avg: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/trend_p50`.
+                            public var trend_p50: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/trend_p90`.
+                            public var trend_p90: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/trend_p99`.
+                            public var trend_p99: Swift.Double
+                            /// Creates a new `session_durationPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - avg_ms:
+                            ///   - count:
+                            ///   - p50_ms:
+                            ///   - p90_ms:
+                            ///   - p99_ms:
+                            ///   - points:
+                            ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+                            public init(
+                                avg_ms: Swift.Int,
+                                count: Swift.Int,
+                                p50_ms: Swift.Int,
+                                p90_ms: Swift.Int,
+                                p99_ms: Swift.Int,
+                                points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload.pointsPayload,
+                                trend_avg: Swift.Double,
+                                trend_p50: Swift.Double,
+                                trend_p90: Swift.Double,
+                                trend_p99: Swift.Double
+                            ) {
+                                self.avg_ms = avg_ms
+                                self.count = count
+                                self.p50_ms = p50_ms
+                                self.p90_ms = p90_ms
+                                self.p99_ms = p99_ms
+                                self.points = points
+                                self.trend_avg = trend_avg
+                                self.trend_p50 = trend_p50
+                                self.trend_p90 = trend_p90
+                                self.trend_p99 = trend_p99
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case avg_ms
+                                case count
+                                case p50_ms
+                                case p90_ms
+                                case p99_ms
+                                case points
+                                case trend_avg
+                                case trend_p50
+                                case trend_p90
+                                case trend_p99
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.avg_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .avg_ms
+                                )
+                                self.count = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .count
+                                )
+                                self.p50_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p50_ms
+                                )
+                                self.p90_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p90_ms
+                                )
+                                self.p99_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p99_ms
+                                )
+                                self.points = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload.pointsPayload.self,
+                                    forKey: .points
+                                )
+                                self.trend_avg = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_avg
+                                )
+                                self.trend_p50 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p50
+                                )
+                                self.trend_p90 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p90
+                                )
+                                self.trend_p99 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p99
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "avg_ms",
+                                    "count",
+                                    "p50_ms",
+                                    "p90_ms",
+                                    "p99_ms",
+                                    "points",
+                                    "trend_avg",
+                                    "trend_p50",
+                                    "trend_p90",
+                                    "trend_p99"
+                                ])
+                            }
+                        }
+                        /// Run sessions that ended in the range. Points without any have null figures.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration`.
+                        public var session_duration: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload
+                        /// How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup`.
+                        public struct setupPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/avg_ms`.
+                            public var avg_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/count`.
+                            public var count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/p50_ms`.
+                            public var p50_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/p90_ms`.
+                            public var p90_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/p99_ms`.
+                            public var p99_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/pointsPayload`.
+                            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/pointsPayload/at`.
+                                public var at: Foundation.Date
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/pointsPayload/avg_ms`.
+                                public var avg_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/pointsPayload/p50_ms`.
+                                public var p50_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/pointsPayload/p90_ms`.
+                                public var p90_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/pointsPayload/p99_ms`.
+                                public var p99_ms: Swift.Int?
+                                /// Creates a new `pointsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - at:
+                                ///   - avg_ms:
+                                ///   - p50_ms:
+                                ///   - p90_ms:
+                                ///   - p99_ms:
+                                public init(
+                                    at: Foundation.Date,
+                                    avg_ms: Swift.Int? = nil,
+                                    p50_ms: Swift.Int? = nil,
+                                    p90_ms: Swift.Int? = nil,
+                                    p99_ms: Swift.Int? = nil
+                                ) {
+                                    self.at = at
+                                    self.avg_ms = avg_ms
+                                    self.p50_ms = p50_ms
+                                    self.p90_ms = p90_ms
+                                    self.p99_ms = p99_ms
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case at
+                                    case avg_ms
+                                    case p50_ms
+                                    case p90_ms
+                                    case p99_ms
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.at = try container.decode(
+                                        Foundation.Date.self,
+                                        forKey: .at
+                                    )
+                                    self.avg_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .avg_ms
+                                    )
+                                    self.p50_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p50_ms
+                                    )
+                                    self.p90_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p90_ms
+                                    )
+                                    self.p99_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p99_ms
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "at",
+                                        "avg_ms",
+                                        "p50_ms",
+                                        "p90_ms",
+                                        "p99_ms"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/points`.
+                            public typealias pointsPayload = [Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload.pointsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/points`.
+                            public var points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload.pointsPayload
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/trend_avg`.
+                            public var trend_avg: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/trend_p50`.
+                            public var trend_p50: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/trend_p90`.
+                            public var trend_p90: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/trend_p99`.
+                            public var trend_p99: Swift.Double
+                            /// Creates a new `setupPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - avg_ms:
+                            ///   - count:
+                            ///   - p50_ms:
+                            ///   - p90_ms:
+                            ///   - p99_ms:
+                            ///   - points:
+                            ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+                            public init(
+                                avg_ms: Swift.Int,
+                                count: Swift.Int,
+                                p50_ms: Swift.Int,
+                                p90_ms: Swift.Int,
+                                p99_ms: Swift.Int,
+                                points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload.pointsPayload,
+                                trend_avg: Swift.Double,
+                                trend_p50: Swift.Double,
+                                trend_p90: Swift.Double,
+                                trend_p99: Swift.Double
+                            ) {
+                                self.avg_ms = avg_ms
+                                self.count = count
+                                self.p50_ms = p50_ms
+                                self.p90_ms = p90_ms
+                                self.p99_ms = p99_ms
+                                self.points = points
+                                self.trend_avg = trend_avg
+                                self.trend_p50 = trend_p50
+                                self.trend_p90 = trend_p90
+                                self.trend_p99 = trend_p99
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case avg_ms
+                                case count
+                                case p50_ms
+                                case p90_ms
+                                case p99_ms
+                                case points
+                                case trend_avg
+                                case trend_p50
+                                case trend_p90
+                                case trend_p99
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.avg_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .avg_ms
+                                )
+                                self.count = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .count
+                                )
+                                self.p50_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p50_ms
+                                )
+                                self.p90_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p90_ms
+                                )
+                                self.p99_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p99_ms
+                                )
+                                self.points = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload.pointsPayload.self,
+                                    forKey: .points
+                                )
+                                self.trend_avg = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_avg
+                                )
+                                self.trend_p50 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p50
+                                )
+                                self.trend_p90 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p90
+                                )
+                                self.trend_p99 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p99
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "avg_ms",
+                                    "count",
+                                    "p50_ms",
+                                    "p90_ms",
+                                    "p99_ms",
+                                    "points",
+                                    "trend_avg",
+                                    "trend_p50",
+                                    "trend_p90",
+                                    "trend_p99"
+                                ])
+                            }
+                        }
+                        /// How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup`.
+                        public var setup: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload
+                        /// How long sandboxes took to boot (create or restore). Points without any have null figures.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start`.
+                        public struct time_to_startPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/avg_ms`.
+                            public var avg_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/count`.
+                            public var count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/p50_ms`.
+                            public var p50_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/p90_ms`.
+                            public var p90_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/p99_ms`.
+                            public var p99_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/pointsPayload`.
+                            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/pointsPayload/at`.
+                                public var at: Foundation.Date
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/pointsPayload/avg_ms`.
+                                public var avg_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/pointsPayload/p50_ms`.
+                                public var p50_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/pointsPayload/p90_ms`.
+                                public var p90_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/pointsPayload/p99_ms`.
+                                public var p99_ms: Swift.Int?
+                                /// Creates a new `pointsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - at:
+                                ///   - avg_ms:
+                                ///   - p50_ms:
+                                ///   - p90_ms:
+                                ///   - p99_ms:
+                                public init(
+                                    at: Foundation.Date,
+                                    avg_ms: Swift.Int? = nil,
+                                    p50_ms: Swift.Int? = nil,
+                                    p90_ms: Swift.Int? = nil,
+                                    p99_ms: Swift.Int? = nil
+                                ) {
+                                    self.at = at
+                                    self.avg_ms = avg_ms
+                                    self.p50_ms = p50_ms
+                                    self.p90_ms = p90_ms
+                                    self.p99_ms = p99_ms
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case at
+                                    case avg_ms
+                                    case p50_ms
+                                    case p90_ms
+                                    case p99_ms
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.at = try container.decode(
+                                        Foundation.Date.self,
+                                        forKey: .at
+                                    )
+                                    self.avg_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .avg_ms
+                                    )
+                                    self.p50_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p50_ms
+                                    )
+                                    self.p90_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p90_ms
+                                    )
+                                    self.p99_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p99_ms
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "at",
+                                        "avg_ms",
+                                        "p50_ms",
+                                        "p90_ms",
+                                        "p99_ms"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/points`.
+                            public typealias pointsPayload = [Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload.pointsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/points`.
+                            public var points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload.pointsPayload
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/trend_avg`.
+                            public var trend_avg: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/trend_p50`.
+                            public var trend_p50: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/trend_p90`.
+                            public var trend_p90: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/trend_p99`.
+                            public var trend_p99: Swift.Double
+                            /// Creates a new `time_to_startPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - avg_ms:
+                            ///   - count:
+                            ///   - p50_ms:
+                            ///   - p90_ms:
+                            ///   - p99_ms:
+                            ///   - points:
+                            ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+                            public init(
+                                avg_ms: Swift.Int,
+                                count: Swift.Int,
+                                p50_ms: Swift.Int,
+                                p90_ms: Swift.Int,
+                                p99_ms: Swift.Int,
+                                points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload.pointsPayload,
+                                trend_avg: Swift.Double,
+                                trend_p50: Swift.Double,
+                                trend_p90: Swift.Double,
+                                trend_p99: Swift.Double
+                            ) {
+                                self.avg_ms = avg_ms
+                                self.count = count
+                                self.p50_ms = p50_ms
+                                self.p90_ms = p90_ms
+                                self.p99_ms = p99_ms
+                                self.points = points
+                                self.trend_avg = trend_avg
+                                self.trend_p50 = trend_p50
+                                self.trend_p90 = trend_p90
+                                self.trend_p99 = trend_p99
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case avg_ms
+                                case count
+                                case p50_ms
+                                case p90_ms
+                                case p99_ms
+                                case points
+                                case trend_avg
+                                case trend_p50
+                                case trend_p90
+                                case trend_p99
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.avg_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .avg_ms
+                                )
+                                self.count = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .count
+                                )
+                                self.p50_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p50_ms
+                                )
+                                self.p90_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p90_ms
+                                )
+                                self.p99_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p99_ms
+                                )
+                                self.points = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload.pointsPayload.self,
+                                    forKey: .points
+                                )
+                                self.trend_avg = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_avg
+                                )
+                                self.trend_p50 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p50
+                                )
+                                self.trend_p90 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p90
+                                )
+                                self.trend_p99 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p99
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "avg_ms",
+                                    "count",
+                                    "p50_ms",
+                                    "p90_ms",
+                                    "p99_ms",
+                                    "points",
+                                    "trend_avg",
+                                    "trend_p50",
+                                    "trend_p90",
+                                    "trend_p99"
+                                ])
+                            }
+                        }
+                        /// How long sandboxes took to boot (create or restore). Points without any have null figures.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start`.
+                        public var time_to_start: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload
+                        /// vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/vcpu_hours`.
+                        public var vcpu_hours: Swift.Double
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - bucket: `hour` for ranges of up to 36 hours, otherwise `day`: the span of each point.
+                        ///   - concurrency:
+                        ///   - created:
+                        ///   - period:
+                        ///   - session_duration: Run sessions that ended in the range. Points without any have null figures.
+                        ///   - setup: How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+                        ///   - time_to_start: How long sandboxes took to boot (create or restore). Points without any have null figures.
+                        ///   - vcpu_hours: vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.
+                        public init(
+                            bucket: Swift.String,
+                            concurrency: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload,
+                            created: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload,
+                            period: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.periodPayload,
+                            session_duration: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload,
+                            setup: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload,
+                            time_to_start: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload,
+                            vcpu_hours: Swift.Double
+                        ) {
+                            self.bucket = bucket
+                            self.concurrency = concurrency
+                            self.created = created
+                            self.period = period
+                            self.session_duration = session_duration
+                            self.setup = setup
+                            self.time_to_start = time_to_start
+                            self.vcpu_hours = vcpu_hours
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case bucket
+                            case concurrency
+                            case created
+                            case period
+                            case session_duration
+                            case setup
+                            case time_to_start
+                            case vcpu_hours
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.bucket = try container.decode(
+                                Swift.String.self,
+                                forKey: .bucket
+                            )
+                            self.concurrency = try container.decode(
+                                Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.self,
+                                forKey: .concurrency
+                            )
+                            self.created = try container.decode(
+                                Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload.self,
+                                forKey: .created
+                            )
+                            self.period = try container.decode(
+                                Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.periodPayload.self,
+                                forKey: .period
+                            )
+                            self.session_duration = try container.decode(
+                                Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload.self,
+                                forKey: .session_duration
+                            )
+                            self.setup = try container.decode(
+                                Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload.self,
+                                forKey: .setup
+                            )
+                            self.time_to_start = try container.decode(
+                                Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload.self,
+                                forKey: .time_to_start
+                            )
+                            self.vcpu_hours = try container.decode(
+                                Swift.Double.self,
+                                forKey: .vcpu_hours
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "bucket",
+                                "concurrency",
+                                "created",
+                                "period",
+                                "session_duration",
+                                "setup",
+                                "time_to_start",
+                                "vcpu_hours"
+                            ])
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/application\/json`.
+                    case json(Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSandboxAnalytics.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSandboxAnalytics.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Sandbox analytics
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getSandboxAnalytics.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getSandboxAnalytics.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSandboxAnalytics.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSandboxAnalytics.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.getSandboxAnalytics.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.getSandboxAnalytics.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSandboxAnalytics.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSandboxAnalytics.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getSandboxAnalytics.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getSandboxAnalytics.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getSandboxAnalytics.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSandboxAnalytics.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getSandboxAnalytics.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getSandboxAnalytics.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getSandboxAnalytics.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getSandboxAnalytics.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Archive a paused sandbox.
+    ///
+    /// Queues moving the paused sandbox's disks to object storage, which frees them on its node. The sandbox stays `paused` until the upload completes and then becomes `archived`; resuming restores it.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)`.
+    public enum archiveSandbox {
+        public static let id: Swift.String = "archiveSandbox"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The sandbox identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/path/sandbox_id`.
+                public var sandbox_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - sandbox_id: The sandbox identifier.
+                public init(
+                    account_handle: Swift.String,
+                    sandbox_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.sandbox_id = sandbox_id
+                }
+            }
+            public var path: Operations.archiveSandbox.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.archiveSandbox.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.archiveSandbox.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.archiveSandbox.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.archiveSandbox.Input.Path,
+                headers: Operations.archiveSandbox.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Accepted: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// A Firecracker sandbox VM.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/agent_environment_id`.
+                        public var agent_environment_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/amp_orb_id`.
+                        public var amp_orb_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/anthropic_session_id`.
+                        public var anthropic_session_id: Swift.String?
+                        /// Size of the stored archive in bytes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/archive_bytes`.
+                        public var archive_bytes: Swift.Int?
+                        /// When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/archived_at`.
+                        public var archived_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/error_message`.
+                        public var error_message: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/hostname`.
+                        public var hostname: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/inserted_at`.
+                        public var inserted_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/last_active_at`.
+                        public var last_active_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/memory_mb`.
+                        public var memory_mb: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/node_name`.
+                        public var node_name: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/paused_at`.
+                        public var paused_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/residency_work_id`.
+                        public var residency_work_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/state`.
+                        @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case creating = "creating"
+                            case running = "running"
+                            case resuming = "resuming"
+                            case paused = "paused"
+                            case archived = "archived"
+                            case error = "error"
+                            case deleted = "deleted"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/state`.
+                        public var state: Operations.archiveSandbox.Output.Accepted.Body.jsonPayload.statePayload
+                        /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/status`.
+                        public var status: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/template`.
+                        public var template: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/template_tag`.
+                        public var template_tag: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/updated_at`.
+                        public var updated_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/vcpus`.
+                        public var vcpus: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/workspace_gb`.
+                        public var workspace_gb: Swift.Int
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - agent_environment_id:
+                        ///   - amp_orb_id:
+                        ///   - anthropic_session_id:
+                        ///   - archive_bytes: Size of the stored archive in bytes.
+                        ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                        ///   - error_message:
+                        ///   - hostname:
+                        ///   - id:
+                        ///   - inserted_at:
+                        ///   - last_active_at:
+                        ///   - memory_mb:
+                        ///   - node_name:
+                        ///   - paused_at:
+                        ///   - residency_work_id:
+                        ///   - state:
+                        ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///   - template:
+                        ///   - template_tag:
+                        ///   - updated_at:
+                        ///   - vcpus:
+                        ///   - workspace_gb:
+                        public init(
+                            agent_environment_id: Swift.Int? = nil,
+                            amp_orb_id: Swift.String? = nil,
+                            anthropic_session_id: Swift.String? = nil,
+                            archive_bytes: Swift.Int? = nil,
+                            archived_at: Foundation.Date? = nil,
+                            error_message: Swift.String? = nil,
+                            hostname: Swift.String? = nil,
+                            id: Swift.String,
+                            inserted_at: Foundation.Date,
+                            last_active_at: Foundation.Date? = nil,
+                            memory_mb: Swift.Int,
+                            node_name: Swift.String? = nil,
+                            paused_at: Foundation.Date? = nil,
+                            residency_work_id: Swift.String? = nil,
+                            state: Operations.archiveSandbox.Output.Accepted.Body.jsonPayload.statePayload,
+                            status: Swift.String? = nil,
+                            template: Swift.String,
+                            template_tag: Swift.String? = nil,
+                            updated_at: Foundation.Date,
+                            vcpus: Swift.Int,
+                            workspace_gb: Swift.Int
+                        ) {
+                            self.agent_environment_id = agent_environment_id
+                            self.amp_orb_id = amp_orb_id
+                            self.anthropic_session_id = anthropic_session_id
+                            self.archive_bytes = archive_bytes
+                            self.archived_at = archived_at
+                            self.error_message = error_message
+                            self.hostname = hostname
+                            self.id = id
+                            self.inserted_at = inserted_at
+                            self.last_active_at = last_active_at
+                            self.memory_mb = memory_mb
+                            self.node_name = node_name
+                            self.paused_at = paused_at
+                            self.residency_work_id = residency_work_id
+                            self.state = state
+                            self.status = status
+                            self.template = template
+                            self.template_tag = template_tag
+                            self.updated_at = updated_at
+                            self.vcpus = vcpus
+                            self.workspace_gb = workspace_gb
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case agent_environment_id
+                            case amp_orb_id
+                            case anthropic_session_id
+                            case archive_bytes
+                            case archived_at
+                            case error_message
+                            case hostname
+                            case id
+                            case inserted_at
+                            case last_active_at
+                            case memory_mb
+                            case node_name
+                            case paused_at
+                            case residency_work_id
+                            case state
+                            case status
+                            case template
+                            case template_tag
+                            case updated_at
+                            case vcpus
+                            case workspace_gb
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/application\/json`.
+                    case json(Operations.archiveSandbox.Output.Accepted.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.archiveSandbox.Output.Accepted.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.Accepted.Body
+                /// Creates a new `Accepted`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.Accepted.Body) {
+                    self.body = body
+                }
+            }
+            /// Sandbox
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/202`.
+            ///
+            /// HTTP response code: `202 accepted`.
+            case accepted(Operations.archiveSandbox.Output.Accepted)
+            /// The associated value of the enum case if `self` is `.accepted`.
+            ///
+            /// - Throws: An error if `self` is not `.accepted`.
+            /// - SeeAlso: `.accepted`.
+            public var accepted: Operations.archiveSandbox.Output.Accepted {
+                get throws {
+                    switch self {
+                    case let .accepted(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "accepted",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.archiveSandbox.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.archiveSandbox.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.archiveSandbox.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.archiveSandbox.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/409/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox is not in a state that allows the operation
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.archiveSandbox.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.archiveSandbox.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.archiveSandbox.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.archiveSandbox.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.archiveSandbox.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.archiveSandbox.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.archiveSandbox.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadGateway: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/502/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/502/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.BadGateway.Body
+                /// Creates a new `BadGateway`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.BadGateway.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox node rejected the operation
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/502`.
+            ///
+            /// HTTP response code: `502 badGateway`.
+            case badGateway(Operations.archiveSandbox.Output.BadGateway)
+            /// The associated value of the enum case if `self` is `.badGateway`.
+            ///
+            /// - Throws: An error if `self` is not `.badGateway`.
+            /// - SeeAlso: `.badGateway`.
+            public var badGateway: Operations.archiveSandbox.Output.BadGateway {
+                get throws {
+                    switch self {
+                    case let .badGateway(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badGateway",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/503/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// No sandbox node is available
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.archiveSandbox.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.archiveSandbox.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct GatewayTimeout: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/504/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/504/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.GatewayTimeout.Body
+                /// Creates a new `GatewayTimeout`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.GatewayTimeout.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox node did not answer in time
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/504`.
+            ///
+            /// HTTP response code: `504 gatewayTimeout`.
+            case gatewayTimeout(Operations.archiveSandbox.Output.GatewayTimeout)
+            /// The associated value of the enum case if `self` is `.gatewayTimeout`.
+            ///
+            /// - Throws: An error if `self` is not `.gatewayTimeout`.
+            /// - SeeAlso: `.gatewayTimeout`.
+            public var gatewayTimeout: Operations.archiveSandbox.Output.GatewayTimeout {
+                get throws {
+                    switch self {
+                    case let .gatewayTimeout(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "gatewayTimeout",
                             response: self
                         )
                     }
