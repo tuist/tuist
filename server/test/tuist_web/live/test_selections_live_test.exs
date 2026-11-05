@@ -101,6 +101,21 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "#test-selection-runs-table", "feature/search")
     end
 
+    test "shows a run that fell back to running every test as Run all", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      selection(project, outcome: "fallback", reason: "no_baseline")
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection")
+
+      assert has_element?(lv, "#test-selection-runs-table", "All")
+      assert has_element?(lv, "#test-selection-runs-table", "Run all")
+      assert has_element?(lv, "#test-selection-runs-table", "No baseline")
+      refute has_element?(lv, "#test-selection-runs-table", "modules")
+    end
+
     test "opens a run's test run on its Selective Testing tab", %{
       conn: conn,
       organization: organization,
@@ -116,13 +131,19 @@ defmodule TuistWeb.TestSelectionsLiveTest do
              )
     end
 
-    test "filters the runs that ran everything", %{conn: conn, organization: organization, project: project} do
+    test "filters the runs that fell back, counting modules for a fallback to selective testing", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
       selection(project, outcome: "fallback", reason: "history_unavailable")
 
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection?fallback=true")
 
       assert has_element?(lv, "#test-selection-runs-table", "History too shallow")
+      assert has_element?(lv, "#test-selection-runs-table", "2 / 3 modules")
+      assert has_element?(lv, "#test-selection-runs-table", "33.3%")
 
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection?search=main")

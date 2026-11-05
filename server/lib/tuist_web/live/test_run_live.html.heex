@@ -498,10 +498,17 @@
               <.badge
                 :if={Tuist.Tests.Selections.fallback?(@selection_run)}
                 label={
-                  dgettext("dashboard_tests", "Fell back: %{reason}",
-                    reason:
-                      TuistWeb.TestSelection.Components.fallback_label(@selection_run.reason)
-                  )
+                  if Tuist.Tests.Selections.run_all?(@selection_run),
+                    do:
+                      dgettext("dashboard_tests", "Run all: %{reason}",
+                        reason:
+                          TuistWeb.TestSelection.Components.fallback_label(@selection_run.reason)
+                      ),
+                    else:
+                      dgettext("dashboard_tests", "Fell back: %{reason}",
+                        reason:
+                          TuistWeb.TestSelection.Components.fallback_label(@selection_run.reason)
+                      )
                 }
                 color="warning"
                 style="light-fill"

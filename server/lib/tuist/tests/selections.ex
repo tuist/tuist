@@ -31,6 +31,9 @@ defmodule Tuist.Tests.Selections do
 
   @selected_reasons ~w(test_file_changed failed_last_run no_evidence impacted owned_without_evidence undecided)
   @skipped_reasons ~w(unaffected module_skipped)
+  # The fallbacks after which the CLI runs every test in scope, hash hits
+  # included (`TestImpactSelector.runAllReasons`).
+  @run_all_reasons ~w(no_baseline baseline_too_old diff_too_large)
   @fallback_reasons ~w(no_baseline baseline_too_old no_baseline_evidence history_unavailable tracked_file_changed diff_too_large diff_unavailable history_unknown)
 
   @doc "Why an impact run selects a test (`RunTest.reason`), in the rules' order."
@@ -42,8 +45,26 @@ defmodule Tuist.Tests.Selections do
   @doc "Why an impact run fell back to default selective testing (`Run.reason`)."
   def fallback_reasons, do: @fallback_reasons
 
-  @doc "Whether the impact run fell back to default selective testing."
+  @doc "Whether the impact run fell back, to running every test or to default selective testing."
   def fallback?(%{outcome: outcome}), do: outcome == "fallback"
+
+  @doc "Whether the impact run fell back to running every test in scope, hash hits included."
+  def run_all?(%{outcome: "fallback", reason: reason}), do: reason in @run_all_reasons
+  def run_all?(_run), do: false
+
+  @doc """
+  The test modules an impact run ran out of those requested: the ones hashing
+  left, out of those plus the ones it skipped. What a fallback to default
+  selective testing is measured by, since it decides no test.
+  """
+  def module_counts(%Run{requested_modules: requested, skipped_modules: skipped}),
+    do: %{ran: length(requested), total: length(requested) + map_size(skipped)}
+
+  @doc "The share of an impact run's test modules hashing skipped."
+  def module_skip_rate(%Run{} = run) do
+    %{ran: ran, total: total} = module_counts(run)
+    skip_rate(ran, total - ran)
+  end
 
   @doc """
   The project's impact runs over a period, counting only those a test run

@@ -317,6 +317,23 @@ defmodule Tuist.Tests.SelectionsTest do
     end
   end
 
+  describe "run_all?/1 and module_counts/1" do
+    test "tell a fallback that runs every test from one to selective testing, and count its modules" do
+      run = %Tuist.TestImpactAnalysis.Run{
+        outcome: "fallback",
+        reason: "tracked_file_changed",
+        requested_modules: ["A", "B", "C"],
+        skipped_modules: %{"D" => 0}
+      }
+
+      refute Selections.run_all?(run)
+      assert Selections.run_all?(%{run | reason: "no_baseline"})
+      refute Selections.run_all?(%{run | outcome: "selected", reason: ""})
+      assert Selections.module_counts(run) == %{ran: 3, total: 4}
+      assert Selections.module_skip_rate(run) == 25.0
+    end
+  end
+
   describe "analytics/2" do
     test "adds up the period's impact runs that a test run reported", %{project: project} do
       run(project)

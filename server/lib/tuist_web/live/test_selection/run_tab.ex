@@ -203,9 +203,15 @@ defmodule TuistWeb.TestSelection.RunTab do
             status="warning"
             size="large"
             title={
-              dgettext("dashboard_tests", "Fell back to default selective testing: %{reason}",
-                reason: fallback_label(@selection_run.reason)
-              )
+              if Selections.run_all?(@selection_run),
+                do:
+                  dgettext("dashboard_tests", "Ran every test: %{reason}",
+                    reason: fallback_label(@selection_run.reason)
+                  ),
+                else:
+                  dgettext("dashboard_tests", "Fell back to default selective testing: %{reason}",
+                    reason: fallback_label(@selection_run.reason)
+                  )
             }
             description={
               Enum.join(
