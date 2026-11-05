@@ -158,6 +158,12 @@ pulso:
   # reader/writer/compactor runs the same version.
   logCompaction:
     enabled: true
+  # Without it every 2 s remote-write batch stays its own segment (167k on
+  # 2026-11-05) and metric panels beyond ~20 minutes exceed the segment
+  # budget. Needs only 1.30+ writers, not bucket versioning.
+  metricsCompaction:
+    enabled: true
+    finalize: true
   # Tempo HTTP search/metrics (/api/search, /api/metrics) and the MCP TraceQL
   # tools, so the Grafana trace panels (event., >>, | select) can run on Pulso.
   tempoSearch:

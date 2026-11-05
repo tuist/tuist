@@ -172,6 +172,64 @@ pulso:
       memory: 2Gi
     limits:
       memory: 4Gi
+  # The processor pool is untainted and sized only for the processor's own
+  # rollout surge; anything else landing there can deadlock that rollout.
+  nodeSelector:
+    node.cluster.x-k8s.io/pool: general
+  # The values below are what Pulso's production-volume load tests ran with
+  # (docs/storage-costs.md): about 32x canary's metric series and 53x its log
+  # bytes on one node. Object-store PUTs follow the 2 s coalescing window
+  # instead of pushes, which is what keeps Tigris Class A requests flat as
+  # ingest grows; acks wait up to 2 s longer.
+  ingestBatching:
+    flushIntervalMs: 2000
+    maxConcurrentRequests: 256
+  # Without metrics compaction every remote-write batch stays its own segment
+  # and panels beyond ~20 minutes exceed the query segment budget. Finalized
+  # hours group rows by metric name and add hourly rollups. No bucket
+  # versioning needed; every writer here is 1.30+.
+  metricsCompaction:
+    enabled: true
+    finalize: true
+  # Merges per-push log segments, regroups settled hours by service
+  # (groupByStream, default on) and builds per-minute rollups for volume panels.
+  logCompaction:
+    enabled: true
+  # Tempo HTTP search/metrics and the MCP TraceQL tools.
+  tempoSearch:
+    enabled: true
+  # Node-local cache of immutable segments: repeated panel reads and
+  # maintenance reads of just-uploaded segments skip the billed GET. Production
+  # fills about 3.6 GiB/hour, so 8 GiB covers 1h dashboards. Counts against the
+  # node's ephemeral storage (emptyDir).
+  objectCache:
+    disk:
+      enabled: true
+      sizeMb: 8192
+  # Preview only: observe mode computes the retention floor but deletes
+  # nothing. Switching to enforce deletes data and needs an explicit decision.
+  retention:
+    mode: observe
+    manifestFormat: paged
+    logsDays: 30
+    tracesDays: 14
+    metricsDays: 90
+  # Query budgets from the production load test. Three concurrent queries plus
+  # two background workers at 160 MiB heap each stay well under the 4Gi limit;
+  # concurrent panels queue up to 5 s for a slot instead of getting 429s.
+  extraEnv:
+    - name: PULSO_QUERY_MAX_CONCURRENT
+      value: "3"
+    - name: PULSO_QUERY_QUEUE_MS
+      value: "5000"
+    - name: PULSO_QUERY_MAX_HEAP_MB
+      value: "160"
+    - name: PULSO_QUERY_MAX_SAMPLES
+      value: "300000"
+    - name: PULSO_QUERY_MAX_SCAN_BYTES
+      value: "268435456"
+    - name: PULSO_QUERY_TIMEOUT_MS
+      value: "15000"
   # Atlas (atlas-production cluster) authenticates with its projected
   # ServiceAccount token, audience pulso.tuist.dev. The JWKS is the Atlas
   # cluster's public signing key, the same one the Tuist server pins as
