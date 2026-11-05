@@ -1320,7 +1320,13 @@ ovhFleets:
     # capacity grows by box count rather than by packing slots tighter. A box
     # seats at most one 16 vCPU Pod, so the box count is also the ceiling on
     # concurrent 16 vCPU jobs.
-    replicas: 10
+    #
+    # Temporarily 9 of the 10 boxes: ns3048220 (51.255.75.149) has no carrier on
+    # its vRack NIC (seen 2026-11-05), and while it is a fleet member every other
+    # host's private-network check waits on it. Its box stays prepped and
+    # adoptable, so restore 10 once OVH repairs the link. Until then, replacing
+    # any other Machine adopts that box again.
+    replicas: 9
     # The OVHcloud entity holding the account, not the box's geography: the RISE
     # range's EU-datacenter plan codes are orderable under OVHcloud US. Every OVH
     # fleet must share one value, because the reconciler resolves a single
