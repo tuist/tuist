@@ -17,11 +17,22 @@ defmodule TuistWeb.Oauth.RegistrationController do
     "response_types" => :response_types,
     "token_endpoint_auth_method" => :token_endpoint_auth_method,
     "jwks" => :jwks,
-    "jwks_uri" => :jwks_uri,
     "metadata" => :metadata
   }
 
   def openid_module, do: Application.get_env(:tuist, :openid_module, Boruta.Openid)
+
+  # Boruta fetches `jwks_uri` with an unguarded HTTP GET while handling this
+  # anonymous request, so it is rejected before Boruta sees the params and left
+  # out of the key map above. Clients that sign assertions register `jwks` inline.
+  def register(%Plug.Conn{} = conn, %{"jwks_uri" => jwks_uri}) when not is_nil(jwks_uri) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{
+      error: "invalid_client_metadata",
+      error_description: "jwks_uri is not supported. Register the client's public keys inline with jwks."
+    })
+  end
 
   def register(%Plug.Conn{} = conn, params) do
     openid_module().register_client(conn, normalize_registration_params(params), __MODULE__)
