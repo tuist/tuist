@@ -1244,7 +1244,7 @@ final class TestServiceTests: TuistUnitTestCase {
             givenGenerator()
             given(simulatorController)
                 .findAvailableDevice(udid: .any)
-                .willReturn(.test(device: .test(name: "Test iPhone")))
+                .willReturn(.test(device: .test(udid: "device-id", name: "Test iPhone")))
             given(buildGraphInspector)
                 .workspaceSchemes(graphTraverser: .any)
                 .willReturn([Scheme.test(name: "ProjectSchemeOne")])
@@ -1269,6 +1269,47 @@ final class TestServiceTests: TuistUnitTestCase {
             let testPlatform = await runMetadataStorage.testPlatform
             XCTAssertEqual(testPlatform, expected)
         }
+    }
+
+    func test_run_tests_requests_the_coverage_baseline_for_the_platform_of_a_simulator_destination_by_id() async throws {
+        // Given
+        givenGenerator()
+        given(simulatorController)
+            .findAvailableDevice(udid: .any)
+            .willReturn(.test(device: .test(udid: "device-id"), runtime: .test(name: "iOS 26.0")))
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "ProjectSchemeOne")])
+        let testImpactSelector = LockedValue<TestImpactSelector?>(nil)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                testImpactSelector.mutate { $0 = TestImpactSelector.current }
+                return (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne")])), MapperEnvironment())
+            }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(
+                project: .testGeneratedProject(),
+                fullHandle: "tuist/tuist",
+                testInsights: .init(selectiveTesting: .init(strategy: .coverage))
+            ))
+
+        // When
+        try await testRun(
+            schemeName: "ProjectSchemeOne",
+            path: try temporaryPath(),
+            passthroughXcodeBuildArguments: ["-destination", "id=device-id"]
+        )
+
+        // Then
+        let requestedPlatform = await testImpactSelector.value?.invocation.platform
+        XCTAssertEqual(requestedPlatform, .iOS)
+        let testPlatform = await runMetadataStorage.testPlatform
+        XCTAssertEqual(testPlatform, .iOS)
+        verify(simulatorController)
+            .findAvailableDevice(udid: .value("device-id"))
+            .called(1)
     }
 
     func test_run_tests_individual_scheme_with_no_test_actions() async throws {
