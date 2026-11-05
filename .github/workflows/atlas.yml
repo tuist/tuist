@@ -121,6 +121,7 @@ jobs:
         run: once build atlas/mix_application_test
         env:
           ONCE_CACHE_PROVIDER: ${{ steps.once-auth.outcome == 'success' && 'tuist' || 'local' }}
+          RUST_LOG: once::commands::graph::analysis::actions=debug
 
       - name: Diagnose Rebar artifacts on failure
         if: failure()
