@@ -86,6 +86,7 @@ defmodule Tuist.Tests.Test do
     field :ci_provider, Ch, type: "LowCardinality(Nullable(String))"
     field :build_system, Ch, type: "LowCardinality(String)", default: "xcode"
     field :shard_plan_id, Ch, type: "Nullable(UUID)"
+    field :test_impact_run_id, Ch, type: "Nullable(UUID)"
     field :reporting_version, Ch, type: "UInt8", default: 0
     field :only_test_identifiers, Ch, type: "Array(String)", default: []
     field :skip_test_identifiers, Ch, type: "Array(String)", default: []
@@ -161,6 +162,7 @@ defmodule Tuist.Tests.Test do
       :ci_provider,
       :build_system,
       :shard_plan_id,
+      :test_impact_run_id,
       :reporting_version,
       :only_test_identifiers,
       :skip_test_identifiers,

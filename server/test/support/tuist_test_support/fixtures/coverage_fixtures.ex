@@ -11,12 +11,15 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
   alias Tuist.GitHistory.CommitListing
   alias Tuist.GitHistory.CommitParent
   alias Tuist.GitHistory.Ref
+  alias Tuist.IngestRepo
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
+  alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.CoverageFile
+  alias Tuist.Tests.CoverageRun
 
   @remote_url "https://github.com/tuist/app"
 
@@ -216,5 +219,89 @@ defmodule TuistTestSupport.Fixtures.CoverageFixtures do
         select: p.parent_sha
       )
     )
+  end
+
+  @doc """
+  Stores a commit's coverage as its fold would leave it, without going
+  through ingestion: the measured set, one `coverage_runs` row per entry of
+  `:runs` (each a keyword list of `id`, `scheme`, `platform` and `partial`;
+  by default a whole run of App on iOS) and, for runs with `evidence: true`
+  (the default), a test-scoped `coverage_files` row. `:partial_schemes` sets
+  the measured set's. Returns the run ids.
+  """
+  def commit_coverage(project, repository_id, sha, opts \\ []) do
+    runs =
+      for run <- Keyword.get(opts, :runs, [[]]) do
+        Keyword.merge([id: UUIDv7.generate(), scheme: "App", platform: "ios", partial: false, evidence: true], run)
+      end
+
+    Repo.insert!(%CoverageCommit{
+      project_id: project.id,
+      git_commit_sha: sha,
+      repository_id: repository_id,
+      committed_at: ~U[2026-09-01 00:00:00.000000Z],
+      ran_at: ~U[2026-09-01 00:00:00.000000Z],
+      covered_lines: 1,
+      executable_lines: 1,
+      schemes: runs |> Enum.map(& &1[:scheme]) |> Enum.uniq(),
+      partial_schemes: Keyword.get(opts, :partial_schemes, []),
+      test_run_ids: Enum.map(runs, & &1[:id])
+    })
+
+    now = NaiveDateTime.utc_now()
+
+    IngestRepo.insert_all(
+      CoverageRun,
+      for run <- runs do
+        %{
+          project_id: project.id,
+          test_run_id: run[:id],
+          scheme: run[:scheme],
+          platform: run[:platform],
+          git_commit_sha: sha,
+          covered_lines: 1,
+          executable_lines: 1,
+          partial: run[:partial],
+          files: 1,
+          version: 1,
+          inserted_at: now
+        }
+      end
+    )
+
+    evidenced = Enum.filter(runs, & &1[:evidence])
+
+    if evidenced != [] do
+      IngestRepo.insert_all(
+        CoverageFile,
+        for run <- evidenced do
+          %{
+            project_id: project.id,
+            test_run_id: run[:id],
+            scope_kind: "test",
+            scope_id: "AppTests/CartTests/testAdd()",
+            path: "App/Cart.swift",
+            git_blob_id: "blob",
+            targets: ["App"],
+            git_commit_sha: sha,
+            covered_lines: 1,
+            executable_lines: 1,
+            line_numbers: [1],
+            execution_counts: [1],
+            branch_line_numbers: [],
+            branch_covered: [],
+            branch_total: [],
+            function_names: [],
+            function_line_numbers: [],
+            function_execution_counts: [],
+            function_covered_lines: [],
+            function_executable_lines: [],
+            inserted_at: now
+          }
+        end
+      )
+    end
+
+    Enum.map(runs, & &1[:id])
   end
 end

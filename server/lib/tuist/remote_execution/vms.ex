@@ -2,8 +2,8 @@ defmodule Tuist.RemoteExecution.VMs do
   @moduledoc """
   Single-use execution VMs and the account concurrency cap. A `sandboxes` row
   exists before its VM is created and is deleted only after the node
-  acknowledges deletion, so creating, idle, busy and uncertain VMs all count
-  against `max_concurrency` across every scheduler and replica.
+  acknowledges deletion, so creating, idle, busy and uncertain VMs all charge
+  the account's vCPU and memory limits across every scheduler and replica.
 
   The owning scheduler renews its rows' leases in batches. A row whose lease
   lapsed belongs to a lost scheduler; `reap/0` deletes its VM. None of these
@@ -39,21 +39,24 @@ defmodule Tuist.RemoteExecution.VMs do
     Repo.transaction(fn ->
       lock_account(account_id)
 
-      count =
-        Repo.aggregate(
-          from(s in Sandbox, where: s.account_id == ^account_id and s.purpose == :remote_execution),
-          :count
+      %{vcpus: vcpus, memory_mb: memory_mb} =
+        Repo.one(
+          from(s in Sandbox,
+            where: s.account_id == ^account_id and s.purpose == :remote_execution,
+            select: %{vcpus: coalesce(sum(s.vcpus), 0), memory_mb: coalesce(sum(s.memory_mb), 0)}
+          )
         )
 
-      if count >= settings.max_concurrency, do: Repo.rollback(:busy)
+      if vcpus + Settings.vm_vcpus() > settings.vcpus or memory_mb + Settings.vm_memory_mb() > settings.memory_gb * 1024,
+        do: Repo.rollback(:busy)
 
       %Sandbox{}
       |> Sandbox.create_changeset(%{
         account_id: account_id,
         purpose: :remote_execution,
         template: "bazel",
-        vcpus: 2,
-        memory_mb: 4096,
+        vcpus: Settings.vm_vcpus(),
+        memory_mb: Settings.vm_memory_mb(),
         workspace_gb: 10
       })
       |> Ecto.Changeset.change(
@@ -69,7 +72,7 @@ defmodule Tuist.RemoteExecution.VMs do
   time before which an unconfirmed create may still arrive.
   """
   def prepare(%Sandbox{} = sandbox, %Settings{} = settings) do
-    case Capacity.place_execution(sandbox, settings, sandbox.template_tag) do
+    case Capacity.place_execution(sandbox, sandbox.template_tag) do
       {:ok, node} ->
         sandbox = %{sandbox | node_name: node}
         deadline = DateTime.add(now(), @create_deadline_seconds, :second)
