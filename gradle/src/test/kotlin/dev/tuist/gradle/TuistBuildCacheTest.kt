@@ -544,6 +544,28 @@ class TuistBuildCacheTest {
         assertEquals(cacheContent, reader.content)
     }
 
+    // A BuildCacheException would make Gradle disable the remote cache for the rest of the
+    // build, loads included, so a credential that may only read keeps loading.
+    @Test
+    fun `store stops pushing after a 403 and keeps loading`() {
+        mockServer.enqueue(MockResponse().setResponseCode(403).setBody("""{"message":"You don't have access"}"""))
+        mockServer.enqueue(MockResponse().setBody("cached-build-output").setResponseCode(200))
+
+        val service = createService(isPushEnabled = true)
+
+        service.store(TestBuildCacheKey("refused"), TestBuildCacheEntryWriter("payload"))
+        service.store(TestBuildCacheKey("skipped"), TestBuildCacheEntryWriter("payload"))
+        val reader = TestBuildCacheEntryReader()
+        val loaded = service.load(TestBuildCacheKey("still-loads"), reader)
+
+        assertTrue(loaded)
+        assertEquals("cached-build-output", reader.content)
+        val requests = List(mockServer.requestCount) { mockServer.takeRequest() }
+        assertEquals(listOf("PUT", "GET"), requests.map { it.method })
+        assertTrue(requests[0].path!!.contains("/refused"))
+        assertTrue(requests[1].path!!.contains("/still-loads"))
+    }
+
     @Test
     fun `store does nothing when push is disabled`() {
         val service = createService(isPushEnabled = false)
