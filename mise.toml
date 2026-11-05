@@ -139,6 +139,9 @@
 [settings]
     jobs = 6
     http_timeout = "60"
+    # GitHub release downloads return 504s for a minute or more at a time. The default
+    # 3 retries give up after about 5 seconds; 8 keep retrying for about a minute.
+    http_retries = 8
     experimental = true
     sops.age_key_file = "~/.config/mise/tuist-age.txt"
     sops.strict = false
