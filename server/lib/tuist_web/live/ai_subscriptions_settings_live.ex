@@ -13,6 +13,8 @@ defmodule TuistWeb.AISubscriptionsSettingsLive do
   import TuistWeb.Components.Terminal
 
   alias Tuist.Accounts.AISubscriptions
+  alias Tuist.Accounts.MCPServers
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
 
   @impl true
@@ -32,7 +34,13 @@ defmodule TuistWeb.AISubscriptionsSettingsLive do
      |> assign(:chatgpt_error, nil)
      |> assign(:disconnect_provider, nil)
      |> assign(:chatgpt_modal_open?, false)
+     |> assign(:mcp_form, empty_mcp_form())
+     |> assign(:mcp_error, nil)
+     |> assign(:mcp_authorizing, nil)
+     |> assign(:remove_mcp_server, nil)
+     |> assign(:mcp_modal_open?, false)
      |> assign_subscriptions()
+     |> assign_mcp_servers()
      |> attach_hook(:ai_flag, :handle_event, &require_ai_flag/3)}
   end
 
@@ -130,7 +138,85 @@ defmodule TuistWeb.AISubscriptionsSettingsLive do
      |> push_event("close-modal", %{id: "disconnect-subscription-modal"})}
   end
 
+  def handle_event("open-mcp-modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(mcp_form: empty_mcp_form(), mcp_error: nil, mcp_modal_open?: true)
+     |> push_event("open-modal", %{id: "add-mcp-server-modal"})}
+  end
+
+  def handle_event("close-mcp-modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(mcp_form: empty_mcp_form(), mcp_error: nil, mcp_modal_open?: false)
+     |> push_event("close-modal", %{id: "add-mcp-server-modal"})}
+  end
+
+  def handle_event("add-mcp-server", _params, %{assigns: %{mcp_authorizing: id}} = socket) when not is_nil(id),
+    do: {:noreply, socket}
+
+  def handle_event("add-mcp-server", %{"mcp_server" => attrs}, socket) do
+    case MCPServers.add(socket.assigns.current_user, attrs) do
+      {:ok, server} ->
+        {:noreply, socket |> assign(:mcp_form, to_form(attrs, as: "mcp_server")) |> authorize_mcp_server(server.id)}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, mcp_form: to_form(attrs, as: "mcp_server"), mcp_error: mcp_error_message(reason))}
+    end
+  end
+
+  def handle_event("connect-mcp-server", %{"id" => id}, %{assigns: %{mcp_authorizing: nil}} = socket) do
+    {:noreply, socket |> assign(:mcp_error, nil) |> authorize_mcp_server(id)}
+  end
+
+  def handle_event("connect-mcp-server", _params, socket), do: {:noreply, socket}
+
+  def handle_event("confirm-remove-mcp-server", %{"id" => id}, socket) do
+    {:noreply,
+     socket
+     |> assign(:remove_mcp_server, Enum.find(socket.assigns.mcp_servers, &(&1.id == id)))
+     |> push_event("open-modal", %{id: "remove-mcp-server-modal"})}
+  end
+
+  def handle_event("cancel-remove-mcp-server", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:remove_mcp_server, nil)
+     |> push_event("close-modal", %{id: "remove-mcp-server-modal"})}
+  end
+
+  def handle_event("remove-mcp-server", _params, %{assigns: %{remove_mcp_server: nil}} = socket), do: {:noreply, socket}
+
+  def handle_event("remove-mcp-server", _params, %{assigns: %{remove_mcp_server: server}} = socket) do
+    :ok = MCPServers.remove(socket.assigns.current_user, server.id)
+
+    {:noreply,
+     socket
+     |> assign(:remove_mcp_server, nil)
+     |> assign_mcp_servers()
+     |> push_event("close-modal", %{id: "remove-mcp-server-modal"})}
+  end
+
   @impl true
+  def handle_async(:mcp_authorize, {:ok, {:ok, authorization_url}}, socket) do
+    {:noreply, socket |> assign(:mcp_authorizing, nil) |> redirect(external: authorization_url)}
+  end
+
+  def handle_async(:mcp_authorize, result, socket) do
+    # Every failure past the URL check reads the same, so the message does not
+    # reveal which hosts or ports Tuist can reach.
+    reason =
+      case result do
+        {:ok, {:error, reason}} when reason in [:rate_limited, :not_found] -> reason
+        _ -> :sign_in_unavailable
+      end
+
+    {:noreply,
+     socket
+     |> assign(mcp_authorizing: nil, mcp_error: mcp_error_message(reason))
+     |> assign_mcp_servers()}
+  end
+
   # Closed before OpenAI answered: drop the sign-in instead of polling it unseen.
   def handle_async(:chatgpt_start, {:ok, {:ok, login}}, %{assigns: %{chatgpt_modal_open?: false}} = socket) do
     AISubscriptions.cancel_chatgpt(socket.assigns.current_user, login.login_id)
@@ -205,4 +291,38 @@ defmodule TuistWeb.AISubscriptionsSettingsLive do
   defp schedule_poll(login), do: Process.send_after(self(), {:poll_chatgpt, login.login_id}, login.interval * 1000)
 
   defp empty_claude_form, do: to_form(%{"token" => ""}, as: "claude")
+
+  defp empty_mcp_form, do: to_form(%{"name" => "", "url" => ""}, as: "mcp_server")
+
+  defp assign_mcp_servers(socket), do: assign(socket, :mcp_servers, MCPServers.list(socket.assigns.current_user))
+
+  # Discovery and client registration call the server, so they run off the
+  # LiveView process; the browser leaves for the authorization server after.
+  defp authorize_mcp_server(socket, server_id) do
+    user = socket.assigns.current_user
+    redirect_uri = Environment.app_url(path: ~p"/integrations/mcp/callback")
+
+    socket
+    |> assign(:mcp_authorizing, server_id)
+    |> assign_mcp_servers()
+    |> start_async(:mcp_authorize, fn -> MCPServers.start_authorization(user, server_id, redirect_uri) end)
+  end
+
+  defp mcp_error_message(:invalid_url),
+    do: dgettext("dashboard_account", "Enter the server's HTTPS endpoint, for example https://example.com/mcp.")
+
+  defp mcp_error_message(:too_many_servers),
+    do: dgettext("dashboard_account", "You can add up to 25 MCP servers. Remove one to add another.")
+
+  defp mcp_error_message(:rate_limited),
+    do: dgettext("dashboard_account", "Too many sign-in attempts. Please try again in a few minutes.")
+
+  defp mcp_error_message(:invalid_name), do: dgettext("dashboard_account", "Names can be up to 64 characters long.")
+
+  defp mcp_error_message(_reason),
+    do:
+      dgettext(
+        "dashboard_account",
+        "Could not sign in to this server. Check that the URL is right and that the server supports MCP OAuth sign-in with dynamic client registration."
+      )
 end

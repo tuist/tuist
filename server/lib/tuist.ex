@@ -203,6 +203,7 @@ defmodule Tuist do
       Accounts.AuthenticatedAccount,
       Accounts.AccountToken,
       Accounts.AISubscriptions,
+      Accounts.MCPServers,
       Accounts.User,
       Accounts.UserMFA,
       Accounts.UserPasskey,
