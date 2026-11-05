@@ -4,6 +4,8 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
 
   alias Tuist.Bundles
   alias Tuist.Projects
+  alias Tuist.Runners.Claims
+  alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.DispatchWorker
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -1010,6 +1012,322 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
           "delivery_guid" => delivery_guid
         }
       )
+    end
+  end
+
+  describe "POST /webhooks/github tenant binding" do
+    # These cases go through the endpoint, so the real `WebhookPlug` HMAC
+    # check and `resolve_webhook_secret/1` pick the installation row, and
+    # then run the enqueued `DispatchWorker` so the runner job lands (or
+    # not) against a real account.
+    setup do
+      cache = :"github_webhook_dispatch_#{System.unique_integer([:positive])}"
+      start_supervised!({Cachex, name: cache})
+      stub(Tuist.Runners.Dispatch, :cache_name, fn -> cache end)
+      stub(Tuist.Runners.Catalog, :default_xcode_version, fn -> nil end)
+
+      stub(Tuist.Kubernetes.Client, :list_runner_pools, fn _ns ->
+        {:ok, [%{"metadata" => %{"name" => "macos-pool"}, "spec" => %{"dispatchLabel" => "tuist-macos"}}]}
+      end)
+
+      stub(Tuist.Environment, :github_app_webhook_secret, fn -> "github-com-env-secret" end)
+      stub(Tuist.Environment, :github_app_id, fn -> "1" end)
+
+      attacker = AccountsFixtures.organization_fixture().account
+      victim = AccountsFixtures.organization_fixture().account
+      victim_installation_id = System.unique_integer([:positive])
+
+      VCSFixtures.github_app_installation_fixture(
+        account_id: victim.id,
+        installation_id: to_string(victim_installation_id),
+        client_url: "https://github.com"
+      )
+
+      %{attacker: attacker, victim: victim, victim_installation_id: victim_installation_id}
+    end
+
+    defp ghes_installation_fixture(account, installation_id) do
+      app_id = System.unique_integer([:positive])
+
+      VCSFixtures.github_app_installation_fixture(
+        account_id: account.id,
+        installation_id: installation_id,
+        client_url: "https://ghes-#{app_id}.example.com",
+        app_id: to_string(app_id),
+        app_slug: "tuist",
+        client_id: "Iv1.x",
+        client_secret: "csec",
+        private_key: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
+        webhook_secret: "s"
+      )
+    end
+
+    defp post_signed_webhook(conn, event, body, secret) do
+      raw_body = JSON.encode!(body)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("x-github-event", event)
+      |> put_req_header("x-github-delivery", "delivery-#{System.unique_integer([:positive])}")
+      |> put_req_header("x-hub-signature-256", sign(raw_body, secret))
+      |> post("/webhooks/github", raw_body)
+    end
+
+    # `WebhookPlug` answers a failed HMAC check with 401/403; anything else
+    # means the signature verified and the controller handled the event.
+    defp assert_signature_accepted(conn) do
+      assert conn.state == :sent
+      refute conn.status in [401, 403]
+    end
+
+    defp queued_workflow_job(installation, owner) do
+      %{
+        "action" => "queued",
+        "installation" => installation,
+        "workflow_job" => %{
+          "id" => System.unique_integer([:positive]),
+          "labels" => ["tuist-macos"],
+          "run_id" => 1,
+          "run_attempt" => 1,
+          "name" => "Build",
+          "head_branch" => "main",
+          "head_sha" => "abc"
+        },
+        "repository" => %{"full_name" => "#{owner}/repo"}
+      }
+    end
+
+    defp run_dispatch_jobs do
+      for job <- all_enqueued(worker: DispatchWorker), do: perform_job(DispatchWorker, job.args)
+      :ok = perform_job(Tuist.Runners.Workers.FlushJobTransitionEventsWorker, %{})
+    end
+
+    defp queued_count(account), do: Map.get(Jobs.status_counts(account.id), "queued", 0)
+
+    test "a GHES tenant cannot queue runner jobs for another tenant's installation id",
+         %{conn: conn, attacker: attacker, victim: victim, victim_installation_id: victim_installation_id} do
+      attacker_installation = ghes_installation_fixture(attacker, "1001")
+
+      body =
+        queued_workflow_job(
+          %{"id" => victim_installation_id, "app_id" => String.to_integer(attacker_installation.app_id)},
+          "attacker"
+        )
+
+      conn |> post_signed_webhook("workflow_job", body, "s") |> assert_signature_accepted()
+      run_dispatch_jobs()
+
+      # The delivery speaks only for the account whose secret signed it.
+      assert queued_count(victim) == 0
+      assert queued_count(attacker) == 1
+    end
+
+    test "a GHES tenant cannot queue runner jobs for another tenant through the repository owner handle",
+         %{conn: conn, attacker: attacker, victim: victim} do
+      attacker_installation = ghes_installation_fixture(attacker, "1002")
+
+      # An installation id no row carries, so the old account resolution
+      # fell through to `owner == account.name`.
+      body =
+        queued_workflow_job(
+          %{"id" => System.unique_integer([:positive]), "app_id" => String.to_integer(attacker_installation.app_id)},
+          victim.name
+        )
+
+      conn |> post_signed_webhook("workflow_job", body, "s") |> assert_signature_accepted()
+      run_dispatch_jobs()
+
+      assert queued_count(victim) == 0
+      assert queued_count(attacker) == 1
+    end
+
+    test "a GHES tenant cannot complete another tenant's queued job by its workflow_job id",
+         %{conn: conn, attacker: attacker, victim: victim, victim_installation_id: victim_installation_id} do
+      attacker_installation = ghes_installation_fixture(attacker, "1004")
+      genuine_job = queued_workflow_job(%{"id" => victim_installation_id, "app_id" => 1}, "victim-org-login")
+
+      conn
+      |> post_signed_webhook("workflow_job", genuine_job, "github-com-env-secret")
+      |> assert_signature_accepted()
+
+      run_dispatch_jobs()
+      assert queued_count(victim) == 1
+
+      forged_completion =
+        genuine_job
+        |> Map.put("action", "completed")
+        |> Map.put("installation", %{"id" => 1004, "app_id" => String.to_integer(attacker_installation.app_id)})
+        |> put_in(["workflow_job", "conclusion"], "failure")
+
+      build_conn() |> post_signed_webhook("workflow_job", forged_completion, "s") |> assert_signature_accepted()
+      run_dispatch_jobs()
+
+      assert Jobs.status_counts(victim.id) == %{"queued" => 1}
+    end
+
+    test "a GHES tenant completes its own job",
+         %{conn: conn, attacker: tenant} do
+      installation = ghes_installation_fixture(tenant, "1005")
+      job = queued_workflow_job(%{"id" => 1005, "app_id" => String.to_integer(installation.app_id)}, "ghes-org")
+
+      conn |> post_signed_webhook("workflow_job", job, "s") |> assert_signature_accepted()
+      run_dispatch_jobs()
+
+      completion =
+        job
+        |> Map.put("action", "completed")
+        |> put_in(["workflow_job", "conclusion"], "success")
+
+      build_conn() |> post_signed_webhook("workflow_job", completion, "s") |> assert_signature_accepted()
+      run_dispatch_jobs()
+
+      assert Jobs.status_counts(tenant.id) == %{"completed" => 1}
+    end
+
+    test "a GHES tenant cannot move another tenant's queued job onto its own runner with in_progress",
+         %{conn: conn, attacker: attacker, victim: victim, victim_installation_id: victim_installation_id} do
+      attacker_installation = ghes_installation_fixture(attacker, "1006")
+      genuine_job = queued_workflow_job(%{"id" => victim_installation_id, "app_id" => 1}, "victim-org-login")
+
+      conn
+      |> post_signed_webhook("workflow_job", genuine_job, "github-com-env-secret")
+      |> assert_signature_accepted()
+
+      run_dispatch_jobs()
+      assert Tuist.Runners.Jobs.status_counts(victim.id) == %{"queued" => 1}
+
+      # The attacker's own runner holds a live claim on one of its jobs.
+      attacker_job_id = System.unique_integer([:positive])
+
+      :ok =
+        Tuist.Runners.WorkflowJobs.upsert_queued(%{
+          workflow_job_id: attacker_job_id,
+          account_id: attacker.id,
+          fleet_name: "macos-pool",
+          platform: "macos",
+          vcpus: 6,
+          memory_gb: 14,
+          repository: "ghes-org/repo"
+        })
+
+      {:ok, claim} =
+        Claims.attempt(attacker_job_id, attacker.id, "macos-pool", "pod-att", %{
+          platform: :macos,
+          vcpus: 6,
+          memory_gb: 14
+        })
+
+      :ok = Claims.mark_running(attacker_job_id, "runner-att", claim.claimed_at)
+
+      forged_in_progress = %{
+        "action" => "in_progress",
+        "installation" => %{"id" => 1006, "app_id" => String.to_integer(attacker_installation.app_id)},
+        "workflow_job" => %{
+          "id" => genuine_job["workflow_job"]["id"],
+          "labels" => ["tuist-macos"],
+          "runner_name" => "runner-att"
+        },
+        "repository" => %{"full_name" => "ghes-org/repo"}
+      }
+
+      build_conn() |> post_signed_webhook("workflow_job", forged_in_progress, "s") |> assert_signature_accepted()
+      run_dispatch_jobs()
+
+      assert Jobs.status_counts(victim.id) == %{"queued" => 1}
+    end
+
+    test "a GHES tenant that queues a github.com job's id first does not receive its completion",
+         %{conn: conn, attacker: attacker, victim: victim, victim_installation_id: victim_installation_id} do
+      attacker_installation = ghes_installation_fixture(attacker, "1007")
+      genuine_job = queued_workflow_job(%{"id" => victim_installation_id, "app_id" => 1}, "victim-org-login")
+      workflow_job_id = genuine_job["workflow_job"]["id"]
+
+      squat =
+        Map.put(genuine_job, "installation", %{"id" => 1007, "app_id" => String.to_integer(attacker_installation.app_id)})
+
+      conn |> post_signed_webhook("workflow_job", squat, "s") |> assert_signature_accepted()
+      run_dispatch_jobs()
+
+      genuine_completion =
+        genuine_job
+        |> Map.put("action", "completed")
+        |> put_in(["workflow_job", "conclusion"], "success")
+        |> put_in(["workflow_job", "steps"], [
+          %{
+            "number" => 1,
+            "name" => "victim-private-step",
+            "status" => "completed",
+            "conclusion" => "success",
+            "started_at" => "2026-11-05T10:00:00Z",
+            "completed_at" => "2026-11-05T10:01:00Z"
+          }
+        ])
+
+      build_conn()
+      |> post_signed_webhook("workflow_job", genuine_completion, "github-com-env-secret")
+      |> assert_signature_accepted()
+
+      run_dispatch_jobs()
+
+      assert Jobs.status_counts(attacker.id) == %{"queued" => 1}
+      assert Tuist.Runners.JobSteps.list_for_job(workflow_job_id) == []
+      assert Jobs.status_counts(victim.id) == %{}
+    end
+
+    test "a GHES tenant's job queues while its row has no installation id yet (bootstrap window)",
+         %{conn: conn, attacker: tenant} do
+      pending_row = ghes_installation_fixture(tenant, nil)
+
+      body =
+        queued_workflow_job(
+          %{"id" => System.unique_integer([:positive]), "app_id" => String.to_integer(pending_row.app_id)},
+          "ghes-org"
+        )
+
+      conn |> post_signed_webhook("workflow_job", body, "s") |> assert_signature_accepted()
+      run_dispatch_jobs()
+
+      assert queued_count(tenant) == 1
+    end
+
+    test "a GHES tenant's installation.created cannot break dispatch for the github.com installation it names",
+         %{conn: conn, attacker: attacker, victim: victim, victim_installation_id: victim_installation_id} do
+      pending_row = ghes_installation_fixture(attacker, nil)
+
+      installation_created = %{
+        "action" => "created",
+        "installation" => %{
+          "id" => victim_installation_id,
+          "app_id" => String.to_integer(pending_row.app_id),
+          "html_url" => "https://ghes.example.com/installations/#{victim_installation_id}"
+        }
+      }
+
+      conn |> post_signed_webhook("installation", installation_created, "s") |> assert_signature_accepted()
+
+      genuine_github_com_job =
+        queued_workflow_job(%{"id" => victim_installation_id, "app_id" => 1}, "victim-org-login")
+
+      build_conn()
+      |> post_signed_webhook("workflow_job", genuine_github_com_job, "github-com-env-secret")
+      |> assert_signature_accepted()
+
+      run_dispatch_jobs()
+
+      assert queued_count(victim) == 1
+      assert queued_count(attacker) == 0
+    end
+
+    test "a GHES tenant's own signed workflow_job still queues against its account",
+         %{conn: conn, attacker: tenant} do
+      installation = ghes_installation_fixture(tenant, "1003")
+
+      body = queued_workflow_job(%{"id" => 1003, "app_id" => String.to_integer(installation.app_id)}, "ghes-org")
+
+      conn |> post_signed_webhook("workflow_job", body, "s") |> assert_signature_accepted()
+      run_dispatch_jobs()
+
+      assert queued_count(tenant) == 1
     end
   end
 
