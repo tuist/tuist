@@ -501,6 +501,10 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ ~r/id="pricing-runners-title">\s*Tuist Runners\s*</
       assert html =~ "2 GB / vCPU"
       assert html =~ "4 GB / vCPU"
+      # Every rate, as written, in the screen-reader list.
+      assert html =~ "All Tuist Runners machines and rates"
+      assert html =~ "1 vCPU · 2 GB: $0.001/min"
+      assert html =~ "16 vCPU · 48 GB: $0.10/min"
       assert html =~ "8 vCPU · 24 GB"
       assert html =~ "16 vCPU · 48 GB"
       assert html =~ "See every machine and rate"

@@ -612,6 +612,7 @@ runner_terms = [
 
             %{
               platform: platform,
+              illustration: "runners-#{platform.id}",
               active: index == 0,
               machines: machines,
               selected: selected,
@@ -625,9 +626,15 @@ runner_terms = [
             }
           end
 
-        [hourly_before, hourly_after] =
-          dgettext("marketing", "≈ %{price} per hour of job time", price: "\0")
-          |> String.split("\0", parts: 2)
+        # The hourly figure is its own element, so the translated sentence is
+        # split around it; a translation that drops %{price} keeps its text
+        # and gets the figure after it instead of crashing the page.
+        {hourly_before, hourly_after} =
+          case dgettext("marketing", "≈ %{price} per hour of job time", price: "\0")
+               |> String.split("\0", parts: 2) do
+            [prefix, suffix] -> {prefix, suffix}
+            [whole] -> {whole <> " ", ""}
+          end
 
         per_minute = dgettext("marketing", "/min") %>
 
@@ -708,7 +715,7 @@ runner_terms = [
             data-default-gb={card.selected.memory_gb}
           >
             <div data-part="art" aria-hidden="true">
-              <.illustration name={"runners-#{card.platform.id}"} />
+              <.illustration name={card.illustration} />
             </div>
             <div data-part="machine">
               <p data-part="spec">
@@ -729,6 +736,24 @@ runner_terms = [
               <div data-part="term-description">{term.description}</div>
             </li>
           </ul>
+        </div>
+
+        <%!-- The cards show one machine at a time, so every rate is also
+        listed here for screen readers, crawlers, and the Markdown
+        conversion (the agent guides link here rather than quote rates). --%>
+        <div class="sr-only">
+          <h3>{dgettext("marketing", "All Tuist Runners machines and rates")}</h3>
+          <div :for={platform <- runner_platforms}>
+            <h4>{platform.name} ({platform.description})</h4>
+            <ul>
+              <li :for={machine <- platform.machines}>
+                {dgettext("marketing", "%{vcpus} vCPU · %{memory} GB",
+                  vcpus: machine.vcpus,
+                  memory: machine.memory_gb
+                )}: {machine.price}{per_minute}
+              </li>
+            </ul>
+          </div>
         </div>
 
         <div data-part="access">

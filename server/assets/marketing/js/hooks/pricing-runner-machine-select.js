@@ -23,6 +23,9 @@ export const PricingRunnerMachineSelect = {
     this.machines = JSON.parse(this.el.dataset.machines);
     this.vcpus = Number(this.el.dataset.defaultVcpus);
     this.gb = Number(this.el.dataset.defaultGb);
+    // The memory per vCPU the reader picked. It outlives sizes that don't
+    // offer it: 4 GB/vCPU → 1 vCPU (2 GB only) → back up returns to 4 GB.
+    this.preferredRatio = this.gb / this.vcpus;
     this.controls = document.getElementById(this.el.dataset.controls);
     if (!this.controls) {
       console.error("Pricing runner machine select: no controls found");
@@ -46,7 +49,8 @@ export const PricingRunnerMachineSelect = {
       if (vcpusItem) {
         this.pick(Number(vcpusItem.dataset.machineVcpus));
       } else if (ratioItem && !ratioItem.disabled) {
-        this.pick(this.vcpus, Number(ratioItem.dataset.machineRatio));
+        this.preferredRatio = Number(ratioItem.dataset.machineRatio);
+        this.pick(this.vcpus);
       }
     };
     this.controls.addEventListener("click", this.onClick);
@@ -54,11 +58,11 @@ export const PricingRunnerMachineSelect = {
     this.render();
   },
 
-  // Keeps the current memory per vCPU when the new size offers it, and
-  // falls back to that size's first machine otherwise.
-  pick(vcpus, ratio = this.gb / this.vcpus) {
+  // Uses the preferred memory per vCPU when the size offers it, and falls
+  // back to that size's first machine otherwise.
+  pick(vcpus) {
     const machine =
-      this.machines.find((m) => m.vcpus === vcpus && m.memory_gb === vcpus * ratio) ||
+      this.machines.find((m) => m.vcpus === vcpus && m.memory_gb === vcpus * this.preferredRatio) ||
       this.machines.find((m) => m.vcpus === vcpus);
     if (!machine) return;
     this.vcpus = machine.vcpus;
