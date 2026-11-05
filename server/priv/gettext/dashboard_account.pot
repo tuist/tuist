@@ -707,6 +707,7 @@ msgstr ""
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:3
 #: lib/tuist_web/live/authentication_settings_live.html.heex:3
 #: lib/tuist_web/live/integrations_live.html.heex:2
+#: lib/tuist_web/live/user_security_settings_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -3432,6 +3433,7 @@ msgid "Add an authenticator code to your password or SSO sign-in. Keep recovery 
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.html.heex:208
+#: lib/tuist_web/live/user_security_settings_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Enabled"
 msgstr ""
@@ -3447,6 +3449,7 @@ msgid "New recovery codes were created for your Tuist account. All previous code
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.html.heex:209
+#: lib/tuist_web/live/user_security_settings_live.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Not enabled"
 msgstr ""

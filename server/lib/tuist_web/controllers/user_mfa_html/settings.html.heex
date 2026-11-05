@@ -1,4 +1,4 @@
-<.link_frame
+<.security_settings_frame
   title={dgettext("dashboard_auth", "Two-factor authentication")}
   subtitle={
     dgettext(
@@ -12,52 +12,19 @@
     <p>
       {dgettext(
         "dashboard_auth",
-        "Two-factor authentication is enabled for all new browser sign-ins, including single sign-on."
+        "Enter an authentication or recovery code to confirm this change."
       )}
     </p>
-    <div data-part="recovery-settings">
-      <p id="mfa-recovery-count">
-        {dngettext(
-          "dashboard_auth",
-          "%{count} recovery code remaining.",
-          "%{count} recovery codes remaining.",
-          @recovery_code_count
-        )}
-      </p>
-      <details id="mfa-recovery-settings">
-        <summary>{dgettext("dashboard_auth", "Regenerate recovery codes")}</summary>
-        <p>
-          {dgettext(
-            "dashboard_auth",
-            "All previous recovery codes will stop working and other browsers will be signed out. Save the new codes somewhere secure, separate from your authenticator."
-          )}
-        </p>
-        <form
-          id="mfa-regenerate"
-          method="post"
-          action={~p"/users/settings/mfa/recovery"}
-          data-part="form"
-        >
-          <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
-          <.text_input
-            id="mfa-recovery-code"
-            name="mfa_code"
-            value=""
-            label={dgettext("dashboard_auth", "Authentication or recovery code")}
-            show_prefix={false}
-            autocomplete="one-time-code"
-            required
-          />
-          <.button
-            variant="secondary"
-            size="large"
-            type="submit"
-            label={dgettext("dashboard_auth", "Generate new recovery codes")}
-          />
-        </form>
-      </details>
-    </div>
-    <form id="mfa-disable" method="post" action={~p"/users/settings/mfa/disable"} data-part="form">
+    <form
+      id={if @proof_action == :regenerate, do: "mfa-regenerate", else: "mfa-disable"}
+      method="post"
+      action={
+        if @proof_action == :regenerate,
+          do: ~p"/users/settings/mfa/recovery",
+          else: ~p"/users/settings/mfa/disable"
+      }
+      data-part="form"
+    >
       <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
       <.text_input
         id="mfa-code"
@@ -68,12 +35,6 @@
         autocomplete="one-time-code"
         required
       />
-      <.button
-        variant="secondary"
-        size="large"
-        type="submit"
-        label={dgettext("dashboard_auth", "Disable two-factor authentication")}
-      />
     </form>
   <% else %>
     <%= if @secret do %>
@@ -81,7 +42,7 @@
         <p>
           {dgettext(
             "dashboard_auth",
-            "Scan this QR code with your authenticator app, then enter its six-digit code. Complete setup within five minutes."
+            "Scan the QR code, then enter the six-digit code."
           )}
         </p>
         <img
@@ -91,21 +52,9 @@
           height="240"
           alt={dgettext("dashboard_auth", "Authenticator setup QR code")}
         />
-        <p>
-          {dgettext(
-            "dashboard_auth",
-            "Using 1Password? Open the browser extension, select your Tuist login, then choose Scan 2FA QR code from the three-dot menu. Save it, then use the generated code below."
-          )}
-        </p>
         <details id="mfa-manual-setup">
           <summary>{dgettext("dashboard_auth", "Can't scan the QR code?")}</summary>
           <p>{dgettext("dashboard_auth", "Enter this setup key in your authenticator app.")}</p>
-          <p>
-            {dgettext(
-              "dashboard_auth",
-              "In the 1Password app or 1Password.com, edit your Tuist login, add a One-Time Password field, paste this key, and save."
-            )}
-          </p>
           <.text_input
             id="mfa-setup-key"
             name="setup_key"
@@ -139,6 +88,21 @@
           </.text_input>
           <span data-copy-status role="status" class="auth-copy-status"></span>
         </details>
+        <details id="mfa-password-manager-help">
+          <summary>{dgettext("dashboard_auth", "Using 1Password?")}</summary>
+          <p>
+            {dgettext(
+              "dashboard_auth",
+              "Open the browser extension, select your Tuist login, then choose Scan 2FA QR code from the three-dot menu. Save it, then enter the generated code."
+            )}
+          </p>
+          <p>
+            {dgettext(
+              "dashboard_auth",
+              "To use the setup key instead, edit your Tuist login in 1Password, add a One-Time Password field, paste the key, and save."
+            )}
+          </p>
+        </details>
       </div>
       <form
         id="mfa-enrollment"
@@ -157,12 +121,6 @@
           inputmode="numeric"
           required
         />
-        <.button
-          variant="primary"
-          size="large"
-          type="submit"
-          label={dgettext("dashboard_auth", "Enable two-factor authentication")}
-        />
       </form>
       <form
         id="mfa-cancel"
@@ -171,35 +129,56 @@
         data-part="form"
       >
         <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
-        <.button
-          variant="secondary"
-          size="large"
-          type="submit"
-          label={dgettext("dashboard_auth", "Cancel setup")}
-        />
       </form>
     <% else %>
       <form id="mfa-setup" method="post" action={~p"/users/settings/mfa/enroll"} data-part="form">
         <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
-        <.button
-          variant="primary"
-          size="large"
-          type="submit"
-          label={dgettext("dashboard_auth", "Set up authenticator app")}
-        />
       </form>
     <% end %>
   <% end %>
-  <p>
-    {dgettext(
-      "dashboard_auth",
-      "Changing your authenticator app requires signing in within the last five minutes. Password resets do not remove it. Keep recovery codes somewhere safe."
-    )}
-  </p>
-  <.link_button
-    href={TuistWeb.Authentication.signed_in_path(@current_user)}
-    variant="primary"
-    size="large"
-    label={dgettext("dashboard_auth", "Back to dashboard")}
-  />
-</.link_frame>
+  <div data-part="actions">
+    <.button
+      type="submit"
+      form={
+        cond do
+          @enabled and @proof_action == :regenerate -> "mfa-regenerate"
+          @enabled -> "mfa-disable"
+          @secret -> "mfa-enrollment"
+          true -> "mfa-setup"
+        end
+      }
+      variant={if @enabled and @proof_action == :disable, do: "destructive", else: "primary"}
+      size="large"
+      label={
+        cond do
+          @enabled and @proof_action == :regenerate ->
+            dgettext("dashboard_auth", "Generate new recovery codes")
+
+          @enabled ->
+            dgettext("dashboard_auth", "Disable two-factor authentication")
+
+          @secret ->
+            dgettext("dashboard_auth", "Enable two-factor authentication")
+
+          true ->
+            dgettext("dashboard_auth", "Set up authenticator app")
+        end
+      }
+    />
+    <.button
+      :if={not @enabled and @secret}
+      type="submit"
+      form="mfa-cancel"
+      variant="secondary"
+      size="large"
+      label={dgettext("dashboard_auth", "Cancel setup")}
+    />
+    <.link_button
+      :if={@enabled or is_nil(@secret)}
+      href={~p"/users/settings/mfa"}
+      variant="primary"
+      size="large"
+      label={dgettext("dashboard_auth", "Cancel")}
+    />
+  </div>
+</.security_settings_frame>

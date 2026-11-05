@@ -1,4 +1,4 @@
-<.link_frame
+<.security_settings_frame
   title={dgettext("dashboard_auth", "Remove passkey?")}
   subtitle={
     dgettext("dashboard_auth", "Remove %{name} from your Tuist account.", name: @passkey.name)
@@ -12,7 +12,7 @@
     description={
       dgettext(
         "dashboard_auth",
-        "This browser will stay signed in with a new session. This passkey will no longer sign in to Tuist."
+        "This browser stays signed in."
       )
     }
   />
@@ -20,19 +20,13 @@
     <p>
       {dgettext(
         "dashboard_auth",
-        "The saved credential will remain in 1Password, your password manager, or on your security key. Remove it there separately if you no longer need it."
+        "The saved credential will remain in your password manager or on your security key."
       )}
     </p>
     <p :if={@last_passkey?}>
       {dgettext(
         "dashboard_auth",
-        "This is your last passkey. Before removing it, make sure you can sign in with your password or another sign-in method. If you do not have a password, set one using the password reset flow first."
-      )}
-    </p>
-    <p>
-      {dgettext(
-        "dashboard_auth",
-        "Removing a passkey does not turn off your authenticator app. Keep access to it or your recovery codes if it is enabled."
+        "This is your last passkey. Make sure you can sign in another way, or set a password using password reset first."
       )}
     </p>
   </div>
@@ -47,13 +41,13 @@
         size="large"
         label={dgettext("dashboard_auth", "Remove passkey")}
       />
-      <.button
+      <.link_button
         id="cancel-passkey-removal"
         href={~p"/users/settings/passkeys"}
-        variant="secondary"
+        variant="primary"
         size="large"
         label={dgettext("dashboard_auth", "Cancel")}
       />
     </div>
   </form>
-</.link_frame>
+</.security_settings_frame>

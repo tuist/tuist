@@ -30,6 +30,8 @@ defmodule TuistWeb.UserMFAControllerTest do
     refute UserMFA.enabled?(user)
 
     document = enrollment |> html_response(200) |> Floki.parse_document!()
+    assert Floki.find(document, "#sso-link #user-security-settings #mfa-enrollment") != []
+    assert Floki.find(document, ".layout__content") == []
     assert ["data:image/png;base64," <> png] = Floki.attribute(document, "#mfa-setup-qr", "src")
     assert <<137, "PNG", _::binary>> = Base.decode64!(png)
     assert Floki.find(document, "#mfa-manual-setup[open]") == []
@@ -52,6 +54,9 @@ defmodule TuistWeb.UserMFAControllerTest do
 
     confirmed = enrollment |> recycle() |> post(~p"/users/settings/mfa/confirm", %{"mfa_code" => code(secret, now)})
     assert length(recovery_codes(confirmed)) == 10
+    document = confirmed |> html_response(200) |> Floki.parse_document!()
+    assert Floki.find(document, "#sso-link #user-security-settings #mfa-recovery-codes") != []
+    assert Floki.find(document, ".layout__content") == []
     assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "mfa_enabled"})
     assert UserMFA.enabled?(user)
     refute Accounts.get_user_by_session_token(old_token)
@@ -263,10 +268,16 @@ defmodule TuistWeb.UserMFAControllerTest do
     {confirmed, _secret, [first, second | _]} = enroll(user, now)
     assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "mfa_enabled"})
 
-    assert confirmed
-           |> recycle()
-           |> post(~p"/users/settings/mfa/disable", %{"mfa_code" => "invalid"})
-           |> html_response(401)
+    invalid =
+      confirmed
+      |> recycle()
+      |> post(~p"/users/settings/mfa/disable", %{"mfa_code" => "invalid"})
+      |> html_response(401)
+
+    document = Floki.parse_document!(invalid)
+    assert Floki.find(document, "#sso-link #user-security-settings") != []
+    assert Floki.find(document, "form[action='/users/settings/mfa/disable']") != []
+    assert Floki.find(document, "form[action='/users/settings/mfa/recovery']") == []
 
     assert UserMFA.enabled?(user)
     second_browser = user |> login() |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => first})
@@ -303,10 +314,16 @@ defmodule TuistWeb.UserMFAControllerTest do
     old_token = get_session(confirmed, :user_token)
     assert UserMFA.recovery_code_count(user) == 10
 
-    assert confirmed
-           |> recycle()
-           |> post(~p"/users/settings/mfa/recovery", %{"mfa_code" => "invalid"})
-           |> html_response(401)
+    invalid =
+      confirmed
+      |> recycle()
+      |> post(~p"/users/settings/mfa/recovery", %{"mfa_code" => "invalid"})
+      |> html_response(401)
+
+    document = Floki.parse_document!(invalid)
+    assert Floki.find(document, "#sso-link #user-security-settings") != []
+    assert Floki.find(document, "form[action='/users/settings/mfa/recovery']") != []
+    assert Floki.find(document, "form[action='/users/settings/mfa/disable']") == []
 
     assert UserMFA.recovery_code_count(user) == 10
 

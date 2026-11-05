@@ -351,12 +351,6 @@
     & > [data-part="actions"] .noora-button {
       width: 100%;
     }
-
-    & .noora-text-input input[autocomplete="one-time-code"] {
-      font: var(--noora-font-weight-semibold) var(--noora-font-heading-medium);
-      letter-spacing: 0.2em;
-      text-align: center;
-    }
   }
 
   & [data-part="security-note"] {
@@ -625,7 +619,8 @@
 }
 
 #login,
-#sso-link {
+#sso-link,
+#user-security-settings {
   & [data-part="passkey-status"] {
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-small);
@@ -636,9 +631,110 @@
   }
 }
 
-#sso-link {
+#user-security-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-7);
+  width: 100%;
+  min-width: 0;
+
+  & h2 {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+  }
+
+  & p {
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="section"],
+  & [data-part="settings-row"],
+  & > [data-part="actions"],
+  & form > [data-part="actions"],
+  & form,
+  & #passkey-registration {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    min-width: 0;
+  }
+
+  & [data-part="section"] + [data-part="section"],
+  & [data-part="settings-row"] {
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding-top: var(--noora-spacing-6);
+  }
+
+  & [data-part="section-header"],
+  & [data-part="row-actions"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="section-header"] {
+    justify-content: space-between;
+  }
+
+  & [data-part="row-actions"] {
+    flex-wrap: wrap;
+  }
+
+  & #passkey-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    & > li {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+      padding-block: var(--noora-spacing-6);
+      overflow-wrap: anywhere;
+    }
+
+    & > li + li {
+      border-top: 1px solid var(--noora-surface-border-primary);
+    }
+
+    & [data-part="passkey-details"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+    }
+  }
+
+  & .noora-modal [data-part="body"] form {
+    padding: var(--noora-spacing-7);
+  }
+
+  & > [data-part="actions"] > .noora-button,
+  & form > [data-part="actions"] > .noora-button,
+  & > [data-part="section"] > form > .noora-button {
+    width: 100%;
+  }
+
+  & #mfa-recovery-codes {
+    display: grid;
+    gap: var(--noora-spacing-4);
+    margin: 0;
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-tertiary);
+    padding: var(--noora-spacing-6);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-small);
+    list-style: none;
+    direction: ltr;
+
+    & code {
+      font-family: "Geist Mono", monospace;
+    }
+  }
+
   & [data-part="authenticator-setup"],
-  & [data-part="recovery-settings"],
   & [data-part="passkey-removal-guidance"],
   & [data-part="passkey-settings"] {
     display: flex;
@@ -649,12 +745,6 @@
     min-width: 0;
   }
 
-  &:has(#mfa-enrollment, #mfa-disable, #mfa-cancel, #passkey-registration, #confirm-passkey-removal) p {
-    margin: 0;
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-body-small);
-  }
-
   & #mfa-setup-qr {
     align-self: center;
     max-width: 100%;
@@ -662,7 +752,7 @@
   }
 
   & #mfa-manual-setup,
-  & #mfa-recovery-settings {
+  & #mfa-password-manager-help {
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-body-small);
 
@@ -684,47 +774,5 @@
     height: 1px;
     overflow: hidden;
     white-space: nowrap;
-  }
-
-  & #passkey-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-4);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-
-    & li {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: center;
-      gap: var(--noora-spacing-4);
-      box-shadow: var(--noora-border-light-default);
-      border-radius: var(--noora-radius-4);
-      padding: var(--noora-spacing-5);
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-body-small);
-
-      & > div {
-        display: flex;
-        flex-direction: column;
-        gap: var(--noora-spacing-2);
-        min-width: 0;
-        overflow-wrap: anywhere;
-      }
-
-      & [data-part="passkey-rename"] {
-        display: flex;
-        flex-direction: column;
-        gap: var(--noora-spacing-4);
-        width: 100%;
-        min-width: 0;
-
-        & > button {
-          align-self: flex-start;
-        }
-      }
-    }
   }
 }

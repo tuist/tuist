@@ -38,15 +38,17 @@ defmodule TuistWeb.UserPasskeyControllerTest do
              UserPasskey.list(user)
 
     assert Phoenix.Flash.get(registered.assigns.flash, :info) == "Passkey added."
-    settings = registered |> recycle() |> get(~p"/users/settings/passkeys") |> html_response(200)
+    settings = registered |> recycle() |> get(~p"/#{user.account.name}/settings/passkeys") |> html_response(200)
     assert settings =~ "Passkey added."
     assert settings =~ "MacBook"
-    assert settings =~ "1Password"
+    assert settings =~ "Sign in without a password."
     assert settings =~ "Never used"
     refute settings =~ "mfa-enrollment"
     refute UserMFA.enabled?(user)
 
-    settings = registered |> recycle() |> get(~p"/users/settings/mfa") |> html_response(200)
+    settings =
+      registered |> recycle() |> get(~p"/#{user.account.name}/settings/two-factor-authentication") |> html_response(200)
+
     refute settings =~ "passkey-list"
     refute settings =~ "MacBook"
 
@@ -70,8 +72,8 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     assert session.auth_provider == "passkey"
     assert session.mfa_verified_at
 
-    settings = signed_in |> recycle() |> get(~p"/users/settings/passkeys") |> html_response(200)
-    assert settings =~ "Last used #{Calendar.strftime(now, "%Y-%m-%d %H:%M UTC")}"
+    settings = signed_in |> recycle() |> get(~p"/#{user.account.name}/settings/passkeys") |> html_response(200)
+    assert settings =~ Calendar.strftime(now, "%Y-%m-%d %H:%M UTC")
     refute settings =~ "Never used"
 
     # Presenting the same ceremony token and assertion again must not create
@@ -257,11 +259,13 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     assert html =~ "password reset"
     assert html =~ "saved credential will remain"
     document = Floki.parse_document!(html)
+    assert Floki.find(document, "#sso-link #user-security-settings #confirm-passkey-removal") != []
+    assert Floki.find(document, ".layout__content") == []
     assert Floki.attribute(document, "#cancel-passkey-removal", "href") == [~p"/users/settings/passkeys"]
     assert Floki.attribute(document, "form input[name=confirm]", "value") == ["true"]
     assert Floki.attribute(document, "form", "action") == [~p"/users/settings/passkeys/#{passkey.id}/delete"]
 
-    canceled = confirmation |> recycle() |> get(~p"/users/settings/passkeys")
+    canceled = confirmation |> recycle() |> get(~p"/#{user.account.name}/settings/passkeys")
     assert html_response(canceled, 200) =~ "My vault"
     assert Repo.get!(UserPasskey, passkey.id) == passkey
     assert get_session(canceled, :user_token) == token
@@ -286,11 +290,21 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     signed_in = login(user)
     register(signed_in, authenticator, "MacBook")
     assert build_conn() |> get(~p"/users/log_in") |> html_response(200) =~ "passkey-login"
-    assert signed_in |> recycle() |> get(~p"/users/settings/passkeys") |> html_response(200) =~ "Add a passkey"
+
+    document =
+      signed_in |> recycle() |> get(~p"/users/settings/passkeys/new") |> html_response(200) |> Floki.parse_document!()
+
+    assert Floki.find(document, "#sso-link #user-security-settings #passkey-registration") != []
+    assert Floki.find(document, ".layout__content") == []
     stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
 
     refute build_conn() |> get(~p"/users/log_in") |> html_response(200) =~ "passkey-login"
-    refute signed_in |> recycle() |> get(~p"/users/settings/mfa") |> html_response(200) =~ "Add a passkey"
+
+    refute signed_in
+           |> recycle()
+           |> get(~p"/#{user.account.name}/settings/two-factor-authentication")
+           |> html_response(200) =~ "Add a passkey"
+
     assert build_conn() |> post(~p"/users/log_in/passkey/options") |> response(404)
     assert signed_in |> recycle() |> get(~p"/users/settings/passkeys") |> response(404)
     assert signed_in |> recycle() |> post(~p"/users/settings/passkeys/options") |> response(404)

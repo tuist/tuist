@@ -73,7 +73,7 @@ defmodule TuistWeb.UserMFAController do
   defp mfa_purpose(_pending), do: {:mfa, nil}
 
   def show(conn, _params) do
-    render_page(conn, :settings, enabled: UserMFA.enabled?(conn.assigns.current_user), error: nil, secret: nil)
+    redirect(conn, to: ~p"/#{conn.assigns.current_user.account.name}/settings/two-factor-authentication")
   end
 
   def enroll(conn, _params) do
@@ -123,7 +123,12 @@ defmodule TuistWeb.UserMFAController do
       {:error, _} ->
         conn
         |> put_status(:unauthorized)
-        |> render_page(:settings, enabled: true, secret: nil, error: reauthenticate() <> " " <> invalid_code())
+        |> render_page(:settings,
+          enabled: true,
+          secret: nil,
+          proof_action: :regenerate,
+          error: reauthenticate() <> " " <> invalid_code()
+        )
     end
   end
 
@@ -168,16 +173,13 @@ defmodule TuistWeb.UserMFAController do
   end
 
   defp render_page(conn, template, assigns) do
-    assigns =
-      if template == :settings,
-        do: Keyword.put(assigns, :recovery_code_count, UserMFA.recovery_code_count(conn.assigns.current_user)),
-        else: assigns
-
     conn
     |> put_view(TuistWeb.UserMFAHTML)
     |> render(
       template,
-      Keyword.put(assigns, :head_title, dgettext("dashboard_auth", "Two-factor authentication · Tuist"))
+      assigns
+      |> Keyword.put_new(:proof_action, :disable)
+      |> Keyword.put(:head_title, dgettext("dashboard_auth", "Two-factor authentication · Tuist"))
     )
   end
 

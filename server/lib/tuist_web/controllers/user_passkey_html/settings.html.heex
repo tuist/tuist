@@ -1,9 +1,9 @@
-<.link_frame
-  title={dgettext("dashboard_auth", "Passkeys")}
+<.security_settings_frame
+  title={dgettext("dashboard_auth", "Add a passkey")}
   subtitle={
     dgettext(
       "dashboard_auth",
-      "Sign in without a password using your fingerprint, face, or screen lock."
+      "Use your password manager or a security key."
     )
   }
 >
@@ -22,61 +22,6 @@
     title={Phoenix.Flash.get(@flash, :error)}
   />
   <div data-part="passkey-settings">
-    <p>
-      {dgettext(
-        "dashboard_auth",
-        "Save a passkey in 1Password, another password manager, or on a security key. Your browser will guide you through setup."
-      )}
-    </p>
-    <p :if={@passkeys == []}>
-      {dgettext("dashboard_auth", "You haven't added any passkeys yet.")}
-    </p>
-    <ul :if={@passkeys != []} id="passkey-list">
-      <li :for={passkey <- @passkeys}>
-        <div>
-          <strong>{passkey.name}</strong>
-          <span>{dgettext("dashboard_auth", "Added %{date}",
-            date: Calendar.strftime(passkey.inserted_at, "%Y-%m-%d")
-          )}</span>
-          <span :if={passkey.last_used_at}>
-            {dgettext("dashboard_auth", "Last used %{date}",
-              date: Calendar.strftime(passkey.last_used_at, "%Y-%m-%d %H:%M UTC")
-            )}
-          </span>
-          <span :if={!passkey.last_used_at}>{dgettext("dashboard_auth", "Never used")}</span>
-        </div>
-        <form
-          method="post"
-          action={~p"/users/settings/passkeys/#{passkey.id}/rename"}
-          data-part="passkey-rename"
-        >
-          <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
-          <.text_input
-            id={"passkey-name-#{passkey.id}"}
-            name="name"
-            value={passkey.name}
-            label={dgettext("dashboard_auth", "Name for %{name}", name: passkey.name)}
-            autocomplete="off"
-            data-1p-ignore
-            show_prefix={false}
-          />
-          <.button
-            type="submit"
-            variant="secondary"
-            size="medium"
-            aria-label={dgettext("dashboard_auth", "Rename %{name}", name: passkey.name)}
-            label={dgettext("dashboard_auth", "Rename")}
-          />
-        </form>
-        <.button
-          href={~p"/users/settings/passkeys/#{passkey.id}/delete"}
-          variant="secondary"
-          size="medium"
-          aria-label={dgettext("dashboard_auth", "Remove %{name}", name: passkey.name)}
-          label={dgettext("dashboard_auth", "Remove")}
-        />
-      </li>
-    </ul>
     <div
       id="passkey-registration"
       data-part="form"
@@ -86,22 +31,10 @@
         name="name"
         value=""
         label={dgettext("dashboard_auth", "Passkey name")}
-        placeholder={dgettext("dashboard_auth", "For example, 1Password or security key")}
+        placeholder={dgettext("dashboard_auth", "For example, 1Password")}
         autocomplete="off"
         data-1p-ignore
         show_prefix={false}
-      />
-      <.button
-        id="passkey-add"
-        type="button"
-        variant="primary"
-        size="large"
-        label={dgettext("dashboard_auth", "Add a passkey")}
-        data-passkey-ceremony="register"
-        data-options-url={~p"/users/settings/passkeys/options"}
-        data-action-url={~p"/users/settings/passkeys"}
-        data-name-input="passkey-name"
-        data-status="passkey-status"
       />
       <span
         id="passkey-status"
@@ -116,23 +49,25 @@
       ></span>
       <noscript>{dgettext("dashboard_auth", "JavaScript is required to use passkeys.")}</noscript>
     </div>
-    <p>
-      {dgettext(
-        "dashboard_auth",
-        "Changing passkeys requires signing in within the last five minutes. Removing a passkey here does not delete it from your password manager."
-      )}
-    </p>
-    <p>
-      {dgettext(
-        "dashboard_auth",
-        "Names are labels in Tuist only. Renaming a passkey does not rename it in your password manager."
-      )}
-    </p>
   </div>
-  <.link_button
-    href={TuistWeb.Authentication.signed_in_path(@current_user)}
-    variant="primary"
-    size="large"
-    label={dgettext("dashboard_auth", "Back to dashboard")}
-  />
-</.link_frame>
+  <div data-part="actions">
+    <.button
+      id="passkey-add"
+      type="button"
+      variant="primary"
+      size="large"
+      label={dgettext("dashboard_auth", "Add a passkey")}
+      data-passkey-ceremony="register"
+      data-options-url={~p"/users/settings/passkeys/options"}
+      data-action-url={~p"/users/settings/passkeys"}
+      data-name-input="passkey-name"
+      data-status="passkey-status"
+    />
+    <.link_button
+      href={~p"/users/settings/passkeys"}
+      variant="primary"
+      size="large"
+      label={dgettext("dashboard_auth", "Cancel")}
+    />
+  </div>
+</.security_settings_frame>

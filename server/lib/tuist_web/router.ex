@@ -1469,6 +1469,7 @@ defmodule TuistWeb.Router do
     post "/users/settings/mfa/disable", UserMFAController, :disable
     post "/users/settings/mfa/recovery", UserMFAController, :regenerate
     get "/users/settings/passkeys", UserPasskeyController, :show
+    get "/users/settings/passkeys/new", UserPasskeyController, :new
     post "/users/settings/passkeys/options", UserPasskeyController, :registration_options
     post "/users/settings/passkeys", UserPasskeyController, :create
     get "/users/settings/passkeys/:id/delete", UserPasskeyController, :confirm_delete
@@ -1764,6 +1765,8 @@ defmodule TuistWeb.Router do
       live "/cache", CacheLive
       live "/billing", BillingLive
       live "/settings", AccountSettingsLive
+      live "/settings/passkeys", UserSecuritySettingsLive, :passkeys
+      live "/settings/two-factor-authentication", UserSecuritySettingsLive, :mfa
       live "/settings/tokens", AccountTokensLive
       live "/settings/tokens/:token_id", AccountTokenLive
       live "/settings/integrations", IntegrationsLive

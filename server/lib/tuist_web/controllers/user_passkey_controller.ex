@@ -27,11 +27,14 @@ defmodule TuistWeb.UserPasskeyController do
   plug :require_passkeys_enabled
 
   def show(conn, _params) do
+    redirect(conn, to: ~p"/#{conn.assigns.current_user.account.name}/settings/passkeys")
+  end
+
+  def new(conn, _params) do
     conn
     |> put_view(TuistWeb.UserPasskeyHTML)
     |> render(:settings,
-      passkeys: UserPasskey.list(conn.assigns.current_user),
-      head_title: dgettext("dashboard_auth", "Passkeys · Tuist")
+      head_title: dgettext("dashboard_auth", "Add a passkey · Tuist")
     )
   end
 
