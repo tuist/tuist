@@ -184,9 +184,10 @@ per-node collection turned them into an unbounded series count:
   `cilium_drop_count_total{reason="Policy denied by denylist"}`; use
   `hubble observe --verdict DROPPED` on the node for live senders.
 
-`POLICY_DENIED`, the allow-list denial used by the Kura runbook, is kept. Unready agents remain
-targets: `up=0` distinguishes a failed scrape from a missing discovery target.
-The existing Cilium-agent scrape is unchanged.
+`POLICY_DENIED`, the allow-list denial used by the Kura runbook, is kept.
+
+Unready agents remain targets: `up=0` distinguishes a failed scrape from a
+missing discovery target. The existing Cilium-agent scrape is unchanged.
 
 The annotated `kube-system/hubble-metrics` Service is excluded from autodiscovery.
 Its headless DNS name reaches individual agents, not an aggregate of all agents;
