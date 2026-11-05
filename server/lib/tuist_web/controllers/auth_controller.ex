@@ -314,21 +314,38 @@ defmodule TuistWeb.AuthController do
 
     cond do
       can_link_existing_user?(existing_user, auth.provider, sso_organization) ->
-        {:ok, _oauth_identity} =
-          Accounts.link_oauth_identity_to_user(existing_user, %{
-            provider: auth.provider,
-            id_in_provider: to_string(auth.uid),
-            provider_organization_id: provider_organization_id
-          })
+        case Accounts.link_oauth_identity_by_email(existing_user, %{
+               provider: auth.provider,
+               id_in_provider: to_string(auth.uid),
+               provider_organization_id: provider_organization_id
+             }) do
+          {:ok, _oauth_identity} ->
+            log_in_linked_sso_user(
+              conn,
+              existing_user,
+              invitation,
+              auth_params,
+              sso_organization,
+              oauth_return_url
+            )
 
-        log_in_linked_sso_user(
-          conn,
-          existing_user,
-          invitation,
-          auth_params,
-          sso_organization,
-          oauth_return_url
-        )
+          {:error, :email_not_proven} ->
+            log(
+              :warning,
+              "Refused to link existing user #{existing_user.id} via #{auth.provider}: email confirmation is skipped and no provider has proven the account's email."
+            )
+
+            conn
+            |> put_flash(
+              :error,
+              dgettext(
+                "dashboard_auth",
+                "An account with this email already exists. Log in with its email and password instead."
+              )
+            )
+            |> redirect(to: ~p"/users/log_in")
+            |> halt()
+        end
 
       signed_in_user = signed_in_sso_link_user(conn, auth.provider, sso_organization) ->
         confirm_sso_link(conn, signed_in_user, auth, sso_organization, provider_organization_id, oauth_return_url)
