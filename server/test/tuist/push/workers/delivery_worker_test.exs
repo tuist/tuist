@@ -45,7 +45,7 @@ defmodule Tuist.Push.Workers.DeliveryWorkerTest do
     {:ok, installation} =
       Push.register(user, session, Ecto.UUID.generate(), %{platform: "ios", token: token, environment: "sandbox"})
 
-    %{installation: installation, token: token, jwk: jwk, key_id: key_id}
+    %{installation: installation, token: token, jwk: jwk, key_id: key_id, user: user, session: session}
   end
 
   defp perform(installation),
@@ -104,5 +104,117 @@ defmodule Tuist.Push.Workers.DeliveryWorkerTest do
     reject(Req, :post, 2)
 
     assert :ok = perform(installation)
+  end
+
+  describe "Android" do
+    setup %{user: user, session: session} do
+      jwk = JOSE.JWK.generate_key({:rsa, 2048})
+      {_, pem} = JOSE.JWK.to_pem(jwk)
+      client_email = "fcm-#{System.unique_integer([:positive])}@tuist-app-push.iam.gserviceaccount.com"
+
+      stub(Environment, :fcm_service_account, fn ->
+        JSON.encode!(%{"project_id" => "tuist-app-push", "client_email" => client_email, "private_key" => pem})
+      end)
+
+      token = Base.encode64(:crypto.strong_rand_bytes(48))
+
+      {:ok, installation} =
+        Push.register(user, session, Ecto.UUID.generate(), %{platform: "android", token: token, environment: "production"})
+
+      %{android: installation, android_token: token, rsa: jwk, client_email: client_email}
+    end
+
+    defp perform_android(installation),
+      do:
+        perform_job(DeliveryWorker, %{
+          "registration_id" => installation.id,
+          "payload" => %{"title" => "App", "body" => "Ready"}
+        })
+
+    defp expect_token_exchange(rsa, client_email) do
+      expect(Req, :post, fn "https://oauth2.googleapis.com/token", opts ->
+        assert opts[:form][:grant_type] == "urn:ietf:params:oauth:grant-type:jwt-bearer"
+
+        assert {true,
+                %JOSE.JWT{
+                  fields: %{"iss" => ^client_email, "scope" => "https://www.googleapis.com/auth/firebase.messaging"}
+                }, _} =
+                 JOSE.JWT.verify_strict(JOSE.JWK.to_public(rsa), ["RS256"], opts[:form][:assertion])
+
+        {:ok, %Req.Response{status: 200, body: %{"access_token" => "ya29.test", "expires_in" => 3599}}}
+      end)
+    end
+
+    test "sends a data-only message with a service account access token", %{
+      android: installation,
+      android_token: token,
+      rsa: rsa,
+      client_email: client_email
+    } do
+      expect_token_exchange(rsa, client_email)
+
+      expect(Req, :post, fn url, opts ->
+        assert url == "https://fcm.googleapis.com/v1/projects/tuist-app-push/messages:send"
+        assert Map.new(opts[:headers])["authorization"] == "Bearer ya29.test"
+
+        assert opts[:json] == %{
+                 "message" => %{
+                   "token" => token,
+                   "data" => %{"title" => "App", "body" => "Ready"},
+                   "android" => %{"priority" => "HIGH", "ttl" => "86400s"}
+                 }
+               }
+
+        {:ok, %Req.Response{status: 200, body: %{"name" => "projects/tuist-app-push/messages/1"}}}
+      end)
+
+      assert :ok = perform_android(installation)
+    end
+
+    test "retires the registration when FCM says the token is unregistered", %{
+      android: installation,
+      rsa: rsa,
+      client_email: client_email
+    } do
+      expect_token_exchange(rsa, client_email)
+
+      expect(Req, :post, fn _url, _opts ->
+        {:ok,
+         %Req.Response{
+           status: 404,
+           body: %{
+             "error" => %{
+               "status" => "NOT_FOUND",
+               "details" => [
+                 %{"@type" => "type.googleapis.com/google.firebase.fcm.v1.FcmError", "errorCode" => "UNREGISTERED"}
+               ]
+             }
+           }
+         }}
+      end)
+
+      assert :ok = perform_android(installation)
+      assert %Installation{retired_reason: "rejected", token: nil} = Repo.get!(Installation, installation.id)
+    end
+
+    test "fetches a new access token after FCM rejects the cached one", %{
+      android: installation,
+      rsa: rsa,
+      client_email: client_email
+    } do
+      expect_token_exchange(rsa, client_email)
+
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %Req.Response{status: 401, body: %{"error" => %{"status" => "UNAUTHENTICATED"}}}}
+      end)
+
+      assert {:error, "UNAUTHENTICATED"} = perform_android(installation)
+      assert %Installation{retired_at: nil} = Repo.get!(Installation, installation.id)
+
+      expect_token_exchange(rsa, client_email)
+      expect(Req, :post, fn _url, _opts -> {:ok, %Req.Response{status: 200, body: %{}}} end)
+
+      assert :ok = perform_android(installation)
+    end
   end
 end
