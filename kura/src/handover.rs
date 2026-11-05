@@ -11,7 +11,7 @@ use crate::{
     serving_authority::Holder,
     state::SharedState,
     store::manifest_version_ms,
-    sync::feed::SyncPosition,
+    sync::feed::{SyncFeedKind, SyncPosition},
     utils::BackfillRecordKind,
 };
 use axum::{Json, extract::State, http::StatusCode};
@@ -412,26 +412,39 @@ async fn verify_inner(
             // range the full walk runs.
             let delta = match (delta, feed_from) {
                 (Some(mut missing), Some(from)) if from.incarnation == receipt.incarnation => {
-                    match crate::sync::replica::feed_records_between(
+                    let limit = MAX_DELTA_REPAIR_RECORDS.saturating_sub(missing.len());
+                    // What this destination's own link applied needs no
+                    // source feed; an older source may have trimmed it.
+                    let added = match forward_delta_between(
                         state,
-                        &request.intent.source_url,
+                        &request,
                         from,
                         receipt.head,
-                        MAX_DELTA_REPAIR_RECORDS.saturating_sub(missing.len()),
-                    )
-                    .await
-                    {
-                        Ok(Some(added)) => {
-                            missing.extend(added);
-                            Some(missing)
-                        }
-                        outcome => {
-                            tracing::info!(event.name = "kura.handover.delta_unavailable", id = %request.intent.id,
-                                error = ?outcome.err().map(|error| bounded_detail(&error)),
-                                "Source feed does not cover the walk; repairing the whole retained index");
-                            None
-                        }
-                    }
+                        limit,
+                    ) {
+                        Some(added) => Some(added),
+                        None => match crate::sync::replica::feed_records_between(
+                            state,
+                            &request.intent.source_url,
+                            from,
+                            receipt.head,
+                            limit,
+                        )
+                        .await
+                        {
+                            Ok(Some(added)) => Some(added),
+                            outcome => {
+                                tracing::info!(event.name = "kura.handover.delta_unavailable", id = %request.intent.id,
+                                    error = ?outcome.err().map(|error| bounded_detail(&error)),
+                                    "Neither the forward link nor the source feed covers the walk; repairing the whole retained index");
+                                None
+                            }
+                        },
+                    };
+                    added.map(|added| {
+                        missing.extend(added);
+                        missing
+                    })
                 }
                 _ => None,
             };
@@ -894,6 +907,124 @@ pub struct VerifiedContent {
     barrier_delta: Option<Vec<BackfillEntry>>,
 }
 
+/// Every record row this destination's forward link applied from the source
+/// since `from`, the cursor its content walk began at. The link reads the
+/// source's feed contiguously, so through `through` this covers the same rows
+/// the source's own feed did, even after an older source trimmed them.
+pub struct ForwardDelta {
+    intent_id: String,
+    peer: String,
+    from: SyncPosition,
+    through: u64,
+    // (seq, record), or None once a gap, re-bootstrap or the bound broke it.
+    entries: Option<Vec<(u64, BackfillEntry)>>,
+}
+
+/// Starts tracking the forward link for this intent and returns the cursor it
+/// starts from. A page the link applies between the two cursor reads makes
+/// the tracker non-contiguous, which only loses the fallback, never a record.
+fn track_forward_delta(
+    state: &SharedState,
+    request: &VerifyRequest,
+) -> Result<Option<SyncPosition>, String> {
+    let peer = &request.intent.source_url;
+    let mut from = state.store.sync_cursor(peer)?;
+    for _ in 0..3 {
+        *state
+            .runtime
+            .authority
+            .forward_delta
+            .lock()
+            .map_err(|_| "forward delta poisoned")? = from.map(|from| ForwardDelta {
+            intent_id: request.intent.id.clone(),
+            peer: peer.clone(),
+            from,
+            through: from.seq,
+            entries: Some(Vec::new()),
+        });
+        let now = state.store.sync_cursor(peer)?;
+        if now == from {
+            break;
+        }
+        from = now;
+    }
+    Ok(from)
+}
+
+/// Called by the forward link for each page it applied whole, before it
+/// advances its cursor past the page.
+pub(crate) fn note_forward_page(
+    state: &SharedState,
+    peer: &str,
+    position: SyncPosition,
+    page: &crate::http::SyncForwardPage,
+) {
+    let mut tracked = state
+        .runtime
+        .authority
+        .forward_delta
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let Some(tracked) = tracked.as_mut().filter(|tracked| tracked.peer == peer) else {
+        return;
+    };
+    let Some(entries) = tracked.entries.as_mut() else {
+        return;
+    };
+    if position.incarnation != tracked.from.incarnation || position.seq != tracked.through {
+        tracked.entries = None;
+        return;
+    }
+    for entry in page.entries.iter().filter(|entry| {
+        entry.seq > position.seq
+            && matches!(
+                SyncFeedKind::from_wire_name(&entry.kind),
+                Some(SyncFeedKind::Record(_))
+            )
+    }) {
+        if entries.len() == MAX_DELTA_REPAIR_RECORDS {
+            tracked.entries = None;
+            return;
+        }
+        entries.push((
+            entry.seq,
+            BackfillEntry {
+                record_kind: entry.kind.clone(),
+                record_id: entry.record_id.clone(),
+                version_ms: entry.version_ms,
+                size: entry.size,
+            },
+        ));
+    }
+    tracked.through = tracked.through.max(page.next);
+}
+
+/// The records the forward link applied from `from` through `head`, when it
+/// followed the source contiguously that far for this intent.
+fn forward_delta_between(
+    state: &SharedState,
+    request: &VerifyRequest,
+    from: SyncPosition,
+    head: u64,
+    limit: usize,
+) -> Option<Vec<BackfillEntry>> {
+    let tracked = state.runtime.authority.forward_delta.lock().ok()?;
+    let tracked = tracked.as_ref().filter(|tracked| {
+        tracked.intent_id == request.intent.id
+            && tracked.peer == request.intent.source_url
+            && tracked.from == from
+            && tracked.through >= head
+    })?;
+    let added: Vec<_> = tracked
+        .entries
+        .as_ref()?
+        .iter()
+        .filter(|(seq, _)| *seq <= head)
+        .map(|(_, entry)| entry.clone())
+        .collect();
+    (added.len() <= limit).then_some(added)
+}
+
 fn content_key(kind: &str, id: &str, version: u64) -> u128 {
     let mut digest = Sha256::new();
     digest.update(kind.as_bytes());
@@ -1275,8 +1406,9 @@ async fn verify_content_while_serving(
     let cuts = tokio::task::spawn_blocking(move || range_cuts(&local))
         .await
         .map_err(|error| error.to_string())??;
-    // Read before the first page, so the source can hold its feed here.
-    let feed_from = state.store.sync_cursor(&request.intent.source_url)?;
+    // Read before the first page, so the source can hold its feed here, and
+    // tracked from here, so an older source's trimmed feed is no loss.
+    let feed_from = track_forward_delta(state, request)?;
     let first = if near_deadline() {
         None
     } else {
@@ -4031,6 +4163,50 @@ mod tests {
                 .unwrap();
         }
 
+        // Runs the destination's forward link on the source until cancelled.
+        fn follow_source(&self) -> CancellationToken {
+            let cancel = CancellationToken::new();
+            let status = crate::sync::coordinator::LinkStatusCell::new(
+                crate::sync::coordinator::LinkStatus {
+                    kind: crate::sync::coordinator::LinkKind::Replica,
+                    peer: self.intent.source_url.clone(),
+                    region: self.target.state.config.region.clone(),
+                    phase: crate::sync::coordinator::LinkPhase::Forward,
+                    settled: false,
+                    last_success: None,
+                    lag_seconds: None,
+                    lag_entries: 0,
+                    frontier: crate::sync::coordinator::LinkFrontier::Pending,
+                    unsupported: false,
+                },
+            );
+            tokio::spawn(crate::sync::replica::run(
+                self.target.state.clone(),
+                self.intent.source_url.clone(),
+                cancel.clone(),
+                status,
+                Default::default(),
+            ));
+            cancel
+        }
+
+        async fn wait_for_cursor(&self, seq: u64) {
+            tokio::time::timeout(Duration::from_secs(30), async {
+                while self
+                    .target
+                    .state
+                    .store
+                    .sync_cursor(&self.intent.source_url)
+                    .unwrap()
+                    .is_none_or(|cursor| cursor.seq < seq)
+                {
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            })
+            .await
+            .expect("the forward link applies the source's feed");
+        }
+
         // Renews the named intent in `phase` on both peers, as the controller
         // would, until the returned task is aborted.
         fn keep_granted(&self, phase: &'static str) -> tokio::task::JoinHandle<()> {
@@ -4234,6 +4410,43 @@ mod tests {
                 .await;
         }
         let feed = pair.source.state.store.sync_feed();
+        feed.note_consumer("sibling", feed.head());
+        pair.source
+            .state
+            .store
+            .sync_feed_trim_below_consumers()
+            .await
+            .unwrap();
+        let listings = pair.source_requests("/_internal/backfill/entries");
+
+        let receipt = pair.freeze().await.unwrap();
+
+        assert_eq!(receipt.records as usize, late);
+        assert_eq!(
+            pair.source_requests("/_internal/backfill/entries"),
+            listings,
+            "the frozen repair never lists the source's whole index"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_forward_link_covers_the_delta_after_an_older_source_trims_its_feed() {
+        let pair = ContentPair::new().await;
+        pair.seed("early", &vec![1; 64 * 1024]).await;
+        pair.catch_up_cursor();
+        pair.prepare_while_serving().await.unwrap();
+        let link = pair.follow_source();
+        let late = crate::constants::SYNC_FEED_TRIM_BATCH_ROWS as usize + 64;
+        for index in 0..late {
+            pair.seed(&format!("late-{index}"), &(index as u64).to_be_bytes())
+                .await;
+        }
+        let feed = pair.source.state.store.sync_feed();
+        pair.wait_for_cursor(feed.head()).await;
+        link.cancel();
+        // An older source never pins its feed for the handover, so the
+        // sibling link's progress trims it past where the walk began.
+        feed.forget_consumer(&handover_feed_pin(&pair.intent));
         feed.note_consumer("sibling", feed.head());
         pair.source
             .state

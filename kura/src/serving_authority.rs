@@ -62,6 +62,9 @@ pub struct ServingAuthority {
     // Record versions whose content this destination confirmed against the
     // source while it still served, for exactly one named intent.
     pub(crate) verified_content: Mutex<Option<crate::handover::VerifiedContent>>,
+    // What this destination's forward link applied from the source since its
+    // content walk began, for a source whose own feed no longer reaches back.
+    pub(crate) forward_delta: Mutex<Option<crate::handover::ForwardDelta>>,
     // A destination rejection retrying cannot change, reported by the frozen
     // source so the controller resumes it before the Quiescing deadline.
     pub(crate) barrier_failure: Mutex<Option<crate::handover::HandoverFailure>>,
@@ -117,6 +120,7 @@ impl ServingAuthority {
             handover_preparation: tokio::sync::Mutex::new(()),
             preparation: Mutex::new(None),
             verified_content: Mutex::new(None),
+            forward_delta: Mutex::new(None),
             barrier_failure: Mutex::new(None),
             frozen_failure: Mutex::new(None),
             marker: None,

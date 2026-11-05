@@ -463,6 +463,7 @@ pub async fn run(
                 };
                 match applied {
                     Ok(true) => {
+                        crate::handover::note_forward_page(&app, &peer, position, &page);
                         let next = SyncPosition {
                             incarnation: position.incarnation,
                             seq: page.next,
