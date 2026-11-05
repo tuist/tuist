@@ -951,11 +951,14 @@ defmodule TuistWeb.BuildRunLive do
     if not is_nil(issue.path) and String.contains?(title, issue.path) and
          not is_nil(run.project.vcs_connection) and
          run.project.vcs_connection.provider == :github and not is_nil(run.git_commit_sha) do
+      href =
+        "https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{issue.path}"
+
+      # The title, path, and commit SHA come from the client, so escape them
+      # before building the link.
       title
-      |> String.replace(
-        issue.path,
-        ~s(<a href="https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{issue.path}" target="_blank">#{issue.path}</a>)
-      )
+      |> escape()
+      |> String.replace(escape(issue.path), ~s(<a href="#{escape(href)}" target="_blank">#{escape(issue.path)}</a>))
       |> raw()
     else
       title
@@ -966,17 +969,25 @@ defmodule TuistWeb.BuildRunLive do
     if not is_nil(issue.path) and issue.path != "" and
          not is_nil(run.project.vcs_connection) and
          run.project.vcs_connection.provider == :github and not is_nil(run.git_commit_sha) do
+      location = "#{issue.path}#L#{issue.starting_line}"
+
+      href =
+        "https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{location}"
+
+      # The message, path, and commit SHA come from the client, so escape them
+      # before building the link.
       raw(
         dgettext("dashboard_builds", "%{message} in %{link}",
-          message: issue.message,
-          link:
-            ~s(<a href="https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{issue.path}#L#{issue.starting_line}" target="_blank">#{issue.path}#L#{issue.starting_line}</a>)
+          message: escape(issue.message),
+          link: ~s(<a href="#{escape(href)}" target="_blank">#{escape(location)}</a>)
         )
       )
     else
       issue.message
     end
   end
+
+  defp escape(value), do: value |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp issue_title_for_type(issue, run, type) do
