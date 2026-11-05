@@ -12,7 +12,8 @@
         ".github/workflows/pulse.yml",
         ".github/workflows/pulse-release.yml",
         ".github/workflows/pulse-nif-release.yml",
-        ".github/workflows/pulse-deployment.yml"
+        ".github/workflows/pulse-deployment.yml",
+        ".github/workflows/pulse-instance-deployment.yml"
       ]
     },
     {

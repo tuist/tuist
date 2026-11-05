@@ -49,9 +49,10 @@ Authenticated-subject snapshots are also stored in the separate ephemeral node-l
 ### Pulse observability storage
 
 Pulse is an independently deployed observability backend, not a new server
-database. The initial managed configuration names the dedicated Tigris bucket
-`pulse-production`; provisioning and collector cutover are prerequisites, not
-effects of importing the source. No Tuist account-to-Pulse-tenant mapping or
+database. Managed instances preserve the existing Tigris buckets
+`tuist-pulso-{staging,canary,production}` and tenant prefixes during the rename;
+collector cutover is a coordinated deployment, not an effect of importing the
+source. No Tuist account-to-Pulse-tenant mapping or
 customer provisioning is introduced by this import. Before exporting, establish
 the verified tenant and select records belonging to the requesting subject;
 an operational tenant can contain telemetry from multiple accounts.
@@ -75,9 +76,10 @@ digests and unrelated subjects. Do not export `auth/issuer/`, application Secret
 signing material or storage credentials. There is no automated complete legal
 export endpoint; the retained telemetry query paths are tested against local S3
 fixtures, but the managed bucket export has not been exercised before bootstrap.
-The complete namespace rename changes rollup metadata and credential types;
-historical source-system data requires the explicit offline migration described
-in [Pulse's migration guide](../pulse/docs/deployment.md#monorepo-migration).
+The namespace rename changes newly written rollup metadata and credential types;
+compatibility readers preserve historical rollups without rewriting objects.
+Respect the cutover and rollback boundaries described in
+[Pulse's migration guide](../pulse/docs/deployment.md#monorepo-migration).
 
 ### Managed outbound email delivery
 

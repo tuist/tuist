@@ -875,7 +875,16 @@ fn read_rollups(
         .map_err(|_| TierError::Invalid)?;
     let schema = metadata.schema();
     let expected = rollup_schema();
-    if schema.metadata().get(ROLLUP_KEY).map(String::as_str) != Some(ROLLUP_VERSION)
+    // Historical rollups remain immutable. Reject ambiguous aliases rather
+    // than silently preferring either version; writers use only ROLLUP_KEY.
+    let version = match (
+        schema.metadata().get(ROLLUP_KEY),
+        schema.metadata().get("pulso.metric.rollup"),
+    ) {
+        (Some(version), None) | (None, Some(version)) => Some(version.as_str()),
+        _ => None,
+    };
+    if version != Some(ROLLUP_VERSION)
         || schema.fields().len() != expected.fields().len()
         || schema
             .fields()
@@ -994,6 +1003,46 @@ pub fn decode_rollups(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn historical_rollups_validate_versions_aliases_and_schema() {
+        let original = Bytes::from_static(include_bytes!(
+            "../../../test/fixtures/metrics/legacy_1_38/metric_rollup.parquet"
+        ));
+        let reader = ParquetRecordBatchReaderBuilder::try_new(original).unwrap();
+        let batch = reader.build().unwrap().next().unwrap().unwrap();
+        for (metadata, valid) in [
+            (vec![(ROLLUP_KEY, "1")], true),
+            (vec![("pulso.metric.rollup", "1")], true),
+            (vec![("pulso.metric.rollup", "2")], false),
+            (vec![(ROLLUP_KEY, "1"), ("pulso.metric.rollup", "1")], false),
+            (vec![(ROLLUP_KEY, "1"), ("pulso.metric.rollup", "2")], false),
+            (vec![], false),
+        ] {
+            let schema = Arc::new(
+                batch.schema().as_ref().clone().with_metadata(
+                    metadata
+                        .into_iter()
+                        .map(|(k, v)| (k.into(), v.into()))
+                        .collect(),
+                ),
+            );
+            let batch = RecordBatch::try_new(schema.clone(), batch.columns().to_vec()).unwrap();
+            let mut payload = Vec::new();
+            let mut writer = ArrowWriter::try_new(&mut payload, schema, None).unwrap();
+            writer.write(&batch).unwrap();
+            writer.close().unwrap();
+            assert_eq!(
+                decode_rollups(Bytes::from(payload), None, None, &[]).is_ok(),
+                valid
+            );
+        }
+        // Recognized metadata must never authorize an ordinary sample schema.
+        let samples = Bytes::from_static(include_bytes!(
+            "../../../test/fixtures/metrics/legacy_1_38/metric_final.parquet"
+        ));
+        assert!(decode_rollups(samples, None, None, &[]).is_err());
+    }
 
     fn labels(name: &str, series: &str) -> Vec<u8> {
         let mut out = Vec::new();

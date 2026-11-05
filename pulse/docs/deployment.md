@@ -28,16 +28,30 @@ Credential issuers must mint `pulse_ik_` ingest keys with `pulse-ik+jwt` headers
 and re-sign status lists with `pulse-status+jwt`. Old signed credentials are not
 accepted. Parquet metadata uses `pulse.metric.postings.v1`, `PULSEMP1`,
 `pulse.metric.rollup`, `pulse.log.rollup` and `pulse.log.rollup.sources`.
-Historical rollups need a validated offline conversion before reuse; never assume
-that changing a bucket setting migrates stored data. Use a fresh dedicated bucket
-for the initial instance, retain the old bucket for recovery, and coordinate any
-later historical-data migration with credential reissuance and collector cutover.
+Readers also recognize the corresponding historical metadata names and postings
+magic. Existing buckets, object keys, manifests and historical rollups can be
+reused without rewriting stored objects. New rollups use only Pulse metadata.
+Historical identity strings remain narrowly scoped to compatibility readers and
+deterministic keyed-publication hashes so retries do not duplicate acknowledged
+data. They are not runtime configuration aliases.
 
 Do not run both Helm releases as independent maintenance fleets over the same
 bucket during the rename. Stop the old workload before starting Pulse, and
 check chart-generated resource names, Secret references, service discovery and
 collector destinations. This source migration does not change an existing
 deployment automatically.
+
+Quiesce ingestion, drain accepted work and pending recording publications, and
+stop every old reader, writer and compactor before the cutover. Preserve existing
+credential bytes and tenant prefixes; change endpoint audiences and consumers
+together. Shared-secret deployments do not require reissuing hosted signed
+credentials. Previously issued alert pagination cursors must restart.
+
+After Pulse publishes new metric or log rollups, the unmodified old binary is
+not a safe rollback target: it cannot read the new metadata. Recover using a
+compatibility-capable Pulse release, not an old container or a manifest backup
+that could omit subsequent acknowledgments. Do not change retention enforcement
+as part of this migration.
 
 > [!IMPORTANT]
 > Run one Pulse node per bucket for now. Multi-node clustering is not wired into

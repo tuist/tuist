@@ -8,23 +8,37 @@ trap 'rm -rf "$tmp"' EXIT
 
 helm lint "$chart" -f "$root/pulse/test/fixtures/helm/synthetic-values.yaml"
 helm template standalone "$chart" -f "$root/pulse/test/fixtures/helm/synthetic-values.yaml" > "$tmp/standalone.yaml"
-helm lint "$chart" -f "$chart/values-managed-production.yaml"
-helm template pulse "$chart" --namespace pulse -f "$chart/values-managed-production.yaml" --set image.tag=1.39.7 > "$tmp/managed.yaml"
-for mode in standalone managed; do
-  yq -o=json -I=0 '.' "$tmp/$mode.yaml" | jq -s 'map(select(. != null))' > "$tmp/$mode.json"
-done
+yq -o=json -I=0 '.' "$tmp/standalone.yaml" | jq -s 'map(select(. != null))' > "$tmp/standalone.json"
 
 jq -e '
   (map(select(.kind == "ExternalSecret")) | length == 0) and
   (map(select(.kind == "Secret")) | length == 1)
 ' "$tmp/standalone.json" > /dev/null
 
-jq -e '
-  (map(select(.kind == "Secret" or .kind == "Ingress" or .kind == "HorizontalPodAutoscaler")) | length == 0) and
+for environment in staging canary production; do
+  helm lint "$chart" -f "$chart/values-managed-$environment.yaml"
+  helm template pulse "$chart" --namespace observability -f "$chart/values-managed-$environment.yaml" \
+    --set image.tag=1.39.7 > "$tmp/managed.yaml"
+  yq -o=json -I=0 '.' "$tmp/managed.yaml" | jq -s 'map(select(. != null))' > "$tmp/managed.json"
+  host="pulse-$environment.tuist.dev"
+  if [[ "$environment" == production ]]; then host=pulse.tuist.dev; fi
+  jq -e --arg bucket "tuist-pulso-$environment" --arg host "$host" '
+  (map(select(.kind == "Secret" or .kind == "HorizontalPodAutoscaler")) | length == 0) and
   (map(select(.kind == "Service")) | length == 1 and .[0].spec.type == "ClusterIP") and
+  (map(select(.kind == "Ingress")) | length == 1 and
+    .[0].spec.rules == [{host: $host, http: {paths: [{path: "/mcp", pathType: "Exact",
+      backend: {service: {name: "pulse", port: {name: "http"}}}}]}}]) and
   (map(select(.kind == "ExternalSecret")) | length == 1 and
-    .[0].spec.target.name == "pulse-app" and
+    .[0].spec.target.name == "pulse-credentials" and
     .[0].spec.secretStoreRef == {name: "onepassword", kind: "ClusterSecretStore"} and
+    .[0].spec.target.template.data.PULSE_TENANT_TOKENS ==
+      "{\"tuist\":\"sha256${{ .PULSE_TENANT_TOKENS | trim | sha256sum }}\"}" and
+    .[0].spec.target.template.data["pulse-password"] == "{{ .PULSE_TENANT_TOKENS | trim }}" and
+    .[0].spec.target.template.data["pulse-username"] == "tuist" and
+    .[0].spec.target.template.data.tenantId == "tuist" and
+    (.[0].spec.data | map(.remoteRef.key) | sort) ==
+      ["PULSE_S3_CREDENTIALS/access_key_id", "PULSE_S3_CREDENTIALS/secret_access_key",
+       "PULSE_SECRET_KEY_BASE/password", "PULSE_TOKEN/password"] and
     (.[0].spec.data | map(.secretKey) | sort) ==
       ["PULSE_S3_ACCESS_KEY_ID", "PULSE_S3_SECRET_ACCESS_KEY", "PULSE_TENANT_TOKENS", "SECRET_KEY_BASE"]) and
   (map(select(.kind == "Deployment")) | length == 1 and
@@ -33,8 +47,16 @@ jq -e '
     .[0].spec.template.metadata.annotations["prometheus.io/scrape"] == "true" and
     .[0].spec.template.spec.containers[0].image == "ghcr.io/tuist/pulse:1.39.7" and
     (.[0].spec.template.spec.containers[0].env | map(select(.name == "PULSE_TENANT_TOKENS")) |
-      length == 1 and .[0].valueFrom.secretKeyRef.name == "pulse-app"))
+      length == 1 and .[0].valueFrom.secretKeyRef.name == "pulse-credentials") and
+    (.[0].spec.template.spec.containers[0].env | map(select(.name == "PULSE_S3_BUCKET")) |
+      length == 1 and .[0].value == $bucket) and
+    (.[0].spec.template.spec.containers[0].env | map(select(.name == "PULSE_WORKLOAD_IDENTITY_JSON")) |
+      length == 1 and (.[0].value | fromjson | map(del(.keys))) == [{name: "atlas-production",
+        issuer: "https://kubernetes.default.svc.cluster.local", audiences: [$host], max_token_ttl_seconds: 3600,
+        bindings: [{subject: "system:serviceaccount:atlas-production:atlas",
+          tenant: "tuist", capabilities: ["read"]}]}]))
 ' "$tmp/managed.json" > /dev/null
+done
 
 # Invalid managed configurations must fail instead of falling back to generated secrets.
 for setting in 'existingSecret=' 'externalSecrets.items=null'; do

@@ -189,6 +189,29 @@ defmodule Pulse.Alerting.RecordingGroupTest do
     )
   end
 
+  test "a pending historical recording intent reuses its already-published metric object", ctx do
+    group = simple([%{"record" => "recorded", "expr" => "vector(2)"}])
+    assert {:ok, _} = Alerting.create(ctx.actor, "historical", request(group, "create"), ctx.opts)
+
+    assert {:ok, %{"recording_pending" => 1}} =
+             Evaluator.evaluate(ctx.actor, "historical", ctx.opts ++ [timestamp_ns: @t0])
+
+    assert {:ok, %{"recording_queue" => [ref]}, _} = Repository.load("kura", "historical", ctx.opts)
+    rows = [%MetricSample{labels: %{"__name__" => "recorded"}, timestamp_ns: @t0, value: 2.0}]
+    # The historical publisher committed the append, but crashed before ack.
+    assert :ok = S3.append(:metrics, "kura", rows, idempotency_key: "pulso-recording-v1-" <> ref["digest"])
+    before = Agent.get(ctx.agent, &Map.keys(&1.objects)) |> Enum.filter(&String.ends_with?(&1, ".parquet"))
+    assert [_] = before
+    assert {:ok, 1} = Recording.drain("kura", "historical", ctx.opts)
+    assert {:ok, 0} = Recording.drain("kura", "historical", ctx.opts)
+    after_keys = Agent.get(ctx.agent, &Map.keys(&1.objects)) |> Enum.filter(&String.ends_with?(&1, ".parquet"))
+    assert after_keys == before
+    assert {:ok, [sample]} = S3.query(:metrics, "kura", [])
+    assert sample.labels == %{"__name__" => "recorded"}
+    assert sample.value == 2.0
+    assert {:ok, %{"recording_pending" => 0}} = Alerting.state(ctx.actor, "historical", ctx.opts)
+  end
+
   defp samples(name, values) do
     for {value, minute} <- Enum.with_index(values),
         do: %MetricSample{

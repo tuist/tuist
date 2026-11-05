@@ -94,11 +94,11 @@ tuistServer:
   tokenAudience: tuist-server
   tokenMountPath: /var/run/secrets/tuist
   tokenExpirationSeconds: 3600
-# Pulso MCP upstreams, one per environment, each authenticated with its own
+# Pulse MCP upstreams, one per environment, each authenticated with its own
 # projected ServiceAccount token (audience `audience`). Empty by default; the
 # managed overlay lists the Tuist clusters.
-pulso:
-  tokenMountPath: /var/run/secrets/pulso
+pulse:
+  tokenMountPath: /var/run/secrets/pulse
   tokenExpirationSeconds: 3600
   upstreams: []
 postgres:

@@ -6,6 +6,29 @@ defmodule Pulse.Storage.LogMetadataCodecTest do
   alias Pulse.Storage.S3
   alias Pulse.Storage.SortOrder
 
+  test "historical log rollups retain sources, answer scans and merge into Pulse-only output" do
+    dir = Path.expand("../../fixtures/metrics/legacy_1_38", __DIR__)
+    legacy = File.read!(Path.join(dir, "log_rollup.parquet"))
+    logs = File.read!(Path.join(dir, "logs.parquet"))
+    minute = 60_000_000_000
+    assert {:ok, ["source-a", "source-b"]} = NIF.log_rollup_sources(legacy)
+
+    builder = NIF.log_rollup_new(0, minute, [minute])
+    assert {:ok, 1} = NIF.log_rollup_add(builder, legacy, false, [minute])
+    assert {:ok, 2} = NIF.log_rollup_add(builder, logs, true, [])
+    assert {:ok, fresh, 1, [{^minute, 4}]} = NIF.log_rollup_finish(builder, ["source-c"])
+    assert {:ok, ["source-c"]} = NIF.log_rollup_sources(fresh)
+    assert :binary.match(fresh, "pulso.log.rollup.sources") == :nomatch
+
+    for {blob, count} <- [{legacy, 2}, {fresh, 4}] do
+      assert {:ok, scan} = NIF.log_metric_binned_new(:count, nil, 100)
+      assert {:ok, 1} = NIF.log_metric_scan_rollup(scan, blob, [minute], nil, [])
+      assert {:ok, [{labels, packed}]} = NIF.log_metric_scan_finish(scan)
+      assert labels["service_name"] == "api"
+      assert <<^minute::signed-64, 2, ^count::signed-64>> = packed
+    end
+  end
+
   test "legacy ten-column objects remain readable with explicitly absent OTLP metadata" do
     blob = File.read!("test/fixtures/logs/legacy_log.parquet")
     assert {:ok, [log]} = S3.decode_segment(:logs, blob, nil, nil, [])

@@ -4,8 +4,10 @@ defmodule Pulse.Storage.S3.KeyedPublicationTest do
   alias Pulse.Codec.NIF
   alias Pulse.ObjectStore
   alias Pulse.OTLP.Traces
+  alias Pulse.Record.Exemplar
   alias Pulse.Record.Log
   alias Pulse.Record.MetricSample
+  alias Pulse.Record.NativeHistogram
   alias Pulse.RemoteWrite.Push
   alias Pulse.Runtime
   alias Pulse.Runtime.Task
@@ -86,6 +88,47 @@ defmodule Pulse.Storage.S3.KeyedPublicationTest do
       assert count(ctx, "GET", key) == 1
       assert {:ok, %{segments: [%{key: ^key}]}} = load(ctx, signal)
     end
+  end
+
+  test "historical rich metric retries retain their hashes, object keys and exact bytes", ctx do
+    dir = Path.expand("../../../fixtures/metrics/legacy_1_38", __DIR__)
+    hashes = dir |> Path.join("hashes.json") |> File.read!() |> Pulse.JSON.decode!()
+    histogram = %NativeHistogram{count: 2.0, sum: 3.0}
+    exemplars = [%Exemplar{labels: %{"trace_id" => "abc"}, value: 2.0, timestamp_ns: 1}]
+
+    for {name, hist, ex} <- [
+          {"histogram", histogram, nil},
+          {"exemplar", nil, exemplars},
+          {"both", histogram, exemplars}
+        ] do
+      rows = [
+        %MetricSample{
+          timestamp_ns: 1,
+          value: if(!hist, do: 2.0),
+          labels: %{"__name__" => "work", "host" => "a"},
+          histogram: hist,
+          exemplars: ex
+        }
+      ]
+
+      hash = Map.fetch!(hashes, name)
+      assert {:ok, ^hash} = S3.caller_content_hash(:metrics, rows)
+      bytes = File.read!(Path.join(dir, "keyed_#{name}.parquet"))
+      assert {:ok, ^bytes, 1, 1, 1} = NIF.encode_metric_segment_parquet_v2(rows)
+      key = S3.object_key(ctx.tenant, "metrics", 1, 1, hash, name)
+      assert {:ok, _} = ObjectStore.put(ctx.config, key, bytes)
+
+      # The old writer uploaded, but may have lost its response before CAS.
+      assert :ok = S3.append(:metrics, ctx.tenant, rows, idempotency_key: name)
+      ManifestCache.drop(ctx.tenant, "metrics")
+      assert :ok = S3.append(:metrics, ctx.tenant, rows, idempotency_key: name)
+      assert {_, ^bytes} = object(ctx, key)
+      assert {:ok, manifest} = load(ctx, :metrics)
+      assert Enum.count(manifest.segments, &(&1.key == key)) == 1
+    end
+
+    assert {:ok, %{segments: segments}} = load(ctx, :metrics)
+    assert length(segments) == 3
   end
 
   test "different encodings of identical logical metric rows fail closed without replacing bytes", ctx do

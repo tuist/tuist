@@ -33,6 +33,9 @@ externalSecrets:
     name: onepassword
     kind: ClusterSecretStore
   items: {}
+  # Optional ESO target data expressions. These are passed verbatim to ESO,
+  # not evaluated by Helm. Use them to derive digests from provider values.
+  template: {}
 
 # Phoenix secret key base. Leave empty to have the chart generate one and keep
 # it across upgrades.

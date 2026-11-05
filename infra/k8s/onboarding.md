@@ -526,16 +526,17 @@ gh workflow run server-deployment.yml -f environment=<env>
 
 ### Pulse instance
 
-Pulse deploys independently into the production `pulse` namespace, not as part
-of the server chart. Before its first release/deployment, provision the dedicated
-bucket and production-vault fields described in the
+Pulse deploys independently into each cluster's `observability` namespace, not
+as part of the server or monitoring chart. Before its first release/deployment,
+verify the existing buckets and environment-vault fields described in the
 [Pulse bootstrap prerequisites](../helm/pulse/README.md#bootstrap-prerequisites).
-The release pipeline publishes matching image/chart artifacts before deployment;
-manual rollbacks select a published version through `pulse-deployment.yml` on
-main. Keep the first instance private and single-replica. Existing telemetry
-collectors are unchanged; customer reconciliation and collector cutover are
-separate rollouts. Production mutations still require the approval described
-in the infrastructure access policy.
+The release pipeline publishes matching image/chart artifacts before cascading
+staging → canary → production; manual redeployments select a published version
+through `pulse-deployment.yml` on main. Keep each instance single-replica and
+ingestion private, exposing only authenticated `/mcp`. Coordinate the initial
+collector and Atlas rename with retirement of the old writer and resource
+ownership checks. Customer reconciliation is not implemented. Production
+mutations still require the approval described in the infrastructure access policy.
 
 ## 7. Observability
 

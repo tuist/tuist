@@ -151,11 +151,11 @@ spec:
             - name: TUIST_SERVER_TOKEN_PATH
               value: {{ printf "%s/token" .Values.tuistServer.tokenMountPath | quote }}
             {{- end }}
-            {{- with .Values.pulso.upstreams }}
-            # One proxied MCP upstream per Pulso, each reading its own
-            # audience-scoped token from the pulso-token volume below.
-            - name: PULSO_MCP_UPSTREAMS
-              value: {{ $upstreams := list }}{{ range . }}{{ $upstreams = append $upstreams (dict "name" .name "url" .mcpUrl "token_path" (printf "%s/%s" $.Values.pulso.tokenMountPath .name)) }}{{ end }}{{ $upstreams | toJson | quote }}
+            {{- with .Values.pulse.upstreams }}
+            # One proxied MCP upstream per Pulse, each reading its own
+            # audience-scoped token from the pulse-token volume below.
+            - name: PULSE_MCP_UPSTREAMS
+              value: {{ $upstreams := list }}{{ range . }}{{ $upstreams = append $upstreams (dict "name" .name "url" .mcpUrl "token_path" (printf "%s/%s" $.Values.pulse.tokenMountPath .name)) }}{{ end }}{{ $upstreams | toJson | quote }}
             {{- end }}
             {{- if .Values.postgres.enabled }}
             - name: PGUSER
@@ -220,20 +220,20 @@ spec:
                 command: ["sh", "-c", "sleep 10"]
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.tuistServer.enabled .Values.pulso.upstreams }}
+          {{- if or .Values.tuistServer.enabled .Values.pulse.upstreams }}
           volumeMounts:
             {{- if .Values.tuistServer.enabled }}
             - name: tuist-server-token
               mountPath: {{ .Values.tuistServer.tokenMountPath }}
               readOnly: true
             {{- end }}
-            {{- if .Values.pulso.upstreams }}
-            - name: pulso-token
-              mountPath: {{ .Values.pulso.tokenMountPath }}
+            {{- if .Values.pulse.upstreams }}
+            - name: pulse-token
+              mountPath: {{ .Values.pulse.tokenMountPath }}
               readOnly: true
             {{- end }}
           {{- end }}
-      {{- if or .Values.tuistServer.enabled .Values.pulso.upstreams }}
+      {{- if or .Values.tuistServer.enabled .Values.pulse.upstreams }}
       volumes:
         {{- if .Values.tuistServer.enabled }}
         # Projected ServiceAccount token scoped to the Tuist server audience.
@@ -247,18 +247,18 @@ spec:
                   audience: {{ .Values.tuistServer.tokenAudience | quote }}
                   expirationSeconds: {{ .Values.tuistServer.tokenExpirationSeconds }}
         {{- end }}
-        {{- with .Values.pulso.upstreams }}
-        # Same mechanism for Pulso's MCP endpoints: one token per Pulso, each
-        # with that host as its audience, so a token sent to one Pulso is
+        {{- with .Values.pulse.upstreams }}
+        # Same mechanism for Pulse's MCP endpoints: one token per Pulse, each
+        # with that host as its audience, so a token sent to one Pulse is
         # never accepted by another (or by the Tuist server).
-        - name: pulso-token
+        - name: pulse-token
           projected:
             sources:
               {{- range . }}
               - serviceAccountToken:
                   path: {{ .name }}
                   audience: {{ .audience | quote }}
-                  expirationSeconds: {{ $.Values.pulso.tokenExpirationSeconds }}
+                  expirationSeconds: {{ $.Values.pulse.tokenExpirationSeconds }}
               {{- end }}
         {{- end }}
       {{- end }}

@@ -241,7 +241,9 @@ defmodule Pulse.Alerting.Recording do
   defp publish(tenant, id, ref, opts) do
     with {:ok, object} <- Repository.recording_object(tenant, id, ref, opts),
          {:ok, records} <- records(object) do
-      case append(tenant, records, "pulse-recording-v1-" <> ref["digest"], opts) do
+      # A pending intent may already have appended before its acknowledgement
+      # was lost. Its historical idempotency namespace must survive the rename.
+      case append(tenant, records, "pulso-recording-v1-" <> ref["digest"], opts) do
         :ok -> acknowledge(tenant, id, ref, object, "published", opts)
         {:error, :retention_expired} -> acknowledge(tenant, id, ref, object, "expired", opts)
         error -> error

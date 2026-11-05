@@ -2745,8 +2745,16 @@ defmodule Pulse.Storage.S3 do
   # plain samples stay what they were.
   defp with_rich_sample(canonical, %MetricSample{histogram: nil, exemplars: nil}), do: canonical
 
-  defp with_rich_sample(canonical, %MetricSample{histogram: histogram, exemplars: exemplars}),
-    do: Map.merge(canonical, %{histogram: histogram, exemplars: exemplars})
+  defp with_rich_sample(canonical, %MetricSample{histogram: histogram, exemplars: exemplars}) do
+    # These fixed historical struct tags are part of the deterministic key,
+    # not the Parquet encoding. Changing them duplicates rich keyed retries.
+    histogram = if histogram, do: Map.put(histogram, :__struct__, :"Elixir.Pulso.Record.NativeHistogram")
+
+    exemplars =
+      if exemplars, do: Enum.map(exemplars, &Map.put(&1, :__struct__, :"Elixir.Pulso.Record.Exemplar"))
+
+    Map.merge(canonical, %{histogram: histogram, exemplars: exemplars})
+  end
 
   defp digest_hex(canonical) do
     digest =

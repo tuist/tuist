@@ -7,6 +7,42 @@ defmodule Pulse.Storage.MetricPostingsTest do
 
   @key "pulse.metric.postings.v1"
 
+  test "historical postings prune footer reads and fresh writes use only Pulse metadata" do
+    legacy = File.read!(Path.expand("../../fixtures/metrics/legacy_1_38/indexed.parquet", __DIR__))
+    assert {:ok, rows} = NIF.decode_metric_segment_parquet(legacy, nil, nil, [])
+    assert Enum.map(rows, & &1.value) == [2.0, 4.0]
+    absent = [{"host", :eq, "missing"}]
+    assert {:ok, 2, true} = NIF.metric_segment_footer_plan(legacy, byte_size(legacy), nil, nil, absent)
+    damaged = :binary.replace(legacy, "50554c534f4d5031", "50554c534f4d5030", [:global])
+    assert {:ok, 2, false} = NIF.metric_segment_footer_plan(damaged, byte_size(damaged), nil, nil, absent)
+    assert {:ok, []} = NIF.decode_metric_segment_parquet(damaged, nil, nil, absent)
+
+    assert {:ok, fresh, _, _, _} = NIF.encode_metric_segment_parquet_indexed_v1(rows)
+    assert :binary.match(fresh, @key) != :nomatch
+    assert :binary.match(fresh, "50554c53454d5031") != :nomatch
+    assert :binary.match(fresh, "pulso.metric.postings.v1") == :nomatch
+    assert {:ok, 2, true} = NIF.metric_segment_footer_plan(fresh, byte_size(fresh), nil, nil, absent)
+  end
+
+  test "historical metric rollups decode and refinalization writes only Pulse rollups" do
+    dir = Path.expand("../../fixtures/metrics/legacy_1_38", __DIR__)
+    legacy = File.read!(Path.join(dir, "metric_rollup.parquet"))
+    assert {:ok, [row]} = NIF.decode_metric_rollups(legacy, 0, 3_600_000_000_000, [])
+    assert elem(row, 2) == 2
+    assert elem(row, 4) == 2.0
+    assert elem(row, 6) == 4.0
+    assert {:ok, []} = NIF.decode_metric_rollups(legacy, 0, 3_600_000_000_000, [{"host", :eq, "absent"}])
+
+    assert {:ok, builder} = NIF.metric_finalize_new(0, 3_600_000_000_000, 100, 2, nil)
+    assert {:ok, 2} = NIF.metric_finalize_add(builder, File.read!(Path.join(dir, "metric_final.parquet")))
+    assert :ok = NIF.metric_finalize_finish(builder, 100, 100, 100)
+    assert {:ok, :final, {_, _, _, 2, _}} = NIF.metric_finalize_next(builder)
+    assert {:ok, :rollup, {fresh, _, _, 1, _}} = NIF.metric_finalize_next(builder)
+    assert :done = NIF.metric_finalize_next(builder)
+    assert :binary.match(fresh, "pulso.metric.rollup") == :nomatch
+    assert {:ok, [^row]} = NIF.decode_metric_rollups(fresh, 0, 3_600_000_000_000, [])
+  end
+
   test "indexed native queries agree with complete reference scans despite hash collisions" do
     samples =
       for n <- 0..1199 do

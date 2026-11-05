@@ -411,7 +411,16 @@ fn reader(bytes: Bytes) -> Result<ParquetRecordBatchReaderBuilder<Bytes>, Rollup
         ParquetRecordBatchReaderBuilder::try_new(bytes).map_err(|_| RollupError::Fallback)?;
     let schema = builder.schema();
     let expected = self::schema();
-    if schema.metadata().get(ROLLUP_KEY).map(String::as_str) != Some(ROLLUP_VERSION)
+    // Read historical rollups without rewriting them. Both aliases at once
+    // are ambiguous, even when their values happen to agree.
+    let version = match (
+        schema.metadata().get(ROLLUP_KEY),
+        schema.metadata().get("pulso.log.rollup"),
+    ) {
+        (Some(version), None) | (None, Some(version)) => Some(version.as_str()),
+        _ => None,
+    };
+    if version != Some(ROLLUP_VERSION)
         || schema.fields().len() != expected.fields().len()
         || schema
             .fields()
@@ -428,9 +437,16 @@ fn reader(bytes: Bytes) -> Result<ParquetRecordBatchReaderBuilder<Bytes>, Rollup
 pub fn sources(bytes: Bytes) -> Result<Vec<String>, RollupError> {
     let builder = reader(bytes)?;
     let metadata = builder.metadata().file_metadata().key_value_metadata();
-    Ok(metadata
-        .and_then(|kv| kv.iter().find(|kv| kv.key == SOURCES_KEY))
-        .and_then(|kv| kv.value.as_ref())
+    let mut entries = metadata
+        .into_iter()
+        .flatten()
+        .filter(|kv| kv.key == SOURCES_KEY || kv.key == "pulso.log.rollup.sources");
+    let value = entries.next().map(|kv| kv.value.as_ref());
+    if entries.next().is_some() || matches!(value, Some(None)) {
+        return Err(RollupError::Fallback);
+    }
+    Ok(value
+        .flatten()
         .map(|value| {
             value
                 .split('\n')
@@ -608,6 +624,75 @@ fn log_rollup_sources<'a>(env: Env<'a>, blob: Binary<'a>) -> Term<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn historical_rollups_reject_ambiguous_versions_and_sources() {
+        let original = Bytes::from_static(include_bytes!(
+            "../../../test/fixtures/metrics/legacy_1_38/log_rollup.parquet"
+        ));
+        assert_eq!(
+            sources(original.clone()).unwrap(),
+            vec!["source-a", "source-b"]
+        );
+        let batch = reader(original)
+            .unwrap()
+            .build()
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        for (metadata, keys, valid) in [
+            (vec![(ROLLUP_KEY, "1")], vec![(SOURCES_KEY, "new")], true),
+            (
+                vec![("pulso.log.rollup", "1")],
+                vec![("pulso.log.rollup.sources", "old")],
+                true,
+            ),
+            (
+                vec![(ROLLUP_KEY, "1"), ("pulso.log.rollup", "1")],
+                vec![],
+                false,
+            ),
+            (vec![("pulso.log.rollup", "2")], vec![], false),
+            (
+                vec![(ROLLUP_KEY, "1")],
+                vec![(SOURCES_KEY, "a"), ("pulso.log.rollup.sources", "b")],
+                false,
+            ),
+            (
+                vec![(ROLLUP_KEY, "1")],
+                vec![(SOURCES_KEY, "a"), (SOURCES_KEY, "a")],
+                false,
+            ),
+        ] {
+            let schema = Arc::new(
+                batch.schema().as_ref().clone().with_metadata(
+                    metadata
+                        .into_iter()
+                        .map(|(k, v)| (k.into(), v.into()))
+                        .collect(),
+                ),
+            );
+            let batch = RecordBatch::try_new(schema.clone(), batch.columns().to_vec()).unwrap();
+            let properties = WriterProperties::builder()
+                .set_key_value_metadata(Some(
+                    keys.into_iter()
+                        .map(|(k, v)| KeyValue::new(k.into(), v.to_owned()))
+                        .collect(),
+                ))
+                .build();
+            let mut payload = Vec::new();
+            let mut writer = ArrowWriter::try_new(&mut payload, schema, Some(properties)).unwrap();
+            writer.write(&batch).unwrap();
+            writer.close().unwrap();
+            assert_eq!(sources(Bytes::from(payload)).is_ok(), valid);
+        }
+        assert_eq!(
+            schema().metadata().get(ROLLUP_KEY).map(String::as_str),
+            Some("1")
+        );
+        assert!(!schema().metadata().contains_key("pulso.log.rollup"));
+    }
 
     #[test]
     fn buckets_end_on_minutes_and_hold_the_window_shape() {

@@ -188,17 +188,17 @@ defmodule Atlas.MCP.ProxyTest do
     assert message =~ "not available"
   end
 
-  # Every per-environment Pulso upstream reads production-adjacent telemetry,
+  # Every per-environment Pulse upstream reads production-adjacent telemetry,
   # so each one sits behind the observability toggle, not just one named entry.
-  test "gates every Pulso environment upstream on observability access" do
+  test "gates every Pulse environment upstream on observability access" do
     stub(Config, :get, fn ->
-      [servers: [%{"name" => "pulso_canary", "url" => "https://pulso-canary.example/mcp", "bearer_token" => "t"}]]
+      [servers: [%{"name" => "pulse_canary", "url" => "https://pulse-canary.example/mcp", "bearer_token" => "t"}]]
     end)
 
     conn = %{assigns: %{mcp_claims: %{"mcp_tool_groups" => []}}}
 
     assert Proxy.list_hoisted_tools(conn) == []
-    assert {:error, message} = Proxy.call_hoisted_tool(conn, "pulso_canary__query_promql", %{"query" => "up"})
+    assert {:error, message} = Proxy.call_hoisted_tool(conn, "pulse_canary__query_promql", %{"query" => "up"})
     assert message =~ "not available"
   end
 
@@ -307,8 +307,8 @@ defmodule Atlas.MCP.ProxyTest do
       [
         servers: [
           %{
-            "name" => "pulso_staging",
-            "url" => "https://pulso-staging.example/mcp",
+            "name" => "pulse_staging",
+            "url" => "https://pulse-staging.example/mcp",
             "auth_type" => "service_account_token",
             "token_path" => token_path,
             "protocol_version" => "2026-07-28",
@@ -346,7 +346,7 @@ defmodule Atlas.MCP.ProxyTest do
     end)
 
     assert {:ok, %{"content" => [%{"text" => "ok"}]}} =
-             Proxy.call_tool("pulso_staging", "query_promql", %{"query" => "up"})
+             Proxy.call_tool("pulse_staging", "query_promql", %{"query" => "up"})
 
     File.write!(token_path, "rotated-token")
 
@@ -360,10 +360,10 @@ defmodule Atlas.MCP.ProxyTest do
        }}
     end)
 
-    assert {:ok, []} = Proxy.list_tools("pulso_staging")
+    assert {:ok, []} = Proxy.list_tools("pulse_staging")
 
     File.rm!(token_path)
-    assert {:error, message} = Proxy.list_tools("pulso_staging")
+    assert {:error, message} = Proxy.list_tools("pulse_staging")
     assert message =~ "workload identity token"
   end
 

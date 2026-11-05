@@ -136,7 +136,7 @@ defmodule Pulse.Alerting.RecordingTest do
     assert [first, _second] = queue = head["recording_queue"]
 
     conflict = fn _, _, opts ->
-      assert opts[:idempotency_key] == "pulse-recording-v1-" <> first["digest"]
+      assert opts[:idempotency_key] == "pulso-recording-v1-" <> first["digest"]
       {:error, :keyed_content_mismatch}
     end
 

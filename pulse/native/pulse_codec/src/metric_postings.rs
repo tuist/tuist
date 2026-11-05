@@ -13,6 +13,9 @@ use xxhash_rust::xxh64::xxh64;
 
 pub(crate) const KEY: &str = "pulse.metric.postings.v1";
 const MAGIC: &[u8; 8] = b"PULSEMP1";
+// Read historical objects in place; new indexes use only KEY and MAGIC.
+const LEGACY_KEY: &str = "pulso.metric.postings.v1";
+const LEGACY_MAGIC: &[u8; 8] = b"PULSOMP1";
 const MAX_TEXT: usize = 65_536;
 const MAX_RAW: usize = MAX_TEXT / 2;
 const MAX_SERIES: usize = 512;
@@ -280,7 +283,8 @@ fn parse(text: &str) -> Option<Index> {
         return None;
     }
     let mut cursor = Cursor(body);
-    if cursor.take(MAGIC.len())? != MAGIC {
+    let magic = cursor.take(MAGIC.len())?;
+    if magic != MAGIC && magic != LEGACY_MAGIC {
         return None;
     }
     let series = cursor.u16()?;
@@ -409,7 +413,9 @@ pub(crate) fn candidate_groups(
         return None;
     }
     let entries = metadata.file_metadata().key_value_metadata()?;
-    let mut entries = entries.iter().filter(|entry| entry.key == KEY);
+    let mut entries = entries
+        .iter()
+        .filter(|entry| entry.key == KEY || entry.key == LEGACY_KEY);
     let text = entries.next()?.value.as_ref()?;
     if entries.next().is_some() {
         return None;
@@ -437,6 +443,44 @@ mod tests {
             name,
             value,
             op: MatcherOp::Eq,
+        }
+    }
+
+    #[test]
+    fn historical_postings_reject_duplicate_and_conflicting_aliases() {
+        use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+        use parquet::file::metadata::{FileMetaData, KeyValue};
+        let bytes = bytes::Bytes::from_static(include_bytes!(
+            "../../../test/fixtures/metrics/legacy_1_38/indexed.parquet"
+        ));
+        let reader = ParquetRecordBatchReaderBuilder::try_new(bytes).unwrap();
+        let metadata = reader.metadata();
+        let file = metadata.file_metadata();
+        let legacy = file
+            .key_value_metadata()
+            .unwrap()
+            .iter()
+            .find(|kv| kv.key == LEGACY_KEY)
+            .unwrap();
+        let matchers = [eq(b"host", b"missing")];
+        assert_eq!(candidate_groups(metadata, &matchers), Some(vec![false]));
+        for extra in [
+            legacy.clone(),
+            KeyValue::new(KEY.into(), legacy.value.clone()),
+            KeyValue::new(KEY.into(), "invalid".to_owned()),
+        ] {
+            let mut entries = file.key_value_metadata().unwrap().clone();
+            entries.push(extra);
+            let file = FileMetaData::new(
+                file.version(),
+                file.num_rows(),
+                file.created_by().map(str::to_owned),
+                Some(entries),
+                file.schema_descr_ptr(),
+                file.column_orders().cloned(),
+            );
+            let ambiguous = ParquetMetaData::new(file, metadata.row_groups().to_vec());
+            assert!(candidate_groups(&ambiguous, &matchers).is_none());
         }
     }
 
