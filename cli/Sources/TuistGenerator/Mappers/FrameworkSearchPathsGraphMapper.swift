@@ -203,9 +203,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         }
 
         let responseFilePath = input.responseFileDirectory.appending(component: "\(input.id.targetName).resp")
-        let precompiledXcodeValues = precompiledPaths
-            .map { $0.xcodeValue(sourceRootPath: input.sourceRootPath) }
-            .uniqued()
+        let precompiledXcodeValues = Set(precompiledPaths.map { $0.xcodeValue(sourceRootPath: input.sourceRootPath) })
             .sorted()
         // The response file must contain absolute paths since clang doesn't expand build
         // setting variables. Convert $(SRCROOT)/... to absolute paths.
@@ -249,7 +247,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
     }
 
     private func xcodeValues(of paths: Set<LinkGeneratorPath>, sourceRootPath: AbsolutePath) -> [String] {
-        paths.map { $0.xcodeValue(sourceRootPath: sourceRootPath) }.uniqued().sorted()
+        Set(paths.map { $0.xcodeValue(sourceRootPath: sourceRootPath) }).sorted()
     }
 
     private func swiftSearchPathValues(

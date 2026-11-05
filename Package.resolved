@@ -1,5 +1,5 @@
 {
-  "originHash" : "c3a0f5dd6cf0d1e0e8ff44dd08dbc94a1e8ad00d1dd4de89b25d15d867beb7e7",
+  "originHash" : "5f5e85f81731815d0ba2b3bf8d9399e91710eb5fccee00d330c3ecc99c9e64e0",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -649,7 +649,7 @@
       "location" : "",
       "originalLocation" : "https://github.com/tadija/AEXML.git",
       "state" : {
-        "version" : "4.7.0"
+        "version" : "4.7.3"
       }
     },
     {
@@ -715,7 +715,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "9.17.5"
+        "version" : "9.17.8"
       }
     },
     {
