@@ -192,13 +192,13 @@ defmodule Atlas.MCP.ProxyTest do
   # so each one sits behind the observability toggle, not just one named entry.
   test "gates every Pulso environment upstream on observability access" do
     stub(Config, :get, fn ->
-      [servers: [%{"name" => "pulso-canary", "url" => "https://pulso-canary.example/mcp", "bearer_token" => "t"}]]
+      [servers: [%{"name" => "pulso_canary", "url" => "https://pulso-canary.example/mcp", "bearer_token" => "t"}]]
     end)
 
     conn = %{assigns: %{mcp_claims: %{"mcp_tool_groups" => []}}}
 
     assert Proxy.list_hoisted_tools(conn) == []
-    assert {:error, message} = Proxy.call_hoisted_tool(conn, "pulso-canary__query_promql", %{"query" => "up"})
+    assert {:error, message} = Proxy.call_hoisted_tool(conn, "pulso_canary__query_promql", %{"query" => "up"})
     assert message =~ "not available"
   end
 
@@ -307,7 +307,7 @@ defmodule Atlas.MCP.ProxyTest do
       [
         servers: [
           %{
-            "name" => "pulso-staging",
+            "name" => "pulso_staging",
             "url" => "https://pulso-staging.example/mcp",
             "auth_type" => "service_account_token",
             "token_path" => token_path,
@@ -346,7 +346,7 @@ defmodule Atlas.MCP.ProxyTest do
     end)
 
     assert {:ok, %{"content" => [%{"text" => "ok"}]}} =
-             Proxy.call_tool("pulso-staging", "query_promql", %{"query" => "up"})
+             Proxy.call_tool("pulso_staging", "query_promql", %{"query" => "up"})
 
     File.write!(token_path, "rotated-token")
 
@@ -360,10 +360,10 @@ defmodule Atlas.MCP.ProxyTest do
        }}
     end)
 
-    assert {:ok, []} = Proxy.list_tools("pulso-staging")
+    assert {:ok, []} = Proxy.list_tools("pulso_staging")
 
     File.rm!(token_path)
-    assert {:error, message} = Proxy.list_tools("pulso-staging")
+    assert {:error, message} = Proxy.list_tools("pulso_staging")
     assert message =~ "workload identity token"
   end
 

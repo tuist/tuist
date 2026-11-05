@@ -189,8 +189,8 @@ defmodule Atlas.MCP.Proxy do
     not restricted_mcp_session?(conn) or server_tool_group(server) in allowed_tool_groups(conn)
   end
 
-  # One Pulso upstream per Tuist environment (`pulso-staging`, `pulso-canary`,
-  # ...), all reading cluster telemetry.
+  # One Pulso upstream per Tuist environment (`pulso` for production,
+  # `pulso_canary`, ...), all reading cluster telemetry.
   defp server_tool_group(%Server{name: "pulso" <> _}), do: "observability"
   defp server_tool_group(%Server{name: name}), do: Map.get(@server_tool_groups, name, "default")
 
