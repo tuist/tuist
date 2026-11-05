@@ -145,6 +145,14 @@ pulso:
   ingestBatching:
     maxConcurrentRequests: 32
     flushIntervalMs: 2000
+  # 1.36.0 node-local cache of immutable segments: dashboard and compaction
+  # reads of recent segments skip the billed Tigris GET. Production fills about
+  # 3.6 GiB/hour per node; canary ingests ~1/30 of that, so 2 GiB of emptyDir
+  # holds well over a day. Memory tier keeps the 64 MiB default.
+  objectCache:
+    disk:
+      enabled: true
+      sizeMb: 2048
   # Merge small log segments (one per Alloy push) so LogQL panels and alert
   # rules read tens of objects instead of thousands. Single writer, so every
   # reader/writer/compactor runs the same version.
