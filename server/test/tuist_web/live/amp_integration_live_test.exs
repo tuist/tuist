@@ -99,14 +99,14 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
           session = Repo.get_by!(UserToken, token: session_token, context: "session")
 
           session
-          |> Ecto.Changeset.change(last_active_at: DateTime.add(DateTime.utc_now(:second), -901))
+          |> Ecto.Changeset.change(last_active_at: DateTime.add(DateTime.utc_now(:second), -3601))
           |> Repo.update!()
 
         :absolute ->
           session = Repo.get_by!(UserToken, token: session_token, context: "session")
 
           session
-          |> Ecto.Changeset.change(inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(:second), -28_801))
+          |> Ecto.Changeset.change(inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(:second), -86_401))
           |> Repo.update!()
 
         :revoked ->
