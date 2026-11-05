@@ -234,8 +234,9 @@ other_guidance=""
   the Atlas MCP tools `ovh-servers__*`, `ovh-services__*` and `ovh-orders__*`, which run
   as your own OVH login. To prep a box, use `ovh-servers__reinstall-dedicated-server`
   as infra/AGENTS.md "From an Amp orb" describes, not `baremetal:prep-ovh`: each call
-  needs the person to approve it at the link it returns, and the final rename stays
-  with them. Never approve it yourself, never ask for or use the fleet's `OVH_API`
+  needs the person to approve it at the link it returns. Then rename it into the fleet
+  with `ovh_set_server_display_name`, which needs approval the same way. Never approve
+  either yourself, never ask for or use the fleet's `OVH_API`
   token, and never use 1Password from an orb.
 EOF
 } >"$guidance.tmp"
