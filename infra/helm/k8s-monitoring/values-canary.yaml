@@ -154,6 +154,28 @@ pulso:
   # tools, so the Grafana trace panels (event., >>, | select) can run on Pulso.
   tempoSearch:
     enabled: true
+  # Native recordings, starting with the kura:* group the Kura alerts read
+  # (1.35.0 evaluates a group in order on one timestamp). Notifications stay
+  # off: Grafana keeps paging. Each poll LISTs tenants and rules (Class A), so
+  # poll every 15 s instead of 5 s; rules run on a 60 s cadence. The principal
+  # stores only the token's SHA-256; the plaintext is Pedro's Amp secret
+  # PULSO_CANARY_ALERTING_TOKEN.
+  alerting:
+    evaluationEnabled: true
+    pollIntervalMs: 15000
+    principals:
+      - tenant: tuist
+        id: amp-operator
+        type: agent
+        token_hash: 914590b15b464c23b0666a9724136dd7a6461b422093a7dd09334879387ea8b2
+        capabilities:
+          - alert:read
+          - alert:rules:write
+          - alert:audit:read
+          - alert:preview
+          - alert:evaluate
+          - alert:import
+          - alert:record
   # Proposed production retention, previewed only: observe mode computes the
   # floor but expires nothing. Switching to enforce deletes data and needs an
   # explicit decision. 1.32.0+ keeps enforced prefixes on the paged manifest,
