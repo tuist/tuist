@@ -1,7 +1,7 @@
 # Deployed by .github/workflows/remote-execution-deployment.yml into the
 # cluster's sandbox namespace (tuist-sandboxes). Image tags come from the
-# workflow. Keep it disabled until the env has hosts labelled and tainted
-# tuist.dev/workload=remote-execution, excluded from every CI RunnerPool.
+# workflow. Keep it disabled until the runners controller release that
+# recognises remote execution workers runs in production.
 enabled: false
 serverURL: http://tuist-tuist-server.tuist.svc.cluster.local:80
 serverNamespace: tuist
@@ -9,3 +9,17 @@ gateway:
   ingress:
     enabled: true
     host: execution.tuist.dev
+workers:
+  # Six slots' rootfs clones, workspaces and memory images plus the template.
+  diskGiB: 180
+  # Two runners-linux hosts: 2 VMs each always (9 GiB, 4 CPUs), up to 6 each
+  # (25 GiB) ahead of queued CI.
+  sharedHosts:
+    enabled: true
+    nodes:
+      - tuist-tuist-ovh-fleet-runners-linux-wxhhv-sfkd5
+      - tuist-tuist-ovh-fleet-runners-linux-wxhhv-2qkj8
+    floorSlots: 2
+    ceilingSlots: 6
+    tolerations:
+      - {key: tuist.dev/runner-tier, operator: Equal, value: bare-metal, effect: NoSchedule}

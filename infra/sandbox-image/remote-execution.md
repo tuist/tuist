@@ -196,18 +196,52 @@ Use a Linux execution platform and compatible hermetic toolchains.
 
 ## Capacity and failure semantics
 
-Use reserved hosts excluded from **every CI RunnerPool**. Give them the
-`tuist.dev/workload=remote-execution` label and matching `NoSchedule` taint through
-the normal host-provisioning workflow. This avoids the dependency cycle where a
-CI job holds its runner while its remote actions wait behind queued CI jobs.
+A CI job holds its runner while its remote actions run. If those actions
+compete with queued CI for the same memory, a burst of CI jobs can fill the fleet
+and leave every job waiting on actions that have nowhere to run. Workers
+therefore always have capacity CI cannot take back, in one of two modes:
 
-The standalone [chart](../helm/remote-execution/values.yaml) gives each host fixed
-CPU/memory reservations and publishes `EXECUTION_SLOTS`. Placement also requires
-an operator-configured node name, the matching image, memory/disk capacity, and
-the daemon's `execution_deadlines` capability. Shared or elastic sandbox nodes
-and old daemons are rejected. Each slot is 2 vCPUs, 4 GiB guest RAM, 64 MiB VM
-overhead and a 10 GiB workspace; the daemon reserves another 512 MiB. Disk budgets
-must cover templates, rootfs clones, workspaces and host headroom.
+- **Dedicated hosts** excluded from every CI RunnerPool, with the
+  `tuist.dev/workload=remote-execution` label and matching `NoSchedule` taint.
+  Each worker has a fixed CPU/memory reservation of `perNodeConcurrency` slots.
+- **Shared runner hosts** (`workers.sharedHosts`), named Linux runner hosts that
+  also run CI and the agent sandbox daemon. Each worker holds an elastic memory
+  carve-out like the agent daemon's, bounded by a floor and a ceiling:
+  - The Pod starts at `floorSlots` (request equals limit). Runner Pods never get
+    that memory, and execution placement uses it, and anything the Pod has
+    grown to, without a runners-controller grant, so a CI burst cannot starve
+    the actions its jobs wait on.
+  - When no VM fits, the server grows the Pod in place, in whole GiB, toward
+    `ceilingSlots`. Unlike agent sandboxes, which only take memory the grant
+    offers, the worker asks even when the grant offers nothing beyond what it
+    holds (every runner busy): its actions serve jobs that are already running.
+    The kubelet defers a growth that does not fit and the scheduler keeps
+    counting it, so no new runner Pod lands on the room that finishing jobs
+    free until the growth applies. Running jobs are never evicted.
+  - A revoked, expired or missing grant still refuses growth. CI host
+    reservations, unhealthy nodes and a stopped controller keep their
+    protection, and a reservation shrinks the carve-out back to what its VMs
+    hold, never below the floor.
+  - Grown carve-outs shrink back toward what their VMs hold 15 seconds after
+    the last growth.
+
+  The worker connects to the server as `<node>.remote-execution`, beside the
+  node's agent daemon, which connects as the node itself. The runners
+  controller recognises `tuist.dev/remote-execution-daemon` Pods, keeps their
+  memory out of runner seats and publishes their grants under that name. The
+  controller release with that support must run before enabling shared workers.
+  Configure the suffixed names as the account's `node_names`.
+
+The [chart](../helm/remote-execution/values.yaml) publishes `EXECUTION_SLOTS`
+(the ceiling on shared hosts). Placement also requires an operator-configured
+node name, the matching image, memory/disk capacity, and the daemon's
+`execution_deadlines` capability; old daemons are rejected. Each slot is 2 vCPUs,
+4 GiB guest RAM, 64 MiB VM overhead and a 10 GiB workspace; the daemon reserves
+another 512 MiB. On shared hosts only the floor's CPU is requested; guests above
+it use idle cores. Disk budgets must cover templates, rootfs clones, workspaces
+and host headroom, and on shared hosts must leave room beside the agent daemon's
+budget and runner caches on the same filesystem. Workers jail guests from UID
+30000 so their jails never share a UID with the agent daemon's.
 
 Disconnecting a client does not cancel its operation. The API does not implement
 Operations cancellation or priorities. Execution lasts at most ten minutes, with
@@ -225,9 +259,12 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
 ## Build and rollout
 
 1. Run the PostgreSQL migration and deploy the server with the flag off.
-2. Provision reserved hosts as described above and confirm the environment's
-   `values-managed-<env>.yaml` in the [chart](../helm/remote-execution/) names
-   the right server namespace and gateway host. Set `enabled: true` there.
+2. Choose hosts as described above: provision dedicated hosts, or name shared
+   runner hosts in `workers.sharedHosts` after the runners controller release
+   that recognises remote execution workers is deployed. Confirm the
+   environment's `values-managed-<env>.yaml` in the
+   [chart](../helm/remote-execution/) names the right server namespace and
+   gateway host. Set `enabled: true` there.
 3. Run **Remote Execution Deployment** (`.github/workflows/remote-execution-deployment.yml`)
    for the environment. It publishes the guest template and the execution gateway
    (`ghcr.io/tuist/tuist-remote-execution`, both under the sandbox image's
@@ -239,15 +276,17 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
    `OnDelete` (see Rollback). The server's network policy admits pods labelled
    `tuist.dev/remote-execution` from the sandbox namespace.
 4. Confirm hosts report `execution_deadlines: true`, `execution_slots > 0`, and a
-   ready `bazel` template with the pinned tag. Confirm fixed CPU/memory requests,
-   disk headroom, and the dedicated host taint before allowing any account.
+   ready `bazel` template with the pinned tag. Confirm fixed CPU/memory requests
+   and the dedicated host taint, or on shared hosts the floor-sized workers and
+   their grants (`tuist_runners_sandbox_memory_bytes{node="<node>.remote-execution"}`),
+   and disk headroom before allowing any account.
 5. In an authorized operator release console, configure the account:
 
    ```elixir
    account = Tuist.Accounts.get_account_by_handle("tuist")
    Tuist.RemoteExecution.configure(account, %{
      max_concurrency: 2,
-     node_names: ["<reserved-linux-node>"],
+     node_names: ["<reserved-linux-node>"], # shared hosts: "<node>.remote-execution"
      image_tag: "sha-<template-commit>",
      cas_endpoint: "grpcs://<the-account-kura-endpoint>",
      executor_endpoint: "grpcs://<execution-endpoint>"

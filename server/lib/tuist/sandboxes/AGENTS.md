@@ -9,7 +9,11 @@ Linux REAPI actions use a separate `Tuist.RemoteExecution` lifecycle and
 `sandboxes.purpose = remote_execution`. Keep them out of agent listing, quotas,
 idle retention and node-report reconciliation: their scheduler and lease own
 them. Reserved executor nodes must not admit agent sessions; execution rows and
-resource reservations survive errors until acknowledged VM deletion.
+resource reservations survive errors until acknowledged VM deletion. An executor
+on a shared runner host connects as `<node>.remote-execution` with its own
+carve-out: execution placement uses memory its Pod holds without a grant and may
+grow past the grant's bytes, but never past a revoked or expired grant. Agent
+admission keeps requiring the grant.
 See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-execution.md).
 
 ## Pieces

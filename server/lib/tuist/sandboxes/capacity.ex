@@ -221,9 +221,18 @@ defmodule Tuist.Sandboxes.Capacity do
 
   # A grant authorizes new work, never a speculative memory reservation.
   # Non-elastic nodes remain usable for standalone development daemons.
+  # An execution daemon may grow past the memory the grant offers: its
+  # actions serve CI jobs that already hold runners, so they go ahead of
+  # queued CI up to the carve-out's ceiling. A revoked, expired or missing
+  # grant (a host reservation, an unhealthy node, a stopped controller)
+  # still refuses.
   defp allocation_allows?(node, needed) do
     if elastic?(node) do
-      outcome = allocation_outcome(Repo.get(SandboxNode, node.name), node, needed)
+      outcome =
+        case allocation_outcome(Repo.get(SandboxNode, node.name), node, needed) do
+          :allocation_limit -> if execution_daemon?(node), do: :ahead_of_ci, else: :allocation_limit
+          outcome -> outcome
+        end
 
       :telemetry.execute([:tuist, :sandboxes, :capacity], %{duration: 0}, %{
         node: node.name,
@@ -231,7 +240,7 @@ defmodule Tuist.Sandboxes.Capacity do
         outcome: outcome
       })
 
-      outcome == :allowed
+      outcome in [:allowed, :ahead_of_ci]
     else
       true
     end
@@ -321,10 +330,13 @@ defmodule Tuist.Sandboxes.Capacity do
 
   # What the server last asked this node's current Pod for. A row naming
   # another Pod predates a restart, which starts the Pod at the floor again.
-  defp asked_limit(%{name: name, elastic: %{pod_name: pod_name}} = node) when is_binary(name) do
+  # A row a grant created before the daemon connected starts at 1 GiB; the
+  # Pod never holds less than its floor.
+  defp asked_limit(%{name: name, elastic: %{pod_name: pod_name, memory_floor_bytes: floor}} = node)
+       when is_binary(name) do
     if elastic?(node) do
       case Repo.get(SandboxNode, name) do
-        %SandboxNode{pod_name: ^pod_name, memory_limit_bytes: limit} -> limit
+        %SandboxNode{pod_name: ^pod_name, memory_limit_bytes: limit} -> max(limit, floor)
         _other -> nil
       end
     end
@@ -499,38 +511,67 @@ defmodule Tuist.Sandboxes.Capacity do
     Enum.filter(Nodes.connected_nodes(), &(Map.get(&1, :execution_slots, 0) == 0 and template_ready?(&1, template)))
   end
 
-  @doc "Reserve a fixed-capacity execution host; never borrow CI-first elastic capacity."
+  @doc """
+  Reserves a VM on one of the account's execution daemons: a dedicated
+  host's fixed reservation, or a shared runner host's elastic carve-out.
+
+  Memory a daemon's Pod already holds is committed to remote execution, so
+  placing into it needs no runners-controller grant. Actions run on behalf
+  of CI jobs that hold their runners while they wait, so a CI burst that
+  revokes grants must not starve them: a shared host's floor always takes
+  VMs. When nothing fits, a shared host's carve-out grows toward its
+  ceiling ahead of queued CI (see `allocation_allows?/2`): a growth the
+  kubelet defers stays asked for, which keeps new runner Pods off the room
+  that running jobs free.
+  """
   def place_execution(%Sandbox{} = sandbox, settings, image_tag) do
     candidates =
       Enum.filter(Nodes.connected_nodes(), fn node ->
         execution_node?(node, settings, image_tag, sandbox)
       end)
 
-    reserved =
-      Enum.find(rank(candidates), fn node ->
-        fits = fn ->
-          cpus =
-            Repo.one(
-              from s in Sandbox,
-                where: s.node_name == ^node.name and s.state != :deleted,
-                select: coalesce(sum(s.vcpus), 0)
-            )
+    charge = charge_bytes(sandbox)
 
-          cpus + sandbox.vcpus <= min(node.capacity.cpus, node.execution_slots * 2) and disk_space?(node, sandbox) and
-            disk_room?(node, sandbox)
+    reserve = fn node ->
+      reserve(node, charge, fn -> set_node(sandbox, node.name) end, fn -> execution_fits?(node, sandbox) end, false)
+    end
+
+    case Enum.find(rank(candidates), &(reserve.(&1) == :ok)) do
+      %{name: node_name} ->
+        {:ok, node_name}
+
+      nil ->
+        with {:ok, grown} <-
+               candidates
+               |> Enum.filter(&execution_fits?(&1, sandbox))
+               |> grow_somewhere(charge, wait_ms(:grow_wait_ms), :reported),
+             :ok <- reserve.(grown) do
+          {:ok, grown.name}
+        else
+          _no_room -> {:error, :no_capacity}
         end
+    end
+  end
 
-        reserve(node, charge_bytes(sandbox), fn -> set_node(sandbox, node.name) end, fits) == :ok
-      end)
+  defp execution_fits?(node, sandbox) do
+    cpus =
+      Repo.one(
+        from s in Sandbox,
+          where: s.node_name == ^node.name and s.state != :deleted,
+          select: coalesce(sum(s.vcpus), 0)
+      )
 
-    if reserved, do: {:ok, reserved.name}, else: {:error, :no_capacity}
+    cpus + sandbox.vcpus <= min(node.capacity.cpus, node.execution_slots * 2) and disk_space?(node, sandbox) and
+      disk_room?(node, sandbox)
   end
 
   defp execution_node?(node, settings, image_tag, sandbox) do
     node.name in settings.node_names and Map.get(node, :execution_deadlines, false) and
-      not shared_node?(node.name) and not elastic?(node) and execution_capacity?(node, sandbox) and
+      execution_capacity?(node, sandbox) and
       Enum.any?(Map.get(node, :templates, []), &(&1.name == "bazel" and &1.tag == image_tag and &1.ready))
   end
+
+  defp execution_daemon?(node), do: Map.get(node, :execution_slots, 0) > 0
 
   defp execution_capacity?(%{execution_slots: slots, capacity: %{cpus: cpus, memory_bytes: memory}}, sandbox)
        when is_integer(slots) and slots > 0 and is_integer(cpus) and is_integer(memory) and memory > 0,
@@ -1040,6 +1081,7 @@ defmodule Tuist.Sandboxes.Capacity do
 
       with %SandboxNode{pod_name: pod_name} = row <- Repo.get(SandboxNode, node_name),
            true <- pod_name == elastic.pod_name,
+           row = at_least_floor(row, elastic.memory_floor_bytes),
            false <- held?(row) and not urgent do
         needed = reserved_bytes(node_name) + @daemon_reserve_bytes
 
@@ -1067,6 +1109,11 @@ defmodule Tuist.Sandboxes.Capacity do
       {:error, :unchanged} -> :unchanged
     end
   end
+
+  defp at_least_floor(%SandboxNode{memory_limit_bytes: limit} = row, floor) when limit < floor,
+    do: row |> SandboxNode.changeset(%{memory_limit_bytes: floor}) |> Repo.update!()
+
+  defp at_least_floor(row, _floor), do: row
 
   defp held?(%SandboxNode{grown_at: nil}), do: false
 
@@ -1165,19 +1212,15 @@ defmodule Tuist.Sandboxes.Capacity do
   end
 
   # `disk_fits` runs under the node's lock too, so two placements racing
-  # for the last of a node's disk budget see each other's rows.
-  defp reserve(node, charge, apply, disk_fits \\ fn -> true end) do
+  # for the last of a node's disk budget see each other's rows. Without
+  # `grant?`, memory the Pod holds is used whatever the grant says.
+  defp reserve(node, charge, apply, disk_fits \\ fn -> true end, grant? \\ true) do
     fn ->
       lock(node.name)
       reserved = reserved_bytes(node.name)
 
-      memory_fits =
-        case memory_budget_bytes(node) do
-          :unbounded -> true
-          budget -> budget - reserved >= charge
-        end
-
-      if memory_fits and allocation_allows?(node, reserved + charge + @daemon_reserve_bytes) and
+      if memory_fits?(node, reserved, charge) and
+           (not grant? or allocation_allows?(node, reserved + charge + @daemon_reserve_bytes)) and
            disk_fits.(), do: apply.(), else: Repo.rollback(:no_capacity)
     end
     |> Repo.transaction()
@@ -1185,6 +1228,13 @@ defmodule Tuist.Sandboxes.Capacity do
       {:ok, _applied} -> :ok
       {:error, :no_capacity} -> :no_capacity
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp memory_fits?(node, reserved, charge) do
+    case memory_budget_bytes(node) do
+      :unbounded -> true
+      budget -> budget - reserved >= charge
     end
   end
 
