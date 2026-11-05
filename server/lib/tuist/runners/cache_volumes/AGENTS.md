@@ -138,8 +138,9 @@ these schemas persist volume identities and per-job uses.
   volume next starts empty. Allocations and prefetch listings send `volume_bytes`
   and the head use's measured `head_size_bytes`.
 - Allocation clears a custom volume whose saved head measured at 80% or more of
-  the capacity chosen for the job (`full?/2`) once a use cloned from that head
-  reached 99% of its own (`out_of_space?/2`), under the same row lock and with the
+  the capacity chosen for the job (`full?/2`) once a use cloned from that head, or
+  from the head's own parent (a sibling that saved replaced the head the others
+  filled), reached 99% of its own (`out_of_space?/2`), under the same row lock and with the
   same generation bump as deletion, then sizes the use as for an empty volume.
   The decision precedes the host-maximum check, so a refused job changes nothing.
   Unknown sizes never clear. The dashboard warns on heads nearly full at the
