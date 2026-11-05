@@ -204,6 +204,10 @@ defmodule Tuist.Sandboxes.Query do
       else: {:error, :invalid_parameters}
   end
 
+  # The API says `identifier` rather than `name`: generated Kotlin enums cannot have an entry called `name`.
+  defp sort_field("identifier"), do: :name
+  defp sort_field(sort), do: String.to_existing_atom(sort)
+
   defp filters(params) do
     sort = Map.get(params, "sort_by", "created")
     order = Map.get(params, "sort_order", if(sort == "identifier", do: "asc", else: "desc"))
@@ -213,8 +217,7 @@ defmodule Tuist.Sandboxes.Query do
          status in [nil | Schemas.statuses()] and valid_vcpus?(vcpus) do
       {:ok,
        [
-         # `identifier` rather than `name`: generated Kotlin enums cannot have an entry called `name`.
-         sort_by: if(sort == "identifier", do: :name, else: String.to_existing_atom(sort)),
+         sort_by: sort_field(sort),
          sort_order: String.to_existing_atom(order),
          search: search,
          status: status && {:==, String.to_existing_atom(status)},
