@@ -111,6 +111,22 @@ defmodule TuistWeb.UserMFAController do
     redirect(conn, to: ~p"/users/settings/mfa")
   end
 
+  def regenerate(conn, params) do
+    case UserMFA.regenerate_recovery_codes(
+           conn.assigns.current_user,
+           conn.assigns.current_user_session,
+           params["mfa_code"]
+         ) do
+      {:ok, result} ->
+        conn |> rotate_session(result) |> render_page(:recovery, codes: result.recovery_codes)
+
+      {:error, _} ->
+        conn
+        |> put_status(:unauthorized)
+        |> render_page(:settings, enabled: true, secret: nil, error: reauthenticate() <> " " <> invalid_code())
+    end
+  end
+
   def disable(conn, params) do
     case UserMFA.disable(conn.assigns.current_user, conn.assigns.current_user_session, params["mfa_code"]) do
       {:ok, result} ->
@@ -152,25 +168,18 @@ defmodule TuistWeb.UserMFAController do
   end
 
   defp render_page(conn, template, assigns) do
+    assigns =
+      if template == :settings,
+        do: Keyword.put(assigns, :recovery_code_count, UserMFA.recovery_code_count(conn.assigns.current_user)),
+        else: assigns
+
     conn
     |> put_view(TuistWeb.UserMFAHTML)
     |> render(
       template,
-      assigns
-      |> Keyword.put(:head_title, dgettext("dashboard_auth", "Two-factor authentication · Tuist"))
-      |> put_passkeys(conn, template)
+      Keyword.put(assigns, :head_title, dgettext("dashboard_auth", "Two-factor authentication · Tuist"))
     )
   end
-
-  # Every settings render lists the user's passkeys, including after a
-  # rejected authenticator-app change.
-  defp put_passkeys(assigns, conn, :settings) do
-    enabled? = UserPasskeyController.enabled?()
-    passkeys = if enabled?, do: UserPasskey.list(conn.assigns.current_user), else: []
-    Keyword.merge(assigns, passkeys: passkeys, passkeys_enabled?: enabled?)
-  end
-
-  defp put_passkeys(assigns, _conn, _template), do: assigns
 
   defp reauthenticate,
     do: dgettext("dashboard_auth", "Sign out and sign in again before changing two-factor authentication.")

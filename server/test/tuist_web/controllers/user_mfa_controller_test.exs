@@ -2,13 +2,13 @@ defmodule TuistWeb.UserMFAControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.LiveCase
 
-  import Bamboo.Test
   import Phoenix.LiveViewTest
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
   alias Tuist.Accounts.UserMFA
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.SecurityNotificationWorker
   alias Tuist.Repo
   alias Tuist.Time
 
@@ -29,6 +29,15 @@ defmodule TuistWeb.UserMFAControllerTest do
     secret = setup_secret(enrollment)
     refute UserMFA.enabled?(user)
 
+    document = enrollment |> html_response(200) |> Floki.parse_document!()
+    assert ["data:image/png;base64," <> png] = Floki.attribute(document, "#mfa-setup-qr", "src")
+    assert <<137, "PNG", _::binary>> = Base.decode64!(png)
+    assert Floki.find(document, "#mfa-manual-setup[open]") == []
+    assert Floki.find(document, "input#mfa-setup-key[readonly]") != []
+    assert Floki.find(document, "button[data-copy-setup-key][aria-label='Copy setup key']") != []
+    assert Floki.find(document, "#mfa-code[autocomplete='one-time-code'][inputmode='numeric']") != []
+    assert Floki.find(document, "#passkey-registration") == []
+
     invalid = enrollment |> recycle() |> post(~p"/users/settings/mfa/confirm", %{"mfa_code" => "invalid"})
     assert html_response(invalid, 401) =~ "code is invalid"
     assert setup_secret(invalid, 401) == secret
@@ -43,7 +52,7 @@ defmodule TuistWeb.UserMFAControllerTest do
 
     confirmed = enrollment |> recycle() |> post(~p"/users/settings/mfa/confirm", %{"mfa_code" => code(secret, now)})
     assert length(recovery_codes(confirmed)) == 10
-    assert_email_delivered_with(subject: "Two-factor authentication enabled", to: [nil: user.email])
+    assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "mfa_enabled"})
     assert UserMFA.enabled?(user)
     refute Accounts.get_user_by_session_token(old_token)
     render_hook(view, "open_create_project", %{})
@@ -148,6 +157,8 @@ defmodule TuistWeb.UserMFAControllerTest do
     assert user |> login() |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => first}) |> redirected_to() ==
              ~p"/#{user.account.name}/projects"
 
+    assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "recovery_used"})
+
     pending = login(user)
     assert pending |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => first}) |> html_response(401)
 
@@ -250,7 +261,7 @@ defmodule TuistWeb.UserMFAControllerTest do
 
   test "disabling requires a fresh verified session and unused code and revokes all sessions", %{user: user, now: now} do
     {confirmed, _secret, [first, second | _]} = enroll(user, now)
-    assert_email_delivered_with(subject: "Two-factor authentication enabled", to: [nil: user.email])
+    assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "mfa_enabled"})
 
     assert confirmed
            |> recycle()
@@ -262,7 +273,7 @@ defmodule TuistWeb.UserMFAControllerTest do
     second_token = get_session(second_browser, :user_token)
     disabled = confirmed |> recycle() |> post(~p"/users/settings/mfa/disable", %{"mfa_code" => second})
     assert redirected_to(disabled) == ~p"/users/settings/mfa"
-    assert_email_delivered_with(subject: "Two-factor authentication disabled", to: [nil: user.email])
+    assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "mfa_disabled"})
     refute UserMFA.enabled?(user)
     refute Accounts.get_user_by_session_token(second_token)
     assert user |> login() |> redirected_to() == ~p"/#{user.account.name}/projects"
@@ -274,10 +285,56 @@ defmodule TuistWeb.UserMFAControllerTest do
     assert UserMFA.enabled?(user)
     assert Accounts.get_user_by_session_token(get_session(confirmed, :user_token)).id == user.id
 
+    assert {:error, :delivery_unavailable} =
+             perform_job(SecurityNotificationWorker, %{user_id: user.id, event: "mfa_enabled"})
+
     disabled = confirmed |> recycle() |> post(~p"/users/settings/mfa/disable", %{"mfa_code" => recovery})
     assert redirected_to(disabled) == ~p"/users/settings/mfa"
     refute UserMFA.enabled?(user)
     assert Accounts.get_user_by_session_token(get_session(disabled, :user_token)).id == user.id
+    assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "mfa_disabled"})
+  end
+
+  test "regeneration requires fresh proof, replaces the entire code set and preserves the authenticator", %{
+    user: user,
+    now: now
+  } do
+    {confirmed, secret, [first, old_unused | _]} = enroll(user, now)
+    old_token = get_session(confirmed, :user_token)
+    assert UserMFA.recovery_code_count(user) == 10
+
+    assert confirmed
+           |> recycle()
+           |> post(~p"/users/settings/mfa/recovery", %{"mfa_code" => "invalid"})
+           |> html_response(401)
+
+    assert UserMFA.recovery_code_count(user) == 10
+
+    regenerated = confirmed |> recycle() |> post(~p"/users/settings/mfa/recovery", %{"mfa_code" => first})
+    [new_code | _] = new_codes = recovery_codes(regenerated)
+    assert length(new_codes) == 10
+    refute first in new_codes
+    assert UserMFA.enabled?(user)
+    assert Repo.get_by!(UserMFA, user_id: user.id).secret == secret
+    assert get_resp_header(regenerated, "cache-control") == ["private, no-store"]
+    refute Accounts.get_user_by_session_token(old_token)
+    assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "recovery_regenerated"})
+
+    assert user |> login() |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => old_unused}) |> html_response(401)
+
+    assert user |> login() |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => new_code}) |> redirected_to() ==
+             ~p"/#{user.account.name}/projects"
+
+    assert UserMFA.recovery_code_count(user) == 9
+
+    stub(Time, :utc_now, fn -> DateTime.add(now, 301) end)
+
+    assert regenerated
+           |> recycle()
+           |> post(~p"/users/settings/mfa/recovery", %{"mfa_code" => Enum.at(new_codes, 1)})
+           |> html_response(401)
+
+    assert UserMFA.recovery_code_count(user) == 9
   end
 
   defp login(user, extra \\ %{}) do
@@ -296,8 +353,8 @@ defmodule TuistWeb.UserMFAControllerTest do
     conn
     |> html_response(status)
     |> Floki.parse_document!()
-    |> Floki.find("#mfa-setup-key")
-    |> Floki.text()
+    |> Floki.attribute("#mfa-setup-key", "value")
+    |> List.first()
     |> Base.decode32!(padding: false)
   end
 

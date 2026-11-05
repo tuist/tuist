@@ -2,7 +2,6 @@ defmodule TuistWeb.UserPasskeyControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  import Bamboo.Test
   import Bitwise
   import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
@@ -10,6 +9,7 @@ defmodule TuistWeb.UserPasskeyControllerTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.UserMFA
   alias Tuist.Accounts.UserPasskey
+  alias Tuist.Accounts.Workers.SecurityNotificationWorker
   alias Tuist.Repo
   alias Tuist.Time
 
@@ -31,17 +31,24 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     authenticator = authenticator()
     registered = register(login(user), authenticator, "MacBook")
 
-    assert redirected_to(registered) == ~p"/users/settings/mfa"
-    assert_email_delivered_with(subject: "Passkey added", to: [nil: user.email])
+    assert redirected_to(registered) == ~p"/users/settings/passkeys"
+    assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "passkey_added"})
 
     assert [%UserPasskey{name: "MacBook", backup_eligible: true, transports: ["hybrid", "internal"]}] =
              UserPasskey.list(user)
 
     assert Phoenix.Flash.get(registered.assigns.flash, :info) == "Passkey added."
-
-    settings = registered |> recycle() |> get(~p"/users/settings/mfa") |> html_response(200)
+    settings = registered |> recycle() |> get(~p"/users/settings/passkeys") |> html_response(200)
     assert settings =~ "Passkey added."
     assert settings =~ "MacBook"
+    assert settings =~ "1Password"
+    assert settings =~ "Never used"
+    refute settings =~ "mfa-enrollment"
+    refute UserMFA.enabled?(user)
+
+    settings = registered |> recycle() |> get(~p"/users/settings/mfa") |> html_response(200)
+    refute settings =~ "passkey-list"
+    refute settings =~ "MacBook"
 
     # Enabling the authenticator app afterwards must not make passkey sign-in
     # ask for a code: a user-verified passkey is already multi-factor.
@@ -51,8 +58,7 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     assert options["publicKey"]["allowCredentials"] == []
     assert options["publicKey"]["userVerification"] == "required"
 
-    # The sign-in page requests options for autofill and for the button at
-    # once; a later options response must not invalidate an earlier challenge.
+    # Repeated requests must not invalidate an earlier challenge.
     {options_conn, _later} = authentication_options(options_conn, ~p"/users/log_in/passkey/options")
 
     assertion = sign_assertion(authenticator, options, user_handle(user))
@@ -63,6 +69,10 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     assert session.user_id == user.id
     assert session.auth_provider == "passkey"
     assert session.mfa_verified_at
+
+    settings = signed_in |> recycle() |> get(~p"/users/settings/passkeys") |> html_response(200)
+    assert settings =~ "Last used #{Calendar.strftime(now, "%Y-%m-%d %H:%M UTC")}"
+    refute settings =~ "Never used"
 
     # Presenting the same ceremony token and assertion again must not create
     # another session.
@@ -154,7 +164,7 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     authenticator = authenticator()
     current = login(user)
     register(current, authenticator, "MacBook")
-    assert_email_delivered_with(subject: "Passkey added", to: [nil: user.email])
+    assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "passkey_added"})
     other_browser = login(user)
     [passkey] = UserPasskey.list(user)
 
@@ -165,19 +175,110 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     stale_options = current |> recycle() |> post(~p"/users/settings/passkeys/options")
     assert json_response(stale_options, 403)["error"] =~ "Sign out"
 
-    stale = current |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/delete")
+    stale = current |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/delete", %{"confirm" => "true"})
     assert Phoenix.Flash.get(stale.assigns.flash, :error) =~ "Sign out"
     assert [_] = UserPasskey.list(user)
 
     stub(Time, :utc_now, fn -> now end)
-    fresh = login(user)
-    removed = fresh |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/delete")
+    mfa = enable_mfa(user, now)
 
-    assert redirected_to(removed) == ~p"/users/settings/mfa"
+    fresh =
+      user
+      |> login()
+      |> recycle()
+      |> post(~p"/users/mfa", %{"mfa_code" => NimbleTOTP.verification_code(mfa.secret, time: DateTime.to_unix(now))})
+
+    removed = fresh |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/delete", %{"confirm" => "true"})
+
+    assert redirected_to(removed) == ~p"/users/settings/passkeys"
     assert UserPasskey.list(user) == []
-    assert_email_delivered_with(subject: "Passkey removed", to: [nil: user.email])
+    assert UserMFA.enabled?(user)
+    assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "passkey_removed"})
     refute Accounts.get_user_by_session_token(get_session(other_browser, :user_token))
     assert Accounts.get_user_by_session_token(get_session(removed, :user_token)).id == user.id
+  end
+
+  test "renaming is scoped to the signed-in user and requires a recent session", %{user: user, now: now} do
+    current = register(login(user), authenticator(), "Original")
+    other_user = user_fixture()
+    other_browser = register(login(other_user), authenticator(), "Other")
+    [passkey] = UserPasskey.list(user)
+    [other_passkey] = UserPasskey.list(other_user)
+    token = get_session(current, :user_token)
+
+    renamed =
+      current
+      |> recycle()
+      |> post(~p"/users/settings/passkeys/#{passkey.id}/rename", %{"name" => "  My vault  "})
+
+    assert redirected_to(renamed) == ~p"/users/settings/passkeys"
+    assert Phoenix.Flash.get(renamed.assigns.flash, :info) == "Passkey renamed."
+    assert Repo.get!(UserPasskey, passkey.id).name == "My vault"
+    assert get_session(renamed, :user_token) == token
+    assert Accounts.get_user_by_session_token(get_session(other_browser, :user_token))
+    refute_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "passkey_removed"})
+
+    for {name, expected} <- [{"   ", "Passkey"}, {String.duplicate("é", 65), String.duplicate("é", 64)}] do
+      renamed |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/rename", %{"name" => name})
+      assert Repo.get!(UserPasskey, passkey.id).name == expected
+    end
+
+    rejected =
+      renamed
+      |> recycle()
+      |> post(~p"/users/settings/passkeys/#{other_passkey.id}/rename", %{"name" => "Not mine"})
+
+    assert redirected_to(rejected) == ~p"/users/settings/passkeys"
+    assert Phoenix.Flash.get(rejected.assigns.flash, :error)
+    assert Repo.get!(UserPasskey, other_passkey.id).name == "Other"
+
+    stub(Time, :utc_now, fn -> DateTime.add(now, 301) end)
+
+    stale =
+      renamed
+      |> recycle()
+      |> post(~p"/users/settings/passkeys/#{passkey.id}/rename", %{"name" => "Stale"})
+
+    assert Phoenix.Flash.get(stale.assigns.flash, :error) =~ "Sign out"
+    assert Repo.get!(UserPasskey, passkey.id).name == String.duplicate("é", 64)
+  end
+
+  test "removal confirmation and cancel are read-only and scoped to the signed-in user", %{user: user} do
+    current = register(login(user), authenticator(), "My vault")
+    other_browser = login(user)
+    [passkey] = UserPasskey.list(user)
+    token = get_session(current, :user_token)
+
+    confirmation = current |> recycle() |> get(~p"/users/settings/passkeys/#{passkey.id}/delete")
+    html = html_response(confirmation, 200)
+    assert html =~ "My vault"
+    assert html =~ "Your other sessions will be signed out"
+    assert html =~ "This is your last passkey"
+    assert html =~ "password reset"
+    assert html =~ "saved credential will remain"
+    document = Floki.parse_document!(html)
+    assert Floki.attribute(document, "#cancel-passkey-removal", "href") == [~p"/users/settings/passkeys"]
+    assert Floki.attribute(document, "form input[name=confirm]", "value") == ["true"]
+    assert Floki.attribute(document, "form", "action") == [~p"/users/settings/passkeys/#{passkey.id}/delete"]
+
+    canceled = confirmation |> recycle() |> get(~p"/users/settings/passkeys")
+    assert html_response(canceled, 200) =~ "My vault"
+    assert Repo.get!(UserPasskey, passkey.id) == passkey
+    assert get_session(canceled, :user_token) == token
+    assert Accounts.get_user_by_session_token(get_session(other_browser, :user_token))
+    refute_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "passkey_removed"})
+
+    unconfirmed = current |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/delete")
+    assert redirected_to(unconfirmed) == ~p"/users/settings/passkeys/#{passkey.id}/delete"
+    assert Repo.get!(UserPasskey, passkey.id) == passkey
+
+    other_user = user_fixture()
+    stranger = login(other_user)
+    assert stranger |> recycle() |> get(~p"/users/settings/passkeys/#{passkey.id}/delete") |> response(404)
+
+    denied = stranger |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/delete", %{"confirm" => "true"})
+    assert redirected_to(denied) == ~p"/users/settings/passkeys"
+    assert Repo.get!(UserPasskey, passkey.id) == passkey
   end
 
   test "passkeys are unavailable when email authentication is disabled", %{user: user, now: now} do
@@ -185,12 +286,13 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     signed_in = login(user)
     register(signed_in, authenticator, "MacBook")
     assert build_conn() |> get(~p"/users/log_in") |> html_response(200) =~ "passkey-login"
-    assert signed_in |> recycle() |> get(~p"/users/settings/mfa") |> html_response(200) =~ "Add a passkey"
+    assert signed_in |> recycle() |> get(~p"/users/settings/passkeys") |> html_response(200) =~ "Add a passkey"
     stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
 
     refute build_conn() |> get(~p"/users/log_in") |> html_response(200) =~ "passkey-login"
     refute signed_in |> recycle() |> get(~p"/users/settings/mfa") |> html_response(200) =~ "Add a passkey"
     assert build_conn() |> post(~p"/users/log_in/passkey/options") |> response(404)
+    assert signed_in |> recycle() |> get(~p"/users/settings/passkeys") |> response(404)
     assert signed_in |> recycle() |> post(~p"/users/settings/passkeys/options") |> response(404)
 
     stub(Tuist.Environment, :email_auth_enabled?, fn -> true end)

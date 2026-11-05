@@ -26,10 +26,43 @@ defmodule TuistWeb.UserResetPasswordLiveTest do
   end
 
   describe "Reset password page" do
-    test "renders reset password with valid token", %{conn: conn, token: token} do
+    test "renders password-manager semantics and a POST fallback", %{conn: conn, token: token, user: user} do
       {:ok, _lv, html} = live(conn, ~p"/users/reset_password/#{token}")
 
       assert html =~ "New password"
+      document = Floki.parse_document!(html)
+      assert Floki.attribute(document, "#reset_password_form", "method") == ["post"]
+      assert Floki.attribute(document, "#reset_password_form", "action") == [~p"/users/reset_password/#{token}"]
+      assert Floki.attribute(document, "input[autocomplete='username']", "value") == [user.email]
+      assert length(Floki.find(document, "input[autocomplete='new-password']")) == 2
+    end
+
+    test "POST fallback consumes the token without signing in or trusting the supplied username", %{
+      conn: conn,
+      token: token,
+      user: user
+    } do
+      old_session = Accounts.generate_user_session_token(user)
+
+      params = %{
+        "user" => %{
+          "email" => "someone-else@example.com",
+          "password" => "new valid password",
+          "password_confirmation" => "new valid password"
+        }
+      }
+
+      reset = post(conn, ~p"/users/reset_password/#{token}", params)
+      assert redirected_to(reset) == ~p"/users/log_in"
+      refute get_session(reset, :user_token)
+      refute Accounts.get_user_by_session_token(old_session)
+      assert {:ok, updated} = Accounts.get_user_by_email_and_password(user.email, "new valid password")
+      assert updated.id == user.id
+
+      assert reset |> recycle() |> post(~p"/users/reset_password/#{token}", params) |> redirected_to() ==
+               ~p"/users/log_in"
+
+      refute Accounts.get_user_by_reset_password_token(token)
     end
 
     test "reset links last fifteen minutes, not one day", %{conn: conn, token: token, user: user} do

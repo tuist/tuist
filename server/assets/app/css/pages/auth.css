@@ -352,7 +352,7 @@
       width: 100%;
     }
 
-    & .noora-text-input input {
+    & .noora-text-input input[autocomplete="one-time-code"] {
       font: var(--noora-font-weight-semibold) var(--noora-font-heading-medium);
       letter-spacing: 0.2em;
       text-align: center;
@@ -388,67 +388,6 @@
     & > .noora-button {
       width: 100%;
     }
-  }
-
-  & [data-part="passkeys"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-6);
-    border-top: 1px solid var(--noora-surface-border-primary);
-    padding-top: var(--noora-spacing-8);
-    width: 100%;
-
-    & [data-part="section-title"] {
-      margin: 0;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-large);
-    }
-  }
-
-  & [data-part="passkey-form"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-5);
-  }
-
-  & [data-part="passkey-list"] {
-    display: flex;
-    flex-direction: column;
-    margin: 0;
-    box-shadow: var(--noora-border-section);
-    border-radius: var(--noora-radius-4);
-    padding: 0;
-    list-style: none;
-
-    & > li {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: var(--noora-spacing-5);
-      padding: var(--noora-spacing-5) var(--noora-spacing-6);
-
-      & + li {
-        border-top: 1px solid var(--noora-surface-border-primary);
-      }
-    }
-  }
-
-  & [data-part="passkey-details"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-1);
-    min-width: 0;
-  }
-
-  & [data-part="passkey-name"] {
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-    overflow-wrap: anywhere;
-  }
-
-  & [data-part="passkey-meta"] {
-    color: var(--noora-surface-label-secondary);
-    font: var(--noora-font-body-small);
   }
 
   & .otp {
@@ -693,6 +632,99 @@
 
     &:empty {
       display: none;
+    }
+  }
+}
+
+#sso-link {
+  & [data-part="authenticator-setup"],
+  & [data-part="recovery-settings"],
+  & [data-part="passkey-removal-guidance"],
+  & [data-part="passkey-settings"] {
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+    gap: var(--noora-spacing-6);
+    width: 100%;
+    min-width: 0;
+  }
+
+  &:has(#mfa-enrollment, #mfa-disable, #mfa-cancel, #passkey-registration, #confirm-passkey-removal) p {
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & #mfa-setup-qr {
+    align-self: center;
+    max-width: 100%;
+    height: auto;
+  }
+
+  & #mfa-manual-setup,
+  & #mfa-recovery-settings {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-small);
+
+    & summary {
+      cursor: pointer;
+    }
+
+    & p,
+    & .noora-text-input,
+    & form {
+      margin-top: var(--noora-spacing-4);
+    }
+  }
+
+  & .auth-copy-status {
+    position: absolute;
+    clip-path: inset(50%);
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  & #passkey-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    & li {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+      box-shadow: var(--noora-border-light-default);
+      border-radius: var(--noora-radius-4);
+      padding: var(--noora-spacing-5);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-small);
+
+      & > div {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      & [data-part="passkey-rename"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+        width: 100%;
+        min-width: 0;
+
+        & > button {
+          align-self: flex-start;
+        }
+      }
     }
   }
 }

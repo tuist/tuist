@@ -34,6 +34,23 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert html =~ "Settings · #{account.name} · Tuist"
   end
 
+  test "personal settings expose independent passkey and authenticator management", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/#{user.account.name}/settings")
+
+    assert has_element?(view, "#passkeys-settings a[href='/users/settings/passkeys']", "Manage passkeys")
+    assert has_element?(view, "#passkeys-settings", "0 passkeys added")
+    assert has_element?(view, "#two-factor-settings a[href='/users/settings/mfa']", "Manage two-factor authentication")
+    assert has_element?(view, "#two-factor-settings", "Not enabled")
+    refute has_element?(view, "#two-factor-settings", "passkeys")
+
+    stub(Environment, :email_auth_enabled?, fn -> false end)
+    {:ok, view, _html} = live(conn, ~p"/#{user.account.name}/settings")
+    refute has_element?(view, "#passkeys-settings")
+    assert has_element?(view, "#two-factor-settings")
+  end
+
   test "renders cache endpoints but no managed cache section", %{
     conn: conn,
     account: account
@@ -47,6 +64,8 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
     # Then
     assert html =~ "Cache endpoints"
+    refute html =~ "Manage passkeys"
+    refute html =~ "Manage two-factor authentication"
     # Where an account's cache runs is neither asked of it nor reported to it.
     refute html =~ "Managed cache"
     refute html =~ "Deploy Kura server"

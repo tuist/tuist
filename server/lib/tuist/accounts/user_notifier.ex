@@ -362,6 +362,40 @@ defmodule Tuist.Accounts.UserNotifier do
     ArgumentError -> {:error, :invalid_mailer_configuration}
   end
 
+  def deliver_recovery_notification(user, event) do
+    {subject, message} =
+      case event do
+        :used ->
+          {dgettext("dashboard_account", "Recovery code used"),
+           dgettext(
+             "dashboard_account",
+             "A recovery code was used to access or change security settings on your Tuist account."
+           )}
+
+        :regenerated ->
+          {dgettext("dashboard_account", "Recovery codes regenerated"),
+           dgettext(
+             "dashboard_account",
+             "New recovery codes were created for your Tuist account. All previous codes are now invalid."
+           )}
+      end
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        message,
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
   @doc """
   Deliver instructions to view an agent registration OTP.
   """

@@ -1,0 +1,59 @@
+<.link_frame
+  title={dgettext("dashboard_auth", "Remove passkey?")}
+  subtitle={
+    dgettext("dashboard_auth", "Remove %{name} from your Tuist account.", name: @passkey.name)
+  }
+>
+  <.alert
+    type="secondary"
+    status="warning"
+    size="large"
+    title={dgettext("dashboard_auth", "Your other sessions will be signed out")}
+    description={
+      dgettext(
+        "dashboard_auth",
+        "This browser will stay signed in with a new session. This passkey will no longer sign in to Tuist."
+      )
+    }
+  />
+  <div data-part="passkey-removal-guidance">
+    <p>
+      {dgettext(
+        "dashboard_auth",
+        "The saved credential will remain in 1Password, your password manager, or on your security key. Remove it there separately if you no longer need it."
+      )}
+    </p>
+    <p :if={@last_passkey?}>
+      {dgettext(
+        "dashboard_auth",
+        "This is your last passkey. Before removing it, make sure you can sign in with your password or another sign-in method. If you do not have a password, set one using the password reset flow first."
+      )}
+    </p>
+    <p>
+      {dgettext(
+        "dashboard_auth",
+        "Removing a passkey does not turn off your authenticator app. Keep access to it or your recovery codes if it is enabled."
+      )}
+    </p>
+  </div>
+  <form method="post" action={~p"/users/settings/passkeys/#{@passkey.id}/delete"} data-part="form">
+    <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+    <input type="hidden" name="confirm" value="true" />
+    <div data-part="actions">
+      <.button
+        id="confirm-passkey-removal"
+        type="submit"
+        variant="destructive"
+        size="large"
+        label={dgettext("dashboard_auth", "Remove passkey")}
+      />
+      <.button
+        id="cancel-passkey-removal"
+        href={~p"/users/settings/passkeys"}
+        variant="secondary"
+        size="large"
+        label={dgettext("dashboard_auth", "Cancel")}
+      />
+    </div>
+  </form>
+</.link_frame>

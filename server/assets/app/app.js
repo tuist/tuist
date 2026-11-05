@@ -55,6 +55,7 @@ import { GoogleOneTap } from "../shared/js/hooks/google-one-tap.js";
 import { initPasskeys, PasskeyLogin } from "./js/Passkeys.js";
 import { initAnalytics } from "../shared/js/analytics.js";
 import { registerNavigationTools, registerWebMCPTools } from "../shared/js/webmcp.mjs";
+import { copyTextToClipboard } from "../shared/js/clipboard.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
@@ -147,6 +148,34 @@ window.addEventListener("phx:page-loading-stop", (info) => {
 liveSocket.connect();
 
 setupQueryMemory();
+
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-copy-setup-key], [data-copy-recovery-codes]");
+  if (!button) return;
+  const key = document.getElementById("mfa-setup-key");
+  const codes = document.getElementById("mfa-recovery-codes");
+  const status = document.querySelector("[data-copy-status]");
+  const text = button.hasAttribute("data-copy-setup-key")
+    ? key.value
+    : Array.from(codes.querySelectorAll("code"), (code) => code.textContent).join("\n");
+  status.textContent = "";
+  try {
+    await copyTextToClipboard(text);
+    status.textContent = button.dataset.copySuccess;
+    button.setAttribute("aria-label", button.dataset.copySuccess);
+  } catch {
+    if (key) {
+      key.focus();
+      key.select();
+    } else {
+      const range = document.createRange();
+      range.selectNodeContents(codes);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+    }
+    status.textContent = button.dataset.copyFailure;
+  }
+});
 
 initAnalytics();
 initPasskeys();
