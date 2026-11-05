@@ -272,7 +272,7 @@ jobs:
     if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork != true
     env:
       TUIST_EE: "1"
-      SELECTIVE_TESTING: ${{ github.event_name == 'push' && '--no-selective-testing' || '' }}
+      SELECTIVE_TESTING: --no-selective-testing
     outputs:
       matrix: ${{ steps.shard.outputs.matrix }}
     steps:
@@ -329,11 +329,27 @@ jobs:
       - uses: tuist/module-cache@v1
       - name: Initialize TuistCacheEE submodule
         run: bash mise/tasks/cli/ee.sh
+      - name: "Diagnostic: git status after the submodule init"
+        if: always()
+        run: |
+          git status --porcelain --untracked-files=all --ignore-submodules=none
+          # shellcheck disable=SC2016
+          git submodule foreach --quiet --recursive 'git status --porcelain --untracked-files=all | sed "s|^|$displaypath: |"'
+          git diff --stat
+          git diff -- mise.lock cas-plugin | head -200
       - uses: ./.github/actions/mise
         with:
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: "Diagnostic: git status after the mise install"
+        if: always()
+        run: |
+          git status --porcelain --untracked-files=all --ignore-submodules=none
+          # shellcheck disable=SC2016
+          git submodule foreach --quiet --recursive 'git status --porcelain --untracked-files=all | sed "s|^|$displaypath: |"'
+          git diff --stat
+          git diff -- mise.lock cas-plugin | head -200
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist
@@ -343,6 +359,14 @@ jobs:
         with:
           # Retire the same stale registry snapshot as the unit-test job.
           cache-key: cli-macos-workspace-cli-acceptance-tests-v2
+      - name: "Diagnostic: git status after tuist install"
+        if: always()
+        run: |
+          git status --porcelain --untracked-files=all --ignore-submodules=none
+          # shellcheck disable=SC2016
+          git submodule foreach --quiet --recursive 'git status --porcelain --untracked-files=all | sed "s|^|$displaypath: |"'
+          git diff --stat
+          git diff -- mise.lock cas-plugin | head -200
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -363,11 +387,27 @@ jobs:
           install_args: rust
           working_directory: cas-plugin
           cache: "false"
+      - name: "Diagnostic: git status after the Rust install"
+        if: always()
+        run: |
+          git status --porcelain --untracked-files=all --ignore-submodules=none
+          # shellcheck disable=SC2016
+          git submodule foreach --quiet --recursive 'git status --porcelain --untracked-files=all | sed "s|^|$displaypath: |"'
+          git diff --stat
+          git diff -- mise.lock cas-plugin | head -200
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: cas-plugin-rust-${{ runner.os }}
           workspaces: |
             cas-plugin -> target
+      - name: "Diagnostic: git status after the Rust cache restore"
+        if: always()
+        run: |
+          git status --porcelain --untracked-files=all --ignore-submodules=none
+          # shellcheck disable=SC2016
+          git submodule foreach --quiet --recursive 'git status --porcelain --untracked-files=all | sed "s|^|$displaypath: |"'
+          git diff --stat
+          git diff -- mise.lock cas-plugin | head -200
       - name: Build the cas-plugin
         working-directory: cas-plugin
         env:
@@ -377,6 +417,14 @@ jobs:
         # so a variable exported here never reaches the test process. The suite
         # resolves both binaries from this path in the source tree instead.
         run: mise run build
+      - name: "Diagnostic: git status after the cas-plugin build"
+        if: always()
+        run: |
+          git status --porcelain --untracked-files=all --ignore-submodules=none
+          # shellcheck disable=SC2016
+          git submodule foreach --quiet --recursive 'git status --porcelain --untracked-files=all | sed "s|^|$displaypath: |"'
+          git diff --stat
+          git diff -- mise.lock cas-plugin | head -200
       - name: Set up new keychain
         run: |
           TMP_DIRECTORY=$(mktemp -d)
@@ -396,6 +444,14 @@ jobs:
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
           TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}
+      - name: "Diagnostic: git status after the tests"
+        if: always()
+        run: |
+          git status --porcelain --untracked-files=all --ignore-submodules=none
+          # shellcheck disable=SC2016
+          git submodule foreach --quiet --recursive 'git status --porcelain --untracked-files=all | sed "s|^|$displaypath: |"'
+          git diff --stat
+          git diff -- mise.lock cas-plugin | head -200
 
   # Forks don't check out the EE submodule, so the suite that needs the
   # cas-plugin isn't in the scheme there, and they don't authenticate.
