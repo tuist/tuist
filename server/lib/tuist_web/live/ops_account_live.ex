@@ -15,6 +15,7 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.UsagePricing
   alias Tuist.Kura
+  alias Tuist.RemoteExecution
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Prepaid
@@ -38,6 +39,7 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:account, account)
          |> assign(:runner_concurrency_form, runner_concurrency_form(account))
          |> assign(:sandbox_concurrency_form, to_form(SandboxConcurrency.change_limits(account), as: "account"))
+         |> assign(:remote_execution_concurrency_form, remote_execution_concurrency_form(account))
          |> assign(:prepaid_balance, balance)
          |> assign(:on_runner_trial, Trials.on_trial?(account))
          |> assign(:prepaid_pool_quote, nil)
@@ -98,6 +100,21 @@ defmodule TuistWeb.OpsAccountLive do
 
       {:error, changeset} ->
         {:noreply, assign(socket, :sandbox_concurrency_form, to_form(changeset, as: "account"))}
+    end
+  end
+
+  @impl true
+  def handle_event("update_remote_execution_concurrency_limits", %{"account" => params}, socket) do
+    case RemoteExecution.update_limits(socket.assigns.account, params) do
+      {:ok, account} ->
+        {:noreply,
+         socket
+         |> assign(:account, account)
+         |> assign(:remote_execution_concurrency_form, remote_execution_concurrency_form(account))
+         |> put_flash(:info, dgettext("dashboard", "Remote execution concurrency limits updated."))}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :remote_execution_concurrency_form, to_form(changeset, as: "account"))}
     end
   end
 
@@ -683,6 +700,12 @@ defmodule TuistWeb.OpsAccountLive do
   defp runner_concurrency_form(account) do
     account
     |> Concurrency.change_limits()
+    |> to_form(as: "account")
+  end
+
+  defp remote_execution_concurrency_form(account) do
+    account
+    |> RemoteExecution.change_limits()
     |> to_form(as: "account")
   end
 

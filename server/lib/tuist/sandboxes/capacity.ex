@@ -512,8 +512,10 @@ defmodule Tuist.Sandboxes.Capacity do
   end
 
   @doc """
-  Reserves a VM on one of the account's execution daemons: a dedicated
+  Reserves a VM on an execution daemon with the image ready: a dedicated
   host's fixed reservation, or a shared runner host's elastic carve-out.
+  Every execution daemon serves every account; account limits are charged
+  by `Tuist.RemoteExecution.VMs`.
 
   Memory a daemon's Pod already holds is committed to remote execution, so
   placing into it needs no runners-controller grant. Actions run on behalf
@@ -524,10 +526,10 @@ defmodule Tuist.Sandboxes.Capacity do
   kubelet defers stays asked for, which keeps new runner Pods off the room
   that running jobs free.
   """
-  def place_execution(%Sandbox{} = sandbox, settings, image_tag) do
+  def place_execution(%Sandbox{} = sandbox, image_tag) do
     candidates =
       Enum.filter(Nodes.connected_nodes(), fn node ->
-        execution_node?(node, settings, image_tag, sandbox)
+        execution_node?(node, image_tag, sandbox)
       end)
 
     charge = charge_bytes(sandbox)
@@ -553,6 +555,23 @@ defmodule Tuist.Sandboxes.Capacity do
     end
   end
 
+  @doc """
+  The execution image of the deployment: the `bazel` template tag the most
+  connected execution daemons report ready, the greater tag on a tie, or nil
+  when none does. Workers roll out on delete, so while an operator replaces
+  them the old and new tags are both ready somewhere; the majority wins.
+  """
+  def execution_image_tag do
+    Nodes.connected_nodes()
+    |> Enum.filter(&(execution_daemon?(&1) and Map.get(&1, :execution_deadlines, false)))
+    |> Enum.flat_map(fn node ->
+      for %{name: "bazel", ready: true, tag: tag} <- Map.get(node, :templates, []), is_binary(tag), uniq: true, do: tag
+    end)
+    |> Enum.frequencies()
+    |> Enum.max_by(fn {tag, count} -> {count, tag} end, fn -> {nil, 0} end)
+    |> elem(0)
+  end
+
   defp execution_fits?(node, sandbox) do
     cpus =
       Repo.one(
@@ -565,8 +584,8 @@ defmodule Tuist.Sandboxes.Capacity do
       disk_room?(node, sandbox)
   end
 
-  defp execution_node?(node, settings, image_tag, sandbox) do
-    node.name in settings.node_names and Map.get(node, :execution_deadlines, false) and
+  defp execution_node?(node, image_tag, sandbox) do
+    Map.get(node, :execution_deadlines, false) and
       execution_capacity?(node, sandbox) and
       Enum.any?(Map.get(node, :templates, []), &(&1.name == "bazel" and &1.tag == image_tag and &1.ready))
   end

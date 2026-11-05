@@ -2,8 +2,9 @@
 
 The first rollout is an account opt-in. The `bazel_remote_execution` flag defaults
 off in **every** environment, including development and staging. There is no
-automatic account enrollment. An operator configures capacity and enables the
-flag for that account after validating the complete deployment.
+automatic account enrollment. Every account has vCPU and memory limits with
+defaults, and everything else comes from the deployment, so enabling the flag
+for an account after validating the complete deployment is the whole opt-in.
 
 ## Architecture
 
@@ -78,12 +79,15 @@ advertises leases in the capabilities response; nodes serve claims on
 
 ### Account concurrency
 
-`max_concurrency` bounds the account's **VMs**, not its actions. Every VM has a
+The account's `remote_execution_vcpus_limit` and
+`remote_execution_memory_gb_limit` (16 vCPUs and 32 GB by default, set on the
+ops account page) bound its **VMs**, not its actions: every VM charges 2 vCPUs
+and 4 GB, so the defaults hold eight. Every VM has a
 `sandboxes` row (`purpose = remote_execution`) inserted under an account advisory
 lock before the VM is created and deleted only after the node acknowledges VM
 deletion. Creating, idle, busy and uncertain VMs therefore all occupy a slot
 across every scheduler and replica, even when two schedulers briefly coexist.
-Zero concurrency stops admission. Lowering the limit drains existing VMs.
+Lowering the limits drains existing VMs; disabling the flag stops admission.
 
 The scheduler renews its rows' leases in one batched update every 20 seconds
 (60-second lease). It assigns a VM only while its last renewal is under 40
@@ -98,12 +102,12 @@ An unconfirmed create holds its slot until that deadline has passed.
 ### VMs and warm pool
 
 Each action gets a fresh Firecracker VM, destroyed after that action and never
-reused. The scheduler keeps `busy + queued + warm` VMs (capped at
-`max_concurrency`) by reserving and preparing new ones in the background. A
+reused. The scheduler keeps `busy + queued + warm` VMs (capped at what the
+account's limits hold) by reserving and preparing new ones in the background. A
 prepared VM holds only the pristine image and workspace. It receives a CAS
 credential and action data only when the scheduler assigns it to one action.
-Idle VMs beyond the warm target, and VMs whose image or node no longer matches
-the settings, are retired. Failed preparation backs off for five seconds. When
+Idle VMs beyond the warm target, and VMs whose image is no longer the
+deployment's, are retired. Failed preparation backs off for five seconds. When
 no node has room, nothing is created: the scheduler retries once one of the
 account's placed VMs is deleted, or on its five-second tick.
 
@@ -119,7 +123,8 @@ replacement is prepared, so a burst of short serial actions keeps finding a
 ready VM. The scheduler measures preparation time as a moving average of its own
 preparations. A build's peak is held for one minute so the pause before the next
 build does not drain the pool; after that, `warm` falls to the current demand and
-idle VMs are retired. `warm_pool_size` caps `warm`.
+idle VMs are retired. `warm` is capped at four VMs, and at what the account's
+limits hold: idle VMs hold memory on hosts that runner jobs share.
 
 A used VM keeps its slot until the node confirms deletion, and its replacement
 takes about as long again to create and prepare. A serial chain of short actions
@@ -131,11 +136,6 @@ The scheduler issues one project cache credential (30-minute TTL) and reuses it
 for that project's VMs while at least 13 minutes remain. Each VM is single-use
 and the credential has the same scope as the client's, so reuse does not widen
 what any action can reach.
-
-`warm_pool_size` is an opt-in account setting, default zero and capped at eight:
-the most VMs the scheduler may keep warm for the account, not a fixed count.
-Idle VMs consume real memory and disk: set it only as high as the account's
-reserved hosts have budget for.
 
 ### Action cache
 
@@ -230,11 +230,10 @@ therefore always have capacity CI cannot take back, in one of two modes:
   controller recognises `tuist.dev/remote-execution-daemon` Pods, keeps their
   memory out of runner seats and publishes their grants under that name. The
   controller release with that support must run before enabling shared workers.
-  Configure the suffixed names as the account's `node_names`.
 
 The [chart](../helm/remote-execution/values.yaml) publishes `EXECUTION_SLOTS`
-(the ceiling on shared hosts). Placement also requires an operator-configured
-node name, the matching image, memory/disk capacity, and the daemon's
+(the ceiling on shared hosts). Every execution daemon serves every account.
+Placement requires the deployment's image ready on the node, memory/disk capacity, and the daemon's
 `execution_deadlines` capability; old daemons are rejected. Each slot is 2 vCPUs,
 4 GiB guest RAM, 64 MiB VM overhead and a 10 GiB workspace; the daemon reserves
 another 512 MiB. On shared hosts only the floor's CPU is requested; guests above
@@ -282,29 +281,29 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
    server's network policy admits pods labelled `tuist.dev/remote-execution`
    from the sandbox namespace.
 4. Confirm hosts report `execution_deadlines: true`, `execution_slots > 0`, and a
-   ready `bazel` template with the pinned tag. Confirm fixed CPU/memory requests
+   ready `bazel` template. Confirm fixed CPU/memory requests
    and the dedicated host taint, or on shared hosts the floor-sized workers and
    their grants (`tuist_runners_sandbox_memory_bytes{node="<node>.remote-execution"}`),
    and disk headroom before allowing any account.
-5. In an authorized operator release console, configure the account:
+5. Enable `:bazel_remote_execution` for the account in Atlas or the flags UI.
+   Nothing else is per account:
 
-   ```elixir
-   account = Tuist.Accounts.get_account_by_handle("tuist")
-   Tuist.RemoteExecution.configure(account, %{
-     max_concurrency: 2,
-     node_names: ["<reserved-linux-node>"], # shared hosts: "<node>.remote-execution"
-     image_tag: "sha-<template-commit>",
-     cas_endpoint: "grpcs://<the-account-kura-endpoint>",
-     executor_endpoint: "grpcs://<execution-endpoint>"
-   })
-   FunWithFlags.enable(:bazel_remote_execution, for_actor: account)
-   ```
+   - **Limits:** every account has `remote_execution_vcpus_limit` and
+     `remote_execution_memory_gb_limit` (16 and 32 by default). Change them in
+     the Remote execution concurrency card of the ops account page.
+   - **Image:** the `bazel` template tag that the most connected execution
+     daemons report ready. Workers roll out `OnDelete`, so it changes only when
+     an operator replaces them, and while they are replaced the majority wins.
+   - **CAS:** the account's Linux runner cache
+     (`Tuist.Kura.runner_cache_endpoint_url/2`), the Kura instance a Linux CI
+     job of the account uploads into, as `grpc(s)://` on the same port. The
+     account must have a managed Kura instance.
+   - **Executor endpoint:** the server's `TUIST_REMOTE_EXECUTION_ENDPOINT`
+     (`grpcs://execution.tuist.dev` in production).
 
-   Change concurrency independently with
-   `Tuist.RemoteExecution.configure(account, %{max_concurrency: 4})`. A running
-   scheduler picks up configuration changes immediately and flag changes within
-   30 seconds. The endpoint must be the same project CAS that the client uploads
-   into; update it when account cache placement changes.
+   An account with the flag on is unavailable while no execution daemon has a
+   ready template or it has no cache. A running scheduler re-reads everything
+   every 30 seconds, and immediately when the limits change.
 
 6. Configure a Linux Bazel workspace:
 
@@ -315,11 +314,12 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
    ```
 
    `GET /api/remote-execution/<account>/<project>/capabilities` returns the
-   configured image, endpoint and concurrency to an authorized caller. If a
-   project's execution platform supplies `exec_properties`, put all three
-   properties there: Bazel only uses default properties for platforms without
-   their own. Re-running setup without the execution options opts the workspace
-   out.
+   current image, endpoint, CAS and concurrency to an authorized caller; use
+   its `image` as `--execution-image` and rerun setup after workers move to a
+   new image. If a project's execution platform supplies `exec_properties`,
+   put all three properties there: Bazel only uses default properties for
+   platforms without their own. Re-running setup without the execution
+   options opts the workspace out.
 
 ## Observability
 
@@ -344,7 +344,7 @@ does not provision them.
 
 ## Rollback
 
-Disable the account flag and set concurrency to zero. The scheduler fails queued
+Disable the account flag. The scheduler fails queued
 actions, retires idle VMs and lets running actions finish. Wait until the
 account has no `sandboxes` rows with `purpose = remote_execution`; an unreachable
 host is not evidence that its VMs stopped. The workers use `OnDelete` rollout:

@@ -6,20 +6,16 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
 
   alias Tuist.Cache
   alias Tuist.FeatureFlags
+  alias Tuist.Kura
   alias Tuist.OAuth.Introspection
   alias Tuist.RemoteExecution
+  alias Tuist.Sandboxes.Capacity
 
   setup %{conn: conn} do
     project = project_fixture()
 
-    {:ok, _} =
-      RemoteExecution.configure(project.account, %{
-        max_concurrency: 2,
-        node_names: ["reserved"],
-        image_tag: "sha-" <> String.duplicate("a", 40),
-        cas_endpoint: "grpcs://cache.example",
-        executor_endpoint: "grpcs://execution.example"
-      })
+    stub(Capacity, :execution_image_tag, fn -> "sha-" <> String.duplicate("a", 40) end)
+    stub(Kura, :runner_cache_endpoint_url, fn _account, :linux -> "https://cache.example" end)
 
     %{
       conn: put_req_header(conn, "authorization", "Bearer test-token"),
@@ -38,7 +34,7 @@ defmodule TuistWeb.RemoteExecutionControllerTest do
     {:ok, token, _claims} = Cache.issue_cache_token(project, scope: "#{project.account.name}/#{project.name}")
     conn = put_req_header(conn, "authorization", "Bearer " <> token)
 
-    assert %{"cas_endpoint" => "grpcs://cache.example"} =
+    assert %{"cas_endpoint" => "grpcs://cache.example:443", "max_concurrency" => 8} =
              conn
              |> get("/api/remote-execution/#{project.account.name}/#{project.name}/capabilities")
              |> json_response(:ok)

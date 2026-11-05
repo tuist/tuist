@@ -44,8 +44,7 @@ workers:
   # ceilingSlots ahead of queued CI, then shrinks it back once the VMs are
   # gone. Each slot is 4160 MiB; the daemon keeps 512 MiB. Needs a runners
   # controller that recognises `tuist.dev/remote-execution-daemon` Pods.
-  # Workers connect as `<node>.remote-execution`; configure those names as
-  # the account's `node_names`.
+  # Workers connect as `<node>.remote-execution` and serve every account.
   sharedHosts:
     enabled: false
     nodes: []

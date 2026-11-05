@@ -2,13 +2,16 @@ defmodule Tuist.RemoteExecution do
   @moduledoc """
   Account-gated Linux REAPI execution. Each account has one in-memory
   `Tuist.RemoteExecution.Scheduler` in the cluster; actions are not persisted.
-  PostgreSQL holds the operator-managed settings and the VM rows that bound an
-  account's concurrency (`Tuist.RemoteExecution.VMs`).
+  The account row holds its vCPU and memory limits, and PostgreSQL holds the
+  VM rows that charge them (`Tuist.RemoteExecution.VMs`).
   """
+  import Ecto.Changeset
+
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.KeyValueStore
+  alias Tuist.Kura
   alias Tuist.OAuth.Introspection
   alias Tuist.Projects
   alias Tuist.Projects.Project
@@ -16,6 +19,7 @@ defmodule Tuist.RemoteExecution do
   alias Tuist.RemoteExecution.Settings
   alias Tuist.RemoteExecution.VMs
   alias Tuist.Repo
+  alias Tuist.Sandboxes.Capacity
 
   @max_wait_ms 5_000
   # Every action authorizes its project; the handles rarely change.
@@ -24,26 +28,72 @@ defmodule Tuist.RemoteExecution do
   # Base64 of the gateway's prefetched action metadata and small inputs.
   @max_inputs_bytes 349_528
 
-  def configure(%Account{id: id}, attrs) do
-    settings = Repo.get(Settings, id) || %Settings{account_id: id}
+  @limit_fields [:remote_execution_vcpus_limit, :remote_execution_memory_gb_limit]
 
-    with {:ok, settings} <- settings |> Settings.changeset(attrs) |> Repo.insert_or_update() do
-      Scheduler.reload(id)
-      {:ok, settings}
+  @doc """
+  The account's vCPU and memory limits, which every account has with defaults.
+  Used only by the operator UI, never by account settings or API changesets.
+  """
+  def change_limits(%Account{} = account, attrs \\ %{}) do
+    account
+    |> cast(attrs, @limit_fields)
+    |> validate_required(@limit_fields)
+    |> validate_number(:remote_execution_vcpus_limit,
+      greater_than_or_equal_to: Settings.vm_vcpus(),
+      message: "must hold one VM: at least #{Settings.vm_vcpus()} vCPUs"
+    )
+    |> validate_number(:remote_execution_memory_gb_limit,
+      greater_than_or_equal_to: div(Settings.vm_memory_mb(), 1024),
+      message: "must hold one VM: at least #{div(Settings.vm_memory_mb(), 1024)} GB"
+    )
+    |> check_constraint(:remote_execution_vcpus_limit, name: :accounts_remote_execution_vcpus_limit_positive)
+    |> check_constraint(:remote_execution_memory_gb_limit, name: :accounts_remote_execution_memory_gb_limit_positive)
+  end
+
+  def update_limits(%Account{} = account, attrs) do
+    with {:ok, account} <- account |> change_limits(attrs) |> Repo.update() do
+      Scheduler.reload(account.id)
+      {:ok, account}
     end
   end
 
-  def settings(account_id), do: Repo.get(Settings, account_id)
-
-  @doc "Settings an account can execute with, or an error when disabled or unconfigured."
+  @doc """
+  What the account executes with, or an error while the flag is off or the
+  deployment has nothing to run it on: no execution worker with a ready
+  template, or no Linux cache for the account. The image is the one the
+  workers report, the CAS is the account's Linux runner cache and the
+  executor endpoint is the server's configuration.
+  """
   def available_settings(account_id) do
-    with %Settings{max_concurrency: concurrency, node_names: [_ | _]} = settings when concurrency > 0 <-
-           settings(account_id),
-         %Account{} = account <- Repo.get(Account, account_id),
-         true <- FeatureFlags.bazel_remote_execution_enabled?(account) do
-      {:ok, settings}
+    with %Account{} = account <- Repo.get(Account, account_id),
+         true <- FeatureFlags.bazel_remote_execution_enabled?(account),
+         concurrency when concurrency > 0 <-
+           Settings.max_concurrency(account.remote_execution_vcpus_limit, account.remote_execution_memory_gb_limit),
+         image_tag when is_binary(image_tag) <- Capacity.execution_image_tag(),
+         cas_endpoint when is_binary(cas_endpoint) <- cas_endpoint(account) do
+      {:ok,
+       %Settings{
+         vcpus: account.remote_execution_vcpus_limit,
+         memory_gb: account.remote_execution_memory_gb_limit,
+         max_concurrency: concurrency,
+         image_tag: image_tag,
+         cas_endpoint: cas_endpoint,
+         executor_endpoint: Environment.remote_execution_endpoint()
+       }}
     else
       _ -> {:error, :unavailable}
+    end
+  end
+
+  # The cache a Linux runner job of the account uploads into, which is where
+  # the CI builds this serves put their inputs. Kura serves gRPC on the same
+  # port as HTTP.
+  defp cas_endpoint(account) do
+    with url when is_binary(url) and url != "" <- Kura.runner_cache_endpoint_url(account, :linux),
+         %URI{scheme: scheme} = uri when scheme in ["http", "https"] <- URI.parse(url) do
+      URI.to_string(%{uri | scheme: if(scheme == "https", do: "grpcs", else: "grpc"), path: nil})
+    else
+      _ -> nil
     end
   end
 
