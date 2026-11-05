@@ -3,7 +3,7 @@ defmodule TuistWeb.TestSelectionsLive do
   The project's Test Selection page. The period's figures
   (`Selections.analytics/2`): how many requested tests the impact runs
   selected and skipped, the skip rate and the runs. Then the impact runs,
-  one per invocation, newest first (`Selections.list_runs/2`), each opening
+  one per invocation in the period, newest first (`Selections.list_runs/3`), each opening
   the Selective Testing tab of the test run that reported it
   (`TuistWeb.TestSelection.RunTab`).
   """
@@ -49,16 +49,16 @@ defmodule TuistWeb.TestSelectionsLive do
      |> assign(:analytics_period, period)
      |> assign(:analytics_trend_label, trend_label(preset))
      |> assign(:selected_widget, selected_widget(params["analytics-selected-widget"]))
-     |> assign_runs(params)
+     |> assign_runs(period, params)
      |> assign_async(:analytics, fn -> {:ok, %{analytics: Selections.analytics(project.id, period)}} end)}
   end
 
-  defp assign_runs(%{assigns: %{selected_project: project}} = socket, params) do
+  defp assign_runs(%{assigns: %{selected_project: project}} = socket, period, params) do
     search = params["search"] || ""
     fallback? = params["fallback"] == "true"
 
     {rows, meta} =
-      Selections.list_runs(project.id, search: search, fallback: fallback?, page: parse_page(params["page"]))
+      Selections.list_runs(project.id, period, search: search, fallback: fallback?, page: parse_page(params["page"]))
 
     socket
     |> assign(:search, search)

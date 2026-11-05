@@ -104,8 +104,8 @@ defmodule Tuist.Tests.SelectionsTest do
     %{run: run, test_run: test_run, plan: plan}
   end
 
-  describe "list_runs/2" do
-    test "lists the impact runs a test run reported, newest first, filtered, with that test run", %{
+  describe "list_runs/3" do
+    test "lists the period's impact runs a test run reported, newest first, filtered, with that test run", %{
       project: project
     } do
       older =
@@ -121,10 +121,20 @@ defmodule Tuist.Tests.SelectionsTest do
 
       newer = TestSelectionFixtures.run_fixture(project_id: project.id, commit_sha: "newer")
       TestSelectionFixtures.run_fixture(project_id: project.id, commit_sha: "orphan")
+
+      before_period =
+        TestSelectionFixtures.run_fixture(
+          project_id: project.id,
+          commit_sha: "before",
+          inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
+        )
+
       {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: older.id)
       {:ok, newer_test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: newer.id)
+      {:ok, _test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: before_period.id)
+      period = {DateTime.add(DateTime.utc_now(), -1, :day), DateTime.add(DateTime.utc_now(), 60, :second)}
 
-      {rows, meta} = Selections.list_runs(project.id)
+      {rows, meta} = Selections.list_runs(project.id, period)
 
       assert Enum.map(rows, &{&1.commit_sha, &1.test_run_id}) == [
                {"newer", newer_test_run.id},
@@ -132,8 +142,8 @@ defmodule Tuist.Tests.SelectionsTest do
              ]
 
       assert meta.total_count == 2
-      assert {[%{commit_sha: "older"}], _meta} = Selections.list_runs(project.id, search: "core")
-      assert {[%{commit_sha: "older"}], _meta} = Selections.list_runs(project.id, fallback: true)
+      assert {[%{commit_sha: "older"}], _meta} = Selections.list_runs(project.id, period, search: "core")
+      assert {[%{commit_sha: "older"}], _meta} = Selections.list_runs(project.id, period, fallback: true)
     end
   end
 

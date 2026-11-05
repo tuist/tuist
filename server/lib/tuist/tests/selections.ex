@@ -59,10 +59,7 @@ defmodule Tuist.Tests.Selections do
     format = bucket_format(bucket)
 
     rows =
-      from(r in Run,
-        where: r.project_id == ^project_id,
-        where: r.inserted_at >= ^start_datetime and r.inserted_at < ^until,
-        where: r.id in subquery(reported_ids(project_id)),
+      from(r in reported_runs(project_id, start_datetime, until),
         group_by: fragment("formatDateTime(?, ?)", r.inserted_at, ^format),
         select: %{
           date: fragment("formatDateTime(?, ?)", r.inserted_at, ^format),
@@ -107,10 +104,7 @@ defmodule Tuist.Tests.Selections do
   defp totals(project_id, start_datetime, until) do
     row =
       ClickHouseRepo.one(
-        from(r in Run,
-          where: r.project_id == ^project_id,
-          where: r.inserted_at >= ^start_datetime and r.inserted_at < ^until,
-          where: r.id in subquery(reported_ids(project_id)),
+        from(r in reported_runs(project_id, start_datetime, until),
           select: %{
             runs: count(),
             fallbacks: fragment("countIf(? = 'fallback')", r.outcome),
@@ -192,44 +186,47 @@ defmodule Tuist.Tests.Selections do
   end
 
   @doc """
-  A page of the project's impact runs that a test run reported, newest
-  first, each with the id of the latest test run that reported it
-  (`test_run_id`). Options: `:search` (a commit SHA prefix, or part of a branch,
-  scheme or test plan name), `:fallback` (`true` for the runs that fell
-  back), `:page` and `:page_size`. Returns
+  A page of the project's impact runs selected in `period` (`{start, end}`)
+  that a test run reported, newest first, each with the id of the latest test
+  run that reported it (`test_run_id`). Options: `:search` (a commit SHA
+  prefix, or part of a branch, scheme or test plan name), `:fallback` (`true`
+  for the runs that fell back), `:page` and `:page_size`. Returns
   `{rows, %{current_page, total_pages, total_count}}`.
   """
-  def list_runs(project_id, opts \\ []) do
-    {runs, meta} =
-      from(r in Run, where: r.project_id == ^project_id and r.id in subquery(reported_ids(project_id)))
+  def list_runs(project_id, {start_datetime, end_datetime}, opts \\ []) do
+    {rows, meta} =
+      project_id
+      |> reported_runs(start_datetime, DateTime.add(end_datetime, 1, :second))
       |> filter_run_search(Keyword.get(opts, :search))
       |> filter_fallback(Keyword.get(opts, :fallback))
       |> order_by([r], desc: r.inserted_at, desc: r.id)
+      |> select([r, t], {r, t.test_run_id})
       |> paginate(opts)
 
-    test_runs = test_runs_by_impact_run(project_id, Enum.map(runs, & &1.id))
-
-    {Enum.map(runs, &Map.put(&1, :test_run_id, Map.get(test_runs, &1.id))), meta}
+    {Enum.map(rows, fn {run, test_run_id} -> Map.put(run, :test_run_id, test_run_id) end), meta}
   end
 
-  defp test_runs_by_impact_run(_project_id, []), do: %{}
+  # The impact runs selected in [start, until) that a test run points to,
+  # joined to the latest such test run: an impact run whose client gave up
+  # waiting is still written, but no test run points to it. Test runs are
+  # read from the period on, as one is written after its impact run, with a
+  # day's margin past it for runs that finished after the period ended.
+  defp reported_runs(project_id, start_datetime, until) do
+    test_runs =
+      from(t in Test,
+        where: t.project_id == ^project_id and not is_nil(t.test_impact_run_id),
+        where: t.inserted_at >= ^start_datetime and t.inserted_at < ^DateTime.add(until, 1, :day),
+        group_by: t.test_impact_run_id,
+        select: %{
+          id: fragment("assumeNotNull(?)", t.test_impact_run_id),
+          test_run_id: fragment("toString(argMax(?, ?))", t.id, t.ran_at)
+        }
+      )
 
-  defp test_runs_by_impact_run(project_id, ids) do
-    from(t in Test,
-      where: t.project_id == ^project_id and t.test_impact_run_id in ^ids,
-      group_by: t.test_impact_run_id,
-      select: {t.test_impact_run_id, fragment("toString(argMax(?, ?))", t.id, t.ran_at)}
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new()
-  end
-
-  # An impact run whose client gave up waiting is still written, but no test
-  # run points to it.
-  defp reported_ids(project_id) do
-    from(t in Test,
-      where: t.project_id == ^project_id and not is_nil(t.test_impact_run_id),
-      select: t.test_impact_run_id
+    from(r in Run,
+      join: t in subquery(test_runs),
+      on: t.id == r.id,
+      where: r.project_id == ^project_id and r.inserted_at >= ^start_datetime and r.inserted_at < ^until
     )
   end
 
