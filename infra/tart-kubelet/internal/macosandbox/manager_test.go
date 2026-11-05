@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type fakeRuntime struct {
@@ -22,6 +23,8 @@ type fakeRuntime struct {
 	saveErr, errorRecovery   error
 	saveStarted, saveRelease chan struct{}
 	creates, warms           int
+	// Warm VMs boot in the background.
+	mu sync.Mutex
 	cpuPermille              int64
 }
 
@@ -34,11 +37,15 @@ func (f *fakeRuntime) Create(_ context.Context, r *Record) error {
 
 // A warm VM is keyed by its VM name until a claim moves it to its sandbox.
 func (f *fakeRuntime) Warm(_ context.Context, r *Record) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.warms++
 	f.states[r.VMName()] = "warm"
 	return nil
 }
 func (f *fakeRuntime) Claim(_ context.Context, r *Record) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.states[r.VMName()] != "warm" {
 		return errors.New("not warm")
 	}
@@ -77,6 +84,9 @@ func (f *fakeRuntime) Save(ctx context.Context, r *Record) error {
 	return nil
 }
 func (f *fakeRuntime) Delete(_ context.Context, r *Record) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.states, r.VMName())
 	delete(f.states, r.SandboxID)
 	delete(f.memory, r.SandboxID)
 	return nil
@@ -142,6 +152,10 @@ func (f *fakeCapacity) Release(_ context.Context, r *Record) error {
 		return f.releaseErr
 	}
 	delete(f.held, r.SandboxID)
+	return nil
+}
+func (f *fakeCapacity) Transfer(_ context.Context, r *Record, _, _ string, _ types.UID) error {
+	f.held[r.SandboxID] = true
 	return nil
 }
 func harness(t *testing.T) (*Manager, *fakeRuntime, *fakeCapacity, protocol.CreateArgs) {

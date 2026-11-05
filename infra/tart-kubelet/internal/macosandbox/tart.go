@@ -289,7 +289,7 @@ func (t *TartRuntime) Recover(ctx context.Context, r *Record) error {
 	if err != nil {
 		return err
 	}
-	if r.Operation == "create" {
+	if r.Operation == "create" || r.Operation == "claim" {
 		return errors.New("creation did not finish; delete the incomplete environment before retrying")
 	}
 	if r.Operation == "delete" {

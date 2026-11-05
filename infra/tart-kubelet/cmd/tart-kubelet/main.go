@@ -388,6 +388,7 @@ func main() {
 		nodeLabels = map[string]string{}
 	}
 	nodeLabels["tuist.dev/macos-sandbox-host"] = "v1"
+	nodeLabels[macosandbox.WarmHostLabel] = "v1"
 	sandboxService := &macosandbox.Service{Kube: typedClient, Node: nodeName, Root: filepath.Join(tartClient.UserDataDir, ".macos-sandboxes")}
 	tartClient.LaunchGuard = sandboxService.LaunchGuard
 	if err := mgr.Add(sandboxService); err != nil {

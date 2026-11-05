@@ -78,7 +78,12 @@ func (s *Service) Start(ctx context.Context) error {
 		defer close(sampleDone)
 		s.sampleCPU(reconcileCtx)
 	}()
-	defer func() { stopReconcile(); <-reconcileDone; <-sampleDone }()
+	warmDone := make(chan struct{})
+	go func() {
+		defer close(warmDone)
+		s.reconcileWarm(reconcileCtx)
+	}()
+	defer func() { stopReconcile(); <-reconcileDone; <-sampleDone; <-warmDone }()
 	var cancel context.CancelFunc
 	var controlUID string
 	defer func() {
@@ -421,6 +426,14 @@ func (s *Service) repairReservations(ctx context.Context, m *Manager) error {
 			}
 		}
 	}
+	// A warm VM is charged by its Pod alone. Until the warm loop deletes the VM
+	// of a force-deleted Pod, that VM still takes a slot.
+	for _, w := range m.warm {
+		pod, err := s.Kube.CoreV1().Pods(w.namespace).Get(ctx, w.name, metav1.GetOptions{})
+		if err != nil || pod.UID != w.pod {
+			return errors.Join(errors.New("warm VM without its Pod"), err)
+		}
+	}
 	return nil
 }
 
@@ -477,7 +490,7 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 		data = map[string]any{"boot_ms": time.Since(started).Milliseconds()}
 		for _, info := range m.Snapshot() {
 			if info.ID == args.SandboxID {
-				data = map[string]any{"boot_ms": time.Since(started).Milliseconds(), "template_tag": info.TemplateTag}
+				data = map[string]any{"boot_ms": time.Since(started).Milliseconds(), "template_tag": info.TemplateTag, "warm": m.onWarmVM(args.SandboxID)}
 			}
 		}
 	case protocol.OpResume:

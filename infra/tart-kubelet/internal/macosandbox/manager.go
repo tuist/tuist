@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 var ErrCapacity = errors.New("macOS sandbox capacity unavailable")
@@ -54,6 +55,9 @@ type Capacity interface {
 	Reserve(context.Context, *Record) error
 	Allow(context.Context, *Record) error
 	Release(context.Context, *Record) error
+	// Transfer moves a warm Pod's charge to the sandbox's execution
+	// reservation: the reservation exists before the warm Pod is deleted.
+	Transfer(ctx context.Context, r *Record, namespace, name string, uid types.UID) error
 }
 
 type Record struct {
@@ -121,6 +125,9 @@ type Manager struct {
 	Gate    sync.Mutex
 	records map[string]*Record
 	active  map[string]int
+	// Ready and booting warm VMs by Pod UID, and whether one is booting.
+	warm        map[types.UID]*warmVM
+	warmBooting bool
 
 	cpuMu sync.Mutex
 	cpu   map[string]cpuReading
@@ -144,6 +151,7 @@ func (m *Manager) Load(ctx context.Context) error {
 	}
 	m.records = map[string]*Record{}
 	m.active = map[string]int{}
+	m.warm = map[types.UID]*warmVM{}
 	entries, err := os.ReadDir(m.Root)
 	if err != nil {
 		return err
@@ -270,6 +278,11 @@ func (m *Manager) Create(ctx context.Context, a protocol.CreateArgs) error {
 		}
 		return errors.New("sandbox already exists; reconcile its recorded operation")
 	}
+	if a.FromDiskSnapshot == "" && a.FromArchive == nil {
+		if w := m.claimWarm(a); w != nil {
+			return m.createOnWarm(ctx, a, w)
+		}
+	}
 	r := &Record{RuntimePath: m.RuntimePath, ToolsPath: m.ToolsPath, CreateArgs: a, NodeUID: m.NodeUID, State: "creating", CreatedAt: time.Now().UTC(), IdleAt: time.Now().UTC()}
 	if err := m.begin(r, "create"); err != nil {
 		return err
@@ -291,6 +304,32 @@ func (m *Manager) Create(ctx context.Context, a protocol.CreateArgs) error {
 		return err
 	}
 	err := m.Runtime.Create(ctx, r)
+	if err == nil {
+		r.State = "running"
+		r.IdleAt = time.Now().UTC()
+	}
+	return m.finish(r, err)
+}
+
+// createOnWarm gives a sandbox a booted warm VM under the same CI-first
+// grant as a cold create. Once the claim is journaled the VM is the
+// sandbox's: a failure keeps its charge and needs an explicit delete.
+func (m *Manager) createOnWarm(ctx context.Context, a protocol.CreateArgs, w *warmVM) error {
+	if err := m.Capacity.Allow(ctx, &Record{CreateArgs: a, NodeUID: m.NodeUID}); err != nil {
+		m.warm[w.pod] = w
+		return err
+	}
+	now := time.Now().UTC()
+	r := &Record{RuntimePath: w.rec.RuntimePath, ToolsPath: w.rec.ToolsPath, CreateArgs: a, NodeUID: m.NodeUID, State: "creating", VM: w.rec.VM, Resident: true, CreatedAt: now, IdleAt: now}
+	if err := m.begin(r, "claim"); err != nil {
+		m.warm[w.pod] = w
+		return err
+	}
+	m.records[a.SandboxID] = r
+	if err := m.Capacity.Transfer(ctx, r, w.namespace, w.name, w.pod); err != nil {
+		return m.finish(r, err)
+	}
+	err := m.Runtime.Claim(ctx, r)
 	if err == nil {
 		r.State = "running"
 		r.IdleAt = time.Now().UTC()

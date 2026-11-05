@@ -273,6 +273,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Native sandbox Pods are reconciled by the independent host service. Never
 	// turn their control marker or resource reservation into an ordinary CI VM.
+	// Warm sandbox VMs are runner-pool Pods the host service boots on the
+	// sandbox runtime. Booting one as a CI VM would hand it the runner token.
+	if pod.Labels[macosandbox.WarmLabel] == "true" {
+		return ctrl.Result{}, nil
+	}
 	if pod.Labels[macosandbox.RoleLabel] != "" {
 		if pod.Namespace != macosandbox.Namespace {
 			return ctrl.Result{}, fmt.Errorf("sandbox Pod outside trusted namespace")

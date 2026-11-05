@@ -173,6 +173,35 @@ func (k *KubeCapacity) Fits(ctx context.Context) error {
 	}
 	return nil
 }
+func (k *KubeCapacity) Transfer(ctx context.Context, r *Record, namespace, name string, uid types.UID) error {
+	if err := k.Hold(ctx, r); err != nil {
+		return err
+	}
+	pod, err := k.Kube.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) || (err == nil && pod.UID != uid) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	finalizers := []string{}
+	for _, f := range pod.Finalizers {
+		if f != WarmFinalizer {
+			finalizers = append(finalizers, f)
+		}
+	}
+	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"resourceVersion": pod.ResourceVersion, "uid": pod.UID, "finalizers": finalizers}})
+	if _, err = k.Kube.CoreV1().Pods(namespace).Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+		return err
+	}
+	// The VM now belongs to the sandbox; nothing is left for this Pod to stop.
+	zero := int64(0)
+	err = k.Kube.CoreV1().Pods(namespace).Delete(ctx, name, metav1.DeleteOptions{GracePeriodSeconds: &zero, Preconditions: &metav1.Preconditions{UID: &uid}})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
 func (k *KubeCapacity) Release(ctx context.Context, r *Record) error {
 	name := "macos-sbx-" + r.SandboxID
 	pod, err := k.Kube.CoreV1().Pods(k.Namespace).Get(ctx, name, metav1.GetOptions{})
