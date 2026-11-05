@@ -246,6 +246,7 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			if err != nil {
 				return err
 			}
+			go keepAmpCLI(context.WithoutCancel(ctx), s.Tools)
 		}
 		for _, name := range []string{"sbx-macos", "sbx-worker"} {
 			info, err := os.Stat(filepath.Join(s.Tools, name))

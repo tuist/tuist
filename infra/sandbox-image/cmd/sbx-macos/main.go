@@ -527,6 +527,48 @@ func orbBootstrap() error {
 	return nil
 }
 
+// The guest can read, but not execute, the share after a resume, so the CLI
+// runs from a copy in the place Amp's installer uses.
+var sharedAmp = "/Volumes/My Shared Files/sandbox-tools/amp"
+
+func copyAmpBinary(home, source string) (string, error) {
+	in, err := os.Open(source)
+	if err != nil {
+		return "", err
+	}
+	defer in.Close()
+	dir := filepath.Join(home, ".amp", "bin")
+	if err = os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
+	out, err := os.CreateTemp(dir, "tmp.")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(out.Name())
+	if _, err = io.Copy(out, in); err == nil {
+		err = out.Chmod(0755)
+	}
+	if closeErr := out.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, "amp")
+	if err = os.Rename(out.Name(), path); err != nil {
+		return "", err
+	}
+	// As Amp's installer does, so a shell in the Orb finds `amp` too.
+	if err = os.MkdirAll(filepath.Join(home, ".local", "bin"), 0755); err == nil {
+		link := filepath.Join(home, ".local", "bin", "amp")
+		if _, statErr := os.Lstat(link); os.IsNotExist(statErr) {
+			_ = os.Symlink(path, link)
+		}
+	}
+	return path, nil
+}
+
 func processStarted(pid int) string {
 	out, err := exec.Command("/bin/ps", "-p", fmt.Sprint(pid), "-o", "lstart=").Output()
 	if err != nil {
@@ -535,13 +577,18 @@ func processStarted(pid int) string {
 	return strings.TrimSpace(string(out))
 }
 
-// The Amp CLI updates itself, so the first Orb on a guest installs it with
-// Amp's installer and later ones reuse it.
+// The Amp CLI updates itself, so the first Orb on a guest installs it and
+// later ones reuse it. The host shares a checksum-verified copy next to the
+// guest tools; only a host that has not fetched it yet leaves the guest to
+// download it with Amp's installer.
 func ampBinary(home string) (string, error) {
 	for _, path := range []string{filepath.Join(home, ".amp", "bin", "amp"), "/opt/homebrew/bin/amp", "/usr/local/bin/amp"} {
 		if info, err := os.Stat(path); err == nil && info.Mode()&0111 != 0 {
 			return path, nil
 		}
+	}
+	if path, err := copyAmpBinary(home, sharedAmp); err == nil {
+		return path, nil
 	}
 	install := exec.Command("/bin/bash", "-c", "curl -fsSL https://ampcode.com/install.sh | bash")
 	install.Env = []string{"HOME=" + home, "PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"}
