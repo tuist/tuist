@@ -96,12 +96,27 @@ import TuistServer
         var body: some Scene {
             WindowGroup {
                 if bootstrapper.isReady {
-                    RootView()
+                    #if DEBUG
+                        if let demoState = notificationsDemoState {
+                            NotificationsView.demo(demoState)
+                        } else {
+                            RootView()
+                        }
+                    #else
+                        RootView()
+                    #endif
                 } else {
                     ProgressView()
                 }
             }
         }
+
+        #if DEBUG
+            /// `-notifications-demo <state>` renders the Notifications screen with mock data, for screenshots.
+            private var notificationsDemoState: NotificationsDemoState? {
+                UserDefaults.standard.string(forKey: "notifications-demo").flatMap(NotificationsDemoState.init(rawValue:))
+            }
+        #endif
     }
 
     private struct RootView: View {

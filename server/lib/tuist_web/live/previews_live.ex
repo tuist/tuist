@@ -12,6 +12,7 @@ defmodule TuistWeb.PreviewsLive do
 
   alias Noora.Filter
   alias Tuist.AppBuilds
+  alias Tuist.Notifications
   alias Tuist.Projects
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -38,7 +39,20 @@ defmodule TuistWeb.PreviewsLive do
        :user_agent,
        UAParser.parse(get_connect_info(socket, :user_agent))
      )
-     |> assign(:available_filters, define_filters())}
+     |> assign(:available_filters, define_filters())
+     |> assign_notification_preference()}
+  end
+
+  # The signed-in user's own new-preview choice for this project; nil for
+  # visitors and for public projects outside their accounts.
+  defp assign_notification_preference(%{assigns: %{selected_project: project}} = socket) do
+    preference =
+      case Map.get(socket.assigns, :current_user) do
+        nil -> nil
+        user -> Notifications.project_preference(user, "new_preview", project)
+      end
+
+    assign(socket, :notification_preference, preference)
   end
 
   def handle_params(_params, uri, %{assigns: %{selected_project: project, available_filters: available_filters}} = socket) do
@@ -63,6 +77,23 @@ defmodule TuistWeb.PreviewsLive do
         AppBuilds.latest_previews_with_distinct_bundle_ids(project)
       )
     }
+  end
+
+  # As in the apps, turning the project back to its account's setting follows
+  # the account again instead of keeping an override.
+  def handle_event("toggle_preview_notifications", _params, socket) do
+    %{enabled: enabled, account_enabled: account_enabled} = socket.assigns.notification_preference
+    override = if !enabled == account_enabled, do: nil, else: !enabled
+
+    _ =
+      Notifications.update_project_preference(
+        socket.assigns.current_user,
+        "new_preview",
+        socket.assigns.selected_project.id,
+        override
+      )
+
+    {:noreply, assign_notification_preference(socket)}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do

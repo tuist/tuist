@@ -6,6 +6,7 @@ defmodule TuistWeb.PreviewsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Notifications
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistWeb.Previews.AppPreview
@@ -92,6 +93,27 @@ defmodule TuistWeb.PreviewsLiveTest do
     # Then
     assert has_element?(lv, "span", "AppOne")
     assert has_element?(lv, "span", "AppTwo")
+  end
+
+  test "sets the signed-in user's new-preview notifications for the project", %{
+    conn: conn,
+    user: user,
+    organization: organization,
+    project: project
+  } do
+    AppBuildsFixtures.preview_fixture(project: project, display_name: "AppOne")
+    {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
+    assert html =~ "Notifications on"
+
+    # Dropdown items render in a portal, which LiveViewTest elements can't reach.
+    assert render_hook(lv, "toggle_preview_notifications", %{}) =~ "Notifications off"
+    refute Notifications.notify?(user.id, "new_preview", project.id)
+    assert Notifications.project_preference(user, "new_preview", project).override == false
+
+    # Turning it back on matches the account, so the project follows the account again.
+    assert render_hook(lv, "toggle_preview_notifications", %{}) =~ "Notifications on"
+    assert Notifications.notify?(user.id, "new_preview", project.id)
+    assert is_nil(Notifications.project_preference(user, "new_preview", project).override)
   end
 
   test "release notes summaries ignore blank notes and normalize line endings" do

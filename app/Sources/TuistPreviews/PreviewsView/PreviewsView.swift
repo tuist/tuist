@@ -3,6 +3,7 @@ import SwiftUI
 import TuistAuthentication
 import TuistErrorHandling
 import TuistNoora
+import TuistNotifications
 import TuistServer
 
 public struct PreviewsView: View {
@@ -179,6 +180,7 @@ public struct PreviewsView: View {
                 }
             }
             .navigationTitle("Previews")
+            .projectNotificationsToolbar(fullHandle: viewModel.selectedProject?.fullName ?? "")
             .navigationBarTitleDisplayMode(.automatic)
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
             .task(id: searchText) {

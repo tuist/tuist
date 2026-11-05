@@ -1,0 +1,128 @@
+#account-notifications {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+
+  & > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part$="card-section"] {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--noora-radius-8);
+    padding: var(--noora-spacing-0);
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      padding: var(--noora-spacing-8);
+
+      & [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="toggle-row"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+      }
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+      padding: 0 var(--noora-spacing-8) var(--noora-spacing-8);
+
+      & > .noora-table {
+        box-sizing: border-box;
+        width: 100%;
+      }
+    }
+  }
+
+  & [data-part="accounts"] {
+    display: flex;
+    flex-direction: column;
+
+    & > [data-part="account"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+      border-top: 1px solid var(--noora-surface-border-primary);
+      padding: var(--noora-spacing-5) 0;
+
+      &:first-child {
+        border-top: none;
+        padding-top: 0;
+      }
+
+      &:last-child {
+        padding-bottom: 0;
+      }
+    }
+  }
+
+  & [data-part="account-row"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="account-label"] {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      min-width: 0;
+
+      & > [data-part="account-name"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="account-kind"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+
+    & > [data-part="account-summary"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="account-projects"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    & > [data-part="projects"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="projects-label"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      }
+    }
+  }
+
+  & [data-part="account"] [data-part="account-projects"] {
+    border-radius: var(--noora-radius-6);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-6);
+  }
+}

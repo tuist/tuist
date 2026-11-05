@@ -49,6 +49,11 @@ public final class PushNotifications {
         self.appStorage = appStorage
         isPreview = previewPermission != nil
         permission = previewPermission ?? .unknown
+        // Previews never refresh, so they read the opt-in they were set up with here.
+        if isPreview, let serverURL {
+            isEnabledOnThisDevice = registrationService.isEnabled(serverURL: serverURL)
+            installationID = registrationService.installationID(serverURL: serverURL)
+        }
     }
 
     /// Refreshes the permission and, when the user opted in, the device token, which in turn refreshes the
@@ -84,6 +89,11 @@ public final class PushNotifications {
 
     /// Shows the system permission prompt if it hasn't been shown yet.
     public func requestPermission() async {
+        if isPreview {
+            // Previews act as if the user allowed notifications in the system prompt.
+            if permission == .notDetermined { permission = .authorized }
+            return
+        }
         do {
             _ = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
         } catch {
@@ -112,7 +122,7 @@ public final class PushNotifications {
         }.value
         isEnabledOnThisDevice = registrationService.isEnabled(serverURL: serverURL)
         installationID = registrationService.installationID(serverURL: serverURL)
-        if isEnabledOnThisDevice {
+        if isEnabledOnThisDevice, !isPreview {
             UIApplication.shared.registerForRemoteNotifications()
         }
     }

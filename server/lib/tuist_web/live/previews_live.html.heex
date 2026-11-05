@@ -20,6 +20,31 @@
       icon="devices"
       data-part="latest-previews"
     >
+      <:actions :if={@notification_preference}>
+        <.dropdown
+          id="preview-notifications-dropdown"
+          label={
+            if @notification_preference.enabled,
+              do: dgettext("dashboard_previews", "Notifications on"),
+              else: dgettext("dashboard_previews", "Notifications off")
+          }
+          size="medium"
+          aria-label={
+            dgettext(
+              "dashboard_previews",
+              "Your push notifications for new previews of this project"
+            )
+          }
+        >
+          <:icon><.bell /></:icon>
+          <.dropdown_item
+            value="new-previews"
+            label={dgettext("dashboard_previews", "Notify me about new previews")}
+            checked={@notification_preference.enabled}
+            on_click="toggle_preview_notifications"
+          />
+        </.dropdown>
+      </:actions>
       <.card_section data-part="latest-app-previews">
         <span data-part="title">{dgettext("dashboard_previews", "Latest app previews")}</span>
         <div data-part="apps">

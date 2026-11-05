@@ -1736,6 +1736,7 @@ defmodule TuistWeb.Router do
       live "/cache", CacheLive
       live "/billing", BillingLive
       live "/settings", AccountSettingsLive
+      live "/settings/notifications", AccountNotificationsLive
       live "/settings/tokens", AccountTokensLive
       live "/settings/tokens/:token_id", AccountTokenLive
       live "/settings/integrations", IntegrationsLive

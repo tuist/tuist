@@ -22,13 +22,13 @@ msgid "%{display_name} · Tuist"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:166
-#: lib/tuist_web/live/previews_live.ex:176
-#: lib/tuist_web/live/previews_live.html.heex:88
+#: lib/tuist_web/live/previews_live.ex:207
+#: lib/tuist_web/live/previews_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr ""
 
-#: lib/tuist_web/live/previews_live.html.heex:97
+#: lib/tuist_web/live/previews_live.html.heex:122
 #, elixir-autogen, elixir-format
 msgid "Built at"
 msgstr ""
@@ -39,7 +39,7 @@ msgid "Bundle identifier"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:173
-#: lib/tuist_web/live/previews_live.html.heex:91
+#: lib/tuist_web/live/previews_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr ""
@@ -75,18 +75,18 @@ msgstr ""
 msgid "Install App"
 msgstr ""
 
-#: lib/tuist_web/live/previews_live.html.heex:24
+#: lib/tuist_web/live/previews_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Latest app previews"
 msgstr ""
 
-#: lib/tuist_web/live/previews_live.html.heex:71
+#: lib/tuist_web/live/previews_live.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:169
-#: lib/tuist_web/live/previews_live.ex:184
+#: lib/tuist_web/live/previews_live.ex:215
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr ""
@@ -96,16 +96,16 @@ msgstr ""
 msgid "Or run using CLI"
 msgstr ""
 
-#: lib/tuist_web/live/previews_live.html.heex:78
+#: lib/tuist_web/live/previews_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Platforms"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:30
-#: lib/tuist_web/live/previews_live.ex:25
-#: lib/tuist_web/live/previews_live.ex:29
+#: lib/tuist_web/live/previews_live.ex:26
+#: lib/tuist_web/live/previews_live.ex:30
 #: lib/tuist_web/live/previews_live.html.heex:19
-#: lib/tuist_web/live/previews_live.html.heex:33
+#: lib/tuist_web/live/previews_live.html.heex:58
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr ""
@@ -121,7 +121,7 @@ msgstr ""
 msgid "Ran at"
 msgstr ""
 
-#: lib/tuist_web/live/previews_live.html.heex:94
+#: lib/tuist_web/live/previews_live.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "Ran by"
 msgstr ""
@@ -177,19 +177,19 @@ msgstr ""
 msgid "V %{version}"
 msgstr ""
 
-#: lib/tuist_web/live/previews_live.html.heex:52
+#: lib/tuist_web/live/previews_live.html.heex:77
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr ""
 
-#: lib/tuist_web/live/previews_live.html.heex:44
+#: lib/tuist_web/live/previews_live.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:181
-#: lib/tuist_web/live/previews_live.ex:168
-#: lib/tuist_web/live/previews_live.html.heex:85
+#: lib/tuist_web/live/previews_live.ex:199
+#: lib/tuist_web/live/previews_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Track"
 msgstr ""
@@ -252,4 +252,24 @@ msgstr ""
 #: lib/tuist_web/live/preview_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Run preview"
+msgstr ""
+
+#: lib/tuist_web/live/previews_live.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "Notifications off"
+msgstr ""
+
+#: lib/tuist_web/live/previews_live.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Notifications on"
+msgstr ""
+
+#: lib/tuist_web/live/previews_live.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "Your push notifications for new previews of this project"
+msgstr ""
+
+#: lib/tuist_web/live/previews_live.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Notify me about new previews"
 msgstr ""
