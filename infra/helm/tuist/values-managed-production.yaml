@@ -2317,9 +2317,10 @@ buildersFleet:
 # Firecracker sandboxes for coding-agent sessions, on the OVH RISE-L boxes that
 # also host the Linux runner pool. No memory is set aside for sandboxes: each
 # box's daemon starts at the chart's 1 GiB floor, which holds no sandbox, and
-# grows up to 32 GiB as sandboxes need memory no running job holds. 100 GiB of disk holds four default sessions with a 10 GB workspace,
-# running or paused. The kata runner pools keep the rest. Accounts reach
-# sandboxes only through the `sandboxes` feature flag.
+# grows up to 32 GiB as sandboxes need memory no running job holds. 200 GiB of
+# disk holds seven default sessions with a 10 GB workspace, running or paused,
+# and fewer when the box also keeps disk snapshots. The kata runner pools keep
+# the rest. Accounts reach sandboxes only through the `sandboxes` feature flag.
 sandboxes:
   # Deploy the daemon; account access is controlled by the `sandboxes` flag.
   enabled: true
@@ -2335,7 +2336,7 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 32
-  diskGiB: 100
+  diskGiB: 200
   archiveAfterHours: 24
   networkPolicy:
     # Amp Orb archives go to the in-rack shard-storage release.
