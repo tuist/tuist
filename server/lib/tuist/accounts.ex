@@ -381,21 +381,141 @@ defmodule Tuist.Accounts do
     Repo.get_by(DeviceCode, code: code)
   end
 
+  @device_code_ttl_minutes 5
+
+  def device_code_expired?(%DeviceCode{created_at: created_at}) do
+    NaiveDateTime.before?(created_at, device_code_cutoff())
+  end
+
+  @doc """
+  Approves a pending, unexpired device code from the link-based flow for
+  `user`. Codes issued with a user code (`create_device_authorization/0`) can
+  only be approved by entering that code (`approve_device_code_by_user_code/3`),
+  so a link alone cannot approve them.
+  """
   def authenticate_device_code(code, %User{} = user, session \\ nil) do
-    device_code = get_device_code(code)
+    approve_pending_device_code(from(d in DeviceCode, where: d.code == ^code and is_nil(d.user_code)), user, session)
+  end
 
-    {:ok, device_code} =
-      device_code
-      |> DeviceCode.authenticate_changeset(%{
-        authenticated: true,
-        user_id: user.id,
-        auth_provider: session && session.auth_provider,
-        auth_provider_organization_id: session && session.auth_provider_organization_id,
-        auth_organization_id: session && session.auth_organization_id
-      })
-      |> Repo.update()
+  @doc """
+  Approves the pending, unexpired device code with the given user code, as a
+  person types it (case, spaces and dashes don't matter).
+  """
+  def approve_device_code_by_user_code(user_code, %User{} = user, session \\ nil) do
+    # Bounds how many codes one account can try, so user codes can't be
+    # guessed by submitting many of them.
+    with {:allow, _count} <- RateLimit.hit("device-code:user-code:#{user.id}", limit: 10, window: to_timeout(minute: 5)),
+         user_code when is_binary(user_code) <- normalize_user_code(user_code) do
+      approve_pending_device_code(from(d in DeviceCode, where: d.user_code == ^user_code), user, session)
+    else
+      {:deny, _retry_after} -> {:error, :rate_limited}
+      nil -> {:error, :not_pending}
+    end
+  end
 
-    device_code
+  # The single conditional update means a code can only be approved once, so a
+  # second approval (by the same or another user) cannot replace the account
+  # the code signs in to.
+  defp approve_pending_device_code(query, user, session) do
+    query =
+      from(d in query,
+        where: not coalesce(d.authenticated, false) and d.created_at >= ^device_code_cutoff(),
+        select: d
+      )
+
+    case Repo.update_all(query,
+           set: [
+             authenticated: true,
+             user_id: user.id,
+             auth_provider: session && session.auth_provider,
+             auth_provider_organization_id: session && session.auth_provider_organization_id,
+             auth_organization_id: session && session.auth_organization_id,
+             updated_at: NaiveDateTime.utc_now()
+           ]
+         ) do
+      {1, [device_code]} -> {:ok, device_code}
+      {0, []} -> {:error, :not_pending}
+    end
+  end
+
+  # RFC 8628 §6.1: eight characters from 20 consonants (no vowels, so no words;
+  # no digits, so nothing to confuse with letters), shown as `WDJB-MJHT`.
+  @user_code_alphabet ~c"BCDFGHJKLMNPQRSTVWXZ"
+  @user_code_length 8
+
+  @doc """
+  Starts the standard device flow: issues a secret device code for the client
+  to poll with and a short user code for the person to type in the browser.
+  """
+  def create_device_authorization do
+    device_code = 32 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
+    user_code = random_user_code()
+
+    %DeviceCode{}
+    |> DeviceCode.create_changeset(%{code: device_code, user_code: user_code, created_at: DateTime.utc_now()})
+    |> Repo.insert()
+    |> case do
+      {:ok, device_code} -> {:ok, device_code}
+      # A user code still held by an earlier code; draw another.
+      {:error, %Changeset{errors: [user_code: _]}} -> create_device_authorization()
+    end
+  end
+
+  # Bytes of 240 and above are dropped so each of the 20 characters is equally
+  # likely (240 is the largest multiple of 20 below 256).
+  defp random_user_code(acc \\ "")
+
+  defp random_user_code(acc) when byte_size(acc) >= @user_code_length, do: binary_part(acc, 0, @user_code_length)
+
+  defp random_user_code(acc) do
+    chars =
+      for <<byte <- :crypto.strong_rand_bytes(@user_code_length)>>, byte < 240,
+        into: "",
+        do: <<Enum.at(@user_code_alphabet, rem(byte, 20))>>
+
+    random_user_code(acc <> chars)
+  end
+
+  def device_code_ttl_seconds, do: @device_code_ttl_minutes * 60
+
+  def format_user_code(<<first::binary-size(4), second::binary-size(4)>>), do: first <> "-" <> second
+
+  def normalize_user_code(user_code) when is_binary(user_code) do
+    normalized = user_code |> String.upcase() |> String.replace(~r/[^A-Z]/, "")
+    if byte_size(normalized) == @user_code_length, do: normalized
+  end
+
+  def normalize_user_code(_user_code), do: nil
+
+  @doc """
+  Marks an approved device code as used, so the tokens it grants are issued
+  to exactly one poll. The row is kept, with its user cleared, rather than
+  deleted: a deleted code could be created again by opening the same link and
+  approved a second time.
+  """
+  def consume_device_code(%DeviceCode{id: id} = device_code) do
+    query = from(d in DeviceCode, where: d.id == ^id and d.authenticated == true and not is_nil(d.user_id))
+
+    case Repo.update_all(query,
+           set: [
+             user_id: nil,
+             user_code: nil,
+             auth_provider: nil,
+             auth_provider_organization_id: nil,
+             auth_organization_id: nil,
+             updated_at: NaiveDateTime.utc_now()
+           ]
+         ) do
+      {1, _} -> {:ok, device_code}
+      {0, _} -> {:error, :already_used}
+    end
+  end
+
+  def device_code_used?(%DeviceCode{authenticated: true, user_id: nil}), do: true
+  def device_code_used?(%DeviceCode{}), do: false
+
+  defp device_code_cutoff do
+    Tuist.Time.utc_now() |> DateTime.add(-@device_code_ttl_minutes, :minute) |> DateTime.to_naive()
   end
 
   def create_device_code(code, attrs \\ []) do

@@ -508,21 +508,72 @@ defmodule TuistWeb.AuthController do
     |> halt()
   end
 
-  def authenticate_device_code(conn, params) do
-    device_code = params["device_code"]
-    create_device_code_if_absent(device_code)
+  # Opening the link only shows the code; approval needs the CSRF-protected
+  # POST below, so a link sent to a signed-in user cannot approve a code that
+  # someone else chose.
+  def authenticate_device_code(conn, %{"device_code" => code} = params) do
+    device_code = Accounts.get_device_code(code) || Accounts.create_device_code(code)
 
-    type = params["type"] || "cli"
-
-    conn
-    |> redirect(to: ~p"/auth/device_codes/#{device_code}/success?type=#{type}")
-    |> halt()
+    # Codes from the standard device flow are approved by typing their user
+    # code at /auth/device, never through this link.
+    if device_code.authenticated or not is_nil(device_code.user_code) or Accounts.device_code_expired?(device_code) do
+      render_device_code_unavailable(conn)
+    else
+      conn
+      |> put_view(TuistWeb.DeviceCodeHTML)
+      |> render(:confirm,
+        device_code: code,
+        type: device_code_type(params),
+        email: conn.assigns.current_user.email,
+        head_title: dgettext("dashboard_auth", "Sign in to Tuist")
+      )
+    end
   end
 
-  defp create_device_code_if_absent(device_code) do
-    if is_nil(Accounts.get_device_code(device_code)) do
-      Accounts.create_device_code(device_code)
+  def confirm_device_code(conn, %{"device_code" => code} = params) do
+    case Accounts.authenticate_device_code(code, conn.assigns.current_user, conn.assigns[:current_user_session]) do
+      {:ok, _device_code} ->
+        conn
+        |> redirect(to: ~p"/auth/device_codes/#{code}/success?type=#{device_code_type(params)}")
+        |> halt()
+
+      {:error, :not_pending} ->
+        render_device_code_unavailable(conn)
     end
+  end
+
+  def confirm_user_code(conn, params) do
+    user = conn.assigns.current_user
+
+    case Accounts.approve_device_code_by_user_code(params["user_code"], user, conn.assigns[:current_user_session]) do
+      {:ok, _device_code} ->
+        conn
+        |> redirect(to: ~p"/auth/device/success?type=cli")
+        |> halt()
+
+      {:error, :not_pending} ->
+        conn
+        |> put_flash(
+          :error,
+          dgettext("dashboard_auth", "That code is incorrect or has expired. Check it and try again.")
+        )
+        |> redirect(to: ~p"/auth/device")
+
+      {:error, :rate_limited} ->
+        conn
+        |> put_flash(:error, dgettext("dashboard_auth", "Too many attempts. Wait a few minutes and try again."))
+        |> redirect(to: ~p"/auth/device")
+    end
+  end
+
+  defp device_code_type(%{"type" => type}) when type in ["cli", "app"], do: type
+  defp device_code_type(_params), do: "cli"
+
+  defp render_device_code_unavailable(conn) do
+    conn
+    |> put_status(:gone)
+    |> put_view(TuistWeb.DeviceCodeHTML)
+    |> render(:unavailable, head_title: dgettext("dashboard_auth", "Sign-in link expired"))
   end
 
   def complete_signup(conn, %{"token" => token}) do

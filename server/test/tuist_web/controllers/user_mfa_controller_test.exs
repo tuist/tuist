@@ -186,7 +186,7 @@ defmodule TuistWeb.UserMFAControllerTest do
   test "device login cannot issue human credentials before completing MFA", %{user: user, now: now} do
     {_confirmed, _secret, [recovery | _]} = enroll(user, now)
     device = Accounts.create_device_code("mfa-device-#{user.id}")
-    destination = ~p"/auth/device_codes/#{device.code}/success?type=cli"
+    destination = ~p"/auth/device_codes/#{device.code}?type=cli"
     pending = get(build_conn(), destination)
     assert redirected_to(pending) == ~p"/users/log_in"
 
@@ -196,10 +196,18 @@ defmodule TuistWeb.UserMFAControllerTest do
       |> post(~p"/users/log_in", %{"user" => %{"email" => user.email, "password" => valid_user_password()}})
 
     refute Accounts.get_device_code(device.code).authenticated
-    assert {:error, {:redirect, %{to: "/users/log_in"}}} = live(recycle(pending), destination)
+
+    assert pending |> recycle() |> post(~p"/auth/device_codes/#{device.code}", %{"type" => "cli"}) |> redirected_to() ==
+             ~p"/users/log_in"
+
+    refute Accounts.get_device_code(device.code).authenticated
     verified = pending |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => recovery})
     assert redirected_to(verified) == destination
-    assert {:ok, _, _} = live(recycle(verified), destination)
+    assert verified |> recycle() |> get(destination) |> html_response(200) =~ device.code
+
+    assert verified |> recycle() |> post(~p"/auth/device_codes/#{device.code}", %{"type" => "cli"}) |> redirected_to() ==
+             ~p"/auth/device_codes/#{device.code}/success?type=cli"
+
     assert Accounts.get_device_code(device.code).authenticated
   end
 

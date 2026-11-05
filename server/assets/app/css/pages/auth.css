@@ -9,6 +9,7 @@
 #confirmation-instructions,
 #agent-auth,
 #sso-link,
+#device-code,
 #forgot-password,
 #reset-password,
 #create-project,
@@ -329,7 +330,8 @@
 }
 
 #agent-auth,
-#sso-link {
+#sso-link,
+#device-code {
   & [data-part="wrapper"] {
     display: flex;
     justify-content: center;
@@ -387,6 +389,25 @@
     font: var(--noora-font-weight-semibold) var(--noora-font-heading-2xlarge);
     letter-spacing: 0.2em;
     text-align: center;
+  }
+
+  /* Eight boxes, grouped four and four like the `WDJB-MJHT` the terminal
+     shows, shrinking to fit narrow screens. */
+  & [data-part="user-code"] .noora-digit-input [data-part="root"] {
+    justify-content: center;
+    gap: var(--noora-spacing-2);
+    direction: ltr;
+
+    & input {
+      flex: 1 1 0;
+      min-width: 0;
+      max-width: 48px;
+      text-transform: uppercase;
+    }
+
+    & input:nth-child(4) {
+      margin-inline-end: var(--noora-spacing-4);
+    }
   }
 }
 

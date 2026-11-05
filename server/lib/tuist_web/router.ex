@@ -38,6 +38,10 @@ defmodule TuistWeb.Router do
     plug :rate_limit, limit: 300
   end
 
+  pipeline :device_authorization_rate_limit do
+    plug :rate_limit, limit: 30
+  end
+
   pipeline :open_graph_image do
     plug :put_request_kind, "open_graph_image"
     plug :rate_limit, limit: 60
@@ -1226,6 +1230,12 @@ defmodule TuistWeb.Router do
     post "/auth/oidc/token", OIDCController, :exchange_token
   end
 
+  scope "/api", TuistWeb.API do
+    pipe_through [:open_api, :non_authenticated_api, :device_authorization_rate_limit]
+
+    post "/auth/device_codes", AuthController, :create_device_code
+  end
+
   scope "/api/remote-execution", TuistWeb do
     pipe_through [:non_authenticated_api]
 
@@ -1518,6 +1528,7 @@ defmodule TuistWeb.Router do
     live_session :auth,
       on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
       live "/device_codes/:device_code/success", DeviceCodesSuccessLive, :new
+      live "/device/success", DeviceCodesSuccessLive, :new
       live "/invitations/:token", AcceptInvitationLive, :new
     end
 
@@ -1532,6 +1543,16 @@ defmodule TuistWeb.Router do
     # This route is deprecated and will be removed in future versions.
     get "/cli/:device_code", AuthController, :authenticate_cli_deprecated
     get "/device_codes/:device_code", AuthController, :authenticate_device_code
+    post "/device_codes/:device_code", AuthController, :confirm_device_code
+
+    # The standard device flow (RFC 8628): the person types the code their
+    # terminal shows, and the confirmation POST approves it.
+    live_session :device_authorization,
+      on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
+      live "/device", DeviceAuthorizationLive, :new
+    end
+
+    post "/device", AuthController, :confirm_user_code
   end
 
   # Anonymous Turnstile challenge shown before public-project and
