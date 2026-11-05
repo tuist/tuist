@@ -115,6 +115,30 @@ struct SandboxCommandServiceTests {
         }
     }
 
+    @Test(.withMockedEnvironment(), .withMockedNoora, arguments: ["paused", "running"])
+    func pausingASandboxTheServerAlreadyPausedSucceeds(state: String) async throws {
+        given(sandboxesService).transitionSandbox(
+            .value(.pause),
+            accountHandle: .value("resolved-account"),
+            serverURL: .value(Self.serverURL),
+            sandboxID: .value(Self.id)
+        ).willThrow(SandboxesServiceError.refused("The sandbox is \(state)."))
+        given(sandboxesService).getSandbox(
+            accountHandle: .value("resolved-account"),
+            serverURL: .value(Self.serverURL),
+            sandboxID: .value(Self.id)
+        ).willReturn(try Self.decode(Self.sandbox(status: nil).replacingOccurrences(of: "running", with: state)))
+
+        let pause = { try await subject().transition(.pause, options: Self.values(), sandboxID: Self.id) }
+
+        if state == "paused" {
+            try await pause()
+            #expect(ui().contains("Sandbox \(Self.id) is paused"))
+        } else {
+            await #expect(throws: SandboxesServiceError.refused("The sandbox is running.")) { try await pause() }
+        }
+    }
+
     @Test(.withMockedEnvironment(), .withMockedNoora)
     func failsWithoutAnAccount() async throws {
         await #expect(throws: SandboxCommandError.missingAccount) {
@@ -123,7 +147,7 @@ struct SandboxCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
-    func execFailsWithTheCommandsExitStatus() async throws {
+    func execExitsWithTheCommandsExitStatus() async throws {
         given(sandboxesService).execSandboxCommand(
             accountHandle: .value("resolved-account"),
             serverURL: .value(Self.serverURL),
@@ -132,7 +156,7 @@ struct SandboxCommandServiceTests {
             timeoutMs: .value(30000)
         ).willReturn(try Self.decode("{\"exit_code\":2,\"stdout\":\"\",\"stderr\":\"\"}"))
 
-        await #expect(throws: SandboxCommandError.commandFailed(exitCode: 2)) {
+        await #expect(throws: ExitCode(2)) {
             try await subject().exec(options: Self.values(), sandboxID: Self.id, command: "make test", timeoutMs: 30000)
         }
     }
