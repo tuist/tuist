@@ -1782,7 +1782,7 @@ defmodule Tuist.Runners.CacheVolumes do
   defp inventory_query(account_id, search, opts) do
     query =
       from(v in Volume,
-        where: v.account_id == ^account_id
+        where: v.account_id == ^account_id and is_nil(v.deleted_at)
       )
 
     query =

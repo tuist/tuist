@@ -54,11 +54,15 @@ defmodule Tuist.Runners.CacheVolumes.Query do
     end
   end
 
-  def run(:clear, account_id, params) do
+  def run(:delete, account_id, params) do
     with {:ok, found} <- find(account_id, params),
          {:ok, _} <- CacheVolumes.delete(account_id, found.id) do
-      {:ok, %{id: found.id, cleared: true}}
+      {:ok, %{id: found.id, deleted: true}}
     end
+  end
+
+  def run(:clear, account_id, params) do
+    with {:ok, %{id: id}} <- run(:delete, account_id, params), do: {:ok, %{id: id, cleared: true}}
   end
 
   def run(:analytics, account_id, params) do

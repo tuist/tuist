@@ -344,6 +344,15 @@ socket, the poller and the caller share a replica:
   `/api/accounts/:account_handle/sandboxes/agent-sessions` (create,
   list, show with live status and usage, `messages`,
   `events?after=<cursor>`, `archive`).
+- `Sandboxes.Query` is the public boundary the sandbox API
+  (`TuistWeb.API.SandboxesController`: list, show, analytics, pause,
+  resume, archive, delete), the MCP sandbox tools and `tuist sandbox` share,
+  with contracts in `Sandboxes.Schemas`; keep both exported from `Tuist`.
+  It account-scopes every lookup, serializes the dashboard status, and maps
+  errors to one HTTP status and message (`Query.error/1`). Every caller
+  requires an account administrator and the sandboxes flag, read-only
+  calls included, because sandboxes run arbitrary commands. MCP does not
+  expose `exec` or create.
 
 ## Related Context
 

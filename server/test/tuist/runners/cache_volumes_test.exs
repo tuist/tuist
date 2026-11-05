@@ -205,7 +205,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     })
   end
 
-  defp volume(account), do: hd(CacheVolumes.list(account.id).volumes)
+  defp volume(account), do: Repo.one!(from(v in Volume, where: v.account_id == ^account.id))
 
   defp main_identity, do: Map.merge(identity(), %{default_branch: "main", writer_branch: "main"})
 
