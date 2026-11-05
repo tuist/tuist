@@ -7,7 +7,7 @@
 ---
 # Código {#code}
 
-Tuist es un monorepositorio. Cada componente tiene sus propias herramientas, dependencias y pasos de ejecución local. Elige el área en la que quieres contribuir:
+Tuist es un monorepositorio. Cada componente tiene sus propias herramientas, dependencias y pasos de ejecución local. Elige el área a la que quieres contribuir:
 
 - <.localized_link href="/contributors/code/cli">CLI</.localized_link>
 - <.localized_link href="/contributors/code/server">Server</.localized_link>

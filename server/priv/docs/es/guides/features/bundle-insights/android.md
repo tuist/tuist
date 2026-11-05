@@ -2,12 +2,12 @@
 {
   "title": "Android",
   "titleTemplate": ":title · Análisis de paquetes · Funcionalidades · Guías · Tuist",
-  "description": "Analiza los paquetes de aplicaciones Android (.aab) y los instalables (.apk) con el análisis de paquetes de Tuist."
+  "description": "Analiza paquetes de aplicaciones Android (.aab) e instalables (.apk) con el análisis de paquetes de Tuist."
 }
 ---
 # Android {#bundle-insights-android}
 
-Analiza un bundle de Android indicando `tuist inspect bundle` a un app bundle o un instalable:
+Analiza un bundle de Android apuntando `tuist inspect bundle` a un app bundle o a un instalable:
 
 ::: code-group
 ```bash [Analyze an .aab (recommended)]

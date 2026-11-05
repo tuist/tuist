@@ -17,17 +17,17 @@
 />
   <.home_card
     title="생성된 프로젝트"
-    details="Tuist로 생성된 프로젝트에서 커스텀 스킴을 사용한 빌드 인사이트를 추적합니다."
+    details="Tuist가 생성한 프로젝트에서 커스텀 스킴으로 빌드 인사이트를 추적합니다."
     link="/guides/features/build-insights/generated-xcode-project"
 />
   <.home_card
     title="Gradle"
-    details="Tuist Gradle 플러그인으로 Gradle 작업 시간과 캐시 효율성을 추적합니다."
+    details="Tuist Gradle 플러그인으로 Gradle 태스크 실행 시간과 캐시 효율성을 추적합니다."
     link="/guides/features/build-insights/gradle"
 />
   <.home_card
     title="Bazel"
-    details="Build Event Protocol을 통해 Bazel 명령 실행 시간, 캐시 총량, 크리티컬 경로 진단 정보를 추적합니다."
+    details="Build Event Protocol을 통해 Bazel 명령어 실행 시간, 캐시 합계, 크리티컬 패스 진단 정보를 추적합니다."
     link="/guides/features/build-insights/bazel"
 />
   <.home_card
@@ -37,7 +37,7 @@
 />
   <.home_card
     title="Rust"
-    details="Tuist CLI로 Cargo 명령 실행 시간, 관찰된 rustc 호출, 컴파일러 진단 정보를 추적합니다."
+    details="Tuist CLI로 Cargo 명령어 실행 시간, 관찰된 rustc 호출, 컴파일러 진단 정보를 추적합니다."
     link="/guides/features/build-insights/rust"
 />
 </.home_cards>
