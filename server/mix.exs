@@ -59,6 +59,7 @@ defmodule Tuist.MixProject do
       {:heroicons,
        github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
       {:bamboo, "~> 2.4"},
+      {:bamboo_ses, "~> 0.5.0"},
       {:finch, "~> 0.21.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
