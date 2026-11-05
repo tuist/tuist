@@ -61,6 +61,9 @@ export default {
       otp: getBooleanOption(this.el, "otp"),
       mask: getBooleanOption(this.el, "mask"),
       blurOnComplete: getBooleanOption(this.el, "blurOnComplete"),
+      // Codes are often shown grouped, like `WDJB-MJHT` or `123 456`; drop the
+      // separators so pasting them fills the boxes instead of being rejected.
+      sanitizeValue: (value) => value.replace(/[\s-]/g, ""),
       onValueChange: (details) => {
         if (this.el.dataset.onChange) {
           this.pushEvent(this.el.dataset.onChange, details);
