@@ -1741,7 +1741,7 @@ defmodule TuistWeb.Router do
       live "/settings/integrations", IntegrationsLive
       live "/settings/authentication", AuthenticationSettingsLive
       live "/settings/authentication/workload-identities", AuthenticationSettingsLive, :workload_identities
-      live "/settings/ai-subscriptions", AISubscriptionsSettingsLive
+      live "/settings/ai", AISubscriptionsSettingsLive
     end
   end
 

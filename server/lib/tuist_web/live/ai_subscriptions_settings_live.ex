@@ -10,6 +10,8 @@ defmodule TuistWeb.AISubscriptionsSettingsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.Terminal
+
   alias Tuist.Accounts.AISubscriptions
   alias Tuist.FeatureFlags
 
@@ -22,7 +24,7 @@ defmodule TuistWeb.AISubscriptionsSettingsLive do
 
     {:ok,
      socket
-     |> assign(:head_title, "#{dgettext("dashboard", "AI subscriptions")} · #{selected_account.name} · Tuist")
+     |> assign(:head_title, "#{dgettext("dashboard", "AI")} · #{selected_account.name} · Tuist")
      |> assign(:claude_form, empty_claude_form())
      |> assign(:claude_error, nil)
      |> assign(:chatgpt_login, nil)
