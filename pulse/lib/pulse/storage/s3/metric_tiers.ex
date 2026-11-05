@@ -27,7 +27,7 @@ defmodule Pulse.Storage.S3.MetricTiers do
   metric with more than `:max_rows` rows in an hour cannot be finalized.
 
   Before an hour ends, `consolidate/3` rewrites its settled raw segments,
-  oldest first, into `-group-` segments grouped and ordered the same way, so
+  newest hour first, into `-group-` segments grouped and ordered the same way, so
   a selector reads only the segments holding its metric instead of every
   ingested segment, and a partitioned finalization reads each one once.
 
@@ -138,7 +138,8 @@ defmodule Pulse.Storage.S3.MetricTiers do
   end
 
   @doc """
-  Consolidate the oldest batch of settled raw segments that lie inside one
+  Consolidate a batch of settled raw segments in the newest eligible hour,
+  oldest segments first within that hour. The segments must lie inside one
   hour, when the hour holds at least `:consolidate_min_rows` of them: up to
   `:consolidate_max_rows` rows are rewritten into `-group-` segments grouped
   by metric name, published in one manifest transition. Returns
@@ -171,7 +172,7 @@ defmodule Pulse.Storage.S3.MetricTiers do
       candidates.segments
       |> Enum.filter(&consolidatable?(&1, settled_before, max_rows))
       |> Enum.group_by(&hour(&1.min_ts))
-      |> Enum.sort()
+      |> Enum.sort_by(&elem(&1, 0), :desc)
       |> Enum.find_value(&hour_batch(&1, min_rows, max_rows, max_sources))
       |> consolidate_batch(tenant, config, opts)
     end

@@ -1573,8 +1573,9 @@ are not finalized yet.
 Before an hour settles, each remote-write batch holds a slice of every metric,
 so name summaries cannot prune it and a 1-hour panel reads every batch (a
 production hour is ~1,800 segments, ~48M rows). `MetricTiers.consolidate/3`
-regroups settled raw segments of the open hour, oldest first, into `-group-`
-segments of 0.5–1M rows sorted by metric (tier `:grouped`, read and finalized
+regroups settled raw segments of the newest eligible hour, oldest segments
+first within that hour, in 0.5–1M-row batches into metric-sorted `-group-`
+segments (tier `:grouped`, read and finalized
 like raw), using the same native builder without rollups. Finalization of an
 hour above 3/4 of `max_rows` runs in passes over equal ranges of a 64-bit
 metric-name hash (`name_partition/2`, mirrored natively); a source is read
@@ -1582,10 +1583,26 @@ only by the passes its listed names fall in, outputs stream one at a time, and
 an uneven pass restarts the hour with twice the passes. Tier API 2.
 
 Each enabled signal has its own maintenance worker and task supervisor
-(`CompactionSupervision` lanes, per-signal ownership groups), so a
-minutes-long finalization at the top of the hour does not stall log rollups,
-log compaction or the next hour's consolidation. Each lane runs its own
-discovery pass.
+(`CompactionSupervision` lanes, per-signal ownership groups). Metrics with
+finalization enabled have an additional grouping lane with independent
+eligibility, timeout/backoff and supervised tasks. A slow historical merge or
+finalization cannot withhold recent grouping; historical work stays oldest
+first. Each lane runs its own bounded discovery pass. A timed-out task still
+withdraws its own lane until it actually finishes, never bypassing admission.
+The extra lane admits one more bounded native batch per instance, up to eight
+source GETs concurrently. All lanes publish through the same manifest owner
+and CAS; overlapping source rewrites conflict and retry on later passes,
+never duplicate or drop samples. Formats, scan budgets, backup-held cleanup
+and retention policy do not change.
+
+This adopts the recent-first rationale of Grafana Mimir 2.17.0's
+[`sortJobsByNewestBlocksFirst`](https://github.com/grafana/mimir/blob/mimir-2.17.0/pkg/compactor/job_sorting.go),
+but only for bounded grouping. Historical finalization retains oldest-first
+fairness instead of moving every operation into a newest-first queue. Mimir's
+hash-ring infrastructure is not adopted: Pulse keeps disposable process-group
+eligibility and object-store CAS as authority. The tradeoff is bounded extra
+concurrency and possible CAS conflicts, rather than leaving recent query
+selectivity dependent on a multi-hour historical backlog.
 
 ### Log minute rollups
 

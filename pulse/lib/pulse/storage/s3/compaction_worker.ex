@@ -119,6 +119,14 @@ defmodule Pulse.Storage.S3.CompactionWorker do
   defp maintenance("traces"), do: {TraceCompactor, :trace_compaction_options, :trace_compaction_cleanup_options}
   defp maintenance("logs"), do: {LogCompactor, :log_compaction_options, :log_compaction_cleanup_options}
 
+  # Recent grouping must keep running while historical finalization is slow
+  # or withdrawn. It has independent eligibility/tasks, but the same manifest
+  # publication authority as the historical lane.
+  defp compact_tenant(tenant, "metrics", %{maintenance_operation: :metric_consolidate} = config) do
+    result = consolidate_next(tenant, config, Map.get(config, :metric_consolidate_max_batches, 8))
+    {if(result == :timeout, do: {:error, :timeout}, else: :ok), config}
+  end
+
   defp compact_tenant(tenant, signal, config) do
     {module, option_key, cleanup_key} = maintenance(signal)
     opts = Map.get(config, option_key, [])
@@ -138,7 +146,12 @@ defmodule Pulse.Storage.S3.CompactionWorker do
   defp finalize_hours(result, tenant, "metrics", config) do
     # Metrics maintenance only runs with metrics compaction enabled (CompactionOwnership.signals/1).
     if Map.get(config, :metric_finalize_enabled, true) do
-      consolidated = consolidate_next(tenant, config, Map.get(config, :metric_consolidate_max_batches, 8))
+      # Directly started workers retain their combined behavior; production's
+      # supervised historical lane leaves grouping to its independent worker.
+      consolidated =
+        if config[:maintenance_operation] == :metric_compact,
+          do: :ok,
+          else: consolidate_next(tenant, config, Map.get(config, :metric_consolidate_max_batches, 8))
 
       if consolidated == :timeout,
         do: {{:error, :timeout}, config},

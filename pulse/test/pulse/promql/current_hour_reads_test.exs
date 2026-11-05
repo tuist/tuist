@@ -19,9 +19,14 @@ defmodule Pulse.PromQL.CurrentHourReadsTest do
   alias Pulse.QueryLimit
   alias Pulse.Record.MetricSample
   alias Pulse.Runtime
+  alias Pulse.Runtime.Task
   alias Pulse.Storage
   alias Pulse.Storage.Memory
   alias Pulse.Storage.S3
+  alias Pulse.Storage.S3.CompactionOwnership
+  alias Pulse.Storage.S3.CompactionSupervision
+  alias Pulse.Storage.S3.CompactionTasks
+  alias Pulse.Storage.S3.CompactionWorker
   alias Pulse.Storage.S3.Manifest
   alias Pulse.Storage.S3.Manifest.Segment
   alias Pulse.Storage.S3.ManifestSupervision
@@ -165,6 +170,14 @@ defmodule Pulse.PromQL.CurrentHourReadsTest do
   defp rows(ctx, metric, from),
     do: Enum.count(ctx.records, &(&1.labels["__name__"] == metric and &1.timestamp_ns >= from))
 
+  defp assert_samples(ctx) do
+    assert {:ok, actual} =
+             S3.query(:metrics, ctx.tenant, start_ts: ctx.t0, end_ts: ctx.t0 + 10 * @minute, limit: 60_001)
+
+    samples = &Enum.sort(Enum.map(&1, fn sample -> {sample.labels, sample.timestamp_ns, sample.value} end))
+    assert samples.(actual) == samples.(ctx.records)
+  end
+
   test "raw segments of the current hour: every panel reads every segment", ctx do
     for {{query, opts, from}, metric} <- Enum.zip(panels(ctx), ["m_1", "m_3"]) do
       segments = Enum.count(0..(@flushes - 1), &(ctx.t0 + &1 * 2 * @second >= from))
@@ -192,6 +205,106 @@ defmodule Pulse.PromQL.CurrentHourReadsTest do
       assert {:ok, _} = expected
       assert ^expected = {:ok, assert_cost(ctx, query, opts, segments, rows(ctx, metric, from))}
     end
+  end
+
+  test "recent panels recover within the byte cap while historical maintenance is stalled", ctx do
+    {query, opts, _} = hd(panels(ctx))
+    assert {:ok, expected} = memory(ctx, query, opts)
+    {:ok, root, _} = Retention.load(ctx.tenant, "metrics", ctx.config)
+    byte_cap = div(Enum.sum_by(root.segments, & &1.byte_size), 4)
+    Runtime.put_env(:pulse, Evaluator, max_scan_bytes: byte_cap)
+    assert {:error, :query_scan_limit} = Evaluator.query(query, ctx.tenant, opts)
+    assert %{limit: :max_scan_bytes, stage: :candidates} = QueryLimit.take()
+
+    # An older eligible hour competes with recent grouping. Block its merge
+    # in storage, not the worker's mailbox, just as a slow historical task
+    # leaves the worker unable to run its next maintenance operation.
+    for offset <- 1..2 do
+      assert :ok =
+               S3.append(:metrics, ctx.tenant, [
+                 %MetricSample{
+                   timestamp_ns: ctx.t0 - @hour + offset,
+                   value: offset / 1,
+                   labels: %{"__name__" => "old"}
+                 }
+               ])
+    end
+
+    {:ok, root, _} = Retention.load(ctx.tenant, "metrics", ctx.config)
+    source = root.segments |> Enum.min_by(& &1.min_ts) |> Map.fetch!(:key)
+    parent = self()
+    Agent.update(ctx.agent, &%{&1 | barriers: %{{"GET", source} => parent}})
+
+    config =
+      Map.merge(ctx.config, %{
+        compaction_enabled: true,
+        compaction_interval_ms: 3_600_000,
+        compaction_timeout_ms: 1_000,
+        manifest_backup_enabled: false,
+        metric_consolidate_max_batches: 1,
+        metric_finalize_options: [
+          consolidate_settle_ms: 0,
+          consolidate_min_rows: 1,
+          consolidate_max_rows: 60_000,
+          target_rows: 1_500
+        ]
+      })
+
+    start_supervised!({CompactionSupervision, config})
+    historical = Runtime.whereis(CompactionWorker)
+    send(historical, :compact)
+    assert_receive {:storage_barrier, storage, "GET", ^source}, 30_000
+    _ = :sys.get_state(historical, 30_000)
+    assert CompactionOwnership.members(config) == []
+    assert [task] = Task.Supervisor.children(CompactionTasks)
+    task_ref = Process.monitor(task)
+    send(historical, :compact)
+    _ = :sys.get_state(historical)
+    assert [^task] = Task.Supervisor.children(CompactionTasks)
+
+    grouping = Runtime.whereis(Module.concat(CompactionWorker, "metrics_grouping"))
+    assert is_pid(grouping)
+    assert CompactionOwnership.members(Map.put(config, :maintenance_operation, :metric_consolidate)) == [node()]
+    send(grouping, :compact)
+    _ = :sys.get_state(grouping, 60_000)
+    reads(ctx.agent)
+    assert {:ok, ^expected} = Evaluator.query(query, ctx.tenant, opts)
+    assert reads(ctx.agent) == 1
+
+    # Historical maintenance can finish against the concurrently changed
+    # manifest without losing or duplicating recent samples.
+    send(storage, {:release_storage, source})
+    assert_receive {:DOWN, ^task_ref, :process, ^task, :normal}, 30_000
+    Runtime.put_env(:pulse, Evaluator, [])
+    assert {:ok, ^expected} = Evaluator.query(query, ctx.tenant, opts)
+    assert_samples(ctx)
+  end
+
+  test "historical finalization cannot publish over sources replaced by recent grouping", ctx do
+    {:ok, root, _} = Retention.load(ctx.tenant, "metrics", ctx.config)
+    source = hd(root.segments).key
+    parent = self()
+    Agent.update(ctx.agent, &%{&1 | barriers: %{{"GET", source} => parent}})
+    tasks = start_supervised!(Task.Supervisor)
+
+    historical =
+      Task.Supervisor.async_nolink(tasks, fn ->
+        MetricTiers.finalize_hour(ctx.tenant, ctx.t0, ctx.config, max_rows: 100_000)
+      end)
+
+    assert_receive {:storage_barrier, storage, "GET", ^source}, 30_000
+    Agent.update(ctx.agent, &%{&1 | barriers: %{}})
+    opts = [consolidate_settle_ms: 0, consolidate_min_rows: 1, consolidate_max_rows: 60_000, target_rows: 1_500]
+    assert {:ok, %{sources: 300, rows: 60_000}} = MetricTiers.consolidate(ctx.tenant, ctx.config, opts)
+    grouped = tiers(ctx)
+    send(storage, {:release_storage, source})
+    assert {:error, :compaction_conflict} = Task.await(historical, 60_000)
+    assert tiers(ctx) == grouped
+
+    # The losing finalizer may discard only its own unpublished objects,
+    # never the grouped objects or the still grace-protected raw sources.
+    assert {:ok, _, _} = ObjectStore.get_if_none_match(ctx.config, source, nil)
+    assert_samples(ctx)
   end
 
   test "an hour larger than max_rows finalizes in name-hash partitions", ctx do
