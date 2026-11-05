@@ -122,6 +122,16 @@ jobs:
         env:
           ONCE_CACHE_PROVIDER: ${{ steps.once-auth.outcome == 'success' && 'tuist' || 'local' }}
 
+      - name: Diagnose Rebar artifacts on failure
+        if: failure()
+        working-directory: .
+        run: |
+          for path in atlas/deps/ranch .once/tmp/analysis/atlas/mix-test-ranch .once/out/atlas/mix-test-ranch; do
+            if [ -d "$path" ]; then
+              find "$path" -type f \( -name '*.app' -o -name '*.beam' -o -name 'compile*.log' \) -print
+            fi
+          done
+
       # Once persists the compiler's stderr as a build output, so this also
       # catches warnings replayed from a cached compilation. Lines from mise's
       # tool shims land there too and are not compiler warnings.
