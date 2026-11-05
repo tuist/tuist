@@ -242,6 +242,53 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     refute Repo.get(Sandbox, sandbox.id)
   end
 
+  test "a macOS Orb holds its host against idle eviction and bootstraps through the guest bridge", %{
+    account: account
+  } do
+    sandbox =
+      sandbox_fixture(account: account, amp_orb_id: "amp-thread", platform: :darwin, node_name: "mac-a", node_uid: "uid")
+
+    expect(Nodes, :call, fn "mac-a", "hold_residency", args, _opts ->
+      assert args == %{sandbox_id: sandbox.id, work_id: "amp:amp-thread", node_uid: "uid"}
+      {:ok, %{}}
+    end)
+
+    expect(Nodes, :call, fn "mac-a", "exec", args, opts ->
+      assert args.cmd == ["/Volumes/My Shared Files/sandbox-tools/sbx-macos", "--orb-bootstrap"]
+      assert args.cwd == "/Users/runner/work"
+      assert %{"ORB_TOKEN" => "orb-secret"} = args.env
+      assert opts[:timeout] > 120_000
+      {:ok, %{"exit_code" => 0}}
+    end)
+
+    assert {:ok, _} = AmpOrbs.dispatch(account, "amp-thread", spawn_params())
+    assert Repo.reload!(sandbox).residency_work_id == "amp:amp-thread"
+
+    # A failed bootstrap releases the host hold along with the residency.
+    expect(Nodes, :call, fn "mac-a", "hold_residency", _args, _opts -> {:ok, %{}} end)
+    expect(Nodes, :call, fn "mac-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 1}} end)
+
+    expect(Nodes, :call, fn "mac-a", "release_residency", %{work_id: "amp:amp-thread"}, _opts -> {:ok, %{}} end)
+
+    assert {:error, :orb_bootstrap_failed} = AmpOrbs.dispatch(account, "amp-thread", spawn_params())
+    assert Repo.reload!(sandbox).residency_work_id == nil
+  end
+
+  test "a macOS Orb's pause saves no disk snapshot and is never archived", %{account: account} do
+    sandbox =
+      sandbox_fixture(account: account, amp_orb_id: "amp-thread", platform: :darwin, node_name: "mac-a", node_uid: "uid")
+
+    expect(Nodes, :call, fn "mac-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 1}} end)
+    expect(Nodes, :call, fn "mac-a", "pause", _args, _opts -> {:ok, %{"resident" => true}} end)
+
+    assert {:ok, paused} =
+             AmpOrbs.dispatch(account, "amp-thread", %{operation: "pause", snapshot_id: "proj:snap"})
+
+    assert paused.state == :paused
+    refute Repo.exists?(DiskSnapshot)
+    refute Tuist.Sandboxes.Archives.archivable?(Repo.reload!(paused))
+  end
+
   test "bootstrap failure drops the residency and never returns guest output", %{account: account} do
     sandbox = sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
 

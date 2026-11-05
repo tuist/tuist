@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,6 +33,9 @@ type Runtime interface {
 	Recover(context.Context, *Record) error
 	Exec(context.Context, *Record, protocol.ExecArgs, func(protocol.Stream)) (protocol.ExecResult, error)
 	Worker(context.Context, *Record, string, map[string]string) (WorkerStatus, error)
+	// GuestCPU is the guest's recent CPU use by its sandbox user, in
+	// thousandths of one core.
+	GuestCPU(context.Context, *Record) (int64, error)
 }
 
 type WorkerStatus struct {
@@ -50,14 +54,18 @@ type Capacity interface {
 
 type Record struct {
 	protocol.CreateArgs
-	NodeUID        string    `json:"node_uid"`
-	State          string    `json:"state"`
-	Resident       bool      `json:"resident"`
-	Instance       string    `json:"instance,omitempty"`
-	RuntimePath    string    `json:"runtime_path,omitempty"`
-	ToolsPath      string    `json:"tools_path,omitempty"`
-	PID            int       `json:"pid,omitempty"`
-	WorkerID       string    `json:"worker_id,omitempty"`
+	NodeUID     string `json:"node_uid"`
+	State       string `json:"state"`
+	Resident    bool   `json:"resident"`
+	Instance    string `json:"instance,omitempty"`
+	RuntimePath string `json:"runtime_path,omitempty"`
+	ToolsPath   string `json:"tools_path,omitempty"`
+	PID         int    `json:"pid,omitempty"`
+	WorkerID    string `json:"worker_id,omitempty"`
+	// HoldID is detached guest work the host cannot observe, such as an Amp
+	// Orb's turn. It protects the running VM from idle eviction until a pause
+	// or a release with the same ID.
+	HoldID         string    `json:"hold_id,omitempty"`
 	FinishedWorkID string    `json:"finished_work_id,omitempty"`
 	IdleAt         time.Time `json:"idle_at"`
 	CreatedAt      time.Time `json:"created_at"`
@@ -89,6 +97,16 @@ type Manager struct {
 	Gate    sync.Mutex
 	records map[string]*Record
 	active  map[string]int
+
+	cpuMu sync.Mutex
+	cpu   map[string]cpuReading
+}
+
+// cpuReading integrates sampled guest CPU use into a monotonic total, the
+// `cpu_ms` the server compares between reports to tell an idle guest.
+type cpuReading struct {
+	ms int64
+	at time.Time
 }
 
 func (m *Manager) Load(ctx context.Context) error {
@@ -322,12 +340,13 @@ func (m *Manager) Pause(ctx context.Context, id string) error {
 	if err == nil {
 		r.State = "paused"
 		r.Resident = true
+		r.HoldID = "" // The held work paused with the VM; its owner asked for this pause.
 		r.IdleAt = time.Now().UTC()
 	}
 	return m.finish(r, err)
 }
 func (m *Manager) evict(ctx context.Context, r *Record) error {
-	if !r.Resident || r.WorkerID != "" || m.active[r.SandboxID] > 0 {
+	if !r.Resident || r.WorkerID != "" || r.HoldID != "" || m.active[r.SandboxID] > 0 {
 		return nil
 	}
 	if err := m.begin(r, "evict"); err != nil {
@@ -382,10 +401,109 @@ func (m *Manager) publish() {
 	m.published.Store(out)
 }
 func (m *Manager) Snapshot() []protocol.SandboxInfo {
+	out := []protocol.SandboxInfo{}
 	if snapshot := m.published.Load(); snapshot != nil {
-		return append([]protocol.SandboxInfo{}, snapshot.([]protocol.SandboxInfo)...)
+		out = append(out, snapshot.([]protocol.SandboxInfo)...)
 	}
-	return []protocol.SandboxInfo{}
+	m.cpuMu.Lock()
+	defer m.cpuMu.Unlock()
+	for i := range out {
+		if reading, ok := m.cpu[out[i].ID]; ok && out[i].State == "running" {
+			out[i].CPUMs = reading.ms
+		}
+	}
+	return out
+}
+
+// The server's residency work ID, such as `amp:<orb id>`.
+var holdIDPattern = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,255}$`)
+
+// Hold protects a running sandbox from idle eviction for detached guest work,
+// resuming it first like a worker start. Retrying with the same ID succeeds.
+func (m *Manager) Hold(ctx context.Context, id, work string) error {
+	m.Gate.Lock()
+	defer m.Gate.Unlock()
+	r, err := m.get(id)
+	if err != nil {
+		return err
+	}
+	if !holdIDPattern.MatchString(work) {
+		return errors.New("invalid hold identity")
+	}
+	if r.State == "paused" && r.Operation == "" {
+		if err = m.resume(ctx, r); err != nil {
+			return err
+		}
+	}
+	if r.State != "running" || r.Operation != "" {
+		return errors.New("sandbox is not running")
+	}
+	if err = m.Capacity.Allow(ctx, r); err != nil {
+		return err
+	}
+	if r.HoldID == work {
+		return nil
+	}
+	r.HoldID = work
+	return m.persist(r)
+}
+
+// Release ends a hold. Another ID, or none, is left alone, so a late release
+// cannot end a newer turn's hold.
+func (m *Manager) Release(id, work string) error {
+	m.Gate.Lock()
+	defer m.Gate.Unlock()
+	r, err := m.get(id)
+	if err != nil || r.HoldID != work {
+		return err
+	}
+	r.HoldID = ""
+	r.IdleAt = time.Now().UTC()
+	return m.persist(r)
+}
+
+// SampleCPU probes each running guest outside the host gate, so a slow guest
+// never delays CI launch checks or pauses. A failed probe keeps the previous
+// total: the server then sees no activity, as for a quiet guest.
+func (m *Manager) SampleCPU(ctx context.Context) {
+	m.Gate.Lock()
+	running := []Record{}
+	for _, r := range m.records {
+		if r.State == "running" && r.Operation == "" {
+			running = append(running, *r)
+		}
+	}
+	m.Gate.Unlock()
+	live := map[string]bool{}
+	for i := range running {
+		r := &running[i]
+		live[r.SandboxID] = true
+		probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		permille, err := m.Runtime.GuestCPU(probeCtx, r)
+		cancel()
+		if err != nil {
+			continue
+		}
+		now := time.Now()
+		m.cpuMu.Lock()
+		if m.cpu == nil {
+			m.cpu = map[string]cpuReading{}
+		}
+		reading, ok := m.cpu[r.SandboxID]
+		if ok {
+			reading.ms += permille * now.Sub(reading.at).Milliseconds() / 1000
+		}
+		reading.at = now
+		m.cpu[r.SandboxID] = reading
+		m.cpuMu.Unlock()
+	}
+	m.cpuMu.Lock()
+	for id := range m.cpu {
+		if !live[id] {
+			delete(m.cpu, id)
+		}
+	}
+	m.cpuMu.Unlock()
 }
 
 // Reconcile retries interrupted operations and checkpoints idle residents when
@@ -462,7 +580,7 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 				}
 			}
 		}
-		if r.Resident && r.WorkerID == "" && m.active[r.SandboxID] == 0 && (time.Since(r.IdleAt) >= grace || m.Capacity.Allow(ctx, r) != nil) {
+		if r.Resident && r.WorkerID == "" && r.HoldID == "" && m.active[r.SandboxID] == 0 && (time.Since(r.IdleAt) >= grace || m.Capacity.Allow(ctx, r) != nil) {
 			if err := m.evict(ctx, r); err != nil {
 				errs = append(errs, err)
 			}

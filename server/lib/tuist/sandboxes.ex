@@ -269,10 +269,16 @@ defmodule Tuist.Sandboxes do
   paused without the server pausing it has no `paused_at`; its last
   update stands in.
   """
-  def list_sandboxes_idle_before(%DateTime{} = cutoff) do
+  def list_sandboxes_idle_before(%DateTime{} = cutoff, orbs \\ :exclude) do
+    orb_filter =
+      case orbs do
+        :exclude -> dynamic([s], is_nil(s.amp_orb_id))
+        :macos -> dynamic([s], not is_nil(s.amp_orb_id) and s.platform == :darwin)
+      end
+
     Repo.all(
       from s in Sandbox,
-        where: is_nil(s.amp_orb_id),
+        where: ^orb_filter,
         where:
           (s.state == :paused and coalesce(s.paused_at, s.updated_at) < ^cutoff) or
             (s.state == :error and s.updated_at < ^cutoff),
@@ -863,6 +869,26 @@ defmodule Tuist.Sandboxes do
       {0, []} -> {:error, :not_running}
     end
   end
+
+  @doc """
+  Tells a macOS host that detached guest work (an Amp Orb's turn) holds the
+  running VM, so its idle eviction waits for the pause that ends the turn.
+  Linux nodes keep no host-side residency; the server's row is enough there.
+  """
+  def hold_host_residency(%Sandbox{platform: :darwin} = sandbox, work_id) when is_binary(work_id) do
+    with {:ok, _data} <- node_call(sandbox, "hold_residency", %{sandbox_id: sandbox.id, work_id: work_id}, []),
+         do: :ok
+  end
+
+  def hold_host_residency(%Sandbox{}, _work_id), do: :ok
+
+  def release_host_residency(%Sandbox{platform: :darwin, node_name: node_name} = sandbox, work_id)
+      when is_binary(node_name) and is_binary(work_id) do
+    with {:ok, _data} <- node_call(sandbox, "release_residency", %{sandbox_id: sandbox.id, work_id: work_id}, []),
+         do: :ok
+  end
+
+  def release_host_residency(%Sandbox{}, _work_id), do: :ok
 
   @doc """
   Clears the residency, bumps the epoch and schedules the pause that

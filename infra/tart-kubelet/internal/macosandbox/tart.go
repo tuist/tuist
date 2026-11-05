@@ -392,6 +392,9 @@ type guestReply struct {
 	ExitCode int    `json:"exit_code"`
 	DataB64  string `json:"data_b64"`
 	Error    string `json:"error"`
+	// CPUPermille answers the cpu op: recent CPU use of the sandbox user's
+	// processes, in thousandths of one core.
+	CPUPermille int64 `json:"cpu_permille"`
 }
 
 func (t *TartRuntime) guest(ctx context.Context, r *Record, request any, out func(protocol.Stream)) (guestReply, error) {
@@ -464,6 +467,14 @@ func (t *TartRuntime) Exec(ctx context.Context, r *Record, a protocol.ExecArgs, 
 func (t *TartRuntime) Worker(ctx context.Context, r *Record, action string, env map[string]string) (WorkerStatus, error) {
 	result, err := t.guest(ctx, r, map[string]any{"op": action, "id": r.WorkerID, "env": env}, nil)
 	return WorkerStatus{ID: result.ID, Running: result.Running, ExitCode: result.ExitCode}, err
+}
+
+func (t *TartRuntime) GuestCPU(ctx context.Context, r *Record) (int64, error) {
+	result, err := t.guest(ctx, r, map[string]string{"op": "cpu"}, nil)
+	if err == nil && result.Type != "cpu" {
+		err = errors.New("invalid cpu response")
+	}
+	return result.CPUPermille, err
 }
 
 func (t *TartRuntime) Busy(ctx context.Context, r *Record) (bool, error) {

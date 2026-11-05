@@ -32,6 +32,11 @@ const (
 	OpSaveDisks   = "save_disks"
 	OpDeleteDisks = "delete_disks"
 	OpArchive     = "archive"
+	// OpHoldResidency keeps a running macOS sandbox from idle eviction while
+	// detached guest work (an Amp Orb's turn) that the host cannot observe
+	// runs; a pause or OpReleaseResidency with the same work ID ends it.
+	OpHoldResidency    = "hold_residency"
+	OpReleaseResidency = "release_residency"
 )
 
 const (

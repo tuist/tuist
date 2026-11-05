@@ -6,7 +6,9 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +40,8 @@ type response struct {
 	Error    string `json:"error,omitempty"`
 	PID      int    `json:"pid,omitempty"`
 	PGID     int    `json:"pgid,omitempty"`
+	// CPUPermille answers the cpu op.
+	CPUPermille int64 `json:"cpu_permille,omitempty"`
 }
 
 var outputMu sync.Mutex
@@ -48,6 +52,16 @@ func emit(r response) {
 	_ = json.NewEncoder(os.Stdout).Encode(r)
 }
 func main() {
+	// Invoked through an exec with the credentials in its environment. The
+	// exec's process group is fenced when it returns; Amp's bootstrap runs
+	// in its own session so it outlives it, as `amp orb bootstrap` must.
+	if len(os.Args) == 2 && os.Args[1] == "--orb-bootstrap" {
+		if err := orbBootstrap(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	var req request
 	if err := json.NewDecoder(io.LimitReader(os.Stdin, 1<<20)).Decode(&req); err != nil {
 		emit(response{Error: "invalid request"})
@@ -144,6 +158,12 @@ func dispatch(req request) error {
 	case "ping":
 		emit(response{Type: "pong"})
 		return nil
+	case "cpu":
+		permille, err := cpuPermille()
+		if err == nil {
+			emit(response{Type: "cpu", CPUPermille: permille})
+		}
+		return err
 	case "busy":
 		running, err := busy()
 		if err == nil {
@@ -387,4 +407,150 @@ func (w *streamWriter) Write(p []byte) (int, error) {
 		p = p[size:]
 	}
 	return n, nil
+}
+
+// cpuPermille is the recent CPU use of this user's processes, in thousandths
+// of one core: the sum of ps's decaying %cpu, which the host integrates.
+func cpuPermille() (int64, error) {
+	out, err := exec.Command("/bin/ps", "-U", fmt.Sprint(os.Getuid()), "-o", "%cpu=").Output()
+	if err != nil {
+		return 0, err
+	}
+	var total float64
+	for _, field := range strings.Fields(string(out)) {
+		var value float64
+		if _, err := fmt.Sscanf(field, "%g", &value); err == nil {
+			total += value
+		}
+	}
+	return int64(total * 10), nil
+}
+
+// orbBootstrap starts `amp orb bootstrap` once per credential, like the Linux
+// guest's sbx-orb-bootstrap: a retried spawn with the same token keeps the
+// running process; a resumed Orb's fresh token replaces only that process.
+// The token is fingerprinted, never stored.
+func orbBootstrap() error {
+	token, ampURL := os.Getenv("ORB_TOKEN"), os.Getenv("AMP_URL")
+	if token == "" {
+		return errors.New("ORB_TOKEN is required")
+	}
+	if ampURL == "" {
+		ampURL = "https://ampcode.com"
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(root(), 0700); err != nil {
+		return err
+	}
+	lock, err := os.OpenFile(filepath.Join(root(), "orb.lock"), os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	sum := sha256.Sum256([]byte(token + "\x00" + ampURL))
+	fingerprint := hex.EncodeToString(sum[:])
+	statePath := filepath.Join(root(), "orb.json")
+	var prior struct {
+		PID         int    `json:"pid"`
+		Started     string `json:"started"`
+		Fingerprint string `json:"fingerprint"`
+	}
+	if data, err := os.ReadFile(statePath); err == nil && json.Unmarshal(data, &prior) == nil && prior.PID > 0 {
+		// The start time fences PID reuse across a cold boot of the disk.
+		if processStarted(prior.PID) == prior.Started {
+			if prior.Fingerprint == fingerprint {
+				return nil
+			}
+			_ = syscall.Kill(prior.PID, syscall.SIGTERM)
+			for i := 0; i < 30 && processStarted(prior.PID) == prior.Started; i++ {
+				time.Sleep(100 * time.Millisecond)
+			}
+			if processStarted(prior.PID) == prior.Started {
+				_ = syscall.Kill(prior.PID, syscall.SIGKILL)
+			}
+		}
+	}
+	amp, err := ampBinary(home)
+	if err != nil {
+		return err
+	}
+	// Amp's repository lives under ~/workspace; keep it on the separately
+	// budgeted APFS workspace volume.
+	workspace := filepath.Join(home, "work", "amp")
+	if err = os.MkdirAll(workspace, 0755); err != nil {
+		return err
+	}
+	if _, err = os.Lstat(filepath.Join(home, "workspace")); os.IsNotExist(err) {
+		if err = os.Symlink(workspace, filepath.Join(home, "workspace")); err != nil {
+			return err
+		}
+	}
+	logFile, err := os.OpenFile(filepath.Join(home, ".amp-bootstrap.log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+	defer logFile.Close()
+	cmd := exec.Command(amp, "orb", "bootstrap")
+	cmd.Dir = home
+	cmd.Stdout, cmd.Stderr = logFile, logFile
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	cmd.Env = []string{"PATH=" + filepath.Dir(amp) + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+		"HOME=" + home, "USER=" + os.Getenv("USER"), "LANG=en_US.UTF-8", "ORB_TOKEN=" + token, "AMP_URL=" + ampURL}
+	for _, name := range []string{"TUIST_TOKEN", "TUIST_URL", "TUIST_CACHE_ENDPOINT"} {
+		if value := os.Getenv(name); value != "" {
+			cmd.Env = append(cmd.Env, name+"="+value)
+		}
+	}
+	if err = cmd.Start(); err != nil {
+		return err
+	}
+	pid := cmd.Process.Pid
+	_ = cmd.Process.Release()
+	prior.PID, prior.Started, prior.Fingerprint = pid, processStarted(pid), fingerprint
+	data, _ := json.Marshal(prior)
+	if err = os.WriteFile(statePath+".new", data, 0600); err != nil {
+		return err
+	}
+	if err = os.Rename(statePath+".new", statePath); err != nil {
+		return err
+	}
+	time.Sleep(200 * time.Millisecond)
+	if syscall.Kill(pid, 0) != nil {
+		return errors.New("Amp bootstrap exited during startup")
+	}
+	return nil
+}
+
+func processStarted(pid int) string {
+	out, err := exec.Command("/bin/ps", "-p", fmt.Sprint(pid), "-o", "lstart=").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// The Amp CLI updates itself, so the first Orb on a guest installs it with
+// Amp's installer and later ones reuse it.
+func ampBinary(home string) (string, error) {
+	for _, path := range []string{filepath.Join(home, ".amp", "bin", "amp"), "/opt/homebrew/bin/amp", "/usr/local/bin/amp"} {
+		if info, err := os.Stat(path); err == nil && info.Mode()&0111 != 0 {
+			return path, nil
+		}
+	}
+	install := exec.Command("/bin/bash", "-c", "curl -fsSL https://ampcode.com/install.sh | bash")
+	install.Env = []string{"HOME=" + home, "PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"}
+	if err := install.Run(); err != nil {
+		return "", errors.New("installing the Amp CLI failed")
+	}
+	path := filepath.Join(home, ".amp", "bin", "amp")
+	if _, err := os.Stat(path); err != nil {
+		return "", errors.New("the Amp CLI installer left no binary")
+	}
+	return path, nil
 }

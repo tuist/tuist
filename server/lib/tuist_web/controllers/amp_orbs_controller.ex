@@ -23,50 +23,7 @@ defmodule TuistWeb.AmpOrbsController do
       result =
         AmpIntegrations.with_lock(integration.account_id, fn -> dispatch_bound(integration, name, orb_id, attrs) end)
 
-      case result do
-        {:ok, _} ->
-          send_resp(conn, :no_content, "")
-
-        {:error, reason} when reason in [:unauthorized, :disabled] ->
-          send_resp(conn, :forbidden, "Provider is not authorized")
-
-        {:error, :sandbox_concurrency_limit} ->
-          conn
-          |> put_resp_header("x-tuist-orb-retry", "admission")
-          |> send_resp(:too_many_requests, "Account sandbox CPU or memory limit reached")
-
-        # An archive of the account's oldest paused Orb is on its way.
-        {:error, :sandbox_disk_limit} ->
-          conn
-          |> put_resp_header("x-tuist-orb-retry", "admission")
-          |> send_resp(:too_many_requests, "Account sandbox disk limit reached; archiving a paused Orb")
-
-        # Nothing can be archived (archiving off, the account at its archive
-        # storage cap, or no paused Orb), so waiting is not enough; deleting
-        # Orbs is.
-        {:error, :sandbox_limit} ->
-          conn
-          |> put_resp_header("x-tuist-orb-refusal", "sandbox-limit")
-          |> send_resp(:too_many_requests, "Account sandbox disk limit reached")
-
-        {:error, reason} when reason in [:locked, :sandbox_account_busy] ->
-          conn
-          |> put_resp_header("x-tuist-orb-retry", "admission")
-          |> send_resp(:conflict, "Provider operation already in progress")
-
-        {:error, :no_capacity} ->
-          conn
-          |> put_resp_header("x-tuist-orb-retry", "admission")
-          |> send_resp(:service_unavailable, "No sandbox capacity available")
-
-        {:error, :orb_type_mismatch} ->
-          conn
-          |> put_resp_header("x-tuist-orb-refusal", "orb-type-mismatch")
-          |> send_resp(:conflict, "The Orb exists on another platform than its orb type")
-
-        _ ->
-          send_resp(conn, :service_unavailable, "Orb operation could not complete")
-      end
+      respond(conn, result)
     else
       {:error, :unknown_orb_type} ->
         conn
@@ -79,6 +36,58 @@ defmodule TuistWeb.AmpOrbsController do
       _ ->
         send_resp(conn, :unauthorized, "Invalid provider identity")
     end
+  end
+
+  defp respond(conn, {:ok, _}) do
+    send_resp(conn, :no_content, "")
+  end
+
+  defp respond(conn, {:error, reason}) when reason in [:unauthorized, :disabled] do
+    send_resp(conn, :forbidden, "Provider is not authorized")
+  end
+
+  defp respond(conn, {:error, :sandbox_concurrency_limit}) do
+    conn
+    |> put_resp_header("x-tuist-orb-retry", "admission")
+    |> send_resp(:too_many_requests, "Account sandbox CPU or memory limit reached")
+  end
+
+  # An archive of the account's oldest paused Orb is on its way.
+  defp respond(conn, {:error, :sandbox_disk_limit}) do
+    conn
+    |> put_resp_header("x-tuist-orb-retry", "admission")
+    |> send_resp(:too_many_requests, "Account sandbox disk limit reached; archiving a paused Orb")
+  end
+
+  # Nothing can be archived (archiving off, the account at its archive
+  # storage cap, or no paused Orb), so waiting is not enough; deleting
+  # Orbs is.
+  defp respond(conn, {:error, :sandbox_limit}) do
+    conn
+    |> put_resp_header("x-tuist-orb-refusal", "sandbox-limit")
+    |> send_resp(:too_many_requests, "Account sandbox disk limit reached")
+  end
+
+  defp respond(conn, {:error, reason}) when reason in [:locked, :sandbox_account_busy] do
+    conn
+    |> put_resp_header("x-tuist-orb-retry", "admission")
+    |> send_resp(:conflict, "Provider operation already in progress")
+  end
+
+  defp respond(conn, {:error, :no_capacity}) do
+    conn
+    |> put_resp_header("x-tuist-orb-retry", "admission")
+    |> send_resp(:service_unavailable, "No sandbox capacity available")
+  end
+
+  defp respond(conn, {:error, :orb_type_mismatch}) do
+    conn
+    |> put_resp_header("x-tuist-orb-refusal", "orb-type-mismatch")
+    |> send_resp(:conflict, "The Orb exists on another platform than its orb type")
+  end
+
+  defp respond(conn, _result) do
+    send_resp(conn, :service_unavailable, "Orb operation could not complete")
   end
 
   # Read the binding again under the lock. Lifecycle writes must be visible to nodes.

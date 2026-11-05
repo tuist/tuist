@@ -73,7 +73,12 @@ func (s *Service) Start(ctx context.Context) error {
 		defer close(reconcileDone)
 		s.reconcile(reconcileCtx)
 	}()
-	defer func() { stopReconcile(); <-reconcileDone }()
+	sampleDone := make(chan struct{})
+	go func() {
+		defer close(sampleDone)
+		s.sampleCPU(reconcileCtx)
+	}()
+	defer func() { stopReconcile(); <-reconcileDone; <-sampleDone }()
 	var cancel context.CancelFunc
 	var controlUID string
 	defer func() {
@@ -94,6 +99,28 @@ func (s *Service) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
+		}
+	}
+}
+
+// Guest CPU feeds the server's idle backstop for Amp Orbs. Probing is a guest
+// exec per VM, so it has its own loop and never delays CI-driven eviction.
+const cpuSampleInterval = 30 * time.Second
+
+func (s *Service) sampleCPU(ctx context.Context) {
+	ticker := time.NewTicker(cpuSampleInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		s.mu.Lock()
+		m := s.manager
+		s.mu.Unlock()
+		if m != nil {
+			m.SampleCPU(ctx)
 		}
 	}
 }
@@ -411,6 +438,7 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 		Cwd       string            `json:"cwd"`
 		TimeoutMs int64             `json:"timeout_ms"`
 		NodeUID   string            `json:"node_uid"`
+		WorkID    string            `json:"work_id"`
 	}
 	if err := json.Unmarshal(cmd.Args, &args); err != nil {
 		return protocol.ErrorResult(cmd.ID, errors.New("invalid command"))
@@ -448,6 +476,10 @@ func (m *Manager) Dispatch(ctx context.Context, cmd protocol.Command, out func(p
 		data = protocol.StartWorkerResult{ExecID: status.ID}
 	case protocol.OpStopWorker:
 		_, err = m.Worker(ctx, args.SandboxID, "stop", nil)
+	case protocol.OpHoldResidency:
+		err = m.Hold(ctx, args.SandboxID, args.WorkID)
+	case protocol.OpReleaseResidency:
+		err = m.Release(args.SandboxID, args.WorkID)
 	case protocol.OpStatus:
 		for _, info := range m.Snapshot() {
 			if info.ID == args.SandboxID {

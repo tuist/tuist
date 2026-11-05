@@ -22,6 +22,7 @@ type fakeRuntime struct {
 	saveErr, errorRecovery   error
 	saveStarted, saveRelease chan struct{}
 	creates                  int
+	cpuPermille              int64
 }
 
 func (f *fakeRuntime) Create(_ context.Context, r *Record) error {
@@ -80,7 +81,8 @@ func (f *fakeRuntime) Recover(_ context.Context, r *Record) error {
 	}
 	return nil
 }
-func (f *fakeRuntime) Busy(context.Context, *Record) (bool, error) { return f.busy, nil }
+func (f *fakeRuntime) Busy(context.Context, *Record) (bool, error)      { return f.busy, nil }
+func (f *fakeRuntime) GuestCPU(context.Context, *Record) (int64, error) { return f.cpuPermille, nil }
 func (f *fakeRuntime) Exec(_ context.Context, r *Record, _ protocol.ExecArgs, _ func(protocol.Stream)) (protocol.ExecResult, error) {
 	if f.memory[r.SandboxID] != "in-memory-session" {
 		return protocol.ExecResult{}, errors.New("memory lost")
@@ -166,6 +168,80 @@ func TestResidentPauseRetainsCapacityAndMemoryAcrossRecovery(t *testing.T) {
 	}
 	if len(c.held) != 0 || len(recovered.Snapshot()) != 0 {
 		t.Fatal("delete leaked ownership")
+	}
+}
+func TestResidencyHoldOutlivesIdleGraceAndCIUntilItsOwnerEndsIt(t *testing.T) {
+	m, r, c, a := harness(t)
+	m.Grace = time.Nanosecond
+	ctx := context.Background()
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Hold(ctx, a.SandboxID, "amp:amp-thread"); err != nil {
+		t.Fatal(err)
+	}
+	// The hold survives a host restart, CI demand and the idle grace.
+	recovered := &Manager{Root: m.Root, NodeUID: m.NodeUID, Runtime: r, Capacity: c, Grace: time.Nanosecond}
+	if err := recovered.Load(ctx); err != nil {
+		t.Fatal(err)
+	}
+	c.allow = false
+	time.Sleep(time.Millisecond)
+	if err := recovered.Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r.states[a.SandboxID] != "running" || !c.held[a.SandboxID] {
+		t.Fatal("idle eviction interrupted held guest work")
+	}
+	// A late release from an earlier turn leaves the current hold alone.
+	if err := recovered.Release(a.SandboxID, "older-turn"); err != nil {
+		t.Fatal(err)
+	}
+	if err := recovered.Reconcile(ctx); err != nil || r.states[a.SandboxID] != "running" {
+		t.Fatal("a stale release ended the hold", err)
+	}
+	c.allow = true
+	if err := recovered.Pause(ctx, a.SandboxID); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Millisecond)
+	if err := recovered.Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r.states[a.SandboxID] != "evicted" || c.held[a.SandboxID] {
+		t.Fatal("the pause did not end the hold")
+	}
+	// A new turn resumes the evicted VM; releasing it makes it evictable again.
+	if err := recovered.Hold(ctx, a.SandboxID, "amp:amp-thread"); err != nil || r.states[a.SandboxID] != "running" {
+		t.Fatal("hold did not resume the sandbox", err)
+	}
+	if err := recovered.Release(a.SandboxID, "amp:amp-thread"); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Millisecond)
+	if err := recovered.Reconcile(ctx); err != nil || r.states[a.SandboxID] != "evicted" {
+		t.Fatal("a released sandbox stayed resident", err)
+	}
+}
+func TestGuestCPUIntegratesIntoMonotonicReportedTime(t *testing.T) {
+	m, r, _, a := harness(t)
+	ctx := context.Background()
+	if err := m.Create(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	r.cpuPermille = 500
+	m.SampleCPU(ctx)
+	time.Sleep(200 * time.Millisecond)
+	m.SampleCPU(ctx)
+	// Half a core for at least 200 ms is at least 100 ms of CPU time.
+	if got := m.Snapshot()[0].CPUMs; got < 100 || got > 400 {
+		t.Fatalf("cpu_ms = %d", got)
+	}
+	if err := m.Pause(ctx, a.SandboxID); err != nil {
+		t.Fatal(err)
+	}
+	if m.Snapshot()[0].CPUMs != 0 {
+		t.Fatal("a paused sandbox reported guest CPU")
 	}
 }
 func TestCIRevocationEvictsOnlyIdleAndRetainsFailedFence(t *testing.T) {

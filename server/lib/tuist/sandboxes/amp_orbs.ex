@@ -79,8 +79,11 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp conflicting_integration?(_sandbox, _params), do: false
 
   defp dispatch_operation(account, orb_id, sandbox, %{operation: "spawn"} = params) do
+    work_id = "amp:" <> orb_id
+
     with {:ok, sandbox} <- find_or_create(account, orb_id, sandbox, params),
-         {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, "amp:" <> orb_id) do
+         {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id),
+         :ok <- hold(sandbox, work_id) do
       bootstrap(account, sandbox, params)
     end
   end
@@ -151,6 +154,22 @@ defmodule Tuist.Sandboxes.AmpOrbs do
       save_snapshot(paused, params)
     end
   end
+
+  # A macOS host cannot see Amp's detached bootstrap, so the turn also holds
+  # the VM on the host against idle eviction. A failed hold ends the turn.
+  defp hold(sandbox, work_id) do
+    case Sandboxes.hold_host_residency(sandbox, work_id) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        _ = Sandboxes.end_residency(sandbox)
+        {:error, reason}
+    end
+  end
+
+  # macOS hosts keep no disk snapshots, so a macOS thread always runs setup.
+  defp save_snapshot(%Sandbox{platform: :darwin} = sandbox, _params), do: {:ok, sandbox}
 
   defp save_snapshot(sandbox, params) do
     with amp_snapshot_id when is_binary(amp_snapshot_id) <- snapshot_id(params),
@@ -240,18 +259,30 @@ defmodule Tuist.Sandboxes.AmpOrbs do
         cache_env(account, sandbox)
       )
 
-    # Credentials travel in the vsock exec environment, never in shell
-    # source, the database or returned output. Amp's bootstrap is detached;
-    # the residency protects it after this short command exits.
-    case Sandboxes.exec(sandbox, ["/usr/local/bin/sbx-orb-bootstrap"], env: env, timeout_ms: 15_000) do
+    # Credentials travel in the exec environment, never in shell source,
+    # argv, the database or returned output. Amp's bootstrap is detached; the
+    # residency protects it after this short command exits.
+    case Sandboxes.exec(sandbox, bootstrap_command(sandbox), env: env, timeout_ms: bootstrap_timeout(sandbox)) do
       {:ok, %{exit_code: 0}} ->
         {:ok, sandbox}
 
       _failure ->
+        _ = Sandboxes.release_host_residency(sandbox, "amp:" <> sandbox.amp_orb_id)
         _ = Sandboxes.end_residency(sandbox)
         {:error, :orb_bootstrap_failed}
     end
   end
+
+  # The macOS guest bridge, shared read-only into every Tart guest, starts
+  # Amp in its own session so the exec's process-group fence spares it. The
+  # first Orb on a guest installs the Amp CLI, which can take a minute.
+  defp bootstrap_command(%Sandbox{platform: :darwin}),
+    do: ["/Volumes/My Shared Files/sandbox-tools/sbx-macos", "--orb-bootstrap"]
+
+  defp bootstrap_command(_sandbox), do: ["/usr/local/bin/sbx-orb-bootstrap"]
+
+  defp bootstrap_timeout(%Sandbox{platform: :darwin}), do: 120_000
+  defp bootstrap_timeout(_sandbox), do: 15_000
 
   # Agents run arbitrary code in the guest, so it gets a read-only cache
   # credential for its own account and nothing else the API would accept.
