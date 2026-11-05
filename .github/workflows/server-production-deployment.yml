@@ -1801,3 +1801,24 @@ jobs:
       install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
       install_tailscale_operator: ${{ needs.check-releases.outputs.tailscale-operator-changed != 'false' }}
     secrets: inherit
+
+  # Remote execution is its own Helm release. It runs after production so the
+  # runners controller that recognises its workers is already deployed, and
+  # reuses the template and sandboxd images that deploy published. It is a
+  # no-op while values-managed-production.yaml says `enabled: false`.
+  remote-execution:
+    name: Remote execution (production)
+    needs: [build-sandbox-template, build-sandboxd, production, production-hotfix]
+    if: >-
+      always() &&
+      (needs.production.result == 'success' || needs.production-hotfix.result == 'success')
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/remote-execution-deployment.yml
+    with:
+      environment: production
+      commit_sha: ${{ github.sha }}
+      template_image_tag: ${{ needs.build-sandbox-template.outputs.image_tag }}
+      sandboxd_image_tag: ${{ needs.build-sandboxd.outputs.image_tag }}
+    secrets: inherit

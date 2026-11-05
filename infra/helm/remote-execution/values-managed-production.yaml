@@ -1,8 +1,8 @@
 # Deployed by .github/workflows/remote-execution-deployment.yml into the
 # cluster's sandbox namespace (tuist-sandboxes). Image tags come from the
-# workflow. Keep it disabled until the runners controller release that
-# recognises remote execution workers runs in production.
-enabled: false
+# workflow, which the production deploy cascade calls after the server and
+# runners controller deploy. Set to false to stop installing or upgrading it.
+enabled: true
 serverURL: http://tuist-tuist-server.tuist.svc.cluster.local:80
 serverNamespace: tuist
 gateway:

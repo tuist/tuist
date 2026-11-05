@@ -260,21 +260,27 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
 
 1. Run the PostgreSQL migration and deploy the server with the flag off.
 2. Choose hosts as described above: provision dedicated hosts, or name shared
-   runner hosts in `workers.sharedHosts` after the runners controller release
-   that recognises remote execution workers is deployed. Confirm the
-   environment's `values-managed-<env>.yaml` in the
-   [chart](../helm/remote-execution/) names the right server namespace and
-   gateway host. Set `enabled: true` there.
-3. Run **Remote Execution Deployment** (`.github/workflows/remote-execution-deployment.yml`)
-   for the environment. It publishes the guest template and the execution gateway
-   (`ghcr.io/tuist/tuist-remote-execution`, both under the sandbox image's
-   source-derived tag) and sandboxd, or takes published tags, then installs the
-   release into `tuist-sandboxes`. The gateway's Ingress uses the dedicated
-   `nginx-grpc` controller with TLS and a 16-minute proxy timeout, DNS-only like
-   the other gRPC hosts. The gateway must reach the accounts' Kura endpoints to
-   publish action-cache entries. Upgrades replace gateways; workers roll out
-   `OnDelete` (see Rollback). The server's network policy admits pods labelled
-   `tuist.dev/remote-execution` from the sandbox namespace.
+   runner hosts in `workers.sharedHosts`. Confirm the environment's
+   `values-managed-<env>.yaml` in the [chart](../helm/remote-execution/) names
+   the right server namespace and gateway host. `enabled` in that file is the
+   switch: the deployment workflow neither builds nor installs a release it
+   disables.
+3. **Remote Execution Deployment** (`.github/workflows/remote-execution-deployment.yml`)
+   installs the release. In production the server deploy cascade calls it after
+   every production or hotfix deploy, so the runners controller that recognises
+   remote execution workers is always deployed first, and it reuses the template
+   and sandboxd tags that deploy published. Dispatch it by hand for other
+   environments or to pin other tags. It publishes the guest template and the
+   execution gateway (`ghcr.io/tuist/tuist-remote-execution`, both under the
+   sandbox image's source-derived tag) and sandboxd unless given published tags,
+   then installs the release into `tuist-sandboxes`. The gateway's Ingress uses
+   the dedicated `nginx-grpc` controller with TLS and a 16-minute proxy timeout;
+   `platform-external-dns` publishes its host to Cloudflare (DNS-only), and the
+   workflow fails if the host does not resolve within five minutes. The gateway
+   must reach the accounts' Kura endpoints to publish action-cache entries.
+   Upgrades replace gateways; workers roll out `OnDelete` (see Rollback). The
+   server's network policy admits pods labelled `tuist.dev/remote-execution`
+   from the sandbox namespace.
 4. Confirm hosts report `execution_deadlines: true`, `execution_slots > 0`, and a
    ready `bazel` template with the pinned tag. Confirm fixed CPU/memory requests
    and the dedicated host taint, or on shared hosts the floor-sized workers and
