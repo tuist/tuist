@@ -442,7 +442,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             schemeName: schemeName,
             testPlan: testPlanConfiguration?.testPlan,
             platform: platform,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+            destinationSimulator: destination
         )
 
         let testGenerator = generatorFactory.testing(
@@ -718,7 +719,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 config: config,
                 quarantinedTests: mutedQuarantinedTests,
                 mode: mode,
-                stressNewTests: stressNewTests
+                stressNewTests: stressNewTests,
+                destinationSimulator: destination
             ) }
             if !didRunTests {
                 try await finishSkippedTests(
@@ -847,7 +849,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         schemeName: String?,
         testPlan: String?,
         platform: String?,
-        passthroughXcodeBuildArguments: [String]
+        passthroughXcodeBuildArguments: [String],
+        destinationSimulator: SimulatorDeviceAndRuntime?
     ) throws -> TestImpactSelector? {
         guard Self.selectsTestsByCoverage(config: config),
               !ignoreSelectiveTesting,
@@ -855,6 +858,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
               let fullHandle = config.fullHandle
         else { return nil }
         let destination = passedValue(for: "-destination", arguments: passthroughXcodeBuildArguments)
+        let resolvedDestination = destination.map { platformDestination($0, simulator: destinationSimulator) }
         return TestImpactSelector(
             invocation: TestImpactSelector.Invocation(
                 fullHandle: fullHandle,
@@ -864,7 +868,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlan: testPlan,
                 destination: destination,
                 platform: platform.flatMap { try? XcodeGraph.Platform.from(commandLineValue: $0) }
-                    ?? destination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:))
+                    ?? resolvedDestination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:))
             )
         )
     }
@@ -1209,7 +1213,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let derivedDataPath = try passedValue(for: "-derivedDataPath", arguments: arguments).map {
             try AbsolutePath(validating: $0, relativeTo: currentWorkingDirectory)
         }
-        let destination = passedValue(for: "-destination", arguments: arguments)
+        let destination: String? = if let passedDestination = passedValue(for: "-destination", arguments: arguments) {
+            await platformDestination(passedDestination)
+        } else {
+            nil
+        }
         await RunMetadataStorage.current
             .update(testPlatform: destination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:)))
         let session = await testCoverageEvidenceService.prepare(
@@ -1919,7 +1927,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         config: Tuist,
         quarantinedTests: [TestIdentifier],
         mode: TestProcessingMode = .local,
-        stressNewTests: StressNewTestsMode? = nil
+        stressNewTests: StressNewTestsMode? = nil,
+        destinationSimulator: SimulatorDeviceAndRuntime? = nil
     ) async throws -> Bool {
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -2035,6 +2044,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         quarantinedTests: quarantinedTests,
                         mode: mode,
                         stressNewTests: stressNewTests,
+                        destinationSimulator: destinationSimulator,
                         selectiveTestingTargets: Set(
                             initialTestTargets(
                                 mapperEnvironment: mapperEnvironment,
@@ -2629,6 +2639,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         quarantinedTests: [TestIdentifier],
         mode: TestProcessingMode = .local,
         stressNewTests: StressNewTestsMode? = nil,
+        destinationSimulator: SimulatorDeviceAndRuntime? = nil,
         selectiveTestingTargets: Set<GraphTarget>,
         stressWithheldTargetNames: inout Set<String>
     ) async throws {
@@ -2675,7 +2686,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if let index = passthroughXcodeBuildArguments.firstIndex(of: "-destination") {
             destination = nil
             let passedDestination = passthroughXcodeBuildArguments.indices.contains(index + 1)
-                ? passthroughXcodeBuildArguments[index + 1]
+                ? platformDestination(passthroughXcodeBuildArguments[index + 1], simulator: destinationSimulator)
                 : nil
             evidencePlatform = passedDestination.flatMap(TestCoverageEvidencePlatform.init(destination:))
             testPlatform = passedDestination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:))
@@ -3430,6 +3441,25 @@ public struct TestService { // swiftlint:disable:this type_body_length
         case .macCatalyst:
             return try await simulatorController.macOSDestination(catalyst: true)
         }
+    }
+
+    /// The destination with the platform of the simulator its `id=` names, for destinations that
+    /// name no platform; unchanged when the id is no simulator's, such as a device's.
+    private func platformDestination(_ destination: String) async -> String {
+        guard xcodebuildDestinationParameter("platform", in: destination) == nil,
+              let id = xcodebuildDestinationParameter("id", in: destination)
+        else { return destination }
+        return platformDestination(destination, simulator: try? await simulatorController.findAvailableDevice(udid: id))
+    }
+
+    /// `platformDestination(_:)` with the simulator already looked up.
+    private func platformDestination(_ destination: String, simulator: SimulatorDeviceAndRuntime?) -> String {
+        guard xcodebuildDestinationParameter("platform", in: destination) == nil,
+              let simulator,
+              xcodebuildDestinationParameter("id", in: destination) == simulator.device.udid,
+              let platform = try? simulator.runtime.platform()
+        else { return destination }
+        return "\(platform.xcodebuildPlatformDestination),\(destination)"
     }
 
     private func simulatorPlatform(from destination: String) -> XcodeGraph.Platform? {
