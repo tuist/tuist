@@ -18,22 +18,23 @@ defmodule Tuist.Accounts.Workers.SecurityNotificationWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"user_id" => id, "event" => event}}) do
     if user = Accounts.get_user_by_id(id) do
-      result =
-        case event do
-          "mfa_enabled" -> UserNotifier.deliver_mfa_change_notification(user, true)
-          "mfa_disabled" -> UserNotifier.deliver_mfa_change_notification(user, false)
-          "passkey_added" -> UserNotifier.deliver_passkey_change_notification(user, true)
-          "passkey_removed" -> UserNotifier.deliver_passkey_change_notification(user, false)
-          "recovery_used" -> UserNotifier.deliver_recovery_notification(user, :used)
-          "recovery_regenerated" -> UserNotifier.deliver_recovery_notification(user, :regenerated)
-        end
-
-      case result do
+      case deliver_notification(user, event) do
         {:ok, _email} -> :ok
         {:error, reason} -> {:error, reason}
       end
     else
       :ok
+    end
+  end
+
+  defp deliver_notification(user, event) do
+    case event do
+      "mfa_enabled" -> UserNotifier.deliver_mfa_change_notification(user, true)
+      "mfa_disabled" -> UserNotifier.deliver_mfa_change_notification(user, false)
+      "passkey_added" -> UserNotifier.deliver_passkey_change_notification(user, true)
+      "passkey_removed" -> UserNotifier.deliver_passkey_change_notification(user, false)
+      "recovery_used" -> UserNotifier.deliver_recovery_notification(user, :used)
+      "recovery_regenerated" -> UserNotifier.deliver_recovery_notification(user, :regenerated)
     end
   end
 end

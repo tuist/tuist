@@ -266,13 +266,12 @@ defmodule Tuist.Accounts.UserMFA do
         changes = %{failed_attempts: 0, attempt_window_started_at: nil}
 
         changes =
-          if accepted_time,
-            do: Map.put(changes, :last_used_at, accepted_time),
-            else: Map.put(changes, :recovery_code_hashes, List.delete(factor.recovery_code_hashes, recovery_hash))
-
-        if is_nil(accepted_time) do
-          SecurityNotificationWorker.enqueue(%User{id: factor.user_id}, :recovery_used)
-        end
+          if accepted_time do
+            Map.put(changes, :last_used_at, accepted_time)
+          else
+            SecurityNotificationWorker.enqueue(%User{id: factor.user_id}, :recovery_used)
+            Map.put(changes, :recovery_code_hashes, List.delete(factor.recovery_code_hashes, recovery_hash))
+          end
 
         {:ok, factor |> change(changes) |> Repo.update!()}
 
