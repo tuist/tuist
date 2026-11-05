@@ -2868,11 +2868,6 @@ msgstr ""
 msgid "Est. time saved"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:55
-#, elixir-autogen, elixir-format
-msgid "Executes a changed file"
-msgstr ""
-
 #: lib/tuist_web/live/test_selection/components.ex:53
 #, elixir-autogen, elixir-format
 msgid "Failed last run"
@@ -2914,11 +2909,6 @@ msgstr ""
 msgid "History too shallow"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:521
-#, elixir-autogen, elixir-format
-msgid "In unchanged modules"
-msgstr ""
-
 #: lib/tuist_web/live/test_selections_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Invocations that asked Tuist which tests to run, sharded or not."
@@ -2942,11 +2932,6 @@ msgstr ""
 #: lib/tuist_web/live/test_selection/components.ex:71
 #, elixir-autogen, elixir-format
 msgid "Its newest run in the evidence window failed or flaked, so a past pass can't vouch for it."
-msgstr ""
-
-#: lib/tuist_web/live/test_selection/components.ex:52
-#, elixir-autogen, elixir-format
-msgid "Its test file changed"
 msgstr ""
 
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:148
@@ -3208,11 +3193,6 @@ msgstr ""
 msgid "Tests skipped"
 msgstr ""
 
-#: lib/tuist_web/live/test_selections_live.html.heex:89
-#, elixir-autogen, elixir-format
-msgid "Tests the period's selection runs skipped: those in modules selective testing found unchanged, and those the changes since the baseline don't reach."
-msgstr ""
-
 #: lib/tuist_web/live/test_selections_live.html.heex:370
 #, elixir-autogen, elixir-format
 msgid "Tests with evidence"
@@ -3253,11 +3233,6 @@ msgstr ""
 msgid "The nearest baseline is more than 20 measured commits back."
 msgstr ""
 
-#: lib/tuist_web/live/test_selections_live.html.heex:108
-#, elixir-autogen, elixir-format
-msgid "The share of requested tests that were skipped, in unchanged modules or not affected."
-msgstr ""
-
 #: lib/tuist_web/live/test_selection/run_tab.ex:332
 #, elixir-autogen, elixir-format
 msgid "This test run used coverage-based test selection, but its impact run is past retention."
@@ -3283,16 +3258,6 @@ msgstr ""
 #: lib/tuist_web/live/test_selection/components.ex:158
 #, elixir-autogen, elixir-format
 msgid "Tuist's commit history has neither the checked-out commit nor its parents, so it couldn't look for a baseline."
-msgstr ""
-
-#: lib/tuist_web/live/test_selection/test_case_run_tab.ex:215
-#, elixir-autogen, elixir-format
-msgid "Unchanged"
-msgstr ""
-
-#: lib/tuist_web/live/test_selection/run_tab.ex:654
-#, elixir-autogen, elixir-format
-msgid "Unchanged modules"
 msgstr ""
 
 #: lib/tuist_web/live/test_selection/components.ex:57
@@ -3333,29 +3298,15 @@ msgstr ""
 msgid "Debug"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:59
-#, elixir-autogen, elixir-format
-msgid "Its module is unchanged"
-msgstr ""
-
 #: lib/tuist_web/live/test_selection/run_tab.ex:228
 #, elixir-autogen, elixir-format
 msgid "Selected tests"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:109
-#, elixir-autogen, elixir-format
-msgid "Selective testing found its module unchanged since a passing run, so the module was skipped before coverage decided anything."
-msgstr ""
-
 #: lib/tuist_web/live/test_selection/run_tab.ex:258
+#: lib/tuist_web/live/test_selection/run_tab.ex:654
 #, elixir-autogen, elixir-format
 msgid "Skipped modules"
-msgstr ""
-
-#: lib/tuist_web/live/test_selection/run_tab.ex:260
-#, elixir-autogen, elixir-format
-msgid "Test modules selective testing found unchanged and skipped whole, out of all requested modules."
 msgstr ""
 
 #: lib/tuist_web/live/test_selection/run_tab.ex:241
@@ -3376,4 +3327,49 @@ msgstr ""
 #: lib/tuist_web/live/test_selection/run_tab.ex:271
 #, elixir-autogen, elixir-format
 msgid "The skipped tests' durations in the baseline run, one after another."
+msgstr ""
+
+#: lib/tuist_web/live/test_selection/components.ex:55
+#, elixir-autogen, elixir-format
+msgid "Executed a changed file"
+msgstr ""
+
+#: lib/tuist_web/live/test_run_live.html.heex:521
+#, elixir-autogen, elixir-format
+msgid "In skipped modules"
+msgstr ""
+
+#: lib/tuist_web/live/test_selection/components.ex:59
+#, elixir-autogen, elixir-format
+msgid "Module skipped"
+msgstr ""
+
+#: lib/tuist_web/live/test_selection/test_case_run_tab.ex:215
+#, elixir-autogen, elixir-format
+msgid "Not changed"
+msgstr ""
+
+#: lib/tuist_web/live/test_selection/components.ex:109
+#, elixir-autogen, elixir-format
+msgid "Selective testing found its module not changed since a passing run, so the module was skipped before coverage decided anything."
+msgstr ""
+
+#: lib/tuist_web/live/test_selection/components.ex:52
+#, elixir-autogen, elixir-format
+msgid "Test file changed"
+msgstr ""
+
+#: lib/tuist_web/live/test_selection/run_tab.ex:260
+#, elixir-autogen, elixir-format
+msgid "Test modules selective testing found not changed and skipped whole, out of all requested modules."
+msgstr ""
+
+#: lib/tuist_web/live/test_selections_live.html.heex:89
+#, elixir-autogen, elixir-format
+msgid "Tests the period's selection runs skipped: those in modules selective testing found not changed, and those the changes since the baseline don't reach."
+msgstr ""
+
+#: lib/tuist_web/live/test_selections_live.html.heex:108
+#, elixir-autogen, elixir-format
+msgid "The share of requested tests that were skipped, in skipped modules or not affected."
 msgstr ""

@@ -212,7 +212,7 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
                 <.status_badge_cell
                   :if={!file.changed}
                   status="disabled"
-                  label={dgettext("dashboard_tests", "Unchanged")}
+                  label={dgettext("dashboard_tests", "Not changed")}
                 />
               </:col>
             </.table>

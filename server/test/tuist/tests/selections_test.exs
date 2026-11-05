@@ -204,7 +204,7 @@ defmodule Tuist.Tests.SelectionsTest do
       assert {[%{name: "test_gone()"}], _meta} = Selections.run_tests(run, test_run.id, reason: "no_evidence")
       assert {rows, _meta} = Selections.run_tests(run, test_run.id, decision: "skipped")
       assert Enum.map(rows, & &1.name) == ["test_refresh()", "test_reset()", "test_total()"]
-      assert {[%{name: "test_total()"}], _meta} = Selections.run_tests(run, test_run.id, reason: "unchanged_module")
+      assert {[%{name: "test_total()"}], _meta} = Selections.run_tests(run, test_run.id, reason: "module_skipped")
       assert {[%{name: "test_load()"}], _meta} = Selections.run_tests(run, test_run.id, search: "load")
 
       assert {rows, _meta} = Selections.run_tests(run, test_run.id, sort_by: "duration", sort_order: "desc")
@@ -228,7 +228,7 @@ defmodule Tuist.Tests.SelectionsTest do
 
       {tests, _meta} = Selections.run_tests(run, test_run.id)
       assert tests != []
-      assert Enum.all?(tests, &(&1.module_name == "SearchTests" and &1.reason == "unchanged_module"))
+      assert Enum.all?(tests, &(&1.module_name == "SearchTests" and &1.reason == "module_skipped"))
       assert {[], _meta} = Selections.run_tests(run, test_run.id, reason: "unaffected")
 
       assert %{requested: 4, module_skipped: 4, unaffected: 0, skip_rate: 100.0} =

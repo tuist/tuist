@@ -49,14 +49,14 @@ defmodule TuistWeb.TestSelection.Components do
   defp decision_icon(_decision), do: "player_track_next"
 
   @doc "A test's reason, short enough for a table cell: the rule that decided it."
-  def reason_label("test_file_changed"), do: dgettext("dashboard_tests", "Its test file changed")
+  def reason_label("test_file_changed"), do: dgettext("dashboard_tests", "Test file changed")
   def reason_label("failed_last_run"), do: dgettext("dashboard_tests", "Failed last run")
   def reason_label("no_evidence"), do: dgettext("dashboard_tests", "No evidence")
-  def reason_label("impacted"), do: dgettext("dashboard_tests", "Executes a changed file")
+  def reason_label("impacted"), do: dgettext("dashboard_tests", "Executed a changed file")
   def reason_label("owned_without_evidence"), do: dgettext("dashboard_tests", "Its module changed")
   def reason_label("undecided"), do: dgettext("dashboard_tests", "Undecided")
   def reason_label("unaffected"), do: dgettext("dashboard_tests", "No executed file changed")
-  def reason_label("unchanged_module"), do: dgettext("dashboard_tests", "Its module is unchanged")
+  def reason_label("module_skipped"), do: dgettext("dashboard_tests", "Module skipped")
   def reason_label(reason), do: reason
 
   @doc "A test's reason, as the sentence its page explains it with."
@@ -104,11 +104,11 @@ defmodule TuistWeb.TestSelection.Components do
         "It passed in the baseline and none of the files it executed changed since, so running it again is not expected to add signal."
       )
 
-  def reason_description("unchanged_module", _path),
+  def reason_description("module_skipped", _path),
     do:
       dgettext(
         "dashboard_tests",
-        "Selective testing found its module unchanged since a passing run, so the module was skipped before coverage decided anything."
+        "Selective testing found its module not changed since a passing run, so the module was skipped before coverage decided anything."
       )
 
   def reason_description(reason, _path), do: reason

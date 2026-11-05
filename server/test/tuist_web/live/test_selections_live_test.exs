@@ -187,7 +187,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert second =~ "test_refresh()"
       assert second =~ "No executed file changed"
       assert third =~ "test_total()"
-      assert third =~ "Its module is unchanged"
+      assert third =~ "Module skipped"
 
       assert has_element?(
                lv,
@@ -238,7 +238,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=modules")
       assert has_element?(lv, "#selection-modules-table", "AuthTests")
-      assert has_element?(lv, "#selection-unchanged-modules-table", "BillingTests")
+      assert has_element?(lv, "#selection-skipped-modules-table", "BillingTests")
       assert render(lv) =~ "Modules (3)"
 
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=shards")
@@ -354,7 +354,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
           ~p"/#{organization.account.name}/#{project.name}/tests/test-cases/runs/#{load_run.id}?tab=selective-testing"
         )
 
-      assert has_element?(lv, "#test-selection-test-reason", "Selected: Executes a changed file")
+      assert has_element?(lv, "#test-selection-test-reason", "Selected: Executed a changed file")
       assert has_element?(lv, "#test-selection-test-reason", "SearchViewModel.swift")
       assert has_element?(lv, "#selection-executed-files-table", "SearchViewModel.swift")
     end

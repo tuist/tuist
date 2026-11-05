@@ -32,7 +32,7 @@ defmodule Tuist.Tests.Selections do
   alias Tuist.Tests.TestCaseRun
 
   @selected_reasons ~w(test_file_changed failed_last_run no_evidence impacted owned_without_evidence undecided)
-  @skipped_reasons ~w(unaffected unchanged_module)
+  @skipped_reasons ~w(unaffected module_skipped)
   @fallback_reasons ~w(no_baseline baseline_too_old no_baseline_evidence history_unavailable tracked_file_changed diff_too_large diff_unavailable history_unknown)
 
   @doc "Why an impact run selects a test (`RunTest.reason`), in the rules' order."
@@ -153,11 +153,11 @@ defmodule Tuist.Tests.Selections do
     Enum.find_value(trace, 0, fn entry -> if entry.rule == "unaffected", do: entry.skipped end)
   end
 
-  @doc "The tests skipped because hashing found their module unchanged."
+  @doc "The tests skipped because hashing found their module not changed."
   def module_skipped_count(%Run{skipped_modules: modules}), do: modules |> Map.values() |> Enum.sum()
 
   @doc """
-  The modules hashing found unchanged, each with its number of tests in the
+  The modules hashing found not changed, each with its number of tests in the
   baseline, the largest first.
   """
   def skipped_modules(%Run{skipped_modules: modules}) do
@@ -503,7 +503,7 @@ defmodule Tuist.Tests.Selections do
     skipped_branch(
       from(b in subquery(baseline_tests_query(run, Map.keys(run.skipped_modules)))),
       filters,
-      "unchanged_module"
+      "module_skipped"
     )
   end
 
@@ -533,7 +533,7 @@ defmodule Tuist.Tests.Selections do
       for {included?, branch} <- [
             {selected_branch?(opts), fn -> selected end},
             {skipped_branch?(run, opts, "unaffected"), fn -> unaffected_query(run, filters) end},
-            {skipped_branch?(run, opts, "unchanged_module") and run.skipped_modules != %{} and
+            {skipped_branch?(run, opts, "module_skipped") and run.skipped_modules != %{} and
                Keyword.get(opts, :module_skipped, true), fn -> module_skipped_query(run, filters) end}
           ],
           included?,

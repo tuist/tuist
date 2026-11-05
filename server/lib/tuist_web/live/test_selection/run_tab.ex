@@ -259,7 +259,7 @@ defmodule TuistWeb.TestSelection.RunTab do
               description={
                 dgettext(
                   "dashboard_tests",
-                  "Test modules selective testing found unchanged and skipped whole, out of all requested modules."
+                  "Test modules selective testing found not changed and skipped whole, out of all requested modules."
                 )
               }
               value={"#{format_number(@summary.skipped_modules)} / #{format_number(@summary.modules)}"}
@@ -651,14 +651,14 @@ defmodule TuistWeb.TestSelection.RunTab do
     </.card>
     <.card
       :if={@selection_run.skipped_modules != %{}}
-      title={dgettext("dashboard_tests", "Unchanged modules")}
+      title={dgettext("dashboard_tests", "Skipped modules")}
       icon="stack_2"
-      data-part="selection-unchanged-modules-card"
+      data-part="selection-skipped-modules-card"
     >
       <.card_section data-part="selection-table-section">
         <div data-part="selection-table">
           <.table
-            id="selection-unchanged-modules-table"
+            id="selection-skipped-modules-table"
             rows={Selections.skipped_modules(@selection_run)}
             row_key={& &1.module_name}
           >

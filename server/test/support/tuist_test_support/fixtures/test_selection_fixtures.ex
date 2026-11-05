@@ -16,7 +16,7 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
   (maps over a selected test's fields; `name` at least) and returns it. The
   selected count is derived from them. `skipped_count` defaults to the
   `unaffected` rule's skips in `rule_trace` plus the tests in
-  `skipped_modules` (the modules hashing found unchanged and their tests).
+  `skipped_modules` (the modules hashing found not changed and their tests).
   """
   def run_fixture(attrs \\ []) do
     project_id = Keyword.fetch!(attrs, :project_id)

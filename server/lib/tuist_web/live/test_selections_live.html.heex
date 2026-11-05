@@ -88,7 +88,7 @@
             description={
               dgettext(
                 "dashboard_tests",
-                "Tests the period's selection runs skipped: those in modules selective testing found unchanged, and those the changes since the baseline don't reach."
+                "Tests the period's selection runs skipped: those in modules selective testing found not changed, and those the changes since the baseline don't reach."
               )
             }
             value={if ready?, do: format_number(@analytics.result.totals.skipped)}
@@ -107,7 +107,7 @@
             description={
               dgettext(
                 "dashboard_tests",
-                "The share of requested tests that were skipped, in unchanged modules or not affected."
+                "The share of requested tests that were skipped, in skipped modules or not affected."
               )
             }
             value={if ready?, do: "#{@analytics.result.totals.skip_rate}%"}
