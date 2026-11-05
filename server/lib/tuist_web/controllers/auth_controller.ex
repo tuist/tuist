@@ -209,6 +209,13 @@ defmodule TuistWeb.AuthController do
     end
   end
 
+  # Ueberauth only runs the callback phase for the strategy's callback methods
+  # (Apple is POST-only), so other requests reach here without a result.
+  def callback(_conn, _params) do
+    raise NotFoundError,
+          dgettext("dashboard", "The authentication URL is not supported")
+  end
+
   defp provider_auth_enabled?(:github), do: Tuist.Environment.github_auth_enabled?()
   defp provider_auth_enabled?(:google), do: Tuist.Environment.google_auth_enabled?()
   defp provider_auth_enabled?(:apple), do: Tuist.Environment.apple_auth_enabled?()
