@@ -177,7 +177,7 @@ defmodule TuistWeb.AuthenticationTest do
 
       assert %{value: signed_token, max_age: max_age} = conn.resp_cookies[@remember_me_cookie]
       assert signed_token != get_session(conn, :user_token)
-      assert max_age == 1_209_600
+      assert max_age == 2_592_000
     end
   end
 
@@ -1057,7 +1057,7 @@ defmodule TuistWeb.AuthenticationTest do
       assert %{max_age: 0} = expired.resp_cookies[@remember_me_cookie]
 
       Repo.update_all(UserToken,
-        set: [inserted_at: now |> DateTime.add(-1_209_600) |> DateTime.to_naive(), last_active_at: now]
+        set: [inserted_at: now |> DateTime.add(-2_592_000) |> DateTime.to_naive(), last_active_at: now]
       )
 
       refute Authentication.fetch_current_user(remembered, []).assigns.current_user
