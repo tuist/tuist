@@ -2238,6 +2238,7 @@ msgstr ""
 #: lib/tuist_web/live/coverage_detail_live.ex:582
 #: lib/tuist_web/live/coverage_detail_live.html.heex:234
 #: lib/tuist_web/live/coverage_detail_live.html.heex:270
+#: lib/tuist_web/live/test_selection/test_case_run_tab.ex:175
 #, elixir-autogen, elixir-format
 msgid "Files"
 msgstr ""
@@ -2825,6 +2826,7 @@ msgid "Coverage incomplete"
 msgstr ""
 
 #: lib/tuist_web/live/test_selection/run_tab.ex:192
+#: lib/tuist_web/live/test_selection/test_case_run_tab.ex:107
 #, elixir-autogen, elixir-format
 msgid "Coverage selection"
 msgstr ""
@@ -2887,11 +2889,6 @@ msgstr ""
 #: lib/tuist_web/live/test_run_live.html.heex:501
 #, elixir-autogen, elixir-format
 msgid "Fell back: %{reason}"
-msgstr ""
-
-#: lib/tuist_web/live/test_selection/test_case_run_tab.ex:175
-#, elixir-autogen, elixir-format
-msgid "Files it executed in the baseline"
 msgstr ""
 
 #: lib/tuist_web/live/test_selection/run_tab.ex:525
@@ -3280,11 +3277,6 @@ msgstr ""
 #: lib/tuist_web/live/test_selection/run_tab.ex:631
 #, elixir-autogen, elixir-format
 msgid "Why it runs"
-msgstr ""
-
-#: lib/tuist_web/live/test_selection/test_case_run_tab.ex:107
-#, elixir-autogen, elixir-format
-msgid "Why it was selected"
 msgstr ""
 
 #: lib/tuist_web/live/test_selection/run_tab.ex:745

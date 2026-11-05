@@ -104,7 +104,7 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
     ~H"""
     <div class="tuist-coverage-selection" data-part="test-selection">
       <.card
-        title={dgettext("dashboard_tests", "Why it was selected")}
+        title={dgettext("dashboard_tests", "Coverage selection")}
         icon="filter_question"
         data-part="selection-reason-card"
       >
@@ -172,7 +172,7 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
       </.card>
 
       <.card
-        title={dgettext("dashboard_tests", "Files it executed in the baseline")}
+        title={dgettext("dashboard_tests", "Files")}
         icon="file"
         data-part="selection-files-card"
       >
