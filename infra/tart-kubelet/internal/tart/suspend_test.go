@@ -41,7 +41,7 @@ while [ ! -f "$TART_HOME/exit" ]; do sleep 0.05; done
 	})
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
-	err = h.WaitReady(ctx, func(context.Context) error {
+	err = h.WaitReady(ctx, time.Second, func(context.Context) error {
 		_, err := os.Stat(filepath.Join(c.HomeDir, "ready"))
 		return err
 	})
@@ -59,7 +59,7 @@ while [ ! -f "$TART_HOME/exit" ]; do sleep 0.05; done
 
 func TestWaitReadyCancelsProbeWhenProcessExits(t *testing.T) {
 	h := &RunHandle{Name: "lost-vm", done: make(chan struct{})}
-	err := h.WaitReady(t.Context(), func(ctx context.Context) error {
+	err := h.WaitReady(t.Context(), time.Second, func(ctx context.Context) error {
 		h.exitErr = errors.New("restore failed")
 		close(h.done)
 		<-ctx.Done()
@@ -74,21 +74,21 @@ func TestWaitReadyTimeoutDoesNotStopVM(t *testing.T) {
 	h := &RunHandle{done: make(chan struct{})}
 	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
-	err := h.WaitReady(ctx, func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() })
+	err := h.WaitReady(ctx, time.Second, func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() })
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("error = %v", err)
 	}
 	if _, exited := h.Exited(); exited {
 		t.Fatal("a readiness timeout must not release the VM's reservation")
 	}
-	if err := h.WaitReady(t.Context(), nil); err == nil {
+	if err := h.WaitReady(t.Context(), time.Second, nil); err == nil {
 		t.Fatal("missing readiness probe accepted")
 	}
 }
 
 func TestWaitReadyRejectsExitDuringSuccessfulProbe(t *testing.T) {
 	h := &RunHandle{done: make(chan struct{})}
-	if err := h.WaitReady(t.Context(), func(context.Context) error { close(h.done); return nil }); err == nil {
+	if err := h.WaitReady(t.Context(), time.Second, func(context.Context) error { close(h.done); return nil }); err == nil {
 		t.Fatal("a successful RPC raced with process exit and was accepted")
 	}
 }

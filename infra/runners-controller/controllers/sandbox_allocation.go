@@ -157,7 +157,11 @@ func allocationPodMemory(pod *corev1.Pod) int64 {
 	return max(app+sidecars, initPeak) + copy.Spec.Overhead.Memory().Value()
 }
 
-const macosSandboxRole = "tuist.dev/macos-sandbox-role"
+// MacosSandboxRoleLabel marks a macOS sandbox host's control Pod and the
+// execution Pods that reserve each sandbox VM's capacity.
+const MacosSandboxRoleLabel = "tuist.dev/macos-sandbox-role"
+
+const macosSandboxRole = MacosSandboxRoleLabel
 const macosSandboxGrant = "tuist.dev/macos-sandbox-grant"
 
 // macOS retains CI-first admission. Linux uses the independent shared-capacity

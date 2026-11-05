@@ -19,8 +19,22 @@ func TestGuestReadinessWaitsForBridge(t *testing.T) {
 			script := `#!/bin/sh
 set -eu
 case "$1" in
-run) while [ ! -f "$TART_HOME/exit" ]; do sleep 0.05; done ;;
+run)
+  # Like the patched runtime: the control channel answers only once the
+  # restore has returned.
+  vm="$TART_HOME/vms/sbx-readiness"
+  mkdir -p "$vm"
+  sleep 0.3
+  touch "$TART_HOME/restored"
+  while [ ! -f "$TART_HOME/exit" ]; do
+    if [ -f "$vm/sandbox-request.json" ]; then
+      id=$(sed 's/.*"id":"\([^"]*\)".*/\1/' "$vm/sandbox-request.json")
+      printf '{"id":"%s","action":"status","instance":"11111111-1111-1111-1111-111111111111","pid":1,"state":"running"}' "$id" > "$vm/sandbox-reply.json"
+    fi
+    sleep 0.02
+  done ;;
 exec)
+  if [ ! -f "$TART_HOME/restored" ]; then touch "$TART_HOME/early-exec"; exit 1; fi
   # A built-in readiness probe succeeds even while the bridge is unavailable.
   if [ "$3" = /usr/bin/true ]; then exit 0; fi
   read -r request
@@ -53,7 +67,7 @@ esac
 					t.Error("fake runtime did not exit")
 				}
 			})
-			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancel()
 			runtime := &TartRuntime{Client: c}
 			record := &Record{}
@@ -72,6 +86,9 @@ esac
 				}
 				if _, err := os.Stat(filepath.Join(dir, "ready")); err != nil {
 					t.Fatal("readiness returned before the bridge answered pong")
+				}
+				if _, err := os.Stat(filepath.Join(dir, "early-exec")); err == nil {
+					t.Fatal("a guest command ran before the runtime's restore returned")
 				}
 			}
 		})

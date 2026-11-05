@@ -337,7 +337,7 @@ func run(parent context.Context, o options, out, progress io.Writer) (resultErr 
 		if o.gateProbe {
 			s.ReadinessStrategy = "socket_generation_then_command"
 		}
-		if err := h.WaitReady(ctx, func(probe context.Context) error {
+		if err := h.WaitReady(ctx, time.Second, func(probe context.Context) error {
 			attempt := probeAttempt{StartMS: time.Since(started).Milliseconds()}
 			probeStarted := time.Now()
 			err := probeGuest(probe, c, h.Name, o.gateProbe, previousSocket)
@@ -440,7 +440,7 @@ func hostScript(ctx context.Context, script string, c *tart.Client, name string,
 }
 
 func ready(ctx context.Context, c *tart.Client, h *tart.RunHandle) error {
-	return h.WaitReady(ctx, func(probe context.Context) error {
+	return h.WaitReady(ctx, time.Second, func(probe context.Context) error {
 		_, err := c.Exec(probe, h.Name, "/usr/bin/true")
 		return err
 	})

@@ -59,9 +59,11 @@ rules:
     resources: [runtimeclasses]
     verbs: [get, list, watch]
   # Count all workloads on runner hosts, including other namespaces' DaemonSets.
+  # `watch` lets the autoscaler react to a new macOS sandbox reservation Pod
+  # (its cache keeps only those outside the runners namespace).
   - apiGroups: [""]
     resources: [pods]
-    verbs: [list]
+    verbs: [list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

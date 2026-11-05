@@ -15,8 +15,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
@@ -826,11 +831,38 @@ func (r *AutoscalerReconciler) now() time.Time {
 }
 
 func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	b := ctrl.NewControllerManagedBy(mgr).
 		// Different controller name so it doesn't collide with
 		// the RunnerPoolReconciler — both watch the same For()
 		// type but maintain independent workqueues.
 		Named("autoscaler").
-		For(&tuistv1.RunnerPool{}).
-		Complete(r)
+		For(&tuistv1.RunnerPool{})
+	if r.SandboxesNamespace != "" {
+		// A new macOS sandbox reservation may be waiting for an idle CI
+		// runner's slot. Reconcile the darwin pools now rather than on the
+		// next poll, so the sandbox's create or restore waits less.
+		b = b.Watches(&corev1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.darwinPools), builder.WithPredicates(predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool {
+				return e.Object.GetNamespace() == r.SandboxesNamespace && e.Object.GetLabels()[macosSandboxRole] == "execution"
+			},
+			UpdateFunc:  func(event.UpdateEvent) bool { return false },
+			DeleteFunc:  func(event.DeleteEvent) bool { return false },
+			GenericFunc: func(event.GenericEvent) bool { return false },
+		}))
+	}
+	return b.Complete(r)
+}
+
+func (r *AutoscalerReconciler) darwinPools(ctx context.Context, _ client.Object) []reconcile.Request {
+	var pools tuistv1.RunnerPoolList
+	if err := r.List(ctx, &pools); err != nil {
+		return nil
+	}
+	var requests []reconcile.Request
+	for _, pool := range pools.Items {
+		if pool.Spec.OS == "darwin" {
+			requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&pool)})
+		}
+	}
+	return requests
 }

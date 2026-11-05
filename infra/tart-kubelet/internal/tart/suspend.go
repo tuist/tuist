@@ -110,9 +110,9 @@ func (c *Client) Resume(ctx context.Context, name string, opts RunOptions) (*Run
 // WaitReady waits for a successful guest RPC while also watching Tart's process.
 // An IP or an open TCP port alone is insufficient: the probe should authenticate
 // to the guest and execute a command/ping. Probes must honor their context; each
-// has a one-second budget and starts immediately (then every 100ms after failure).
+// has `budget` and starts immediately (then every 100ms after failure).
 // This wait belongs in a lifecycle worker, never the single Pod reconciler.
-func (h *RunHandle) WaitReady(ctx context.Context, probe func(context.Context) error) error {
+func (h *RunHandle) WaitReady(ctx context.Context, budget time.Duration, probe func(context.Context) error) error {
 	if probe == nil {
 		return errors.New("guest readiness probe is required")
 	}
@@ -130,7 +130,7 @@ func (h *RunHandle) WaitReady(ctx context.Context, probe func(context.Context) e
 		if err := h.readinessError(ctx); err != nil {
 			return errors.Join(err, lastErr)
 		}
-		probeCtx, stopProbe := context.WithTimeout(ctx, time.Second)
+		probeCtx, stopProbe := context.WithTimeout(ctx, budget)
 		lastErr = probe(probeCtx)
 		stopProbe()
 		if err := h.readinessError(ctx); err != nil {

@@ -215,7 +215,7 @@ func evictResident(ctx context.Context, o options, c *tart.Client, h *tart.RunHa
 	if err != nil {
 		return err
 	}
-	if err := h.WaitReady(ctx, func(probe context.Context) error { return probeGuest(probe, c, h.Name, true, previous) }); err != nil {
+	if err := h.WaitReady(ctx, time.Second, func(probe context.Context) error { return probeGuest(probe, c, h.Name, true, previous) }); err != nil {
 		return err
 	}
 	firstMS := milliseconds(time.Since(start))

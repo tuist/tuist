@@ -92,10 +92,11 @@ func (k *KubeCapacity) Reserve(ctx context.Context, r *Record) error {
 		if err := k.Allow(ctx, r); err != nil {
 			return err
 		}
+		// CI gives the slot up by retiring an idle runner; notice it soon.
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(time.Second):
+		case <-time.After(200 * time.Millisecond):
 		}
 	}
 }

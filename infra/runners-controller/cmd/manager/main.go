@@ -13,6 +13,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -99,9 +100,7 @@ func main() {
 		// Watch only the runners namespace. The controller has no
 		// reason to inspect Pods / SAs anywhere else, and
 		// narrowing the cache cuts memory + apiserver load.
-		Cache: cache.Options{
-			DefaultNamespaces: map[string]cache.Config{watchedNS: {}},
-		},
+		Cache: cacheOptions(watchedNS, sandboxesNS),
 	})
 	if err != nil {
 		setupLog.Error(err, "create manager")
@@ -225,3 +224,18 @@ var (
 	_               = controllers.AutoscalerReconciler{}
 	_               = corev1.Pod{}
 )
+
+// cacheOptions caches the runners namespace and, when sandboxes are enabled,
+// only the macOS sandbox reservation Pods of the sandboxes namespace: the
+// autoscaler watches those so a waiting sandbox retires an idle CI runner at
+// once instead of on its next poll.
+func cacheOptions(watchedNS, sandboxesNS string) cache.Options {
+	options := cache.Options{DefaultNamespaces: map[string]cache.Config{watchedNS: {}}}
+	if sandboxesNS != "" && sandboxesNS != watchedNS {
+		options.ByObject = map[client.Object]cache.ByObject{&corev1.Pod{}: {Namespaces: map[string]cache.Config{
+			watchedNS:   {},
+			sandboxesNS: {LabelSelector: labels.SelectorFromSet(labels.Set{controllers.MacosSandboxRoleLabel: "execution"})},
+		}}}
+	}
+	return options
+}

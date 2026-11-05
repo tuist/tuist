@@ -174,7 +174,7 @@ func (t *TartRuntime) Resume(ctx context.Context, r *Record) error {
 	lap("start")
 	probes, err := t.waitGuestReady(ctx, r, h)
 	lap("guest_ready")
-	phases = append(phases, "probes", probes)
+	phases = append(phases, "probes", strings.Join(probes, ","))
 	if err != nil {
 		return err
 	}
@@ -186,17 +186,44 @@ func (t *TartRuntime) Resume(ctx context.Context, r *Record) error {
 // After checkpoint restoration, the guest can execute built-in commands before
 // the shared bridge executable is usable. Readiness must exercise the same path
 // as the first user command, while retaining the VM's capacity reservation.
-func (t *TartRuntime) waitGuestReady(ctx context.Context, r *Record, h *tart.RunHandle) (int, error) {
-	probes := 0
-	err := h.WaitReady(ctx, func(ctx context.Context) error {
-		probes++
-		reply, err := t.guest(ctx, r, map[string]string{"op": "ping"}, nil)
-		if err == nil && reply.Type != "pong" {
-			return errors.New("guest readiness returned no pong")
+//
+// The runtime answers its control channel only once Apple's restore (or boot)
+// has returned, so guest commands wait for that first: a `tart exec` started
+// earlier only fails. The first command after a restore can take over a
+// second, so a probe gets a budget that does not kill and restart it.
+// The returned trace lists each probe's step, outcome and duration.
+func (t *TartRuntime) waitGuestReady(ctx context.Context, r *Record, h *tart.RunHandle) ([]string, error) {
+	var trace []string
+	running := false
+	err := h.WaitReady(ctx, 5*time.Second, func(ctx context.Context) error {
+		start := time.Now()
+		step := "ping"
+		err := func() error {
+			if !running {
+				step = "status"
+				if _, err := t.control(ctx, r, "status"); err != nil {
+					return err
+				}
+				running = true
+				trace = append(trace, fmt.Sprintf("status:ok:%d", time.Since(start).Milliseconds()))
+				start, step = time.Now(), "ping"
+			}
+			reply, err := t.guest(ctx, r, map[string]string{"op": "ping"}, nil)
+			if err == nil && reply.Type != "pong" {
+				return errors.New("guest readiness returned no pong")
+			}
+			return err
+		}()
+		outcome := "ok"
+		if errors.Is(err, context.DeadlineExceeded) {
+			outcome = "timeout"
+		} else if err != nil {
+			outcome = "error"
 		}
+		trace = append(trace, fmt.Sprintf("%s:%s:%d", step, outcome, time.Since(start).Milliseconds()))
 		return err
 	})
-	return probes, err
+	return trace, err
 }
 
 func (t *TartRuntime) Pause(ctx context.Context, r *Record) error {
