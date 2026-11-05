@@ -1,7 +1,12 @@
 defmodule Tuist.Tests.SelectionsTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
+  import Ecto.Query
+
+  alias Tuist.Repo
+  alias Tuist.Tests.CoverageCommit
   alias Tuist.Tests.Selections
+  alias TuistTestSupport.Fixtures.CoverageFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
@@ -304,6 +309,20 @@ defmodule Tuist.Tests.SelectionsTest do
       assert {[%{path: "App/Project.swift"}], _meta} = Selections.changed_files(project, run, diff, tracked: true)
       assert {[%{path: "docs/README.md"}], _meta} = Selections.changed_files(project, run, diff, search: "readme")
       assert Selections.get_diff(%{run | baseline_sha: nil}) == nil
+    end
+  end
+
+  describe "baselines/2" do
+    test "lists a default-branch commit as a baseline without the coverage complete signal", %{project: project} do
+      sha = "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0"
+      CoverageFixtures.commit_coverage(project, nil, sha)
+
+      Repo.update_all(
+        from(c in CoverageCommit, where: c.project_id == ^project.id and c.git_commit_sha == ^sha),
+        set: [git_branch: project.default_branch, complete: false]
+      )
+
+      assert {[%{git_commit_sha: ^sha, status: "baseline"}], _meta} = Selections.baselines(project)
     end
   end
 

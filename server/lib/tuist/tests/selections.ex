@@ -860,7 +860,6 @@ defmodule Tuist.Tests.Selections do
     {rows, %{current_page: page, total_pages: max(ceil_div(total_count, page_size), 1), total_count: total_count}}
   end
 
-  defp baseline_status(%{complete: false}, _tests), do: "incomplete"
   defp baseline_status(_commit, 0), do: "no_test_evidence"
   defp baseline_status(%{partial_schemes: [_ | _]}, _tests), do: "partial"
   defp baseline_status(_commit, _tests), do: "baseline"

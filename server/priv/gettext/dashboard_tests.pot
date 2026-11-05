@@ -2820,11 +2820,6 @@ msgstr ""
 msgid "Commit unknown"
 msgstr ""
 
-#: lib/tuist_web/live/test_selections_live.ex:224
-#, elixir-autogen, elixir-format
-msgid "Coverage incomplete"
-msgstr ""
-
 #: lib/tuist_web/live/test_selection/run_tab.ex:192
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:107
 #, elixir-autogen, elixir-format

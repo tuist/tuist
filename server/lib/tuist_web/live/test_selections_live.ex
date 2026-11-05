@@ -221,7 +221,6 @@ defmodule TuistWeb.TestSelectionsLive do
   def baseline_status_label("baseline"), do: dgettext("dashboard_tests", "Baseline")
   def baseline_status_label("partial"), do: dgettext("dashboard_tests", "Baseline, some schemes partial")
   def baseline_status_label("no_test_evidence"), do: dgettext("dashboard_tests", "No per-test evidence")
-  def baseline_status_label(_status), do: dgettext("dashboard_tests", "Coverage incomplete")
 
   @doc false
   def baseline_status("baseline"), do: "success"
