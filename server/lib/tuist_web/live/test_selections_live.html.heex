@@ -277,11 +277,6 @@
               description={Map.get(run.build_context, "destination", "")}
             />
           </:col>
-          <:col :let={run} label={dgettext("dashboard_tests", "Baseline")}>
-            <.text_cell label={
-              if run.baseline_sha in [nil, ""], do: "–", else: short_sha(run.baseline_sha)
-            } />
-          </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Selected")}>
             <.text_cell label={"#{format_number(run.selected_count)} / #{format_number(run.requested_count)}"} />
           </:col>

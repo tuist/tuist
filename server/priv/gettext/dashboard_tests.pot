@@ -2767,7 +2767,6 @@ msgstr ""
 #: lib/tuist_web/live/test_run_live.html.heex:494
 #: lib/tuist_web/live/test_selection/run_tab.ex:283
 #: lib/tuist_web/live/test_selection/test_case_run_tab.ex:134
-#: lib/tuist_web/live/test_selections_live.html.heex:280
 #, elixir-autogen, elixir-format
 msgid "Baseline"
 msgstr ""
@@ -2974,7 +2973,7 @@ msgstr ""
 msgid "No selection runs in this period"
 msgstr ""
 
-#: lib/tuist_web/live/test_selections_live.html.heex:315
+#: lib/tuist_web/live/test_selections_live.html.heex:310
 #, elixir-autogen, elixir-format
 msgid "No selection runs yet"
 msgstr ""
@@ -3058,12 +3057,12 @@ msgstr ""
 #: lib/tuist_web/live/test_selection/run_tab.ex:759
 #: lib/tuist_web/live/test_selections_live.ex:148
 #: lib/tuist_web/live/test_selections_live.html.heex:67
-#: lib/tuist_web/live/test_selections_live.html.heex:285
+#: lib/tuist_web/live/test_selections_live.html.heex:280
 #, elixir-autogen, elixir-format
 msgid "Selected"
 msgstr ""
 
-#: lib/tuist_web/live/test_selections_live.html.heex:301
+#: lib/tuist_web/live/test_selections_live.html.heex:296
 #, elixir-autogen, elixir-format
 msgid "Selected at"
 msgstr ""
@@ -3105,7 +3104,7 @@ msgstr ""
 #: lib/tuist_web/live/test_selection/run_tab.ex:628
 #: lib/tuist_web/live/test_selections_live.ex:136
 #: lib/tuist_web/live/test_selections_live.html.heex:106
-#: lib/tuist_web/live/test_selections_live.html.heex:288
+#: lib/tuist_web/live/test_selections_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "Skip rate"
 msgstr ""
