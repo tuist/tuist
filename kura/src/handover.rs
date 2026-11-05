@@ -14,7 +14,7 @@ use crate::{
     sync::feed::{SyncFeedKind, SyncPosition},
     utils::BackfillRecordKind,
 };
-use axum::{Json, extract::State, http::StatusCode};
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use futures_util::{StreamExt, stream::FuturesOrdered};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -629,6 +629,96 @@ async fn verify_inner(
     *authority.barrier.lock().map_err(|_| "barrier poisoned")? = Some(receipt.clone());
     Ok(serde_json::json!({"receipt": receipt}))
 }
+
+// How long a request the frozen source cannot admit waits for the switch,
+// how long after it the old holder forwards to the new one, and how often
+// it looks.
+const SWITCH_HOLD: Duration = Duration::from_secs(20);
+const FORWARD_WINDOW: Duration = Duration::from_secs(60);
+const SWITCH_POLL: Duration = Duration::from_millis(25);
+
+/// What a public request this holder could not admit should do.
+pub(crate) enum Switch {
+    /// Admitted here after waiting: an aborted handover or the hold lifting.
+    Local(Option<crate::serving_authority::Permit>),
+    /// The destination serves now; forward to its peer URL.
+    Forward(String),
+    /// Not part of a handover, or the wait ran out: refuse as before.
+    Refuse,
+}
+
+/// Holds a public request the serving authority refused while this holder's
+/// planned handover is in flight, instead of refusing it at once. Nothing is
+/// admitted or committed here, so the barrier and its deadline are untouched.
+pub(crate) async fn await_switch(state: &SharedState, mutation: bool) -> Switch {
+    let authority = &state.runtime.authority;
+    let started = tokio::time::Instant::now();
+    loop {
+        if let Some(url) = forward_target(state) {
+            return Switch::Forward(url);
+        }
+        let in_flight = authority.intent().is_some_and(|grant| {
+            grant.holder == *authority.identity()
+                && grant.handover.is_some()
+                && matches!(grant.phase.as_str(), "Quiescing" | "Revoking")
+        });
+        if !in_flight || state.runtime.is_draining() || started.elapsed() >= SWITCH_HOLD {
+            return Switch::Refuse;
+        }
+        tokio::time::sleep(SWITCH_POLL).await;
+        if let Ok(permit) = authority.admit_request(mutation) {
+            return Switch::Local(permit);
+        }
+    }
+}
+
+/// The new holder's peer URL while this former holder still forwards to it.
+pub(crate) fn forward_target(state: &SharedState) -> Option<String> {
+    let authority = &state.runtime.authority;
+    let handed_over = authority.handed_over.lock().ok()?;
+    let (intent, moved_at) = handed_over.as_ref()?;
+    let moved_at = (*moved_at)?;
+    let grant = authority.intent()?;
+    (grant.holder == intent.destination
+        && grant.phase == "Serving"
+        && moved_at.elapsed() < FORWARD_WINDOW
+        && !state.runtime.is_draining())
+    .then(|| intent.destination_url.clone())
+}
+
+/// Runs a public request forwarded by the former holder through this holder's
+/// own public router: its admission, grant and authorization all apply.
+pub async fn forwarded_public_request(
+    State(state): State<SharedState>,
+    request: axum::extract::Request,
+) -> axum::response::Response {
+    use tower::ServiceExt;
+    let (parts, body) = request.into_parts();
+    let path_and_query = parts
+        .uri
+        .path_and_query()
+        .map(|value| value.as_str())
+        .unwrap_or("/")
+        .strip_prefix(FORWARD_PREFIX)
+        .unwrap_or("/")
+        .to_owned();
+    let Ok(uri) = path_and_query.parse() else {
+        return (StatusCode::BAD_REQUEST, "invalid forwarded path").into_response();
+    };
+    // A fresh request: the outer route's matched path must not reach the
+    // inner router's extractors.
+    let mut forwarded = axum::extract::Request::new(body);
+    *forwarded.method_mut() = parts.method;
+    *forwarded.uri_mut() = uri;
+    *forwarded.version_mut() = parts.version;
+    *forwarded.headers_mut() = parts.headers;
+    crate::http::public_router(state)
+        .oneshot(forwarded)
+        .await
+        .into_response()
+}
+
+pub(crate) const FORWARD_PREFIX: &str = "/_internal/handover/forward";
 
 #[derive(Deserialize, Serialize)]
 pub struct BarrierDeltaRequest {
@@ -4755,6 +4845,103 @@ mod tests {
         );
         assert_eq!(pair.requests("/_internal/handover/barrier-delta"), 0);
         assert!(pair.source_requests("/_internal/handover/describe") > 0);
+    }
+
+    // The production public router, admission included; the counting test
+    // router leaves admission out.
+    async fn serve_public(state: SharedState) -> String {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let app = crate::http::public_router(state);
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        url
+    }
+
+    fn grant_to(holder: &Holder, epoch: u64, phase: &str, handover: Option<Intent>) -> Grant {
+        Grant {
+            epoch,
+            holder: holder.clone(),
+            phase: phase.into(),
+            expires_ms: crate::utils::now_ms() + 14_000,
+            handover,
+            barrier: None,
+            resume_epoch: None,
+            exit_resume: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_write_to_the_frozen_source_waits_and_lands_on_the_new_holder() {
+        let pair = ContentPair::new().await;
+        pair.install("Quiescing");
+        let public = serve_public(pair.source.state.clone()).await;
+        let put = tokio::spawn(
+            reqwest::Client::new()
+                .put(format!("{public}/v1/cache/held"))
+                .body("held-bytes")
+                .send(),
+        );
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert!(!put.is_finished(), "the write waits instead of a 503");
+
+        let destination = pair.target.state.runtime.authority.identity().clone();
+        for state in [&pair.source.state, &pair.target.state] {
+            state
+                .runtime
+                .authority
+                .install(grant_to(&destination, 2, "Serving", None))
+                .unwrap();
+        }
+        let response = put.await.unwrap().unwrap();
+        let status = response.status();
+        let body = response.text().await.unwrap();
+
+        assert_eq!(status, reqwest::StatusCode::OK, "{body}");
+        let read = reqwest::get(format!("{}/v1/cache/held", pair.intent.destination_url))
+            .await
+            .unwrap();
+        assert_eq!(read.status(), reqwest::StatusCode::OK);
+        assert_eq!(read.text().await.unwrap(), "held-bytes");
+        assert_eq!(
+            pair.target_requests
+                .lock()
+                .unwrap()
+                .get("/_internal/handover/forward/v1/cache/held")
+                .copied(),
+            Some(1),
+            "the former holder forwarded it rather than committing it"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_write_held_through_an_aborted_handover_is_served_by_the_source() {
+        let pair = ContentPair::new().await;
+        pair.install("Quiescing");
+        let public = serve_public(pair.source.state.clone()).await;
+        let put = tokio::spawn(
+            reqwest::Client::new()
+                .put(format!("{public}/v1/cache/aborted"))
+                .body("kept")
+                .send(),
+        );
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let source = pair.source.state.runtime.authority.identity().clone();
+        for state in [&pair.source.state, &pair.target.state] {
+            state
+                .runtime
+                .authority
+                .install(grant_to(&source, 1, "Serving", None))
+                .unwrap();
+        }
+
+        assert_eq!(
+            put.await.unwrap().unwrap().status(),
+            reqwest::StatusCode::OK
+        );
+        assert_eq!(
+            pair.requests("/_internal/handover/forward/v1/cache/aborted"),
+            0
+        );
     }
 
     #[tokio::test]

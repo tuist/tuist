@@ -174,7 +174,22 @@ where
         .timeout(Duration::from_secs(5))
         .build()
         .expect("failed to build test client");
-    let runtime = RuntimeState::new();
+    // A configured authority admits through real grants, without the
+    // Kubernetes poller or the volume marker.
+    let runtime = match &config.serving_authority {
+        Some(authority) => {
+            RuntimeState::with_authority(crate::serving_authority::ServingAuthority::new(
+                crate::serving_authority::Holder {
+                    instance_uid: authority.instance_uid.clone(),
+                    pod_uid: authority.pod_uid.clone(),
+                    incarnation: uuid::Uuid::now_v7().to_string(),
+                    host: authority.host.clone(),
+                },
+                true,
+            ))
+        }
+        None => RuntimeState::new(),
+    };
     let replication_bandwidth_limiter = BandwidthLimiter::new(
         config.replication_bandwidth_limit_bytes_per_second,
         config.replication_public_latency_target_ms,
