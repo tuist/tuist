@@ -131,8 +131,9 @@ resolve both cluster Services and public names through the pod's NAT.
   keeps its workspace. The first pause writes the sandbox's own memory
   image.
 - `archive {sandbox_id, part_size, part_urls}`: refuse unless the sandbox is
-  paused; stream `vmlinux`, `rootfs.ext4` and `workspace.ext4` (no memory
-  image) as one zstd object (`internal/archive`: magic `SBXARC1`, a JSON
+  paused with `disks_synced`, since only the disks are archived; stream
+  `vmlinux`, `rootfs.ext4` and `workspace.ext4` (no memory image) as one
+  zstd object (`internal/archive`: magic `SBXARC1`, a JSON
   header, file records with data blocks at their offsets, holes and zero
   blocks left out) cut into `part_size` parts, each PUT to the next
   presigned UploadPart URL (two parts in memory at most, three attempts per

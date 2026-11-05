@@ -90,6 +90,18 @@ func TestArchiveAndRestoreOnAnotherNode(t *testing.T) {
 	if _, err := h.m.Archive(ctx, archiveArgs(server, "source")); !errors.Is(err, ErrNotPaused) {
 		t.Fatalf("archiving a running sandbox must fail, got %v", err)
 	}
+	if _, err := h.m.Pause(ctx, "source"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.m.Archive(ctx, archiveArgs(server, "source")); !errors.Is(err, ErrDisksNotSynced) {
+		t.Fatalf("archiving a sandbox whose pause did not sync its disks must fail, got %v", err)
+	}
+	if len(store.object()) != 0 {
+		t.Fatal("a refused archive must not upload anything")
+	}
+	if _, err := h.m.Resume(ctx, "source"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "source", SyncDisks: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +182,7 @@ func TestResumeInterruptsAnArchive(t *testing.T) {
 	store.gate = make(chan struct{})
 	defer close(store.gate)
 	h.create(t, "busy", 1)
-	if _, err := h.m.Pause(ctx, "busy"); err != nil {
+	if _, err := h.m.PauseWith(ctx, protocol.PauseArgs{SandboxID: "busy", SyncDisks: true}); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)

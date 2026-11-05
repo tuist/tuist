@@ -155,8 +155,8 @@ defmodule Tuist.Sandboxes.Nodes do
 
   Options:
 
-    * `:timeout` in milliseconds; defaults to 120s for `create`/`resume`
-      and 60s otherwise.
+    * `:timeout` in milliseconds; defaults to 120s for `create`, `resume`
+      and `pause`, and 60s otherwise.
     * `:on_stream` a one-arity function receiving `{:stdout | :stderr,
       binary}` for every stream frame the node emits before the result.
     * `:presence_wait_ms` how long to wait for a node that is not visible
@@ -198,6 +198,8 @@ defmodule Tuist.Sandboxes.Nodes do
     end
   end
 
-  defp default_timeout(op) when op in ["create", "resume", :create, :resume], do: @long_timeout
+  # A pause can spend up to sandboxd's 60s guest-sync timeout before it
+  # snapshots memory.
+  defp default_timeout(op) when op in ["create", "resume", "pause", :create, :resume, :pause], do: @long_timeout
   defp default_timeout(_op), do: @default_timeout
 end
