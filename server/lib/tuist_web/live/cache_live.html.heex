@@ -10,6 +10,11 @@
   </div>
 
   <.cache_write_policy_section cache_write_policy={@selected_account.cache_write_policy} />
+  <.oidc_scope_rules_section
+    oidc_rules={@oidc_rules}
+    oidc_rule_errors={@oidc_rule_errors}
+    unmatched_providers={@unmatched_providers}
+  />
   <.self_hosted_section
     :if={@self_hosted_enabled}
     self_hosted_clients={@self_hosted_clients}

@@ -11,6 +11,7 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
   alias Tuist.OAuth2.SSRFGuard
   alias Tuist.OIDC
   alias Tuist.OIDC.JWKSClient
+  alias Tuist.OIDC.ScopeRules
   alias Tuist.Projects
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -104,6 +105,36 @@ defmodule TuistWeb.API.OIDCWorkloadControllerTest do
     assert Authorization.authorize(:project_cache_read, subject, transferred_in) == :ok
     accessible = Projects.list_accessible_projects(subject, preload: [])
     assert MapSet.new(accessible, & &1.id) == MapSet.new([existing.id, future.id, transferred_in.id])
+  end
+
+  test "withholds writes that account or project scope rules don't grant to workload tokens", %{
+    conn: conn,
+    key: key,
+    project: project,
+    account: account
+  } do
+    unruled = ProjectsFixtures.project_fixture(account: project.account)
+    foreign = ProjectsFixtures.project_fixture()
+    {:ok, _} = ScopeRules.put_project_rule(project, "project:cache:write", %{refs: ["**"]})
+    {:ok, _} = ScopeRules.put_project_rule(foreign, "project:previews:write", %{refs: ["**"]})
+    {:ok, _} = ScopeRules.put_account_rule(project.account, "account:cache:write", %{refs: ["**"]})
+
+    conn = conn |> put_req_header("x-tuist-cli-version", "4.300.0") |> exchange(sign(key), account)
+    response = json_response(conn, :ok)
+    assert {:ok, claims} = Guardian.decode_and_verify(response["access_token"])
+    assert {:ok, subject} = Guardian.resource_from_claims(claims)
+
+    assert claims["withheld_scopes"] == %{
+             "account:cache:write" => [project.account.id],
+             "project:cache:write" => [project.id]
+           }
+
+    refute Authorization.authorize(:project_cache_update, subject, project) == :ok
+    assert Authorization.authorize(:project_cache_read, subject, project) == :ok
+    assert Authorization.authorize(:project_cache_update, subject, unruled) == :ok
+    assert [encoded] = get_resp_header(conn, "x-tuist-cloud-warnings")
+    assert [_, _] = warnings = encoded |> Base.decode64!() |> JSON.decode!()
+    assert Enum.all?(warnings, &(&1 =~ "only support GitHub Actions tokens"))
   end
 
   test "account-wide workload credentials cannot administer projects, runners or account members", %{
