@@ -55,24 +55,6 @@ defmodule TuistWeb.PreviewsLive do
     assign(socket, :notification_preference, preference)
   end
 
-  defp notification_option_label(nil, project),
-    do: dgettext("dashboard_previews", "Follow %{account}", account: project.account.name)
-
-  defp notification_option_label(true, _project), do: dgettext("dashboard_previews", "Always notify me")
-  defp notification_option_label(false, _project), do: dgettext("dashboard_previews", "Never notify me")
-
-  defp notification_option_description(nil, %{account_enabled: true}, _project),
-    do: dgettext("dashboard_previews", "On, as set in your notification settings")
-
-  defp notification_option_description(nil, _preference, _project),
-    do: dgettext("dashboard_previews", "Off, as set in your notification settings")
-
-  defp notification_option_description(true, _preference, _project),
-    do: dgettext("dashboard_previews", "Get a push for every new preview of this project")
-
-  defp notification_option_description(false, _preference, _project),
-    do: dgettext("dashboard_previews", "No pushes for this project")
-
   def handle_params(_params, uri, %{assigns: %{selected_project: project, available_filters: available_filters}} = socket) do
     params = uri |> Query.query_params() |> Query.clear_incompatible_cursors([:inserted_at])
 
@@ -97,8 +79,11 @@ defmodule TuistWeb.PreviewsLive do
     }
   end
 
-  def handle_event("set_preview_notifications", %{"data" => setting}, socket) do
-    override = Map.fetch!(%{"default" => nil, "on" => true, "off" => false}, setting)
+  # As in the apps, turning the project back to its account's setting follows
+  # the account again instead of keeping an override.
+  def handle_event("toggle_preview_notifications", _params, socket) do
+    %{enabled: enabled, account_enabled: account_enabled} = socket.assigns.notification_preference
+    override = if !enabled == account_enabled, do: nil, else: !enabled
 
     _ =
       Notifications.update_project_preference(

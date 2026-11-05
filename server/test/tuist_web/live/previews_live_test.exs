@@ -106,11 +106,14 @@ defmodule TuistWeb.PreviewsLiveTest do
     assert html =~ "Notifications on"
 
     # Dropdown items render in a portal, which LiveViewTest elements can't reach.
-    assert render_hook(lv, "set_preview_notifications", %{"data" => "off"}) =~ "Notifications off"
+    assert render_hook(lv, "toggle_preview_notifications", %{}) =~ "Notifications off"
     refute Notifications.notify?(user.id, "new_preview", project.id)
+    assert Notifications.project_preference(user, "new_preview", project).override == false
 
-    render_hook(lv, "set_preview_notifications", %{"data" => "default"})
+    # Turning it back on matches the account, so the project follows the account again.
+    assert render_hook(lv, "toggle_preview_notifications", %{}) =~ "Notifications on"
     assert Notifications.notify?(user.id, "new_preview", project.id)
+    assert is_nil(Notifications.project_preference(user, "new_preview", project).override)
   end
 
   test "release notes summaries ignore blank notes and normalize line endings" do

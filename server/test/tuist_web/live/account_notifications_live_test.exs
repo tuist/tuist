@@ -49,25 +49,60 @@ defmodule TuistWeb.AccountNotificationsLiveTest do
     installation
   end
 
-  test "toggles new previews per account and lists project overrides with a reset", %{conn: conn, user: user} do
+  defp override(user, project) do
+    Notifications.project_preference(user, "new_preview", project).override
+  end
+
+  test "shows the projects inline when only one account has projects", %{conn: conn, user: user} do
     organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
     shop = ProjectsFixtures.project_fixture(account_id: organization.account.id, name: "ios-shop")
     admin = ProjectsFixtures.project_fixture(account_id: organization.account.id, name: "android-admin")
 
-    {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/notifications")
-    refute has_element?(lv, "#new-previews-project-#{shop.id}")
+    {:ok, lv, html} = live(conn, ~p"/#{user.account.name}/settings/notifications")
+    # The personal account has no projects, so it isn't listed.
+    assert html =~ "All projects in #{organization.account.name}"
+    refute has_element?(lv, "#new-previews-account-edit-#{organization.account.id}")
+    assert has_element?(lv, "#new-previews-project-#{shop.id}[data-enabled=true]")
 
+    # A project switch that differs from All projects overrides it...
+    render_hook(lv, "toggle_project:#{organization.account.id}:#{shop.id}", %{"checked" => false})
+    assert override(user, shop) == false
+    assert has_element?(lv, "#new-previews-project-#{shop.id}[data-enabled=false]")
+
+    # ...and turning All projects off moves the projects that follow it, but not the override.
     render_hook(lv, "toggle_account:#{organization.account.id}", %{"checked" => false})
+    assert has_element?(lv, "#new-previews-project-#{admin.id}[data-enabled=false]")
     refute Notifications.notify?(user.id, "new_preview", admin.id)
 
-    :ok = Notifications.update_project_preference(user, "new_preview", shop.id, true)
-    {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/notifications")
-    assert has_element?(lv, "#new-previews-project-#{shop.id}", "ios-shop on")
-    refute has_element?(lv, "#new-previews-project-#{admin.id}")
+    # Matching All projects again follows the account instead of keeping an override.
+    render_hook(lv, "toggle_project:#{organization.account.id}:#{shop.id}", %{"checked" => false})
+    assert is_nil(override(user, shop))
 
-    lv |> element("#new-previews-project-#{shop.id} [data-part=dismiss-icon]") |> render_click()
+    render_hook(lv, "toggle_project:#{organization.account.id}:#{admin.id}", %{"checked" => true})
+    assert override(user, admin) == true
+    assert Notifications.notify?(user.id, "new_preview", admin.id)
+  end
+
+  test "summarizes each account when several have projects and opens one to edit it", %{conn: conn, user: user} do
+    organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+    shop = ProjectsFixtures.project_fixture(account_id: organization.account.id, name: "ios-shop")
+    _admin = ProjectsFixtures.project_fixture(account_id: organization.account.id, name: "android-admin")
+    personal = ProjectsFixtures.project_fixture(account_id: user.account.id, name: "side-project")
+    :ok = Notifications.update_project_preference(user, "new_preview", shop.id, false)
+    :ok = Notifications.update_account_preference(user, "new_preview", user.account.id, false)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/notifications")
+    assert has_element?(lv, "#new-previews-account-summary-#{organization.account.id}", "Custom")
+    assert has_element?(lv, "#new-previews-account-summary-#{user.account.id}", "Off")
     refute has_element?(lv, "#new-previews-project-#{shop.id}")
-    refute Notifications.notify?(user.id, "new_preview", shop.id)
+
+    lv |> element("#new-previews-account-edit-#{organization.account.id}") |> render_click()
+    assert has_element?(lv, "#new-previews-project-#{shop.id}[data-enabled=false]")
+    refute has_element?(lv, "#new-previews-project-#{personal.id}")
+
+    render_hook(lv, "toggle_project:#{organization.account.id}:#{shop.id}", %{"checked" => true})
+    assert has_element?(lv, "#new-previews-account-summary-#{organization.account.id}", "On")
+    assert is_nil(override(user, shop))
   end
 
   test "lists and removes devices", %{conn: conn, user: user} do

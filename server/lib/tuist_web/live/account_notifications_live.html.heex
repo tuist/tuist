@@ -13,7 +13,7 @@
       <span data-part="subtitle">
         {dgettext(
           "dashboard_account",
-          "Get a push notification when a new preview is published. Change a single project from the bell on its Previews page. Only you see these settings."
+          "Get a push notification on your devices when a new preview is published. Only you see these settings."
         )}
       </span>
     </div>
@@ -23,39 +23,58 @@
         status="information"
         type="secondary"
         size="small"
-        title={dgettext("dashboard_account", "You don't have access to any projects yet.")}
+        title={
+          dgettext(
+            "dashboard_account",
+            "You'll be able to choose notifications once you have a project."
+          )
+        }
       />
-      <div :if={@preferences != []} data-part="accounts">
+      <%!-- Most people belong to one account with projects, so its projects are shown right here, as in the apps. --%>
+      <.account_projects
+        :if={match?([_], @preferences)}
+        preference={hd(@preferences)}
+        all_label={
+          dgettext("dashboard_account", "All projects in %{account}",
+            account: hd(@preferences).account.name
+          )
+        }
+      />
+      <div :if={length(@preferences) > 1} data-part="accounts">
         <div
-          :for={%{account: account, enabled: enabled, projects: projects} <- @preferences}
+          :for={%{account: account} = preference <- @preferences}
           id={"new-previews-account-#{account.id}"}
           data-part="account"
+          data-open={@open_account_id == account.id}
         >
-          <.toggle
-            id={"new-previews-account-toggle-#{account.id}"}
-            label={account.name}
-            description={account_description(account)}
-            checked={enabled}
-            data-on-checked-change={"toggle_account:#{account.id}"}
-          />
-          <div :if={Enum.any?(projects, &(not is_nil(&1.override)))} data-part="exceptions">
-            <span data-part="exceptions-label">{dgettext("dashboard_account", "Except")}</span>
-            <.tag
-              :for={
-                %{project: project, override: override} <-
-                  Enum.reject(projects, &is_nil(&1.override))
-              }
-              id={"new-previews-project-#{project.id}"}
+          <div data-part="account-row">
+            <div data-part="account-label">
+              <span data-part="account-name">{account.name}</span>
+              <span data-part="account-kind">{account_kind(account)}</span>
+            </div>
+            <span id={"new-previews-account-summary-#{account.id}"} data-part="account-summary">
+              {account_summary(preference)}
+            </span>
+            <.button
+              id={"new-previews-account-edit-#{account.id}"}
+              type="button"
               label={
-                if override,
-                  do: dgettext("dashboard_account", "%{project} on", project: project.name),
-                  else: dgettext("dashboard_account", "%{project} off", project: project.name)
+                if @open_account_id == account.id,
+                  do: dgettext("dashboard_account", "Done"),
+                  else: dgettext("dashboard_account", "Edit")
               }
-              dismissible
-              on_dismiss="reset_project"
-              dismiss_value={to_string(project.id)}
+              variant="secondary"
+              size="small"
+              phx-click="toggle_open_account"
+              phx-value-id={account.id}
+              aria-expanded={to_string(@open_account_id == account.id)}
             />
           </div>
+          <.account_projects
+            :if={@open_account_id == account.id}
+            preference={preference}
+            all_label={dgettext("dashboard_account", "All projects")}
+          />
         </div>
       </div>
     </div>

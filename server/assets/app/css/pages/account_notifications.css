@@ -55,26 +55,74 @@
   & [data-part="accounts"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-7);
+
+    & > [data-part="account"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+      padding: var(--noora-spacing-5) 0;
+      border-top: 1px solid var(--noora-surface-border-primary);
+
+      &:first-child {
+        border-top: none;
+        padding-top: 0;
+      }
+
+      &:last-child {
+        padding-bottom: 0;
+      }
+    }
   }
 
-  & [data-part="account"] {
+  & [data-part="account-row"] {
     display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-4);
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-5);
 
-    & > [data-part="exceptions"] {
+    & > [data-part="account-label"] {
       display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: var(--noora-spacing-3);
-      /* Lines up with the toggle's label. */
-      padding-left: calc(32px + var(--noora-spacing-4));
+      flex: 1;
+      flex-direction: column;
+      min-width: 0;
 
-      & > [data-part="exceptions-label"] {
+      & > [data-part="account-name"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="account-kind"] {
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       }
     }
+
+    & > [data-part="account-summary"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="account-projects"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    & > [data-part="projects"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="projects-label"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      }
+    }
+  }
+
+  & [data-part="account"] [data-part="account-projects"] {
+    padding: var(--noora-spacing-6);
+    border-radius: var(--noora-radius-6);
+    background: var(--noora-surface-background-secondary);
   }
 }
