@@ -139,11 +139,11 @@ defmodule TuistWeb.AmpOrbsController do
     end
   end
 
+  defp job(_, _), do: {:error, :invalid_job}
+
   defp spawn_shape("spawn", orb_type) when is_nil(orb_type) or is_binary(orb_type), do: AmpOrbs.orb_type(orb_type)
   defp spawn_shape("spawn", _orb_type), do: {:error, :invalid_job}
   defp spawn_shape(_operation, _orb_type), do: {:ok, %{}}
-
-  defp job(_, _), do: {:error, :invalid_job}
 
   defp valid_snapshot_id?(nil), do: true
 
