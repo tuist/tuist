@@ -541,8 +541,14 @@ defmodule Tuist.Sandboxes do
   def prepare_residency(%Sandbox{id: id}, work_id) when is_binary(work_id) do
     with_sandbox_lock(id, fn ->
       with_fresh(id, fn sandbox ->
+        resumed? = sandbox.platform == :darwin and sandbox.state != :running
+
         with {:ok, sandbox} <- running_or_resume(sandbox) do
-          begin_residency(sandbox, work_id)
+          # A macOS resume was just admitted, by the server and under the
+          # host's CI-first check. A grant that closed during the restore
+          # must not refuse the turn: the VM already holds its slot, and the
+          # refusal would only pause it for the retry to resume again.
+          if resumed?, do: record_residency(sandbox, work_id), else: begin_residency(sandbox, work_id)
         end
       end)
     end)
