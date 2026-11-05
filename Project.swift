@@ -242,7 +242,7 @@ func schemes() -> [Scheme] {
             buildAction: .buildAction(targets: [.target("TuistCoverageSelectionAcceptanceTests")]),
             testAction: .targets(
                 [.testableTarget(target: .target("TuistCoverageSelectionAcceptanceTests"))],
-                // Explicit, like TuistAcceptanceTests, so Tuist.swift's `coverage` option doesn't turn it on.
+                // Explicit, so Tuist.swift's `coverage` option doesn't turn it on.
                 options: .options(language: "en", coverage: false)
             ),
             runAction: .runAction(
