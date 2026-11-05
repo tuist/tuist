@@ -31,7 +31,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
     {:ok,
      socket
-     |> assign(organization: nil, flash_message: nil)
+     |> assign(organization: nil, flash_message: nil, passkeys_enabled?: TuistWeb.UserPasskeyController.enabled?())
      |> WorkloadIdentities.initialize()
      |> assign(:head_title, "#{dgettext("dashboard_account", "Authentication")} · #{account.name} · Tuist")}
   end
