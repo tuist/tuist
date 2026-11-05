@@ -114,6 +114,11 @@ type AutoscalerReconciler struct {
 	// when the chart runs no sandboxes.
 	SandboxesNamespace string
 
+	// ReservationsNamespace, when set, is where the manager caches macOS
+	// sandbox reservation Pods; a new one reconciles the darwin pools at
+	// once instead of on the next poll.
+	ReservationsNamespace string
+
 	// APIReader is an uncached reader for the sandbox daemons, which live
 	// outside the namespace the manager caches. Nil falls back to Client.
 	APIReader client.Reader
@@ -837,13 +842,13 @@ func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// type but maintain independent workqueues.
 		Named("autoscaler").
 		For(&tuistv1.RunnerPool{})
-	if r.SandboxesNamespace != "" {
+	if r.ReservationsNamespace != "" {
 		// A new macOS sandbox reservation may be waiting for an idle CI
 		// runner's slot. Reconcile the darwin pools now rather than on the
 		// next poll, so the sandbox's create or restore waits less.
 		b = b.Watches(&corev1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.darwinPools), builder.WithPredicates(predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool {
-				return e.Object.GetNamespace() == r.SandboxesNamespace && e.Object.GetLabels()[macosSandboxRole] == "execution"
+				return e.Object.GetNamespace() == r.ReservationsNamespace && e.Object.GetLabels()[macosSandboxRole] == "execution"
 			},
 			UpdateFunc:  func(event.UpdateEvent) bool { return false },
 			DeleteFunc:  func(event.DeleteEvent) bool { return false },

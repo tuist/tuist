@@ -8,15 +8,19 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	"time"
 
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -90,6 +94,7 @@ func main() {
 	}
 
 	cfg := ctrl.GetConfigOrDie()
+	reservationsNS := watchableReservations(cfg, sandboxesNS)
 
 	mgr, err := ctrl.NewManager(cfg, manager.Options{
 		Scheme:                 scheme,
@@ -100,7 +105,7 @@ func main() {
 		// Watch only the runners namespace. The controller has no
 		// reason to inspect Pods / SAs anywhere else, and
 		// narrowing the cache cuts memory + apiserver load.
-		Cache: cacheOptions(watchedNS, sandboxesNS),
+		Cache: cacheOptions(watchedNS, reservationsNS),
 	})
 	if err != nil {
 		setupLog.Error(err, "create manager")
@@ -151,11 +156,12 @@ func main() {
 	// (no scaling-driven changes), static pools work as before.
 	if signalsClient != nil {
 		if err := (&controllers.AutoscalerReconciler{
-			Client:             mgr.GetClient(),
-			Scheme:             mgr.GetScheme(),
-			SignalsClient:      signalsClient,
-			SandboxesNamespace: sandboxesNS,
-			APIReader:          mgr.GetAPIReader(),
+			Client:                mgr.GetClient(),
+			Scheme:                mgr.GetScheme(),
+			SignalsClient:         signalsClient,
+			SandboxesNamespace:    sandboxesNS,
+			ReservationsNamespace: reservationsNS,
+			APIReader:             mgr.GetAPIReader(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup Autoscaler reconciler")
 			os.Exit(1)
@@ -224,6 +230,27 @@ var (
 	_               = controllers.AutoscalerReconciler{}
 	_               = corev1.Pod{}
 )
+
+// watchableReservations returns the sandboxes namespace when this controller
+// may watch its Pods. A controller rolled out ahead of the chart's RBAC keeps
+// polling instead: an informer it cannot run would block every reconciler.
+func watchableReservations(cfg *rest.Config, sandboxesNS string) string {
+	if sandboxesNS == "" {
+		return ""
+	}
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err == nil {
+		var review *authorizationv1.SelfSubjectAccessReview
+		review, err = clientset.AuthorizationV1().SelfSubjectAccessReviews().Create(context.Background(), &authorizationv1.SelfSubjectAccessReview{Spec: authorizationv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{Namespace: sandboxesNS, Verb: "watch", Resource: "pods"},
+		}}, metav1.CreateOptions{})
+		if err == nil && review.Status.Allowed {
+			return sandboxesNS
+		}
+	}
+	setupLog.Info("not watching macOS sandbox reservations; sandbox preemption follows the poll", "namespace", sandboxesNS, "error", err)
+	return ""
+}
 
 // cacheOptions caches the runners namespace and, when sandboxes are enabled,
 // only the macOS sandbox reservation Pods of the sandboxes namespace: the
