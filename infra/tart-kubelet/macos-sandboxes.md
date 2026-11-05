@@ -96,6 +96,27 @@ not a dedicated host filesystem quota. Guest workspaces have an APFS quota;
 root disks retain the image's fixed logical ceiling. Automatic Tart pruning is
 turned off in the isolated store so it cannot decide environment retention.
 
+### Warm sandbox VMs
+
+`sandboxes.macos.warm.enabled` renders a darwin RunnerPool labelled
+`tuist.dev/macos-sandbox-warm=true` whose Pods are pre-booted 8 vCPU / 8 GiB
+sandbox VMs. The pool shares the CI warm-pool budget: the runners-controller
+funds its floor, preempts it and rolls its image like a CI pool's, and its idle
+Pods give up their slot to CI and to sandbox growth. Unlike an idle CI runner,
+a warm VM counts as reclaimable room in sandbox grants immediately, without the
+CI preemption grace. The server never routes a job to the pool.
+
+tart-kubelet's sandbox service, not the CI launch path, boots a warm Pod, and
+only on hosts advertising `tuist.dev/macos-sandbox-warm-host=v1`. The VM is
+named `sbw-<pod UID>`, holds no credential and is not journalled; it fails
+instead of waiting when the host lacks room, the template or disk. A create of
+the same template, image and shape claims a ready VM under the same CI-first
+grant as a cold create: the host creates the execution Pod, deletes the warm
+Pod, and the VM keeps its name for life. Other shapes and hosts without a
+ready VM cold-boot. Hosts report the shapes of ready VMs, placement tries those
+hosts first, and claimed creates record the `warm` boot source. A kubelet
+restart deletes unclaimed warm VMs and fails their Pods; the pool refills them.
+
 ## Runtime, identity and recovery
 
 The host service lives inside tart-kubelet. The control Pod supplies declarative

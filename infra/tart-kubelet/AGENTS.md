@@ -364,7 +364,9 @@ workflow code runs in the guest. Never expose host credentials or masters.
 ## Sandbox experiments
 
 For flag-controlled native sandbox placement, capacity, recovery and rollout,
-read [macOS sandbox operation](macos-sandboxes.md).
+read [macOS sandbox operation](macos-sandboxes.md). Pods and RunnerPools
+labelled `tuist.dev/macos-sandbox-warm=true` belong to the sandbox service:
+podagent, the prewarmer and image GC must never launch or stage them as CI.
 
 The opt-in [macOS sandbox resume experiment](macos-sandbox-resume.md) uses an
 isolated Tart store and the asynchronous launcher. Keep its save/restore work

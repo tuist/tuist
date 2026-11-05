@@ -2664,6 +2664,14 @@ sandboxes:
     xcodeVersion: "26.6"
     # Empty follows the same released, digest-pinned image as the CI pool.
     image: ""
+    # Pre-booted 8 vCPU / 8 GiB sandbox VMs that a create claims instead of
+    # cold-booting. They are a RunnerPool on `fleetSelector` (default: the
+    # macOS runner fleet) and share its warm-pool budget with CI.
+    warm:
+      enabled: false
+      fleetSelector: ""
+      minWarmPoolFloor: 1
+      maxReplicas: 1
   namespace: tuist-sandboxes
   # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed
   # server deploys publish and select both; environment values pin only the

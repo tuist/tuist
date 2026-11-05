@@ -89,4 +89,41 @@ spec:
           # No VM and no guest resources. Execution reservations charge the
           # configured CPU/RAM separately, including while resident-paused.
           resources: {}
+{{- with .Values.sandboxes.macos.warm }}
+{{- if .enabled }}
+{{- $poolName := include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos-sandbox-warm") }}
+---
+# Pre-booted sandbox VMs share the CI warm-pool budget: the runners-controller
+# funds this pool's floor like any CI pool's, and its idle VMs give way to CI
+# the same way. tart-kubelet's sandbox service, not the CI launch path, boots
+# them, and a sandbox create on the host claims one of the same shape. No job
+# routes here: the server ignores pools carrying the warm label.
+apiVersion: tuist.dev/v1alpha1
+kind: RunnerPool
+metadata:
+  name: {{ $poolName | quote }}
+  namespace: {{ $.Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+    tuist.dev/runner-pool: {{ $poolName | quote }}
+    tuist.dev/managed-by: helm
+    tuist.dev/macos-sandbox-warm: "true"
+spec:
+  labels: []
+  replicas: 0
+  image: {{ $image | quote }}
+  os: darwin
+  fleetSelector: {{ .fleetSelector | default (include "tuist.runnersFleetName" $) | quote }}
+  dispatchLabel: "tuist-internal-macos-sandbox-warm"
+  runnerLabels: []
+  # The shape a default sandbox create asks for; other shapes cold-boot.
+  podCPUMilli: 8000
+  podMemoryMB: 8192
+  autoscaling:
+    enabled: true
+    minWarmPoolFloor: {{ .minWarmPoolFloor | default 1 }}
+    maxReplicas: {{ .maxReplicas | default 1 }}
+{{- end }}
+{{- end }}
 {{- end }}

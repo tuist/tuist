@@ -6,6 +6,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"testing"
 	"time"
@@ -95,5 +98,29 @@ func TestNativeGrantExcludesBusyCIButLeavesNativeAccountingToServer(t *testing.T
 	room = nativeSandboxRoom(node, []corev1.Pod{*ci, *secondCI}, nil, time.Now())
 	if room.cpu != 0 || room.slots != 0 {
 		t.Fatalf("fully occupied host granted native capacity: %+v", room)
+	}
+}
+
+func TestNativeGrantCountsAFreshWarmSandboxVMAsRoomButNotAFreshCIRunner(t *testing.T) {
+	node := linuxNodeWithResources("mac-1", "mac-fleet", 16, 48*1024)
+	pool := func(name string, warm bool) *tuistv1.RunnerPool {
+		p := &tuistv1.RunnerPool{ObjectMeta: metav1.ObjectMeta{Name: name, Labels: map[string]string{}}, Spec: tuistv1.RunnerPoolSpec{OS: "darwin", Image: "img"}}
+		if warm {
+			p.Labels[podtemplate.MacosSandboxWarmLabel] = "true"
+		}
+		return p
+	}
+	vm := func(name, poolName string) *corev1.Pod {
+		pod := newRunnerPod(name, "img", corev1.PodRunning, poolName)
+		pod.Spec.NodeName = node.Name
+		pod.Spec.Containers[0].Resources.Requests = corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("8"), corev1.ResourceMemory: *resource.NewQuantity(8*gib, resource.BinarySI)}
+		pod.Status.ContainerStatuses = []corev1.ContainerStatus{{Name: "runner", State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{StartedAt: metav1.NewTime(time.Now().Add(-10 * time.Second))}}}}
+		return pod
+	}
+	fleet := &fleetAllocation{members: map[string]fleetMember{"ci": {pool: pool("ci", false)}, "warm": {pool: pool("warm", true)}}}
+
+	room := nativeSandboxRoom(node, []corev1.Pod{*vm("ci-1", "ci"), *vm("warm-1", "warm")}, fleet, time.Now())
+	if room.cpu != 8000 || room.slots != 1 {
+		t.Fatalf("want the fresh CI runner charged and the fresh warm VM reclaimable: %+v", room)
 	}
 }

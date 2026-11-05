@@ -9,6 +9,7 @@ import (
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -219,7 +220,9 @@ func nativeSandboxRoom(node *corev1.Node, pods []corev1.Pod, fleet *fleetAllocat
 			member, ok := fleet.members[pod.Labels["tuist.dev/runner-pool"]]
 			if ok && member.pool != nil && isIdle(pod) && !isStaleRunner(pod, member.pool) && isWarmCapacity(pod, member.pool) {
 				since, warm := warmSince(pod)
-				reclaimable = warm && now.Sub(since) >= preemptionGrace
+				// A warm sandbox VM exists to be claimed or given up, so it
+				// never hides the room it holds behind the CI grace period.
+				reclaimable = warm && (podtemplate.IsMacosSandboxWarm(member.pool) || now.Sub(since) >= preemptionGrace)
 			}
 		}
 		if !reclaimable {
