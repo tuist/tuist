@@ -2670,6 +2670,20 @@ macosFleet:
 # separate substrate on the same nodes. See infra/sandboxd/AGENTS.md.
 sandboxes:
   enabled: false
+  macos:
+    enabled: false
+    templateName: macos
+    xcodeVersion: "26.6"
+    # Empty follows the same released, digest-pinned image as the CI pool.
+    image: ""
+    # Pre-booted 8 vCPU / 8 GiB sandbox VMs that a create claims instead of
+    # cold-booting. They are a RunnerPool on `fleetSelector` (default: the
+    # macOS runner fleet) and share its warm-pool budget with CI. The pool
+    # keeps no always-on floor yet: the template renders `minWarmPoolFloor: 0`.
+    warm:
+      enabled: false
+      fleetSelector: ""
+      maxReplicas: 1
   namespace: tuist-sandboxes
   # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed
   # server deploys publish and select both; environment values pin only the

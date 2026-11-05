@@ -36,6 +36,28 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   @cache_scopes ["account:cache:read", "project:cache:read"]
   @cache_token_ttl_hours 6
 
+  # The orb types a managed provider offers. An account administrator adds
+  # these names under Orb types in Amp's provider settings; Amp passes the
+  # thread's type to every spawn as `ORB_TYPE`, and a thread keeps it for
+  # life. Threads created before the provider had types arrive without one
+  # and get Linux.
+  @orb_types %{
+    "linux" => %{platform: :linux, template: "default", vcpus: 2, memory_mb: 4096, workspace_gb: 10},
+    "macos" => %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192, workspace_gb: 10}
+  }
+
+  def orb_types, do: @orb_types |> Map.keys() |> Enum.sort()
+
+  @doc "The platform and shape of an Orb type; `nil` is a thread without one."
+  def orb_type(nil), do: orb_type("linux")
+
+  def orb_type(name) do
+    case Map.fetch(@orb_types, name) do
+      {:ok, shape} -> {:ok, shape}
+      :error -> {:error, :unknown_orb_type}
+    end
+  end
+
   def dispatch(account, orb_id, params) do
     Sandboxes.with_sandbox_lock(
       "amp:#{account.id}:#{orb_id}",
@@ -57,8 +79,13 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp conflicting_integration?(_sandbox, _params), do: false
 
   defp dispatch_operation(account, orb_id, sandbox, %{operation: "spawn"} = params) do
+    work_id = "amp:" <> orb_id
+
+    created? = match?(nil, sandbox) or match?(%Sandbox{state: :error, node_name: nil}, sandbox)
+
     with {:ok, sandbox} <- find_or_create(account, orb_id, sandbox, params),
-         {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, "amp:" <> orb_id) do
+         {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id, created: created?),
+         :ok <- hold(sandbox, work_id) do
       bootstrap(account, sandbox, params)
     end
   end
@@ -130,6 +157,22 @@ defmodule Tuist.Sandboxes.AmpOrbs do
     end
   end
 
+  # A macOS host cannot see Amp's detached bootstrap, so the turn also holds
+  # the VM on the host against idle eviction. A failed hold ends the turn.
+  defp hold(sandbox, work_id) do
+    case Sandboxes.hold_host_residency(sandbox, work_id) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        _ = Sandboxes.end_residency(sandbox)
+        {:error, reason}
+    end
+  end
+
+  # macOS hosts keep no disk snapshots, so a macOS thread always runs setup.
+  defp save_snapshot(%Sandbox{platform: :darwin} = sandbox, _params), do: {:ok, sandbox}
+
   defp save_snapshot(sandbox, params) do
     with amp_snapshot_id when is_binary(amp_snapshot_id) <- snapshot_id(params),
          {:error, reason} <- DiskSnapshots.save(sandbox, amp_snapshot_id) do
@@ -171,7 +214,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp find_or_create(account, orb_id, nil, params) do
     attrs =
       params
-      |> Map.take([:template, :vcpus, :memory_mb, :workspace_gb, :amp_integration_id])
+      |> Map.take([:platform, :template, :vcpus, :memory_mb, :workspace_gb, :amp_integration_id])
       |> Map.put(:amp_orb_id, orb_id)
 
     Sandboxes.create_sandbox(account, attrs, from_disk_snapshot: disk_snapshot(account, attrs, params))
@@ -181,6 +224,15 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   # that allocation; errors on a placed sandbox retain its disks for repair.
   defp find_or_create(account, orb_id, %Sandbox{state: :error, node_name: nil} = sandbox, params) do
     with {:ok, _deleted} <- Sandboxes.delete(sandbox), do: find_or_create(account, orb_id, nil, params)
+  end
+
+  # An Orb keeps the platform it was created on. A spawn asking for another
+  # one (a type renamed in Amp, or a provider pointed at another catalog)
+  # must not boot the wrong guest or migrate its disks.
+  defp find_or_create(_account, _orb_id, sandbox, %{platform: platform}) when not is_nil(platform) do
+    if to_string(sandbox.platform) == to_string(platform),
+      do: {:ok, sandbox},
+      else: {:error, :orb_type_mismatch}
   end
 
   defp find_or_create(_account, _orb_id, sandbox, _params), do: {:ok, sandbox}
@@ -209,18 +261,30 @@ defmodule Tuist.Sandboxes.AmpOrbs do
         cache_env(account, sandbox)
       )
 
-    # Credentials travel in the vsock exec environment, never in shell
-    # source, the database or returned output. Amp's bootstrap is detached;
-    # the residency protects it after this short command exits.
-    case Sandboxes.exec(sandbox, ["/usr/local/bin/sbx-orb-bootstrap"], env: env, timeout_ms: 15_000) do
+    # Credentials travel in the exec environment, never in shell source,
+    # argv, the database or returned output. Amp's bootstrap is detached; the
+    # residency protects it after this short command exits.
+    case Sandboxes.exec(sandbox, bootstrap_command(sandbox), env: env, timeout_ms: bootstrap_timeout(sandbox)) do
       {:ok, %{exit_code: 0}} ->
         {:ok, sandbox}
 
       _failure ->
+        _ = Sandboxes.release_host_residency(sandbox, "amp:" <> sandbox.amp_orb_id)
         _ = Sandboxes.end_residency(sandbox)
         {:error, :orb_bootstrap_failed}
     end
   end
+
+  # The macOS guest bridge, which the host copies onto each guest's disk, starts
+  # Amp in its own session so the exec's process-group fence spares it. The
+  # first Orb on a guest installs the Amp CLI, which can take a minute.
+  defp bootstrap_command(%Sandbox{platform: :darwin}),
+    do: ["/usr/local/libexec/tuist-sandbox/sbx-macos", "--orb-bootstrap"]
+
+  defp bootstrap_command(_sandbox), do: ["/usr/local/bin/sbx-orb-bootstrap"]
+
+  defp bootstrap_timeout(%Sandbox{platform: :darwin}), do: 120_000
+  defp bootstrap_timeout(_sandbox), do: 15_000
 
   # Agents run arbitrary code in the guest, so it gets a read-only cache
   # credential for its own account and nothing else the API would accept.
@@ -235,7 +299,9 @@ defmodule Tuist.Sandboxes.AmpOrbs do
 
     env = %{"TUIST_TOKEN" => token, "TUIST_URL" => Environment.app_url()}
 
-    case Kura.runner_cache_endpoint_url(account, :linux, Sites.node_site(sandbox.node_name)) do
+    platform = if sandbox.platform == :darwin, do: :macos, else: :linux
+
+    case Kura.runner_cache_endpoint_url(account, platform, Sites.node_site(sandbox.node_name)) do
       url when is_binary(url) and url != "" -> Map.put(env, "TUIST_CACHE_ENDPOINT", url)
       _ -> env
     end

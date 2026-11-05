@@ -1077,6 +1077,20 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:error, :no_matching_pool} = Dispatch.match_pool(["ubuntu-latest"])
     end
 
+    test "never routes a job to a warm macOS sandbox pool" do
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok,
+         [
+           %{
+             "metadata" => %{"name" => "macos-sandbox-warm", "labels" => %{"tuist.dev/macos-sandbox-warm" => "true"}},
+             "spec" => %{"dispatchLabel" => "tuist-macos-sandbox-warm"}
+           }
+         ]}
+      end)
+
+      assert {:error, :no_matching_pool} = Dispatch.match_pool(["tuist-macos-sandbox-warm"])
+    end
+
     test "returns :no_pools when no RunnerPool CRs exist" do
       stub(Client, :list_runner_pools, fn _ns -> {:ok, []} end)
 

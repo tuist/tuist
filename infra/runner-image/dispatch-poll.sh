@@ -32,6 +32,12 @@
 
 set -uo pipefail
 
+# Persistent sandboxes share the toolchain image, but never enter the CI
+# dispatcher or its shutdown trap. inject-env.sh runs before this script.
+if [ "${TUIST_SANDBOX:-}" = 1 ]; then
+  exit 0
+fi
+
 LOG=/var/log/tuist-runner/poll.log
 exec >>"${LOG}" 2>&1
 

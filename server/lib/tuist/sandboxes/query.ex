@@ -13,6 +13,7 @@ defmodule Tuist.Sandboxes.Query do
 
   @max_range_seconds 90 * 86_400
   @no_filters %{"search" => nil, "status" => nil, "vcpus" => nil}
+  @create_fields ~w(platform template vcpus memory_mb workspace_gb)
 
   def run(:list, %Account{} = account, params) do
     with {:ok, page, size} <- pagination(params),
@@ -28,6 +29,13 @@ defmodule Tuist.Sandboxes.Query do
          pagination_metadata: metadata(page, size, count)
        }}
     end
+  end
+
+  # The changeset validates each platform's shapes; omitted fields take the platform's defaults.
+  def run(:create, account, params) do
+    attrs = for {key, value} <- params, key in @create_fields, into: %{}, do: {String.to_existing_atom(key), value}
+
+    with {:ok, created} <- Sandboxes.create_sandbox(account, attrs), do: {:ok, sandbox(created)}
   end
 
   def run(:show, account, params) do
@@ -151,6 +159,8 @@ defmodule Tuist.Sandboxes.Query do
     |> Map.take([
       :id,
       :state,
+      :platform,
+      :resident,
       :template,
       :template_tag,
       :vcpus,

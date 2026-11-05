@@ -149,8 +149,8 @@ defmodule Tuist.Sandboxes.Archives do
   defp idle_paused_orbs do
     from(s in Sandbox,
       where:
-        s.state == :paused and not is_nil(s.amp_orb_id) and not is_nil(s.node_name) and is_nil(s.residency_work_id) and
-          not is_nil(s.paused_at)
+        s.state == :paused and s.platform == :linux and not is_nil(s.amp_orb_id) and not is_nil(s.node_name) and
+          is_nil(s.residency_work_id) and not is_nil(s.paused_at)
     )
   end
 
@@ -175,6 +175,7 @@ defmodule Tuist.Sandboxes.Archives do
   starts an upload under.
   """
   def archivable?(%Sandbox{
+        platform: :linux,
         state: :paused,
         node_name: node_name,
         paused_at: %DateTime{},
