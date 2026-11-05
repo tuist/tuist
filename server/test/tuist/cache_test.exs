@@ -105,6 +105,32 @@ defmodule Tuist.CacheTest do
       assert Enum.sort(grants["project"]["read"]) == Enum.sort(handles)
       assert Enum.sort(grants["project"]["write"]) == Enum.sort(handles)
     end
+
+    test "grants account cache writes to a user-issued token only on accounts its issuer may write to" do
+      # Given
+      viewer = AccountsFixtures.user_fixture(preload: [:account])
+      member = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(preload: [:account])
+      Accounts.add_user_to_organization(viewer, organization, role: :viewer)
+      Accounts.add_user_to_organization(member, organization, role: :user)
+
+      token_for = fn user ->
+        %AuthenticatedAccount{
+          account: user.account,
+          issued_by: user,
+          scopes: ["account:cache:read", "account:cache:write"],
+          all_projects: true
+        }
+      end
+
+      # When
+      viewer_grants = Cache.cache_grants(token_for.(viewer))
+      member_grants = Cache.cache_grants(token_for.(member))
+
+      # Then
+      assert viewer_grants["account"]["write"] == [viewer.account.name]
+      assert Enum.sort(member_grants["account"]["write"]) == Enum.sort([member.account.name, organization.account.name])
+    end
   end
 
   describe "free tier enforcement" do
