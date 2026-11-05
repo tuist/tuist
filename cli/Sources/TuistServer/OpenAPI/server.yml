@@ -443,6 +443,12 @@ components:
           type: integer
           x-struct:
           x-validate:
+        test_impact_run_id:
+          description: The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         xcode_version:
           description: The version of Xcode used during the run.
           type: string
@@ -3722,6 +3728,30 @@ components:
       type: object
       x-struct:
       x-validate:
+    SkippedTest:
+      description: A test not to run, named the same way for every build system; each client turns it into its own filters. An entry with only `module` skips the whole module, which happens only when none of its tests is selected. Entries are never collapsed into a suite.
+      properties:
+        module:
+          description: The test module (target, Gradle module, Mix app, or crate).
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          description: The name of the test. Absent when the whole module is skipped.
+          type: string
+          x-struct:
+          x-validate:
+        suite:
+          description: The suite (class) of the test. Absent when the whole module is skipped.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - module
+      title: SkippedTest
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestImpact.SkippedTest
+      x-validate:
     BazelBuildAction:
       properties:
         first_seen_at:
@@ -3974,6 +4004,12 @@ components:
           type: array
           x-struct:
           x-validate:
+        test_impact_run_id:
+          description: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         test_suites:
           description: Test suite names (for suite-level granularity).
           items:
@@ -4040,6 +4076,13 @@ components:
             type: string
             x-struct:
             x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        skipped_tests:
+          description: "For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans."
+          items:
+            $ref: '#/components/schemas/SkippedTest'
           type: array
           x-struct:
           x-validate:
@@ -7537,6 +7580,11 @@ components:
           type: boolean
           x-struct:
           x-validate:
+        platform:
+          description: The platform the tests ran on, from the destination the client resolved, such as `ios` or `macos`. Coverage-based test selection only picks a baseline whose runs tested the same platform. Absent where the build system has none.
+          type: string
+          x-struct:
+          x-validate:
         storage_key:
           description: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; sent instead of `files` when the coverage is too large to send inline.
           type: string
@@ -9658,6 +9706,29 @@ components:
       type: object
       x-struct:
       x-validate:
+    TestImpactBaseline:
+      description: The nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, or the reason there's none.
+      properties:
+        baseline_sha:
+          description: The baseline commit. Null when there's none, and `reason` says why.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        diff_cached:
+          description: Whether the diff between the checked-out commit and the baseline is already stored. When true and the checkout is clean, the client skips deepening and diffing and sends no `changed_files`.
+          type: boolean
+          x-struct:
+          x-validate:
+        reason:
+          description: "Why there's no baseline: `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. `history_unknown` means the server's history has none of the checked-out commit, the parents and the ancestors sent: the client deepens its checkout once by 100 commits and repeats the request with `ancestor_shas`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`."
+          type: string
+          x-struct:
+          x-validate:
+      title: TestImpactBaseline
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestImpact.Baseline
+      x-validate:
     CargoCrate:
       properties:
         first_seen_at:
@@ -9916,6 +9987,69 @@ components:
       minimum: 1
       title: BuildsIndexPage
       type: integer
+      x-struct:
+      x-validate:
+    ResolveTestImpactBaselineParams:
+      properties:
+        ancestor_shas:
+          description: "The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges."
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        build_system:
+          description: The build system, `xcode` first. A plain string so new build systems don't need a new client.
+          type: string
+          x-struct:
+          x-validate:
+        commit_sha:
+          description: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+          type: string
+          x-struct:
+          x-validate:
+        parent_shas:
+          description: "The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both."
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        platform:
+          description: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+          type: string
+          x-struct:
+          x-validate:
+        xcode:
+          description: 'Xcode only: the scope the invocation tests.'
+          properties:
+            destination:
+              description: The destination the tests run on.
+              type: string
+              x-struct:
+              x-validate:
+            scheme:
+              description: The scheme being tested.
+              type: string
+              x-struct:
+              x-validate:
+            test_plan:
+              description: The test plan being run.
+              type: string
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - build_system
+        - commit_sha
+      title: ResolveTestImpactBaselineParams
+      type: object
       x-struct:
       x-validate:
     OnceRunsIndexPage:
@@ -11782,6 +11916,65 @@ components:
       title: GradleTasksIndexPageSize
       type: integer
       x-struct:
+      x-validate:
+    TestImpactRun:
+      description: 'The impact run: whether coverage selected tests or the invocation fell back.'
+      properties:
+        counts:
+          description: Test counts for the client's output. Present when the outcome is `selected`.
+          properties:
+            requested:
+              description: The tests in scope, the ones in modules skipped because their hash matched included.
+              type: integer
+              x-struct:
+              x-validate:
+            selected:
+              description: The tests that will run.
+              type: integer
+              x-struct:
+              x-validate:
+            skipped:
+              description: 'The tests not to run: those coverage skipped plus those in modules skipped by hash.'
+              type: integer
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
+        id:
+          description: The impact run. Sent as `test_impact_run_id` when planning shards (on `selected`) and when uploading the test run (always).
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        matched_path:
+          description: The file that caused the fallback, such as the tracked file that changed.
+          type: string
+          x-struct:
+          x-validate:
+        outcome:
+          description: "`selected` or `fallback`. On `fallback` the client runs every test in scope or default selective testing, depending on `reason`. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`."
+          type: string
+          x-struct:
+          x-validate:
+        reason:
+          description: Why the run fell back, such as `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
+          type: string
+          x-struct:
+          x-validate:
+        skipped_tests:
+          description: "The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs."
+          items:
+            $ref: '#/components/schemas/SkippedTest'
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - outcome
+      title: TestImpactRun
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestImpact.Run
       x-validate:
     TestSuiteRunStatus:
       enum:
@@ -14454,6 +14647,160 @@ components:
       title: AppBuild
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.AppBuild
+      x-validate:
+    CreateTestImpactRunParams:
+      properties:
+        ancestor_shas:
+          description: The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        baseline_sha:
+          description: The baseline the baseline request returned. When absent, `fallback_reason` says why.
+          type: string
+          x-struct:
+          x-validate:
+        build_system:
+          description: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
+          type: string
+          x-struct:
+          x-validate:
+        changed_files:
+          description: "The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`."
+          items:
+            properties:
+              affected_modules:
+                description: "The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it."
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              blob:
+                description: The file's blob in the checkout. Required except for deleted files.
+                type: string
+                x-struct:
+                x-validate:
+              path:
+                description: The repository-relative path.
+                type: string
+                x-struct:
+                x-validate:
+              status:
+                description: The change, as `git diff --raw` reports it.
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - status
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        changed_files_count:
+          description: 'Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.'
+          type: integer
+          x-struct:
+          x-validate:
+        commit_sha:
+          description: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+          type: string
+          x-struct:
+          x-validate:
+        dirty:
+          default: false
+          description: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+          type: boolean
+          x-struct:
+          x-validate:
+        fallback_reason:
+          description: "The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
+          type: string
+          x-struct:
+          x-validate:
+        git_branch:
+          description: The git branch, shown on the overview.
+          type: string
+          x-struct:
+          x-validate:
+        head_sha:
+          description: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+          type: string
+          x-struct:
+          x-validate:
+        modules:
+          description: "Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules."
+          items:
+            properties:
+              name:
+                description: The test module.
+                type: string
+                x-struct:
+                x-validate:
+              skipped:
+                description: Whether the client skipped the module because its hash matched. Defaults to false.
+                type: boolean
+                x-struct:
+                x-validate:
+            required:
+              - name
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        parent_shas:
+          description: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        platform:
+          description: The platform the tests run on. Absent where the build system has none.
+          type: string
+          x-struct:
+          x-validate:
+        xcode:
+          description: 'Xcode only: the scope the invocation tests.'
+          properties:
+            destination:
+              description: The destination the tests run on.
+              type: string
+              x-struct:
+              x-validate:
+            scheme:
+              description: The scheme being tested.
+              type: string
+              x-struct:
+              x-validate:
+            test_plan:
+              description: The test plan being run.
+              type: string
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - build_system
+        - head_sha
+        - modules
+      title: CreateTestImpactRunParams
+      type: object
+      x-struct:
       x-validate:
     ValidationError:
       properties:
@@ -19637,6 +19984,12 @@ paths:
                 duration:
                   description: Duration of the run in milliseconds.
                   type: integer
+                  x-struct:
+                  x-validate:
+                test_impact_run_id:
+                  description: The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not.
+                  format: uuid
+                  type: string
                   x-struct:
                   x-validate:
                 xcode_version:
@@ -36631,6 +36984,151 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline:
+    post:
+      callbacks: {}
+      description: "Returns the nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing."
+      operationId: resolveTestImpactBaseline
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                ancestor_shas:
+                  description: "The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges."
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                build_system:
+                  description: The build system, `xcode` first. A plain string so new build systems don't need a new client.
+                  type: string
+                  x-struct:
+                  x-validate:
+                commit_sha:
+                  description: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+                  type: string
+                  x-struct:
+                  x-validate:
+                parent_shas:
+                  description: "The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both."
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                platform:
+                  description: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+                  type: string
+                  x-struct:
+                  x-validate:
+                xcode:
+                  description: 'Xcode only: the scope the invocation tests.'
+                  properties:
+                    destination:
+                      description: The destination the tests run on.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    scheme:
+                      description: The scheme being tested.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    test_plan:
+                      description: The test plan being run.
+                      type: string
+                      x-struct:
+                      x-validate:
+                  type: object
+                  x-struct:
+                  x-validate:
+              required:
+                - build_system
+                - commit_sha
+              title: ResolveTestImpactBaselineParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Baseline params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestImpactBaseline'
+          description: The baseline, or why there's none
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request parameters are invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Resolve the baseline for coverage-based test selection.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}:
     get:
       callbacks: {}
@@ -41268,6 +41766,12 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
+                test_impact_run_id:
+                  description: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 test_suites:
                   description: Test suite names (for suite-level granularity).
                   items:
@@ -43793,6 +44297,242 @@ paths:
       summary: List Once runs for a project, newest first.
       tags:
         - Once
+  /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs:
+    post:
+      callbacks: {}
+      description: Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. On `fallback` the client runs every test in scope or default selective testing, depending on the reason, and default selective testing on an error or when the request times out.
+      operationId: createTestImpactRun
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                ancestor_shas:
+                  description: The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                baseline_sha:
+                  description: The baseline the baseline request returned. When absent, `fallback_reason` says why.
+                  type: string
+                  x-struct:
+                  x-validate:
+                build_system:
+                  description: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
+                  type: string
+                  x-struct:
+                  x-validate:
+                changed_files:
+                  description: "The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`."
+                  items:
+                    properties:
+                      affected_modules:
+                        description: "The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it."
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      blob:
+                        description: The file's blob in the checkout. Required except for deleted files.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      path:
+                        description: The repository-relative path.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      status:
+                        description: The change, as `git diff --raw` reports it.
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - path
+                      - status
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                changed_files_count:
+                  description: 'Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.'
+                  type: integer
+                  x-struct:
+                  x-validate:
+                commit_sha:
+                  description: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+                  type: string
+                  x-struct:
+                  x-validate:
+                dirty:
+                  default: false
+                  description: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                fallback_reason:
+                  description: "The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_branch:
+                  description: The git branch, shown on the overview.
+                  type: string
+                  x-struct:
+                  x-validate:
+                head_sha:
+                  description: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+                  type: string
+                  x-struct:
+                  x-validate:
+                modules:
+                  description: "Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules."
+                  items:
+                    properties:
+                      name:
+                        description: The test module.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      skipped:
+                        description: Whether the client skipped the module because its hash matched. Defaults to false.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                    required:
+                      - name
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                parent_shas:
+                  description: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                platform:
+                  description: The platform the tests run on. Absent where the build system has none.
+                  type: string
+                  x-struct:
+                  x-validate:
+                xcode:
+                  description: 'Xcode only: the scope the invocation tests.'
+                  properties:
+                    destination:
+                      description: The destination the tests run on.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    scheme:
+                      description: The scheme being tested.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    test_plan:
+                      description: The test plan being run.
+                      type: string
+                      x-struct:
+                      x-validate:
+                  type: object
+                  x-struct:
+                  x-validate:
+              required:
+                - build_system
+                - head_sha
+                - modules
+              title: CreateTestImpactRunParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Impact run params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestImpactRun'
+          description: The impact run
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request parameters are invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "The project doesn't exist or test impact analysis isn't enabled for it"
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Create an impact run for coverage-based test selection.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete:
     post:
       callbacks: {}

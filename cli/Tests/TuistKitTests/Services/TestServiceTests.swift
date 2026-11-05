@@ -1231,6 +1231,43 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(testedSchemes, ["ProjectSchemeOne"])
     }
 
+    func test_run_tests_individual_scheme_records_the_test_platform() async throws {
+        for (platform, passthroughXcodeBuildArguments, expected) in [
+            (nil, ["-destination", "platform=iOS Simulator,id=device-id"], XcodeGraph.Platform.iOS),
+            ("macos", [], .macOS),
+        ] as [(String?, [String], XcodeGraph.Platform)] {
+            // Given
+            runMetadataStorage = RunMetadataStorage()
+            givenGenerator()
+            given(simulatorController)
+                .findAvailableDevice(udid: .any)
+                .willReturn(.test(device: .test(name: "Test iPhone")))
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([Scheme.test(name: "ProjectSchemeOne")])
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOne")])), MapperEnvironment())
+                }
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject()))
+
+            // When
+            try await testRun(
+                schemeName: "ProjectSchemeOne",
+                path: try temporaryPath(),
+                platform: platform,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            )
+
+            // Then
+            let testPlatform = await runMetadataStorage.testPlatform
+            XCTAssertEqual(testPlatform, expected)
+        }
+    }
+
     func test_run_tests_individual_scheme_with_no_test_actions() async throws {
         try await assertSkippedTestReport(emptyScheme: .noTargets)
     }
@@ -4958,9 +4995,10 @@ final class TestServiceTests: TuistUnitTestCase {
                     stressNewTests: .any,
                     gitHistory: .any,
                     coverage: .any,
-                    coverageEnabled: .any
+                    coverageEnabled: .any,
+                    testImpactRunId: .any
                 )
-                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _, _, _, _ in
+                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _, _, _, _, _ in
                     uploadedReports += 1
                     XCTAssertEqual(summary.testPlanName, "ProjectSchemeOne")
                     XCTAssertEqual(summary.status, .passed)
@@ -5876,7 +5914,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -5927,7 +5966,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -5972,7 +6012,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 stressNewTests: .any,
                 gitHistory: .any,
                 coverage: .any,
-                coverageEnabled: .any
+                coverageEnabled: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.RunsTest(
@@ -6281,7 +6322,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 buildRunId: .any,
                 requestedTestIdentifiers: .any,
                 skipUpload: .any,
-                archivePath: .any
+                archivePath: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.ShardPlan(
@@ -6319,7 +6361,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 buildRunId: .any,
                 requestedTestIdentifiers: .any,
                 skipUpload: .value(false),
-                archivePath: .value(shardArchivePath)
+                archivePath: .value(shardArchivePath),
+                testImpactRunId: .any
             )
             .called(1)
     }
@@ -8151,6 +8194,71 @@ struct TestServiceShardingTests {
                 cacheCategory: .value(.selectiveTests)
             )
             .called(storesHash ? 1 : 0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_stores_no_selective_testing_hash_for_a_target_coverage_ran_part_of() async throws {
+        // Coverage-based test selection skipped one of the target's tests through the skip file, so
+        // the target passed without all its tests running.
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(
+            rootDirectory: temporaryDirectory,
+            testSummary: TestSummary(
+                testPlanName: nil,
+                status: .passed,
+                duration: nil,
+                testModules: [
+                    TestModule(
+                        name: "AppTests",
+                        status: .passed,
+                        duration: 0,
+                        testSuites: [],
+                        testCases: [
+                            TestCase(
+                                name: "testAdd",
+                                testSuite: "CartTests",
+                                module: "AppTests",
+                                duration: nil,
+                                status: .passed,
+                                failures: []
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+        let extractedTestProductsPath = temporaryDirectory.appending(component: "Extracted.xctestproducts")
+        try await FileSystem().makeDirectory(at: extractedTestProductsPath)
+        given(fixture.shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppTests"],
+                    selectiveTestingGraph: SelectiveTestingGraph(testTargetHashes: ["AppTests": "app-hash"]),
+                    skippedTests: [SkippedTest(module: "AppTests", suite: "CartTests", name: "testRemove")]
+                )
+            )
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(path: temporaryDirectory, shardIndex: 0)
+        }
+
+        verify(fixture.cacheStorage)
+            .store(.any, cacheCategory: .value(.selectiveTests))
+            .called(0)
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())

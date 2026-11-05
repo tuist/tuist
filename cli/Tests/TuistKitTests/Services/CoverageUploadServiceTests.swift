@@ -60,8 +60,27 @@ struct CoverageUploadServiceTests {
         #expect(prepared.coverage.partial == true)
         #expect(prepared.coverage.files?.map(\.path) == ["Sources/File0.swift", "Sources/File1.swift", "Sources/File2.swift"])
         #expect(prepared.coverage.storageKey == nil)
+        #expect(prepared.coverage.platform == nil)
         #expect(prepared.testRunId == nil)
         verify(uploader).upload(file: .any, to: .any).called(0)
+    }
+
+    @Test(.withMockedDependencies()) func recordsThePlatformTheTestsRanOn() async throws {
+        stubParser(files: 1)
+        given(settingsService).inlineThresholdBytes(fullHandle: .any, serverURL: .any).willReturn(5_000_000)
+        let storage = RunMetadataStorage()
+        await storage.update(testPlatform: .iOS)
+
+        let prepared = try await RunMetadataStorage.$current.withValue(storage) {
+            try #require(await subject.prepare(
+                resultBundlePath: try AbsolutePath(validating: "/run.xcresult"),
+                manifest: manifest,
+                fullHandle: "tuist/tuist",
+                serverURL: serverURL
+            ))
+        }
+
+        #expect(prepared.coverage.platform == "ios")
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory) func tiesTheRunsExportInsteadOfReadingTheBundle() async throws {
