@@ -47,7 +47,8 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_runner_volume_jobs" in tool_names
       assert "list_runner_job_volumes" in tool_names
       assert "get_runner_volume_analytics" in tool_names
-      assert "clear_runner_volume" in tool_names
+      assert "delete_runner_volume" in tool_names
+      refute "clear_runner_volume" in tool_names
       assert "list_sandboxes" in tool_names
       assert "get_sandbox_analytics" in tool_names
       assert "delete_sandbox" in tool_names

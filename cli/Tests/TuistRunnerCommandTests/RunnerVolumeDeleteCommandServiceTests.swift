@@ -6,21 +6,21 @@ import TuistNooraTesting
 import TuistServer
 @testable import TuistRunnerCommand
 
-struct RunnerVolumeClearCommandServiceTests {
+struct RunnerVolumeDeleteCommandServiceTests {
     private enum TestError: Error { case forbidden }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
-    func doesNotReportSuccessWhenServerRejectsClearing() async throws {
-        let service = MockClearRunnerVolumeServicing()
-        given(service).clearRunnerVolume(
+    func doesNotReportSuccessWhenServerRejectsDeletion() async throws {
+        let service = MockDeleteRunnerVolumeServicing()
+        given(service).deleteRunnerVolume(
             accountHandle: .any,
             serverURL: .any,
             volumeID: .any
         ).willThrow(TestError.forbidden)
-        let subject = RunnerVolumeClearCommandService(
+        let subject = RunnerVolumeDeleteCommandService(
             configLoader: try await RunnerVolumeTestData.configLoader(),
             serverEnvironmentService: RunnerVolumeTestData.serverEnvironmentService(),
-            clearRunnerVolumeService: service
+            deleteRunnerVolumeService: service
         )
 
         await #expect(throws: TestError.forbidden) {
@@ -36,27 +36,27 @@ struct RunnerVolumeClearCommandServiceTests {
 
     @Test(.withMockedEnvironment(), .withMockedNoora, arguments: [false, true])
     func forwardsResolvedContextAndRendersResponse(json: Bool) async throws {
-        let service = MockClearRunnerVolumeServicing()
-        let response: RunnerVolumeClearResult = try RunnerVolumeTestData
-            .decode("{\"id\":\"\(RunnerVolumeTestData.id)\",\"cleared\":true}")
-        given(service).clearRunnerVolume(
+        let service = MockDeleteRunnerVolumeServicing()
+        let response: RunnerVolumeDeleteResult = try RunnerVolumeTestData
+            .decode("{\"id\":\"\(RunnerVolumeTestData.id)\",\"deleted\":true}")
+        given(service).deleteRunnerVolume(
             accountHandle: .value("resolved-account"),
             serverURL: .value(RunnerVolumeTestData.serverURL),
             volumeID: .value(RunnerVolumeTestData.id)
         ).willReturn(response)
-        let subject = RunnerVolumeClearCommandService(
+        let subject = RunnerVolumeDeleteCommandService(
             configLoader: try await RunnerVolumeTestData.configLoader(),
             serverEnvironmentService: RunnerVolumeTestData.serverEnvironmentService(),
-            clearRunnerVolumeService: service
+            deleteRunnerVolumeService: service
         )
 
         try await subject.run(volumeID: RunnerVolumeTestData.id, account: nil, path: "/project", json: json)
 
-        verify(service).clearRunnerVolume(
+        verify(service).deleteRunnerVolume(
             accountHandle: .value("resolved-account"),
             serverURL: .value(RunnerVolumeTestData.serverURL),
             volumeID: .value(RunnerVolumeTestData.id)
         ).called(1)
-        #expect(ui().contains(json ? "cleared" : "Saved contents cleared"))
+        #expect(ui().contains(json ? "deleted" : "Volume \(RunnerVolumeTestData.id) deleted."))
     }
 }
