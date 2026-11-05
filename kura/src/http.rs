@@ -341,6 +341,10 @@ fn internal_routes() -> Router<SharedState> {
             post(crate::handover::barrier_delta),
         )
         .route(
+            "/_internal/handover/describe",
+            post(crate::handover::describe),
+        )
+        .route(
             ROUTE_INTERNAL_BACKFILL_ENTRIES,
             get(internal_backfill_entries),
         )
