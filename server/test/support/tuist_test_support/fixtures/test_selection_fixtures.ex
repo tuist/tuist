@@ -73,9 +73,10 @@ defmodule TuistTestSupport.Fixtures.TestSelectionFixtures do
         matched_path: Keyword.get(attrs, :matched_path, ""),
         rules_version: Keyword.get(attrs, :rules_version, "1"),
         rule_trace: Enum.map(rule_trace, &{&1.rule, &1.selected, &1.skipped, &1.verdict}),
-        requested_count: if(outcome == "fallback", do: 0, else: length(selected) + skipped_count),
-        selected_count: if(outcome == "fallback", do: 0, else: length(selected)),
-        skipped_count: if(outcome == "fallback", do: 0, else: skipped_count),
+        requested_count:
+          Keyword.get(attrs, :requested_count, if(outcome == "fallback", do: 0, else: length(selected) + skipped_count)),
+        selected_count: Keyword.get(attrs, :selected_count, if(outcome == "fallback", do: 0, else: length(selected))),
+        skipped_count: if(outcome == "fallback", do: Keyword.get(attrs, :skipped_count, 0), else: skipped_count),
         skipped_modules: skipped_modules
       })
 

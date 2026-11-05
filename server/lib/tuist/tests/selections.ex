@@ -53,6 +53,14 @@ defmodule Tuist.Tests.Selections do
   def run_all?(_run), do: false
 
   @doc """
+  Whether an impact run's row reads by module rather than by test: a
+  fallback to default selective testing that ended before the baseline, so
+  it stored no test counts. One that found a baseline counts the tests in
+  the modules hashing skipped and reads like any selection.
+  """
+  def counted_by_module?(%Run{} = run), do: fallback?(run) and not run_all?(run) and run.requested_count == 0
+
+  @doc """
   The test modules an impact run ran out of those requested: the ones hashing
   left, out of those plus the ones it skipped. What a fallback to default
   selective testing is measured by, since it decides no test.

@@ -101,6 +101,26 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "#test-selection-runs-table", "feature/search")
     end
 
+    test "shows a fallback that found a baseline like any selection", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      selection(project,
+        outcome: "fallback",
+        reason: "tracked_file_changed",
+        requested_count: 4,
+        selected_count: 2,
+        skipped_count: 2
+      )
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection")
+
+      assert has_element?(lv, "#test-selection-runs-table", "2 / 4")
+      assert has_element?(lv, "#test-selection-runs-table", "50.0%")
+      refute has_element?(lv, "#test-selection-runs-table", "Tracked file changed")
+    end
+
     test "shows a run that fell back to running every test as Run all", %{
       conn: conn,
       organization: organization,

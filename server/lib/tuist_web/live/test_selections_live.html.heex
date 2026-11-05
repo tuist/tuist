@@ -280,7 +280,7 @@
           <:col :let={run} label={dgettext("dashboard_tests", "Selected")}>
             <.text_cell :if={Selections.run_all?(run)} label={dgettext("dashboard_tests", "All")} />
             <.text_cell
-              :if={Selections.fallback?(run) and !Selections.run_all?(run)}
+              :if={Selections.counted_by_module?(run)}
               label={
                 dgettext("dashboard_tests", "%{ran} / %{total} modules",
                   ran: format_number(Selections.module_counts(run).ran),
@@ -289,7 +289,7 @@
               }
             />
             <.text_cell
-              :if={!Selections.fallback?(run)}
+              :if={!Selections.run_all?(run) and !Selections.counted_by_module?(run)}
               label={"#{format_number(run.selected_count)} / #{format_number(run.requested_count)}"}
             />
           </:col>
@@ -300,11 +300,14 @@
               description={fallback_label(run.reason)}
             />
             <.text_and_description_cell
-              :if={Selections.fallback?(run) and !Selections.run_all?(run)}
+              :if={Selections.counted_by_module?(run)}
               label={"#{Selections.module_skip_rate(run)}%"}
               description={fallback_label(run.reason)}
             />
-            <.text_cell :if={!Selections.fallback?(run)} label={"#{Selections.skip_rate(run)}%"} />
+            <.text_cell
+              :if={!Selections.run_all?(run) and !Selections.counted_by_module?(run)}
+              label={"#{Selections.skip_rate(run)}%"}
+            />
           </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Selected at")}>
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(run.inserted_at)} />
