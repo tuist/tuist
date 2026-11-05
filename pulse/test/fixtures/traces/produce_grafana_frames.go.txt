@@ -1,0 +1,154 @@
+package tempo
+
+import (
+	"bytes"
+	"encoding/json"
+	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	"github.com/grafana/tempo/pkg/tempopb"
+	tracev1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"os"
+	"sort"
+	"strings"
+	"testing"
+)
+
+var repo = os.Getenv("PULSE_FIXTURE_ROOT")
+
+func read(t *testing.T, p string) []byte {
+	t.Helper()
+	b, e := os.ReadFile(p)
+	if e != nil {
+		t.Fatal(e)
+	}
+	return b
+}
+func TestPulseFrames(t *testing.T) {
+	var response tempopb.TraceByIDResponse
+	if e := proto.Unmarshal(read(t, repo+"/test/fixtures/traces/tempo-v2-trace.protobuf"), &response); e != nil {
+		t.Fatal(e)
+	}
+	// Actual Tempo v2.9.0 Parquet conversion independently proves stored output
+	// materializes default status. Preserve the official fixture's other ordering.
+	for _, rs := range response.Trace.ResourceSpans {
+		for _, ss := range rs.ScopeSpans {
+			for _, s := range ss.Spans {
+				if s.Status == nil {
+					s.Status = &tracev1.Status{}
+				}
+			}
+		}
+	}
+	for _, v := range []struct {
+		Name    string
+		Message proto.Message
+	}{{"tempo-v2-stored-trace", &response}, {"tempo-v1-stored-trace", response.Trace}} {
+		wire, e := proto.Marshal(v.Message)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if e = os.WriteFile("/tmp/pulse-grafana-client/"+v.Name+".protobuf", wire, 0644); e != nil {
+			t.Fatal(e)
+		}
+		var buf bytes.Buffer
+		m := jsonpb.Marshaler{}
+		if e = m.Marshal(&buf, v.Message); e != nil {
+			t.Fatal(e)
+		}
+		raw := buf.Bytes()
+		if strings.Contains(v.Name, "v1") {
+			raw = bytes.Replace(raw, []byte(`"resourceSpans":`), []byte(`"batches":`), 1)
+		}
+		if e = os.WriteFile("/tmp/pulse-grafana-client/"+v.Name+".json", raw, 0644); e != nil {
+			t.Fatal(e)
+		}
+	}
+	frame, e := TraceToFrame(response.Trace.ResourceSpans)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if frame.Rows() != 1 {
+		t.Fatalf("lookup rows %d", frame.Rows())
+	}
+	actual, e := json.Marshal(frame)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile("/tmp/pulse-grafana-client/lookup-frame.json", actual, 0644); e != nil {
+		t.Fatal(e)
+	}
+	// Official expected wire and current native Pulse export must yield identical actual client frames.
+	var exported tempopb.TraceByIDResponse
+	if e := proto.Unmarshal(read(t, "/tmp/pulse-grafana-client/lookup.protobuf"), &exported); e != nil {
+		t.Fatal(e)
+	}
+	got, e := TraceToFrame(exported.Trace.ResourceSpans)
+	if e != nil {
+		t.Fatal(e)
+	}
+	gotJSON, e := json.Marshal(got)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if string(gotJSON) != string(actual) {
+		t.Fatalf("lookup frame differs: %s vs %s", gotJSON, actual)
+	}
+	var cases []struct {
+		Name     string          `json:"name"`
+		Response json.RawMessage `json:"response"`
+	}
+	if e = json.Unmarshal(read(t, repo+"/test/fixtures/traces/tempo-search-oracle.json"), &cases); e != nil {
+		t.Fatal(e)
+	}
+	ctx := backend.PluginContext{DataSourceInstanceSettings: &backend.DataSourceInstanceSettings{UID: "fixture-tempo", Name: "Fixture Tempo"}}
+	outputs := make(map[string]json.RawMessage)
+	for _, c := range cases {
+		t.Run(c.Name, func(t *testing.T) {
+			var expected, actual tempopb.SearchResponse
+			if e := jsonpb.Unmarshal(strings.NewReader(string(c.Response)), &expected); e != nil {
+				t.Fatal(e)
+			}
+			if e := proto.Unmarshal(read(t, "/tmp/pulse-grafana-client/"+c.Name+".protobuf"), &actual); e != nil {
+				t.Fatal(e)
+			}
+			// Only equal-start upstream ties are unspecified. Match Pulse's documented ID tie order.
+			for _, r := range []*tempopb.SearchResponse{&expected, &actual} {
+				sort.Slice(r.Traces, func(i, j int) bool {
+					a, b := r.Traces[i], r.Traces[j]
+					if a.StartTimeUnixNano == b.StartTimeUnixNano {
+						return a.TraceID < b.TraceID
+					}
+					return a.StartTimeUnixNano > b.StartTimeUnixNano
+				})
+			}
+			want, e := transformTraceSearchResponse(ctx, &expected)
+			if e != nil {
+				t.Fatal(e)
+			}
+			got, e := transformTraceSearchResponse(ctx, &actual)
+			if e != nil {
+				t.Fatal(e)
+			}
+			wantJSON, e := json.Marshal(want)
+			if e != nil {
+				t.Fatal(e)
+			}
+			gotJSON, e := json.Marshal(got)
+			if e != nil {
+				t.Fatal(e)
+			}
+			if string(wantJSON) != string(gotJSON) {
+				t.Fatalf("actual client frame mismatch: %s vs %s", gotJSON, wantJSON)
+			}
+			outputs[c.Name] = wantJSON
+		})
+	}
+	out, e := json.MarshalIndent(outputs, "", "  ")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile("/tmp/pulse-grafana-client/search-frames.json", out, 0644); e != nil {
+		t.Fatal(e)
+	}
+}

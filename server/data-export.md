@@ -46,6 +46,39 @@ Authenticated-subject snapshots are also stored in the separate ephemeral node-l
 
 ## Exportable Data
 
+### Pulse observability storage
+
+Pulse is an independently deployed observability backend, not a new server
+database. The initial managed configuration names the dedicated Tigris bucket
+`pulse-production`; provisioning and collector cutover are prerequisites, not
+effects of importing the source. No Tuist account-to-Pulse-tenant mapping or
+customer provisioning is introduced by this import. Before exporting, establish
+the verified tenant and select records belonging to the requesting subject;
+an operational tenant can contain telemetry from multiple accounts.
+
+Acknowledged logs, metric samples, traces and optional error events live below
+`tenants/<tenant>/` as Parquet segments and object-store manifests, including
+manifest pages, backups and retained alert definitions/history. Optional tenant
+registry state is at `system/tenants/v1/<tenant>.json`; optional usage records
+are below `usage/v1/` and must be filtered by the same verified tenant. These
+features remain disabled unless explicitly configured. Raw telemetry can contain
+identifiers, message bodies, attributes and stack traces supplied by producers.
+The managed overlay uses observe-only retention: no time-based deletion is
+enabled. Explicit retention enforcement or tenant purge changes availability;
+do not promise recovery of expired or deleted objects.
+
+An authorized storage operator can list and retrieve the selected tenant's
+retained objects, including the manifests/pages needed to interpret them. Decode
+Parquet using the matching Pulse release and filter shared-tenant contents before
+disclosure. Include related tenant/usage metadata only after redacting token
+digests and unrelated subjects. Do not export `auth/issuer/`, application Secrets,
+signing material or storage credentials. There is no automated complete legal
+export endpoint; the retained telemetry query paths are tested against local S3
+fixtures, but the managed bucket export has not been exercised before bootstrap.
+The complete namespace rename changes rollup metadata and credential types;
+historical source-system data requires the explicit offline migration described
+in [Pulse's migration guide](../pulse/docs/deployment.md#monorepo-migration).
+
 ### Managed outbound email delivery
 
 Managed Tuist Server (staging, canary and production), Atlas and Slack invitation

@@ -1,0 +1,152 @@
+[
+  {
+    "key": "",
+    "response": {
+      "scopes": [
+        {
+          "name": "intrinsic",
+          "tags": [
+            "duration",
+            "event:name",
+            "event:timeSinceStart",
+            "instrumentation:name",
+            "instrumentation:version",
+            "kind",
+            "name",
+            "rootName",
+            "rootServiceName",
+            "span:duration",
+            "span:kind",
+            "span:name",
+            "span:status",
+            "span:statusMessage",
+            "status",
+            "statusMessage",
+            "trace:duration",
+            "trace:rootName",
+            "trace:rootService",
+            "traceDuration"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "key": "status",
+    "response": {
+      "tagValues": [
+        {
+          "type": "keyword",
+          "value": "error"
+        },
+        {
+          "type": "keyword",
+          "value": "ok"
+        },
+        {
+          "type": "keyword",
+          "value": "unset"
+        }
+      ]
+    }
+  },
+  {
+    "key": "span:status",
+    "response": {
+      "tagValues": [
+        {
+          "type": "keyword",
+          "value": "error"
+        },
+        {
+          "type": "keyword",
+          "value": "ok"
+        },
+        {
+          "type": "keyword",
+          "value": "unset"
+        }
+      ]
+    }
+  },
+  {
+    "key": "kind",
+    "response": {
+      "tagValues": [
+        {
+          "type": "keyword",
+          "value": "client"
+        },
+        {
+          "type": "keyword",
+          "value": "consumer"
+        },
+        {
+          "type": "keyword",
+          "value": "internal"
+        },
+        {
+          "type": "keyword",
+          "value": "producer"
+        },
+        {
+          "type": "keyword",
+          "value": "server"
+        },
+        {
+          "type": "keyword",
+          "value": "unspecified"
+        }
+      ]
+    }
+  },
+  {
+    "key": "span:kind",
+    "response": {
+      "tagValues": [
+        {
+          "type": "keyword",
+          "value": "client"
+        },
+        {
+          "type": "keyword",
+          "value": "consumer"
+        },
+        {
+          "type": "keyword",
+          "value": "internal"
+        },
+        {
+          "type": "keyword",
+          "value": "producer"
+        },
+        {
+          "type": "keyword",
+          "value": "server"
+        },
+        {
+          "type": "keyword",
+          "value": "unspecified"
+        }
+      ]
+    }
+  },
+  {
+    "key": "duration",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "key": "span:duration",
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "key": "traceDuration",
+    "response": {
+      "tagValues": []
+    }
+  }
+]

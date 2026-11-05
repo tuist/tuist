@@ -1,0 +1,66 @@
+# Local development stack for Pulse.
+#
+# `docker compose up -d` gives you a RustFS (S3-compatible) server with a
+# preseeded bucket named `pulse`. The published ports are derived from
+# PULSE_RUSTFS_API_PORT / PULSE_RUSTFS_CONSOLE_PORT, which
+# mise/utilities/dev_instance_env.sh scopes per git worktree so parallel
+# worktrees do not collide. Defaults (9195 / 9198) apply when the vars are
+# not set. Credentials for the console: rustfsadmin / rustfsadmin.
+#
+# RustFS is used instead of MinIO because MinIO's community edition is no
+# longer actively maintained. Pulse only talks to the S3 API, so any
+# S3-compatible backend works; RustFS is a drop-in that stays maintained.
+
+services:
+  rustfs:
+    image: rustfs/rustfs:latest
+    environment:
+      # RUSTFS_VOLUMES is required — without it RustFS exits at startup. We
+      # run single-volume in dev and CI; the 4-volume erasure layout that
+      # RustFS ships in its own compose expects four distinct physical disks
+      # and refuses to start when they resolve to the same st_dev (any
+      # laptop or CI runner).
+      RUSTFS_VOLUMES: /data/rustfs0
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: rustfsadmin
+    # Bind to loopback only so the well-known dev credentials cannot be reached
+    # from another host on the LAN. Host ports come from the per-worktree env
+    # to keep multiple checkouts from fighting over 9000/9001.
+    ports:
+      - "127.0.0.1:${PULSE_RUSTFS_API_PORT:-11100}:9000"
+      - "127.0.0.1:${PULSE_RUSTFS_CONSOLE_PORT:-12100}:9001"
+    volumes:
+      - rustfs-data:/data
+
+  rustfs-init:
+    image: amazon/aws-cli:2
+    depends_on:
+      - rustfs
+    environment:
+      AWS_ACCESS_KEY_ID: rustfsadmin
+      AWS_SECRET_ACCESS_KEY: rustfsadmin
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        for i in $$(seq 1 60); do
+          if aws --endpoint-url http://rustfs:9000 s3 mb s3://pulse 2>/dev/null; then
+            echo "pulse bucket created"
+            exit 0
+          fi
+          if aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket pulse 2>/dev/null; then
+            echo "pulse bucket already exists"
+            exit 0
+          fi
+          echo "waiting for rustfs..."
+          sleep 2
+        done
+        echo "gave up waiting for rustfs" >&2
+        exit 1
+
+volumes:
+  rustfs-data:

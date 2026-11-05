@@ -524,6 +524,19 @@ curl -v https://<env>.tuist.dev/ready
 gh workflow run server-deployment.yml -f environment=<env>
 ```
 
+### Pulse instance
+
+Pulse deploys independently into the production `pulse` namespace, not as part
+of the server chart. Before its first release/deployment, provision the dedicated
+bucket and production-vault fields described in the
+[Pulse bootstrap prerequisites](../helm/pulse/README.md#bootstrap-prerequisites).
+The release pipeline publishes matching image/chart artifacts before deployment;
+manual rollbacks select a published version through `pulse-deployment.yml` on
+main. Keep the first instance private and single-replica. Existing telemetry
+collectors are unchanged; customer reconciliation and collector cutover are
+separate rollouts. Production mutations still require the approval described
+in the infrastructure access policy.
+
 ## 7. Observability
 
 The [`infra/helm/k8s-monitoring/`](../helm/k8s-monitoring/) chart forwards Kubernetes telemetry to Grafana Cloud. The bootstrap task in §4 installs it; the `observability-install` job in `server-deployment.yml` keeps it in sync on every deploy. After it lights up, look for the cluster name in **Observability → Kubernetes** in Grafana Cloud. Verification steps live in [`infra/helm/k8s-monitoring/README.md`](../helm/k8s-monitoring/README.md).

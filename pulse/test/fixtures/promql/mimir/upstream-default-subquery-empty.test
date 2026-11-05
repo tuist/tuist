@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+eval instant at 1m absent_over_time(rate(nonexistent[5m])[5m:])
+    {} 1
+
+eval instant at 1m present_over_time(rate(nonexistent[5m])[5m:])
+

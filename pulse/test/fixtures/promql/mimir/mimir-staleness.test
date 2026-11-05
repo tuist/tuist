@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/staleness.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Most cases for staleness are covered already in the upstream test cases.
+# These test cases cover scenarios not covered by the upstream test cases, such as range queries, or edge cases that are uniquely likely to cause issues in the streaming engine.
+
+load 10s
+  metric 0 1 stale 2
+
+# Test that we correctly handle stale markers.
+# In particular, we shouldn't return points inside the 5m lookback window if we'd have to cross past a stale marker to get there.
+eval range from 0s to 40s step 5s metric
+  metric 0 0 1 1 _ _ 2 2 2
+
+# If no non-stale points are available, we shouldn't return the series at all.
+eval range from 20s to 25s step 1s metric
+  # Should return no results.

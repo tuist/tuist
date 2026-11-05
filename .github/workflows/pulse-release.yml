@@ -1,0 +1,203 @@
+name: Pulse Release
+
+# Publish version-matched source, image and OCI chart before managed deployment.
+on:
+  push:
+    branches: [main]
+    paths:
+      - pulse/**
+      - infra/helm/pulse/**
+      - .github/workflows/pulse*.yml
+      - mise/tasks/release/components.json
+      - mise/tasks/release/check.sh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pulse-release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check Pulse release
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    outputs:
+      should-release: ${{ steps.check.outputs.pulse-should-release }}
+      tag: ${{ steps.check.outputs.pulse-next-version }}
+      version: ${{ steps.check.outputs.pulse-next-version-number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ github.token }}
+      - id: check
+        run: mise run --skip-tools release:check pulse
+
+  validate:
+    needs: check
+    if: needs.check.outputs.should-release == 'true'
+    uses: ./.github/workflows/pulse.yml
+
+  publish:
+    name: Publish Pulse image and chart
+    needs: [check, validate]
+    if: needs.check.outputs.should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 60
+    outputs:
+      source-sha: ${{ steps.source.outputs.sha }}
+    permissions:
+      contents: write
+      packages: write
+      actions: write
+    env:
+      TAG: ${{ needs.check.outputs.tag }}
+      VERSION: ${{ needs.check.outputs.version }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq helm"
+          cache: "false"
+          github_token: ${{ github.token }}
+      - name: Prepare versioned source and release notes
+        id: source
+        env:
+          GITHUB_TOKEN: ""
+          GH_TOKEN: ""
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$TAG" == "pulse@$VERSION" ]]
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          # Never replace a version that another run has already published.
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            echo "Release tag already exists: $TAG" >&2
+            exit 1
+          fi
+          latest=$(git tag -l | grep -E '^pulse@[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)
+          range=()
+          if [[ -n "$latest" ]]; then range=("$latest..HEAD"); fi
+          git cliff --config pulse/cliff.toml --include-path 'pulse/**/*' \
+            --include-path 'infra/helm/pulse/**/*' \
+            --include-path '.github/workflows/pulse*.yml' --tag "$TAG" \
+            -- "${range[@]}" > "$RUNNER_TEMP/pulse-release.md"
+          sed -i -E "s/^([[:space:]]*version:[[:space:]]*)\"[^\"]+\"/\1\"${VERSION}\"/" pulse/mix.exs
+          sed -i -E "s/^version:.*/version: ${VERSION}/; s/^appVersion:.*/appVersion: \"${VERSION}\"/" infra/helm/pulse/Chart.yaml
+          grep -Eq "^[[:space:]]*version: \"${VERSION//./\\.}\",?$" pulse/mix.exs
+          # Like the other monorepo packages, stamp the tagged tree only.
+          # Consumers derive their NIF download version from this mix.exs.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pulse/mix.exs infra/helm/pulse/Chart.yaml
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(pulse): stamp version $VERSION"
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # Validate and package before publishing anything.
+      - name: Package Helm chart
+        run: |
+          set -euo pipefail
+          helm lint --strict infra/helm/pulse \
+            --set storage.bucket=lint --set storage.region=lint --set existingSecret=lint
+          helm package infra/helm/pulse --version "$VERSION" --app-version "$VERSION" \
+            --destination "$RUNNER_TEMP/chart"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push image
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: pulse
+          file: pulse/Dockerfile
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            MIX_ENV=prod
+          tags: |
+            ghcr.io/tuist/pulse:${{ env.VERSION }}
+            ghcr.io/tuist/pulse:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/tuist/tuist
+            org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+      - name: Push Helm chart
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          echo "$GITHUB_TOKEN" | helm registry login ghcr.io --username "$GH_ACTOR" --password-stdin
+          helm push "$RUNNER_TEMP/chart/pulse-${VERSION}.tgz" oci://ghcr.io/tuist/charts
+      - name: Record immutable publication inputs
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          chart_sha256=$(sha256sum "$RUNNER_TEMP/chart/pulse-${VERSION}.tgz" | cut -d' ' -f1)
+          jq -n --arg tag "$TAG" --arg version "$VERSION" --arg source_sha "$SOURCE_SHA" \
+            --arg image_digest "$IMAGE_DIGEST" --arg chart_sha256 "$chart_sha256" \
+            '{tag: $tag, version: $version, source_sha: $source_sha,
+              image_digest: $image_digest, chart_sha256: $chart_sha256}' \
+            > "$RUNNER_TEMP/pulse-release.json"
+      - name: Tag the exact published source
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
+          git tag "$TAG" "$SOURCE_SHA"
+          git push origin "refs/tags/$TAG"
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: Pulse ${{ env.VERSION }}
+          body_path: ${{ runner.temp }}/pulse-release.md
+          files: |
+            ${{ runner.temp }}/chart/pulse-${{ env.VERSION }}.tgz
+            ${{ runner.temp }}/pulse-release.json
+          fail_on_unmatched_files: true
+      - name: Dispatch NIF release
+        # GITHUB_TOKEN tag pushes do not trigger workflows. Run trusted control
+        # code on main, with the immutable release tag as data, not as code.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run pulse-nif-release.yml --ref main -f "version=$TAG"
+
+  deploy:
+    name: Deploy Pulse production
+    needs: [check, publish]
+    if: needs.check.outputs.should-release == 'true'
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/pulse-deployment.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
+      source_sha: ${{ needs.publish.outputs.source-sha }}
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

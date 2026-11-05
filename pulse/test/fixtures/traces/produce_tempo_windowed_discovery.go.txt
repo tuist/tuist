@@ -1,0 +1,77 @@
+package vparquet4
+
+import (
+	"context"
+	"encoding/json"
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/tempopb"
+	tv "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"os"
+	"sort"
+	"testing"
+)
+
+func TestPulseWindowedDiscovery(t *testing.T) {
+	dir := "/tmp/pulse-windowed-discovery"
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	all := &tempopb.Trace{ResourceSpans: []*tv.ResourceSpans{batch(100, "early-service", "early", 1, 0, 10_000_000_000, 11_000_000_000), batch(101, "late-service", "late", 1, 0, 20_000_000_000, 21_000_000_000)}}
+	wire, err := proto.Marshal(all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(dir+"/input.protobuf", wire, 0644); err != nil {
+		t.Fatal(err)
+	}
+	rows := []*Trace{}
+	for _, r := range all.ResourceSpans {
+		tr := &tempopb.Trace{ResourceSpans: []*tv.ResourceSpans{r}}
+		row, _ := traceToParquet(&backend.BlockMeta{}, r.ScopeSpans[0].Spans[0].TraceId, tr, nil)
+		rows = append(rows, row)
+	}
+	block := makeBackendBlockWithTraces(t, rows)
+	tag, err := traceql.ParseIdentifier("name")
+	if err != nil {
+		t.Fatal(err)
+	}
+	values := []*tempopb.TagValue{}
+	collect := traceql.MakeCollectTagValueFunc(func(v tempopb.TagValue) bool { values = append(values, &v); return false })
+	if err = block.SearchTagValuesV2(context.Background(), tag, collect, func(uint64) {}, common.DefaultSearchOptions()); err != nil {
+		t.Fatal(err)
+	}
+	sort.Slice(values, func(i, j int) bool { return values[i].Value < values[j].Value })
+	if len(values) != 2 || values[0].Value != "early" || values[1].Value != "late" {
+		t.Fatal(values)
+	}
+	raw, err := os.ReadFile(os.Getenv("PULSE_FIXTURE_ROOT") + "/test/fixtures/traces/tempo-time-routing-oracle.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	type Case struct {
+		Start    int64                              `json:"start"`
+		End      int64                              `json:"end"`
+		Selected bool                               `json:"included"`
+		Response *tempopb.SearchTagValuesV2Response `json:"response"`
+	}
+	cases := []Case{}
+	if err = json.Unmarshal(raw, &cases); err != nil {
+		t.Fatal(err)
+	}
+	for i := range cases {
+		cases[i].Response = &tempopb.SearchTagValuesV2Response{}
+		if cases[i].Selected {
+			cases[i].Response.TagValues = values
+		}
+	}
+	raw, err = json.MarshalIndent(cases, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(dir+"/oracle.json", append(raw, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+}

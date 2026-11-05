@@ -1,0 +1,53 @@
+{{- if .Values.ingress.enabled }}
+{{- if not .Values.ingress.host }}
+{{- fail "ingress.host is required when ingress.enabled is true" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "pulse.fullname" . }}
+  labels:
+    {{- include "pulse.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          {{- $ingest := list "/v1/logs" "/v1/traces" "/v1/metrics" "/otlp/v1/logs" "/otlp/v1/traces" "/otlp/v1/metrics" "/api/prom/push" "/api/v1/push" "/api/v1/write" "/loki/api/v1/push" "/api/prom/push" }}
+          {{- if .Values.pools.enabled }}
+          # Receiver paths inside the query prefixes; Exact paths win over Prefix.
+          {{- range list "/loki/api/v1/push" "/api/v1/write" "/api/v1/push" }}
+          - path: {{ . }}
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "pulse.poolName" (list $ "ingest") }}
+                port:
+                  name: http
+          {{- end }}
+          {{- end }}
+          {{- range .Values.ingress.paths }}
+          {{- $pool := "" }}
+          {{- if $.Values.pools.enabled }}
+          {{- $pool = ternary "ingest" "query" (and (eq .pathType "Exact") (has (toString .path) $ingest)) }}
+          {{- end }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "pulse.poolName" (list $ $pool) }}
+                port:
+                  name: http
+          {{- end }}
+{{- end }}

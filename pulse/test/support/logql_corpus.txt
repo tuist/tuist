@@ -1,0 +1,71 @@
+{service="api"}
+{service="api", env="prod"}
+{service=~"api|db", env!="dev"}
+{env!~"stg|dev"}
+{service="api"} |= "timeout"
+{service="api"} != "healthcheck"
+{service="api"} |~ `5\d\d`
+{service="api"} !~ "^GET"
+{service="api"} |= "a" |= "b" != "c"
+{service="api"} |= `raw \n backtick`
+{service="api"} |= ip("10.0.0.0/8")
+{service="api"} | json
+{service="api"} | json foo, bar="path.to.field"
+{service="api"} | logfmt
+{service="api"} | logfmt --strict --keep-empty
+{service="api"} | logfmt method, code="status_code"
+{service="api"} | regexp `(?P<code>\d+)`
+{service="api"} | pattern "<method> <path>"
+{service="api"} | unpack
+{service="api"} | line_format "{{.level}} {{.msg}}"
+{service="api"} | label_format renamed=source, computed="{{.a}}-{{.b}}"
+{service="api"} | drop foo, bar="baz", regex=~"5.."
+{service="api"} | keep foo, bar
+{service="api"} | decolorize
+{service="api"} | code = "200"
+{service="api"} | code >= 500
+{service="api"} | duration > 1s
+{service="api"} | duration > 1s30ms
+{service="api"} | size < 5MB
+{service="api"} | code >= 500 and env="prod"
+{service="api"} | code >= 500 or code < 200
+{service="api"} | (code >= 500 or code < 200) and env="prod"
+{service="api"} | json | duration > 1s | line_format "{{.msg}}"
+{service="api"} |= "err" | logfmt method, path | code >= 500
+rate({service="api"}[5m])
+rate({service="api"} |= "err" [5m])
+count_over_time({service="api"}[1h])
+bytes_over_time({service="api"}[10m])
+bytes_rate({service="api"}[10m])
+sum_over_time({service="api"} | json | unwrap latency [5m])
+avg_over_time({service="api"} | json | unwrap duration(latency) [5m])
+max_over_time({service="api"} | json | unwrap bytes(size) [5m])
+min_over_time({service="api"} | json | unwrap latency [5m])
+quantile_over_time(0.99, {service="api"} | json | unwrap latency [5m])
+rate({service="api"}[5m] offset 1h)
+rate({service="api"}[5m] offset 30m @ 1700000000)
+absent_over_time({service="api"}[10m])
+first_over_time({service="api"} | json | unwrap x [5m])
+last_over_time({service="api"} | json | unwrap x [5m])
+sum(rate({service="api"}[5m]))
+sum by (env) (rate({service="api"}[5m]))
+sum(rate({service="api"}[5m])) by (env)
+sum without (pod) (rate({service="api"}[5m]))
+topk(5, sum by (svc) (rate({env="prod"}[5m])))
+bottomk(3, rate({service="api"}[5m]))
+count by (svc) (rate({service="api"}[5m]))
+stddev(rate({service="api"}[5m]))
+sort_desc(rate({service="api"}[5m]))
+rate({service="api"}[5m]) > 100
+rate({service="api"}[5m]) / rate({service="db"}[5m])
+sum(rate({service="api"}[5m])) > bool 100
+rate({service="api"}[5m]) + rate({service="db"}[5m]) * 2
+rate({service="api"}[5m]) / on(env) sum(rate({service="db"}[5m]))
+rate({service="api"}[5m]) * on(env) group_left(pod) rate({service="db"}[5m])
+rate({service="api"}[5m]) and rate({service="db"}[5m])
+rate({service="api"}[5m]) or rate({service="db"}[5m])
+rate({service="api"}[5m]) unless rate({service="db"}[5m])
+2 ^ 3 ^ 4
+0 - rate({service="api"}[5m])
+1.5
+100
