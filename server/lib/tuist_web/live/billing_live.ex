@@ -107,8 +107,8 @@ defmodule TuistWeb.BillingLive do
   end
 
   @impl true
-  def handle_event("change_plan", %{"plan" => plan}, socket) do
-    plan = String.to_atom(plan)
+  def handle_event("change_plan", %{"plan" => plan}, socket) when plan in ["air", "pro"] do
+    plan = String.to_existing_atom(plan)
 
     send(self(), :change_plan)
 
@@ -117,6 +117,8 @@ defmodule TuistWeb.BillingLive do
      |> assign(:new_plan, plan)
      |> push_event("close-modal", %{id: "billing-upgrade-modal"})}
   end
+
+  def handle_event("change_plan", _params, socket), do: {:noreply, socket}
 
   def handle_event("close-billing-upgrade-modal", _, socket) do
     socket = push_event(socket, "close-modal", %{id: "billing-upgrade-modal"})

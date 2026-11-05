@@ -108,6 +108,51 @@ defmodule TuistWeb.UserResetPasswordLiveTest do
     end
   end
 
+  describe "API credentials" do
+    setup do
+      stub(TuistWeb.RateLimit.Auth, :hit, fn _ -> {:allow, 1} end)
+      :ok
+    end
+
+    test "resetting the password revokes the user's refresh tokens and legacy token", %{token: token, user: user} do
+      %{"access_token" => access_token, "refresh_token" => refresh_token} =
+        build_conn()
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth", %{email: user.email, password: valid_user_password()})
+        |> json_response(:ok)
+
+      assert Tuist.Authentication.authenticated_subject(user.token).id == user.id
+
+      # Account tokens share `guardian_tokens`, with `sub` holding an account
+      # ID that can equal the user's ID. They are not the user's credentials.
+      account = user_fixture().account
+
+      {:ok, account_refresh_token, %{"jti" => account_jti}} =
+        Tuist.Guardian.encode_and_sign(account, %{"type" => "account", "scopes" => ["ci"]}, token_type: "refresh")
+
+      Repo.update_all(from(t in "guardian_tokens", where: t.jti == ^account_jti), set: [sub: to_string(user.id)])
+
+      other = user_fixture()
+      {:ok, other_refresh_token, _} = Tuist.Authentication.encode_and_sign(other, %{}, token_type: :refresh)
+
+      {:ok, lv, _} = live(build_conn(), ~p"/users/reset_password/#{token}")
+      submit_password(lv, "new valid password")
+
+      assert api_refresh(refresh_token).status == 401
+      refute Tuist.Authentication.authenticated_subject(access_token)
+      refute Tuist.Authentication.authenticated_subject(user.token)
+      assert {:ok, _, _} = Tuist.Guardian.resource_from_token(account_refresh_token, %{"typ" => "refresh"})
+      assert api_refresh(other_refresh_token).status == 200
+      assert Tuist.Authentication.authenticated_subject(other.token).id == other.id
+    end
+  end
+
+  defp api_refresh(refresh_token) do
+    build_conn()
+    |> put_req_header("content-type", "application/json")
+    |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
+  end
+
   defp active_session_tokens(user) do
     [
       Accounts.generate_user_session_token(user),
