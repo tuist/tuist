@@ -133,6 +133,7 @@ for node in a b; do
 # TYPE hubble_drop_total counter
 hubble_drop_total{protocol="TCP",reason="POLICY_DENIED",source="192.0.2.1",destination="example/cache"} ${value}
 hubble_drop_total{protocol="ICMPv6",reason="UNSUPPORTED_L3_PROTOCOL",source="2001:db8::1"} 3
+hubble_drop_total{protocol="TCP",reason="POLICY_DENY",source="198.51.100.7"} 2
 hubble_flows_processed_total 101
 hubble_tcp_flags_total 102
 hubble_dns_queries_total 103
@@ -217,7 +218,7 @@ queries=(
   'sum(up{job="control"})'
 )
 for failed in false true; do
-  expected=(2 1 1 2 7 19 2 6 6 0 1 1)
+  expected=(2 1 1 2 7 19 2 7 7 0 1 1)
   if [[ "${failed}" == true ]]; then
     mv "${temporary}/node-b.metrics" "${temporary}/node-b.off"
     expected[2]=0
