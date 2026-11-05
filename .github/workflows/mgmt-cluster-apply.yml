@@ -1,6 +1,6 @@
 name: Mgmt Cluster Apply
 
-# Auto-applies CAPI manifests (ClusterClass + per-env Cluster CRs) and
+# Auto-applies CAPI templates (ClusterClass + bare-metal substrate) and
 # mgmt-cluster workloads (etcd-snapshot CronJob, Tailscale daemon) to
 # our self-hosted CAPI mgmt cluster on push to main when the relevant
 # paths change. The `hetzner` and `talos` jobs also reconcile the mgmt
@@ -8,17 +8,17 @@ name: Mgmt Cluster Apply
 # nodes, and Talos machine config patches (infra/k8s/mgmt/talos/README.md).
 #
 # Why a workflow instead of Argo CD / Flux: the mgmt cluster has a tiny
-# manifest surface (one ClusterClass, four Cluster CRs, and a few mgmt-side
+# manifest surface (one ClusterClass, a few templates, and a few mgmt-side
 # workloads) — drift detection / continuous reconciliation provided by
 # a long-running GitOps controller is overkill at this scale. A
 # push-driven CI apply gets us GitOps-style "the repo is the source of
 # truth" without the operational overhead of running another controller.
 # We can graduate to Argo CD later if the mgmt-cluster surface grows.
 #
-# Order matters: the ClusterClass is applied before the Cluster CRs
-# because the topology controller resolves `topology.classRef.name`
-# at admission time. Mgmt-side workloads (etcd-snapshot, tailscale)
-# are independent and applied last.
+# The per-cluster Cluster CRs live under infra/k8s/clusters/workloads/ and
+# are reconciled by Flux (infra/flux/mgmt/), not by this workflow.
+# Mgmt-side workloads (etcd-snapshot, tailscale) are independent and
+# applied last.
 #
 # Known limitation: KubeadmControlPlaneTemplate spec is immutable.
 # When the ClusterClass changes anything in the KCT, kubectl apply
@@ -286,11 +286,6 @@ jobs:
             kubectl diff -f "$f" || true
             echo "::endgroup::"
           done
-          for f in infra/k8s/clusters/cluster-*.yaml; do
-            echo "::group::$(basename "$f") diff"
-            kubectl diff -f "$f" || true
-            echo "::endgroup::"
-          done
           echo "::group::etcd-snapshot.yaml diff"
           kubectl diff -f infra/k8s/mgmt/etcd-snapshot.yaml || true
           echo "::endgroup::"
@@ -317,7 +312,7 @@ jobs:
         # CI jobs.
         run: |
           kubectl apply -f infra/k8s/clusters/machinedrainrules.yaml
-      - name: Apply ClusterClass (Cluster CRs reference it)
+      - name: Apply ClusterClass
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply bare-metal substrate
@@ -325,10 +320,10 @@ jobs:
         # for the shared `bare-metal-worker` MachineDeployment class.
         # Per-cluster HBM claim scoping is via the `bareMetalCluster`
         # ClusterClass variable + the patch in `clusterclass-tuist.yaml`,
-        # not by duplicating substrate per env. Applied
-        # between ClusterClass and Cluster CRs so the MD-claimed
-        # templates exist by the time the topology controller starts
-        # reconciling worker Machines.
+        # not by duplicating substrate per env. Applied right after
+        # the ClusterClass so the MD-claimed templates exist by the
+        # time the topology controller starts reconciling worker
+        # Machines.
         #
         # HetznerBareMetalMachineTemplate's spec is immutable by CAPI
         # convention (every infrastructure template across providers
@@ -355,12 +350,6 @@ jobs:
                 exit 1
               fi
             fi
-          done
-      - name: Apply per-env Cluster CRs
-        run: |
-          for f in infra/k8s/clusters/cluster-*.yaml; do
-            echo "==> $f"
-            kubectl apply -f "$f"
           done
       - name: Apply mgmt-side workloads
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
@@ -541,10 +530,6 @@ jobs:
           assert_no_drift infra/k8s/clusters/machinedrainrules.yaml
           assert_no_drift infra/k8s/clusters/clusterclass-tuist.yaml
           for f in infra/k8s/clusters/bare-metal*.yaml; do
-            [ -e "$f" ] || continue
-            assert_no_drift "$f"
-          done
-          for f in infra/k8s/clusters/cluster-*.yaml; do
             [ -e "$f" ] || continue
             assert_no_drift "$f"
           done
