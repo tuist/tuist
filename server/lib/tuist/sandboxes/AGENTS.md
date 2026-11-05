@@ -345,7 +345,10 @@ socket, the poller and the caller share a replica:
   resume, archive, delete), the MCP sandbox tools and `tuist sandbox` share,
   with contracts in `Sandboxes.Schemas`; keep both exported from `Tuist`.
   It account-scopes every lookup, serializes the dashboard status, and maps
-  errors to one HTTP status and message (`Query.error/1`). Every caller
+  errors to one HTTP status and message (`Query.error/1`). The API sends
+  every 503 with a `retry-after` longer than the CLI's retry budget: the
+  server has already waited for the node, so replays only repeat the wait.
+  Every caller
   requires an account administrator and the sandboxes flag, read-only
   calls included, because sandboxes run arbitrary commands. MCP does not
   expose `exec` or create.

@@ -40,6 +40,7 @@ defmodule Tuist.Push do
   alias Tuist.MCP.Events.OAuthGrants
   alias Tuist.OAuth.Clients
   alias Tuist.Push.APNs
+  alias Tuist.Push.FCM
   alias Tuist.Push.Installation
   alias Tuist.Push.Workers.NewPreviewWorker
   alias Tuist.Repo
@@ -164,11 +165,11 @@ defmodule Tuist.Push do
 
   @doc """
   Queues a new-preview notification for `preview` (see
-  `Tuist.Push.Workers.NewPreviewWorker`). Does nothing on servers without an
-  APNs key.
+  `Tuist.Push.Workers.NewPreviewWorker`). Does nothing on servers with neither
+  an APNs key nor FCM credentials.
   """
   def notify_new_preview(%{id: preview_id}) do
-    if APNs.configured?() do
+    if APNs.configured?() or FCM.configured?() do
       {:ok, _job} = %{"preview_id" => preview_id} |> NewPreviewWorker.new() |> Oban.insert()
     end
 

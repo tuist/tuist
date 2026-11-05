@@ -73,6 +73,17 @@ public enum SandboxesServiceError: LocalizedError, Equatable {
             return "The sandbox request failed with an unexpected Tuist response of \(statusCode)."
         }
     }
+
+    /// Sandbox errors carry `{"message": …}` whatever their status, so one the spec does not list, such as a 500,
+    /// still shows the server's reason. A body without one falls back to the status code.
+    static func undocumented(_ statusCode: Int, _ payload: UndocumentedPayload) async -> SandboxesServiceError {
+        struct Body: Decodable { let message: String }
+        guard let body = payload.body,
+              let data = try? await Data(collecting: body, upTo: 1_048_576),
+              let message = try? JSONDecoder().decode(Body.self, from: data).message
+        else { return .unknownError(statusCode) }
+        return .refused(message)
+    }
 }
 
 public struct SandboxesService: SandboxesServicing {
@@ -106,7 +117,7 @@ public struct SandboxesService: SandboxesServicing {
         case let .badRequest(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case .tooManyRequests: throw SandboxesServiceError.limited
-        case let .undocumented(statusCode, _): throw SandboxesServiceError.unknownError(statusCode)
+        case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
     }
 
@@ -119,7 +130,7 @@ public struct SandboxesService: SandboxesServicing {
         case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case let .notFound(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case .tooManyRequests: throw SandboxesServiceError.limited
-        case let .undocumented(statusCode, _): throw SandboxesServiceError.unknownError(statusCode)
+        case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
     }
 
@@ -138,7 +149,7 @@ public struct SandboxesService: SandboxesServicing {
         case let .badRequest(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case .tooManyRequests: throw SandboxesServiceError.limited
-        case let .undocumented(statusCode, _): throw SandboxesServiceError.unknownError(statusCode)
+        case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
     }
 
@@ -168,7 +179,7 @@ public struct SandboxesService: SandboxesServicing {
         case let .serviceUnavailable(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case .tooManyRequests: throw SandboxesServiceError.limited
-        case let .undocumented(statusCode, _): throw SandboxesServiceError.unknownError(statusCode)
+        case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
     }
 
@@ -192,7 +203,7 @@ public struct SandboxesService: SandboxesServicing {
         case let .serviceUnavailable(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case .tooManyRequests: throw SandboxesServiceError.limited
-        case let .undocumented(statusCode, _): throw SandboxesServiceError.unknownError(statusCode)
+        case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
     }
 
@@ -214,7 +225,7 @@ public struct SandboxesService: SandboxesServicing {
             case let .serviceUnavailable(value): throw SandboxesServiceError.refused(try value.body.json.message)
             case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
             case .tooManyRequests: throw SandboxesServiceError.limited
-            case let .undocumented(statusCode, _): throw SandboxesServiceError.unknownError(statusCode)
+            case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
             }
         case .resume:
             switch try await client.resumeSandbox(.init(path: .init(account_handle: accountHandle, sandbox_id: sandboxID))) {
@@ -226,7 +237,7 @@ public struct SandboxesService: SandboxesServicing {
             case let .serviceUnavailable(value): throw SandboxesServiceError.refused(try value.body.json.message)
             case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
             case .tooManyRequests: throw SandboxesServiceError.limited
-            case let .undocumented(statusCode, _): throw SandboxesServiceError.unknownError(statusCode)
+            case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
             }
         case .archive:
             switch try await client.archiveSandbox(.init(path: .init(account_handle: accountHandle, sandbox_id: sandboxID))) {
@@ -238,7 +249,7 @@ public struct SandboxesService: SandboxesServicing {
             case let .serviceUnavailable(value): throw SandboxesServiceError.refused(try value.body.json.message)
             case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
             case .tooManyRequests: throw SandboxesServiceError.limited
-            case let .undocumented(statusCode, _): throw SandboxesServiceError.unknownError(statusCode)
+            case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
             }
         }
     }
@@ -256,7 +267,7 @@ public struct SandboxesService: SandboxesServicing {
         case let .serviceUnavailable(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case let .gatewayTimeout(value): throw SandboxesServiceError.refused(try value.body.json.message)
         case .tooManyRequests: throw SandboxesServiceError.limited
-        case let .undocumented(statusCode, _): throw SandboxesServiceError.unknownError(statusCode)
+        case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
         }
     }
 

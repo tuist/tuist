@@ -5,26 +5,26 @@ import TuistEnvironment
 import TuistHTTP
 import TuistServer
 
-protocol RunnerVolumeClearCommandServicing {
+protocol RunnerVolumeDeleteCommandServicing {
     func run(volumeID: String, account: String?, path: String?, json: Bool) async throws
 }
 
-struct RunnerVolumeClearCommandService: RunnerVolumeClearCommandServicing {
+struct RunnerVolumeDeleteCommandService: RunnerVolumeDeleteCommandServicing {
     private let configLoader: ConfigLoading
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let fullHandleService: FullHandleServicing
-    private let clearRunnerVolumeService: ClearRunnerVolumeServicing
+    private let deleteRunnerVolumeService: DeleteRunnerVolumeServicing
 
     init(
         configLoader: ConfigLoading = ConfigLoader(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
-        clearRunnerVolumeService: ClearRunnerVolumeServicing = ClearRunnerVolumeService()
+        deleteRunnerVolumeService: DeleteRunnerVolumeServicing = DeleteRunnerVolumeService()
     ) {
         self.configLoader = configLoader
         self.serverEnvironmentService = serverEnvironmentService
         self.fullHandleService = fullHandleService
-        self.clearRunnerVolumeService = clearRunnerVolumeService
+        self.deleteRunnerVolumeService = deleteRunnerVolumeService
     }
 
     func run(volumeID: String, account: String?, path: String?, json: Bool) async throws {
@@ -35,7 +35,7 @@ struct RunnerVolumeClearCommandService: RunnerVolumeClearCommandServicing {
             serverEnvironmentService: serverEnvironmentService,
             fullHandleService: fullHandleService
         )
-        let response = try await clearRunnerVolumeService.clearRunnerVolume(
+        let response = try await deleteRunnerVolumeService.deleteRunnerVolume(
             accountHandle: accountHandle,
             serverURL: serverURL,
             volumeID: volumeID
@@ -43,7 +43,7 @@ struct RunnerVolumeClearCommandService: RunnerVolumeClearCommandServicing {
         if json {
             try Noora.current.json(response)
         } else {
-            Noora.current.success("Saved contents cleared for volume \(volumeID).")
+            Noora.current.success("Volume \(volumeID) deleted.")
         }
     }
 }

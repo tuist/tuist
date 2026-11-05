@@ -843,6 +843,11 @@ server:
     # fails the whole sync.
     apns:
       enabled: false
+    # Firebase Cloud Messaging service account for the Tuist Android app (the
+    # FCM item's service-account.json). Same rule as apns: enable only after
+    # the item exists in the environment's vault.
+    fcm:
+      enabled: false
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
     # a pair exists in the environment's vault: cache tokens are then signed by
@@ -891,12 +896,11 @@ server:
   # secret store (server.config / 1Password STRIPE item).
   stripe:
     prices: {}
-  # Mailing identity (Mailgun sending domain + from/reply-to addresses). Not
-  # secrets — just the sender identity, shared across envs — so they live here,
-  # wired to TUIST_MAILING_* env vars. The Mailgun API key stays in the secret
-  # store (server.config / 1Password MAILGUN item). Empty by default; managed
-  # values set them.
+  # Mailing provider and sender identity. Credentials stay in server.config;
+  # managed SES reads SES/{access_key_id,secret_access_key} from each env's vault.
   mailing:
+    provider: mailgun
+    sesRegion: ""
     domain: ""
     fromAddress: ""
     replyToAddress: ""

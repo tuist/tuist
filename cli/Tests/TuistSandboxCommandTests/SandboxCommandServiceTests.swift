@@ -96,6 +96,25 @@ struct SandboxCommandServiceTests {
         #expect(ui().contains("Status: Running"))
     }
 
+    @Test(.withMockedEnvironment(), .withMockedNoora, arguments: [false, true])
+    func showsProgressWhileWaitingButKeepsJSONClean(json: Bool) async throws {
+        given(sandboxesService).transitionSandbox(
+            .value(.resume),
+            accountHandle: .value("resolved-account"),
+            serverURL: .value(Self.serverURL),
+            sandboxID: .value(Self.id)
+        ).willReturn(try Self.decode(Self.sandbox(status: "active")))
+
+        try await subject().transition(.resume, options: Self.values(json: json), sandboxID: Self.id)
+
+        if json {
+            #expect(!ui().contains("Resum"))
+            #expect(ui().contains("\"status\" : \"active\""))
+        } else {
+            #expect(ui().contains("Resumed sandbox \(Self.id)"))
+        }
+    }
+
     @Test(.withMockedEnvironment(), .withMockedNoora)
     func failsWithoutAnAccount() async throws {
         await #expect(throws: SandboxCommandError.missingAccount) {

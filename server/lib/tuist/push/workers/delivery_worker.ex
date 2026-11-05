@@ -1,15 +1,17 @@
 defmodule Tuist.Push.Workers.DeliveryWorker do
   @moduledoc """
-  Sends one notification to one registration through APNs. The token is read
+  Sends one notification to one registration, through APNs for iOS and FCM for
+  Android. The token is read
   from the registration when the job runs, so a device that unregistered or was
-  retired in the meantime is skipped. A token APNs no longer accepts retires the
-  registration.
+  retired in the meantime is skipped. A token the provider no longer accepts
+  retires the registration.
   """
 
   use Oban.Worker, queue: :push, max_attempts: 5
 
   alias Tuist.Push
   alias Tuist.Push.APNs
+  alias Tuist.Push.FCM
   alias Tuist.Push.Installation
   alias Tuist.Repo
 
@@ -20,6 +22,9 @@ defmodule Tuist.Push.Workers.DeliveryWorker do
     case Repo.get(Installation, registration_id) do
       %Installation{retired_at: nil, platform: "ios", token: token} = installation when is_binary(token) ->
         installation.environment |> APNs.deliver(token, payload) |> handle(installation)
+
+      %Installation{retired_at: nil, platform: "android", token: token} = installation when is_binary(token) ->
+        token |> FCM.deliver(payload) |> handle(installation)
 
       _ ->
         :ok
@@ -36,7 +41,10 @@ defmodule Tuist.Push.Workers.DeliveryWorker do
   defp handle({:error, {:retry, reason}}, _installation), do: {:error, reason}
 
   defp handle({:error, {:rejected, reason}}, installation) do
-    Logger.warning("APNs rejected a notification to #{installation.id} (#{installation.environment}): #{reason}")
+    Logger.warning(
+      "#{installation.platform} push rejected for #{installation.id} (#{installation.environment}): #{reason}"
+    )
+
     {:cancel, reason}
   end
 end

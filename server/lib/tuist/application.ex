@@ -592,9 +592,10 @@ defmodule Tuist.Application do
             start_pool_metrics?: true
           ],
           object_storage_endpoint => object_storage_pool_opts,
-          # APNs only speaks HTTP/2 and multiplexes requests on one connection.
+          # APNs only speaks HTTP/2; both providers multiplex requests on one connection.
           "https://api.push.apple.com" => apns_pool_opts(),
           "https://api.sandbox.push.apple.com" => apns_pool_opts(),
+          "https://fcm.googleapis.com" => apns_pool_opts(),
           "https://marketing.tuist.dev" => [
             conn_opts: [
               log: true,

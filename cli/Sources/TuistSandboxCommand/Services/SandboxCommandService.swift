@@ -113,27 +113,33 @@ struct SandboxCommandService {
         workspaceGB: Int?
     ) async throws {
         let (accountHandle, serverURL) = try await resolve(options)
-        let sandbox = try await sandboxesService.createSandbox(
-            accountHandle: accountHandle,
-            serverURL: serverURL,
-            template: template,
-            vcpus: vcpus,
-            memoryMB: memoryMB,
-            workspaceGB: workspaceGB
-        )
-        try output(sandbox, options: options) { "Created sandbox \($0.id).\n\n" + SandboxOutput.details($0) }
+        let sandbox = try await step("Booting sandbox...", done: "Sandbox booted", options: options) {
+            try await sandboxesService.createSandbox(
+                accountHandle: accountHandle,
+                serverURL: serverURL,
+                template: template,
+                vcpus: vcpus,
+                memoryMB: memoryMB,
+                workspaceGB: workspaceGB
+            )
+        }
+        try output(sandbox, options: options) { SandboxOutput.details($0) }
     }
 
     /// Prints the command's output and fails with its exit status, so scripts can rely on it as on a local command.
     func exec(options: SandboxOptions.Values, sandboxID: String, command: String, timeoutMs: Int?) async throws {
         let (accountHandle, serverURL) = try await resolve(options)
-        let result = try await sandboxesService.execSandboxCommand(
-            accountHandle: accountHandle,
-            serverURL: serverURL,
-            sandboxID: sandboxID,
-            command: command,
-            timeoutMs: timeoutMs
-        )
+        // Outside a terminal Noora prints progress as lines on stdout, which would mix with the command's output.
+        let interactive = isatty(STDOUT_FILENO) == 1
+        let result = try await step("Running command...", done: "Command finished", options: options, show: interactive) {
+            try await sandboxesService.execSandboxCommand(
+                accountHandle: accountHandle,
+                serverURL: serverURL,
+                sandboxID: sandboxID,
+                command: command,
+                timeoutMs: timeoutMs
+            )
+        }
         if options.json {
             try Noora.current.json(result)
         } else {
@@ -145,35 +151,56 @@ struct SandboxCommandService {
 
     func transition(_ transition: SandboxTransition, options: SandboxOptions.Values, sandboxID: String) async throws {
         let (accountHandle, serverURL) = try await resolve(options)
-        let sandbox = try await sandboxesService.transitionSandbox(
-            transition,
-            accountHandle: accountHandle,
-            serverURL: serverURL,
-            sandboxID: sandboxID
-        )
+        let (message, done) = switch transition {
+        case .pause: ("Pausing sandbox...", "Paused sandbox \(sandboxID)")
+        case .resume: ("Resuming sandbox...", "Resumed sandbox \(sandboxID)")
+        case .archive: ("Queuing the archive...", "Archive queued")
+        }
+        let sandbox = try await step(message, done: done, options: options) {
+            try await sandboxesService.transitionSandbox(
+                transition,
+                accountHandle: accountHandle,
+                serverURL: serverURL,
+                sandboxID: sandboxID
+            )
+        }
+        guard options.json || transition == .archive else { return }
         try output(sandbox, options: options) { sandbox in
-            switch transition {
-            case .pause: return "Paused sandbox \(sandbox.id)."
-            case .resume: return "Resumed sandbox \(sandbox.id)."
-            case .archive:
-                return "Archiving sandbox \(sandbox.id). It stays paused until its disks are uploaded, then shows as archived."
-            }
+            "Archiving sandbox \(sandbox.id). It stays paused until its disks are uploaded, then shows as archived."
         }
     }
 
     func delete(options: SandboxOptions.Values, sandboxID: String) async throws {
         let (accountHandle, serverURL) = try await resolve(options)
-        try await sandboxesService.deleteSandbox(accountHandle: accountHandle, serverURL: serverURL, sandboxID: sandboxID)
+        try await step("Deleting sandbox...", done: "Deleted sandbox \(sandboxID)", options: options) {
+            try await sandboxesService.deleteSandbox(accountHandle: accountHandle, serverURL: serverURL, sandboxID: sandboxID)
+        }
         if options.json {
             try Noora.current.json(SandboxDeleted(id: sandboxID, deleted: true))
-        } else {
-            Noora.current.success("Deleted sandbox \(sandboxID).")
         }
     }
 
     private struct SandboxDeleted: Codable {
         let id: String
         let deleted: Bool
+    }
+
+    /// A spinner while the server works, which can take a while when it boots, restores or waits for a node.
+    /// JSON output skips it so scripts read only the response.
+    private func step<Value>(
+        _ message: String,
+        done: String,
+        options: SandboxOptions.Values,
+        show: Bool = true,
+        _ work: @escaping () async throws -> Value
+    ) async throws -> Value {
+        guard show, !options.json else { return try await work() }
+        return try await Noora.current.progressStep(
+            message: message,
+            successMessage: done,
+            errorMessage: nil,
+            showSpinner: true
+        ) { _ in try await work() }
     }
 
     private func output<Value: Codable>(

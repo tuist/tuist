@@ -11234,6 +11234,25 @@ components:
       type: object
       x-struct:
       x-validate:
+    RunnerVolumeDeleted:
+      additionalProperties: false
+      properties:
+        deleted:
+          type: boolean
+          x-struct:
+          x-validate:
+        id:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - deleted
+        - id
+      title: RunnerVolumeDeleted
+      type: object
+      x-struct:
+      x-validate:
     CASOutputType:
       enum:
         - swift
@@ -20319,6 +20338,7 @@ paths:
   /api/accounts/{account_handle}/runners/volumes/{volume_id}/clear:
     post:
       callbacks: {}
+      deprecated: true
       operationId: clearRunnerVolume
       parameters:
         - description: ''
@@ -20402,7 +20422,7 @@ paths:
                 x-struct:
                 x-validate:
               style: simple
-      summary: Clear saved volume contents. Running jobs retain their copies but cannot save them.
+      summary: 'Deprecated: use deleteRunnerVolume.'
       tags:
         - Runners
   /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/artifacts:
@@ -25544,6 +25564,94 @@ paths:
       tags:
         - Organizations
   /api/accounts/{account_handle}/runners/volumes/{volume_id}:
+    delete:
+      callbacks: {}
+      operationId: deleteRunnerVolume
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            minLength: 1
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: volume_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  deleted:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  id:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - deleted
+                  - id
+                title: RunnerVolumeDeleted
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner volume data
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Volume or job not found, or runners disabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Delete a runner volume. Running jobs retain their copies but cannot save them; later jobs with its key start empty.
+      tags:
+        - Runners
     get:
       callbacks: {}
       operationId: getRunnerVolume

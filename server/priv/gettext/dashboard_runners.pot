@@ -1615,11 +1615,6 @@ msgstr ""
 msgid "Share of mounts with a known cache result that reused a saved cache in the selected period."
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.html.heex:640
-#, elixir-autogen, elixir-format
-msgid "Clears the saved cache for future jobs. Running jobs can finish."
-msgstr ""
-
 #: lib/tuist_web/live/runner_volumes_live.ex:443
 #: lib/tuist_web/live/runner_volumes_live.html.heex:467
 #, elixir-autogen, elixir-format
@@ -1629,18 +1624,6 @@ msgstr ""
 #: lib/tuist_web/live/runner_volumes_live.html.heex:474
 #, elixir-autogen, elixir-format
 msgid "Number of job runs that mounted this volume during the selected period."
-msgstr ""
-
-#: lib/tuist_web/live/runner_volumes_live.html.heex:22
-#: lib/tuist_web/live/runner_volumes_live.html.heex:638
-#: lib/tuist_web/live/runner_volumes_live.html.heex:660
-#, elixir-autogen, elixir-format
-msgid "Clear volume"
-msgstr ""
-
-#: lib/tuist_web/live/runner_volumes_live.ex:149
-#, elixir-autogen, elixir-format
-msgid "Volume cleared. Running jobs can finish."
 msgstr ""
 
 #: lib/tuist_web/live/runner_volumes_live.html.heex:563
@@ -1920,4 +1903,21 @@ msgstr ""
 #: lib/tuist_web/live/runner_job_live.html.heex:677
 #, elixir-autogen, elixir-format
 msgid "Open the build on Bitrise"
+msgstr ""
+
+#: lib/tuist_web/live/runner_volumes_live.html.heex:22
+#: lib/tuist_web/live/runner_volumes_live.html.heex:638
+#: lib/tuist_web/live/runner_volumes_live.html.heex:660
+#, elixir-autogen, elixir-format
+msgid "Delete volume"
+msgstr ""
+
+#: lib/tuist_web/live/runner_volumes_live.html.heex:640
+#, elixir-autogen, elixir-format
+msgid "Deletes the volume and its saved cache. Running jobs can finish; later jobs with the same key start empty."
+msgstr ""
+
+#: lib/tuist_web/live/runner_volumes_live.ex:149
+#, elixir-autogen, elixir-format
+msgid "Volume deleted. Running jobs can finish."
 msgstr ""

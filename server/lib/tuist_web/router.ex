@@ -848,6 +848,7 @@ defmodule TuistWeb.Router do
         get "/volumes/analytics", RunnerVolumesController, :analytics
         get "/volumes/:volume_id", RunnerVolumesController, :show
         get "/volumes/:volume_id/jobs", RunnerVolumesController, :jobs
+        delete "/volumes/:volume_id", RunnerVolumesController, :delete
         post "/volumes/:volume_id/clear", RunnerVolumesController, :clear
         get "/jobs/:workflow_job_id/volumes", RunnerVolumesController, :job_volumes
       end

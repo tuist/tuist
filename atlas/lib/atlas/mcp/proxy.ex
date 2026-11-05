@@ -14,6 +14,7 @@ defmodule Atlas.MCP.Proxy do
   alias Atlas.MCP.Tool
   alias Atlas.MCP.Tools.GetMCPConnectionStatus
   alias Atlas.TuistServer
+  alias Atlas.Users.User
 
   require Logger
 
@@ -30,7 +31,8 @@ defmodule Atlas.MCP.Proxy do
     "sentry" => "observability",
     "tuist" => "observability",
     "ovh-servers" => "observability",
-    "ovh-services" => "observability"
+    "ovh-services" => "observability",
+    "ovh-orders" => "observability"
   }
 
   def list_servers(config \\ proxy_config()) do
@@ -229,6 +231,7 @@ defmodule Atlas.MCP.Proxy do
           headers: normalize_headers(get_config(raw, :headers, [])),
           read_only: truthy?(get_config(raw, :read_only, false)),
           tool_allowlist: normalize_scopes(get_config(raw, :tool_allowlist, [])),
+          approval_required_tools: normalize_scopes(get_config(raw, :approval_required_tools, [])),
           atlas_identity_header: get_config(raw, :atlas_identity_header),
           bearer_token: bearer_token,
           receive_timeout: normalize_timeout(get_config(raw, :receive_timeout, 15_000))
@@ -350,7 +353,8 @@ defmodule Atlas.MCP.Proxy do
   defp dispatch_tool(%Server{} = server, conn, tool_name, arguments) do
     server
     |> with_session(conn, fn session_id ->
-      with :ok <- ensure_tool_permitted(server, conn, session_id, tool_name) do
+      with :ok <- ensure_tool_permitted(server, conn, session_id, tool_name),
+           :ok <- ensure_call_approved(server, conn, tool_name, arguments) do
         rpc_request(server, conn, session_id, "tools/call", %{
           "name" => tool_name,
           "arguments" => arguments
@@ -376,12 +380,17 @@ defmodule Atlas.MCP.Proxy do
     |> filter_allowlisted(server)
   end
 
-  defp filter_read_only(tools, %Server{read_only: true}), do: Enum.filter(tools, &read_only_tool?/1)
+  # `approval_required_tools` names writes on purpose, so neither filter drops
+  # them; `ensure_call_approved/4` holds each call until a person signs off.
+  defp filter_read_only(tools, %Server{read_only: true, approval_required_tools: gated}),
+    do: Enum.filter(tools, &(read_only_tool?(&1) or &1["name"] in gated))
+
   defp filter_read_only(tools, %Server{}), do: tools
 
   defp filter_allowlisted(tools, %Server{tool_allowlist: []}), do: tools
 
-  defp filter_allowlisted(tools, %Server{tool_allowlist: allowed}), do: Enum.filter(tools, &(&1["name"] in allowed))
+  defp filter_allowlisted(tools, %Server{tool_allowlist: allowed, approval_required_tools: gated}),
+    do: Enum.filter(tools, &(&1["name"] in allowed or &1["name"] in gated))
 
   defp read_only_tool?(%{"annotations" => %{"readOnlyHint" => true}}), do: true
   defp read_only_tool?(_tool), do: false
@@ -401,6 +410,34 @@ defmodule Atlas.MCP.Proxy do
     end
   end
 
+  # A gated tool runs only on a person's sign-off for that exact call. Only a
+  # caller authenticated as that person over MCP can spend one: the Slack agent
+  # and other internal callers act as a fixed operator, so they never reach a
+  # gated tool.
+  defp ensure_call_approved(%Server{} = server, conn, tool_name, arguments) do
+    cond do
+      tool_name not in server.approval_required_tools ->
+        :ok
+
+      match?(%{assigns: %{current_user: %User{}, audit_interface: "mcp"}}, conn) ->
+        case MCPContext.authorize_tool_call(conn.assigns.current_user, server.name, tool_name, arguments) do
+          :ok ->
+            :ok
+
+          {:approval_required, approval} ->
+            {:error,
+             "#{server.name}/#{tool_name} needs a person's approval for this exact call. " <>
+               "Ask the person you are working for to approve request #{approval.id} at " <>
+               "#{AtlasWeb.Endpoint.url()}/admin/mcps#mcp-approval-#{approval.id} " <>
+               "(it expires at #{DateTime.to_iso8601(approval.expires_at)}), then repeat the call with identical arguments. " <>
+               "Never approve it yourself."}
+        end
+
+      true ->
+        {:error, "#{server.name}/#{tool_name} needs a person's approval and is only callable over Atlas MCP."}
+    end
+  end
+
   defp decorate_tool(%Server{} = server, tool) when is_map(tool) do
     tool
     |> Map.put("server", server.name)
@@ -409,7 +446,13 @@ defmodule Atlas.MCP.Proxy do
 
   defp hoist_tool(%Server{} = server, %{"name" => tool_name} = tool) when is_binary(tool_name) do
     original_description = tool["description"] || "Upstream MCP tool."
-    description = "[#{server.name}] #{original_description}"
+
+    description =
+      if tool_name in server.approval_required_tools do
+        "[#{server.name}] Each call needs its own approval: the first call files a request and returns a link, the person approves it in Atlas, and the same call with identical arguments then runs once. #{original_description}"
+      else
+        "[#{server.name}] #{original_description}"
+      end
 
     tool
     |> Map.put("name", hoisted_tool_name(server.name, tool_name))

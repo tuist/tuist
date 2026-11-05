@@ -2,12 +2,13 @@ import ArgumentParser
 import Foundation
 import TuistNooraExtension
 
-public struct RunnerVolumeClearCommand: AsyncParsableCommand, NooraReadyCommand {
+public struct RunnerVolumeDeleteCommand: AsyncParsableCommand, NooraReadyCommand {
     public init() {}
 
     public static let configuration = CommandConfiguration(
-        commandName: "clear",
-        abstract: "Clear saved contents. Running jobs keep their copies but cannot save them."
+        commandName: "delete",
+        abstract: "Delete a volume and its saved contents. Running jobs keep their copies but cannot save them.",
+        aliases: ["clear"]
     )
 
     @Argument(help: "Volume UUID.")
@@ -15,18 +16,18 @@ public struct RunnerVolumeClearCommand: AsyncParsableCommand, NooraReadyCommand 
 
     @OptionGroup var options: RunnerVolumeOptions
 
-    @Flag(name: .long, help: "Confirm clearing the saved contents. This cannot be undone.")
+    @Flag(name: .long, help: "Confirm deleting the volume. This cannot be undone.")
     var yes = false
 
     public var jsonThroughNoora: Bool { true }
 
     public func validate() throws {
         try RunnerVolumeValidation.validateID(volumeID)
-        guard yes else { throw ValidationError("Pass --yes to confirm clearing the volume's saved contents.") }
+        guard yes else { throw ValidationError("Pass --yes to confirm deleting the volume.") }
     }
 
     public func run() async throws {
-        try await RunnerVolumeClearCommandService().run(
+        try await RunnerVolumeDeleteCommandService().run(
             volumeID: volumeID,
             account: options.account,
             path: options.path,

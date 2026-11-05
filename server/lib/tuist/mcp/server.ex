@@ -52,7 +52,7 @@ defmodule Tuist.MCP.Server do
     Tools.ListRunnerVolumeJobs,
     Tools.ListRunnerJobVolumes,
     Tools.GetRunnerVolumeAnalytics,
-    Tools.ClearRunnerVolume,
+    Tools.DeleteRunnerVolume,
     Tools.ListSandboxes,
     Tools.GetSandbox,
     Tools.GetSandboxAnalytics,
