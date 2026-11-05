@@ -1581,7 +1581,8 @@ async fn send_to(
         .map_err(|e| e.to_string())?;
     let status = response.status();
     let bytes =
-        crate::replication::read_bounded_body(response, limit as u64, "handover verification").await?;
+        crate::replication::read_bounded_body(response, limit as u64, "handover verification")
+            .await?;
     if !status.is_success() {
         let reason = bounded_detail(&String::from_utf8_lossy(&bytes));
         if status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
