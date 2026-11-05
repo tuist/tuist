@@ -58,7 +58,7 @@ esac
 			runtime := &TartRuntime{Client: c}
 			record := &Record{}
 			record.SandboxID = "readiness"
-			err = runtime.waitGuestReady(ctx, record, h)
+			_, err = runtime.waitGuestReady(ctx, record, h)
 			if response == "unavailable" {
 				if !errors.Is(err, context.DeadlineExceeded) {
 					t.Fatalf("unavailable bridge accepted: %v", err)

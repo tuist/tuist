@@ -561,13 +561,19 @@ defmodule Tuist.Sandboxes do
   defp running_or_resume(%Sandbox{state: state}), do: {:error, {:invalid_state, state}}
 
   defp do_resume(%Sandbox{state: :paused, node_name: node_name} = sandbox) when is_binary(node_name) do
+    started = System.monotonic_time(:millisecond)
+
     with {:ok, sandbox} <- Capacity.admit(sandbox) do
+      admitted = System.monotonic_time(:millisecond)
+
       case node_call(sandbox, "resume", %{sandbox_id: sandbox.id}, timeout: @resume_timeout) do
         {:ok, data} ->
           Logger.info("sandboxes: sandbox resumed",
             sandbox_id: sandbox.id,
             node: node_name,
-            restore_ms: data["restore_ms"]
+            restore_ms: data["restore_ms"],
+            admit_ms: admitted - started,
+            node_call_ms: System.monotonic_time(:millisecond) - admitted
           )
 
           sandbox

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -118,7 +119,8 @@ func (t *TartRuntime) Warm(ctx context.Context, r *Record) error {
 	if err != nil {
 		return err
 	}
-	return t.waitGuestReady(ctx, r, h)
+	_, err = t.waitGuestReady(ctx, r, h)
+	return err
 }
 
 // Claim finishes a booted VM for its sandbox: the workspace quota is the
@@ -138,15 +140,30 @@ container=$(/usr/sbin/diskutil info -plist / | /usr/bin/plutil -extract APFSCont
 }
 func (t *TartRuntime) Resume(ctx context.Context, r *Record) error {
 	if r.Resident {
+		start := time.Now()
 		if _, err := t.control(ctx, r, "resume"); err != nil {
 			return err
 		}
+		resumed := time.Since(start)
 		_, err := t.guest(ctx, r, map[string]string{"op": "ping"}, nil)
+		slog.Info("macOS sandbox resident resume phases", "sandbox_id", r.SandboxID, "resume_ms", resumed.Milliseconds(), "ping_ms", (time.Since(start) - resumed).Milliseconds())
 		return err
 	}
+	// Each phase is timed so a slow restore can be attributed: Apple's restore
+	// alone is about 3 s at 8 GiB, and the rest is this path's own overhead.
+	start, mark := time.Now(), time.Now()
+	phases := []any{"sandbox_id", r.SandboxID, "memory_mb", r.MemoryMB}
+	lap := func(name string) {
+		phases = append(phases, name+"_ms", time.Since(mark).Milliseconds())
+		mark = time.Now()
+	}
+	defer func() {
+		slog.Info("macOS sandbox restore phases", append(phases, "total_ms", time.Since(start).Milliseconds())...)
+	}()
 	if err := t.checkDisk(ctx, r); err != nil {
 		return err
 	}
+	lap("disk_check")
 	c := t.client(r)
 	r.Instance = ""
 	r.PID = 0
@@ -154,24 +171,32 @@ func (t *TartRuntime) Resume(ctx context.Context, r *Record) error {
 	if err != nil {
 		return err
 	}
-	if err = t.waitGuestReady(ctx, r, h); err != nil {
+	lap("start")
+	probes, err := t.waitGuestReady(ctx, r, h)
+	lap("guest_ready")
+	phases = append(phases, "probes", probes)
+	if err != nil {
 		return err
 	}
 	_, err = t.control(ctx, r, "status")
+	lap("status")
 	return err
 }
 
 // After checkpoint restoration, the guest can execute built-in commands before
 // the shared bridge executable is usable. Readiness must exercise the same path
 // as the first user command, while retaining the VM's capacity reservation.
-func (t *TartRuntime) waitGuestReady(ctx context.Context, r *Record, h *tart.RunHandle) error {
-	return h.WaitReady(ctx, func(ctx context.Context) error {
+func (t *TartRuntime) waitGuestReady(ctx context.Context, r *Record, h *tart.RunHandle) (int, error) {
+	probes := 0
+	err := h.WaitReady(ctx, func(ctx context.Context) error {
+		probes++
 		reply, err := t.guest(ctx, r, map[string]string{"op": "ping"}, nil)
 		if err == nil && reply.Type != "pong" {
 			return errors.New("guest readiness returned no pong")
 		}
 		return err
 	})
+	return probes, err
 }
 
 func (t *TartRuntime) Pause(ctx context.Context, r *Record) error {
