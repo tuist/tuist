@@ -2212,10 +2212,10 @@ k8s-monitoring:
             regex = "hubble_drop_total|up|scrape_samples_scraped"
             action = "keep"
           }
-          // Cilium runs IPv4-only, so every IPv6 packet reaching a node
-          // (router and neighbour discovery from the hosting network) is
-          // dropped as UNSUPPORTED_L3_PROTOCOL, with its raw address as
-          // `source`. Per node, those addresses grow without bound and are
+          // Cilium runs IPv4-only, so every IPv6 packet reaching a node,
+          // whatever its L4 protocol, is dropped as UNSUPPORTED_L3_PROTOCOL
+          // with its raw address as `source`. Most of it is router and
+          // neighbour discovery from the hosting network. Per node, those addresses grow without bound and are
           // most of the job's series, while saying nothing about workload
           // traffic.
           rule {
