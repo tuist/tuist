@@ -153,7 +153,7 @@ Do not print or commit the token itself. Every Machine in the authorized Fly app
 OIDC tokens are granted the `ci` scope group. For GitHub Actions, CircleCI, and Bitrise, this provides access to all projects connected to the repository. For workload identity trust policies, this provides access to all current and future projects owned by the selected account, without granting project creation, project administration, runner administration, or account-member administration. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
 
 > [!TIP]
-> **Security Benefits**
+> **Security benefits**
 >
 > OIDC authentication is more secure than long-lived tokens because:
 > - No secrets to rotate or manage
@@ -212,7 +212,7 @@ The command accepts the following options:
 
 | Option | Description |
 | --- | --- |
-| `--scopes` | Required. Comma-separated list of scopes to grant the token. |
+| `--scopes` | Required. Space-separated list of scopes to grant the token. |
 | `--name` | Required. A unique identifier for the token (1-32 characters, alphanumeric, hyphens, and underscores only). |
 | `--expires` | Optional. When the token should expire. Use format like `30d` (days), `6m` (months), or `1y` (years). If not specified, the token never expires. |
 | `--projects` | Limit the token to specific project handles. The token has access to all projects if not specified. |
@@ -290,7 +290,7 @@ export TUIST_TOKEN=your-account-token
 ```
 
 > [!TIP]
-> **When To Use Account Tokens**
+> **When to use account tokens**
 >
 > Use account tokens when you need:
 > - Authentication in CI environments that don't support OIDC

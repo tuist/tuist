@@ -9,7 +9,9 @@
 
 Tuist's Hex package can send build analytics to Tuist. Build times, the dependency graph between your files, and how both evolve over time give you what you need to optimize your build graph and make the most of all the cores available in the environment where the compilation takes place.
 
-> [!IMPORTANT] REQUIREMENTS
+> [!IMPORTANT]
+> **Requirements**
+>
 > - Complete <.localized_link href="/guides/get-started/elixir-project">Get started with Elixir</.localized_link>
 
 ## Report your builds {#report-your-builds}

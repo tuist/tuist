@@ -70,7 +70,7 @@ Using string interpolation, `\(nameAttribute)` above would resolve to `{{ name }
 You can also use `.directory` which gives the possibility to copy entire folders to a given path.
 
 > [!TIP]
-> **Project Description Helpers**
+> **Project description helpers**
 >
 > Templates support the use of <.localized_link href="/guides/features/projects/code-sharing">project description helpers</.localized_link> to reuse code across templates.
 

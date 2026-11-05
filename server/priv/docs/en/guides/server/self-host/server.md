@@ -10,7 +10,7 @@
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
 
 > [!WARNING]
-> **License Required**
+> **License required**
 >
 > Self-hosting Tuist requires a legally valid paid license. The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
 
@@ -23,7 +23,7 @@ We offer a self-hosted version of the Tuist server for organizations that requir
 
 ## Release cadence {#release-cadence}
 
-The Tuist server and the Kura cache server ship through three GHCR image channels: **canary** (every commit to `main`), **release candidate** (cut every Monday, soaks a week), and **stable** (promoted the following Monday). Only stable releases move `:latest` and are resolved by default; canaries and release candidates are GitHub prereleases you opt into by pinning their tag. Server and Kura ride the same weekly train, in lockstep with the [Tuist CLI's release schedule](/en/cli/release-channels).
+The Tuist server and the Kura cache server ship through three GHCR image channels: **canary** (every commit to `main`), **release candidate** (cut every Monday, soaks a week), and **stable** (promoted the following Monday). Only stable releases move `:latest` and are resolved by default; canaries and release candidates are GitHub prereleases you opt into by pinning their tag. Server and Kura ride the same weekly train, in lockstep with the <.localized_link href="/cli/release-channels">Tuist CLI's release schedule</.localized_link>.
 
 We follow [semantic versioning](https://semver.org/) to ensure predictable versioning and compatibility. The major component is used to flag breaking changes in the Tuist server that will require coordination with self-hosted users; you should not expect us to use it, and in case we needed, rest assured we'll work with you in making the transition smooth.
 
@@ -266,7 +266,7 @@ The `system` database uses the `Atomic` engine, which defers a plain `DROP TABLE
 You’ll also need a solution to store files (e.g. framework and library binaries). The Tuist server supports S3-compatible storage and Azure Blob Storage for server-owned artifacts.
 
 > [!TIP]
-> **Optimized Caching**
+> **Optimized caching**
 >
 > If your goal is primarily to reduce cache latency, you might not need to self-host the whole server. You can deploy self-hosted Kura nodes close to your CI or developer network and connect them to the hosted Tuist server or your self-hosted server.
 >
@@ -286,7 +286,7 @@ To use self-hosted Kura nodes with a self-hosted Tuist server:
 The configuration of the service is done at runtime through environment variables. Given the sensitive nature of these variables, we advise encrypting and storing them in secure password management solutions. Rest assured, Tuist handles these variables with utmost care, ensuring they are never displayed in logs.
 
 > [!NOTE]
-> **Launch Checks**
+> **Launch checks**
 >
 > The necessary variables are verified at startup. If any are missing, the launch will fail and the error message will detail the absent variables.
 
@@ -300,7 +300,7 @@ As an on-premise user, you'll receive a license that you'll need to expose as an
 | `TUIST_LICENSE` | The license provided after signing the service level agreement. Accepts either the standard license key or the base64-encoded certificate used in air-gapped environments where the server cannot contact external services. | Yes | | `******` |
 
 > [!WARNING]
-> **Expiration Date**
+> **Expiration date**
 >
 > Licenses have an expiration date. Users will receive a warning while using Tuist commands that interact with the server if the license expires in less than 30 days. If you are interested in renewing your license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
 
@@ -345,8 +345,8 @@ The following environment variables are used to configure the database connectio
 | `TUIST_CLICKHOUSE_URL` | The URL to access the ClickHouse database. Note that the URL should contain the authentication information | No | | `http://username:password@cloud.us-east-2.aws.test.com/production` |
 | `TUIST_USE_SSL_FOR_DATABASE` | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database | No | `1` | `1` |
 | `TUIST_DATABASE_POOL_SIZE` | The number of connections to keep open in the connection pool | No | `10` | `10` |
-| `TUIST_DATABASE_QUEUE_TARGET` | The interval (in miliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `300` | `300` |
-| `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in miliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `1000` | `1000` |
+| `TUIST_DATABASE_QUEUE_TARGET` | The interval (in milliseconds) for checking if all the connections checked out from the pool took more than the queue interval [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `300` | `300` |
+| `TUIST_DATABASE_QUEUE_INTERVAL` | The threshold time (in milliseconds) in the queue that the pool uses to determine if it should start dropping new connections [(More information)](https://hexdocs.pm/db_connection/DBConnection.html#start_link/2-queue-config) | No | `1000` | `1000` |
 | `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | Time interval in milliseconds between ClickHouse buffer flushes | No | `5000` | `5000` |
 | `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE` | Maximum ClickHouse buffer size in bytes before forcing a flush | No | `1000000` | `1000000` |
 | `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE` | Number of ClickHouse buffer processes to run | No | `5` | `5` |
@@ -413,7 +413,7 @@ You'll then need to expose the following environment variables in the environmen
 You can set up authentication with Google using [OAuth 2](https://developers.google.com/identity/protocols/oauth2). For that, you'll need to create a new credential of type OAuth client ID. When creating the credentials, select "Web Application" as application type, name it `Tuist`, and set the redirect URI to `{base_url}/users/auth/google/callback` where `base_url` is the URL your hosted-service is running at. Once you create the app, copy the client ID and secret and set them as environment variables `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` respectively.
 
 > [!NOTE]
-> **Consent Screen Scopes**
+> **Consent screen scopes**
 >
 > You might need to create a consent screen. When you do so, make sure to add the `userinfo.email` and `openid` scopes and mark the app as internal.
 
@@ -463,7 +463,7 @@ You can use any S3-compliant storage provider to store artifacts. The following 
 | `TUIST_S3_VIRTUAL_HOST` | Whether the URL should be constructed with the bucket name as a sub-domain (virtual host) | No | `false` | `1` |
 
 > [!NOTE]
-> **Aws Authentication With Web Identity Token From Environment Variables**
+> **AWS web identity authentication from environment variables**
 >
 > If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
 
@@ -541,13 +541,13 @@ Tuist requires email functionality for user authentication and transactional not
 \* Email configuration variables are required only if you want to send emails. If not configured, email confirmation is automatically skipped
 
 > [!NOTE]
-> **Smtp Support**
+> **SMTP support**
 >
 > Generic SMTP support is not currently available. If you need SMTP support for your on-premise deployment, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev) to discuss your requirements.
 
 
 > [!NOTE]
-> **Air-gapped Deployments**
+> **Air-gapped deployments**
 >
 > For on-premise installations without internet access or email provider configuration, email confirmation is automatically skipped by default. Users can log in immediately after registration. If you have email configured but still want to skip confirmation, set `TUIST_SKIP_EMAIL_CONFIRMATION=true`. To require email confirmation when email is configured, set `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
 
@@ -695,7 +695,7 @@ We provide a comprehensive Docker Compose configuration that includes all requir
 - pgweb for database administration
 
 > [!CAUTION]
-> **License Required**
+> **License required**
 >
 > A valid `TUIST_LICENSE` environment variable is legally required to run the Tuist server, including local development instances. If you need a license, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
 
@@ -1110,5 +1110,5 @@ Tuist provides a set of utilities under `/ops/` that you can use to manage your 
 > Only confirmed users whose email domain matches `TUIST_OPERATOR_EMAIL_DOMAIN` (default `tuist.dev`) can access the `/ops/` endpoints.
 
 
-- **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the application. This is useful for debugging and understanding what went wrong and we might ask you to share this information with us if you're facing issues.
+- **Errors (`/ops/errors`):** You can view unexpected errors that occurred in the application. This is useful for debugging and understanding what went wrong and we might ask you to share this information with us if you're facing issues.
 - **Dashboard (`/ops/dashboard`):** You can view a dashboard that provides insights into the application's performance and health (e.g. memory consumption, processes running, number of requests). This dashboard can be quite useful to understand if the hardware you're using is enough to handle the load.
