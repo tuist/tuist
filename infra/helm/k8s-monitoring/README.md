@@ -281,6 +281,21 @@ counter can be rated. An exact rule takes precedence over it, as
 `tuist_runners_dispatch_request_count` shows, and then only that rule's
 aggregations count.
 
+The Registry Service dashboard's package rankings retain `env`, `scope` and
+`name`, but not `pod`; they deliberately ignore the Pod selector and document
+that limitation. Archive rankings use `increase` over the selected interval.
+Manifest rankings are explicitly cumulative until counter-aware aggregation is
+available: on 2026-11-05, production manifest sums had multiple changing samples
+in a fifteen-minute window, but `rate` and `increase` returned no data even over
+six hours. This is consistent with a plain-`sum` override, not proof of its
+current rule: the Grafana plugin rule endpoint denied the audit connection
+access. An operator with Adaptive Metrics rule access must inspect the exact
+manifest rule and the prefix rule, preserve their other aggregations and label
+coverage, and ensure `sum:counter` is available. Verify fresh interval results
+after ingest catches up before changing the manifest ranking back to interval
+counts. Do not restore high-cardinality pod series just to enable this ranking,
+or substitute a zero for unavailable interval data.
+
 **Fix rates on the prefix rule, not with an exact rule.** Auto-apply makes the
 rule set match the recommendations, and deletes any exact rule they leave out:
 
