@@ -56,6 +56,11 @@ const MAX_DELTA_REPAIR_RECORDS: usize = 100_000;
 const BARRIER_DELTA_PAGE_RECORDS: usize = 512;
 const BARRIER_DELTA_PAGE_BYTES: usize = 256 * 1024;
 const VERIFICATION_ANSWER_BYTES: usize = 16 * 1024;
+// Records the forward link applied that one bridge round confirms against the
+// serving source, and the bodies they may reference.
+const BRIDGE_BATCH_RECORDS: usize = 256;
+const BRIDGE_BATCH_BODY_BYTES: u64 = 64 * 1024 * 1024;
+const BRIDGE_INTERVAL: Duration = Duration::from_millis(100);
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Intent {
@@ -448,6 +453,31 @@ async fn verify_inner(
                 }
                 _ => None,
             };
+            // A record confirmed against the serving source, by the walk or
+            // by the bridge after it, needs neither repair nor the frozen
+            // source's verification.
+            let delta = delta.map(|delta| {
+                let verified = authority
+                    .verified_content
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let keys = verified
+                    .as_ref()
+                    .filter(|verified| verified.intent_id == request.intent.id)
+                    .map(|verified| &verified.keys);
+                delta
+                    .into_iter()
+                    .filter(|entry| {
+                        keys.is_none_or(|keys| {
+                            !keys.contains(&content_key(
+                                &entry.record_kind,
+                                &entry.record_id,
+                                entry.version_ms,
+                            ))
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            });
             let record_terminal = |rejection: &Rejection| -> Result<(), Rejection> {
                 if rejection.terminal {
                     *authority
@@ -810,7 +840,202 @@ async fn prepare_live_destination(
     // can starve until the deadline while the source keeps accepting writes.
     // Quiescing still repairs, atomically freezes and verifies the full corpus.
     require_current_preparation(state, &request, preparation.epoch)?;
-    require_room_for_barrier(state, &walk)
+    require_room_for_barrier(state, &walk)?;
+    // Confirm what the source took during the walk before reporting, then
+    // keep confirming until Quiescing, so the frozen source verifies only
+    // what arrived in the last moment.
+    let near_deadline = || {
+        crate::utils::now_ms().saturating_add(CONTENT_WALK_DEADLINE_MARGIN_MS)
+            >= request.intent.deadline_ms
+    };
+    while !near_deadline() {
+        require_current_preparation(state, &request, preparation.epoch)?;
+        match bridge_round(state, &request).await {
+            Ok(remaining) if remaining > BRIDGE_BATCH_RECORDS => {}
+            Ok(_) => break,
+            Err(error) => {
+                tracing::info!(event.name = "kura.handover.bridge_stopped", id = %request.intent.id,
+                    error = %bounded_detail(&error),
+                    "Stopped confirming the source's late records; the barrier verifies them");
+                return Ok(());
+            }
+        }
+    }
+    keep_bridging(state, request, preparation.epoch);
+    Ok(())
+}
+
+/// Confirms the next records the forward link applied against the serving
+/// source's content, as the walk confirms retained ones. Returns how many
+/// applied records are still unconfirmed.
+async fn bridge_round(state: &SharedState, request: &VerifyRequest) -> Result<usize, String> {
+    let authority = &state.runtime.authority;
+    let (start, batch, unconfirmed) = {
+        let tracked = authority
+            .forward_delta
+            .lock()
+            .map_err(|_| "forward delta poisoned")?;
+        let tracked = tracked
+            .as_ref()
+            .filter(|tracked| tracked.intent_id == request.intent.id)
+            .ok_or("no forward delta for this intent")?;
+        let entries = tracked
+            .entries
+            .as_ref()
+            .ok_or("forward link left the source's feed")?;
+        let mut batch = Vec::new();
+        let mut bytes = 0u64;
+        for (_, entry) in entries.iter().skip(tracked.bridged) {
+            let size = entry.size.unwrap_or(0);
+            if batch.len() == BRIDGE_BATCH_RECORDS
+                || (!batch.is_empty() && bytes.saturating_add(size) > BRIDGE_BATCH_BODY_BYTES)
+            {
+                break;
+            }
+            bytes = bytes.saturating_add(size);
+            batch.push(entry.clone());
+        }
+        (tracked.bridged, batch, entries.len() - tracked.bridged)
+    };
+    if batch.is_empty() {
+        return Ok(0);
+    }
+    let response = state
+        .peer_request(
+            reqwest::Method::POST,
+            &request.intent.source_url,
+            &format!("{}/_internal/handover/describe", request.intent.source_url),
+        )?
+        .json(&DescribeRequest {
+            intent: request.intent.clone(),
+            source: request.source.clone(),
+            entries: batch.clone(),
+        })
+        .timeout(Duration::from_secs(60))
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("source describe returned {}", response.status()));
+    }
+    let described: Vec<Option<Record>> = response.json().await.map_err(|e| e.to_string())?;
+    if described.len() != batch.len() {
+        return Err("source described a different batch".into());
+    }
+    // A record the source no longer holds at that version is left to the
+    // barrier, like one this destination lacks or holds differently.
+    let records: Vec<Record> = described.into_iter().flatten().collect();
+    let (_, held, _) = held_records(state, &records, true)
+        .await
+        .map_err(|(PageFailure::Fatal(error) | PageFailure::Unreachable(error))| error)?;
+    let mut confirmed = 0usize;
+    if let Some(verified) = authority
+        .verified_content
+        .lock()
+        .map_err(|_| "verified content poisoned")?
+        .as_mut()
+        .filter(|verified| verified.intent_id == request.intent.id)
+    {
+        for (expected, actual) in records.iter().zip(held) {
+            if actual.is_some_and(|actual| {
+                actual.size == expected.size && actual.digest == expected.digest
+            }) && verified.keys.len() < MAX_VERIFIED_CONTENT
+            {
+                verified
+                    .keys
+                    .insert(content_key(&expected.kind, &expected.id, expected.version));
+                confirmed += 1;
+            }
+        }
+    }
+    if let Some(tracked) = authority
+        .forward_delta
+        .lock()
+        .map_err(|_| "forward delta poisoned")?
+        .as_mut()
+        .filter(|tracked| tracked.intent_id == request.intent.id && tracked.bridged == start)
+    {
+        tracked.bridged = start + batch.len();
+    }
+    tracing::debug!(event.name = "kura.handover.bridged", id = %request.intent.id,
+        records = batch.len(), confirmed, "Confirmed records the source took while serving");
+    Ok(unconfirmed - batch.len())
+}
+
+/// Keeps confirming applied records while the named intent still serves. One
+/// task per intent; Quiescing, an abort or drain ends it.
+fn keep_bridging(state: &SharedState, request: VerifyRequest, epoch: u64) {
+    {
+        let mut tracked = state
+            .runtime
+            .authority
+            .forward_delta
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Some(tracked) = tracked
+            .as_mut()
+            .filter(|tracked| tracked.intent_id == request.intent.id && !tracked.bridging)
+        else {
+            return;
+        };
+        tracked.bridging = true;
+    }
+    let state = state.clone();
+    tokio::spawn(
+        async move {
+            loop {
+                tokio::time::sleep(BRIDGE_INTERVAL).await;
+                if state.runtime.is_draining()
+                    || require_current_preparation(&state, &request, epoch).is_err()
+                {
+                    break;
+                }
+                if let Err(error) = bridge_round(&state, &request).await {
+                    tracing::info!(event.name = "kura.handover.bridge_stopped", id = %request.intent.id,
+                        error = %bounded_detail(&error),
+                        "Stopped confirming the source's late records; the barrier verifies them");
+                    break;
+                }
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct DescribeRequest {
+    intent: Intent,
+    source: Holder,
+    entries: Vec<BackfillEntry>,
+}
+
+/// The serving source's current content of named records, for the named
+/// destination of its current intent: the records that destination's forward
+/// link applied after its walk, confirmed before the barrier.
+pub async fn describe(
+    State(state): State<SharedState>,
+    Json(request): Json<DescribeRequest>,
+) -> Result<Json<Vec<Option<Record>>>, (StatusCode, String)> {
+    let conflict = |error: String| (StatusCode::CONFLICT, bounded_detail(&error));
+    require_serving_source(&state, &request.intent, &request.source).map_err(conflict)?;
+    if request.entries.len() > BRIDGE_BATCH_RECORDS {
+        return Err(conflict("describe batch too large".into()));
+    }
+    let rows = request
+        .entries
+        .iter()
+        .map(|entry| {
+            BackfillRecordKind::from_wire_name(&entry.record_kind)
+                .map(|kind| (kind, entry.record_id.clone(), entry.version_ms))
+                .ok_or_else(|| conflict("unknown retained record kind".into()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    // An unreadable record is described as absent and left to the barrier.
+    let records = records_in_order(&state, rows)
+        .map(|record| record.ok().flatten())
+        .collect()
+        .await;
+    Ok(Json(records))
 }
 
 // Quiescing refuses the source's writes until repair converges. A destination
@@ -918,6 +1143,9 @@ pub struct ForwardDelta {
     through: u64,
     // (seq, record), or None once a gap, re-bootstrap or the bound broke it.
     entries: Option<Vec<(u64, BackfillEntry)>>,
+    // How many entries the bridge confirmed against the serving source.
+    bridged: usize,
+    bridging: bool,
 }
 
 /// Starts tracking the forward link for this intent and returns the cursor it
@@ -941,6 +1169,8 @@ fn track_forward_delta(
             from,
             through: from.seq,
             entries: Some(Vec::new()),
+            bridged: 0,
+            bridging: false,
         });
         let now = state.store.sync_cursor(peer)?;
         if now == from {
@@ -1084,20 +1314,29 @@ pub async fn descriptors(
         .map_err(|error| (StatusCode::CONFLICT, bounded_detail(&error)))
 }
 
-async fn descriptor_page(
+fn require_serving_source(
     state: &SharedState,
-    request: &DescriptorRequest,
-) -> Result<DescriptorPage, String> {
+    intent: &Intent,
+    source: &Holder,
+) -> Result<(), String> {
     let authority = &state.runtime.authority;
     let grant = authority.intent().ok_or("no handover intent")?;
     if grant.phase != "Serving"
         || grant.holder != *authority.identity()
-        || request.source != *authority.identity()
-        || grant.handover.as_ref() != Some(&request.intent)
-        || crate::utils::now_ms() >= request.intent.deadline_ms
+        || *source != *authority.identity()
+        || grant.handover.as_ref() != Some(intent)
+        || crate::utils::now_ms() >= intent.deadline_ms
     {
         return Err("handover source, phase or intent mismatch".into());
     }
+    Ok(())
+}
+
+async fn descriptor_page(
+    state: &SharedState,
+    request: &DescriptorRequest,
+) -> Result<DescriptorPage, String> {
+    require_serving_source(state, &request.intent, &request.source)?;
     let after = request
         .after
         .as_deref()
@@ -4207,6 +4446,29 @@ mod tests {
             .expect("the forward link applies the source's feed");
         }
 
+        async fn wait_for_bridge(&self, records: usize) {
+            tokio::time::timeout(Duration::from_secs(30), async {
+                loop {
+                    let bridged = self
+                        .target
+                        .state
+                        .runtime
+                        .authority
+                        .forward_delta
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .map_or(0, |tracked| tracked.bridged);
+                    if bridged >= records {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            })
+            .await
+            .expect("the bridge confirms the late records");
+        }
+
         // Renews the named intent in `phase` on both peers, as the controller
         // would, until the returned task is aborted.
         fn keep_granted(&self, phase: &'static str) -> tokio::task::JoinHandle<()> {
@@ -4458,12 +4720,41 @@ mod tests {
 
         let receipt = pair.freeze().await.unwrap();
 
-        assert_eq!(receipt.records as usize, late);
+        // The bridge may already have confirmed some late records; a full
+        // fallback would verify the early one too.
+        assert!(receipt.records as usize <= late, "{}", receipt.records);
         assert_eq!(
             pair.source_requests("/_internal/backfill/entries"),
             listings,
             "the frozen repair never lists the source's whole index"
         );
+    }
+
+    #[tokio::test]
+    async fn records_the_source_takes_while_serving_are_confirmed_before_the_barrier() {
+        let pair = ContentPair::new().await;
+        pair.seed("early", &vec![1; 64 * 1024]).await;
+        pair.catch_up_cursor();
+        let link = pair.follow_source();
+        pair.prepare_while_serving().await.unwrap();
+        let late = 300;
+        for index in 0..late {
+            pair.seed(&format!("late-{index}"), &(index as u64).to_be_bytes())
+                .await;
+        }
+        pair.wait_for_cursor(pair.source.state.store.sync_feed().head())
+            .await;
+        pair.wait_for_bridge(late).await;
+        link.cancel();
+
+        let receipt = pair.freeze().await.unwrap();
+
+        assert_eq!(
+            receipt.records, 0,
+            "every late record was confirmed while the source served"
+        );
+        assert_eq!(pair.requests("/_internal/handover/barrier-delta"), 0);
+        assert!(pair.source_requests("/_internal/handover/describe") > 0);
     }
 
     #[tokio::test]
