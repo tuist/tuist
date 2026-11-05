@@ -162,7 +162,10 @@ Plus the telemetry services themselves:
 named `hubble-metrics` port once per minute with clustered target ownership.
 It retains `hubble_drop_total`, `up`, and `scrape_samples_scraped`, labelled with
 `node`, `instance=<node>`, `namespace`, and `pod`. Source, destination, reason,
-and protocol labels on drop counters are preserved. Unready agents remain
+and protocol labels on drop counters are preserved. Drops with reason
+`UNSUPPORTED_L3_PROTOCOL` are discarded: Cilium runs IPv4-only, so these are
+IPv6 packets from the hosting network keyed by raw source address, and per-node
+collection turned them into an unbounded series count. Unready agents remain
 targets: `up=0` distinguishes a failed scrape from a missing discovery target.
 The existing Cilium-agent scrape is unchanged.
 
