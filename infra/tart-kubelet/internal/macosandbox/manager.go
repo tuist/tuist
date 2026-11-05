@@ -284,10 +284,14 @@ func (m *Manager) Create(ctx context.Context, a protocol.CreateArgs) error {
 		}
 	}
 	r := &Record{RuntimePath: m.RuntimePath, ToolsPath: m.ToolsPath, CreateArgs: a, NodeUID: m.NodeUID, State: "creating", CreatedAt: time.Now().UTC(), IdleAt: time.Now().UTC()}
+	// Recorded before the journal publishes it, so reports sent while the
+	// reservation waits for CI list the sandbox.
+	m.records[a.SandboxID] = r
 	if err := m.begin(r, "create"); err != nil {
+		delete(m.records, a.SandboxID)
+		m.publish()
 		return err
 	}
-	m.records[a.SandboxID] = r
 	if err := m.Capacity.Reserve(ctx, r); err != nil {
 		// No runtime side effect has happened yet. A failed reservation can be
 		// released without touching a VM, so queued CI is never blocked by it.
@@ -321,11 +325,13 @@ func (m *Manager) createOnWarm(ctx context.Context, a protocol.CreateArgs, w *wa
 	}
 	now := time.Now().UTC()
 	r := &Record{RuntimePath: w.rec.RuntimePath, ToolsPath: w.rec.ToolsPath, CreateArgs: a, NodeUID: m.NodeUID, State: "creating", VM: w.rec.VM, Resident: true, CreatedAt: now, IdleAt: now}
+	m.records[a.SandboxID] = r
 	if err := m.begin(r, "claim"); err != nil {
+		delete(m.records, a.SandboxID)
+		m.publish()
 		m.warm[w.pod] = w
 		return err
 	}
-	m.records[a.SandboxID] = r
 	if err := m.Capacity.Transfer(ctx, r, w.namespace, w.name, w.pod); err != nil {
 		return m.finish(r, err)
 	}

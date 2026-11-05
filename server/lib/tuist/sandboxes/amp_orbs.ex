@@ -81,8 +81,10 @@ defmodule Tuist.Sandboxes.AmpOrbs do
   defp dispatch_operation(account, orb_id, sandbox, %{operation: "spawn"} = params) do
     work_id = "amp:" <> orb_id
 
+    created? = match?(nil, sandbox) or match?(%Sandbox{state: :error, node_name: nil}, sandbox)
+
     with {:ok, sandbox} <- find_or_create(account, orb_id, sandbox, params),
-         {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id),
+         {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id, created: created?),
          :ok <- hold(sandbox, work_id) do
       bootstrap(account, sandbox, params)
     end

@@ -274,6 +274,25 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert Repo.reload!(sandbox).residency_work_id == nil
   end
 
+  test "a macOS Orb's first spawn starts its turn even when CI closed the grant while the VM booted", %{
+    account: account
+  } do
+    expect(Capacity, :place, fn _ -> {:ok, "mac-a"} end)
+    expect(Nodes, :call, fn "mac-a", "create", _args, _opts -> {:ok, %{"boot_ms" => 19_000}} end)
+    stub(Capacity, :admit_turn, fn _sandbox, _fun -> {:error, :no_capacity} end)
+    expect(Nodes, :call, fn "mac-a", "hold_residency", _args, _opts -> {:ok, %{}} end)
+    expect(Nodes, :call, fn "mac-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+    assert {:ok, sandbox} =
+             AmpOrbs.dispatch(
+               account,
+               "amp-thread",
+               Map.merge(spawn_params(), %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192})
+             )
+
+    assert %{state: :running, residency_work_id: "amp:amp-thread"} = Repo.reload!(sandbox)
+  end
+
   test "a macOS Orb's pause saves no disk snapshot and is never archived", %{account: account} do
     sandbox =
       sandbox_fixture(account: account, amp_orb_id: "amp-thread", platform: :darwin, node_name: "mac-a", node_uid: "uid")

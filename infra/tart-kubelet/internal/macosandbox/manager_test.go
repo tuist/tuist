@@ -129,9 +129,13 @@ type fakeCapacity struct {
 	allow      bool
 	held       map[string]bool
 	releaseErr error
+	onReserve  func()
 }
 
 func (f *fakeCapacity) Reserve(ctx context.Context, r *Record) error {
+	if f.onReserve != nil {
+		f.onReserve()
+	}
 	if err := f.Allow(ctx, r); err != nil {
 		return err
 	}
@@ -200,6 +204,21 @@ func TestResidentPauseRetainsCapacityAndMemoryAcrossRecovery(t *testing.T) {
 		t.Fatal("delete leaked ownership")
 	}
 }
+
+// A create can wait for CI to give up a slot. Reports sent meanwhile must
+// list the sandbox, or the server reads it as missing once the create ends.
+func TestReportsListASandboxWhileItsCreateWaitsForCapacity(t *testing.T) {
+	m, _, c, a := harness(t)
+	var during []protocol.SandboxInfo
+	c.onReserve = func() { during = m.Snapshot() }
+	if err := m.Create(context.Background(), a); err != nil {
+		t.Fatal(err)
+	}
+	if len(during) != 1 || during[0].ID != a.SandboxID || during[0].State != "creating" {
+		t.Fatalf("report during the reservation wait: %+v", during)
+	}
+}
+
 func TestResidencyHoldOutlivesIdleGraceAndCIUntilItsOwnerEndsIt(t *testing.T) {
 	m, r, c, a := harness(t)
 	m.Grace = time.Nanosecond

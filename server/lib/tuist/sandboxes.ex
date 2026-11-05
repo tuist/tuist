@@ -50,6 +50,7 @@ defmodule Tuist.Sandboxes do
   # belongs to a caller that died mid-operation (a web pod stopped during a
   # deploy): the node's report decides what it is now.
   @stuck_after_seconds 150
+  @report_settle_seconds 10
   # Sandboxes are bounded by the account's CPU, memory and disk quota
   # (`Concurrency`), not by a count.
   # A running Amp Orb whose guest has used under 2% of one vCPU for this
@@ -536,19 +537,20 @@ defmodule Tuist.Sandboxes do
   @doc """
   Makes the session's sandbox run and records the residency of `work_id`
   in one step under the sandbox's lock, so a scheduled pause cannot slip
-  between the resume and the residency that keeps it running.
+  between the resume and the residency that keeps it running. Pass
+  `created: true` when the caller has just created the sandbox.
   """
-  def prepare_residency(%Sandbox{id: id}, work_id) when is_binary(work_id) do
+  def prepare_residency(%Sandbox{id: id}, work_id, opts \\ []) when is_binary(work_id) do
     with_sandbox_lock(id, fn ->
       with_fresh(id, fn sandbox ->
-        resumed? = sandbox.platform == :darwin and sandbox.state != :running
+        admitted? = sandbox.platform == :darwin and (sandbox.state != :running or Keyword.get(opts, :created, false))
 
         with {:ok, sandbox} <- running_or_resume(sandbox) do
-          # A macOS resume was just admitted, by the server and under the
-          # host's CI-first check. A grant that closed during the restore
-          # must not refuse the turn: the VM already holds its slot, and the
-          # refusal would only pause it for the retry to resume again.
-          if resumed?, do: record_residency(sandbox, work_id), else: begin_residency(sandbox, work_id)
+          # A macOS create or resume was just admitted, by the server and
+          # under the host's CI-first check. A grant that closed while the VM
+          # booted or restored must not refuse the turn: the VM already holds
+          # its slot, and the refusal would only fail the spawn for a retry.
+          if admitted?, do: record_residency(sandbox, work_id), else: begin_residency(sandbox, work_id)
         end
       end)
     end)
@@ -1070,12 +1072,17 @@ defmodule Tuist.Sandboxes do
     |> Enum.each(&delete_orphan(node_name, &1))
 
     stuck_before = DateTime.add(now(), -@stuck_after_seconds, :second)
+    # A node builds a report before sending it, so one can arrive just after
+    # a create or resume it predates and not list that sandbox. Only a row
+    # unchanged for two report intervals is missing; a later report settles it.
+    settled_before = DateTime.add(now(), -@report_settle_seconds, :second)
 
     Sandbox
     |> where([s], s.node_name == ^node_name and s.id not in ^reported_ids)
     |> where(
       [s],
-      s.state in ^[:running, :paused, :resuming] or (s.state == :creating and s.updated_at < ^stuck_before)
+      (s.state in ^[:running, :paused, :resuming] and s.updated_at < ^settled_before) or
+        (s.state == :creating and s.updated_at < ^stuck_before)
     )
     |> Repo.all()
     |> Enum.each(fn sandbox ->
