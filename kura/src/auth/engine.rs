@@ -75,10 +75,6 @@ struct AccessEntry {
     settled_until: Instant,
     /// How long the entry lives in the cache, handed to the expiry below.
     lifetime: Duration,
-    /// Whether the backend said what this level may not do, rather than only
-    /// what it may (`Authentication::Settled`). Its refusals then hold while
-    /// the backend cannot be reached, as its allowances do.
-    settled: bool,
 }
 
 impl AccessEntry {
@@ -412,7 +408,7 @@ impl AuthEngine {
         // A backend that just failed to answer is left alone for a moment,
         // whoever is asking about whatever target.
         if self.unreachable.get(&credential_key).is_some() {
-            return self.without_backend(required, held.as_ref(), request);
+            return self.without_backend(required, held.as_ref());
         }
 
         let lock = self
@@ -456,12 +452,7 @@ impl AuthEngine {
                     // own revocation check.
                     self.revocations.insert(credential_key, Instant::now());
                 }
-                self.remember(entry_key, access, ctx, false);
-                self.remember_origin(credential_key, access, ctx);
-                respond(access, required, request)
-            }
-            Authentication::Settled(access) => {
-                self.remember(entry_key, access, ctx, true);
+                self.remember(entry_key, access, ctx);
                 self.remember_origin(credential_key, access, ctx);
                 respond(access, required, request)
             }
@@ -470,45 +461,23 @@ impl AuthEngine {
             Authentication::Deny(deny) => Outcome::Refuse(deny),
             Authentication::Unavailable(_) => {
                 self.unreachable.insert(credential_key, ());
-                self.without_backend(required, held.as_ref(), request)
+                self.without_backend(required, held.as_ref())
             }
         }
     }
 
     /// The answer when the backend cannot be reached: a level that covers the
     /// request keeps serving it until its entry runs out, and a node holding
-    /// nothing that covers it fails closed. A settled level refuses what it
-    /// does not cover instead: a read-only credential's writes are refused,
-    /// not answered unavailable, because a client that retries and then gives
-    /// up on an unavailable cache stops reading from it as well.
-    fn without_backend(
-        &self,
-        required: Access,
-        held: Option<&AccessEntry>,
-        request: &policy::ResolvedRequest<'_>,
-    ) -> Outcome {
-        match held {
-            Some(entry) if entry.access >= required => {
-                self.metrics.record_auth_cache("access", "stale");
-                Outcome::Allow
-            }
-            Some(entry) if entry.settled && entry.access >= Access::Read => {
-                self.metrics.record_auth_cache("access", "stale");
-                Outcome::Refuse(policy::refusal(request))
-            }
-            _ => Outcome::Unavailable(unreachable_deny()),
+    /// nothing that covers it fails closed.
+    fn without_backend(&self, required: Access, held: Option<&AccessEntry>) -> Outcome {
+        if held.is_some_and(|entry| entry.access >= required) {
+            self.metrics.record_auth_cache("access", "stale");
+            return Outcome::Allow;
         }
+        Outcome::Unavailable(unreachable_deny())
     }
 
-    /// A `settled` level's refusals are replayed without asking the backend
-    /// again for as long as it is served, other refusals only briefly; see
-    /// `Authentication::Settled`.
-    fn remember(&self, entry_key: EntryKey, access: Access, ctx: &RequestContext, settled: bool) {
-        let settled_for = if settled {
-            REVALIDATE_AFTER
-        } else {
-            REFUSAL_TTL
-        };
+    fn remember(&self, entry_key: EntryKey, access: Access, ctx: &RequestContext) {
         let lifetime = entry_lifetime(access, policy::credential_expiry(ctx));
         // A credential already past its own expiry is answered this once,
         // because the backend just vouched for it, but holding it would only
@@ -524,9 +493,8 @@ impl AuthEngine {
                 access,
                 evaluated_at: now,
                 serve_until: now + REVALIDATE_AFTER,
-                settled_until: now + settled_for,
+                settled_until: now + REFUSAL_TTL,
                 lifetime,
-                settled,
             },
         );
     }
@@ -656,32 +624,11 @@ impl AuthEngine {
             );
         }
     }
-
-    /// Moves this request's entry back in time by `by`, as if that long had
-    /// passed since it was evaluated.
-    #[cfg(test)]
-    pub(crate) async fn age_entry(&self, ctx: &RequestContext, by: Duration) {
-        let request = policy::resolve_request(ctx).expect("a resolvable request");
-        let credential_key = fingerprint(policy::authorization_header(ctx).unwrap_or_default());
-        let key = entry_key(&credential_key, &request.target);
-
-        if let Some(entry) = self.entries.get(&key) {
-            let earlier = |instant: Instant| instant.checked_sub(by).unwrap_or(instant);
-            self.entries.insert(
-                key,
-                AccessEntry {
-                    serve_until: earlier(entry.serve_until),
-                    settled_until: earlier(entry.settled_until),
-                    ..entry
-                },
-            );
-        }
-    }
 }
 
 fn result_label(result: &Authentication) -> &'static str {
     match result {
-        Authentication::Access(_) | Authentication::Settled(_) => "access",
+        Authentication::Access(_) => "access",
         Authentication::Deny(_) => "deny",
         Authentication::Unavailable(_) => "unavailable",
     }
@@ -796,7 +743,6 @@ mod tests {
             serve_until: now + REVALIDATE_AFTER,
             settled_until: now + REFUSAL_TTL,
             lifetime: CONFIRMED_TTL,
-            settled: false,
         }
     }
 

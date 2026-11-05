@@ -13,10 +13,7 @@ defmodule Cache.Finch.Pools do
           protocols: [:http2, :http1],
           transport_opts:
             [
-              verify: :verify_peer,
-              # Connect timeout. Authentication waits on this pool, and Mint's
-              # 30 s default would stall every request while the server is down.
-              timeout: 3_000
+              verify: :verify_peer
             ] ++ TuistCommon.FinchPools.ca_cert_opts(Cache.Config.server_ca_cert_pem())
         ],
         size: 32,

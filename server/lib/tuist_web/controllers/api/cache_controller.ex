@@ -289,30 +289,7 @@ defmodule TuistWeb.API.CacheController do
              },
              projects: %Schema{
                type: :array,
-               description:
-                 "Project handles whose cache the subject may read. Carries no action; cache_grants says which projects may also be written.",
                items: %Schema{type: :string}
-             },
-             cache_grants: %Schema{
-               type: :object,
-               description:
-                 "Handles by scope and action, as `{account|project: {read|write: [handle]}}`. Write implies read. Cache nodes authorize from these when present.",
-               properties: %{
-                 account: %Schema{
-                   type: :object,
-                   properties: %{
-                     read: %Schema{type: :array, items: %Schema{type: :string}},
-                     write: %Schema{type: :array, items: %Schema{type: :string}}
-                   }
-                 },
-                 project: %Schema{
-                   type: :object,
-                   properties: %{
-                     read: %Schema{type: :array, items: %Schema{type: :string}},
-                     write: %Schema{type: :array, items: %Schema{type: :string}}
-                   }
-                 }
-               }
              },
              payment_required: %Schema{
                type: :array,

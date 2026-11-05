@@ -5,7 +5,6 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.API.Pipeline
-  alias Tuist.Authorization
   alias Tuist.Billing.UsagePricing
   alias Tuist.CacheActionItems
   alias Tuist.Kura.Demand
@@ -931,82 +930,8 @@ defmodule TuistWeb.API.CacheControllerTest do
                "payment_required" => [],
                "payment_failed" => [],
                "accounts" => [],
-               "projects" => ["#{organization.account.name}/#{project.name}"],
-               "cache_grants" => %{
-                 "account" => %{"read" => [], "write" => []},
-                 "project" => %{"read" => ["#{organization.account.name}/#{project.name}"], "write" => []}
-               }
+               "projects" => ["#{organization.account.name}/#{project.name}"]
              }
-    end
-
-    # Cache nodes authorize opaque credentials from this response alone, so it
-    # has to say which action each project allows. A credential that reaches a
-    # project is not necessarily allowed to write to it, or to use its cache
-    # at all.
-    test "grants each opaque credential only the cache actions the policy permits", %{conn: conn} do
-      # Given
-      admin = AccountsFixtures.user_fixture(preload: [:account])
-      organization = AccountsFixtures.organization_fixture(name: "grants-org", creator: admin)
-      project = ProjectsFixtures.project_fixture(account: organization.account)
-      handle = "#{organization.account.name}/#{project.name}"
-
-      tokens_only_organization = AccountsFixtures.organization_fixture(name: "grants-tokens-only-org", creator: admin)
-
-      {:ok, tokens_only_account} =
-        Accounts.update_account(tokens_only_organization.account, %{cache_write_policy: :tokens_only})
-
-      tokens_only_project = ProjectsFixtures.project_fixture(account: tokens_only_account)
-      tokens_only_handle = "#{tokens_only_account.name}/#{tokens_only_project.name}"
-
-      viewer = AccountsFixtures.user_fixture(preload: [:account])
-      :ok = Accounts.add_user_to_organization(viewer, organization, role: :viewer)
-
-      member = AccountsFixtures.user_fixture(preload: [:account])
-      :ok = Accounts.add_user_to_organization(member, tokens_only_organization, role: :user)
-
-      account_token = fn scopes ->
-        {:ok, {_token, value}} =
-          Accounts.create_account_token(%{
-            account: organization.account,
-            name: "token-#{System.unique_integer([:positive])}",
-            scopes: scopes,
-            all_projects: true
-          })
-
-        value
-      end
-
-      # {credential, project, may read, may write}
-      cases = [
-        {account_token.(["project:cache:read"]), project, handle, true, false},
-        {account_token.(["project:previews:read"]), project, handle, false, false},
-        {viewer.token, project, handle, true, false},
-        {member.token, tokens_only_project, tokens_only_handle, true, false},
-        # Controls: the same reach with write access keeps it.
-        {account_token.(["project:cache:write"]), project, handle, true, true},
-        {admin.token, project, handle, true, true}
-      ]
-
-      for {credential, project, handle, may_read, may_write} <- cases do
-        # When
-        conn =
-          conn
-          |> put_req_header("authorization", "Bearer #{credential}")
-          |> get(~p"/api/cache/access")
-
-        response = json_response(conn, 200)
-
-        # Then
-        subject = Authentication.authenticated_subject(conn)
-        assert Authorization.authorize(:project_cache_create, subject, project) == :ok == may_write
-
-        assert %{"cache_grants" => %{"project" => %{"read" => reads, "write" => writes}}} = response,
-               "no cache grants for #{handle} in #{inspect(response)}"
-
-        assert {handle in response["projects"], handle in reads, handle in writes} ==
-                 {may_read, may_read or may_write, may_write},
-               "#{handle}: #{inspect(response)}"
-      end
     end
   end
 
