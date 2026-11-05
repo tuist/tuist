@@ -5,15 +5,9 @@ on:
     branches: [main]
     paths:
       - pulse/**
-      - infra/helm/pulse/**
-      - .github/workflows/pulse*.yml
-      - mise/tasks/release/components.json
   pull_request:
     paths:
       - pulse/**
-      - infra/helm/pulse/**
-      - .github/workflows/pulse*.yml
-      - mise/tasks/release/components.json
   workflow_dispatch:
   workflow_call:
 
