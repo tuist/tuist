@@ -12,7 +12,7 @@ msgid ""
 msgstr ""
 
 #: lib/tuist/billing.ex:72
-#: lib/tuist_web/live/billing_live.ex:422
+#: lib/tuist_web/live/billing_live.ex:424
 #, elixir-autogen, elixir-format
 msgid "$0"
 msgstr ""
@@ -45,14 +45,14 @@ msgid "Admin"
 msgstr ""
 
 #: lib/tuist/billing.ex:50
-#: lib/tuist_web/live/billing_live.ex:392
+#: lib/tuist_web/live/billing_live.ex:394
 #: lib/tuist_web/live/billing_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "Air"
 msgstr ""
 
 #: lib/tuist/billing.ex:59
-#: lib/tuist_web/live/billing_live.ex:397
+#: lib/tuist_web/live/billing_live.ex:399
 #, elixir-autogen, elixir-format
 msgid "All features, no credit card required"
 msgstr ""
@@ -134,7 +134,7 @@ msgstr ""
 msgid "Community support"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:398
+#: lib/tuist_web/live/billing_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "Community support via forum"
 msgstr ""
@@ -160,7 +160,7 @@ msgid "Confirmation instructions"
 msgstr ""
 
 #: lib/tuist/billing.ex:92
-#: lib/tuist_web/live/billing_live.ex:459
+#: lib/tuist_web/live/billing_live.ex:461
 #, elixir-autogen, elixir-format
 msgid "Contact sales"
 msgstr ""
@@ -170,7 +170,7 @@ msgstr ""
 msgid "Create organization"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:449
+#: lib/tuist_web/live/billing_live.ex:451
 #, elixir-autogen, elixir-format
 msgid "Create your plan or self-host your instance"
 msgstr ""
@@ -181,15 +181,15 @@ msgstr ""
 msgid "Create your plan or self-host your instance."
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:404
-#: lib/tuist_web/live/billing_live.ex:433
+#: lib/tuist_web/live/billing_live.ex:406
+#: lib/tuist_web/live/billing_live.ex:435
 #: lib/tuist_web/live/billing_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Current plan"
 msgstr ""
 
 #: lib/tuist/billing.ex:91
-#: lib/tuist_web/live/billing_live.ex:450
+#: lib/tuist_web/live/billing_live.ex:452
 #: lib/tuist_web/live/billing_live.html.heex:169
 #: lib/tuist_web/live/webhook_live.ex:253
 #, elixir-autogen, elixir-format
@@ -197,7 +197,7 @@ msgid "Custom"
 msgstr ""
 
 #: lib/tuist/billing.ex:94
-#: lib/tuist_web/live/billing_live.ex:452
+#: lib/tuist_web/live/billing_live.ex:454
 #, elixir-autogen, elixir-format
 msgid "Custom terms"
 msgstr ""
@@ -318,7 +318,7 @@ msgstr ""
 msgid "Did you request to reset your password?"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:410
+#: lib/tuist_web/live/billing_live.ex:412
 #, elixir-autogen, elixir-format
 msgid "Downgrade"
 msgstr ""
@@ -349,7 +349,7 @@ msgid "Enter your username to confirm"
 msgstr ""
 
 #: lib/tuist/billing.ex:88
-#: lib/tuist_web/live/billing_live.ex:448
+#: lib/tuist_web/live/billing_live.ex:450
 #: lib/tuist_web/live/billing_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Enterprise"
@@ -361,7 +361,7 @@ msgid "Europe"
 msgstr ""
 
 #: lib/tuist/billing.ex:53
-#: lib/tuist_web/live/billing_live.ex:394
+#: lib/tuist_web/live/billing_live.ex:396
 #: lib/tuist_web/live/billing_live.html.heex:166
 #: lib/tuist_web/live/billing_live.html.heex:167
 #, elixir-autogen, elixir-format
@@ -373,7 +373,7 @@ msgstr ""
 msgid "Free tier exceeded"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:396
+#: lib/tuist_web/live/billing_live.ex:398
 #, elixir-autogen, elixir-format
 msgid "Free under tier limits"
 msgstr ""
@@ -404,7 +404,7 @@ msgstr ""
 msgid "Get started"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:393
+#: lib/tuist_web/live/billing_live.ex:395
 #, elixir-autogen, elixir-format
 msgid "Get started with no credit card required"
 msgstr ""
@@ -488,7 +488,7 @@ msgstr ""
 msgid "Members"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:354
+#: lib/tuist_web/live/billing_live.ex:356
 #, elixir-autogen, elixir-format
 msgid "Most Popular"
 msgstr ""
@@ -522,7 +522,7 @@ msgid "No members found"
 msgstr ""
 
 #: lib/tuist/billing.ex:96
-#: lib/tuist_web/live/billing_live.ex:453
+#: lib/tuist_web/live/billing_live.ex:455
 #, elixir-autogen, elixir-format
 msgid "On-premise"
 msgstr ""
@@ -549,13 +549,13 @@ msgid "Passwords don't match"
 msgstr ""
 
 #: lib/tuist/billing.ex:77
-#: lib/tuist_web/live/billing_live.ex:425
+#: lib/tuist_web/live/billing_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "Pay nothing if below free tier limits"
 msgstr ""
 
 #: lib/tuist/billing.ex:79
-#: lib/tuist_web/live/billing_live.ex:426
+#: lib/tuist_web/live/billing_live.ex:428
 #, elixir-autogen, elixir-format
 msgid "Pay only for what you use per feature"
 msgstr ""
@@ -590,7 +590,7 @@ msgstr ""
 msgid "Priority support"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:454
+#: lib/tuist_web/live/billing_live.ex:456
 #, elixir-autogen, elixir-format
 msgid "Priority support via shared Slack channel"
 msgstr ""
@@ -601,7 +601,7 @@ msgid "Priority support: Via shared Slack channel"
 msgstr ""
 
 #: lib/tuist/billing.ex:69
-#: lib/tuist_web/live/billing_live.ex:420
+#: lib/tuist_web/live/billing_live.ex:422
 #: lib/tuist_web/live/billing_live.html.heex:159
 #, elixir-autogen, elixir-format
 msgid "Pro"
@@ -711,7 +711,7 @@ msgstr ""
 msgid "Standard support"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:427
+#: lib/tuist_web/live/billing_live.ex:429
 #, elixir-autogen, elixir-format
 msgid "Standard support via Slack and email"
 msgstr ""
@@ -812,7 +812,7 @@ msgstr ""
 msgid "Updating your username can have unintended consequences."
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:439
+#: lib/tuist_web/live/billing_live.ex:441
 #, elixir-autogen, elixir-format
 msgid "Upgrade"
 msgstr ""
@@ -848,7 +848,7 @@ msgstr ""
 msgid "Usage-based pricing"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:421
+#: lib/tuist_web/live/billing_live.ex:423
 #, elixir-autogen, elixir-format
 msgid "Usage-based pricing after free tier"
 msgstr ""
@@ -939,17 +939,17 @@ msgid "You’ve exceeded your free tier quota and will incur charges for additio
 msgstr ""
 
 #: lib/tuist/billing.ex:73
-#: lib/tuist_web/live/billing_live.ex:423
+#: lib/tuist_web/live/billing_live.ex:425
 #, elixir-autogen, elixir-format
 msgid "and up"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:207
+#: lib/tuist_web/live/billing_live.ex:209
 #, elixir-autogen, elixir-format
 msgid "charged /per month"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:202
+#: lib/tuist_web/live/billing_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "charged on %{next_charge_date}"
 msgstr ""
@@ -2502,31 +2502,31 @@ msgstr ""
 msgid "Under API permissions, grant the delegated openid, profile, and email permissions"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:290
+#: lib/tuist_web/live/billing_live.ex:292
 #, elixir-autogen, elixir-format
 msgid "%{count} minute"
 msgid_plural "%{count} minutes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/billing_live.ex:286
+#: lib/tuist_web/live/billing_live.ex:288
 #, elixir-autogen, elixir-format
 msgid "%{count} second"
 msgid_plural "%{count} seconds"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/tuist_web/live/billing_live.ex:320
+#: lib/tuist_web/live/billing_live.ex:322
 #, elixir-autogen, elixir-format
 msgid "free during your trial"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:322
+#: lib/tuist_web/live/billing_live.ex:324
 #, elixir-autogen, elixir-format
 msgid "no paid plan to bill against"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:324
+#: lib/tuist_web/live/billing_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "on your next invoice"
 msgstr ""
@@ -2672,7 +2672,7 @@ msgstr ""
 msgid "%{quantity} above free tier"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:184
+#: lib/tuist_web/live/billing_live.ex:186
 #, elixir-autogen, elixir-format
 msgid "Cache requests"
 msgstr ""
@@ -2682,7 +2682,7 @@ msgstr ""
 msgid "Cache requests:"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:191
+#: lib/tuist_web/live/billing_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "Passing test cases"
 msgstr ""
@@ -2692,7 +2692,7 @@ msgstr ""
 msgid "Passing test cases:"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:177
+#: lib/tuist_web/live/billing_live.ex:179
 #, elixir-autogen, elixir-format
 msgid "Cache egress"
 msgstr ""
@@ -3110,17 +3110,17 @@ msgstr ""
 msgid "%{usage} of %{limit} free runner minutes used, counted in macOS minutes (%{linux} Linux minutes count as %{limit})"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:299
+#: lib/tuist_web/live/billing_live.ex:301
 #, elixir-autogen, elixir-format
 msgid "of your free minutes, counted in macOS minutes (%{linux} Linux minutes count as %{macos})"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:308
+#: lib/tuist_web/live/billing_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "of your usage (%{free} free macOS minutes plus %{prepaid} prepaid)"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.ex:315
+#: lib/tuist_web/live/billing_live.ex:317
 #, elixir-autogen, elixir-format
 msgid "within your %{macos} free macOS and %{linux} free Linux minutes"
 msgstr ""
