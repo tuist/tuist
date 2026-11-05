@@ -51,6 +51,30 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "operator email domain" do
+    setup do
+      # Only the secrets passed to each call decide the outcome, whatever the
+      # runner's environment holds.
+      stub(System, :get_env, fn
+        "TUIST_OPERATOR_EMAIL_DOMAIN" -> nil
+        name -> Mimic.call_original(System, :get_env, [name])
+      end)
+
+      :ok
+    end
+
+    test "counts as configured only when a non-blank domain is set" do
+      refute Environment.operator_email_domain_configured?(%{})
+      refute Environment.operator_email_domain_configured?(%{"operator_email_domain" => "  "})
+      assert Environment.operator_email_domain_configured?(%{"operator_email_domain" => "example.com"})
+    end
+
+    test "normalizes the configured domain and falls back to tuist.dev" do
+      assert Environment.operator_email_domain(%{"operator_email_domain" => " Example.COM "}) == "example.com"
+      assert Environment.operator_email_domain(%{}) == "tuist.dev"
+    end
+  end
+
   describe "kura_thin_region_ids/0" do
     test "reads the trimmed region IDs enrolled in thin Kura volumes" do
       stub(System, :get_env, fn

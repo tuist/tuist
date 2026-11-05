@@ -85,7 +85,16 @@ defmodule Tuist.Guardian do
   defp extract_project_ids(%{"project_id" => project_id}) when not is_nil(project_id), do: [project_id]
   defp extract_project_ids(_), do: nil
 
-  def after_encode_and_sign(resource, claims, token, _options) do
+  # A user's tokens are issued only while the account still has the password
+  # it was authenticated with, so they can't outlive a revocation that lands
+  # meanwhile. See `Accounts.issue_user_credential/2`.
+  def after_encode_and_sign(%User{} = user, claims, token, options) do
+    Accounts.issue_user_credential(user, fn -> store_token(user, claims, token, options) end)
+  end
+
+  def after_encode_and_sign(resource, claims, token, options), do: store_token(resource, claims, token, options)
+
+  defp store_token(resource, claims, token, _options) do
     with {:ok, _} <-
            Guardian.DB.after_encode_and_sign(
              resource,

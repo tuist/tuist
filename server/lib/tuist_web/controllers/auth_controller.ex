@@ -209,6 +209,35 @@ defmodule TuistWeb.AuthController do
     end
   end
 
+  # A new identity is linked to, or creates, the account with the provider's
+  # email, so that email has to be one the provider verified. Google reports
+  # verification per account; the other providers only return verified
+  # addresses.
+  defp provider_email_verified?(%Auth{provider: :google, extra: %{raw_info: %{user: user}}}),
+    do: user["email_verified"] == true
+
+  defp provider_email_verified?(%Auth{provider: :google}), do: false
+  defp provider_email_verified?(_auth), do: true
+
+  defp ensure_provider_email_verified!(auth) do
+    if not provider_email_verified?(auth) do
+      raise UnauthorizedError,
+            dgettext("dashboard", "Verify your email address with your sign-in provider, then try again.")
+    end
+  end
+
+  # A returning sign-in through an instance-configured provider that still
+  # reports the account's address, verified, proves control of it again.
+  defp record_returning_mailbox_proof(user, auth) do
+    if Accounts.instance_email_provider?(auth.provider) and provider_email_verified?(auth) and
+         is_binary(auth.info.email) and String.downcase(auth.info.email) == user.email do
+      {:ok, user} = Accounts.record_mailbox_proof(user)
+      user
+    else
+      user
+    end
+  end
+
   defp provider_auth_enabled?(:github), do: Tuist.Environment.github_auth_enabled?()
   defp provider_auth_enabled?(:google), do: Tuist.Environment.google_auth_enabled?()
   defp provider_auth_enabled?(:apple), do: Tuist.Environment.apple_auth_enabled?()
@@ -226,7 +255,7 @@ defmodule TuistWeb.AuthController do
 
     case Accounts.get_oauth2_identity(auth.provider, auth.uid, provider_organization_id) do
       {:ok, oauth2_identity} ->
-        user = oauth2_identity.user
+        user = record_returning_mailbox_proof(oauth2_identity.user, auth)
         oauth_return_url = get_session(conn, :oauth_return_to)
 
         if oauth_return_url do
@@ -239,6 +268,7 @@ defmodule TuistWeb.AuthController do
         end
 
       {:error, :not_found} ->
+        ensure_provider_email_verified!(auth)
         oauth_return_url = get_session(conn, :oauth_return_to)
 
         case Accounts.get_user_by_email(auth.info.email) do
@@ -314,38 +344,16 @@ defmodule TuistWeb.AuthController do
 
     cond do
       can_link_existing_user?(existing_user, auth.provider, sso_organization) ->
-        case Accounts.link_oauth_identity_by_email(existing_user, %{
-               provider: auth.provider,
-               id_in_provider: to_string(auth.uid),
-               provider_organization_id: provider_organization_id
-             }) do
-          {:ok, _oauth_identity} ->
-            log_in_linked_sso_user(
-              conn,
-              existing_user,
-              invitation,
-              auth_params,
-              sso_organization,
-              oauth_return_url
-            )
-
-          {:error, :email_not_proven} ->
-            log(
-              :warning,
-              "Refused to link existing user #{existing_user.id} via #{auth.provider}: email confirmation is skipped and no provider has proven the account's email."
-            )
-
-            conn
-            |> put_flash(
-              :error,
-              dgettext(
-                "dashboard_auth",
-                "An account with this email already exists. Log in with its email and password instead."
-              )
-            )
-            |> redirect(to: ~p"/users/log_in")
-            |> halt()
-        end
+        link_by_email_and_log_in(
+          conn,
+          existing_user,
+          auth,
+          auth_params,
+          invitation,
+          sso_organization,
+          provider_organization_id,
+          oauth_return_url
+        )
 
       signed_in_user = signed_in_sso_link_user(conn, auth.provider, sso_organization) ->
         confirm_sso_link(conn, signed_in_user, auth, sso_organization, provider_organization_id, oauth_return_url)
@@ -374,6 +382,60 @@ defmodule TuistWeb.AuthController do
 
         raise_sso_unauthorized(:existing_user_not_member)
     end
+  end
+
+  defp link_by_email_and_log_in(
+         conn,
+         existing_user,
+         auth,
+         auth_params,
+         invitation,
+         sso_organization,
+         provider_organization_id,
+         oauth_return_url
+       ) do
+    case Accounts.link_oauth_identity_by_email(existing_user, %{
+           provider: auth.provider,
+           id_in_provider: to_string(auth.uid),
+           provider_organization_id: provider_organization_id
+         }) do
+      {:ok, _oauth_identity} ->
+        # The link may have proven the address and ended the account's
+        # earlier credentials, so sign in with the account as it is now.
+        log_in_linked_sso_user(
+          conn,
+          Accounts.get_user_by_id(existing_user.id),
+          invitation,
+          auth_params,
+          sso_organization,
+          oauth_return_url
+        )
+
+      {:error, :email_changed} ->
+        raise UnauthorizedError,
+              dgettext("dashboard", "Your account changed while you were signing in. Please try again.")
+
+      {:error, :email_not_proven} ->
+        refuse_unproven_link(conn, existing_user, auth)
+    end
+  end
+
+  defp refuse_unproven_link(conn, existing_user, auth) do
+    log(
+      :warning,
+      "Refused to link existing user #{existing_user.id} via #{auth.provider}: email confirmation is skipped and no provider has proven the account's email."
+    )
+
+    conn
+    |> put_flash(
+      :error,
+      dgettext(
+        "dashboard_auth",
+        "An account with this email already exists. Log in with its email and password instead."
+      )
+    )
+    |> redirect(to: ~p"/users/log_in")
+    |> halt()
   end
 
   defp log_in_linked_sso_user(conn, existing_user, invitation, auth_params, sso_organization, oauth_return_url) do

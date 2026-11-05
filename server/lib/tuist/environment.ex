@@ -953,7 +953,15 @@ defmodule Tuist.Environment do
   verification. Defaults to `tuist.dev`.
   """
   def operator_email_domain(secrets \\ secrets()) do
-    get([:operator_email_domain], secrets, default_value: "tuist.dev")
+    [:operator_email_domain] |> get(secrets, default_value: "tuist.dev") |> String.trim() |> String.downcase()
+  end
+
+  @doc "Whether the operator email domain is set explicitly instead of using the `tuist.dev` default."
+  def operator_email_domain_configured?(secrets \\ secrets()) do
+    case get([:operator_email_domain], secrets) do
+      domain when is_binary(domain) -> String.trim(domain) != ""
+      _ -> false
+    end
   end
 
   @doc "Configured immutable shard target IDs; malformed configuration disables enrollment."

@@ -9,6 +9,7 @@ defmodule TuistWeb.AuthControllerTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Oauth2Identity
+  alias Tuist.Accounts.User
   alias Tuist.OAuth2.SSOClient
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -1740,7 +1741,7 @@ defmodule TuistWeb.AuthControllerTest do
         provider: :google,
         uid: "google-uid-123",
         info: %Info{email: "existing@example.com"},
-        extra: %{raw_info: %{user: %{"hd" => nil}}}
+        extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
       }
 
       # When: OAuth callback is triggered (call controller directly to bypass Ueberauth middleware)
@@ -1825,7 +1826,7 @@ defmodule TuistWeb.AuthControllerTest do
           provider: :google,
           uid: "owner-google-uid",
           info: %Info{email: "owner@example.com"},
-          extra: %{raw_info: %{user: %{"hd" => nil}}}
+          extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
         })
         |> TuistWeb.AuthController.callback(%{})
 
@@ -1834,13 +1835,97 @@ defmodule TuistWeb.AuthControllerTest do
       assert user_id == user.id
     end
 
+    test "refuses a Google email that Google has not verified", %{conn: conn} do
+      existing_user = AccountsFixtures.user_fixture(email: "unverified-target@example.com")
+
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-uid-unverified",
+        info: %Info{email: existing_user.email},
+        extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => false}}}
+      }
+
+      conn = conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth)
+
+      assert_raise UnauthorizedError, fn -> TuistWeb.AuthController.callback(conn, %{}) end
+      assert {:error, :not_found} = Accounts.get_oauth2_identity(:google, "google-uid-unverified")
+    end
+
+    test "confirms an unconfirmed account it links to and drops the password set before confirmation", %{conn: conn} do
+      password = "StrongP@ssword!2035"
+      squatted = AccountsFixtures.user_fixture(email: "squatted@example.com", password: password, confirmed_at: nil)
+
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-uid-owner",
+        info: %Info{email: squatted.email},
+        extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
+      }
+
+      conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth) |> TuistWeb.AuthController.callback(%{})
+
+      assert {:ok, _} = Accounts.get_oauth2_identity(:google, "google-uid-owner")
+      claimed = Accounts.get_user_by_id(squatted.id)
+      assert claimed.confirmed_at
+      refute User.valid_password?(claimed, password)
+    end
+
+    test "on a self-hosted instance, the first Google sign-in into an operator-domain account clears its unproven password",
+         %{conn: conn} do
+      # The account may predate mail being configured, when sign-ups were
+      # confirmed automatically, so its password may belong to whoever
+      # registered the owner's address first.
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
+      stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
+      stub(Tuist.Environment, :operator_email_domain, fn -> "example.com" end)
+      password = "StrongP@ssword!2037"
+      squatted = AccountsFixtures.user_fixture(email: "auto-confirmed@example.com", password: password)
+      assert squatted.confirmed_at
+
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-uid-auto-confirmed",
+        info: %Info{email: squatted.email},
+        extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
+      }
+
+      conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth) |> TuistWeb.AuthController.callback(%{})
+
+      claimed = Accounts.get_user_by_id(squatted.id)
+      assert claimed.email_verified_at
+      refute User.valid_password?(claimed, password)
+    end
+
+    test "a returning sign-in records mailbox proof only for the address the provider verified", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(email: "returning-#{System.unique_integer([:positive])}@example.com")
+      AccountsFixtures.oauth2_identity_fixture(user: user, id_in_provider: "returning-uid", provider_organization_id: nil)
+
+      sign_in = fn email ->
+        auth = %Ueberauth.Auth{
+          provider: :google,
+          uid: "returning-uid",
+          info: %Info{email: email},
+          extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
+        }
+
+        conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth) |> TuistWeb.AuthController.callback(%{})
+      end
+
+      sign_in.("someone-else@example.com")
+      assert is_nil(Accounts.get_user_by_id(user.id).email_verified_at)
+
+      sign_in.(user.email)
+      assert Accounts.get_user_by_id(user.id).email_verified_at
+    end
+
     test "redirects to choose-username for new OAuth user without existing email", %{conn: conn} do
       # Simulate OAuth callback with a new email
       auth = %Ueberauth.Auth{
         provider: :google,
         uid: "google-uid-456",
         info: %Info{email: "newuser@example.com"},
-        extra: %{raw_info: %{user: %{"hd" => nil}}}
+        extra: %{raw_info: %{user: %{"hd" => nil, "email_verified" => true}}}
       }
 
       # When: OAuth callback is triggered (call controller directly to bypass Ueberauth middleware)
