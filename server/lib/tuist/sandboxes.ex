@@ -544,19 +544,19 @@ defmodule Tuist.Sandboxes do
   `created: true` when the caller has just created the sandbox.
   """
   def prepare_residency(%Sandbox{id: id}, work_id, opts \\ []) when is_binary(work_id) do
-    with_sandbox_lock(id, fn ->
-      with_fresh(id, fn sandbox ->
-        admitted? = sandbox.platform == :darwin and (sandbox.state != :running or Keyword.get(opts, :created, false))
+    with_sandbox_lock(id, fn -> with_fresh(id, &prepare_fresh_residency(&1, work_id, opts)) end)
+  end
 
-        with {:ok, sandbox} <- running_or_resume(sandbox) do
-          # A macOS create or resume was just admitted, by the server and
-          # under the host's CI-first check. A grant that closed while the VM
-          # booted or restored must not refuse the turn: the VM already holds
-          # its slot, and the refusal would only fail the spawn for a retry.
-          if admitted?, do: record_residency(sandbox, work_id), else: begin_residency(sandbox, work_id)
-        end
-      end)
-    end)
+  defp prepare_fresh_residency(sandbox, work_id, opts) do
+    admitted? = sandbox.platform == :darwin and (sandbox.state != :running or Keyword.get(opts, :created, false))
+
+    with {:ok, sandbox} <- running_or_resume(sandbox) do
+      # A macOS create or resume was just admitted, by the server and
+      # under the host's CI-first check. A grant that closed while the VM
+      # booted or restored must not refuse the turn: the VM already holds
+      # its slot, and the refusal would only fail the spawn for a retry.
+      if admitted?, do: record_residency(sandbox, work_id), else: begin_residency(sandbox, work_id)
+    end
   end
 
   defp with_fresh(id, fun) do
@@ -1091,6 +1091,12 @@ defmodule Tuist.Sandboxes do
     |> Kernel.--(Enum.map(known, & &1.id))
     |> Enum.each(&delete_orphan(node_name, &1))
 
+    reconcile_missing(node_name, reported_ids, report["generation"])
+  end
+
+  def reconcile_node_report(_node_name, _report), do: :ok
+
+  defp reconcile_missing(node_name, reported_ids, generation) do
     stuck_before = DateTime.add(now(), -@stuck_after_seconds, :second)
     # A node builds a report before sending it, so one can arrive just after
     # a create or resume it predates and not list that sandbox. Only a row
@@ -1108,15 +1114,13 @@ defmodule Tuist.Sandboxes do
     |> Enum.each(fn sandbox ->
       Logger.warning("sandboxes: sandbox missing on node", sandbox_id: sandbox.id, node: node_name, state: sandbox.state)
 
-      if sandbox.platform != :darwin or sandbox.node_uid == report["generation"] do
+      if sandbox.platform != :darwin or sandbox.node_uid == generation do
         error_or_revert(sandbox, "missing on node", sandbox.state)
       end
     end)
 
     :ok
   end
-
-  def reconcile_node_report(_node_name, _report), do: :ok
 
   defp reconcile_known_report(sandbox, node_name, generation, reported) do
     if sandbox.platform != :darwin or (sandbox.node_name == node_name and sandbox.node_uid == generation) do

@@ -78,10 +78,11 @@ defmodule Tuist.Sandboxes.MacosCapacityTest do
   test "a turn starts on a VM resumed for it even when CI closed the grant during the restore", %{node: node} do
     sandbox = sandbox(state: :paused, node_name: node.name, node_uid: "node-uid", resident: false)
     closed = %{node | admission: Map.put(node.admission, "allow", false)}
-    stub(Nodes, :lookup, fn _name -> {:ok, self(), if(Process.get(:restored), do: closed, else: node)} end)
+    restored = start_supervised!({Agent, fn -> false end})
+    stub(Nodes, :lookup, fn _name -> {:ok, self(), if(Agent.get(restored, & &1), do: closed, else: node)} end)
 
     expect(Nodes, :call, fn _name, "resume", _args, _opts ->
-      Process.put(:restored, true)
+      Agent.update(restored, fn _ -> true end)
       {:ok, %{"restore_ms" => 3000}}
     end)
 
