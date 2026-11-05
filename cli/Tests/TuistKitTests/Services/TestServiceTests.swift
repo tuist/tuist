@@ -1236,6 +1236,7 @@ final class TestServiceTests: TuistUnitTestCase {
     func test_run_tests_individual_scheme_records_the_test_platform() async throws {
         for (platform, passthroughXcodeBuildArguments, expected) in [
             (nil, ["-destination", "platform=iOS Simulator,id=device-id"], XcodeGraph.Platform.iOS),
+            (nil, ["-destination", "id=device-id"], .iOS),
             ("macos", [], .macOS),
         ] as [(String?, [String], XcodeGraph.Platform)] {
             // Given
@@ -6770,6 +6771,59 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_run_testWithoutBuilding_fromBundle_resolves_the_platform_of_a_simulator_destination_by_id() async throws {
+        for (simulatorExists, evidencePlatform, testPlatform) in [
+            (true, TestCoverageEvidencePlatform.iOSSimulator, XcodeGraph.Platform.iOS),
+            (false, nil, nil),
+        ] as [(Bool, TestCoverageEvidencePlatform?, XcodeGraph.Platform?)] {
+            try await withMockedEnvironment {
+                Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
+                // Given
+                runMetadataStorage = RunMetadataStorage()
+                let path = try temporaryPath()
+                let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+                try await fileSystem.makeDirectory(at: testProductsPath)
+                try JSONEncoder().encode(SelectiveTestingGraph(testTargetHashes: ["AppTests": "abc123"]))
+                    .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
+                try givenFailingMutedTest(path: path, onlyMutedTestsFailed: false)
+                let (testCoverageEvidenceService, _) = givenCoverageCollection(path: path)
+                _ = givenXcodebuildWritingDerivedData()
+                simulatorController.reset()
+                if simulatorExists {
+                    given(simulatorController)
+                        .findAvailableDevice(udid: .value("simulator-id"))
+                        .willReturn(.test(device: .test(udid: "simulator-id"), runtime: .test(name: "iOS 26.0")))
+                } else {
+                    given(simulatorController)
+                        .findAvailableDevice(udid: .value("simulator-id"))
+                        .willThrow(SimulatorControllerError.simulatorNotFound(udid: "simulator-id"))
+                }
+
+                // When
+                try await AlertController.$current.withValue(AlertController()) {
+                    try await testRun(
+                        runId: "run-\(simulatorExists)",
+                        path: path,
+                        action: .testWithoutBuilding,
+                        resultBundlePath: path.appending(component: "Shard.xcresult"),
+                        passthroughXcodeBuildArguments: [
+                            "-testProductsPath", testProductsPath.pathString,
+                            "-destination", "id=simulator-id",
+                        ],
+                        mode: .remote
+                    )
+                }
+
+                // Then
+                verify(testCoverageEvidenceService)
+                    .prepare(platform: .value(evidencePlatform), config: .any)
+                    .called(1)
+                let recordedTestPlatform = await runMetadataStorage.testPlatform
+                XCTAssertEqual(recordedTestPlatform, testPlatform)
+            }
+        }
+    }
+
     func test_run_shard_collects_coverage_under_a_run_scoped_derived_data_when_none_is_passed() async throws {
         for uploadsCoverage in [true, false] {
             try await withMockedEnvironment {
@@ -6920,6 +6974,7 @@ final class TestServiceTests: TuistUnitTestCase {
         TestService(
             cacheStorageFactory: cacheStorageFactory,
             xcodebuildController: xcodebuildController,
+            simulatorController: simulatorController,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
             xcResultService: xcResultService,

@@ -434,7 +434,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             osVersion: osVersion
         )
 
-        let testImpactSelector = try testImpactSelector(
+        let testImpactSelector = try await testImpactSelector(
             config: config,
             path: path,
             action: action,
@@ -848,13 +848,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlan: String?,
         platform: String?,
         passthroughXcodeBuildArguments: [String]
-    ) throws -> TestImpactSelector? {
+    ) async throws -> TestImpactSelector? {
         guard Self.selectsTestsByCoverage(config: config),
               !ignoreSelectiveTesting,
               action != .testWithoutBuilding,
               let fullHandle = config.fullHandle
         else { return nil }
         let destination = passedValue(for: "-destination", arguments: passthroughXcodeBuildArguments)
+        let platformDestination: String? = if let destination {
+            await platformDestination(destination)
+        } else {
+            nil
+        }
         return TestImpactSelector(
             invocation: TestImpactSelector.Invocation(
                 fullHandle: fullHandle,
@@ -864,7 +869,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlan: testPlan,
                 destination: destination,
                 platform: platform.flatMap { try? XcodeGraph.Platform.from(commandLineValue: $0) }
-                    ?? destination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:))
+                    ?? platformDestination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:))
             )
         )
     }
@@ -1209,7 +1214,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let derivedDataPath = try passedValue(for: "-derivedDataPath", arguments: arguments).map {
             try AbsolutePath(validating: $0, relativeTo: currentWorkingDirectory)
         }
-        let destination = passedValue(for: "-destination", arguments: arguments)
+        let destination: String? = if let passedDestination = passedValue(for: "-destination", arguments: arguments) {
+            await platformDestination(passedDestination)
+        } else {
+            nil
+        }
         await RunMetadataStorage.current
             .update(testPlatform: destination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:)))
         let session = await testCoverageEvidenceService.prepare(
@@ -2675,7 +2684,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if let index = passthroughXcodeBuildArguments.firstIndex(of: "-destination") {
             destination = nil
             let passedDestination = passthroughXcodeBuildArguments.indices.contains(index + 1)
-                ? passthroughXcodeBuildArguments[index + 1]
+                ? await platformDestination(passthroughXcodeBuildArguments[index + 1])
                 : nil
             evidencePlatform = passedDestination.flatMap(TestCoverageEvidencePlatform.init(destination:))
             testPlatform = passedDestination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:))
@@ -3430,6 +3439,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
         case .macCatalyst:
             return try await simulatorController.macOSDestination(catalyst: true)
         }
+    }
+
+    /// The destination with the platform of the simulator its `id=` names, for destinations that
+    /// name no platform; unchanged when the id is no simulator's, such as a device's.
+    private func platformDestination(_ destination: String) async -> String {
+        guard xcodebuildDestinationParameter("platform", in: destination) == nil,
+              let id = xcodebuildDestinationParameter("id", in: destination),
+              let platform = try? await simulatorController.findAvailableDevice(udid: id)?.runtime.platform()
+        else { return destination }
+        return "\(platform.xcodebuildPlatformDestination),\(destination)"
     }
 
     private func simulatorPlatform(from destination: String) -> XcodeGraph.Platform? {
