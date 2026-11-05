@@ -7,7 +7,8 @@ description: >
   via external-secrets-operator. Ships cluster-level metrics
   (kube-state-metrics, node-exporter, kubelet, cAdvisor), events, pod
   logs, and OTLP receivers for managed workload traces so the Grafana Cloud
-  Kubernetes app lights up.
+  Kubernetes app lights up. Also runs Pulso in-cluster and dual-writes the
+  same telemetry to it.
 type: application
 version: 0.1.0
 appVersion: "4.0.3"
@@ -16,3 +17,7 @@ dependencies:
   - name: k8s-monitoring
     version: 4.0.3
     repository: https://grafana.github.io/helm-charts
+  - name: pulso
+    version: 1.38.0
+    repository: oci://ghcr.io/tuist/charts
+    condition: pulso.enabled

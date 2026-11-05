@@ -1,5 +1,5 @@
 # Staging workload Cluster, topology mode against tuist-hcloud.
-# 3× cpx22 control plane + 2× cpx32 workers in fsn1, plus a
+# 3× cpx22 control plane + 3× cpx32 workers in fsn1, plus a
 # `bare-metal-worker` MachineDeployment that claims Hetzner Robot
 # AX42-U boxes for the Linux runner fleet.
 #
@@ -80,7 +80,7 @@ spec:
         # more than per-host cost.
         - class: hcloud-worker
           name: md-0
-          replicas: 2
+          replicas: 3
           failureDomain: fsn1
           rollout:
             strategy:
