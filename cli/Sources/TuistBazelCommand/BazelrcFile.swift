@@ -1,21 +1,24 @@
 import Foundation
 import Path
 import TuistREAPI
+import TuistServer
 
 struct BazelExecutionConfiguration {
     let endpoint: GRPCEndpoint
     let image: String
 
-    static func parse(endpoint: String?, image: String?) throws -> Self? {
-        if endpoint == nil, image == nil { return nil }
-        guard let endpoint, let image,
-              image.range(of: "^sha-[a-f0-9]{12,40}$", options: .regularExpression) != nil,
+    /// Accepts only a gRPC endpoint without credentials and an immutable image tag, the two values written
+    /// verbatim into `.bazelrc.tuist`.
+    static func parse(_ capabilities: RemoteExecutionCapabilities) -> Self? {
+        let endpoint = capabilities.endpoint
+        let image = capabilities.image
+        guard image.range(of: "^sha-[a-f0-9]{12,40}$", options: .regularExpression) != nil,
               endpoint.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
               let url = URL(string: endpoint), let host = url.host, !host.isEmpty,
               ["grpc", "grpcs"].contains(url.scheme ?? ""),
               url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
               url.path.isEmpty || url.path == "/"
-        else { throw BazelSetupCommandServiceError.invalidExecutionConfiguration }
+        else { return nil }
         return Self(endpoint: GRPCEndpoint(host: host, explicitPort: url.port, isTLS: url.scheme == "grpcs"), image: image)
     }
 }

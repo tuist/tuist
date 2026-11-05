@@ -308,18 +308,19 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
 6. Configure a Linux Bazel workspace:
 
    ```sh
-   tuist bazel setup --remote-executor grpcs://<execution-endpoint> \
-     --execution-image sha-<template-commit>
+   tuist bazel setup --remote-execution
    bazel test //... --spawn_strategy=remote --noremote_local_fallback
    ```
 
-   `GET /api/remote-execution/<account>/<project>/capabilities` returns the
-   current image, endpoint, CAS and concurrency to an authorized caller; use
-   its `image` as `--execution-image` and rerun setup after workers move to a
-   new image. If a project's execution platform supplies `exec_properties`,
+   Setup reads `GET /api/remote-execution/<account>/<project>/capabilities`
+   with the project's cache token and writes the advertised endpoint and
+   image into `.bazelrc.tuist`. When the server declines (flag off, no
+   capacity), setup warns and writes a cache-only configuration, so builds
+   run locally. Rerun setup after workers move to a new image; CI does this
+   on every job. If a project's execution platform supplies `exec_properties`,
    put all three properties there: Bazel only uses default properties for
-   platforms without their own. Re-running setup without the execution
-   options opts the workspace out.
+   platforms without their own. Re-running setup without `--remote-execution`
+   opts the workspace out.
 
 ## Observability
 
