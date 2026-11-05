@@ -80,9 +80,11 @@ A commit is a baseline when it has a **full run**, a run at the commit that:
 - ran the requested scheme (`xcode.scheme`), which the commit's measured set lists in `schemes` and not in `partial_schemes`, and which the run's `coverage_runs.scheme` names (a request without a scheme accepts any commit whose measured set lists one, and any of its runs);
 - ran it whole: its `coverage_runs` row isn't `partial`, so no filter narrowed it and every shard reported;
 - ran on the requested platform (`coverage_runs.platform`; see [Scope and platform](#scope-and-platform));
-- uploaded test-scoped evidence (`coverage_files` rows with `scope_kind = 'test'`).
+- uploaded test-scoped evidence (`coverage_files` rows with `scope_kind = 'test'`). Not `coverage_test_sources`: it keeps one row per test version, naming that version's latest run, so once ClickHouse merges, a baseline's own rows can name a later run instead.
 
 A commit's measured set is only written once its runs' coverage is folded, so a run still being processed isn't eligible yet. The baseline isn't gated on `coverage_commits.complete`, which only exists where the pipeline runs `tuist coverage complete`.
+
+`Tuist.TestImpactAnalysis.Baselines` walks the commit graph itself instead of calling `Commits.nearest_measured_ancestor/5`, the search coverage's fold uses. That function returns a single commit, never the checked-out one, and filters only on what PostgreSQL holds (lines measured, a scheme in common). A baseline also has to pass ClickHouse checks (the run's platform, `partial` and test-scoped evidence), so the walk may have to look past the nearest measured commit. It also counts commits with coverage for the window, tells `baseline_too_old` from `no_baseline` and `no_baseline_evidence`, and starts from several commits at once (`parent_shas`, `ancestor_shas`).
 
 | Result | When |
 | --- | --- |
