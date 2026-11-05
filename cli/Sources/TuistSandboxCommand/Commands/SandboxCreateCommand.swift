@@ -20,11 +20,11 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
             }
         }
 
-        /// The vCPUs each offered memory size comes with.
+        /// The vCPUs each offered memory size in GB comes with.
         var shapes: [Int: Int] {
             switch self {
-            case .linux: [4096: 2, 8192: 4, 16384: 8]
-            case .macos: [8192: 8, 16384: 8, 24576: 8]
+            case .linux: [4: 2, 8: 4, 16: 8]
+            case .macos: [8: 8, 16: 8, 24: 8]
             }
         }
     }
@@ -37,11 +37,14 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
     @Option(name: .long, help: "Template name. Defaults to the server's default template for the platform.")
     var template: String?
 
-    @Option(name: .long, help: "Linux: 2, 4 or 8. macOS: 8. Pass it with the matching --memory-mb.")
+    @Option(name: .long, help: "vCPUs: 2, 4 or 8 on Linux, 8 on macOS. Pass it with --memory-gb.")
     var vcpus: Int?
 
-    @Option(name: .long, help: "Linux: 4096, 8192 or 16384. macOS: 8192, 16384 or 24576. Pass it with the matching --vcpus.")
-    var memoryMb: Int?
+    @Option(
+        name: .customLong("memory-gb"),
+        help: "Memory in GB: 4, 8 or 16 on Linux (with 2, 4 or 8 vCPUs), 8, 16 or 24 on macOS. Pass it with --vcpus."
+    )
+    var memoryGB: Int?
 
     @Option(name: .long, help: "Workspace disk size in GB (1–100).")
     var workspaceGb: Int?
@@ -49,13 +52,13 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
     public var jsonThroughNoora: Bool { true }
 
     public func validate() throws {
-        switch (vcpus, memoryMb) {
+        switch (vcpus, memoryGB) {
         case (nil, nil): break
         case let (vcpus?, memory?) where platform.shapes[memory] == vcpus: break
         default:
-            let offered = platform.shapes.sorted { $0.key < $1.key }.map { "\($0.value)/\($0.key)" }
+            let offered = platform.shapes.sorted { $0.key < $1.key }.map { "\($0.value) vCPUs with \($0.key) GB" }
             throw ValidationError(
-                "Pass --vcpus and --memory-mb together as one of \(offered.joined(separator: ", ")) for \(platform.rawValue)."
+                "Pass --vcpus and --memory-gb together as one of \(offered.joined(separator: ", ")) for \(platform.rawValue)."
             )
         }
         if let workspaceGb, !(1 ... 100).contains(workspaceGb) {
@@ -69,7 +72,7 @@ public struct SandboxCreateCommand: AsyncParsableCommand, NooraReadyCommand {
             platform: platform.server,
             template: template,
             vcpus: vcpus,
-            memoryMB: memoryMb,
+            memoryGB: memoryGB,
             workspaceGB: workspaceGb
         )
     }

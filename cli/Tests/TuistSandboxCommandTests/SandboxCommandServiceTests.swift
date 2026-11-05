@@ -153,13 +153,13 @@ struct SandboxCommandServiceTests {
             workspaceGB: .value(nil)
         ).willReturn(try Self.decode(created))
 
-        let command = try SandboxCreateCommand.parse(["--platform", "macos", "--vcpus", "8", "--memory-mb", "24576"])
+        let command = try SandboxCreateCommand.parse(["--platform", "macos", "--vcpus", "8", "--memory-gb", "24"])
         try await subject().create(
             options: Self.values(),
             platform: command.platform.server,
             template: command.template,
             vcpus: command.vcpus,
-            memoryMB: command.memoryMb,
+            memoryGB: command.memoryGB,
             workspaceGB: command.workspaceGb
         )
 
@@ -193,15 +193,15 @@ struct SandboxCommandServiceTests {
     func deleteRequiresConfirmationAndCreateRequiresAnOfferedShape() throws {
         #expect(throws: (any Error).self) { try SandboxDeleteCommand.parse([Self.id]) }
         #expect(throws: Never.self) { try SandboxDeleteCommand.parse([Self.id, "--yes"]) }
-        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--vcpus", "4", "--memory-mb", "4096"]) }
+        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--vcpus", "4", "--memory-gb", "4"]) }
         #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--vcpus", "4"]) }
-        #expect(throws: Never.self) { try SandboxCreateCommand.parse(["--vcpus", "4", "--memory-mb", "8192"]) }
-        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--vcpus", "8", "--memory-mb", "24576"]) }
+        #expect(throws: Never.self) { try SandboxCreateCommand.parse(["--vcpus", "4", "--memory-gb", "8"]) }
+        #expect(throws: (any Error).self) { try SandboxCreateCommand.parse(["--vcpus", "8", "--memory-gb", "24"]) }
         #expect(throws: Never.self) {
-            try SandboxCreateCommand.parse(["--platform", "macos", "--vcpus", "8", "--memory-mb", "24576"])
+            try SandboxCreateCommand.parse(["--platform", "macos", "--vcpus", "8", "--memory-gb", "24"])
         }
         #expect(throws: (any Error).self) {
-            try SandboxCreateCommand.parse(["--platform", "macos", "--vcpus", "4", "--memory-mb", "8192"])
+            try SandboxCreateCommand.parse(["--platform", "macos", "--vcpus", "4", "--memory-gb", "8"])
         }
         #expect(throws: (any Error).self) { try SandboxShowCommand.parse(["not-a-uuid"]) }
     }

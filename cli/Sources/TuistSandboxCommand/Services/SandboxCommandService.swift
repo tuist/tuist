@@ -111,7 +111,7 @@ struct SandboxCommandService {
         platform: ServerSandboxPlatform?,
         template: String?,
         vcpus: Int?,
-        memoryMB: Int?,
+        memoryGB: Int?,
         workspaceGB: Int?
     ) async throws {
         let (accountHandle, serverURL) = try await resolve(options)
@@ -122,7 +122,7 @@ struct SandboxCommandService {
                 platform: platform,
                 template: template,
                 vcpus: vcpus,
-                memoryMB: memoryMB,
+                memoryMB: memoryGB.map { $0 * 1024 },
                 workspaceGB: workspaceGB
             )
         }

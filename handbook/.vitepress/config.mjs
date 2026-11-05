@@ -122,10 +122,6 @@ export default defineConfig({
             link: "/engineering/cache-infrastructure",
           },
           {
-            text: "macOS sandbox restoration",
-            link: "/engineering/macos-sandbox-resume",
-          },
-          {
             text: "Server",
             items: [
               {
