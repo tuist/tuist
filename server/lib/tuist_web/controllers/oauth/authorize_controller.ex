@@ -15,6 +15,8 @@ defmodule TuistWeb.Oauth.AuthorizeController do
 
   @max_state_length 10_000
 
+  plug TuistWeb.Plugs.OAuthRequestObjectPlug when action == :authorize
+
   def authorize(%Plug.Conn{assigns: %{current_user: %Tuist.Accounts.User{} = current_user}} = conn, params) do
     :ok = validate_state_length!(params)
 
