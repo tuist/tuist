@@ -153,7 +153,7 @@ jobs:
         run: |
           # The workflow's release concurrency lock still covers this check and
           # all publication. Refuse stale dispatches instead of replacing tags.
-          git fetch origin main --tags
+          git fetch origin --prune 'refs/heads/main:refs/remotes/origin/main' 'refs/tags/*:refs/tags/*'
           bash .github/scripts/atlas-patch-release.sh "$BASE_TAG" "$PATCH_VERSION" "$RECOVERY_REASON"
 
       - name: Build and push

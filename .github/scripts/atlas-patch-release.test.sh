@@ -2,6 +2,7 @@
 # Exercise recovery against real Git histories, without credentials or publishing.
 set -euo pipefail
 SCRIPT="$(cd "$(dirname "$0")" && pwd)/atlas-patch-release.sh"
+WORKFLOW="$(dirname "$SCRIPT")/../workflows/atlas-release.yml"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 fail() { echo "$*" >&2; exit 1; }
@@ -75,6 +76,27 @@ test_source_requires_descendant_changes() {
   export GITHUB_SHA
   git update-ref refs/remotes/origin/main "$GITHUB_SHA"
   reject atlas@0.76.9 0.76.10 recovery
+}
+test_remote_tag_refresh_rejects_deleted_and_moved_bases() {
+  local remote="$PWD/remote.git" refresh
+  git init --bare -q "$remote"
+  git remote add origin "$remote"
+  git push -q origin HEAD:refs/heads/main --tags
+  accept atlas@0.76.9 0.76.10 recovery
+  # Exercise the workflow's actual prepublication fetch, not a test-only copy.
+  refresh=$(sed -n '/^          git fetch origin /p' "$WORKFLOW")
+  [[ -n $refresh ]] || fail 'Missing prepublication fetch'
+  git --git-dir="$remote" update-ref -d refs/tags/atlas@0.76.9
+  bash -e -c "$refresh" >/dev/null 2>&1
+  APPROVED_BASE_SHA="$base" reject atlas@0.76.9 0.76.10 recovery
+
+  git tag atlas@0.76.9 "$base"
+  git push -q origin refs/tags/atlas@0.76.9
+  git --git-dir="$remote" update-ref refs/tags/atlas@0.76.9 "$GITHUB_SHA"
+  # A moved tag must either stop fetch or fail the approved-base check.
+  if bash -e -c "$refresh" >/dev/null 2>&1; then
+    APPROVED_BASE_SHA="$base" reject atlas@0.76.9 0.76.10 recovery
+  fi
 }
 for test in $(declare -F | awk '$3 ~ /^test_/ {print $3}'); do
   mkdir "$scratch/$test"
