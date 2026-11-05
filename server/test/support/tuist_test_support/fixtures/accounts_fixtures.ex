@@ -15,6 +15,7 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
       [
         password: Keyword.get(opts, :password, valid_user_password()),
         confirmed_at: Keyword.get(opts, :confirmed_at, DateTime.utc_now()),
+        email_verified_at: Keyword.get(opts, :email_verified_at),
         created_at: Keyword.get(opts, :created_at, DateTime.utc_now()),
         customer_id: Keyword.get(opts, :customer_id, "#{TuistTestSupport.Utilities.unique_integer()}"),
         setup_billing: Keyword.get(opts, :setup_billing, false),

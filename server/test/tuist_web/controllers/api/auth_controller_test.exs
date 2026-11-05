@@ -2,6 +2,7 @@ defmodule TuistWeb.API.AuthControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  import Ecto.Query
   import TelemetryTest
 
   alias Tuist.Accounts
@@ -70,6 +71,26 @@ defmodule TuistWeb.API.AuthControllerTest do
       # Then
       response = json_response(conn, :accepted)
       assert response == %{}
+    end
+
+    test "issues nothing for a code a mailbox proof revoked while the poll ran", %{conn: conn} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
+      stub(Tuist.Environment, :operator_email_domain, fn -> "example.com" end)
+      squatter = AccountsFixtures.user_fixture(email: "poll-race-#{System.unique_integer([:positive])}@example.com")
+      device_code = Accounts.create_device_code("RACE-#{squatter.id}")
+      Accounts.authenticate_device_code(device_code.code, squatter)
+
+      # The owner's proof commits after the poll read the code, before it reads the user.
+      expect(Accounts, :get_user!, fn id, opts ->
+        {:ok, _} = Accounts.record_mailbox_proof(Repo.get!(Accounts.User, id))
+        call_original(Accounts, :get_user!, [id, opts])
+      end)
+
+      conn = get(conn, ~p"/api/auth/device_code/#{device_code.code}")
+
+      refute json_response(conn, :bad_request)["access_token"]
+      assert Repo.aggregate(from(t in "guardian_tokens", where: t.sub == ^to_string(squatter.id)), :count) == 0
     end
 
     test "returns bad request response if device code is expired", %{conn: conn} do
@@ -496,14 +517,11 @@ defmodule TuistWeb.API.AuthControllerTest do
         call_original(Tuist.Authentication, :encode_and_sign, [subject, claims, opts])
       end)
 
-      %{"access_token" => access_token, "refresh_token" => new_refresh_token} = refresh(conn, refresh_token)
-      stub(Tuist.Authentication, :encode_and_sign, &call_original(Tuist.Authentication, :encode_and_sign, [&1, &2, &3]))
-
-      refute Tuist.Authentication.authenticated_subject(access_token)
-
-      assert build_conn()
+      # The refresh issues its tokens under the account's credential lock, so
+      # the reset that landed meanwhile refuses them outright.
+      assert conn
              |> put_req_header("content-type", "application/json")
-             |> post("/api/auth/refresh_token", %{refresh_token: new_refresh_token})
+             |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
              |> json_response(:unauthorized)
     end
   end
