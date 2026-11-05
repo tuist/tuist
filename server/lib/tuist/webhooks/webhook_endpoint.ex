@@ -50,6 +50,20 @@ defmodule Tuist.Webhooks.WebhookEndpoint do
           description: "A preview was deleted from this account."
         }
       ]
+    },
+    %{
+      key: "runner_jobs",
+      label: "Runner jobs",
+      events: [
+        %{
+          type: "runner_job.started",
+          description: "A runner started a job created through the runners API."
+        },
+        %{
+          type: "runner_job.completed",
+          description: "A job created through the runners API completed, failed or was cancelled."
+        }
+      ]
     }
   ]
 

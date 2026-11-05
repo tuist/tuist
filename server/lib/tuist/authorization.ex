@@ -529,13 +529,19 @@ defmodule Tuist.Authorization do
     end
 
     action :update do
-      desc("Allows the admin of an account to manage its runner profiles and clear its runner volumes.")
+      desc(
+        "Allows the admin of an account to manage its runner profiles, run and cancel API jobs, and clear its runner volumes."
+      )
+
       allow([:authenticated_as_user, user_role: :admin])
 
       desc("Allows users with ops write access to manage any account's runner profiles and runner volumes.")
       allow([:authenticated_as_user, :ops_write_access])
 
-      desc("Allows an account token with account:runners:write scope to manage runner profiles and clear runner volumes.")
+      desc(
+        "Allows an account token with account:runners:write scope to manage runner profiles, run and cancel API jobs, and clear runner volumes."
+      )
+
       allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:runners:write"])
     end
 

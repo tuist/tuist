@@ -464,3 +464,14 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   publication eligibility and removal of ordinary service volumes for both
   drivers. CI keeps its timing log; these are controlled integration measurements,
   not production or end-to-end job benchmarks.
+
+## API jobs
+
+Jobs created through the Tuist runners API are staged as `<jit>.api-job.json`
+(macOS: `/tmp/tuist-api-job.json`) and run by `tuist-job-runner`
+(`job-runner/`, stdlib only, built for both images). It fetches only the job's
+commit, scopes the clone token to the repository origin through git's
+URL-matched config (never the remote URL, argv or the script's environment),
+masks secret values, streams logs with Buildkite-style timestamp markers and
+stops the process group on cancel or timeout. Job outcomes exit 0. Validate with
+`GOWORK=off go test -race ./...` from `job-runner/` and `api-dispatch_test.sh`.

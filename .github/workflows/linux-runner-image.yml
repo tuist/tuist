@@ -134,6 +134,9 @@ jobs:
       - name: Test GitLab assignment staging
         run: bash infra/linux-runner-image/gitlab-dispatch_test.sh
 
+      - name: Test API job staging
+        run: bash infra/linux-runner-image/api-dispatch_test.sh
+
       - name: Test job-start hook
         run: bash infra/linux-runner-image/run-job_test.sh
 
@@ -157,6 +160,12 @@ jobs:
 
       - name: Test GitLab job executor
         working-directory: infra/linux-runner-image/gitlab-runner
+        env:
+          GOWORK: "off"
+        run: go test -race ./...
+
+      - name: Test API job executor
+        working-directory: infra/linux-runner-image/job-runner
         env:
           GOWORK: "off"
         run: go test -race ./...

@@ -48,3 +48,22 @@ Linux profiles and legacy labels keep one shared runner pool. Every account uses
 the existing regional Kura Service directly; vRack enrollment changes transport
 at the host level. Keep profile sizing, fleet accounting and macOS site selection
 independent. Old internal cohort labels remain hidden during rolling upgrades.
+
+## API jobs
+
+`Tuist.Runners.APIJobs` serves forges and orchestrators without a runner
+protocol (`POST /api/accounts/:handle/runners/jobs`, `provider = "api"`). Tuist
+is the coordinator: the job is queued in the shared lifecycle, the claiming VM
+runs it with `tuist-job-runner` (`infra/linux-runner-image/job-runner/`) and
+reports through the job-scoped report endpoints, and outcomes reach the caller
+as `runner_job.started` / `runner_job.completed` webhooks.
+
+- Jobs are untrusted: no cache signing grant, no shared cache volumes.
+- The encrypted payload (script, env, secrets, clone token) is cleared on
+  completion, cancellation, lost Pod, and by `ExpireAPIJobWorker` a day after
+  creation. Never log or return it.
+- `idempotency_key` is unique per account; a reused key returns the existing
+  job. Cancellation of a running job travels back on the executor's log-post
+  response (`cancel_requested`), so the executor polls with empty batches.
+- The VM reports its own outcome; the orphan sweep fails a job only once its
+  Pod is gone.
