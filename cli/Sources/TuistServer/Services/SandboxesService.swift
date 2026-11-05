@@ -84,6 +84,18 @@ public enum SandboxesServiceError: LocalizedError, Equatable {
         else { return .unknownError(statusCode) }
         return .refused(message)
     }
+
+    /// The generated client decodes a documented error status as `{"message": …}` before answering, so an error page
+    /// from a proxy in front of Tuist, such as Cloudflare's `error code: 502`, fails as a decoding error. Report its
+    /// status instead.
+    static func send<Output>(_ operation: () async throws -> Output) async throws -> Output {
+        do {
+            return try await operation()
+        } catch let error as ClientError {
+            guard let statusCode = error.response?.status.code, statusCode >= 400 else { throw error }
+            throw unknownError(statusCode)
+        }
+    }
 }
 
 public struct SandboxesService: SandboxesServicing {
@@ -100,18 +112,20 @@ public struct SandboxesService: SandboxesServicing {
         page: Int,
         pageSize: Int
     ) async throws -> SandboxesPage {
-        let response = try await Client.authenticated(serverURL: serverURL).listSandboxes(.init(
-            path: .init(account_handle: accountHandle),
-            query: .init(
-                page: page,
-                page_size: pageSize,
-                search: search,
-                sort_by: sortBy.flatMap { .init(rawValue: $0) },
-                sort_order: sortOrder.flatMap { .init(rawValue: $0) },
-                status: status.flatMap { .init(rawValue: $0) },
-                vcpus: vcpus
-            )
-        ))
+        let response = try await SandboxesServiceError.send {
+            try await Client.authenticated(serverURL: serverURL).listSandboxes(.init(
+                path: .init(account_handle: accountHandle),
+                query: .init(
+                    page: page,
+                    page_size: pageSize,
+                    search: search,
+                    sort_by: sortBy.flatMap { .init(rawValue: $0) },
+                    sort_order: sortOrder.flatMap { .init(rawValue: $0) },
+                    status: status.flatMap { .init(rawValue: $0) },
+                    vcpus: vcpus
+                )
+            ))
+        }
         switch response {
         case let .ok(value): return try value.body.json
         case let .badRequest(value): throw SandboxesServiceError.refused(try value.body.json.message)
@@ -122,9 +136,11 @@ public struct SandboxesService: SandboxesServicing {
     }
 
     public func getSandbox(accountHandle: String, serverURL: URL, sandboxID: String) async throws -> ServerSandbox {
-        let response = try await Client.authenticated(serverURL: serverURL).getSandbox(.init(
-            path: .init(account_handle: accountHandle, sandbox_id: sandboxID)
-        ))
+        let response = try await SandboxesServiceError.send {
+            try await Client.authenticated(serverURL: serverURL).getSandbox(.init(
+                path: .init(account_handle: accountHandle, sandbox_id: sandboxID)
+            ))
+        }
         switch response {
         case let .ok(value): return try Self.convert(value.body.json)
         case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
@@ -140,10 +156,12 @@ public struct SandboxesService: SandboxesServicing {
         start: Date?,
         end: Date?
     ) async throws -> SandboxAnalytics {
-        let response = try await Client.authenticated(serverURL: serverURL).getSandboxAnalytics(.init(
-            path: .init(account_handle: accountHandle),
-            query: .init(end: end, start: start)
-        ))
+        let response = try await SandboxesServiceError.send {
+            try await Client.authenticated(serverURL: serverURL).getSandboxAnalytics(.init(
+                path: .init(account_handle: accountHandle),
+                query: .init(end: end, start: start)
+            ))
+        }
         switch response {
         case let .ok(value): return try value.body.json
         case let .badRequest(value): throw SandboxesServiceError.refused(try value.body.json.message)
@@ -166,10 +184,12 @@ public struct SandboxesService: SandboxesServicing {
         let shapeMemory = try memoryMB.map {
             try Body.memory_mbPayload(rawValue: $0) ?? { throw SandboxesServiceError.invalidShape }()
         }
-        let response = try await Client.authenticated(serverURL: serverURL).createSandbox(.init(
-            path: .init(account_handle: accountHandle),
-            body: .json(.init(memory_mb: shapeMemory, template: template, vcpus: shapeVCPUs, workspace_gb: workspaceGB))
-        ))
+        let response = try await SandboxesServiceError.send {
+            try await Client.authenticated(serverURL: serverURL).createSandbox(.init(
+                path: .init(account_handle: accountHandle),
+                body: .json(.init(memory_mb: shapeMemory, template: template, vcpus: shapeVCPUs, workspace_gb: workspaceGB))
+            ))
+        }
         switch response {
         case let .created(value): return try Self.convert(value.body.json)
         case let .badRequest(value): throw SandboxesServiceError.refused(try value.body.json.message)
@@ -190,10 +210,12 @@ public struct SandboxesService: SandboxesServicing {
         command: String,
         timeoutMs: Int?
     ) async throws -> SandboxExecResult {
-        let response = try await Client.authenticated(serverURL: serverURL).execSandboxCommand(.init(
-            path: .init(account_handle: accountHandle, sandbox_id: sandboxID),
-            body: .json(.init(command: command, timeout_ms: timeoutMs))
-        ))
+        let response = try await SandboxesServiceError.send {
+            try await Client.authenticated(serverURL: serverURL).execSandboxCommand(.init(
+                path: .init(account_handle: accountHandle, sandbox_id: sandboxID),
+                body: .json(.init(command: command, timeout_ms: timeoutMs))
+            ))
+        }
         switch response {
         case let .ok(value): return try Self.convert(value.body.json)
         case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
@@ -216,7 +238,10 @@ public struct SandboxesService: SandboxesServicing {
         let client = Client.authenticated(serverURL: serverURL)
         switch transition {
         case .pause:
-            switch try await client.pauseSandbox(.init(path: .init(account_handle: accountHandle, sandbox_id: sandboxID))) {
+            let response = try await SandboxesServiceError.send {
+                try await client.pauseSandbox(.init(path: .init(account_handle: accountHandle, sandbox_id: sandboxID)))
+            }
+            switch response {
             case let .ok(value): return try Self.convert(value.body.json)
             case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
             case let .notFound(value): throw SandboxesServiceError.refused(try value.body.json.message)
@@ -228,7 +253,10 @@ public struct SandboxesService: SandboxesServicing {
             case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
             }
         case .resume:
-            switch try await client.resumeSandbox(.init(path: .init(account_handle: accountHandle, sandbox_id: sandboxID))) {
+            let response = try await SandboxesServiceError.send {
+                try await client.resumeSandbox(.init(path: .init(account_handle: accountHandle, sandbox_id: sandboxID)))
+            }
+            switch response {
             case let .ok(value): return try Self.convert(value.body.json)
             case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
             case let .notFound(value): throw SandboxesServiceError.refused(try value.body.json.message)
@@ -240,7 +268,10 @@ public struct SandboxesService: SandboxesServicing {
             case let .undocumented(statusCode, payload): throw await SandboxesServiceError.undocumented(statusCode, payload)
             }
         case .archive:
-            switch try await client.archiveSandbox(.init(path: .init(account_handle: accountHandle, sandbox_id: sandboxID))) {
+            let response = try await SandboxesServiceError.send {
+                try await client.archiveSandbox(.init(path: .init(account_handle: accountHandle, sandbox_id: sandboxID)))
+            }
+            switch response {
             case let .accepted(value): return try Self.convert(value.body.json)
             case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
             case let .notFound(value): throw SandboxesServiceError.refused(try value.body.json.message)
@@ -255,9 +286,11 @@ public struct SandboxesService: SandboxesServicing {
     }
 
     public func deleteSandbox(accountHandle: String, serverURL: URL, sandboxID: String) async throws {
-        let response = try await Client.authenticated(serverURL: serverURL).deleteSandbox(.init(
-            path: .init(account_handle: accountHandle, sandbox_id: sandboxID)
-        ))
+        let response = try await SandboxesServiceError.send {
+            try await Client.authenticated(serverURL: serverURL).deleteSandbox(.init(
+                path: .init(account_handle: accountHandle, sandbox_id: sandboxID)
+            ))
+        }
         switch response {
         case .noContent: return
         case let .forbidden(value): throw SandboxesServiceError.refused(try value.body.json.message)
