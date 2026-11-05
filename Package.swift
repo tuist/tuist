@@ -2120,8 +2120,8 @@ let package = Package(
             url: "https://github.com/lfroms/fluid-menu-bar-extra",
             .upToNextMajor(from: "1.1.0")
         ),
-        // Per-test coverage evidence in the coverage workflow; not in the registry yet.
-        .package(url: "https://github.com/tuist/TestCoverageAttribution", .upToNextMinor(from: "0.1.1")),
+        // Per-test coverage evidence in the coverage workflow.
+        .package(id: "tuist.TestCoverageAttribution", .upToNextMinor(from: "0.1.1")),
         .package(id: "tuist.sdk", .upToNextMajor(from: "0.2.0")),
         .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
         .package(id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")),
