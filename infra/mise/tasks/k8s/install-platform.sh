@@ -36,7 +36,7 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace platform \
   --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
 
 # Only require / propagate the Cloudflare DNS-edit token when the Secret
-# isn't already materialised on the cluster. Normal preview deploys then
+# isn't already materialised on the cluster. Routine platform reconciles then
 # don't have to read or pass the token at all — the bootstrap step that
 # created the Secret is the only place it has to live. First-cluster
 # bootstrap still needs the token (from $CLOUDFLARE_API_TOKEN in CI, or
