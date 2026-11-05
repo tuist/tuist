@@ -132,7 +132,13 @@ defmodule Tuist.Kura.Placement do
   # against what it reserves.
   @served_policy %{
     relocate: %{window_days: 14, majority_share: 0.6, min_active_days: 5, min_hits_per_day: 1_000},
-    retire: %{window_days: 28, max_share: 0.03, max_hits_per_gib_day: 25, min_reported_days: 21},
+    retire: %{
+      window_days: 28,
+      max_share: 0.03,
+      max_hits_per_gib_day: 25,
+      min_reported_days: 21,
+      max_weekday_presence: 0.6
+    },
     retire_zero_hits: %{window_days: 10},
     expand: %{
       window_days: 14,
@@ -665,6 +671,13 @@ defmodule Tuist.Kura.Placement do
   # of an account serving millions, and a rate alone would keep a region for an
   # account so busy that a rounding error of it clears any floor.
   #
+  # Neither keeps a region its people use. The claim is account-wide and sized
+  # for the busiest site, usually CI, so both floors are measured against CI's
+  # volume, and developers on another continent are a rounding error of it
+  # however many of them there are. What they do that CI's spill-over and a
+  # stray laptop do not is show up on most working days, so a region serving
+  # hits on more than the presence share of the account's working days stays.
+  #
   # Four weeks rather than the quarter the runs rung waits. That one reads an
   # absence through a proxy and has to be sure; this one reads the absence
   # itself, on days the region is known to have reported, and every week it
@@ -694,7 +707,8 @@ defmodule Tuist.Kura.Placement do
           |> Map.merge(%{
             "reserved_gib" => Map.get(served.reserved_gib, region, 0),
             "reported_days" => reported_days(served, region, window),
-            "hits_per_active_day" => hits_per_active_day(served, region_hits, window)
+            "hits_per_active_day" => hits_per_active_day(served, region_hits, window),
+            "weekday_presence" => Float.round(weekday_presence(served, region, window), 3)
           })
 
         {:retire, region, evidence}
@@ -713,7 +727,8 @@ defmodule Tuist.Kura.Placement do
     floor = rung.max_hits_per_gib_day * Map.get(served.reserved_gib, region, 0)
 
     reported?(context, served, rung, region) and share <= rung.max_share and
-      hits_per_active_day(served, region_hits, window) <= floor
+      hits_per_active_day(served, region_hits, window) <= floor and
+      weekday_presence(served, region, window) <= rung.max_weekday_presence
   end
 
   defp reported?(_context, nil, _rung, _region), do: false
@@ -743,6 +758,24 @@ defmodule Tuist.Kura.Placement do
       |> length()
 
     if account_days > 0, do: region_hits / account_days, else: 0.0
+  end
+
+  # The share of the account's working days, Monday to Friday, on which
+  # `region` served it anything. Measured against the weekdays the account used
+  # the cache at all, for the reason `hits_per_active_day` is.
+  defp weekday_presence(served, region, window) do
+    account_weekdays = served.hits |> Map.values() |> List.flatten() |> served_weekdays(window)
+    region_weekdays = served.hits |> Map.get(region, []) |> served_weekdays(window)
+
+    if account_weekdays > 0, do: region_weekdays / account_weekdays, else: 0.0
+  end
+
+  defp served_weekdays(entries, window) do
+    entries
+    |> Enum.filter(fn {date, hits} -> date in window and hits > 0 and Date.day_of_week(date) <= 5 end)
+    |> Enum.map(&elem(&1, 0))
+    |> Enum.uniq()
+    |> length()
   end
 
   defp retire(_context, %{retire: nil}, _runs, _served, _served_policy), do: nil

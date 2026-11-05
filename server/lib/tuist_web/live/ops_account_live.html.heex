@@ -173,6 +173,40 @@
         />
       </div>
     </.card_section>
+    <.card_section
+      :if={@kura_restorable_regions != []}
+      data-part="kura-restorable-regions-section"
+    >
+      <p data-part="kura-restorable-regions-description">
+        {dgettext(
+          "dashboard",
+          "Placement gave up these regions and keeps them shut for 90 days. Restoring one serves the account from it again; it starts empty and warms from its peers."
+        )}
+      </p>
+      <.table id="kura-restorable-regions-table" rows={@kura_restorable_regions}>
+        <:col :let={restorable} label={dgettext("dashboard", "Region")}>
+          <.text_cell label={restorable.region} />
+        </:col>
+        <:col :let={restorable} label={dgettext("dashboard", "Given up")}>
+          <.text_cell label={Timex.from_now(restorable.given_up_on)} />
+        </:col>
+        <:col :let={restorable} label="">
+          <.button
+            type="button"
+            variant="secondary"
+            size="small"
+            phx-click="restore_kura_placement_region"
+            phx-value-region={restorable.region}
+            data-confirm={
+              dgettext("dashboard", "Serve this account from %{region} again?",
+                region: restorable.region
+              )
+            }
+            label={dgettext("dashboard", "Restore")}
+          />
+        </:col>
+      </.table>
+    </.card_section>
     <.card_section :if={@kura_placement_history != []} data-part="kura-placement-history-section">
       <div data-part="header">
         <span data-part="title">{dgettext("dashboard", "Placement decisions")}</span>
