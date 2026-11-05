@@ -442,8 +442,9 @@ reputation; non-production sends must remain controlled and low volume.
 
 **Rollback:** select `server.mailing.provider: mailgun`,
 `mailer.provider: mailgun`, or `env.ATLAS_MAILER_PROVIDER: mailgun` in the
-appropriate managed values and redeploy that application. The chart restores
-the Server/Slack Mailgun secret mappings; Atlas retains its existing mapping.
+appropriate managed values and redeploy that application. All three charts
+retain Mailgun secret mappings during cutover so restarting old images remain
+configured, including Server's email-confirmation requirement.
 Wait for ExternalSecret reconciliation before starting replacement pods. Rotate
 SES keys independently by creating a replacement IAM key, updating that user's
 1Password fields, verifying synchronization and a successful application send,
