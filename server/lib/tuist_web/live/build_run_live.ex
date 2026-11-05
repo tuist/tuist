@@ -948,9 +948,9 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp issue_title(title, issue, run) do
-    if not is_nil(issue.path) and String.contains?(title, issue.path) and
+    if not is_nil(issue.path) and issue.path != "" and String.contains?(title, issue.path) and
          not is_nil(run.project.vcs_connection) and
-         run.project.vcs_connection.provider == :github and not is_nil(run.git_commit_sha) do
+         run.project.vcs_connection.provider == :github and run.git_commit_sha not in [nil, ""] do
       href =
         "https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{issue.path}"
 
@@ -968,7 +968,7 @@ defmodule TuistWeb.BuildRunLive do
   defp issue_message(issue, run) do
     if not is_nil(issue.path) and issue.path != "" and
          not is_nil(run.project.vcs_connection) and
-         run.project.vcs_connection.provider == :github and not is_nil(run.git_commit_sha) do
+         run.project.vcs_connection.provider == :github and run.git_commit_sha not in [nil, ""] do
       location = "#{issue.path}#L#{issue.starting_line}"
 
       href =

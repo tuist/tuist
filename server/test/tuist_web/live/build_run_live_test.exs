@@ -495,7 +495,8 @@ defmodule TuistWeb.BuildRunLiveTest do
         git_commit_sha: ~s(abc"><img src=x class=pwn-sha>),
         issues: [
           issue.("<img src=x class=pwn-path>", "<img src=x class=pwn-message>"),
-          issue.("App/Sources/Safe.swift", "Cannot find 'foo' in scope")
+          issue.("App/Sources/Safe.swift", "Cannot find 'foo' in scope"),
+          Map.merge(issue.("", "Deprecated"), %{type: :warning, step_type: :other, title: "Can't find a<b"})
         ]
       )
 
@@ -506,6 +507,8 @@ defmodule TuistWeb.BuildRunLiveTest do
     end
 
     assert has_element?(lv, "h3[data-part=title] a", "<img src=x class=pwn-path>")
+    assert has_element?(lv, ~s(.issue-card[data-type="warning"] h3[data-part=title]), "Can't find a<b")
+    refute has_element?(lv, ~s(.issue-card[data-type="warning"] h3[data-part=title] a))
     assert has_element?(lv, "[data-part=issue]", "<img src=x class=pwn-message> in <img src=x class=pwn-path>#L7")
 
     assert has_element?(
