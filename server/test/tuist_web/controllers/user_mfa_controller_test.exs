@@ -123,7 +123,7 @@ defmodule TuistWeb.UserMFAControllerTest do
 
     verified = pending |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => code(secret, DateTime.add(now, 31))})
     assert redirected_to(verified) == ~p"/#{user.account.name}/projects"
-    assert %{max_age: 1_209_600, value: remember} = verified.resp_cookies["_tuist_web_user_remember_me"]
+    assert %{max_age: 2_592_000, value: remember} = verified.resp_cookies["_tuist_web_user_remember_me"]
 
     assert build_conn()
            |> put_req_cookie("_tuist_web_user_remember_me", remember)
