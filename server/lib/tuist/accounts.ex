@@ -1900,11 +1900,23 @@ defmodule Tuist.Accounts do
   defp operator_email?(%User{email: email} = user) when is_binary(email) do
     domain = Environment.operator_email_domain()
 
-    String.ends_with?(String.downcase(email), "@" <> domain) and
+    operator_domain_email?(email, domain) and
       (not Environment.tuist_hosted?() or google_workspace_member?(user, domain))
   end
 
   defp operator_email?(_), do: false
+
+  @doc """
+  Returns true when the address alone makes its account a Tuist operator, which
+  is the case on self-hosted instances. Organizations must not assign such
+  addresses (for example through SCIM), or an organization admin could mint an
+  operator.
+  """
+  def operator_email_address?(email) when is_binary(email) do
+    not Environment.tuist_hosted?() and operator_domain_email?(email, Environment.operator_email_domain())
+  end
+
+  defp operator_domain_email?(email, domain), do: String.ends_with?(String.downcase(email), "@" <> domain)
 
   # Only enforced on tuist-hosted. Operators authenticate through Google
   # Workspace SSO — our preferred, org-restricted sign-in. We verify membership

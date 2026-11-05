@@ -1523,6 +1523,43 @@ defmodule TuistWeb.AuthControllerTest do
       assert identity.user_id == user.id
     end
 
+    test "never instance-trusts the operator email domain", %{conn: conn} do
+      organization =
+        custom_provider_organization(
+          sso_login_domain: Tuist.Environment.operator_email_domain(),
+          sso_organization_id: "https://idp.tenant.example"
+        )
+
+      operator = AccountsFixtures.user_fixture(email: "ops@#{organization.sso_login_domain}")
+
+      assert {:error, changeset} =
+               Accounts.update_sso_configuration(organization.id, :oauth2, %{sso_automatic_enrollment: true})
+
+      assert {"requires a verified login email domain for this provider", _} = changeset.errors[:sso_automatic_enrollment]
+
+      # A configuration saved before the operator domain was excluded.
+      organization = organization |> Ecto.Changeset.change(sso_automatic_enrollment: true) |> Repo.update!()
+
+      stub_sso_userinfo("new-sub", "x@#{organization.sso_login_domain}")
+      assert_raise UnauthorizedError, fn -> sso_callback(conn, organization) end
+
+      stub_sso_userinfo("operator-sub", operator.email)
+      assert_raise UnauthorizedError, fn -> sso_callback(build_conn(), organization) end
+
+      assert {:error, :not_found} =
+               Accounts.get_oauth2_identity(:oauth2, "operator-sub", organization.sso_organization_id)
+
+      assert {:error, :not_found} = Accounts.sso_organization_for_user_email("x@#{organization.sso_login_domain}")
+
+      # DNS proof still establishes trust for the operator domain.
+      organization =
+        organization |> Ecto.Changeset.change(sso_login_domain_verified_at: ~U[2026-01-01 00:00:00Z]) |> Repo.update!()
+
+      assert Accounts.sso_login_domain_trust(organization) == :dns_verified
+      stub_sso_userinfo("verified-sub", "y@#{organization.sso_login_domain}")
+      assert redirected_to(sso_callback(build_conn(), organization)) == "/users/choose-username"
+    end
+
     test "does not link email addresses outside the saved domain", %{conn: conn, organization: organization} do
       user = AccountsFixtures.user_fixture(email: "victim@outside.example")
       stub_sso_userinfo("outside-sub", user.email)
