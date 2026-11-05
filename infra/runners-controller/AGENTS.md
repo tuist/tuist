@@ -957,7 +957,7 @@ AGENTS.md.
    ```
 
    `PREP_SKIP_MARK=1` stages the box without naming it;
-   `baremetal:mark-ovh` names it later.
+   `baremetal:mark-ovh` names it later. Agents prep through the Atlas MCP instead (infra/AGENTS.md, "From an Amp orb"), never with this task, which reads the `OVH_API` token.
 
 3. **Raise `ovhFleets.runners-linux.replicas`** in
    `values-managed-<env>.yaml` to the new box count and deploy. It must

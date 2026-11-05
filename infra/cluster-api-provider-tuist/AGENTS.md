@@ -2937,6 +2937,7 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
    ```
    Pass `PREP_SKIP_MARK=1` to stage capacity without marking it in yet, then
    release it later with `baremetal:mark-ovh` (also used to re-name a box).
+   Agents prep through the Atlas MCP instead (infra/AGENTS.md, "From an Amp orb"), never with this task, which reads the `OVH_API` token.
 
    **Vultr is a conversion, not an install.** Its API exposes no partitioning
    control and its installer offers only RAID 1 across both disks (one
