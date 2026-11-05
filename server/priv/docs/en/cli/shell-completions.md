@@ -5,18 +5,18 @@
   "description": "Learn how to configure your shell to auto-complete Tuist commands."
 }
 ---
-# Shell completions
+# Shell completions {#shell-completions}
 
 If you have Tuist **globally installed** (e.g., via Homebrew),
-you can install shell completions for Bash and Zsh to autocomplete commands and options.
+you can install shell completions for Zsh, Bash, and Fish to autocomplete commands and options.
 
-> [!WARNING]
-> **What Is A Global Installation**
+> [!NOTE]
+> **What is a global installation**
 >
 > A global installation is an installation that's available in your shell's `$PATH` environment variable. This means you can run `tuist` from any directory in your terminal. This is the default installation method for Homebrew.
 
 
-#### Zsh {#zsh}
+## Zsh {#zsh}
 
 If you have [oh-my-zsh](https://ohmyz.sh/) installed, you already have a directory of automatically loading completion scripts — `.oh-my-zsh/completions`. Copy your new completion script to a new file in that directory called `_tuist`:
 
@@ -38,21 +38,28 @@ Next, create a directory at `~/.zsh/completion` and copy the completion script t
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
 ```
 
-#### Bash {#bash}
+## Bash {#bash}
 
-If you have [bash-completion](https://github.com/scop/bash-completion) installed, you can just copy your new completion script to file `/usr/local/etc/bash_completion.d/_tuist`:
-
-```bash
-tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
-```
-
-Without bash-completion, you'll need to source the completion script directly. Copy it to a directory such as `~/.bash_completions/`, and then add the following line to `~/.bash_profile` or `~/.bashrc`:
+If you have [bash-completion](https://github.com/scop/bash-completion) installed, you can just copy your new completion script to bash-completion's directory:
 
 ```bash
-source ~/.bash_completions/example.bash
+tuist --generate-completion-script bash > "$(brew --prefix)/etc/bash_completion.d/_tuist"
 ```
 
-#### Fish {#fish}
+Without bash-completion, you'll need to source the completion script directly. Write it to a directory such as `~/.bash_completions/`:
+
+```bash
+mkdir -p ~/.bash_completions
+tuist --generate-completion-script bash > ~/.bash_completions/tuist.bash
+```
+
+Then add the following line to `~/.bash_profile` or `~/.bashrc`:
+
+```bash
+source ~/.bash_completions/tuist.bash
+```
+
+## Fish {#fish}
 
 If you use [fish shell](https://fishshell.com), you can copy your new completion script to `~/.config/fish/completions/tuist.fish`:
 

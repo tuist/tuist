@@ -80,7 +80,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
     assert Concurrency.limits_for(user.account, :macos) == %{vcpus: 18, memory_gb: 42}
   end
 
-  test "updates sandbox limits independently and rejects invalid limits", %{conn: conn, user: user} do
+  test "updates sandbox and remote execution limits independently and rejects invalid limits", %{conn: conn, user: user} do
     {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
     ci_limits = Concurrency.limits_for(user.account, :linux)
 
@@ -105,6 +105,27 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     assert html =~ "must be greater than"
     assert Repo.reload!(account).sandbox_vcpus_limit == 8
+
+    lv
+    |> form("#remote-execution-concurrency-form", %{
+      "account" => %{"remote_execution_vcpus_limit" => "6", "remote_execution_memory_gb_limit" => "20"}
+    })
+    |> render_submit()
+
+    account = Repo.reload!(account)
+    assert {account.remote_execution_vcpus_limit, account.remote_execution_memory_gb_limit} == {6, 20}
+    assert {account.sandbox_vcpus_limit, account.sandbox_memory_gb_limit} == {8, 24}
+
+    # One VM needs 2 vCPUs and 4 GB.
+    html =
+      lv
+      |> form("#remote-execution-concurrency-form", %{
+        "account" => %{"remote_execution_vcpus_limit" => "1", "remote_execution_memory_gb_limit" => "3"}
+      })
+      |> render_submit()
+
+    assert html =~ "must hold one VM: at least 2 vCPUs"
+    assert Repo.reload!(account).remote_execution_vcpus_limit == 6
   end
 
   test "links Kura servers to their latest deployment", %{conn: conn, user: user} do

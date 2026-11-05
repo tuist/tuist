@@ -5,6 +5,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
   alias Tuist.Accounts
   alias Tuist.OAuth.Introspection
   alias Tuist.OIDC
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "POST /api/auth/oidc/token" do
@@ -205,5 +206,80 @@ defmodule TuistWeb.API.OIDCControllerTest do
       response = json_response(conn, :unauthorized)
       assert response["message"] =~ "audience"
     end
+  end
+
+  describe "POST /api/auth/oidc/token with a signed GitHub Actions token" do
+    setup do
+      stub(Tuist.KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+      :ok
+    end
+
+    test "does not authorize projects linked to a GitHub Enterprise Server repository with the same name", %{conn: conn} do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      ghes_installation_fixture(account)
+
+      ProjectsFixtures.project_fixture(
+        account_id: account.id,
+        vcs_connection: [repository_full_handle: "acme-internal/app"]
+      )
+
+      conn = exchange(conn, "acme-internal/app")
+
+      assert json_response(conn, :forbidden)["message"] =~ "No projects linked"
+    end
+
+    test "authorizes only github.com-linked projects when a GitHub Enterprise Server link has the same name", %{
+      conn: conn
+    } do
+      project =
+        ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "acme/app"], preload: [:account])
+
+      other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      ghes_installation_fixture(other_account)
+
+      ProjectsFixtures.project_fixture(
+        account_id: other_account.id,
+        vcs_connection: [repository_full_handle: "acme/app"]
+      )
+
+      conn = exchange(conn, "acme/app")
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(json_response(conn, :ok)["access_token"])
+      assert claims["sub"] == to_string(project.account.id)
+      assert claims["project_ids"] == [project.id]
+    end
+  end
+
+  defp ghes_installation_fixture(account) do
+    {:ok, _installation} =
+      Tuist.VCS.create_github_app_installation(%{
+        account_id: account.id,
+        installation_id: "#{account.id}54321",
+        client_url: "https://ghes.example.test"
+      })
+  end
+
+  defp exchange(conn, repository) do
+    jwk = JOSE.JWK.generate_key({:rsa, 2048})
+    {_, public_jwk} = jwk |> JOSE.JWK.to_public() |> JOSE.JWK.to_map()
+    jwks = %{"keys" => [Map.merge(public_jwk, %{"use" => "sig", "alg" => "RS256", "kid" => "test-key"})]}
+
+    claims = %{
+      "iss" => "https://token.actions.githubusercontent.com",
+      "aud" => "tuist",
+      "exp" => DateTime.utc_now() |> DateTime.add(3600) |> DateTime.to_unix(),
+      "repository" => repository
+    }
+
+    {_, token} =
+      jwk |> JOSE.JWT.sign(%{"alg" => "RS256", "kid" => "test-key"}, JOSE.JWT.from_map(claims)) |> JOSE.JWS.compact()
+
+    stub(Req, :get, fn "https://token.actions.githubusercontent.com/.well-known/jwks", _opts ->
+      {:ok, %{status: 200, body: jwks}}
+    end)
+
+    conn
+    |> put_req_header("content-type", "application/json")
+    |> post(~p"/api/auth/oidc/token", %{token: token})
   end
 end

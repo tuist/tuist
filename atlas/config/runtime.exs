@@ -7,6 +7,7 @@ alias Atlas.LLMs.ChatGPT
 alias Atlas.Push.Config
 alias AtlasWeb.NativeLinks.Config, as: NativeLinksConfig
 alias Cloak.Ciphers.AES.GCM
+alias Swoosh.Adapters.AmazonSES
 alias Swoosh.Adapters.Mailgun
 alias Ueberauth.Strategy.Google
 alias Ueberauth.Strategy.Google.OAuth
@@ -241,15 +242,25 @@ if support_ingest_jwks = System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_JWKS") do
     subject: System.get_env("ATLAS_SUPPORT_INGEST_TOKEN_SUBJECT")
 end
 
-# Mailgun is the company's email provider: tuist.dev is already verified there
-# and has a sending history, which a second provider would not inherit. The
-# account is in Mailgun's EU region, so the base URL is not the default one.
-if mailgun_api_key = System.get_env("MAILGUN_API_KEY") do
-  config :atlas, Atlas.Mailer,
-    adapter: Mailgun,
-    api_key: mailgun_api_key,
-    domain: System.get_env("ATLAS_MAILGUN_DOMAIN", "mail.tuist.dev"),
-    base_url: System.get_env("ATLAS_MAILGUN_BASE_URL", "https://api.eu.mailgun.net/v3")
+case System.get_env("ATLAS_MAILER_PROVIDER", "mailgun") do
+  "mailgun" ->
+    if mailgun_api_key = System.get_env("MAILGUN_API_KEY") do
+      config :atlas, Atlas.Mailer,
+        adapter: Mailgun,
+        api_key: mailgun_api_key,
+        domain: System.get_env("ATLAS_MAILGUN_DOMAIN", "mail.tuist.dev"),
+        base_url: System.get_env("ATLAS_MAILGUN_BASE_URL", "https://api.eu.mailgun.net/v3")
+    end
+
+  "ses" ->
+    config :atlas, Atlas.Mailer,
+      adapter: AmazonSES,
+      region: System.fetch_env!("ATLAS_SES_REGION"),
+      access_key: System.fetch_env!("ATLAS_SES_ACCESS_KEY_ID"),
+      secret: System.fetch_env!("ATLAS_SES_SECRET_ACCESS_KEY")
+
+  provider ->
+    raise "unsupported mailing provider: #{inspect(provider)}"
 end
 
 allowed_email_domain =
@@ -636,21 +647,65 @@ case System.get_env("MCP_PROXY_SERVERS") do
             scopes: ["grafana:read", "grafana:write"],
             headers: grafana_headers
           },
+          # OVHcloud's MCP server serves one API section per URL, and every
+          # fleet is on the OVHcloud US account. Each person connects their own
+          # OVH login, which can reinstall, reboot and terminate servers, so
+          # only the named reads are proxied. OVH's tools carry no readOnlyHint,
+          # which is why this enumerates them rather than using read_only.
+          #
+          # The reinstall half of baremetal:prep-ovh is the one write, and each
+          # call waits for that person to approve its exact arguments in Atlas
+          # (/admin/mcps). OVH's MCP has no displayName write, so the rename
+          # that hands a prepped box to its fleet stays a human step.
           %{
-            name: "sentry",
-            url: System.get_env("SENTRY_MCP_URL") || "https://mcp.sentry.dev/mcp",
-            auth_type:
-              if(System.get_env("SENTRY_MCP_BEARER_TOKEN") in [nil, ""],
-                do: "oauth2",
-                else: "bearer_token"
-              ),
-            authorization_url: "https://mcp.sentry.dev/oauth/authorize",
-            token_url: "https://mcp.sentry.dev/oauth/token",
-            registration_url: "https://mcp.sentry.dev/oauth/register",
-            scopes: ["org:read", "project:write", "team:write", "event:write"],
-            shared_oauth: true,
-            shared_oauth_user_email: System.get_env("SENTRY_MCP_SHARED_USER_EMAIL"),
-            bearer_token: System.get_env("SENTRY_MCP_BEARER_TOKEN")
+            name: "ovh-servers",
+            url: "https://mcp.us.ovhcloud.com/mcp/v1_dedicated_server",
+            auth_type: "oauth2",
+            authorization_url: "https://mcp.us.ovhcloud.com/oauth-proxy/authorization",
+            token_url: "https://mcp.us.ovhcloud.com/oauth-proxy/token",
+            registration_url: "https://mcp.us.ovhcloud.com/oauth-proxy/register",
+            scopes: ["all"],
+            tool_allowlist: [
+              "get-dedicated-server-list",
+              "get-dedicated-server-details",
+              "get-dedicated-server-service-infos",
+              "get-dedicated-server-install-status",
+              "get-dedicated-server-hardware-specs",
+              "get-dedicated-server-network-specs",
+              "list-dedicated-server-tasks",
+              "get-dedicated-server-task-details",
+              "list-dedicated-server-vracks",
+              "list-dedicated-server-planned-interventions",
+              "list-dedicated-server-datacenter-availabilities",
+              "list-dedicated-server-compatible-templates"
+            ],
+            approval_required_tools: ["reinstall-dedicated-server"]
+          },
+          # A server's displayName (the fleet adoption prefix) lives on its
+          # service, not under /dedicated/server.
+          %{
+            name: "ovh-services",
+            url: "https://mcp.us.ovhcloud.com/mcp/v1_services",
+            auth_type: "oauth2",
+            authorization_url: "https://mcp.us.ovhcloud.com/oauth-proxy/authorization",
+            token_url: "https://mcp.us.ovhcloud.com/oauth-proxy/token",
+            registration_url: "https://mcp.us.ovhcloud.com/oauth-proxy/register",
+            scopes: ["all"],
+            tool_allowlist: ["get-service-list", "get-service-details"]
+          },
+          # Orders live under /me, a section that also manages the account's
+          # users, API credentials and payment methods, so only the order
+          # reads pass. OVH's MCP has no cart or checkout tools: placing an
+          # order stays in the OVH console.
+          %{
+            name: "ovh-orders",
+            url: "https://mcp.us.ovhcloud.com/mcp/v1_me",
+            auth_type: "oauth2",
+            authorization_url: "https://mcp.us.ovhcloud.com/oauth-proxy/authorization",
+            token_url: "https://mcp.us.ovhcloud.com/oauth-proxy/token",
+            registration_url: "https://mcp.us.ovhcloud.com/oauth-proxy/register",
+            scopes: ["all"],
+            tool_allowlist: ["get-order-list", "get-order-infos", "get-order-status", "get-order-details-list"]
           }
         ]
     end

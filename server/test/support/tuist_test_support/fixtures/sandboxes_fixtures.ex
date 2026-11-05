@@ -95,7 +95,8 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       archive_bytes: Keyword.get(opts, :archive_bytes),
       archive_sha256: Keyword.get(opts, :archive_sha256),
       archive_attempted_at: opts |> Keyword.get(:archive_attempted_at) |> truncate(),
-      archived_at: opts |> Keyword.get(:archived_at) |> truncate()
+      archived_at: opts |> Keyword.get(:archived_at) |> truncate(),
+      inserted_at: opts |> Keyword.get(:inserted_at) |> truncate()
     })
   end
 

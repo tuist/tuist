@@ -20,6 +20,18 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Firebase Cloud Messaging is initialized manually from these values; when any is empty
+        // the app skips FCM and push registration is unavailable.
+        listOf(
+            "FIREBASE_APPLICATION_ID" to "TUIST_ANDROID_FIREBASE_APPLICATION_ID",
+            "FIREBASE_PROJECT_ID" to "TUIST_ANDROID_FIREBASE_PROJECT_ID",
+            "FIREBASE_API_KEY" to "TUIST_ANDROID_FIREBASE_API_KEY",
+            "FIREBASE_GCM_SENDER_ID" to "TUIST_ANDROID_FIREBASE_GCM_SENDER_ID",
+        ).forEach { (field, variable) ->
+            val value = providers.environmentVariable(variable).getOrElse("")
+            buildConfigField("String", field, "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        }
     }
 
     signingConfigs {
@@ -122,6 +134,9 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.browser)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)

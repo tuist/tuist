@@ -363,15 +363,132 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       assert Repo.get(Sandbox, id) == nil
     end
 
+    test "lists one filtered page with each sandbox's dashboard status", %{conn: conn, account: account} do
+      now = DateTime.utc_now()
+      idle = sandbox_fixture(account: account, state: :running, inserted_at: DateTime.add(now, -3, :minute))
+
+      active =
+        sandbox_fixture(
+          account: account,
+          state: :running,
+          residency_work_id: "w-1",
+          inserted_at: DateTime.add(now, -2, :minute)
+        )
+
+      failed =
+        sandbox_fixture(
+          account: account,
+          state: :error,
+          vcpus: 4,
+          memory_mb: 8192,
+          inserted_at: DateTime.add(now, -1, :minute)
+        )
+
+      sandbox_fixture(state: :running)
+
+      assert %{
+               "sandboxes" => [%{"id" => failed_id, "status" => "failed"}, %{"id" => active_id, "status" => "active"}],
+               "pagination_metadata" => %{"total_count" => 3, "total_pages" => 2, "has_next_page" => true}
+             } = conn |> get(~p"/api/accounts/#{account.name}/sandboxes?page_size=2") |> json_response(:ok)
+
+      assert {failed_id, active_id} == {failed.id, active.id}
+
+      assert %{"sandboxes" => [%{"id" => idle_id, "status" => "idle"}]} =
+               conn |> get(~p"/api/accounts/#{account.name}/sandboxes?page=2&page_size=2") |> json_response(:ok)
+
+      assert idle_id == idle.id
+
+      assert %{
+               "sandboxes" => [%{"id" => ^idle_id}, %{"id" => ^active_id}],
+               "pagination_metadata" => %{"total_count" => 2}
+             } =
+               conn
+               |> get(~p"/api/accounts/#{account.name}/sandboxes?vcpus=2&sort_order=asc")
+               |> json_response(:ok)
+
+      assert %{"sandboxes" => [%{"id" => ^failed_id}]} =
+               conn |> get(~p"/api/accounts/#{account.name}/sandboxes?status=failed") |> json_response(:ok)
+
+      by_identifier =
+        [failed, active, idle]
+        |> Enum.sort_by(&(&1.amp_orb_id || &1.anthropic_session_id || &1.id))
+        |> Enum.map(& &1.id)
+
+      assert by_identifier ==
+               conn
+               |> get(~p"/api/accounts/#{account.name}/sandboxes?sort_by=identifier")
+               |> json_response(:ok)
+               |> Map.fetch!("sandboxes")
+               |> Enum.map(& &1["id"])
+
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes?status=sleeping") |> json_response(:bad_request)
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes?sort_by=name") |> json_response(:bad_request)
+    end
+
+    test "queues the archive of a paused sandbox and refuses a running one", %{conn: conn, account: account} do
+      paused = sandbox_fixture(account: account, state: :paused, node_name: "node-a", paused_at: DateTime.utc_now())
+      running = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+
+      assert %{"id" => id, "state" => "paused"} =
+               conn |> post(~p"/api/accounts/#{account.name}/sandboxes/#{paused.id}/archive") |> json_response(:accepted)
+
+      assert_enqueued(worker: Tuist.Sandboxes.Workers.ArchiveSandboxesWorker, args: %{sandbox_id: id})
+
+      assert conn
+             |> post(~p"/api/accounts/#{account.name}/sandboxes/#{running.id}/archive")
+             |> json_response(:conflict)
+             |> Map.fetch!("message") =~ "running"
+    end
+
+    test "answers analytics for a range with the account's limits and validates the range", %{
+      conn: conn,
+      account: account
+    } do
+      sandbox_fixture(account: account, state: :running, vcpus: 4, memory_mb: 8192, workspace_gb: 10)
+      finish = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+      start = DateTime.utc_now() |> DateTime.add(-12, :hour) |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+
+      assert %{
+               "bucket" => "hour",
+               "vcpu_hours" => vcpu_hours,
+               "created" => %{"count" => 0, "points" => points},
+               "concurrency" => %{
+                 "limits" => %{"vcpus" => 32, "memory_gb" => 64.0, "disk_gb" => 420.0},
+                 "in_use" => %{"vcpus" => 4, "memory_gb" => 8.0, "disk_gb" => 18.0}
+               }
+             } =
+               conn
+               |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics?start=#{start}&end=#{finish}")
+               |> json_response(:ok)
+
+      assert vcpu_hours == 0
+      assert length(points) in 12..13
+
+      too_long = DateTime.utc_now() |> DateTime.add(-91, :day) |> DateTime.to_iso8601()
+
+      conn
+      |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics?start=#{too_long}")
+      |> json_response(:bad_request)
+    end
+
     test "answers 503 when no node can host the sandbox", %{conn: conn, account: account} do
       stub(Capacity, :place, fn _ -> {:error, :no_node} end)
 
-      response =
-        conn
-        |> post(~p"/api/accounts/#{account.name}/sandboxes", %{})
-        |> json_response(:service_unavailable)
+      conn = post(conn, ~p"/api/accounts/#{account.name}/sandboxes", %{})
 
-      assert response["message"] =~ "No sandbox node"
+      assert json_response(conn, :service_unavailable)["message"] =~ "No sandbox node"
+      # Longer than the CLI's retry budget, so it reports the error instead of replaying the wait.
+      assert get_resp_header(conn, "retry-after") == ["300"]
+    end
+
+    test "answers 503 with the reason when the sandbox's archive store is not configured",
+         %{conn: conn, account: account} do
+      sandbox =
+        sandbox_fixture(account: account, state: :archived, archive_key: "archives/gone", archive_store: "removed-store")
+
+      conn = delete(conn, ~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}")
+
+      assert json_response(conn, :service_unavailable)["message"] =~ "archive can't be reached"
     end
 
     test "answers 503 when no node has memory or disk left", %{conn: conn, account: account} do

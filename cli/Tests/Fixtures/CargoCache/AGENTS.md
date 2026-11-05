@@ -36,7 +36,7 @@ The fixture clears GitHub and inherited internal cache settings; remote publicat
 
 Pass `--benchmark` to generate a standard Cargo local-registry leaf with substantial compiler work. This is an explicitly generated workload, not a representative real-world application. The driver compares three ordinary Cargo clean builds against three public-CLI local hits; timings include CLI setup/reporting. Chunked uploads leave transferred-byte provenance unknown rather than counting the full spliced parent size, so the benchmark does not require a positive cold upload counter; the subsequent remote hit after moving the publisher cache proves publication independently. Do not run benchmarks concurrently or present a small fixture's compiler avoidance as a wall-clock speedup. Tiny crates may cost less to compile than the cache/decorator overhead.
 
-These fixtures do not qualify cross-worker relocation: cache keys intentionally retain absolute paths and the effective environment. All cache logic remains Swift; the Rust sources here are only programs Cargo compiles.
+These fixtures do not qualify cross-worker relocation; keys are path-free, but only same-machine moved checkouts are exercised. All cache logic remains Swift; the Rust sources here are only programs Cargo compiles.
 
 ## Dependency and generated-input admission
 
@@ -63,3 +63,34 @@ TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
 This fixture exercises `cargo __native` with real Clang and verifies linked executable output against uncached Clang. It checks cold/warm reuse, corrupt-blob fallback, header edits, a newly present `__has_include` file without a corresponding `#include`, and an earlier search-path header shadowing an unchanged old header. SDK declaration asm labels and empty instruction templates remain eligible. Caller-owned dependency outputs and assembler `.include` inputs bypass caching; changing the assembler input still changes the program. The hook must work with an unavailable generic CLI state directory. Full public Cargo benchmarks separately qualify wrapper installation, normal build-script execution and remote storage.
 
 Header symlinks must support warm reuse and invalidate when retargeted. C23 digit separators must not hide assembly from source admission, and response files in option operands must bypass caching so caller-owned outputs are preserved. The small fixture runs local-only; remote native caching intentionally bypasses sources smaller than 32 KiB to avoid spending more on discovery and transfer than compilation.
+
+## Dependency units
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  bash cli/Tests/Fixtures/CargoCache/units_e2e.sh
+```
+
+Offline and local-only, through the public command. A cold build publishes `itoa`'s unit; the same project at another path restores it and Cargo compiles only the application; the next build restores the absent profile from the snapshot that restoration left, and a snapshot whose files were rewritten, or that holds a file its record does not list, is discarded; a checkout whose `Cargo.lock` differs (an added path dependency) still restores it; different rustflags in `.cargo/config.toml` miss; a corrupted stored rlib, with no snapshot to fall back on, is not restored and Cargo compiles it again. Every build's program must print `42`. A second project depends on `lzma-sys`, whose build script prints its include directory inside Cargo home: a checkout at another path must restore that run instead of compiling the C library again, and its program must print `true`. Fetch `lzma-sys 0.1.20` with ordinary Cargo first; the script builds offline.
+
+`units_e2e.sh`, `recorded_e2e.sh` and `sources_e2e.sh` share `common.sh`, which isolates the cache and clears inherited Tuist, GitHub and loader settings. Write new fixtures in shell, not Python.
+
+## Recorded compilations and build-script runs
+
+On arm64 macOS:
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  bash cli/Tests/Fixtures/CargoCache/recorded_e2e.sh
+```
+
+Offline and local-only, through the public command with `TUIST_DEBUG=1`, whose per-task cache lines the script reads. The workspace lives under `$TMPDIR` on purpose: macOS names it through both `/var` and `/private/var`, and it sits inside the recorder's writable temporary area, which must not hide its sources. A proc macro reads an undeclared file and environment variable, so only the read recorder can cache the library that uses it. Its build script stamps `OUT_DIR` with the current time: warm builds must keep the cold stamp (restored run) and an input change must produce a new one (rerun). Changing the macro's file or variable must miss and change the value; unchanged builds must hit, including the application's recorded link, whose restored executable every later scenario runs. A moved checkout must read its own files. A second workspace links native code the recorder cannot see: a binary links an archive its build script leaves in a `-L native=` directory, and another links one bundled into a `-sys` crate two levels down, behind a library whose outputs the archive does not change. Changing the archive must relink both, and the build scripts that compile it with `cc` through the session's shim must be restored on warm builds. A third workspace asks protected programs: a proc macro embeds `git describe --dirty` and a build script asks `git rev-parse --git-dir`, whose answer never changes, then reads the commit from `.git/HEAD` and its ref; a new commit must miss and show the new revision, and the next build must hit. The macro also reads `.git/index` and `.git/logs/HEAD` through `include_bytes!`, as `git_version!` does, so a copy at another path must hit. A fourth compiles a Swift helper with `swiftc`, signs it ad hoc, compiles a C helper through `cc` and asks `xcrun` for the SDK with a `PATH` and a variable of its own (so Rust forks and searches with `execvp`, as cc-rs does) in its build script: warm builds restore the run, and editing the Swift source or a header only the C compiler reads must rerun it. The C helper has debug information and its library embeds it, as mise's does, so the same sources at another path must restore the run and hit the library. Expected values are computed in the script, and the build script's compilation must hit on warm builds too. The script generates a lockfile first, because recording shares the dependency-unit cache's lockfile-keyed scope.
+
+## Remembered source lists
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  bash cli/Tests/Fixtures/CargoCache/sources_e2e.sh
+```
+
+Offline and local-only, through the public command with `TUIST_DEBUG=1`. A path library is keyed by the sources an earlier compilation read, without a discovery run of rustc. Adding a submodule misses and is cached by that same build; editing it misses; adding `a/mod.rs` beside `a.rs` must fail compilation rather than restore the earlier result. A second library declares `#[link]` in a submodule, so it is deferred and strict admission refuses it only after rustc ran; on arm64 macOS that same cold build must record its reads and the warm build must hit. Program output is checked against values computed in the script.

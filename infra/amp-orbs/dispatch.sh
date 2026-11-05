@@ -3,13 +3,16 @@
 set -euo pipefail
 SECONDS=0
 
-# Stop retrying admission after 150 seconds, leaving two minutes to boot.
-# The whole dispatch (including authentication and HTTP) stays below Amp's
-# five-minute deadline. Operators may shorten, but never extend, the wait.
-wait_seconds=${TUIST_ORB_CAPACITY_WAIT_SECONDS:-150}
-if [[ ! "$wait_seconds" =~ ^(0|[1-9][0-9]{0,2})$ ]] || (( wait_seconds > 150 )); then
-    echo 'TUIST_ORB_CAPACITY_WAIT_SECONDS must be an integer between 0 and 150.' >&2; exit 1;
+# Amp's spawn hook gives up after 120 seconds without an `amp orb bootstrap`
+# connection. The whole dispatch (including authentication and HTTP) ends
+# within 115 seconds, so users see the adapter's error rather than Amp's.
+# Stop retrying admission after 90 seconds, leaving 25 seconds to boot.
+# Operators may shorten, but never extend, the wait.
+wait_seconds=${TUIST_ORB_CAPACITY_WAIT_SECONDS:-90}
+if [[ ! "$wait_seconds" =~ ^(0|[1-9][0-9]?)$ ]] || (( wait_seconds > 90 )); then
+    echo 'TUIST_ORB_CAPACITY_WAIT_SECONDS must be an integer between 0 and 90.' >&2; exit 1;
 fi
+capacity_timeout='Timed out waiting for sandbox capacity or account CPU/RAM budget. If the account is at its disk quota, Tuist may still be archiving a paused Orb to make room, which can take a few minutes. Please retry shortly.'
 
 : "${TUIST_URL:?Set the Tuist server URL}"
 
@@ -85,9 +88,8 @@ jq -n '{operation: env.ORB_OPERATION} +
 delay=2
 waiting=false
 while true; do
-    remaining=$((270 - SECONDS))
+    remaining=$((115 - SECONDS))
     (( remaining > 0 )) || { echo 'Tuist Orb dispatch timed out.' >&2; exit 1; }
-    (( remaining <= 240 )) || remaining=240
     if [[ -n "${TUIST_WORKLOAD_TOKEN_FILE:-}" ]]; then
         TUIST_TOKEN=$(cat "$TUIST_WORKLOAD_TOKEN_FILE")
         : "${TUIST_TOKEN:?Tuist authentication returned no token}"
@@ -103,7 +105,7 @@ while true; do
         grep -Eiq $'^x-tuist-orb-retry: admission\r?$' "$headers"; then
         wait_remaining=$((wait_seconds - SECONDS))
         if (( wait_remaining <= 0 )); then
-            echo 'Timed out waiting for sandbox capacity or account CPU/RAM budget. Please retry shortly.' >&2
+            echo "$capacity_timeout" >&2
             exit 1
         fi
         if [[ "$waiting" == false ]]; then
@@ -114,7 +116,7 @@ while true; do
         (( sleep_seconds <= wait_remaining )) || sleep_seconds=$wait_remaining
         sleep "$sleep_seconds"
         if (( SECONDS >= wait_seconds )); then
-            echo 'Timed out waiting for sandbox capacity or account CPU/RAM budget. Please retry shortly.' >&2
+            echo "$capacity_timeout" >&2
             exit 1
         fi
         delay=$((delay * 2))

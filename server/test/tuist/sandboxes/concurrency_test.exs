@@ -39,6 +39,19 @@ defmodule Tuist.Sandboxes.ConcurrencyTest do
     assert Concurrency.disk_usage_mb(account.id) == 10 * 1024 + 4096 + (20 * 1024 + 8192)
   end
 
+  test "execution VMs count against the account's execution concurrency, not its sandbox limits" do
+    account = account_fixture()
+    agent = sandbox_fixture(account: account, state: :running, workspace_gb: 10, memory_mb: 4096)
+
+    account
+    |> then(&sandbox_fixture(account: &1, state: :running, workspace_gb: 10, memory_mb: 4096))
+    |> Ecto.Changeset.change(purpose: :remote_execution)
+    |> Repo.update!()
+
+    assert Concurrency.usage(account.id) == %{vcpus: agent.vcpus, memory_mb: 4096}
+    assert Concurrency.disk_usage_mb(account.id) == 10 * 1024 + 4096
+  end
+
   test "the disk limit refuses a create past it, admits one up to it, and never refuses a resume" do
     stub(Environment, :sandbox_archive_after_hours, fn -> nil end)
     account = account_fixture()

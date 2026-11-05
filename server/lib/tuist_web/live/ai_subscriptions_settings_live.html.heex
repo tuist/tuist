@@ -1,0 +1,253 @@
+<div id="ai-subscriptions-settings">
+  <h1 data-part="title">
+    {dgettext("dashboard_account", "Settings")}
+  </h1>
+  <TuistWeb.AppLayoutComponents.settings_tab_menu
+    selected_account={@selected_account}
+    current_path={@current_path}
+    current_user={@current_user}
+  />
+  <h2 data-part="subtitle">
+    {dgettext("dashboard_account", "Subscriptions")}
+  </h2>
+
+  <.card_section id="claude-subscription" data-part="subscription-card-section">
+    <div data-part="header-row">
+      <div data-part="header">
+        <span data-part="title">Claude</span>
+        <span :if={not @claude.connected} data-part="subtitle">
+          {dgettext("dashboard_account", "Use your Claude Pro or Max subscription in threads.")}
+        </span>
+        <span :if={@claude.connected} data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Connected. Threads run on your Claude subscription. Updated %{date}.",
+            date: Calendar.strftime(@claude.updated_at, "%b %-d, %Y")
+          )}
+        </span>
+      </div>
+      <div data-part="actions">
+        <.button
+          :if={not @claude.connected}
+          id="connect-claude"
+          type="button"
+          label={dgettext("dashboard_account", "Connect")}
+          variant="primary"
+          phx-click="open-claude-modal"
+        />
+        <.button
+          :if={@claude.connected}
+          id="disconnect-claude"
+          type="button"
+          label={dgettext("dashboard_account", "Disconnect")}
+          variant="secondary"
+          phx-click="confirm-disconnect"
+          phx-value-provider="claude"
+        />
+      </div>
+    </div>
+  </.card_section>
+
+  <.card_section
+    :if={@chatgpt.connected or @chatgpt.login_available}
+    id="chatgpt-subscription"
+    data-part="subscription-card-section"
+  >
+    <div data-part="header-row">
+      <div data-part="header">
+        <span data-part="title">ChatGPT</span>
+        <span :if={not @chatgpt.connected} data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Use your ChatGPT Plus, Pro, or Team subscription in threads."
+          )}
+        </span>
+        <span :if={@chatgpt.connected} data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Connected. Threads run on your ChatGPT subscription. Updated %{date}.",
+            date: Calendar.strftime(@chatgpt.updated_at, "%b %-d, %Y")
+          )}
+        </span>
+      </div>
+      <div data-part="actions">
+        <.button
+          :if={not @chatgpt.connected}
+          id="connect-chatgpt"
+          type="button"
+          label={dgettext("dashboard_account", "Connect")}
+          variant="primary"
+          phx-click="open-chatgpt-modal"
+          disabled={@chatgpt_starting?}
+        />
+        <.button
+          :if={@chatgpt.connected}
+          id="disconnect-chatgpt"
+          type="button"
+          label={dgettext("dashboard_account", "Disconnect")}
+          variant="secondary"
+          phx-click="confirm-disconnect"
+          phx-value-provider="chatgpt"
+        />
+      </div>
+    </div>
+  </.card_section>
+
+  <.form
+    for={@claude_form}
+    id="claude-subscription-form"
+    phx-submit="save-claude"
+    autocomplete="off"
+  >
+    <.modal
+      id="connect-claude-modal"
+      title={dgettext("dashboard_account", "Connect Claude")}
+      header_size="large"
+      on_dismiss="close-claude-modal"
+    >
+      <:trigger :let={attrs}>
+        <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+      </:trigger>
+      <.line_divider />
+      <div data-part="subscription-form">
+        <.alert
+          :if={@claude_error}
+          status="error"
+          type="secondary"
+          size="small"
+          title={@claude_error}
+        />
+        <ol>
+          <li>{dgettext("dashboard_account", "Install Claude Code on your computer.")}</li>
+          <li>
+            {dgettext(
+              "dashboard_account",
+              "Run the following command and sign in with your Claude account."
+            )}
+            <.terminal id="claude-setup-token" command="claude setup-token" />
+          </li>
+          <li>{dgettext("dashboard_account", "Paste the token it prints below.")}</li>
+        </ol>
+        <.text_input
+          field={@claude_form[:token]}
+          id="claude-token"
+          type="password"
+          input_type="password"
+          label={dgettext("dashboard_account", "Claude token")}
+          placeholder="sk-ant-oat01-…"
+          required
+          show_required
+          hint={dgettext("dashboard_account", "Stored encrypted and never shown again.")}
+        />
+        <div data-part="actions">
+          <.button
+            type="button"
+            label={dgettext("dashboard_account", "Cancel")}
+            variant="secondary"
+            phx-click="close-claude-modal"
+          />
+          <.button
+            id="save-claude"
+            type="submit"
+            label={dgettext("dashboard_account", "Connect")}
+            variant="primary"
+          />
+        </div>
+      </div>
+    </.modal>
+  </.form>
+
+  <.modal
+    id="connect-chatgpt-modal"
+    title={dgettext("dashboard_account", "Connect ChatGPT")}
+    header_size="large"
+    on_dismiss="close-chatgpt-modal"
+  >
+    <:trigger :let={attrs}>
+      <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+    </:trigger>
+    <.line_divider />
+    <div data-part="subscription-form">
+      <.alert
+        :if={@chatgpt_error}
+        status="error"
+        type="secondary"
+        size="small"
+        title={@chatgpt_error}
+      />
+      <p :if={is_nil(@chatgpt_login) and is_nil(@chatgpt_error)}>
+        {dgettext("dashboard_account", "Requesting a sign-in code from OpenAI…")}
+      </p>
+      <ol :if={@chatgpt_login} id="chatgpt-device-login">
+        <li>
+          {dgettext(
+            "dashboard_account",
+            "Open ChatGPT and sign in with the account that has your subscription."
+          )}
+        </li>
+        <li>
+          {dgettext("dashboard_account", "Enter this one-time code:")}
+          <code id="chatgpt-user-code" data-part="code">{@chatgpt_login.user_code}</code>
+        </li>
+      </ol>
+      <p :if={@chatgpt_login}>
+        {dgettext(
+          "dashboard_account",
+          "This page updates once you approve. The code expires in 15 minutes; only enter it if you started this sign-in."
+        )}
+      </p>
+      <div data-part="actions">
+        <.button
+          type="button"
+          label={dgettext("dashboard_account", "Cancel")}
+          variant="secondary"
+          phx-click="close-chatgpt-modal"
+        />
+        <.button
+          :if={@chatgpt_login}
+          id="chatgpt-verification-link"
+          label={dgettext("dashboard_account", "Open ChatGPT")}
+          variant="primary"
+          href={@chatgpt_login.verification_url}
+          target="_blank"
+          rel="noopener noreferrer"
+        />
+      </div>
+    </div>
+  </.modal>
+
+  <.modal
+    id="disconnect-subscription-modal"
+    title={dgettext("dashboard_account", "Disconnect")}
+    description={
+      dgettext(
+        "dashboard_account",
+        "Tuist deletes the credentials it stored for this subscription. To revoke the access itself, do so in your Claude or OpenAI account."
+      )
+    }
+    header_size="large"
+    on_dismiss="cancel-disconnect"
+  >
+    <:trigger :let={attrs}>
+      <button type="button" hidden aria-hidden="true" tabindex="-1" {attrs} />
+    </:trigger>
+    <.line_divider />
+    <div data-part="subscription-form">
+      <div data-part="actions">
+        <.button
+          type="button"
+          label={dgettext("dashboard_account", "Cancel")}
+          variant="secondary"
+          phx-click="cancel-disconnect"
+        />
+        <.button
+          id="confirm-disconnect"
+          type="button"
+          label={dgettext("dashboard_account", "Disconnect")}
+          variant="primary"
+          phx-click="disconnect"
+        />
+      </div>
+    </div>
+  </.modal>
+</div>

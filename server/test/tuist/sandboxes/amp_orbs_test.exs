@@ -294,8 +294,7 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
   end
 
   test "a macOS Orb's pause saves no disk snapshot and is never archived", %{account: account} do
-    sandbox =
-      sandbox_fixture(account: account, amp_orb_id: "amp-thread", platform: :darwin, node_name: "mac-a", node_uid: "uid")
+    sandbox_fixture(account: account, amp_orb_id: "amp-thread", platform: :darwin, node_name: "mac-a", node_uid: "uid")
 
     expect(Nodes, :call, fn "mac-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 1}} end)
     expect(Nodes, :call, fn "mac-a", "pause", _args, _opts -> {:ok, %{"resident" => true}} end)

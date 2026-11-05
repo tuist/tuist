@@ -35,7 +35,7 @@ Sizes are stored in bytes and displayed using the decimal convention, where 1 MB
 
 ## Continuous integration {#continuous-integration}
 
-To track bundle size over time, analyze the bundle on CI. First, make sure your CI is <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
+To track bundle size over time, analyze the bundle on CI. First, make sure your CI is <.localized_link href="/guides/server/authentication#continuous-integration">authenticated</.localized_link>.
 
 Tuist also needs to know which project to report the bundle to. If you have not connected the project yet, run `tuist init`, or declare the handle yourself:
 
@@ -89,9 +89,9 @@ Once set up, you can see how your bundle size evolves over time:
 ## Pull/merge request comments {#pullmerge-request-comments}
 
 > [!WARNING]
-> **Integration With Git Platform Required**
+> **Git forge integration required**
 >
-> To get automatic pull/merge request comments, integrate your <.localized_link href="/guides/server/accounts-and-projects">Tuist project</.localized_link> with a <.localized_link href="/guides/server/authentication">Git platform</.localized_link>.
+> To get automatic pull/merge request comments, integrate your <.localized_link href="/guides/server/accounts-and-projects">Tuist project</.localized_link> with a <.localized_link href="/guides/integrations/gitforge/github">Git forge</.localized_link>.
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), Tuist will post a comment directly in your pull/merge requests whenever you run `tuist inspect bundle`:
 
@@ -100,7 +100,7 @@ Once your Tuist project is connected with your Git platform such as [GitHub](htt
 ## Size thresholds {#size-thresholds}
 
 > [!WARNING]
-> **Integration With Git Forge Required**
+> **Git forge integration required**
 >
 > To use size thresholds, connect the [Tuist GitHub App](https://github.com/apps/tuist) to your project. You can do this from your project's integrations page.
 

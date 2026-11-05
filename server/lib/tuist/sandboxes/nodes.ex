@@ -29,6 +29,14 @@ defmodule Tuist.Sandboxes.Nodes do
 
   def presence_topic, do: @presence_topic
 
+  @doc """
+  Suffix a remote execution worker on a shared runner host appends to its
+  Kubernetes node name, so it connects beside that host's agent sandbox
+  daemon instead of superseding it. The runners controller publishes the
+  worker's grants under the same name.
+  """
+  def execution_daemon_suffix, do: ".remote-execution"
+
   def topic(node_name) when is_binary(node_name), do: "sandbox_node:" <> node_name
 
   @doc """
@@ -147,8 +155,8 @@ defmodule Tuist.Sandboxes.Nodes do
 
   Options:
 
-    * `:timeout` in milliseconds; defaults to 120s for `create`/`resume`
-      and 60s otherwise.
+    * `:timeout` in milliseconds; defaults to 120s for `create`, `resume`
+      and `pause`, and 60s otherwise.
     * `:on_stream` a one-arity function receiving `{:stdout | :stderr,
       binary}` for every stream frame the node emits before the result.
     * `:presence_wait_ms` how long to wait for a node that is not visible
@@ -190,6 +198,8 @@ defmodule Tuist.Sandboxes.Nodes do
     end
   end
 
-  defp default_timeout(op) when op in ["create", "resume", :create, :resume], do: @long_timeout
+  # A pause can spend up to sandboxd's 60s guest-sync timeout before it
+  # snapshots memory.
+  defp default_timeout(op) when op in ["create", "resume", "pause", :create, :resume, :pause], do: @long_timeout
   defp default_timeout(_op), do: @default_timeout
 end

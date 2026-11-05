@@ -26,6 +26,8 @@ defmodule Tuist.Accounts.User do
     field :preferred_locale, :string
     field :active, :boolean, default: true
     field :disabled_at, :utc_datetime
+    # See `Tuist.Accounts.revoke_user_api_credentials/1`.
+    field :credentials_revoked_at, :utc_datetime
     # Operator access grant claims (verified, from ops.tuist.dev),
     # attached per-request by TuistWeb.OperatorGrant. Never persisted
     # or cast; nil = no grant = fail closed.

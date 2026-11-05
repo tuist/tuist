@@ -329,4 +329,18 @@ defmodule TuistWeb.SandboxNodeWebSockTest do
                native
              )
   end
+
+  test "a hello's direct exec endpoint reaches the node's presence", %{node_name: node_name, state: state} do
+    hello = hello(node_name, %{"direct_exec_endpoint" => "http://10.0.0.1:7071"})
+    {:ok, state} = SandboxNodeWebSock.handle_in(text(hello), state)
+
+    assert eventually(fn ->
+             match?({:ok, _pid, %{direct_exec_endpoint: "http://10.0.0.1:7071"}}, Nodes.lookup(node_name))
+           end)
+
+    {:ok, state} = SandboxNodeWebSock.handle_in(text(hello(node_name, %{"direct_exec_endpoint" => "file:///etc"})), state)
+    assert eventually(fn -> match?({:ok, _pid, %{direct_exec_endpoint: nil}}, Nodes.lookup(node_name)) end)
+
+    assert :ok = SandboxNodeWebSock.terminate(:normal, state)
+  end
 end

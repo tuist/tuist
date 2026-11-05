@@ -1,7 +1,7 @@
 ---
 {
   "title": "Плагины",
-  "titleTemplate": ":title · Агентная разработка · Возможности · Руководства · Tuist",
+  "titleTemplate": ":title · Агентовое программирование · Возможности · Руководства · Tuist",
   "description": "Установите плагин Tuist для Cursor или независимый от поставщика пакет Agent Plugins."
 }
 ---
@@ -12,14 +12,14 @@ Tuist упаковывает навыки агента и размещённый
 
 ## Claude Code
 
-[Маркетплейс Tuist Claude Code](https://github.com/tuist/claude-plugin) содержит плагин Tuist для установки с помощью:
+[Маркетплейс Tuist Claude Code](https://github.com/tuist/claude-plugin) предоставляет плагин Tuist для установки с помощью:
 
 ```bash
 claude plugin marketplace add tuist/claude-plugin
 claude plugin install tuist@tuist-plugins
 ```
 
-Плагин предоставляет навыки Tuist и подключает Claude Code к размещённому MCP-серверу.
+Плагин добавляет навыки Tuist и подключает Claude Code к размещённому MCP-серверу.
 
 ## Cursor
 
@@ -27,15 +27,15 @@ claude plugin install tuist@tuist-plugins
 
 1. Откройте **Customize** на боковой панели Cursor.
 2. Найдите **Tuist**.
-3. Выберите **Install**, затем укажите, устанавливать ли плагин для текущего проекта или для вашей учётной записи пользователя.
+3. Выберите **Install**, затем укажите, нужно ли устанавливать его для текущего проекта или для вашей учётной записи пользователя.
 
-Вы также можете ввести `/add-plugin` в Cursor, чтобы открыть тот же процесс установки. Плагин предоставляет навыки Tuist и подключает Cursor к размещённому MCP-серверу.
+Вы также можете ввести `/add-plugin` в Cursor, чтобы открыть тот же процесс установки. Плагин добавляет навыки Tuist и подключает Cursor к размещённому MCP-серверу.
 
 Если ваша организация управляет маркетплейсами Cursor, сначала импортируйте `https://github.com/tuist/cursor-plugin` через **Settings → Plugins → Team Marketplaces → Import Marketplace**.
 
 ## Другие агенты для написания кода
 
-[Плагин Tuist Agent](https://github.com/tuist/agent-plugin) следует открытому, независимому от вендора стандарту [Agent Plugins](https://agent-plugins.org/). Укажите совместимому клиенту на репозиторий, следуя инструкциям этого клиента по установке или ссылке на каталоги плагинов:
+[Tuist Agent Plugin](https://github.com/tuist/agent-plugin) следует открытому, независимому от поставщика стандарту [Agent Plugins](https://agent-plugins.org/). Настройте совместимый клиент на репозиторий, следуя инструкциям этого клиента по установке или подключению директорий плагинов:
 
 ```bash
 git clone https://github.com/tuist/agent-plugin.git
@@ -51,4 +51,4 @@ git clone https://github.com/tuist/agent-plugin.git
 tuist auth login
 ```
 
-Размещённый MCP-сервер запрашивает собственный вход в систему, когда это необходимо. См. [руководство по MCP](/guides/features/agentic-coding/mcp) для получения сведений о настройке и аутентификации для конкретного клиента.
+Размещённый MCP-сервер запрашивает собственный вход в систему, когда это необходимо. Подробности настройки и аутентификации для конкретного клиента см. в [руководстве по MCP](/guides/features/agentic-coding/mcp).

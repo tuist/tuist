@@ -4,6 +4,53 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  describe "mail_configured?/1" do
+    setup do
+      stub(System, :get_env, fn name, default ->
+        if String.starts_with?(name, ["TUIST_MAILING_", "TUIST_MAILGUN_", "TUIST_SES_", "TUIST_SMTP_SETTINGS_"]) do
+          default
+        else
+          Mimic.call_original(System, :get_env, [name, default])
+        end
+      end)
+
+      :ok
+    end
+
+    test "SES requires email confirmation without Mailgun credentials" do
+      secrets = %{
+        "mailing" => %{"provider" => "ses", "from_address" => "noreply@tuist.dev"},
+        "ses" => %{"region" => "eu-west-1", "access_key_id" => "ses-key", "secret_access_key" => "ses-secret"}
+      }
+
+      assert Environment.mail_configured?(secrets)
+      refute Environment.skip_email_confirmation?(secrets)
+
+      for field <- ["region", "access_key_id", "secret_access_key"], value <- [nil, ""] do
+        refute Environment.mail_configured?(put_in(secrets, ["ses", field], value))
+      end
+
+      refute Environment.mail_configured?(put_in(secrets, ["mailing", "from_address"], ""))
+    end
+
+    test "Mailgun remains the default and still requires its sending domain" do
+      secrets = %{
+        "mailing" => %{"from_address" => "noreply@tuist.dev", "domain" => "mail.tuist.dev"},
+        "mailgun" => %{"api_key" => "mailgun-key"}
+      }
+
+      assert Environment.mail_configured?(secrets)
+      refute Environment.skip_email_confirmation?(secrets)
+      refute Environment.mail_configured?(update_in(secrets, ["mailing"], &Map.delete(&1, "domain")))
+    end
+
+    test "a misspelled provider cannot silently disable email confirmation" do
+      assert_raise ArgumentError, ~r/unsupported mailing provider/, fn ->
+        Environment.skip_email_confirmation?(%{"mailing" => %{"provider" => "sse"}})
+      end
+    end
+  end
+
   describe "kura_thin_region_ids/0" do
     test "reads the trimmed region IDs enrolled in thin Kura volumes" do
       stub(System, :get_env, fn
@@ -592,6 +639,49 @@ defmodule Tuist.EnvironmentTest do
 
       assert config[:username] == "user"
       assert config[:password] == "abc+def"
+    end
+  end
+
+  describe "database_ssl_options/0" do
+    defp stub_database_ssl_env(env) do
+      stub(System, :get_env, fn name, default -> Map.get(env, name, default) end)
+      stub(System, :get_env, fn name -> Map.get(env, name) end)
+    end
+
+    @tag :tmp_dir
+    test "keeps unverified TLS unless verification is enabled", %{tmp_dir: tmp_dir} do
+      stub_database_ssl_env(%{"TUIST_DATABASE_SSL_CA_CERT_FILE" => write_ca_pem(tmp_dir)})
+
+      assert Environment.database_ssl_options() == [verify: :verify_none]
+    end
+
+    test "uses Postgrex's verifying defaults with the OS trust store when no CA file is set" do
+      stub_database_ssl_env(%{"TUIST_DATABASE_SSL_VERIFY" => "1"})
+
+      assert Environment.database_ssl_options() == true
+    end
+
+    @tag :tmp_dir
+    test "verifies against the configured CA file", %{tmp_dir: tmp_dir} do
+      path = write_ca_pem(tmp_dir)
+      stub_database_ssl_env(%{"TUIST_DATABASE_SSL_VERIFY" => "1", "TUIST_DATABASE_SSL_CA_CERT_FILE" => path})
+
+      assert Environment.database_ssl_options() == [cacertfile: path]
+    end
+
+    test "raises when the configured CA file has no certificates" do
+      stub_database_ssl_env(%{"TUIST_DATABASE_SSL_VERIFY" => "1", "TUIST_DATABASE_SSL_CA_CERT_FILE" => __ENV__.file})
+
+      assert_raise RuntimeError, ~r/TUIST_DATABASE_SSL_CA_CERT_FILE/, fn ->
+        Environment.database_ssl_options()
+      end
+    end
+
+    defp write_ca_pem(tmp_dir) do
+      der = :public_key.pkix_test_root_cert(~c"Test CA", [])[:cert]
+      path = Path.join(tmp_dir, "ca.pem")
+      File.write!(path, :public_key.pem_encode([{:Certificate, der, :not_encrypted}]))
+      path
     end
   end
 

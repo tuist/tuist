@@ -801,23 +801,33 @@ defmodule Tuist.Accounts do
       |> get_user_by_id()
       |> Repo.preload(Keyword.get(opts, :preload, [:account]))
     else
-      oauth2_identity =
-        create_oauth2_identity(%{
+      link_or_create_oauth2_user(
+        %{
           provider: provider,
           id_in_provider: id_in_provider,
           email: email,
           provider_organization_id: provider_organization_id
-        })
+        },
+        opts
+      )
+    end
+  end
 
-      user =
-        oauth2_identity.user_id
-        |> get_user_by_id()
-        |> Repo.preload(Keyword.get(opts, :preload, [:account]))
+  defp link_or_create_oauth2_user(attrs, opts) do
+    case create_oauth2_identity(attrs) do
+      {:ok, oauth2_identity} ->
+        user =
+          oauth2_identity.user_id
+          |> get_user_by_id()
+          |> Repo.preload(Keyword.get(opts, :preload, [:account]))
 
-      # Add SSO user to their organization with default :user role
-      assign_sso_user_to_organization(user, provider, provider_organization_id)
+        # Add SSO user to their organization with default :user role
+        assign_sso_user_to_organization(user, attrs.provider, attrs.provider_organization_id)
 
-      user
+        user
+
+      {:error, :email_not_proven} = error ->
+        error
     end
   end
 
@@ -852,6 +862,83 @@ defmodule Tuist.Accounts do
             error
         end
     end
+  end
+
+  @doc """
+  Links an OAuth identity to the existing user whose email the provider
+  reported, for a sign-in that is not already linked. Every sign-in path that
+  matches an account by provider email goes through here.
+
+  An unconfirmed account's email was never proven, so whoever registered it
+  may not own the address, while the provider's sign-in does prove it. The
+  link therefore claims the account: it is confirmed, and the password it was
+  registered with and its outstanding email tokens are voided, so the
+  registrant cannot sign in once the account is confirmed. An unconfirmed
+  account cannot sign in, so it holds no sessions or other credentials.
+
+  Without email confirmation, registration confirms an account on the spot,
+  so its email proves nothing and its registrant may already hold sessions,
+  MFA factors and tokens. A global provider (GitHub, Google, Apple) then links
+  only to an account a global provider already proved the email of, and
+  returns `{:error, :email_not_proven}` otherwise. Custom providers link by
+  domain trust or SCIM provenance, which their callers check.
+  """
+  def link_oauth_identity_by_email(%User{confirmed_at: nil} = user, attrs) do
+    result =
+      Repo.transaction(fn ->
+        # The lock orders concurrent sign-ins for the same account: the later
+        # one sees the account confirmed and links without claiming it again,
+        # so it cannot void the session the earlier one just issued.
+        locked = Repo.one!(from(u in User, where: u.id == ^user.id, lock: "FOR UPDATE"))
+
+        if is_nil(locked.confirmed_at) do
+          locked |> User.confirm_changeset() |> Changeset.change(encrypted_password: "") |> Repo.update!()
+          Repo.delete_all(UserToken.by_user_and_contexts_query(locked, :all))
+
+          case Repo.insert(oauth2_identity_changeset(locked, attrs)) do
+            {:ok, oauth_identity} -> {:claimed, oauth_identity}
+            {:error, changeset} -> Repo.rollback(changeset)
+          end
+        else
+          :already_confirmed
+        end
+      end)
+
+    case result do
+      {:ok, {:claimed, oauth_identity}} ->
+        assign_sso_user_to_organization(user, attrs.provider, attrs[:provider_organization_id])
+        {:ok, oauth_identity}
+
+      {:ok, :already_confirmed} ->
+        link_oauth_identity_by_email(get_user_by_id(user.id), attrs)
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  def link_oauth_identity_by_email(%User{} = user, attrs) do
+    if email_proven_for_provider_link?(user, attrs.provider) do
+      link_oauth_identity_to_user(user, attrs)
+    else
+      {:error, :email_not_proven}
+    end
+  end
+
+  defp email_proven_for_provider_link?(_user, provider) when provider in [:okta, :oauth2], do: true
+
+  defp email_proven_for_provider_link?(%User{id: user_id}, _provider) do
+    not Environment.skip_email_confirmation?() or
+      Repo.exists?(from(o in Oauth2Identity, where: o.user_id == ^user_id and o.provider in [:github, :google, :apple]))
+  end
+
+  defp oauth2_identity_changeset(%User{id: user_id}, attrs) do
+    Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
+      provider: attrs.provider,
+      id_in_provider: to_string(attrs.id_in_provider),
+      user_id: user_id,
+      provider_organization_id: attrs[:provider_organization_id]
+    })
   end
 
   @doc """
@@ -1174,21 +1261,18 @@ defmodule Tuist.Accounts do
        }) do
     case get_user_by_email(email) do
       {:ok, user} ->
-        {:ok, oauth2_identity} =
-          Repo.insert(
-            Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
-              provider: provider,
-              id_in_provider: to_string(id_in_provider),
-              user_id: user.id,
-              provider_organization_id: provider_organization_id
-            })
-          )
-
-        oauth2_identity
+        case link_oauth_identity_by_email(user, %{
+               provider: provider,
+               id_in_provider: id_in_provider,
+               provider_organization_id: provider_organization_id
+             }) do
+          {:ok, oauth2_identity} -> {:ok, oauth2_identity}
+          {:error, :email_not_proven} = error -> error
+        end
 
       {:error, :not_found} ->
         user = create_oauth2_user(email, provider, id_in_provider, provider_organization_id)
-        find_oauth2_identity(%{user: user, provider: provider})
+        {:ok, find_oauth2_identity(%{user: user, provider: provider})}
     end
   end
 
@@ -1900,11 +1984,23 @@ defmodule Tuist.Accounts do
   defp operator_email?(%User{email: email} = user) when is_binary(email) do
     domain = Environment.operator_email_domain()
 
-    String.ends_with?(String.downcase(email), "@" <> domain) and
+    operator_domain_email?(email, domain) and
       (not Environment.tuist_hosted?() or google_workspace_member?(user, domain))
   end
 
   defp operator_email?(_), do: false
+
+  @doc """
+  Returns true when the address alone makes its account a Tuist operator, which
+  is the case on self-hosted instances. Organizations must not assign such
+  addresses (for example through SCIM), or an organization admin could mint an
+  operator.
+  """
+  def operator_email_address?(email) when is_binary(email) do
+    not Environment.tuist_hosted?() and operator_domain_email?(email, Environment.operator_email_domain())
+  end
+
+  defp operator_domain_email?(email, domain), do: String.ends_with?(String.downcase(email), "@" <> domain)
 
   # Only enforced on tuist-hosted. Operators authenticate through Google
   # Workspace SSO — our preferred, org-restricted sign-in. We verify membership
@@ -2493,12 +2589,64 @@ defmodule Tuist.Accounts do
 
       session_tokens = Repo.all(UserToken.by_user_and_contexts_query(user, ["session"]))
       Repo.delete_all(UserToken.by_user_and_contexts_query(user, :all))
+      revoke_user_api_credentials(user)
 
       %{
         user: user,
         revoked_session_live_socket_ids: Enum.map(session_tokens, &UserToken.live_socket_id/1)
       }
     end)
+  end
+
+  @doc """
+  Revokes the credentials that act for the user and outlive browser sessions:
+  CLI, app, OAuth and agent tokens, device codes, and the legacy `users.token`.
+
+  `credentials_revoked_at` rejects every user-issued JWT authenticated at or
+  before now (see `credentials_revoked?/2`), including access tokens, which are
+  not stored, and tokens a refresh racing this call mints from a revoked one.
+  The stored refresh tokens and OAuth grants are also deleted or revoked so
+  they stop rotating. Account tokens share `guardian_tokens` with an account
+  ID as `sub`, which can equal a user ID, so they are excluded by their `type`
+  claim. Callers hold the user row lock.
+  """
+  def revoke_user_api_credentials(%User{id: id}) do
+    now = DateTime.utc_now()
+    sub = to_string(id)
+
+    Repo.update_all(from(u in User, where: u.id == ^id),
+      set: [token: Tuist.Tokens.generate_token(), credentials_revoked_at: DateTime.truncate(now, :second)]
+    )
+
+    Repo.delete_all(
+      from(t in "guardian_tokens",
+        where: t.sub == ^sub and fragment("coalesce(?->>'type', '') <> 'account'", t.claims)
+      )
+    )
+
+    Repo.update_all(
+      from(t in Boruta.Ecto.Token,
+        where: t.sub == ^sub and (is_nil(t.revoked_at) or is_nil(t.refresh_token_revoked_at))
+      ),
+      set: [revoked_at: now, refresh_token_revoked_at: now]
+    )
+
+    Repo.delete_all(from(d in DeviceCode, where: d.user_id == ^id))
+    :ok
+  end
+
+  @doc """
+  Whether `claims` were authenticated at or before the user's last credential
+  revocation. Refreshed tokens carry the `auth_time` of the token they replace,
+  so refreshing cannot move a credential past a revocation.
+  """
+  def credentials_revoked?(%User{credentials_revoked_at: nil}, _claims), do: false
+
+  def credentials_revoked?(%User{credentials_revoked_at: revoked_at}, claims) do
+    case Map.get(claims, "auth_time") || Map.get(claims, "iat") do
+      authenticated_at when is_integer(authenticated_at) -> authenticated_at <= DateTime.to_unix(revoked_at)
+      _ -> true
+    end
   end
 
   defp recently_sent_reset_password_instructions?(%User{id: user_id}) do

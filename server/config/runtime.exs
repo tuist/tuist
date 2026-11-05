@@ -195,7 +195,6 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       """
 
   database_config = Tuist.Environment.database_config_from_url(database_url)
-  database_hostname = Keyword.fetch!(database_config, :hostname)
   database_schema = Tuist.Environment.database_schema()
 
   # `{:keepalive, true}` enables SO_KEEPALIVE but inherits the OS default
@@ -286,12 +285,7 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
 
   database_options =
     if Tuist.Environment.use_ssl_for_database?() do
-      Keyword.put(database_options, :ssl,
-        server_name_indication: to_charlist(database_hostname),
-        verify: :verify_none
-      )
-
-      # TODO: Add proper certificate verification
+      Keyword.put(database_options, :ssl, Tuist.Environment.database_ssl_options())
     else
       database_options
     end
@@ -668,19 +662,34 @@ config :ueberauth, Ueberauth.Strategy.Google.OAuth,
   client_id: Tuist.Environment.google_oauth_client_id(secrets),
   client_secret: Tuist.Environment.google_oauth_client_secret(secrets)
 
-# Mailgun configuration
-if Tuist.Environment.mail_configured?(secrets) and Tuist.Environment.env() in [:prod, :can, :stag] do
-  base_uri =
-    cond do
-      env in [:prod, :can, :stag] -> "https://api.eu.mailgun.net/v3"
-      env in [:dev] -> "https://api.mailgun.net/v3"
-    end
+if Tuist.Environment.env() in [:prod, :can, :stag] do
+  case Tuist.Environment.mailing_provider(secrets) do
+    "mailgun" ->
+      if Tuist.Environment.mail_configured?(secrets) do
+        config :tuist, Tuist.Mailer,
+          adapter: Bamboo.MailgunAdapter,
+          api_key: Tuist.Environment.mailgun_api_key(secrets),
+          domain: Tuist.Environment.mailing_domain(secrets),
+          base_uri: "https://api.eu.mailgun.net/v3"
+      end
 
-  config :tuist, Tuist.Mailer,
-    adapter: Bamboo.MailgunAdapter,
-    api_key: Tuist.Environment.mailgun_api_key(secrets),
-    domain: Tuist.Environment.mailing_domain(secrets),
-    base_uri: base_uri
+    "ses" ->
+      if !Tuist.Environment.mail_configured?(secrets) do
+        raise "SES requires TUIST_SES_REGION, TUIST_SES_ACCESS_KEY_ID, TUIST_SES_SECRET_ACCESS_KEY and TUIST_MAILING_FROM_ADDRESS"
+      end
+
+      # Storage uses ExAws too. Never inherit its credentials or region.
+      config :tuist, Tuist.Mailer,
+        adapter: Bamboo.SesAdapter,
+        ex_aws: [
+          region: Tuist.Environment.get([:ses, :region], secrets),
+          access_key_id: Tuist.Environment.get([:ses, :access_key_id], secrets),
+          secret_access_key: Tuist.Environment.get([:ses, :secret_access_key], secrets)
+        ]
+
+    provider ->
+      raise "unsupported mailing provider: #{inspect(provider)}"
+  end
 end
 
 otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
@@ -711,6 +720,8 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # can't starve unrelated work — each job can block for up to 10s and
 # retries six times, and a single `test_case.created` event fans out
 # to one job per subscribed endpoint.
+# Push notifications get their own queue for the same reason: a new preview
+# fans out to one APNs request per device of every member who wants it.
 # Alert evaluations are isolated at one worker per server Pod because their
 # rolling ClickHouse aggregates are memory-heavy even after query-level limits.
 # GitLab coordinator requests may long-poll; isolate them from general background work.
@@ -720,6 +731,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # Coverage file deltas: a project's writes take turns on an advisory lock, so a
 # burst for one project would otherwise hold :default's slots while it waits.
 base_queues = [
+  remote_execution_maintenance: 1,
   runner_gitlab: 10,
   default: 10,
   alert_evaluations: 1,
@@ -727,6 +739,7 @@ base_queues = [
   automation_notifications: 5,
   vcs_comments: 20,
   webhooks: 20,
+  push: 10,
   mcp_events: 5,
   storage_retention: 1,
   kura_provisioning: 10,

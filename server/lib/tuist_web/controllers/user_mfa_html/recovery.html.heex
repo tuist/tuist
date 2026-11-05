@@ -10,7 +10,7 @@
   <ul id="mfa-recovery-codes">
     <li :for={code <- @codes}><code>{code}</code></li>
   </ul>
-  <p>
+  <p data-part="security-note">
     {dgettext(
       "dashboard_auth",
       "Store these codes securely. Losing both your authenticator and recovery codes can lock you out of your account."

@@ -1,0 +1,136 @@
+package executor
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
+	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"syscall"
+
+	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	worker "github.com/tuist/tuist/infra/sandbox-image/internal/reapi"
+	bs "google.golang.org/genproto/googleapis/bytestream"
+	rpc "google.golang.org/genproto/googleapis/rpc/status"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
+)
+
+const actionRoot = "/workspace/action"
+
+// A guest restored from the template snapshot faults in every page on first
+// touch. Preparation executes one throwaway action through the worker, before
+// any credential or input exists, so the admitted action does not pay for
+// that. The action's CAS is an in-process server on loopback; nothing leaves
+// the guest. It is best-effort.
+//
+// It runs inside the empty action root, created here: ext4 spreads top-level
+// directories across block groups, so a root created by the action itself
+// would usually land in a group whose metadata the guest has not read yet.
+func warm(ctx context.Context) {
+	if err := os.Mkdir(actionRoot, 0o755); err != nil {
+		return
+	}
+	scratch := filepath.Join(actionRoot, "warm")
+	_, _ = warmAction(ctx, scratch, &syscall.Credential{Uid: 1000, Gid: 1000}, startWithoutNewPrivileges)
+	_ = os.RemoveAll(scratch)
+}
+
+func warmAction(ctx context.Context, root string, credential *syscall.Credential, start func(*exec.Cmd) error) (*re.ExecuteResponse, error) {
+	return warmActionObserved(ctx, root, credential, start, nil)
+}
+
+// warmActionObserved reports each blob the action reads from its CAS.
+func warmActionObserved(ctx context.Context, root string, credential *syscall.Credential, start func(*exec.Cmd) error, read func(string)) (*re.ExecuteResponse, error) {
+	// One processor halves the host cores a preparing VM keeps busy, which
+	// slows actions running on the same host. The paths it warms are the same.
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	cas := loopbackCAS{blobs: map[string][]byte{}, read: read}
+	input := cas.put([]byte("warm\n"))
+	inputRoot := cas.putMessage(&re.Directory{Files: []*re.FileNode{{Name: "in", Digest: input}}})
+	command := cas.putMessage(&re.Command{
+		Arguments:            []string{"/bin/sh", "-c", "cat in > out"},
+		EnvironmentVariables: []*re.Command_EnvironmentVariable{{Name: "PATH", Value: "/usr/bin:/bin"}},
+		OutputPaths:          []string{"out"},
+	})
+	action := cas.putMessage(&re.Action{CommandDigest: command, InputRootDigest: inputRoot, Platform: &re.Platform{Properties: []*re.Platform_Property{
+		{Name: "Arch", Value: "amd64"}, {Name: "OSFamily", Value: "Linux"}, {Name: "tuist-image", Value: "warm"},
+	}}})
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, err
+	}
+	s := grpc.NewServer()
+	re.RegisterContentAddressableStorageServer(s, &cas)
+	bs.RegisterByteStreamServer(s, &cas)
+	go func() { _ = s.Serve(l) }()
+	defer s.Stop()
+	conn, err := worker.Dial("grpc://" + l.Addr().String())
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+	w := worker.Worker{CAS: worker.NewCAS(conn, "warm"), Root: root, Image: "warm", Credential: credential, Start: start}
+	response, _ := w.Execute(ctx, action)
+	return response, nil
+}
+
+type loopbackCAS struct {
+	re.UnimplementedContentAddressableStorageServer
+	bs.UnimplementedByteStreamServer
+	blobs map[string][]byte
+	read  func(string)
+}
+
+func (c *loopbackCAS) put(b []byte) *re.Digest {
+	h := sha256.Sum256(b)
+	d := &re.Digest{Hash: hex.EncodeToString(h[:]), SizeBytes: int64(len(b))}
+	c.blobs[d.Hash] = b
+	return d
+}
+
+func (c *loopbackCAS) putMessage(m proto.Message) *re.Digest {
+	b, _ := proto.Marshal(m)
+	return c.put(b)
+}
+
+func (c *loopbackCAS) BatchReadBlobs(_ context.Context, r *re.BatchReadBlobsRequest) (*re.BatchReadBlobsResponse, error) {
+	response := &re.BatchReadBlobsResponse{}
+	for _, d := range r.Digests {
+		if c.read != nil {
+			c.read(d.Hash)
+		}
+		item := &re.BatchReadBlobsResponse_Response{Digest: d, Status: &rpc.Status{}}
+		if b, ok := c.blobs[d.Hash]; ok {
+			item.Data = b
+		} else {
+			item.Status.Code = int32(codes.NotFound)
+		}
+		response.Responses = append(response.Responses, item)
+	}
+	return response, nil
+}
+
+func (c *loopbackCAS) Write(s bs.ByteStream_WriteServer) error {
+	var size int64
+	for {
+		r, err := s.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		size += int64(len(r.Data))
+		if r.FinishWrite {
+			break
+		}
+	}
+	return s.SendAndClose(&bs.WriteResponse{CommittedSize: size})
+}

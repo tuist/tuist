@@ -766,6 +766,51 @@
             #expect(recorded.sources == fixture.metadata.sources)
         }
 
+        @Test(.inTemporaryDirectory, arguments: ["prefix-mapped", "symlinked", "unrelated"])
+        func staticArchivesWhoseSourcesHoldNoCodePublishNothingToRelocate(compileUnitSpelling: String) async throws {
+            let root = try #require(FileSystem.temporaryTestDirectory)
+            let fixture = try await debuggingInput(at: root)
+            // SwiftPM checkouts are symlinks into a shared source cache, so the compiler may spell the path through them.
+            let checkout = root.appending(component: "checkout")
+            try FileManager.default.createSymbolicLink(atPath: checkout.pathString, withDestinationPath: root.pathString)
+            let compileUnit = switch compileUnitSpelling {
+            case "prefix-mapped": "/^root/Sources/Feature.swift"
+            case "symlinked": checkout.appending(components: "Sources", "Feature.swift").pathString
+            default: "/^root/Sources/Unrelated.swift"
+            }
+            let stored = compileUnitSpelling != "unrelated"
+            let units = """
+            Feature(Feature.o):\tfile format Mach-O arm64
+            0x0000000b: DW_TAG_compile_unit
+                          DW_AT_language\t(DW_LANG_Swift)
+                          DW_AT_name\t("\(compileUnit)")
+            0x00000087: DW_TAG_compile_unit
+                          DW_AT_name\t("_SwiftConcurrencyShims")
+            """
+            given(commandRunner).run(arguments: .any, environment: .any, workingDirectory: .any).willProduce { arguments, _, _ in
+                AsyncThrowingStream { continuation in
+                    if arguments.contains("--debug-info") {
+                        continuation.yield(.standardOutput(Array(units.utf8)))
+                    }
+                    continuation.finish()
+                }
+            }
+            #expect(try await subject.writeDebuggingMetadata(
+                fixture.metadata, target: fixture.target, artifact: fixture.artifact, productsDirectories: [fixture.products]
+            ) == stored)
+            let path = fixture.artifact.appending(components: "macos-arm64", CachedModuleDebuggingMetadata.fileName)
+            if stored {
+                let recorded = try JSONDecoder().decode(
+                    CachedModuleDebuggingMetadata.self,
+                    from: await fileSystem.readFile(at: path)
+                )
+                #expect(recorded.debugPaths.isEmpty)
+                #expect(recorded.sources == fixture.metadata.sources)
+            } else {
+                #expect(try await !fileSystem.exists(path))
+            }
+        }
+
         @Test(.inTemporaryDirectory, arguments: ["prefix-map", "info-plist", "empty-slices"])
         func malformedDebuggingInputsSkipPublicationRatherThanAbortTheWarm(kind: String) async throws {
             let root = try #require(FileSystem.temporaryTestDirectory)

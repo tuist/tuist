@@ -1,7 +1,7 @@
 # Tuist ClusterClass + Cluster CRs
 
 Self-hosted Kubernetes manifests for the Tuist workload clusters
-(staging / canary / production / preview), reconciled by our own
+(staging / canary / production), reconciled by our own
 management cluster running CAPI + caph. Production Kura regions are
 dedicated node pools inside the production workload cluster.
 
@@ -36,7 +36,6 @@ clusters/
 │                              (separate /data, no Kata, per-cluster RAID;
 │                              carries ClickHouse)            (mgmt-cluster-apply.yml)
 ├── machinedrainrules.yaml     per-workload drain behaviour   (mgmt-cluster-apply.yml)
-├── cluster-preview.yaml       preview Cluster CR             (mgmt-cluster-apply.yml)
 └── workloads/                 Flux-reconciled Cluster CRs (infra/flux/mgmt/)
     ├── staging/{cluster,kustomization}.yaml
     ├── canary/{cluster,kustomization}.yaml
@@ -59,9 +58,7 @@ Two mechanisms apply these manifests, split deliberately (see
   path: the immutable `clusterclass-tuist.yaml` and `bare-metal*.yaml`
   templates (whose delete-and-apply fallback for `field is immutable` a plain
   Kustomization can't reproduce — a new `bare-metal*.yaml` is picked up by its
-  glob without touching the workflow), `machinedrainrules.yaml`, and the
-  `cluster-preview.yaml` CR (replicas mutated out-of-band by the preview
-  workflows).
+  glob without touching the workflow) and `machinedrainrules.yaml`.
   Flux never sees these files.
 
 Tenant `Cluster` CRs were migrated in from `tuist/{hive,once,atlas}`
@@ -76,7 +73,6 @@ the tenant-repo copies are then retired to a pointer.
 | `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
 | `tuist-canary` | 3× cpx22 | md-0: 4× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
 | `tuist` (production) | 3× cpx32 | md-0: 5× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
-| `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
 
 Canary's general-purpose pool runs its three CNPG instances and reserves
 capacity for deployment hooks and rolling-update surge pods. Without that

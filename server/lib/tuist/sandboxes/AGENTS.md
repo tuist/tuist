@@ -5,6 +5,17 @@ Server control plane for the Firecracker sandboxes run by `sandboxd`
 sandbox is one persistent microVM per coding-agent session; the first
 consumer is Claude Managed Agents `self_hosted` environments.
 
+Linux REAPI actions use a separate `Tuist.RemoteExecution` lifecycle and
+`sandboxes.purpose = remote_execution`. Keep them out of agent listing, quotas,
+idle retention and node-report reconciliation: their scheduler and lease own
+them. Reserved executor nodes must not admit agent sessions; execution rows and
+resource reservations survive errors until acknowledged VM deletion. An executor
+on a shared runner host connects as `<node>.remote-execution` with its own
+carve-out: execution placement uses memory its Pod holds without a grant and may
+grow past the grant's bytes, but never past a revoked or expired grant. Agent
+admission keeps requiring the grant.
+See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-execution.md).
+
 ## Pieces
 
 - `Tuist.Sandboxes`: context over `sandboxes`,
@@ -333,6 +344,18 @@ socket, the poller and the caller share a replica:
   `/api/accounts/:account_handle/sandboxes/agent-sessions` (create,
   list, show with live status and usage, `messages`,
   `events?after=<cursor>`, `archive`).
+- `Sandboxes.Query` is the public boundary the sandbox API
+  (`TuistWeb.API.SandboxesController`: list, show, analytics, pause,
+  resume, archive, delete), the MCP sandbox tools and `tuist sandbox` share,
+  with contracts in `Sandboxes.Schemas`; keep both exported from `Tuist`.
+  It account-scopes every lookup, serializes the dashboard status, and maps
+  errors to one HTTP status and message (`Query.error/1`). The API sends
+  every 503 with a `retry-after` longer than the CLI's retry budget: the
+  server has already waited for the node, so replays only repeat the wait.
+  Every caller
+  requires an account administrator and the sandboxes flag, read-only
+  calls included, because sandboxes run arbitrary commands. MCP does not
+  expose `exec` or create.
 
 ## Related Context
 

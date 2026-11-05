@@ -52,6 +52,7 @@ import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
 import { GoogleOneTap } from "../shared/js/hooks/google-one-tap.js";
+import { initPasskeys, PasskeyLogin } from "./js/Passkeys.js";
 import { initAnalytics } from "../shared/js/analytics.js";
 import { registerNavigationTools, registerWebMCPTools } from "../shared/js/webmcp.mjs";
 
@@ -84,6 +85,7 @@ Hooks.RunnerShellTerminal = RunnerShellTerminal;
 Hooks.RunnerVNCClient = RunnerVNCClient;
 Hooks.RunnerVNCFullscreen = RunnerVNCFullscreen;
 Hooks.Turnstile = Turnstile;
+Hooks.PasskeyLogin = PasskeyLogin;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
@@ -147,6 +149,7 @@ liveSocket.connect();
 setupQueryMemory();
 
 initAnalytics();
+initPasskeys();
 
 registerWebMCPTools();
 registerNavigationTools();

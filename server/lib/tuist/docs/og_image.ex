@@ -24,6 +24,7 @@ defmodule Tuist.Docs.OgImage do
   attr :category, :string, default: "Docs"
   attr :font_data_uri, :string, required: true
   attr :georgian_font_data_uri, :string, required: true
+  attr :arabic_font_data_uri, :string, required: true
 
   def card(assigns) do
     ~H"""
@@ -44,6 +45,13 @@ defmodule Tuist.Docs.OgImage do
             src: url(<%= @georgian_font_data_uri %>) format('woff2');
             unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBA, U+1CBD-1CBF, U+205A, U+2D00-2D2F, U+2E31;
           }
+          @font-face {
+            font-family: 'Noto Sans Arabic';
+            font-style: normal;
+            font-weight: 100 900;
+            src: url(<%= @arabic_font_data_uri %>) format('woff2');
+            unicode-range: U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC7, U+10EC9-10EEE, U+10EF0-10EFF, U+1EE00-1EE03, U+1EE05-1EE1F, U+1EE21-1EE22, U+1EE24, U+1EE27, U+1EE29-1EE32, U+1EE34-1EE37, U+1EE39, U+1EE3B, U+1EE42, U+1EE47, U+1EE49, U+1EE4B, U+1EE4D-1EE4F, U+1EE51-1EE52, U+1EE54, U+1EE57, U+1EE59, U+1EE5B, U+1EE5D, U+1EE5F, U+1EE61-1EE62, U+1EE64, U+1EE67-1EE6A, U+1EE6C-1EE72, U+1EE74-1EE77, U+1EE79-1EE7C, U+1EE7E, U+1EE80-1EE89, U+1EE8B-1EE9B, U+1EEA1-1EEA3, U+1EEA5-1EEA9, U+1EEAB-1EEBB, U+1EEF0-1EEF1;
+          }
           /* Hex rather than Noora tokens: headless Chrome does not resolve
              oklch() reliably here. #0E0E0E is the near-black ground,
              #FDFDFD the primary label, #C7CCD1 the secondary one. */
@@ -52,7 +60,7 @@ defmodule Tuist.Docs.OgImage do
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            font-family: 'Inter Variable', 'Noto Sans Georgian', sans-serif;
+            font-family: 'Inter Variable', 'Noto Sans Georgian', 'Noto Sans Arabic', sans-serif;
             color-scheme: dark;
             background: #0E0E0E;
           }
@@ -102,8 +110,8 @@ defmodule Tuist.Docs.OgImage do
       </head>
       <body>
         <div class="content">
-          <div class="title">{truncate(@title, @max_title_length)}</div>
-          <div :if={@description} class="description">
+          <div class="title" dir="auto">{truncate(@title, @max_title_length)}</div>
+          <div :if={@description} class="description" dir="auto">
             {truncate(@description, @max_description_length)}
           </div>
         </div>
@@ -158,6 +166,7 @@ defmodule Tuist.Docs.OgImage do
 
     font_base64 = fonts_dir |> Path.join("InterVariable.woff2") |> File.read!() |> Base.encode64()
     georgian_font_base64 = fonts_dir |> Path.join("NotoSansGeorgian-georgian.woff2") |> File.read!() |> Base.encode64()
+    arabic_font_base64 = fonts_dir |> Path.join("NotoSansArabic-arabic.woff2") |> File.read!() |> Base.encode64()
 
     assigns = %{
       title: title,
@@ -165,6 +174,7 @@ defmodule Tuist.Docs.OgImage do
       category: category,
       font_data_uri: "data:font/woff2;base64,#{font_base64}",
       georgian_font_data_uri: "data:font/woff2;base64,#{georgian_font_base64}",
+      arabic_font_data_uri: "data:font/woff2;base64,#{arabic_font_base64}",
       max_title_length: @max_title_length,
       max_description_length: @max_description_length
     }

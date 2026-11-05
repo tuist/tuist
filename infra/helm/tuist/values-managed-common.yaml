@@ -156,6 +156,12 @@ server:
     # vault before a deploy.
     grafanaClickHouse:
       enabled: true
+    # ChatGPT subscription sign-in. The CHATGPT_OAUTH item (client_id) must
+    # exist in the environment's vault before a deploy. It currently holds
+    # Pi's public Codex client ID; swap the value for Tuist's own client once
+    # OpenAI issues one, with no chart change.
+    chatgptClient:
+      enabled: true
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
@@ -190,9 +196,11 @@ server:
   google:
     managedSecrets: true
 
-  # Mailing identity (not secret — shared across managed envs). The Mailgun API
-  # key itself is the only mail secret and stays in the per-env MAILGUN 1P item.
+  # Each environment reads its own send-only SES credentials from its SES item.
+  # The verified identity and region are shared, not the credentials.
   mailing:
+    provider: ses
+    sesRegion: eu-west-1
     domain: mail.tuist.dev
     fromAddress: noreply@tuist.dev
     replyToAddress: contact@tuist.dev

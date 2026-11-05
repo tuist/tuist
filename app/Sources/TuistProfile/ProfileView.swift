@@ -2,12 +2,15 @@ import Foundation
 import SwiftUI
 import TuistAuthentication
 import TuistErrorHandling
+import TuistFeatureFlags
 import TuistNoora
+import TuistNotifications
 import TuistServer
 
 public struct ProfileView: View {
     @EnvironmentObject private var errorHandler: ErrorHandling
     @EnvironmentObject private var authenticationService: AuthenticationService
+    @Environment(FeatureFlags.self) private var featureFlags
     private let deleteAccountService: DeleteAccountServicing = DeleteAccountService()
     @State private var showDeleteConfirmation = false
 
@@ -47,6 +50,10 @@ public struct ProfileView: View {
                 }
             }
 
+            if featureFlags.isEnabled(.ai) {
+                AISubscriptionsSection()
+            }
+
             Section {
                 ExternalLinkRow(
                     title: "Terms of Service",
@@ -80,6 +87,7 @@ public struct ProfileView: View {
             Section {
                 Button(action: {
                     Task {
+                        await PushNotifications.shared.signOut()
                         await authenticationService.signOut()
                     }
                 }) {
@@ -107,6 +115,7 @@ public struct ProfileView: View {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
                 errorHandler.fireAndHandleError {
+                    // The server deletes the account's devices with it.
                     try await authenticationService.deleteAccount(account)
                 }
             }

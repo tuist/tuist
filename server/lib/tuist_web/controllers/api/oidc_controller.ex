@@ -14,6 +14,7 @@ defmodule TuistWeb.API.OIDCController do
   alias Tuist.Guardian
   alias Tuist.OIDC
   alias Tuist.Projects
+  alias Tuist.VCS
   alias TuistWeb.API.Schemas.Error
 
   plug(
@@ -170,7 +171,12 @@ defmodule TuistWeb.API.OIDCController do
   end
 
   defp authorized_account(%{repository: repository} = identity) do
-    case Projects.projects_by_vcs_repository_full_handle(repository, preload: [:account]) do
+    # Built-in providers only prove github.com repositories, so a GitHub
+    # Enterprise Server link with the same handle must not match.
+    case Projects.projects_by_vcs_repository_full_handle(repository,
+           preload: [:account],
+           client_url: VCS.default_client_url()
+         ) do
       [] ->
         {:error, :no_projects}
 

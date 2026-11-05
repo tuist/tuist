@@ -29,11 +29,11 @@
     display: flex;
     gap: var(--noora-spacing-2);
     & > [data-part="cell"] {
-      padding-right: var(--noora-spacing-0);
-      padding-left: var(--noora-spacing-0);
+      padding-inline-start: var(--noora-spacing-0);
+      padding-inline-end: var(--noora-spacing-0);
 
       &:first-child {
-        padding-left: var(--noora-spacing-7);
+        padding-inline-start: var(--noora-spacing-7);
       }
     }
   }

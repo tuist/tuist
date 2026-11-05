@@ -10,7 +10,11 @@ defmodule Tuist.Docs do
   alias Tuist.Docs.Loader
   alias Tuist.Docs.Paths
 
-  def pages, do: static_pages() ++ cli_pages()
+  def pages(locale) when is_binary(locale) do
+    cli_pages = Enum.filter(cli_pages(), &(&1.slug == "/#{locale}" or String.starts_with?(&1.slug, "/#{locale}/")))
+    static_pages(locale) ++ cli_pages
+  end
+
   def slugs, do: Enum.sort(static_slugs() ++ Enum.map(cli_pages(), & &1.slug))
 
   def validate_page!(source_path) when is_binary(source_path) do

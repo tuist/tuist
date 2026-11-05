@@ -35,7 +35,7 @@ defmodule Tuist.Runners.DispatchTest do
     # resolution falls back to the legacy `owner == account.name`
     # convention the bulk of these cases exercise. The installation-first
     # path has its own case that overrides this stub.
-    stub(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:error, :not_found} end)
+    stub(VCS, :get_github_app_installation_by_installation_id, fn _, _ -> {:error, :not_found} end)
 
     # Disable the macOS protected-profile auto-bootstrap globally for
     # this suite. `Accounts.create_organization` and `Accounts.create_user`
@@ -181,7 +181,10 @@ defmodule Tuist.Runners.DispatchTest do
       # so the legacy name convention can't find them — but the App
       # installation maps straight to the account.
       stub(Accounts, :get_account_by_handle, fn _ -> nil end)
-      stub(VCS, :get_github_app_installation_by_installation_id, fn 123_975_483 -> {:ok, %{account_id: account.id}} end)
+
+      stub(VCS, :get_github_app_installation_by_installation_id, fn 123_975_483, [client_url: "https://github.com"] ->
+        {:ok, %{account_id: account.id}}
+      end)
 
       stub(Client, :list_runner_pools, fn _ns ->
         {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
@@ -204,7 +207,7 @@ defmodule Tuist.Runners.DispatchTest do
       # the account that actually connected the App.
       stub(Accounts, :get_account_by_handle, fn _ -> enabled_account() end)
 
-      stub(VCS, :get_github_app_installation_by_installation_id, fn _ ->
+      stub(VCS, :get_github_app_installation_by_installation_id, fn _, _ ->
         {:ok, %{account_id: installation_account.id}}
       end)
 
@@ -353,7 +356,7 @@ defmodule Tuist.Runners.DispatchTest do
     test "writes the workflow_job steps to runner_job_steps and skips nameless entries" do
       test_pid = self()
 
-      stub(Jobs, :complete, fn _id, conclusion ->
+      stub(Jobs, :complete, fn _id, conclusion, _opts ->
         send(test_pid, {:completed, conclusion})
         {:ok, %{account_id: 777}}
       end)
@@ -405,7 +408,7 @@ defmodule Tuist.Runners.DispatchTest do
 
     test "skips the steps write entirely when the payload carries no steps" do
       test_pid = self()
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: 1}} end)
 
       stub(JobSteps, :record, fn rows ->
         send(test_pid, {:steps, rows})
@@ -418,7 +421,7 @@ defmodule Tuist.Runners.DispatchTest do
     end
 
     test "enqueues the log fetch when the job actually ran steps" do
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: 1}} end)
       stub(JobSteps, :record, fn _rows -> :ok end)
 
       payload =
@@ -437,7 +440,7 @@ defmodule Tuist.Runners.DispatchTest do
       # `skipped` (an `if:` gate) and `cancelled`-while-queued jobs ship
       # no steps and have no log archive on GitHub's side, so fetching
       # one only burns every retry on a permanent 404.
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: 1}} end)
       stub(JobSteps, :record, fn _rows -> :ok end)
 
       for {id, conclusion} <- [{4320, "skipped"}, {4321, "cancelled"}] do
@@ -449,7 +452,7 @@ defmodule Tuist.Runners.DispatchTest do
     end
 
     test "propagates an unexpected error from the completion write so Oban retries" do
-      stub(Jobs, :complete, fn _id, _conclusion -> {:error, :rollback} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:error, :rollback} end)
 
       payload =
         completed_payload(
@@ -472,7 +475,7 @@ defmodule Tuist.Runners.DispatchTest do
         {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
       end)
 
-      stub(Jobs, :complete, fn _id, _conclusion -> {:error, :not_found} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:error, :not_found} end)
       stub(Jobs, :record_completed, fn _attrs, _conclusion -> {:error, :rollback} end)
 
       payload =
@@ -691,7 +694,7 @@ defmodule Tuist.Runners.DispatchTest do
       claim_running!(account, workflow_job_id, "pod-silent", "runner-silent")
 
       stub(RunnerSessions, :record_execution, fn _r, _j, _a, _w -> :matched end)
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account.id}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: account.id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
       assert {:ok, :completed} =
@@ -713,7 +716,7 @@ defmodule Tuist.Runners.DispatchTest do
 
       stub(RunnerSessions, :record_execution, fn _r, _j, _a -> :mismatch end)
       stub(RunnerSessions, :record_execution, fn _r, _j, _a, _w -> :matched end)
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account.id}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: account.id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
       assert {:ok, :mismatch} =
@@ -741,7 +744,7 @@ defmodule Tuist.Runners.DispatchTest do
       end)
 
       stub(Claims, :complete_by_runner_name, fn "runner-late", ^account_id, _job -> %{released: 1, requeued: []} end)
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: account_id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
       assert {:ok, :completed} =
@@ -783,7 +786,7 @@ defmodule Tuist.Runners.DispatchTest do
       end)
 
       stub(Claims, :complete_by_runner_name, fn "runner-window", ^account_id, _job -> %{released: 1, requeued: []} end)
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: account_id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
       assert {:ok, :completed} =
@@ -817,7 +820,7 @@ defmodule Tuist.Runners.DispatchTest do
         %{released: 1, requeued: []}
       end)
 
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: account_id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
       assert {:ok, :completed} =
@@ -830,7 +833,7 @@ defmodule Tuist.Runners.DispatchTest do
     end
 
     test "skips backstop attribution when the completed payload has no runner_name (cancelled-while-queued)" do
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: 1}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
       reject(&RunnerSessions.record_execution/3)

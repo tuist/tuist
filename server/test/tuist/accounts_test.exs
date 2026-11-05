@@ -2157,6 +2157,7 @@ defmodule Tuist.AccountsTest do
 
   describe "find_oauth2_identity/2" do
     test "returns github oauth2 identity when user also has a google identity" do
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       # Given
       user = AccountsFixtures.user_fixture()
 
@@ -2189,6 +2190,7 @@ defmodule Tuist.AccountsTest do
     end
 
     test "returns google oauth2 identity" do
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       # Given
       user = AccountsFixtures.user_fixture()
 
@@ -2258,6 +2260,7 @@ defmodule Tuist.AccountsTest do
 
   describe "delete_user/1" do
     test "deletes a user" do
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -2734,9 +2737,9 @@ defmodule Tuist.AccountsTest do
     end
 
     @tag :browser_session
-    test "expires at fifteen minutes idle without activity from validity checks", %{token: token} do
+    test "expires at seven days idle without activity from validity checks", %{token: token} do
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
-      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -899)])
+      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -604_799)])
       assert Accounts.get_user_by_session_token(token)
 
       stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1) end)
@@ -2745,11 +2748,11 @@ defmodule Tuist.AccountsTest do
     end
 
     @tag :browser_session
-    test "activity cannot extend the eight-hour absolute deadline", %{token: token} do
+    test "activity cannot extend the 30-day absolute deadline", %{token: token} do
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
 
       Repo.update_all(UserToken,
-        set: [inserted_at: now |> DateTime.add(-28_799) |> DateTime.to_naive(), last_active_at: now]
+        set: [inserted_at: now |> DateTime.add(-2_591_999) |> DateTime.to_naive(), last_active_at: now]
       )
 
       assert Accounts.get_user_session(token, touch: true)
@@ -2761,10 +2764,10 @@ defmodule Tuist.AccountsTest do
     test "user activity extends only the idle deadline and only for that session", %{token: token, user: user} do
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
       other_token = Accounts.generate_user_session_token(user)
-      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 840) end)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 604_740) end)
       assert Accounts.get_user_session(token, touch: true)
 
-      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1680) end)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1_209_480) end)
       assert Accounts.get_user_by_session_token(token)
       refute Accounts.get_user_by_session_token(other_token)
     end
@@ -2775,7 +2778,7 @@ defmodule Tuist.AccountsTest do
 
       Repo.update_all(UserToken,
         set: [
-          inserted_at: now |> DateTime.add(-900) |> DateTime.to_naive(),
+          inserted_at: now |> DateTime.add(-604_800) |> DateTime.to_naive(),
           last_active_at: nil,
           auth_provider: nil,
           auth_provider_organization_id: nil
@@ -3347,6 +3350,7 @@ defmodule Tuist.AccountsTest do
     end
 
     test "updates an existing user with a new github identity" do
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
       user = user_fixture(email: email)
 
@@ -3361,6 +3365,67 @@ defmodule Tuist.AccountsTest do
 
       assert user.email == got.email
       assert Accounts.find_oauth2_identity(%{user: user, provider: :github})
+    end
+
+    test "claims an unconfirmed account matched by the provider's email and voids its registration password" do
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
+      email = unique_user_email()
+      {:ok, registered} = Accounts.create_user(email, password: "registrant password!", confirmed_at: nil)
+      {encoded_confirmation, confirmation} = UserToken.build_email_token(registered, "confirm")
+      Repo.insert!(confirmation)
+
+      user = Accounts.find_or_create_user_from_oauth2(%{provider: :apple, uid: "apple-claim", info: %{email: email}})
+
+      assert user.id == registered.id
+      assert user.confirmed_at
+      assert {:ok, %{user_id: user_id}} = Accounts.get_oauth2_identity(:apple, "apple-claim")
+      assert user_id == registered.id
+
+      assert Accounts.get_user_by_email_and_password(email, "registrant password!") ==
+               {:error, :invalid_email_or_password}
+
+      assert Accounts.confirm_user(encoded_confirmation) == :error
+    end
+
+    test "does not link an email-matched password account while email confirmation is skipped" do
+      stub(Environment, :skip_email_confirmation?, fn -> true end)
+      email = unique_user_email()
+      {:ok, registered} = Accounts.create_user(email, password: "registrant password!")
+      assert registered.confirmed_at
+
+      assert Accounts.find_or_create_user_from_oauth2(%{provider: :apple, uid: "apple-refused", info: %{email: email}}) ==
+               {:error, :email_not_proven}
+
+      assert Accounts.get_oauth2_identity(:apple, "apple-refused") == {:error, :not_found}
+      assert {:ok, _} = Accounts.get_user_by_email_and_password(email, "registrant password!")
+    end
+
+    test "links another provider while email confirmation is skipped once a provider proved the email" do
+      stub(Environment, :skip_email_confirmation?, fn -> true end)
+      email = unique_user_email()
+
+      github_user =
+        Accounts.find_or_create_user_from_oauth2(%{provider: :github, uid: "github-first", info: %{email: email}})
+
+      user = Accounts.find_or_create_user_from_oauth2(%{provider: :apple, uid: "apple-second", info: %{email: email}})
+
+      assert user.id == github_user.id
+      assert {:ok, %{user_id: user_id}} = Accounts.get_oauth2_identity(:apple, "apple-second")
+      assert user_id == github_user.id
+    end
+
+    test "a sign-in that loaded the account before a concurrent claim links without voiding the claim's session" do
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
+      {:ok, stale} = Accounts.create_user(unique_user_email(), password: "registrant password!", confirmed_at: nil)
+      attrs = %{provider: :github, id_in_provider: "github-race", provider_organization_id: nil}
+
+      assert {:ok, _} = Accounts.link_oauth_identity_by_email(stale, attrs)
+      session = Accounts.generate_user_session_token(Accounts.get_user_by_id(stale.id))
+
+      assert {:ok, %{user_id: user_id}} = Accounts.link_oauth_identity_by_email(stale, attrs)
+      assert user_id == stale.id
+      assert %{id: session_user_id} = Accounts.get_user_by_session_token(session)
+      assert session_user_id == stale.id
     end
 
     test "updates an existing user with a new okta identity" do

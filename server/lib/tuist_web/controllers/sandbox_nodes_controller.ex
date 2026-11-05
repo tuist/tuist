@@ -5,7 +5,9 @@ defmodule TuistWeb.SandboxNodesController do
   TokenReview scoped to the `tuist-sandboxes` audience and requires the
   sandboxes namespace. The node name comes from `X-Tuist-Node-Name` and
   must be the node the token's pod is bound to, so a pod on one node
-  cannot speak for another.
+  cannot speak for another. A remote execution worker sharing a host with
+  the agent sandbox daemon connects as `<node>.remote-execution`, so the
+  two daemons on one node have separate connections and carve-outs.
   """
   use TuistWeb, :controller
 
@@ -13,6 +15,7 @@ defmodule TuistWeb.SandboxNodesController do
 
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Sandboxes.Nodes
   alias TuistWeb.SandboxNodeWebSock
 
   require Logger
@@ -77,7 +80,10 @@ defmodule TuistWeb.SandboxNodesController do
     if namespace == Environment.sandboxes_namespace(), do: :ok, else: {:error, :wrong_namespace}
   end
 
-  defp verify_bound_node(%{node_name: node_name}, node_name) when is_binary(node_name), do: :ok
+  defp verify_bound_node(%{node_name: bound}, node_name) when is_binary(bound) do
+    if node_name in [bound, bound <> Nodes.execution_daemon_suffix()], do: :ok, else: {:error, :node_mismatch}
+  end
+
   defp verify_bound_node(_principal, _node_name), do: {:error, :node_mismatch}
 
   defp node_name(conn) do

@@ -74,6 +74,18 @@ defmodule TuistWeb.SandboxNodesControllerTest do
     assert json_response(conn, 401)["error"] == "node name does not match the token"
   end
 
+  test "lets a remote execution worker connect beside its node's agent daemon, not another node's", %{conn: conn} do
+    stub(K8sClient, :create_sandbox_node_token_review, fn "token" ->
+      {:ok, %{namespace: "tuist-sandboxes", name: "workers", uid: "1", node_name: "node-a"}}
+    end)
+
+    connect = fn name -> connect_node(conn, [{"authorization", "Bearer token"}, {"x-tuist-node-name", name}]) end
+
+    # Authenticated, it reaches the WebSocket upgrade, which a test request cannot complete.
+    assert_raise WebSockAdapter.UpgradeError, fn -> connect.("node-a.remote-execution") end
+    assert json_response(connect.("node-b.remote-execution"), 401)["error"] == "node name does not match the token"
+  end
+
   test "rejects a token that is not bound to a node", %{conn: conn} do
     expect(K8sClient, :create_sandbox_node_token_review, fn "token" ->
       {:ok, %{namespace: "tuist-sandboxes", name: "sandboxd", uid: "1", node_name: nil}}

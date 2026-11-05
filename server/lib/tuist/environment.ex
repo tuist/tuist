@@ -503,6 +503,31 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_USE_SSL_FOR_DATABASE", "1"))
   end
 
+  # Verification is opt-in so upgrades keep connecting to databases whose
+  # certificates chain to a private CA (RDS, Cloud SQL, self-managed).
+  # Postgrex verifies the peer and hostname by default for `true` and keyword
+  # lists, and sets SNI from the host of each connection, so neither is pinned
+  # here. `true` also defers loading the OS trust store to connect time.
+  def database_ssl_options do
+    ca_cert_file = System.get_env("TUIST_DATABASE_SSL_CA_CERT_FILE")
+
+    cond do
+      not truthy?(System.get_env("TUIST_DATABASE_SSL_VERIFY", "0")) -> [verify: :verify_none]
+      ca_cert_file in [nil, ""] -> true
+      true -> [cacertfile: validate_database_ca_cert_file!(ca_cert_file)]
+    end
+  end
+
+  defp validate_database_ca_cert_file!(path) do
+    with {:ok, pem} <- File.read(path),
+         true <- Enum.any?(:public_key.pem_decode(pem), &match?({:Certificate, _, _}, &1)) do
+      path
+    else
+      _ ->
+        raise "TUIST_DATABASE_SSL_CA_CERT_FILE must point to a readable PEM file with CA certificates, got: #{inspect(path)}"
+    end
+  end
+
   def dev_use_remote_storage? do
     not dev?() or truthy?(System.get_env("TUIST_DEV_USE_REMOTE_STORAGE", "0"))
   end
@@ -621,6 +646,11 @@ defmodule Tuist.Environment do
 
   def kura_tuist_base_url do
     System.get_env("TUIST_KURA_TUIST_BASE_URL")
+  end
+
+  @doc "The public gRPC endpoint of the remote execution gateways, such as `grpcs://execution.tuist.dev`."
+  def remote_execution_endpoint do
+    System.get_env("TUIST_REMOTE_EXECUTION_ENDPOINT")
   end
 
   @doc """
@@ -1260,6 +1290,15 @@ defmodule Tuist.Environment do
     slack_client_id(secrets) != nil and slack_client_secret(secrets) != nil
   end
 
+  @doc """
+  OAuth client ID for personal ChatGPT connections
+  (`Tuist.Accounts.AISubscriptions.ChatGPT`). The client must have OpenAI's
+  device authorization enabled; without it, ChatGPT sign-in stays unavailable.
+  """
+  def chatgpt_client_id(secrets \\ secrets()) do
+    get([:chatgpt, :client_id], secrets)
+  end
+
   def stripe_api_key(secrets \\ secrets()) do
     get([:stripe, :secret_key], secrets)
   end
@@ -1464,8 +1503,24 @@ defmodule Tuist.Environment do
       apns_private_key(secrets) != nil
   end
 
+  @doc """
+  The Firebase service account JSON (as downloaded from Google Cloud) the server
+  sends Android notifications with.
+  """
+  def fcm_service_account(secrets \\ secrets()) do
+    get([:fcm, :service_account], secrets)
+  end
+
+  def fcm_configured?(secrets \\ secrets()) do
+    fcm_service_account(secrets) not in [nil, ""]
+  end
+
   def mailgun_api_key(secrets \\ secrets()) do
     get([:mailgun, :api_key], secrets)
+  end
+
+  def mailing_provider(secrets \\ secrets()) do
+    get([:mailing, :provider], secrets, default_value: "mailgun")
   end
 
   def mailing_domain(secrets \\ secrets()) do
@@ -1490,8 +1545,25 @@ defmodule Tuist.Environment do
   end
 
   def mail_configured?(secrets \\ secrets()) do
-    mailgun_api_key(secrets) != nil and mailing_domain(secrets) != nil and
-      mailing_from_address(secrets) != nil
+    case mailing_provider(secrets) do
+      "mailgun" ->
+        mailgun_api_key(secrets) != nil and mailing_domain(secrets) != nil and
+          mailing_from_address(secrets) != nil
+
+      "ses" ->
+        Enum.all?(
+          [
+            get([:ses, :region], secrets),
+            get([:ses, :access_key_id], secrets),
+            get([:ses, :secret_access_key], secrets),
+            mailing_from_address(secrets)
+          ],
+          &(&1 not in [nil, ""])
+        )
+
+      provider ->
+        raise ArgumentError, "unsupported mailing provider: #{inspect(provider)}"
+    end
   end
 
   def skip_email_confirmation?(secrets \\ secrets()) do

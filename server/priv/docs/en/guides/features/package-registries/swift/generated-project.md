@@ -15,13 +15,14 @@ let project = Project(
     name: "MyProject",
     packages: [
         // Source control resolution
-        // .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
+        // .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.0.0")
         // Registry resolution
-        .package(id: "pointfreeco.swift-composable-architecture", from: "0.1.0")
+        .package(id: "pointfreeco.swift-composable-architecture", from: "1.0.0")
     ],
     targets: [
         .target(
             name: "App",
+            destinations: .iOS,
             product: .app,
             bundleId: "dev.tuist.App",
             dependencies: [

@@ -871,6 +871,24 @@ spec:
               path: "/spec/template/spec/kubeadmConfigSpec/preKubeadmCommands/-"
               valueFrom:
                 template: '/usr/local/sbin/tuist-kubernetes-packages {{ trimPrefix "v" .builtin.controlPlane.version }}'
+            # Our kubelet config file is the last --config, so it replaces
+            # kubeadm's, including its rotateCertificates: true. Without
+            # rotation the kubelet bootstraps its client certificate before
+            # it runs static Pods. From 1.35, kubeadm always points that
+            # bootstrap at the joining node's own API server
+            # (ControlPlaneKubeletLocalMode is locked on, so
+            # disableControlPlaneKubeletLocalMode no longer has an effect).
+            # That API server is one of those static Pods, so the join
+            # deadlocks with an unstarted etcd learner. Move this flag into the
+            # kubelet config files when the pin above moves off v1.34.6.
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/initConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              value: &rotateCertificatesArg
+                name: rotate-certificates
+                value: "true"
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              value: *rotateCertificatesArg
     - name: KubeadmConfigTemplateWorkerKubernetesPackages
       enabledIf: '{{ if ne .builtin.machineDeployment.version "v1.34.6" }}true{{end}}'
       definitions:
@@ -889,6 +907,12 @@ spec:
               path: "/spec/template/spec/preKubeadmCommands/-"
               valueFrom:
                 template: '/usr/local/sbin/tuist-kubernetes-packages {{ trimPrefix "v" .builtin.machineDeployment.version }}'
+            # Workers bootstrap through the load balancer, so they join
+            # either way. Rotation stops their client certificate from
+            # expiring after a year, matching kubeadm's default.
+            - op: add
+              path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              value: *rotateCertificatesArg
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HetznerClusterTemplate

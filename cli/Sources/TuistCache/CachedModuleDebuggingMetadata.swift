@@ -98,14 +98,16 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
 
     /// Uses paths actually present in DWARF. Multiple verified spellings of one file are not ambiguous.
     /// `linkedDebugSymbols` marks `debugSources` as read from a linked dSYM, which drops compile units without code.
+    /// `compileUnits` names the compile units of unlinked objects, which keep one for a source without code.
     public func recording(
         debugSources: Set<String>,
         prefixMappings: [[String: String]] = [],
-        linkedDebugSymbols: Bool = false
+        linkedDebugSymbols: Bool = false,
+        compileUnits: Set<String> = []
     ) throws -> Self {
         try recording(
             debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
-            resolvedDebugSources: [:], symlinkedSources: []
+            compileUnits: compileUnits, resolvedDebugSources: [:], symlinkedSources: []
         )
     }
 
@@ -113,12 +115,13 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         debugSources: Set<String>,
         prefixMappings: [[String: String]] = [],
         linkedDebugSymbols: Bool = false,
+        compileUnits: Set<String> = [],
         fileSystem: FileSysteming
     ) async throws -> Self {
         try Task.checkCancellation()
         let declaredPaths = Set(sourcePaths.values)
         var resolvedDebugSources: [String: Set<String>] = [:]
-        for source in debugSources.sorted() {
+        for source in debugSources.union(compileUnits).sorted() {
             try Task.checkCancellation()
             guard let path = try? AbsolutePath(validating: source), try await fileSystem.exists(path) else { continue }
             let canonical = try await Self.canonicalSourcePath(path, fileSystem: fileSystem)
@@ -137,7 +140,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         }
         return try recording(
             debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
-            resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
+            compileUnits: compileUnits, resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
         )
     }
 
@@ -145,6 +148,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         debugSources: Set<String>,
         prefixMappings: [[String: String]],
         linkedDebugSymbols: Bool,
+        compileUnits: Set<String>,
         resolvedDebugSources: [String: Set<String>],
         symlinkedSources: Set<String>
     ) throws -> Self {
@@ -188,7 +192,8 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         }
         if !sources.isEmpty, paths.isEmpty {
             let names = Set((Array(sources.keys) + Array(sourcePaths.values)).map(Self.lowercasedFileName))
-            guard linkedDebugSymbols, !debugSources.contains(where: { names.contains(Self.lowercasedFileName($0)) }) else {
+            let withoutCode = linkedDebugSymbols || candidatesBySource.values.contains { !$0.isDisjoint(with: compileUnits) }
+            guard withoutCode, !debugSources.contains(where: { names.contains(Self.lowercasedFileName($0)) }) else {
                 throw DebuggingMetadataError.missingSources
             }
         }

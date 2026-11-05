@@ -13,16 +13,10 @@ Some Tuist features require a server which adds persistence of data and can inte
 
 To use the server, you'll need an account. There are two types of accounts:
 
-- **Personal account:** Those accounts are created automaticaly when you sign up and are identified by a handle that's obtained either from the identity provider (e.g. GitHub) or the first part of the email address.
+- **Personal account:** Those accounts are created automatically when you sign up and are identified by a handle that's obtained either from the identity provider (e.g. GitHub) or the first part of the email address.
 - **Organization account:** Those accounts are manually created and are identified by a handle that's defined by the developer. Organizations allow inviting other members to collaborate on projects.
 
 If you are familiar with [GitHub](https://github.com), the concept is similar to theirs, where you can have personal and organization accounts, and they are identified by a *handle* that's used when constructing URLs.
-
-> [!NOTE]
-> **Cli-first**
->
-> Most operations to manage accounts and projects are done through the CLI. We are working on a web interface that will make it easier to manage accounts and projects.
-
 
 You can manage the organization through the subcommands under <.localized_link href="/cli/organization">`tuist organization`</.localized_link>. To create a new organization account, run:
 ```bash
@@ -62,7 +56,7 @@ let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist
 ```
 
 > [!WARNING]
-> **Tuist Project-only Features**
+> **Tuist project-only features**
 >
 > Note that some features like <.localized_link href="/guides/features/cache/module-cache">module caching</.localized_link> require a Tuist-managed project. If you are not using Tuist to manage your project, you won't be able to use those features.
 

@@ -49,4 +49,21 @@
     <string name="delete_preview_failed">"Failed to delete preview"</string>
     <string name="delete_preview_title">"Delete Preview"</string>
     <string name="delete_preview_message">"Are you sure you want to delete this preview? This action cannot be undone."</string>
+    <string name="ai_subscriptions_title">"AI subscriptions"</string>
+    <string name="ai_subscriptions_footer">"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features."</string>
+    <string name="ai_subscriptions_connect">"Connect"</string>
+    <string name="ai_subscriptions_disconnect">"Disconnect"</string>
+    <string name="ai_subscriptions_unavailable">"Unavailable"</string>
+    <string name="ai_subscriptions_disconnect_title">"Disconnect subscription"</string>
+    <string name="ai_subscriptions_disconnect_message">"Tuist will delete the saved %1$s credentials."</string>
+    <string name="ai_subscriptions_claude_title">"Connect Claude"</string>
+    <string name="ai_subscriptions_claude_message">"Run claude setup-token in a terminal and paste the token it prints."</string>
+    <string name="ai_subscriptions_claude_token">"Subscription token"</string>
+    <string name="ai_subscriptions_chatgpt_title">"Connect ChatGPT"</string>
+    <string name="ai_subscriptions_chatgpt_message">"Enter the code on the OpenAI sign-in page. This closes once you approve it."</string>
+    <string name="ai_subscriptions_chatgpt_copy">"Copy code"</string>
+    <string name="ai_subscriptions_chatgpt_open">"Open sign-in page"</string>
+    <string name="ai_subscriptions_chatgpt_expired">"The sign-in expired. Close this and connect again."</string>
+    <string name="notifications_channel_new_previews">"New previews"</string>
+    <string name="notifications_channel_new_previews_description">"New previews of your projects"</string>
 </resources>

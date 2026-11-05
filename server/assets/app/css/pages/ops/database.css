@@ -67,6 +67,8 @@
     font-size: 13px;
     line-height: 1.55;
     font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    direction: ltr;
+    unicode-bidi: isolate;
     tab-size: 2;
   }
 

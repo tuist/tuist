@@ -62,11 +62,11 @@
   & [data-part="overlay-scrollbar"] {
     display: none;
     position: absolute;
-    right: var(--noora-spacing-4);
+    inset-inline-end: var(--noora-spacing-4);
     /* With the 16px lane the hook pads below the body plus the root's 4px, this centers the 8px
      * thumb — 6px to the last row above and 6px to the table edge below, matching webkit. */
     bottom: 6px;
-    left: var(--noora-spacing-4);
+    inset-inline-start: var(--noora-spacing-4);
     z-index: 2;
     height: 8px;
 
@@ -77,6 +77,9 @@
     & > [data-part="overlay-thumb"] {
       position: absolute;
       top: 0;
+      /* Physical on purpose: ScrollIndicator.js translates the thumb in physical pixels and
+       * maps right-to-left scroll positions itself. */
+      left: 0;
       height: 100%;
     }
   }
@@ -144,9 +147,9 @@
     &:has(td):after {
       position: absolute;
       top: 44px;
-      right: 0;
+      inset-inline-end: 0;
       bottom: 0;
-      left: 0;
+      inset-inline-start: 0;
       z-index: 1;
       box-shadow: var(--noora-border-light-default);
       border-radius: var(--noora-radius-4);
@@ -189,7 +192,7 @@
             display: flex;
             align-items: center;
             gap: var(--noora-spacing-5);
-            padding-left: var(--noora-spacing-5);
+            padding-inline-start: var(--noora-spacing-5);
 
             /* The disclosure trigger: a bare, icon-only button wrapping the chevron. It carries
              * the interaction (focus, click) so the row can stay passive. */
@@ -222,7 +225,7 @@
           }
 
           & > [data-part="expand-cell"] > [data-part="cell"] {
-            padding-left: 0;
+            padding-inline-start: 0;
           }
 
           &[data-part="expanded-content"] {
@@ -232,13 +235,13 @@
              * to zero height, and any padding here would leave a visible sliver between rows. */
             padding-top: 0;
             padding-bottom: 0;
-            padding-left: var(--noora-spacing-8);
+            padding-inline-start: var(--noora-spacing-8);
 
             &::before {
               position: absolute;
               top: 0;
               bottom: 0;
-              left: var(--noora-spacing-7);
+              inset-inline-start: var(--noora-spacing-7);
               background-color: var(--noora-surface-border-primary);
               width: 1px;
               content: "";
@@ -301,19 +304,19 @@
       /* Border radius on the `tbody` itself is unsupported, so we're selectively adding radius to specific cells. */
       & tr:first-child {
         & td:first-child {
-          border-top-left-radius: var(--noora-radius-4);
+          border-start-start-radius: var(--noora-radius-4);
         }
         & td:last-child {
-          border-top-right-radius: var(--noora-radius-4);
+          border-start-end-radius: var(--noora-radius-4);
         }
       }
 
       & tr:last-child {
         & td:first-child {
-          border-bottom-left-radius: var(--noora-radius-4);
+          border-end-start-radius: var(--noora-radius-4);
         }
         & td:last-child {
-          border-bottom-right-radius: var(--noora-radius-4);
+          border-end-end-radius: var(--noora-radius-4);
         }
       }
 
@@ -325,10 +328,10 @@
           + tr[data-part="expanded-row"]
         ) {
         & td:first-child {
-          border-bottom-left-radius: var(--noora-radius-4);
+          border-end-start-radius: var(--noora-radius-4);
         }
         & td:last-child {
-          border-bottom-right-radius: var(--noora-radius-4);
+          border-end-end-radius: var(--noora-radius-4);
         }
       }
     }
@@ -345,7 +348,7 @@
       var(--noora-spacing-5) var(--noora-spacing-7);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-    text-align: left;
+    text-align: start;
     white-space: nowrap;
 
     & > [data-part="sort-link"] {
@@ -367,7 +370,7 @@
       display: inline-block;
       position: relative;
       top: 2.5px;
-      left: var(--noora-spacing-2);
+      inset-inline-start: var(--noora-spacing-2);
       width: var(--noora-icon-size-medium);
       height: var(--noora-icon-size-medium);
       /* We cannot make `th` a flex element for vertical alignment and `gap`, so we are using `top` to vertically align, and `left` for

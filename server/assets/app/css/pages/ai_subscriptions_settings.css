@@ -1,0 +1,103 @@
+/* Mirrors the Integrations cards: title and subtitle on the left, the
+   action on the same line to the right, setup in a modal. */
+#ai-subscriptions-settings {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--noora-spacing-9);
+
+  & > [data-part="title"] {
+    margin: var(--noora-spacing-0);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="subtitle"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="subscription-card-section"] [data-part="header-row"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-8);
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-grow: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      min-width: 0;
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      flex-shrink: 0;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+    }
+  }
+
+  & #connect-claude-modal,
+  & #connect-chatgpt-modal,
+  & #disconnect-subscription-modal {
+    & > [data-part="positioner"] > [data-part="content"] {
+      width: min(520px, 90vw);
+    }
+  }
+
+  & [data-part="subscription-form"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-6) var(--noora-spacing-4);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+    ol {
+      margin: 0;
+      padding-inline-start: var(--noora-spacing-7);
+    }
+
+    li + li {
+      margin-top: var(--noora-spacing-3);
+    }
+
+    li > .tuist-terminal {
+      margin-block: var(--noora-spacing-3);
+    }
+
+    p {
+      margin: 0;
+    }
+
+    & [data-part="code"] {
+      display: block;
+      margin-top: var(--noora-spacing-3);
+      width: fit-content;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+      letter-spacing: 0.1em;
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--noora-spacing-4);
+    }
+  }
+}

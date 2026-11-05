@@ -107,6 +107,8 @@ server:
       enabled: true
     apns:
       enabled: true
+    fcm:
+      enabled: true
     atlasEmail:
       enabled: true
     # Point server error reporting at the Atlas error-tracking ingest
@@ -247,6 +249,10 @@ server:
     # runner_site_cache flag enables get a node there.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,scw-fr-par-runners,ber1-runners
+    # The remote-execution chart's gateway Ingress host, which accounts'
+    # Bazel workspaces use as --remote_executor (capabilities API).
+    - name: TUIST_REMOTE_EXECUTION_ENDPOINT
+      value: grpcs://execution.tuist.dev
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
@@ -532,7 +538,10 @@ kuraVolumesCSI:
   enabled: true
   # Public half of this environment's KURA_VOLUME_TRANSPORT_KEYS item.
   keyServicePublicKey: PCj63J/Ahkzb6ST6Pve32eQARfY0L7zB/EhR+MjwmVw=
-  thinRegions: []
+  # eu-west's thin-ready node is qvv7x-ndgzl (lvm-v1 since 2026-11-05). Only
+  # accounts on the kura_thin_volumes flag move; listing the region changes no
+  # other manifest.
+  thinRegions: [eu-west]
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
@@ -2317,9 +2326,10 @@ buildersFleet:
 # Firecracker sandboxes for coding-agent sessions, on the OVH RISE-L boxes that
 # also host the Linux runner pool. No memory is set aside for sandboxes: each
 # box's daemon starts at the chart's 1 GiB floor, which holds no sandbox, and
-# grows up to 32 GiB as sandboxes need memory no running job holds. 100 GiB of disk holds four default sessions with a 10 GB workspace,
-# running or paused. The kata runner pools keep the rest. Accounts reach
-# sandboxes only through the `sandboxes` feature flag.
+# grows up to 32 GiB as sandboxes need memory no running job holds. 200 GiB of
+# disk holds seven default sessions with a 10 GB workspace, running or paused,
+# and fewer when the box also keeps disk snapshots. The kata runner pools keep
+# the rest. Accounts reach sandboxes only through the `sandboxes` feature flag.
 sandboxes:
   # Deploy the daemon; account access is controlled by the `sandboxes` flag.
   enabled: true
@@ -2335,7 +2345,7 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 32
-  diskGiB: 100
+  diskGiB: 200
   archiveAfterHours: 24
   networkPolicy:
     # Amp Orb archives go to the in-rack shard-storage release.

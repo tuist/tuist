@@ -1093,13 +1093,19 @@ server.stripe.prices is empty (self-hosted installs without Stripe).
 {{- end -}}
 
 {{/*
-Mailing identity env vars. The Mailgun sending domain + from/reply-to addresses
-are sender identity, not secrets, so they come from chart values (shared in
-values-managed-common.yaml). The Mailgun API key itself stays in the secret
-store. Each var is emitted only when set, so an unset value leaves the accessor
-nil (mail simply degrades) rather than overriding with "".
+Mailing provider and identity. Credentials stay in the secret store. Empty sender
+values are omitted so they do not override secrets-file configuration with "".
 */}}
 {{- define "tuist.mailingEnv" -}}
+{{- if not (has .Values.server.mailing.provider (list "mailgun" "ses")) }}
+{{- fail "server.mailing.provider must be mailgun or ses" }}
+{{- end }}
+- name: TUIST_MAILING_PROVIDER
+  value: {{ .Values.server.mailing.provider | quote }}
+{{- if eq .Values.server.mailing.provider "ses" }}
+- name: TUIST_SES_REGION
+  value: {{ required "server.mailing.sesRegion is required for SES" .Values.server.mailing.sesRegion | quote }}
+{{- end }}
 {{- with .Values.server.mailing.domain }}
 - name: TUIST_MAILING_DOMAIN
   value: {{ . | quote }}

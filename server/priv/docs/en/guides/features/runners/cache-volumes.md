@@ -290,7 +290,7 @@ lint:
   one path and several, or adding, removing or rewriting a path, changes that
   layout: the first job after the change starts cold for the affected paths.
   Content of paths that are no longer listed stays in the volume until you
-  clear it.
+  delete it.
 
 ### How keys work {#how-keys-work}
 
@@ -312,8 +312,8 @@ snapshot like an `actions/cache` key.
   saved yet starts empty.
 - **Keys starting with `tuist-` are reserved** for Tuist's own caches and are
   rejected before the volume attaches.
-- **Start over on purpose.** Change the key, or clear the volume in the
-  dashboard, when you want a job to start empty.
+- **Start over on purpose.** Change the key, or delete the volume, when you
+  want a job to start empty.
 - **Leave `tuist-` keys to Tuist.** The managed caches use keys that start
   with `tuist-`, so pick a different name for your own volumes.
 
@@ -410,7 +410,7 @@ The Gradle cache and custom volumes take the same `size` input
 (`TUIST_GRADLE_CACHE_SIZE` and `TUIST_VOLUME_SIZE` in GitLab CI, `--size` for
 `tuist-cache-volume`).
 A larger size grows the volume, keeping its contents, from its next job. A
-smaller one applies after the volume is next cleared or expires. When jobs ask
+smaller one applies after the volume is next deleted or expires. When jobs ask
 for different sizes of one cache, the largest applies, so declare each size in
 one place.
 
@@ -425,9 +425,26 @@ contents reach **80%** of the volume's capacity and a job runs out of space on
 them, the next job starts with an empty volume and its changes begin a new
 saved state.
 
-## Inspecting and clearing volumes {#inspecting-and-clearing-volumes}
+## Inspecting and deleting volumes {#inspecting-and-clearing-volumes}
 
 Open **Runners → Volumes** to inspect used space, cache hit rate and job history.
-Account administrators can select **Clear volume** to make future jobs start
-empty. Running jobs keep their private copies but cannot save them back. The
-Xcode and module caches appear there too, but can't be cleared.
+The Xcode, module and Gradle caches appear there too.
+
+Account administrators can select **Delete volume** to remove a volume and its
+saved contents. Running jobs keep their private copies but cannot save them
+back, and the next job that uses the same key starts with an empty volume.
+Deleted volumes no longer appear in the list.
+
+To delete a volume from a terminal or a workflow, look up its ID and pass it to
+`tuist runner volume delete`:
+
+```bash
+tuist runner volume list --account my-org --name gradle-build-cache --json
+tuist runner volume delete <volume-id> --account my-org --yes
+```
+
+The same operation is available through the
+[API](https://tuist.dev/api/docs#tag/runners) as `DELETE /api/accounts/{account_handle}/runners/volumes/{volume_id}`
+and through the [MCP server](/guides/features/agentic-coding/mcp) as
+`delete_runner_volume`. All of them require account administration or a token
+with the `account:runners:write` scope.

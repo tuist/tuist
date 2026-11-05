@@ -603,6 +603,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% tokens_path = ~p"/#{@selected_account.name}/settings/tokens" %>
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
+      <% ai_path = ~p"/#{@selected_account.name}/settings/ai" %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
@@ -625,6 +626,15 @@ defmodule TuistWeb.AppLayoutComponents do
         label={dgettext("dashboard", "Authentication")}
         selected={String.starts_with?(@current_path, authentication_path)}
         navigate={authentication_path}
+      />
+      <.tab_menu_horizontal_item
+        :if={
+          @selected_account.user_id == @current_user.id and
+            FeatureFlags.ai_enabled?(@current_user)
+        }
+        label={dgettext("dashboard", "AI")}
+        selected={String.starts_with?(@current_path, ai_path)}
+        navigate={ai_path}
       />
     </.tab_menu_horizontal>
     """
