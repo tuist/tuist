@@ -3,6 +3,7 @@ package macos
 import (
 	"context"
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 	appsv1 "k8s.io/api/apps/v1"
@@ -15,8 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"os/exec"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"

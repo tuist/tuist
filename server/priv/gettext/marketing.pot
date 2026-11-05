@@ -222,7 +222,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:13
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:694
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:364
-#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:116
+#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:118
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:366
 #: lib/tuist_web/marketing/live/marketing_customers_live/customers.html.heex:109
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:638
@@ -521,7 +521,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:139
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:700
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:370
-#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:122
+#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:124
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:372
 #: lib/tuist_web/marketing/live/marketing_customers_live/customers.html.heex:115
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:644
@@ -564,14 +564,14 @@ msgstr ""
 msgid "Tuist"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/root.html.heex:205
-#: lib/tuist_web/marketing/layouts/root.html.heex:211
+#: lib/tuist_web/marketing/layouts/root.html.heex:209
+#: lib/tuist_web/marketing/layouts/root.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Tuist Blog"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/root.html.heex:220
-#: lib/tuist_web/marketing/layouts/root.html.heex:226
+#: lib/tuist_web/marketing/layouts/root.html.heex:224
+#: lib/tuist_web/marketing/layouts/root.html.heex:230
 #, elixir-autogen, elixir-format
 msgid "Tuist Changelog"
 msgstr ""
@@ -834,7 +834,7 @@ msgid "Onboarded"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:68
-#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:43
+#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:45
 #, elixir-autogen, elixir-format
 msgid "Read next"
 msgstr ""
@@ -851,7 +851,7 @@ msgid "See how leading teams scale with Tuist"
 msgstr ""
 
 #: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:134
-#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:113
+#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "AI moves fast. So should your builds."
 msgstr ""
@@ -1482,7 +1482,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:1042
 #: lib/tuist_web/marketing/controllers/marketing_html/newsletter.html.heex:128
 #: lib/tuist_web/marketing/controllers/marketing_html/tests.html.heex:361
-#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:111
+#: lib/tuist_web/marketing/live/marketing_blog_post_live/blog_post.html.heex:113
 #: lib/tuist_web/marketing/live/marketing_cache_live/cache.html.heex:363
 #: lib/tuist_web/marketing/live/marketing_previews_live/previews.html.heex:635
 #, elixir-autogen, elixir-format

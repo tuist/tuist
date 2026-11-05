@@ -6,6 +6,7 @@
   display: block;
   margin-block: var(--noora-spacing-8);
 
+  /* A terminal transcript: stays left-to-right in RTL pages. */
   & > [data-part="code"] {
     display: flex;
     flex-direction: column;
@@ -16,6 +17,8 @@
     overflow-x: hidden;
     overflow-y: auto;
     scrollbar-gutter: stable;
+    direction: ltr;
+    unicode-bidi: isolate;
   }
 
   & [data-part="terminal-line"] {
@@ -24,7 +27,7 @@
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
     line-height: var(--agent-prompt-line-height);
-    text-align: left;
+    text-align: start;
     white-space: pre-line;
     word-break: break-word;
   }
@@ -39,7 +42,7 @@
     color: var(--agent-prompt-response-color);
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
     line-height: var(--agent-prompt-line-height);
-    text-align: left;
+    text-align: start;
   }
 
   & [data-part="response-section"]::after {
@@ -77,7 +80,7 @@
     vertical-align: text-bottom;
     visibility: hidden;
     animation: agent-prompt-blink 0.8s step-end infinite;
-    margin-left: var(--noora-spacing-1);
+    margin-inline-start: var(--noora-spacing-1);
     border-radius: var(--noora-radius-1);
     width: 0.65ch;
     height: 1em;

@@ -35,13 +35,13 @@ enum DeviceServiceError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .appDownloadFailed(id):
-            return "The app preview \(id) was not found."
+            return String(localized: "The app preview \(id) was not found.")
         case .appBundleNotFoundInArchive:
-            return "Could not find app bundle in the downloaded archive"
+            return String(localized: "Could not find app bundle in the downloaded archive")
         case .apkNotFoundInArchive:
-            return "Could not find APK file in the downloaded archive"
+            return String(localized: "Could not find APK file in the downloaded archive")
         case let .missingPackageName(id):
-            return "The preview \(id) does not have a package name set."
+            return String(localized: "The preview \(id) does not have a package name set.")
         }
     }
 
@@ -186,7 +186,7 @@ final class DeviceService: DeviceServicing {
         guard let selectedDevice else { throw SimulatorsViewModelError.noSelectedSimulator }
 
         let status = TaskStatus(
-            displayName: "Installing preview",
+            displayName: String(localized: "Installing preview"),
             initialState: .preparing
         )
 
@@ -209,7 +209,7 @@ final class DeviceService: DeviceServicing {
             )
 
             await status.update(
-                state: .running(message: "Launching preview", progress: .indeterminate)
+                state: .running(message: String(localized: "Launching preview"), progress: .indeterminate)
             )
 
             try await launchApp(app, on: selectedDevice)
@@ -217,13 +217,13 @@ final class DeviceService: DeviceServicing {
             let displayName = app.displayName
             if let gitCommitSHA = preview.gitCommitSHA {
                 await status.markAsDone(
-                    message: "Installed \(displayName)@\(gitCommitSHA.prefix(7))"
+                    message: String(localized: "Installed \(displayName)@\(String(gitCommitSHA.prefix(7)))")
                 )
             } else {
-                await status.markAsDone(message: "Installed \(displayName)")
+                await status.markAsDone(message: String(localized: "Installed \(displayName)"))
             }
         } catch {
-            await status.markAsDone(message: "Installation failed")
+            await status.markAsDone(message: String(localized: "Installation failed"))
             throw error
         }
     }

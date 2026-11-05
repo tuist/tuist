@@ -6,14 +6,20 @@ defmodule Tuist.SandboxesTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.Repo
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
   alias Tuist.Sandboxes.Sandbox
+  alias Tuist.Sandboxes.SandboxEvent
   alias Tuist.Sandboxes.Workers.PauseIdleOrbWorker
   alias Tuist.Sandboxes.Workers.PauseSandboxWorker
+
+  defp events(%Sandbox{id: id}) do
+    ClickHouseRepo.all(from(e in SandboxEvent, where: e.sandbox_id == ^id, order_by: e.inserted_at, select: e.event))
+  end
 
   describe "agent environments" do
     test "create_agent_environment/2 stores the key encrypted and lists it back without it" do
@@ -103,6 +109,15 @@ defmodule Tuist.SandboxesTest do
       assert sandbox.last_active_at
       assert [%Sandbox{id: id}] = Sandboxes.list_sandboxes(account)
       assert id == sandbox.id
+      assert events(sandbox) == ["created", "started"]
+
+      assert [%{boot_source: "template"}] =
+               ClickHouseRepo.all(
+                 from(e in SandboxEvent,
+                   where: e.sandbox_id == ^sandbox.id and e.event == "started",
+                   select: %{boot_source: e.boot_source}
+                 )
+               )
     end
 
     test "applies the requested shape" do
@@ -127,8 +142,11 @@ defmodule Tuist.SandboxesTest do
 
       assert {:error, :no_node} = Sandboxes.create_sandbox(account, %{})
 
-      assert [%Sandbox{state: :error, node_name: nil, error_message: message}] = Sandboxes.list_sandboxes(account)
+      assert [%Sandbox{state: :error, node_name: nil, error_message: message} = sandbox] =
+               Sandboxes.list_sandboxes(account)
+
       assert message =~ "no node"
+      assert events(sandbox) == ["created", "failed"]
     end
 
     test "marks the sandbox as errored when the node rejects the create" do
@@ -156,6 +174,7 @@ defmodule Tuist.SandboxesTest do
       end)
 
       assert {:ok, %Sandbox{state: :paused, paused_at: %DateTime{}}} = Sandboxes.pause(sandbox)
+      assert events(sandbox) == ["paused"]
     end
 
     test "pause/1 leaves the sandbox running when the node refuses" do
@@ -244,6 +263,7 @@ defmodule Tuist.SandboxesTest do
 
       assert {:ok, %Sandbox{}} = Sandboxes.delete(sandbox)
       assert Repo.get(Sandbox, sandbox_id) == nil
+      assert events(sandbox) == ["deleted"]
     end
 
     test "removes the row when the node is not connected" do
@@ -366,6 +386,8 @@ defmodule Tuist.SandboxesTest do
 
       assert %Sandbox{state: :error, error_message: "firecracker exited", residency_work_id: nil, residency_epoch: 5} =
                Repo.reload!(sandbox)
+
+      assert events(sandbox) == ["failed"]
     end
   end
 
@@ -483,6 +505,41 @@ defmodule Tuist.SandboxesTest do
                Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => deleting.id, "state" => "running"}]})
 
       assert %Sandbox{state: :deleted} = Repo.reload!(deleting)
+    end
+
+    test "leaves execution VMs to their scheduler" do
+      reported = sandbox_fixture(state: :creating, node_name: "node-a")
+      unreported = sandbox_fixture(state: :running, node_name: "node-a")
+
+      for sandbox <- [reported, unreported] do
+        sandbox |> Ecto.Changeset.change(purpose: :remote_execution) |> Repo.update!()
+      end
+
+      reject(&Nodes.call/4)
+
+      assert :ok =
+               Sandboxes.reconcile_node_report("node-a", %{"sandboxes" => [%{"id" => reported.id, "state" => "error"}]})
+
+      assert %Sandbox{state: :creating, error_message: nil} = Repo.reload!(reported)
+      assert %Sandbox{state: :running, error_message: nil} = Repo.reload!(unreported)
+    end
+  end
+
+  describe "listing an account's sandboxes" do
+    test "leaves out execution VMs" do
+      account = account_fixture()
+      agent = sandbox_fixture(account: account, vcpus: 2)
+
+      [account: account, vcpus: 8]
+      |> sandbox_fixture()
+      |> Ecto.Changeset.change(purpose: :remote_execution)
+      |> Repo.update!()
+
+      assert [%Sandbox{id: id}] = Sandboxes.list_sandboxes(account)
+      assert id == agent.id
+      assert Sandboxes.count_sandboxes(account) == 1
+      assert Sandboxes.sandbox_vcpus(account) == [2]
+      assert %{running: 1} = Sandboxes.count_sandboxes_by_state(account)
     end
   end
 

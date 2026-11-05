@@ -711,6 +711,8 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # can't starve unrelated work — each job can block for up to 10s and
 # retries six times, and a single `test_case.created` event fans out
 # to one job per subscribed endpoint.
+# Push notifications get their own queue for the same reason: a new preview
+# fans out to one APNs request per device of every member who wants it.
 # Alert evaluations are isolated at one worker per server Pod because their
 # rolling ClickHouse aggregates are memory-heavy even after query-level limits.
 # GitLab coordinator requests may long-poll; isolate them from general background work.
@@ -720,6 +722,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # Coverage file deltas: a project's writes take turns on an advisory lock, so a
 # burst for one project would otherwise hold :default's slots while it waits.
 base_queues = [
+  remote_execution_maintenance: 1,
   runner_gitlab: 10,
   default: 10,
   alert_evaluations: 1,
@@ -727,6 +730,7 @@ base_queues = [
   automation_notifications: 5,
   vcs_comments: 20,
   webhooks: 20,
+  push: 10,
   mcp_events: 5,
   storage_retention: 1,
   kura_provisioning: 10,

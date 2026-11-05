@@ -1,6 +1,7 @@
 @import "./pages/account.css";
 @import "./pages/account_settings.css";
 @import "./pages/account_tokens.css";
+@import "./pages/ai_subscriptions_settings.css";
 @import "./pages/auth.css";
 @import "./pages/billing.css";
 @import "./pages/bundle.css";
@@ -71,3 +72,4 @@
 @import "./pages/xcode_cache.css";
 
 @import "./pages/runner_volumes.css";
+@import "./pages/sandboxes.css";

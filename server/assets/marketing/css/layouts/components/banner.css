@@ -14,10 +14,10 @@
   & > [data-part="background"] {
     position: absolute;
     top: 0;
-    right: 0;
     bottom: 0;
-    left: 0;
     z-index: -1;
+    inset-inline-end: 0;
+    inset-inline-start: 0;
     border-radius: var(--noora-radius-6);
     background: linear-gradient(93deg, #fef9f4 0.66%, #efe8ff 100%);
     width: 100%;

@@ -822,6 +822,14 @@ server:
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Public OAuth client ID for linking ChatGPT subscriptions
+    # (TUIST_CHATGPT_CLIENT_ID). Without it the ChatGPT option stays hidden.
+    # Enable only after the item exists in the environment's vault: a missing
+    # item fails the pre-upgrade ExternalSecret and blocks the deploy.
+    chatgptClient:
+      enabled: false
+      item: CHATGPT_OAUTH
+      field: client_id
     # Origin app identity. Enable only after the registered App ID and its
     # signing key exist together in the environment's vault.
     originAppKey:
@@ -829,6 +837,12 @@ server:
       item: ORIGIN_APP
       appIdField: app_id
       field: private_key
+    # Apple Push Notification service token-auth key for the Tuist iOS app
+    # (the APNS item: key_id, team_id, topic, private-key.p8). Enable only
+    # after the item exists in the environment's vault, since a missing field
+    # fails the whole sync.
+    apns:
+      enabled: false
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
     # a pair exists in the environment's vault: cache tokens are then signed by
@@ -3114,7 +3128,7 @@ runnersFleetLinux:
     maxSlots: 100
     minFreeGB: 40 # Includes room for a private image and its publication archive.
     volumeGB: 20
-    maxVolumeGB: 32 # Largest volume this host accepts; the server never allocates more.
+    maxVolumeGB: 100 # Largest volume this host accepts, as for Docker volumes and macOS; the server never allocates more.
     provisioning:
       enabled: false
       sizeGB: 200

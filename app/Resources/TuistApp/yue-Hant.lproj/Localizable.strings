@@ -1,0 +1,311 @@
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"%@ simulator" = "%@ 模擬器";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Access token or refresh token missing from response" = "回應中缺少存取權杖或重新整理權杖";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All" = "全部";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All tracks" = "所有追蹤渠道";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Device" = "Android 裝置";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Emulator" = "Android 模擬器";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Android Emulators" = "Android 模擬器";
+
+/* TuistPreviews/PreviewView/PreviewViewHeader.swift, TuistPreviews/PreviewsView/PreviewRowView.swift */
+"App" = "App";
+
+/* TuistProfile/ProfileView.swift */
+"App version" = "應用程式版本";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Apple Sign In failed" = "Apple 登入失敗";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Apps in" = "位於的應用程式";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Are you sure you want to delete this preview? This action cannot be undone." = "你確定要刪除此預覽嗎？此操作無法復原。";
+
+/* TuistProfile/ProfileView.swift */
+"Are you sure you want to delete your account? This action cannot be undone." = "你確定要刪除你的帳戶嗎？此操作無法復原。";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Authorization code not found" = "找不到授權碼";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Branch" = "分支";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Bundle identifier" = "Bundle ID";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Cancel" = "取消";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Check for updates" = "檢查更新";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Commit SHA" = "Commit SHA";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Connected" = "已連接";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy identifier" = "複製識別碼";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy name" = "複製名稱";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find APK file in the downloaded archive" = "無法在已下載的封存中找到 APK 檔案";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find app bundle in the downloaded archive" = "無法在已下載的封存中找到應用程式套件";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "無法為 %@ 安裝應用程式，因為它不包含任何有效的應用程式構建。";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "無法為 %@ 安裝應用程式。%@ 的平台是 %@，而該應用程式僅包含以下平台：%@";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created at" = "建立時間";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created by" = "建立者";
+
+/* TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Delete" = "刪除";
+
+/* TuistProfile/ProfileView.swift */
+"Delete Account" = "刪除帳戶";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete Preview" = "刪除預覽版";
+
+/* TuistProfile/ProfileView.swift */
+"Delete account" = "刪除帳戶";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete preview" = "刪除預覽";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Details" = "詳情";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Devices" = "裝置";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Disconnected" = "已斷線";
+
+/* TuistProfile/ProfileView.swift */
+"Email" = "電子郵件";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "請輸入有效的 HTTPS 伺服器 URL，不得包含憑證、查詢字串或片段。";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Error" = "錯誤";
+
+/* TuistMenuBar/StatusView.swift */
+"Finished" = "已完成";
+
+/* TuistProfile/ProfileView.swift */
+"Get help" = "取得幫助";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"Install latest previews with one click." = "一鍵安裝最新預覽版。";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installation failed" = "安裝失敗";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@" = "已安裝 %@";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@@%@" = "已安裝 %@@%@";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installing preview" = "正在安裝預覽版";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid callback URL received" = "收到無效的回調 URL";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid response format" = "回應格式無效";
+
+/* TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Launch" = "啟動";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Launching preview" = "正在啟動預覽版本";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Log out" = "登出";
+
+/* TuistMenuBar/Views/MenuBarView/MenuHeader.swift */
+"Logged out" = "已登出";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Missing Apple credentials from authorization" = "授權中缺少 Apple 憑證";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"No Previews" = "沒有預覽版本";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No Tuist projects found" = "找不到 Tuist 專案";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews found" = "找不到預覽版本";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews match your filters" = "冇預覽符合你嘅篩選條件";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Ok" = "確定";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Other devices" = "其他裝置";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Pin" = "釘住";
+
+/* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews" = "預覽";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews: %lld" = "預覽：%lld";
+
+/* TuistProfile/ProfileView.swift */
+"Privacy Policy" = "私隱政策";
+
+/* TuistApp/TuistApp.swift */
+"Profile" = "個人資料";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your previews." = "下拉以重新整理你的預覽版本。";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your projects." = "下拉以重新整理你的專案。";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Quit Tuist" = "結束 Tuist";
+
+/* TuistMenuBar/StatusView.swift */
+"Ready" = "就緒";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Release notes" = "發行說明";
+
+/* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
+"Run" = "執行";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Search" = "搜尋";
+
+/* TuistOnboarding/SelfHostedServerAlert.swift */
+"Self-hosted" = "自行託管";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Self-hosted server" = "自託管伺服器";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Share logs" = "分享日誌";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Sign in" = "登入";
+
+/* TuistOnboarding/LogInView.swift */
+"Sign in to access your projects and\ncollaborate with your team" = "登入以存取你的項目並\n與團隊協作";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift */
+"Sign in to run previews" = "登入以執行預覽";
+
+/* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Apple" = "使用 Apple 登入";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with GitHub" = "使用 GitHub 登入";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Google" = "使用 Google 登入";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Tuist" = "使用 Tuist 登入";
+
+/* TuistProfile/ProfileView.swift */
+"Sign out" = "登出";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Simulators" = "模擬器";
+
+/* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
+"Supported platforms" = "支援的平台";
+
+/* TuistProfile/ProfileView.swift */
+"Terms of Service" = "服務條款";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The app preview %@ was not found." = "找不到應用程式預覽 %@。";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The latest preview for %@ was not found. Has any preview been published?" = "找不到 %@ 的最新預覽。是否已發佈任何預覽？";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The preview %@ does not have a package name set." = "預覽 %@ 未設定套件名稱。";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"The preview deeplink %@ is invalid." = "預覽深層連結 %@ 無效。";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The server returned a preview page that did not advance. Update your server or try again." = "伺服器傳回的預覽頁面沒有更新。請更新你的伺服器或再試一次。";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "此伺服器不支援按軌道篩選預覽。請更新你自託管的 Tuist 伺服器，或選擇「所有」軌道。";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "此伺服器不支援搜尋預覽。請更新你自託管的 Tuist 伺服器，或清除搜尋條件。";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "此伺服器不支援從 Tuist 應用程式登入。請要求管理員進行更新。";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"To run a preview, you must have a simulator selected." = "要執行預覽，你必須已選取模擬器。";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Token exchange failed with status code: %lld" = "權杖交換失敗，狀態碼：%lld";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Track" = "軌道";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Tracks" = "軌道";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Try a different search or select another track." = "請嘗試其他搜尋條件或選擇另一個軌道。";
+
+/* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
+"Unknown" = "未知";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Unpin" = "取消釘選";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Update your self-hosted Tuist server to select a track." = "更新你自託管的 Tuist 伺服器以選擇軌道。";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Use the root address of your Tuist server" = "使用你的 Tuist 伺服器的根位址";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Welcome to Tuist" = "歡迎使用 Tuist";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"or" = "或";

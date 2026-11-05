@@ -29,14 +29,14 @@
     flex-direction: row;
     align-items: center;
     & > [data-part="title"] {
-      padding-right: var(--noora-spacing-1);
+      padding-inline-end: var(--noora-spacing-1);
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
     }
 
     & > [data-part="value"] {
       flex-grow: 1;
-      padding-right: var(--noora-spacing-3);
+      padding-inline-end: var(--noora-spacing-3);
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
     }
@@ -70,7 +70,7 @@
       position: absolute;
       top: 0;
       bottom: 0;
-      left: 0;
+      inset-inline-start: 0;
       box-shadow: var(--noora-border-progress-bar-line);
       border-radius: var(--noora-radius-4);
       background: var(--noora-progress-bar-purple);

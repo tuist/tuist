@@ -47,7 +47,7 @@ defmodule TuistWeb.Marketing.Components.Posts.NewTuist.RackScene do
         & [data-part="hint"] {
           position: absolute;
           z-index: 1;
-          right: var(--noora-spacing-6);
+          inset-inline-end: var(--noora-spacing-6);
           bottom: var(--noora-spacing-5);
           color: var(--noora-surface-label-tertiary);
           font-size: 0.625rem;

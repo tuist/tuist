@@ -1,0 +1,338 @@
+[
+  {
+    "annotations": {
+      "description": "Over the last 15 minutes, {{ $values.A.Value | humanizePercentage }} of the Execute calls the reapi-gateway answered ended in Internal, Unavailable, Unknown, DataLoss or Aborted, and it has stayed above 5% for 10 minutes. Builds using --noremote_local_fallback fail on these.\n\nClient-caused codes are left out: Canceled, InvalidArgument, Unauthenticated, PermissionDenied, NotFound, FailedPrecondition (missing inputs, which Bazel uploads and retries) and DeadlineExceeded (action timeouts). ResourceExhausted is left to the scheduler queue rule.\n\nSplit by path to see whether leased or server executions fail: sum by (path, code) (increase(reapi_gateway_executions_total{cluster=\"{{ $labels.cluster }}\"}[15m])). Server-path Unavailable follows scheduler restarts and VM preparation failures; lease-path errors point at the worker nodes' direct exec endpoint.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#remote-execution-gateway-execute-calls-failing",
+      "summary": "{{ $values.A.Value | humanizePercentage }} of remote execution Execute calls in {{ $labels.cluster }} ended in a server-side error over 15 minutes"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (cluster) (increase(reapi_gateway_executions_total{code=~\"Internal|Unavailable|Unknown|DataLoss|Aborted\"}[15m])) / sum by (cluster) (increase(reapi_gateway_executions_total[15m])) and on (cluster) (sum by (cluster) (increase(reapi_gateway_executions_total[15m])) >= 20)",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 1800,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0.05
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "10m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Remote execution",
+    "title": "Remote execution gateway Execute calls failing",
+    "uid": "remote-execution-gateway-errors"
+  },
+  {
+    "annotations": {
+      "description": "A scheduler refused actions because its account queue was full, and it has kept refusing for 10 minutes. Bazel receives RESOURCE_EXHAUSTED; builds without local fallback fail.\n\nThe queue fills when VMs are not prepared fast enough for the account's fan-out: check the VM preparation rule and tuist_remote_execution_operation_queue_time_milliseconds on the Tuist Remote Execution dashboard, then the account's remote execution concurrency setting.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#remote-execution-scheduler-refusing-actions",
+      "summary": "Remote execution schedulers in {{ $labels.cluster }} refused {{ printf \"%.0f\" $values.A.Value }} actions as queue_full in the last 10 minutes"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (cluster) (increase(tuist_remote_execution_submissions_total{outcome=\"queue_full\"}[10m]))",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 1800,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "10m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Remote execution",
+    "title": "Remote execution scheduler refusing actions",
+    "uid": "remote-execution-queue-full"
+  },
+  {
+    "annotations": {
+      "description": "Over the last 15 minutes, more than half of the VM preparations that reached a node or failed to find one ended in no_node (no worker had room), unavailable (the chosen node refused and the scheduler backs off) or failed (reservation, creation or preparation crashed). at_capacity is left out: it means the account's own concurrency cap is still freeing VMs.\n\nSplit by outcome: sum by (outcome) (increase(tuist_remote_execution_prepare_duration_milliseconds_count{cluster=\"{{ $labels.cluster }}\"}[15m])). For no_node, check worker node capacity and that the remote execution DaemonSet Pods are Ready in tuist-sandboxes; for unavailable and failed, the sandboxd logs on the nodes and the server logs for Tuist.RemoteExecution.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#remote-execution-vm-preparation-failing",
+      "summary": "{{ $values.A.Value | humanizePercentage }} of remote execution VM preparations in {{ $labels.cluster }} failed over 15 minutes"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (cluster) (increase(tuist_remote_execution_prepare_duration_milliseconds_count{outcome=~\"no_node|unavailable|failed\"}[15m])) / sum by (cluster) (increase(tuist_remote_execution_prepare_duration_milliseconds_count{outcome=~\"ok|no_node|unavailable|failed\"}[15m])) and on (cluster) (sum by (cluster) (increase(tuist_remote_execution_prepare_duration_milliseconds_count{outcome=~\"no_node|unavailable|failed\"}[15m])) >= 5)",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 1800,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0.5
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "10m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Remote execution",
+    "title": "Remote execution VM preparation failing",
+    "uid": "remote-execution-vm-preparation-failing"
+  },
+  {
+    "annotations": {
+      "description": "Over the last 30 minutes, more than half of the gateways' lease requests waited the full 5 seconds without a prepared VM, and it has stayed that way for 15 minutes. Executions still run through the server path, but every action pays the scheduler round trip and VM preparation.\n\nQueued operations take ready VMs before leases, so a saturated account times leases out too: compare the submissions and queue time panels on the Tuist Remote Execution dashboard. Without queued work, check the VM preparation rule and the unsupported lease outcome (nodes without a direct exec endpoint).",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#remote-execution-leases-timing-out",
+      "summary": "{{ $values.A.Value | humanizePercentage }} of remote execution lease requests in {{ $labels.cluster }} timed out without a VM over 30 minutes"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "sum by (cluster) (increase(tuist_remote_execution_leases_total{outcome=\"timeout\"}[30m])) / sum by (cluster) (increase(tuist_remote_execution_leases_total[30m])) and on (cluster) (sum by (cluster) (increase(tuist_remote_execution_leases_total{outcome=\"timeout\"}[30m])) >= 20)",
+          "instant": true,
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 1800,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0.5
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Remote execution",
+    "title": "Remote execution leases timing out",
+    "uid": "remote-execution-lease-timeouts"
+  }
+]

@@ -67,7 +67,10 @@ does not repair embedded/native verification or qualify running processes.
   After its repair walk, a preparing destination pulls the serving source's
   content descriptors (`/_internal/handover/descriptors`, named destination of
   the current Serving intent only) and records the versions whose bytes match
-  in its bounded verified set. A same-version mismatch fails preparation, and
+  in its bounded verified set. It requests up to eight ranges of the source's
+  index at once, cut at versions from its own index, so a source that hashes
+  one record at a time still serves the walk in parallel; the ranges must
+  cover the index exactly once. A same-version mismatch fails preparation, and
   so does a walk that does not reach the end of the source's index (deadline,
   refused route or unreachable source): never freeze a source with content left
   to hash. The preparation report's `content_verified` says the walk finished;

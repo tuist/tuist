@@ -8,25 +8,25 @@ enum CargoCacheReport {
         "remote_action_lookup_duration_ns", "remote_blob_transfer_duration_ns", "upload_drain_duration_ns",
     ]
 
-    private struct Measurement: Decodable {
-        let version: Int
-        let values: [String: UInt64]
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: Key.self)
-            version = try container.decode(Int.self, forKey: Key("version"))
-            values = try Dictionary(uniqueKeysWithValues: CargoCacheReport.counters.map {
-                ($0, try container.decode(UInt64.self, forKey: Key($0)))
-            })
+    /// The counters of a version-1 measurement, every one present as an unsigned integer. Read with
+    /// `JSONSerialization` rather than `JSONDecoder`, whose first decodes of a type cost more in runtime type lookups
+    /// than these few small files take to read.
+    private static func measurement(_ data: Data) -> [String: UInt64]? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              unsigned(object["version"]) == 1 else { return nil }
+        var values: [String: UInt64] = [:]
+        for counter in counters {
+            guard let value = unsigned(object[counter]) else { return nil }
+            values[counter] = value
         }
+        return values
     }
 
-    private struct Key: CodingKey {
-        let stringValue: String
-        var intValue: Int? { nil }
-        init(_ string: String) { stringValue = string }
-        init?(stringValue: String) { self.stringValue = stringValue }
-        init?(intValue _: Int) { return nil }
+    /// A JSON number that is an unsigned integer, as `JSONDecoder` decodes `UInt64`: not a boolean, a fraction, a
+    /// negative number or a string.
+    static func unsigned(_ value: Any?) -> UInt64? {
+        guard let number = value as? NSNumber, !["c", "C", "B"].contains(String(cString: number.objCType)) else { return nil }
+        return UInt64(number.stringValue, radix: 10)
     }
 
     static func read(root: URL) -> [String: Any]? {
@@ -55,10 +55,10 @@ enum CargoCacheReport {
             guard let data else { continue }
             remaining -= data.count
             guard data.count <= 512_000, data.count == size,
-                  let report = try? JSONDecoder().decode(Measurement.self, from: data), report.version == 1
+                  let values = measurement(data)
             else { continue }
             reports += 1
-            for (key, value) in report.values {
+            for (key, value) in values {
                 let sum = result[key, default: 0].addingReportingOverflow(value)
                 result[key] = min(sum.overflow ? UInt64.max : sum.partialValue, 9_000_000_000_000_000)
             }

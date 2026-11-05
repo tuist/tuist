@@ -19,6 +19,7 @@ defmodule TuistWeb.Authentication do
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias Tuist.Push
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
 
@@ -107,6 +108,31 @@ defmodule TuistWeb.Authentication do
       %AuthenticatedAccount{} -> nil
       %Project{} -> nil
       nil -> nil
+    end
+  end
+
+  @doc """
+  Returns the signed-in user for a user session or the signed-in Tuist app, or `nil`.
+
+  The app's OAuth access tokens authenticate as the user's account with the user as
+  issuer. Other OAuth clients have the same token shape, so the app's grant is checked
+  (`Tuist.Push.oauth_session/2`). Account and project tokens return `nil`.
+  """
+  def app_user(conn) do
+    case authenticated_subject(conn) do
+      %User{} = user ->
+        user
+
+      %AuthenticatedAccount{issued_by: %User{} = user} ->
+        with ["Bearer " <> bearer] <- get_req_header(conn, "authorization"),
+             {:ok, _session} <- Push.oauth_session(bearer, user) do
+          user
+        else
+          _ -> nil
+        end
+
+      _ ->
+        nil
     end
   end
 

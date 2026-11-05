@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistConfigLoader
 import TuistProcess
+import TuistREAPI
 import TuistServer
 
 struct CargoExecutionContext {
@@ -14,7 +15,7 @@ struct CargoExecutionContext {
     var shardOptions: [String: Int] = [:]
 }
 
-public struct CargoCommandService {
+public struct CargoCommandService { // swiftlint:disable:this type_body_length
     private let runner: CommandRunning
     public init(runner: CommandRunning = CommandRunner()) { self.runner = runner }
 
@@ -29,6 +30,13 @@ public struct CargoCommandService {
             ? try CargoTestSelection.planning(arguments) : (arguments: arguments, options: [:])
         let invocation = CargoInvocation(parsed.arguments)
         if let toolchain = invocation.toolchain { environment["RUSTUP_TOOLCHAIN"] = toolchain }
+        if arguments.first == "__script", arguments.count >= 2 {
+            try await CargoBuildScript.run(
+                real: arguments[1], arguments: Array(arguments.dropFirst(2)), environment: environment,
+                directory: directory, runner: runner
+            )
+            return
+        }
         if arguments.first == "__compiler" || arguments.first == "__native" {
             try await CargoCompilerObserver(runner: runner).run(
                 Array(arguments.dropFirst()),
@@ -129,7 +137,8 @@ public struct CargoCommandService {
     }
 
     private func decorate(_ context: CargoExecutionContext) async throws {
-        let metadata = await context.reporting.metadata()
+        // Only reports read the metadata, so its probes run alongside the build.
+        let metadata = Task { await context.reporting.metadata() }
         let innerWrapper = try CargoConfiguration.compilerWrapper(
             directory: URL(fileURLWithPath: context.directory.pathString),
             arguments: context.arguments,
@@ -153,7 +162,32 @@ public struct CargoCommandService {
                     environment: cache.environment, directory: context.directory, process: CargoProcess(runner: runner)
                 )) ?? cache.environment
             }
-            if innerWrapper == nil {
+            // The connection is negotiated while Cargo's metadata and the toolchain are probed, so fetching starts
+            // as soon as the manifest's key is known.
+            let remoteEnvironment = environment
+            let connecting: Task<(any REAPICacheStoring)?, Never>? = cache != nil
+                && remoteEnvironment["TUIST_CARGO_CACHE_REMOTE_URL"] != nil
+                ? Task { try? await CargoCompilerObserver.remote(remoteEnvironment, connectionCount: 4) } : nil
+            // Hooks served by this process start a small native client instead of the whole Swift binary.
+            var hookServer: CargoHookServer?
+            defer { hookServer?.stop() }
+            if innerWrapper == nil, let directory = environment["TUIST_CARGO_CACHE_DIR"],
+               // At its stable path in the cache: Cargo keys `.rustc_info.json` on the wrapper's path and modification
+               // time, so a per-session copy would make Cargo probe rustc again on every build.
+               let client = CargoHookServer.client(cacheDirectory: URL(fileURLWithPath: directory)),
+               let fallback = try? CargoProcess.ownExecutable(),
+               let server = CargoHookServer(runner: runner, remote: connecting)
+            {
+                server.start()
+                hookServer = server
+                // Before units restore, so the digests restoration records stay in memory too.
+                CargoInputHasher.serve(session: root, seed: nil)
+                environment[CargoHookServer.socketVariable] = server.socketPath
+                environment[CargoHookServer.fallbackVariable] = fallback
+                environment[CargoHookServer.nativeVariable] = client.path
+                environment["RUSTC_WRAPPER"] = client.path
+                environment["CARGO_BUILD_RUSTC_WRAPPER"] = nil
+            } else if innerWrapper == nil {
                 let wrapper = root.appendingPathComponent("rustc-observer")
                 try "#!/bin/sh\nexec \(CargoInvocation.shellQuote(try CargoProcess.ownExecutable())) cargo __compiler \"$@\"\n"
                     .write(
@@ -165,10 +199,11 @@ public struct CargoCommandService {
                 environment["RUSTC_WRAPPER"] = wrapper.path
                 environment["CARGO_BUILD_RUSTC_WRAPPER"] = nil
             }
-            let remoteEnvironment = environment
+            // Hooks in other processes (the shell wrapper) share this process's connection through a file broker;
+            // served hooks use it directly.
             let broker = root.appendingPathComponent("cache-broker")
             var brokerReady = false
-            if environment["TUIST_CARGO_CACHE_REMOTE_URL"] != nil {
+            if hookServer == nil, environment["TUIST_CARGO_CACHE_REMOTE_URL"] != nil {
                 do {
                     try FileManager.default.createDirectory(
                         at: broker, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
@@ -179,6 +214,53 @@ public struct CargoCommandService {
             }
             let started = Date()
             environment["TUIST_CARGO_STARTED"] = String(started.timeIntervalSince1970)
+            // Like blaze's answers, the session resolves the toolchain and linker once, before Cargo starts its first
+            // wave of compilations: hooks that all missed the memo at once would each spawn rustc and xcrun probes.
+            let toolchain = cache == nil ? nil : Task { [environment, runner] in
+                try? await CargoToolchainIdentity.resolve(
+                    environment["RUSTC"] ?? "rustc", environment: environment, directory: context.directory,
+                    process: CargoProcess(runner: runner)
+                )
+            }
+            let served = hookServer != nil
+            defer { if served { CargoInputHasher.stopServing(session: root) } }
+            let identities = cache == nil ? nil : Task { [environment, runner] in
+                let process = CargoProcess(runner: runner)
+                let directory = context.directory
+                if let identity = await toolchain?.value, let session = environment["TUIST_CARGO_SESSION"] {
+                    identity.prewarm(
+                        session: URL(fileURLWithPath: session),
+                        cache: environment["TUIST_CARGO_CACHE_DIR"].map { URL(fileURLWithPath: $0) },
+                        served: served
+                    )
+                }
+                #if os(macOS)
+                    _ = try? await CargoToolchainIdentity.linker(environment: environment, directory: directory, process: process)
+                #endif
+            }
+            var unitCache = cache == nil ? nil : await CargoUnitCache.prepare(
+                executable: context.executable, arguments: context.arguments, environment: environment,
+                directory: context.directory, toolchain: await toolchain?.value, process: CargoProcess(runner: runner)
+            )
+            if unitCache != nil { unitCache?.remote = await connecting?.value } else if hookServer == nil { connecting?.cancel() }
+            if let unitCache {
+                if unitCache.remote != nil { environment[CargoCacheJournal.writeBehindVariable] = "1" }
+                environment["TUIST_CARGO_TARGET_DIR"] = unitCache.targetDirectory.path
+                environment["TUIST_CARGO_WORKSPACE_ROOT"] = unitCache.workspaceRoot.path
+                // Recorded compilations and build-script runs need relocatable roots, so they share its scope.
+                if let library = CargoReadRecorder.prepare(cacheDirectory: unitCache.root) {
+                    environment["TUIST_CARGO_RECORDER"] = library.path
+                    // Served sessions start build-script runs with the hook client as well.
+                    environment["TUIST_CARGO_SCRIPT"] = hookServer == nil ? try? CargoProcess.ownExecutable()
+                        : environment["RUSTC_WRAPPER"]
+                }
+            }
+            let manifest = await unitCache?.manifest()
+            let units = unitCache
+            // Per-crate entries download while units are restored and Cargo works through dependencies.
+            let prefetch = Task { await units?.prefetch(manifest) }
+            let restored = await unitCache?.restore(manifest) ?? CargoUnitCache.Restored()
+            await identities?.value
             let child = CargoExecutionContext(
                 executable: context.executable,
                 directory: context.directory,
@@ -197,7 +279,37 @@ public struct CargoCommandService {
                 }
                 defer { group.cancelAll() }
                 try Task.checkCancellation()
-                try await executeSession(child, root: root, started: started, metadata: metadata)
+                defer { prefetch.cancel() }
+                do {
+                    try await executeSession(child, root: root, started: started, drain: { [hookServer] in
+                        await hookServer?.drain()
+                    }, metadata: {
+                        var result = await metadata.value
+                        if let version = await toolchain?.value?.version.split(separator: "\n").first {
+                            result["rust_version"] = String(version)
+                        } else {
+                            result["rust_version"] = await context.reporting.rustVersion()
+                        }
+                        return result
+                    })
+                } catch {
+                    await Self.publishDeferred(root: root, units: units)
+                    throw error
+                }
+                prefetch.cancel()
+                await prefetch.value
+                await Self.publishDeferred(root: root, units: units)
+                await units?.store(reusing: restored, used: CargoCacheJournal.used(session: root))
+            }
+        }
+    }
+
+    /// Uploads what compiler hooks left for after the build (write-behind), even when the build failed.
+    private static func publishDeferred(root: URL, units: CargoUnitCache?) async {
+        guard let remote = units?.remote else { return }
+        await CargoCacheJournal.flush(session: root, remote: remote) { message in
+            if ProcessInfo.processInfo.environment["TUIST_DEBUG"] == "1" {
+                FileHandle.standardError.write(Data("Tuist Cargo cache: \(message)\n".utf8))
             }
         }
     }
@@ -206,7 +318,8 @@ public struct CargoCommandService {
         _ context: CargoExecutionContext,
         root: URL,
         started: Date,
-        metadata: [String: Any]
+        drain: () async -> Void,
+        metadata: () async -> [String: Any]
     ) async throws {
         let invocation = CargoInvocation(context.arguments)
         var executionError: Error?
@@ -260,6 +373,10 @@ public struct CargoCommandService {
             }
         } catch { executionError = error }
         let finished = Date()
+        // Hooks publish after reporting their compiler's exit; their measurements and stored entries are complete
+        // once they are done.
+        await drain()
+        let metadata = await metadata()
         if context.shardOptions.isEmpty, invocation.reportsBuild, !invocation.executesTests || cargoTests != nil {
             await context.reporting.build(
                 root: root,

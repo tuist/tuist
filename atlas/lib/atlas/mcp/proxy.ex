@@ -23,11 +23,14 @@ defmodule Atlas.MCP.Proxy do
   @client_info %{"name" => "atlas-mcp-proxy", "version" => "0.1.0"}
   # The Tuist server's tools read production customer data, so they sit in the
   # same "observability" ("Production systems") group as the Grafana, Sentry and
-  # Tuist database tools — granted by the same identity toggle.
+  # Tuist database tools — granted by the same identity toggle. OVH's reads
+  # describe the production fleet, so they belong there too.
   @server_tool_groups %{
     "grafana" => "observability",
     "sentry" => "observability",
-    "tuist" => "observability"
+    "tuist" => "observability",
+    "ovh-servers" => "observability",
+    "ovh-services" => "observability"
   }
 
   def list_servers(config \\ proxy_config()) do

@@ -70,7 +70,7 @@
   & [data-part="character-count"] {
     position: absolute;
     bottom: var(--noora-spacing-5);
-    right: 30px;
+    inset-inline-end: 30px;
     font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
     color: var(--noora-surface-label-secondary);
   }

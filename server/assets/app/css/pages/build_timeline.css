@@ -39,7 +39,7 @@
     & > span + span::before {
       display: inline-block;
       vertical-align: middle;
-      margin-right: var(--noora-spacing-5);
+      margin-inline-end: var(--noora-spacing-5);
       border-radius: 50%;
       background: var(--noora-surface-label-tertiary);
       width: 3px;
@@ -142,7 +142,7 @@
       --color: var(--noora-chart-secondary);
     }
     & output {
-      margin-left: auto;
+      margin-inline-start: auto;
       font-variant-numeric: tabular-nums;
     }
   }
@@ -198,7 +198,7 @@
     font: var(--noora-font-weight-medium) var(--noora-font-body-small);
     font-variant-numeric: tabular-nums;
     & output {
-      margin-left: auto;
+      margin-inline-start: auto;
       color: var(--noora-surface-label-secondary);
       font-weight: var(--noora-font-weight-regular);
     }
@@ -303,6 +303,8 @@
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
+    direction: ltr;
+    unicode-bidi: isolate;
     &::-webkit-scrollbar {
       display: none;
     }
@@ -398,6 +400,8 @@
       overflow-y: hidden;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      direction: ltr;
+      unicode-bidi: isolate;
       white-space: pre;
       overflow-wrap: normal;
     }

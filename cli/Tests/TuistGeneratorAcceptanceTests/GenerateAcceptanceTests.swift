@@ -532,10 +532,15 @@ struct GenerateAcceptanceTestsiOSAppWithCustomScheme {
 }
 
 struct GenerateAcceptanceTestiOSAppWithLocalSwiftPackage {
-    @Test(.withFixture("generated_ios_app_with_local_swift_package"), .inTemporaryDirectory)
+    @Test(
+        .withFixture("generated_ios_app_with_local_swift_package"),
+        .inTemporaryDirectory,
+        .withTestingSimulator("iPhone 17")
+    )
     func ios_app_with_local_swift_package() async throws {
+        let simulator = try #require(Simulator.testing)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await run(BuildCommand.self, "--device", simulator.name)
     }
 
     @Test(.withFixture("generated_ios_app_with_local_swift_package"), .inTemporaryDirectory)
