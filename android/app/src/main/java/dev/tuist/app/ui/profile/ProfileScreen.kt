@@ -51,6 +51,7 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val account by viewModel.account.collectAsStateWithLifecycle()
+    val isAIEnabled by viewModel.isAIEnabled.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var showDeleteConfirmation by remember { mutableStateOf(false) }
 
@@ -129,6 +130,11 @@ fun ProfileScreen(
             }
 
             Spacer(Modifier.height(NooraSpacing.Spacing5))
+
+            if (isAIEnabled) {
+                AISubscriptionsSection()
+                Spacer(Modifier.height(NooraSpacing.Spacing3))
+            }
 
             // Links section
             SectionCard {
@@ -220,7 +226,7 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun SectionCard(content: @Composable () -> Unit) {
+internal fun SectionCard(content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(

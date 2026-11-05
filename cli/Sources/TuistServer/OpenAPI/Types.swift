@@ -69,6 +69,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/get(getRunnerJob)`.
     func getRunnerJob(_ input: Operations.getRunnerJob.Input) async throws -> Operations.getRunnerJob.Output
+    /// Disconnects one of the signed-in user's AI subscriptions
+    ///
+    /// Deletes the provider's saved credentials and any pending sign-in. It does not revoke the authorization at the provider.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/ai-subscriptions/{provider}`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)`.
+    func disconnectAISubscription(_ input: Operations.disconnectAISubscription.Input) async throws -> Operations.disconnectAISubscription.Output
     /// Downloads an artifact from the cache.
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
@@ -115,6 +122,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)`.
     func deletePreview(_ input: Operations.deletePreview.Input) async throws -> Operations.deletePreview.Output
+    /// Connects the signed-in user's Claude subscription
+    ///
+    /// Saves the subscription token `claude setup-token` prints, replacing any saved one. Tuist validates its format only, not that the subscription can serve requests. The token is never returned.
+    ///
+    /// - Remark: HTTP `PUT /api/me/ai-subscriptions/claude`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)`.
+    func connectClaudeSubscription(_ input: Operations.connectClaudeSubscription.Input) async throws -> Operations.connectClaudeSubscription.Output
     /// Get a test case by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
@@ -506,6 +520,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/get(listRunnerJobVolumes)`.
     func listRunnerJobVolumes(_ input: Operations.listRunnerJobVolumes.Input) async throws -> Operations.listRunnerJobVolumes.Output
+    /// Starts connecting the signed-in user's ChatGPT subscription
+    ///
+    /// Starts an OpenAI device sign-in. Show the user the verification URL and code, then poll with the login ID no faster than `interval` seconds until it connects or `expires_at` passes. Saved credentials stay until the sign-in succeeds.
+    ///
+    /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)`.
+    func startChatGPTSubscriptionLogin(_ input: Operations.startChatGPTSubscriptionLogin.Input) async throws -> Operations.startChatGPTSubscriptionLogin.Output
+    /// Cancels a pending ChatGPT sign-in
+    ///
+    /// Discards the pending sign-in. A ChatGPT subscription that is already connected stays connected.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/ai-subscriptions/chatgpt/login`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)`.
+    func cancelChatGPTSubscriptionLogin(_ input: Operations.cancelChatGPTSubscriptionLogin.Input) async throws -> Operations.cancelChatGPTSubscriptionLogin.Output
     /// Cleans cache for a given project
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
@@ -916,6 +944,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/crash-reports`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)`.
     func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
+    /// Lists the signed-in user's AI subscriptions
+    ///
+    /// Returns connection metadata for every supported provider. Credentials are never returned.
+    ///
+    /// - Remark: HTTP `GET /api/me/ai-subscriptions`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)`.
+    func listAISubscriptions(_ input: Operations.listAISubscriptions.Input) async throws -> Operations.listAISubscriptions.Output
     /// List Cargo crates across builds.
     ///
     /// Observed Rust crates identified by exact recorded crate root, name and kind. Paths are not normalized and build configurations are not distinguished. History contains measured rustc invocations, not per-source-file timing or cache hits. Missing observations do not establish removals or a complete workspace inventory.
@@ -1233,6 +1268,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/get(getGradleBuild)`.
     func getGradleBuild(_ input: Operations.getGradleBuild.Input) async throws -> Operations.getGradleBuild.Output
+    /// Polls a pending ChatGPT sign-in
+    ///
+    /// Returns `pending` until the user approves the code, then `connected`. Polls sooner than the sign-in's interval return `pending` without asking OpenAI.
+    ///
+    /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login/poll`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)`.
+    func pollChatGPTSubscriptionLogin(_ input: Operations.pollChatGPTSubscriptionLogin.Input) async throws -> Operations.pollChatGPTSubscriptionLogin.Output
+    /// Lists the feature flags enabled for the signed-in user
+    ///
+    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or the signed-in Tuist app can read them.
+    ///
+    /// - Remark: HTTP `GET /api/me/feature-flags`.
+    /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)`.
+    func listFeatureFlags(_ input: Operations.listFeatureFlags.Input) async throws -> Operations.listFeatureFlags.Output
     /// Get a Bazel invocation by its Bazel invocation identifier.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}`.
@@ -1578,6 +1627,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Disconnects one of the signed-in user's AI subscriptions
+    ///
+    /// Deletes the provider's saved credentials and any pending sign-in. It does not revoke the authorization at the provider.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/ai-subscriptions/{provider}`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)`.
+    public func disconnectAISubscription(
+        path: Operations.disconnectAISubscription.Input.Path,
+        headers: Operations.disconnectAISubscription.Input.Headers = .init()
+    ) async throws -> Operations.disconnectAISubscription.Output {
+        try await disconnectAISubscription(Operations.disconnectAISubscription.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Downloads an artifact from the cache.
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
@@ -1674,6 +1738,21 @@ extension APIProtocol {
         try await deletePreview(Operations.deletePreview.Input(
             path: path,
             headers: headers
+        ))
+    }
+    /// Connects the signed-in user's Claude subscription
+    ///
+    /// Saves the subscription token `claude setup-token` prints, replacing any saved one. Tuist validates its format only, not that the subscription can serve requests. The token is never returned.
+    ///
+    /// - Remark: HTTP `PUT /api/me/ai-subscriptions/claude`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)`.
+    public func connectClaudeSubscription(
+        headers: Operations.connectClaudeSubscription.Input.Headers = .init(),
+        body: Operations.connectClaudeSubscription.Input.Body
+    ) async throws -> Operations.connectClaudeSubscription.Output {
+        try await connectClaudeSubscription(Operations.connectClaudeSubscription.Input(
+            headers: headers,
+            body: body
         ))
     }
     /// Get a test case by ID.
@@ -2644,6 +2723,30 @@ extension APIProtocol {
     ) async throws -> Operations.listRunnerJobVolumes.Output {
         try await listRunnerJobVolumes(Operations.listRunnerJobVolumes.Input(
             path: path,
+            headers: headers
+        ))
+    }
+    /// Starts connecting the signed-in user's ChatGPT subscription
+    ///
+    /// Starts an OpenAI device sign-in. Show the user the verification URL and code, then poll with the login ID no faster than `interval` seconds until it connects or `expires_at` passes. Saved credentials stay until the sign-in succeeds.
+    ///
+    /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)`.
+    public func startChatGPTSubscriptionLogin(headers: Operations.startChatGPTSubscriptionLogin.Input.Headers = .init()) async throws -> Operations.startChatGPTSubscriptionLogin.Output {
+        try await startChatGPTSubscriptionLogin(Operations.startChatGPTSubscriptionLogin.Input(headers: headers))
+    }
+    /// Cancels a pending ChatGPT sign-in
+    ///
+    /// Discards the pending sign-in. A ChatGPT subscription that is already connected stays connected.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/ai-subscriptions/chatgpt/login`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)`.
+    public func cancelChatGPTSubscriptionLogin(
+        query: Operations.cancelChatGPTSubscriptionLogin.Input.Query,
+        headers: Operations.cancelChatGPTSubscriptionLogin.Input.Headers = .init()
+    ) async throws -> Operations.cancelChatGPTSubscriptionLogin.Output {
+        try await cancelChatGPTSubscriptionLogin(Operations.cancelChatGPTSubscriptionLogin.Input(
+            query: query,
             headers: headers
         ))
     }
@@ -3675,6 +3778,15 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Lists the signed-in user's AI subscriptions
+    ///
+    /// Returns connection metadata for every supported provider. Credentials are never returned.
+    ///
+    /// - Remark: HTTP `GET /api/me/ai-subscriptions`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)`.
+    public func listAISubscriptions(headers: Operations.listAISubscriptions.Input.Headers = .init()) async throws -> Operations.listAISubscriptions.Output {
+        try await listAISubscriptions(Operations.listAISubscriptions.Input(headers: headers))
+    }
     /// List Cargo crates across builds.
     ///
     /// Observed Rust crates identified by exact recorded crate root, name and kind. Paths are not normalized and build configurations are not distinguished. History contains measured rustc invocations, not per-source-file timing or cache hits. Missing observations do not establish removals or a complete workspace inventory.
@@ -4457,6 +4569,30 @@ extension APIProtocol {
             path: path,
             headers: headers
         ))
+    }
+    /// Polls a pending ChatGPT sign-in
+    ///
+    /// Returns `pending` until the user approves the code, then `connected`. Polls sooner than the sign-in's interval return `pending` without asking OpenAI.
+    ///
+    /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login/poll`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)`.
+    public func pollChatGPTSubscriptionLogin(
+        headers: Operations.pollChatGPTSubscriptionLogin.Input.Headers = .init(),
+        body: Operations.pollChatGPTSubscriptionLogin.Input.Body
+    ) async throws -> Operations.pollChatGPTSubscriptionLogin.Output {
+        try await pollChatGPTSubscriptionLogin(Operations.pollChatGPTSubscriptionLogin.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Lists the feature flags enabled for the signed-in user
+    ///
+    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or the signed-in Tuist app can read them.
+    ///
+    /// - Remark: HTTP `GET /api/me/feature-flags`.
+    /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)`.
+    public func listFeatureFlags(headers: Operations.listFeatureFlags.Input.Headers = .init()) async throws -> Operations.listFeatureFlags.Output {
+        try await listFeatureFlags(Operations.listFeatureFlags.Input(headers: headers))
     }
     /// Get a Bazel invocation by its Bazel invocation identifier.
     ///
@@ -6206,6 +6342,49 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/MixBuildsIndexPage`.
         public typealias MixBuildsIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/AISubscription`.
+        public struct AISubscription: Codable, Hashable, Sendable {
+            /// Whether credentials are saved for the provider.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AISubscription/connected`.
+            public var connected: Swift.Bool
+            /// Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AISubscription/login_available`.
+            public var login_available: Swift.Bool
+            /// The provider. Known values: `claude`, `chatgpt`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AISubscription/provider`.
+            public var provider: Swift.String
+            /// When the connection last changed, or null if it was never connected.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AISubscription/updated_at`.
+            public var updated_at: Foundation.Date?
+            /// Creates a new `AISubscription`.
+            ///
+            /// - Parameters:
+            ///   - connected: Whether credentials are saved for the provider.
+            ///   - login_available: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+            ///   - provider: The provider. Known values: `claude`, `chatgpt`.
+            ///   - updated_at: When the connection last changed, or null if it was never connected.
+            public init(
+                connected: Swift.Bool,
+                login_available: Swift.Bool,
+                provider: Swift.String,
+                updated_at: Foundation.Date? = nil
+            ) {
+                self.connected = connected
+                self.login_available = login_available
+                self.provider = provider
+                self.updated_at = updated_at
+            }
+            public enum CodingKeys: String, CodingKey {
+                case connected
+                case login_available
+                case provider
+                case updated_at
+            }
+        }
         /// It represents an artifact that's associated with a command event (e.g. result bundles)
         ///
         /// - Remark: Generated from `#/components/schemas/CommandEventArtifact`.
@@ -11197,6 +11376,23 @@ public enum Components {
                 case started_at
                 case status
                 case tuist_version
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLoginStatus`.
+        public struct ChatGPTSubscriptionLoginStatus: Codable, Hashable, Sendable {
+            /// Known values: `pending`, `connected`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLoginStatus/status`.
+            public var status: Swift.String
+            /// Creates a new `ChatGPTSubscriptionLoginStatus`.
+            ///
+            /// - Parameters:
+            ///   - status: Known values: `pending`, `connected`.
+            public init(status: Swift.String) {
+                self.status = status
+            }
+            public enum CodingKeys: String, CodingKey {
+                case status
             }
         }
         /// What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a flaky candidate or why it ran nothing, and every test case it examined.
@@ -18756,6 +18952,66 @@ public enum Components {
                 case projects
             }
         }
+        /// - Remark: Generated from `#/components/schemas/AISubscriptions`.
+        public struct AISubscriptions: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptionsPayload`.
+            public struct subscriptionsPayloadPayload: Codable, Hashable, Sendable {
+                /// Whether credentials are saved for the provider.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptionsPayload/connected`.
+                public var connected: Swift.Bool
+                /// Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptionsPayload/login_available`.
+                public var login_available: Swift.Bool
+                /// The provider. Known values: `claude`, `chatgpt`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptionsPayload/provider`.
+                public var provider: Swift.String
+                /// When the connection last changed, or null if it was never connected.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptionsPayload/updated_at`.
+                public var updated_at: Foundation.Date?
+                /// Creates a new `subscriptionsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - connected: Whether credentials are saved for the provider.
+                ///   - login_available: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                ///   - provider: The provider. Known values: `claude`, `chatgpt`.
+                ///   - updated_at: When the connection last changed, or null if it was never connected.
+                public init(
+                    connected: Swift.Bool,
+                    login_available: Swift.Bool,
+                    provider: Swift.String,
+                    updated_at: Foundation.Date? = nil
+                ) {
+                    self.connected = connected
+                    self.login_available = login_available
+                    self.provider = provider
+                    self.updated_at = updated_at
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case connected
+                    case login_available
+                    case provider
+                    case updated_at
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptions`.
+            public typealias subscriptionsPayload = [Components.Schemas.AISubscriptions.subscriptionsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptions`.
+            public var subscriptions: Components.Schemas.AISubscriptions.subscriptionsPayload
+            /// Creates a new `AISubscriptions`.
+            ///
+            /// - Parameters:
+            ///   - subscriptions:
+            public init(subscriptions: Components.Schemas.AISubscriptions.subscriptionsPayload) {
+                self.subscriptions = subscriptions
+            }
+            public enum CodingKeys: String, CodingKey {
+                case subscriptions
+            }
+        }
         /// The page number to return.
         ///
         /// - Remark: Generated from `#/components/schemas/GradleBuildsIndexPage`.
@@ -19687,6 +19943,57 @@ public enum Components {
                 case started_at
                 case status
                 case tests
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLogin`.
+        public struct ChatGPTSubscriptionLogin: Codable, Hashable, Sendable {
+            /// When the sign-in expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLogin/expires_at`.
+            public var expires_at: Foundation.Date
+            /// The minimum number of seconds between polls.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLogin/interval`.
+            public var interval: Swift.Int
+            /// The opaque ID to poll and cancel the sign-in with.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLogin/login_id`.
+            public var login_id: Swift.String
+            /// The code the user enters on the verification page.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLogin/user_code`.
+            public var user_code: Swift.String
+            /// The OpenAI page where the user enters the code.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLogin/verification_url`.
+            public var verification_url: Swift.String
+            /// Creates a new `ChatGPTSubscriptionLogin`.
+            ///
+            /// - Parameters:
+            ///   - expires_at: When the sign-in expires.
+            ///   - interval: The minimum number of seconds between polls.
+            ///   - login_id: The opaque ID to poll and cancel the sign-in with.
+            ///   - user_code: The code the user enters on the verification page.
+            ///   - verification_url: The OpenAI page where the user enters the code.
+            public init(
+                expires_at: Foundation.Date,
+                interval: Swift.Int,
+                login_id: Swift.String,
+                user_code: Swift.String,
+                verification_url: Swift.String
+            ) {
+                self.expires_at = expires_at
+                self.interval = interval
+                self.login_id = login_id
+                self.user_code = user_code
+                self.verification_url = verification_url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case expires_at
+                case interval
+                case login_id
+                case user_code
+                case verification_url
             }
         }
         /// Response schema for bundle
@@ -22684,6 +22991,23 @@ public enum Components {
         @frozen public enum BuildStatus: String, Codable, Hashable, Sendable, CaseIterable {
             case success = "success"
             case failure = "failure"
+        }
+        /// - Remark: Generated from `#/components/schemas/FeatureFlags`.
+        public struct FeatureFlags: Codable, Hashable, Sendable {
+            /// The names of the enabled flags. Known values: `ai`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/FeatureFlags/enabled`.
+            public var enabled: [Swift.String]
+            /// Creates a new `FeatureFlags`.
+            ///
+            /// - Parameters:
+            ///   - enabled: The names of the enabled flags. Known values: `ai`.
+            public init(enabled: [Swift.String]) {
+                self.enabled = enabled
+            }
+            public enum CodingKeys: String, CodingKey {
+                case enabled
+            }
         }
         /// The page number to return.
         ///
@@ -31760,6 +32084,356 @@ public enum Operations {
             }
         }
     }
+    /// Disconnects one of the signed-in user's AI subscriptions
+    ///
+    /// Deletes the provider's saved credentials and any pending sign-in. It does not revoke the authorization at the provider.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/ai-subscriptions/{provider}`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)`.
+    public enum disconnectAISubscription {
+        public static let id: Swift.String = "disconnectAISubscription"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/path/provider`.
+                @frozen public enum providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case chatgpt = "chatgpt"
+                    case claude = "claude"
+                }
+                /// The provider to disconnect.
+                ///
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/path/provider`.
+                public var provider: Operations.disconnectAISubscription.Input.Path.providerPayload
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - provider: The provider to disconnect.
+                public init(provider: Operations.disconnectAISubscription.Input.Path.providerPayload) {
+                    self.provider = provider
+                }
+            }
+            public var path: Operations.disconnectAISubscription.Input.Path
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.disconnectAISubscription.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.disconnectAISubscription.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.disconnectAISubscription.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.disconnectAISubscription.Input.Path,
+                headers: Operations.disconnectAISubscription.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptionsPayload`.
+                        public struct subscriptionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Whether credentials are saved for the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptionsPayload/connected`.
+                            public var connected: Swift.Bool
+                            /// Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptionsPayload/login_available`.
+                            public var login_available: Swift.Bool
+                            /// The provider. Known values: `claude`, `chatgpt`.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptionsPayload/provider`.
+                            public var provider: Swift.String
+                            /// When the connection last changed, or null if it was never connected.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptionsPayload/updated_at`.
+                            public var updated_at: Foundation.Date?
+                            /// Creates a new `subscriptionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - connected: Whether credentials are saved for the provider.
+                            ///   - login_available: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                            ///   - provider: The provider. Known values: `claude`, `chatgpt`.
+                            ///   - updated_at: When the connection last changed, or null if it was never connected.
+                            public init(
+                                connected: Swift.Bool,
+                                login_available: Swift.Bool,
+                                provider: Swift.String,
+                                updated_at: Foundation.Date? = nil
+                            ) {
+                                self.connected = connected
+                                self.login_available = login_available
+                                self.provider = provider
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case connected
+                                case login_available
+                                case provider
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptions`.
+                        public typealias subscriptionsPayload = [Operations.disconnectAISubscription.Output.Ok.Body.jsonPayload.subscriptionsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptions`.
+                        public var subscriptions: Operations.disconnectAISubscription.Output.Ok.Body.jsonPayload.subscriptionsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - subscriptions:
+                        public init(subscriptions: Operations.disconnectAISubscription.Output.Ok.Body.jsonPayload.subscriptionsPayload) {
+                            self.subscriptions = subscriptions
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case subscriptions
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/application\/json`.
+                    case json(Operations.disconnectAISubscription.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.disconnectAISubscription.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.disconnectAISubscription.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.disconnectAISubscription.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The user's AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.disconnectAISubscription.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.disconnectAISubscription.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.disconnectAISubscription.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.disconnectAISubscription.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.disconnectAISubscription.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.disconnectAISubscription.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.disconnectAISubscription.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.disconnectAISubscription.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can manage AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.disconnectAISubscription.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.disconnectAISubscription.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.disconnectAISubscription.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.disconnectAISubscription.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// AI subscriptions are not available to this user
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.disconnectAISubscription.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.disconnectAISubscription.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Downloads an artifact from the cache.
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
@@ -34462,6 +35136,461 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Connects the signed-in user's Claude subscription
+    ///
+    /// Saves the subscription token `claude setup-token` prints, replacing any saved one. Tuist validates its format only, not that the subscription can serve requests. The token is never returned.
+    ///
+    /// - Remark: HTTP `PUT /api/me/ai-subscriptions/claude`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)`.
+    public enum connectClaudeSubscription {
+        public static let id: Swift.String = "connectClaudeSubscription"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.connectClaudeSubscription.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.connectClaudeSubscription.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.connectClaudeSubscription.Input.Headers
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The token `claude setup-token` prints. Not an Anthropic API key.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/requestBody/json/token`.
+                    public var token: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - token: The token `claude setup-token` prints. Not an Anthropic API key.
+                    public init(token: Swift.String) {
+                        self.token = token
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case token
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/requestBody/content/application\/json`.
+                case json(Operations.connectClaudeSubscription.Input.Body.jsonPayload)
+            }
+            public var body: Operations.connectClaudeSubscription.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.connectClaudeSubscription.Input.Headers = .init(),
+                body: Operations.connectClaudeSubscription.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptionsPayload`.
+                        public struct subscriptionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Whether credentials are saved for the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptionsPayload/connected`.
+                            public var connected: Swift.Bool
+                            /// Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptionsPayload/login_available`.
+                            public var login_available: Swift.Bool
+                            /// The provider. Known values: `claude`, `chatgpt`.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptionsPayload/provider`.
+                            public var provider: Swift.String
+                            /// When the connection last changed, or null if it was never connected.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptionsPayload/updated_at`.
+                            public var updated_at: Foundation.Date?
+                            /// Creates a new `subscriptionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - connected: Whether credentials are saved for the provider.
+                            ///   - login_available: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                            ///   - provider: The provider. Known values: `claude`, `chatgpt`.
+                            ///   - updated_at: When the connection last changed, or null if it was never connected.
+                            public init(
+                                connected: Swift.Bool,
+                                login_available: Swift.Bool,
+                                provider: Swift.String,
+                                updated_at: Foundation.Date? = nil
+                            ) {
+                                self.connected = connected
+                                self.login_available = login_available
+                                self.provider = provider
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case connected
+                                case login_available
+                                case provider
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptions`.
+                        public typealias subscriptionsPayload = [Operations.connectClaudeSubscription.Output.Ok.Body.jsonPayload.subscriptionsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptions`.
+                        public var subscriptions: Operations.connectClaudeSubscription.Output.Ok.Body.jsonPayload.subscriptionsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - subscriptions:
+                        public init(subscriptions: Operations.connectClaudeSubscription.Output.Ok.Body.jsonPayload.subscriptionsPayload) {
+                            self.subscriptions = subscriptions
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case subscriptions
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/application\/json`.
+                    case json(Operations.connectClaudeSubscription.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.connectClaudeSubscription.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectClaudeSubscription.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectClaudeSubscription.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The user's AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.connectClaudeSubscription.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.connectClaudeSubscription.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectClaudeSubscription.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectClaudeSubscription.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.connectClaudeSubscription.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.connectClaudeSubscription.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectClaudeSubscription.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectClaudeSubscription.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can manage AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.connectClaudeSubscription.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.connectClaudeSubscription.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectClaudeSubscription.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectClaudeSubscription.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// AI subscriptions are not available to this user
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.connectClaudeSubscription.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.connectClaudeSubscription.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectClaudeSubscription.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectClaudeSubscription.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// The token is not a Claude subscription token
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.connectClaudeSubscription.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.connectClaudeSubscription.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/503/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectClaudeSubscription.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectClaudeSubscription.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// The token could not be saved
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.connectClaudeSubscription.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.connectClaudeSubscription.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
                             response: self
                         )
                     }
@@ -67671,6 +68800,744 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Starts connecting the signed-in user's ChatGPT subscription
+    ///
+    /// Starts an OpenAI device sign-in. Show the user the verification URL and code, then poll with the login ID no faster than `interval` seconds until it connects or `expires_at` passes. Saved credentials stay until the sign-in succeeds.
+    ///
+    /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)`.
+    public enum startChatGPTSubscriptionLogin {
+        public static let id: Swift.String = "startChatGPTSubscriptionLogin"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startChatGPTSubscriptionLogin.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startChatGPTSubscriptionLogin.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.startChatGPTSubscriptionLogin.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.startChatGPTSubscriptionLogin.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// When the sign-in expires.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/json/expires_at`.
+                        public var expires_at: Foundation.Date
+                        /// The minimum number of seconds between polls.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/json/interval`.
+                        public var interval: Swift.Int
+                        /// The opaque ID to poll and cancel the sign-in with.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/json/login_id`.
+                        public var login_id: Swift.String
+                        /// The code the user enters on the verification page.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/json/user_code`.
+                        public var user_code: Swift.String
+                        /// The OpenAI page where the user enters the code.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/json/verification_url`.
+                        public var verification_url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - expires_at: When the sign-in expires.
+                        ///   - interval: The minimum number of seconds between polls.
+                        ///   - login_id: The opaque ID to poll and cancel the sign-in with.
+                        ///   - user_code: The code the user enters on the verification page.
+                        ///   - verification_url: The OpenAI page where the user enters the code.
+                        public init(
+                            expires_at: Foundation.Date,
+                            interval: Swift.Int,
+                            login_id: Swift.String,
+                            user_code: Swift.String,
+                            verification_url: Swift.String
+                        ) {
+                            self.expires_at = expires_at
+                            self.interval = interval
+                            self.login_id = login_id
+                            self.user_code = user_code
+                            self.verification_url = verification_url
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case expires_at
+                            case interval
+                            case login_id
+                            case user_code
+                            case verification_url
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/application\/json`.
+                    case json(Operations.startChatGPTSubscriptionLogin.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.startChatGPTSubscriptionLogin.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The pending sign-in
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.startChatGPTSubscriptionLogin.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.startChatGPTSubscriptionLogin.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.startChatGPTSubscriptionLogin.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.startChatGPTSubscriptionLogin.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can manage AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.startChatGPTSubscriptionLogin.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.startChatGPTSubscriptionLogin.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// AI subscriptions are not available to this user
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.startChatGPTSubscriptionLogin.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.startChatGPTSubscriptionLogin.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.TooManyRequests.Body) {
+                    self.body = body
+                }
+            }
+            /// Too many sign-in attempts. Try again in a few minutes.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.startChatGPTSubscriptionLogin.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.startChatGPTSubscriptionLogin.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadGateway: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/502/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/502/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.BadGateway.Body
+                /// Creates a new `BadGateway`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.BadGateway.Body) {
+                    self.body = body
+                }
+            }
+            /// OpenAI could not start the sign-in
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/502`.
+            ///
+            /// HTTP response code: `502 badGateway`.
+            case badGateway(Operations.startChatGPTSubscriptionLogin.Output.BadGateway)
+            /// The associated value of the enum case if `self` is `.badGateway`.
+            ///
+            /// - Throws: An error if `self` is not `.badGateway`.
+            /// - SeeAlso: `.badGateway`.
+            public var badGateway: Operations.startChatGPTSubscriptionLogin.Output.BadGateway {
+                get throws {
+                    switch self {
+                    case let .badGateway(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badGateway",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/503/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// ChatGPT sign-in is not configured on this server
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.startChatGPTSubscriptionLogin.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.startChatGPTSubscriptionLogin.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Cancels a pending ChatGPT sign-in
+    ///
+    /// Discards the pending sign-in. A ChatGPT subscription that is already connected stays connected.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/ai-subscriptions/chatgpt/login`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)`.
+    public enum cancelChatGPTSubscriptionLogin {
+        public static let id: Swift.String = "cancelChatGPTSubscriptionLogin"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/query`.
+            public struct Query: Sendable, Hashable {
+                /// The opaque sign-in ID that `startChatGPTSubscriptionLogin` returned.
+                ///
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/query/login_id`.
+                public var login_id: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - login_id: The opaque sign-in ID that `startChatGPTSubscriptionLogin` returned.
+                public init(login_id: Swift.String) {
+                    self.login_id = login_id
+                }
+            }
+            public var query: Operations.cancelChatGPTSubscriptionLogin.Input.Query
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cancelChatGPTSubscriptionLogin.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cancelChatGPTSubscriptionLogin.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.cancelChatGPTSubscriptionLogin.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.cancelChatGPTSubscriptionLogin.Input.Query,
+                headers: Operations.cancelChatGPTSubscriptionLogin.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// The sign-in was cancelled
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.cancelChatGPTSubscriptionLogin.Output.NoContent)
+            /// The sign-in was cancelled
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.cancelChatGPTSubscriptionLogin.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.cancelChatGPTSubscriptionLogin.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.cancelChatGPTSubscriptionLogin.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.cancelChatGPTSubscriptionLogin.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.cancelChatGPTSubscriptionLogin.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.cancelChatGPTSubscriptionLogin.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.cancelChatGPTSubscriptionLogin.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can manage AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.cancelChatGPTSubscriptionLogin.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.cancelChatGPTSubscriptionLogin.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.cancelChatGPTSubscriptionLogin.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.cancelChatGPTSubscriptionLogin.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// No pending sign-in has that ID, or AI subscriptions are not available
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.cancelChatGPTSubscriptionLogin.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.cancelChatGPTSubscriptionLogin.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -101906,6 +103773,331 @@ public enum Operations {
             }
         }
     }
+    /// Lists the signed-in user's AI subscriptions
+    ///
+    /// Returns connection metadata for every supported provider. Credentials are never returned.
+    ///
+    /// - Remark: HTTP `GET /api/me/ai-subscriptions`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)`.
+    public enum listAISubscriptions {
+        public static let id: Swift.String = "listAISubscriptions"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listAISubscriptions.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listAISubscriptions.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listAISubscriptions.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.listAISubscriptions.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptionsPayload`.
+                        public struct subscriptionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Whether credentials are saved for the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptionsPayload/connected`.
+                            public var connected: Swift.Bool
+                            /// Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptionsPayload/login_available`.
+                            public var login_available: Swift.Bool
+                            /// The provider. Known values: `claude`, `chatgpt`.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptionsPayload/provider`.
+                            public var provider: Swift.String
+                            /// When the connection last changed, or null if it was never connected.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptionsPayload/updated_at`.
+                            public var updated_at: Foundation.Date?
+                            /// Creates a new `subscriptionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - connected: Whether credentials are saved for the provider.
+                            ///   - login_available: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                            ///   - provider: The provider. Known values: `claude`, `chatgpt`.
+                            ///   - updated_at: When the connection last changed, or null if it was never connected.
+                            public init(
+                                connected: Swift.Bool,
+                                login_available: Swift.Bool,
+                                provider: Swift.String,
+                                updated_at: Foundation.Date? = nil
+                            ) {
+                                self.connected = connected
+                                self.login_available = login_available
+                                self.provider = provider
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case connected
+                                case login_available
+                                case provider
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptions`.
+                        public typealias subscriptionsPayload = [Operations.listAISubscriptions.Output.Ok.Body.jsonPayload.subscriptionsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptions`.
+                        public var subscriptions: Operations.listAISubscriptions.Output.Ok.Body.jsonPayload.subscriptionsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - subscriptions:
+                        public init(subscriptions: Operations.listAISubscriptions.Output.Ok.Body.jsonPayload.subscriptionsPayload) {
+                            self.subscriptions = subscriptions
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case subscriptions
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/application\/json`.
+                    case json(Operations.listAISubscriptions.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listAISubscriptions.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAISubscriptions.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAISubscriptions.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The user's AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listAISubscriptions.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listAISubscriptions.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAISubscriptions.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAISubscriptions.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listAISubscriptions.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.listAISubscriptions.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAISubscriptions.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAISubscriptions.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can manage AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listAISubscriptions.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listAISubscriptions.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAISubscriptions.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAISubscriptions.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// AI subscriptions are not available to this user
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listAISubscriptions.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listAISubscriptions.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List Cargo crates across builds.
     ///
     /// Observed Rust crates identified by exact recorded crate root, name and kind. Paths are not normalized and build configurations are not distinguished. History contains measured rustc invocations, not per-source-file timing or cache hits. Missing observations do not establish removals or a complete workspace inventory.
@@ -127536,6 +129728,649 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Polls a pending ChatGPT sign-in
+    ///
+    /// Returns `pending` until the user approves the code, then `connected`. Polls sooner than the sign-in's interval return `pending` without asking OpenAI.
+    ///
+    /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login/poll`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)`.
+    public enum pollChatGPTSubscriptionLogin {
+        public static let id: Swift.String = "pollChatGPTSubscriptionLogin"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.pollChatGPTSubscriptionLogin.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.pollChatGPTSubscriptionLogin.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.pollChatGPTSubscriptionLogin.Input.Headers
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The opaque sign-in ID that `startChatGPTSubscriptionLogin` returned.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/requestBody/json/login_id`.
+                    public var login_id: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - login_id: The opaque sign-in ID that `startChatGPTSubscriptionLogin` returned.
+                    public init(login_id: Swift.String) {
+                        self.login_id = login_id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case login_id
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/requestBody/content/application\/json`.
+                case json(Operations.pollChatGPTSubscriptionLogin.Input.Body.jsonPayload)
+            }
+            public var body: Operations.pollChatGPTSubscriptionLogin.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.pollChatGPTSubscriptionLogin.Input.Headers = .init(),
+                body: Operations.pollChatGPTSubscriptionLogin.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Known values: `pending`, `connected`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/200/content/json/status`.
+                        public var status: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - status: Known values: `pending`, `connected`.
+                        public init(status: Swift.String) {
+                            self.status = status
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case status
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/200/content/application\/json`.
+                    case json(Operations.pollChatGPTSubscriptionLogin.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.pollChatGPTSubscriptionLogin.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.pollChatGPTSubscriptionLogin.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.pollChatGPTSubscriptionLogin.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The sign-in status
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.pollChatGPTSubscriptionLogin.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.pollChatGPTSubscriptionLogin.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.pollChatGPTSubscriptionLogin.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.pollChatGPTSubscriptionLogin.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.pollChatGPTSubscriptionLogin.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.pollChatGPTSubscriptionLogin.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.pollChatGPTSubscriptionLogin.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.pollChatGPTSubscriptionLogin.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can manage AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.pollChatGPTSubscriptionLogin.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.pollChatGPTSubscriptionLogin.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.pollChatGPTSubscriptionLogin.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.pollChatGPTSubscriptionLogin.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// No pending sign-in has that ID, or AI subscriptions are not available
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.pollChatGPTSubscriptionLogin.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.pollChatGPTSubscriptionLogin.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Gone: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/410/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/410/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.pollChatGPTSubscriptionLogin.Output.Gone.Body
+                /// Creates a new `Gone`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.pollChatGPTSubscriptionLogin.Output.Gone.Body) {
+                    self.body = body
+                }
+            }
+            /// The sign-in expired. Start a new one.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)/responses/410`.
+            ///
+            /// HTTP response code: `410 gone`.
+            case gone(Operations.pollChatGPTSubscriptionLogin.Output.Gone)
+            /// The associated value of the enum case if `self` is `.gone`.
+            ///
+            /// - Throws: An error if `self` is not `.gone`.
+            /// - SeeAlso: `.gone`.
+            public var gone: Operations.pollChatGPTSubscriptionLogin.Output.Gone {
+                get throws {
+                    switch self {
+                    case let .gone(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "gone",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadGateway: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/502/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/502/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.pollChatGPTSubscriptionLogin.Output.BadGateway.Body
+                /// Creates a new `BadGateway`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.pollChatGPTSubscriptionLogin.Output.BadGateway.Body) {
+                    self.body = body
+                }
+            }
+            /// OpenAI rejected the sign-in. Start a new one.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)/responses/502`.
+            ///
+            /// HTTP response code: `502 badGateway`.
+            case badGateway(Operations.pollChatGPTSubscriptionLogin.Output.BadGateway)
+            /// The associated value of the enum case if `self` is `.badGateway`.
+            ///
+            /// - Throws: An error if `self` is not `.badGateway`.
+            /// - SeeAlso: `.badGateway`.
+            public var badGateway: Operations.pollChatGPTSubscriptionLogin.Output.BadGateway {
+                get throws {
+                    switch self {
+                    case let .badGateway(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badGateway",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Lists the feature flags enabled for the signed-in user
+    ///
+    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or the signed-in Tuist app can read them.
+    ///
+    /// - Remark: HTTP `GET /api/me/feature-flags`.
+    /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)`.
+    public enum listFeatureFlags {
+        public static let id: Swift.String = "listFeatureFlags"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listFeatureFlags.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listFeatureFlags.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listFeatureFlags.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.listFeatureFlags.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The names of the enabled flags. Known values: `ai`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content/json/enabled`.
+                        public var enabled: [Swift.String]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - enabled: The names of the enabled flags. Known values: `ai`.
+                        public init(enabled: [Swift.String]) {
+                            self.enabled = enabled
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case enabled
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content/application\/json`.
+                    case json(Operations.listFeatureFlags.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listFeatureFlags.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listFeatureFlags.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listFeatureFlags.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The enabled feature flags
+            ///
+            /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listFeatureFlags.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listFeatureFlags.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listFeatureFlags.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listFeatureFlags.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listFeatureFlags.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.listFeatureFlags.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listFeatureFlags.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listFeatureFlags.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can read feature flags
+            ///
+            /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listFeatureFlags.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listFeatureFlags.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }

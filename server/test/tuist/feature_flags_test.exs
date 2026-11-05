@@ -9,6 +9,18 @@ defmodule Tuist.FeatureFlagsTest do
 
   setup :set_mimic_from_context
 
+  describe "app_flags/1" do
+    test "lists ai only for users with the flag in production" do
+      user = %Tuist.Accounts.User{id: 42}
+      stub(Environment, :env, fn -> :prod end)
+
+      for {enabled, flags} <- [{false, []}, {true, ["ai"]}] do
+        expect(FunWithFlags, :enabled?, fn :ai, [for: ^user] -> enabled end)
+        assert FeatureFlags.app_flags(user) == flags
+      end
+    end
+  end
+
   describe "runner_docker_cache_enabled?/1" do
     test "canary qualification does not depend on a database flag" do
       stub(Environment, :env, fn -> :can end)

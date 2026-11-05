@@ -1,6 +1,9 @@
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "%@ simulator" = "%@ simulator";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"AI subscriptions" = "AI subscriptions";
+
 /* TuistAuthentication/AuthenticationService.swift */
 "Access token or refresh token missing from response" = "Access token or refresh token missing from response";
 
@@ -46,7 +49,7 @@
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Bundle identifier" = "Bundle identifier";
 
-/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/AISubscriptionsSection.swift, TuistProfile/ProfileView.swift */
 "Cancel" = "Cancel";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
@@ -55,8 +58,23 @@
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Commit SHA" = "Commit SHA";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect" = "Connect";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect ChatGPT" = "Connect ChatGPT";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect Claude" = "Connect Claude";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features." = "Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features.";
+
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Connected" = "Connected";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Copy code" = "Copy code";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Copy identifier" = "Copy identifier";
@@ -103,6 +121,12 @@
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Devices" = "Devices";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect" = "Disconnect";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect subscription" = "Disconnect subscription";
+
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Disconnected" = "Disconnected";
 
@@ -111,6 +135,9 @@
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
 "Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "Enter a valid HTTPS server URL without credentials, a query, or a fragment.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Enter the code on the OpenAI sign-in page. This screen closes once you approve it." = "Enter the code on the OpenAI sign-in page. This screen closes once you approve it.";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "Error";
@@ -172,6 +199,9 @@
 /* TuistErrorHandling/ErrorHandling.swift */
 "Ok" = "Ok";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Open the OpenAI sign-in page" = "Open the OpenAI sign-in page";
+
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Other devices" = "Other devices";
 
@@ -207,6 +237,9 @@
 
 /* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
 "Run" = "Run";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Run claude setup-token in a terminal and paste the token it prints." = "Run claude setup-token in a terminal and paste the token it prints.";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Search" = "Search";
@@ -247,6 +280,9 @@
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Simulators" = "Simulators";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Subscription token" = "Subscription token";
+
 /* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
 "Supported platforms" = "Supported platforms";
 
@@ -267,6 +303,9 @@
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
 "The server returned a preview page that did not advance. Update your server or try again." = "The server returned a preview page that did not advance. Update your server or try again.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"The sign-in expired. Close this screen and connect again." = "The sign-in expired. Close this screen and connect again.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
 "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks.";
@@ -291,6 +330,12 @@
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Try a different search or select another track." = "Try a different search or select another track.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Tuist will delete the saved %@ credentials." = "Tuist will delete the saved %@ credentials.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Unavailable" = "Unavailable";
 
 /* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
 "Unknown" = "Unknown";

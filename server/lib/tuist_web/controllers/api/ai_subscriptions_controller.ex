@@ -11,10 +11,8 @@ defmodule TuistWeb.API.AISubscriptionsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts.AISubscriptions
-  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.FeatureFlags
-  alias Tuist.Push
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
 
@@ -223,13 +221,11 @@ defmodule TuistWeb.API.AISubscriptionsController do
     json(conn, subscriptions_json(user))
   end
 
-  # A user session, or the signed-in Tuist app, whose OAuth access tokens
-  # authenticate as the user's account with the user as issuer. Other OAuth
-  # clients have the same token shape, so the app's grant is checked.
+  # A user session or the signed-in Tuist app (`TuistWeb.Authentication.app_user/1`).
   defp require_user(conn, _opts) do
     conn = put_resp_header(conn, "cache-control", "no-store")
 
-    case user(conn) do
+    case Authentication.app_user(conn) do
       %User{} = user ->
         if FeatureFlags.ai_enabled?(user),
           do: assign(conn, :ai_subscriptions_user, user),
@@ -240,24 +236,6 @@ defmodule TuistWeb.API.AISubscriptionsController do
         |> put_status(:forbidden)
         |> json(%{message: "Only a signed-in user can manage AI subscriptions."})
         |> halt()
-    end
-  end
-
-  defp user(conn) do
-    case Authentication.authenticated_subject(conn) do
-      %User{} = user ->
-        user
-
-      %AuthenticatedAccount{issued_by: %User{} = user} ->
-        with ["Bearer " <> bearer] <- get_req_header(conn, "authorization"),
-             {:ok, _session} <- Push.oauth_session(bearer, user) do
-          user
-        else
-          _ -> nil
-        end
-
-      _ ->
-        nil
     end
   end
 

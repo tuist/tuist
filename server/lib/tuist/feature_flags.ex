@@ -127,6 +127,16 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
+  The names of the flags enabled for `user` that the Tuist apps read
+  (`GET /api/me/feature-flags`) to show or hide features. Apps treat a flag
+  they don't receive as off. Add a flag here, under the name the apps use,
+  only when an app feature depends on it.
+  """
+  def app_flags(user) do
+    for {name, true} <- [{"ai", ai_enabled?(user)}], do: name
+  end
+
+  @doc """
   Whether the Runners dashboard (and its sub-pages) should be visible
   for the given account. Canary and production require an explicit
   `:runners` FunWithFlags toggle for the actor. Development, test, and
