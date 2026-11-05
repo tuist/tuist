@@ -229,8 +229,7 @@ jobs:
         run: |
           docker compose up -d rustfs
           for _ in $(seq 1 60); do
-            if curl -sf "http://localhost:${PULSE_RUSTFS_API_PORT}/" > /dev/null 2>&1 \
-              || curl -sf -o /dev/null -w '%{http_code}' "http://localhost:${PULSE_RUSTFS_API_PORT}/" | grep -qE '^(200|403|404)$'; then
+            if curl --fail --silent --max-time 2 "http://localhost:${PULSE_RUSTFS_API_PORT}/health/ready" > /dev/null; then
               echo "RustFS is up"
               exit 0
             fi

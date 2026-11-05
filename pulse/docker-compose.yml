@@ -36,7 +36,7 @@ services:
       - rustfs-data:/data
 
   rustfs-init:
-    image: amazon/aws-cli:2
+    image: amazon/aws-cli:2.31.17
     depends_on:
       - rustfs
     environment:
