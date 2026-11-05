@@ -801,6 +801,39 @@ components:
       type: integer
       x-struct:
       x-validate:
+    AISubscription:
+      properties:
+        connected:
+          description: Whether credentials are saved for the provider.
+          type: boolean
+          x-struct:
+          x-validate:
+        login_available:
+          description: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+          type: boolean
+          x-struct:
+          x-validate:
+        provider:
+          description: 'The provider. Known values: `claude`, `chatgpt`.'
+          type: string
+          x-struct:
+          x-validate:
+        updated_at:
+          description: When the connection last changed, or null if it was never connected.
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - provider
+        - connected
+        - updated_at
+        - login_available
+      title: AISubscription
+      type: object
+      x-struct:
+      x-validate:
     CommandEventArtifact:
       description: It represents an artifact that's associated with a command event (e.g. result bundles)
       properties:
@@ -4409,6 +4442,19 @@ components:
         - started_at
         - inserted_at
       title: MixBuildDetail
+      type: object
+      x-struct:
+      x-validate:
+    ChatGPTSubscriptionLoginStatus:
+      properties:
+        status:
+          description: 'Known values: `pending`, `connected`.'
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - status
+      title: ChatGPTSubscriptionLoginStatus
       type: object
       x-struct:
       x-validate:
@@ -9569,6 +9615,51 @@ components:
       type: object
       x-struct:
       x-validate:
+    AISubscriptions:
+      properties:
+        subscriptions:
+          items:
+            properties:
+              connected:
+                description: Whether credentials are saved for the provider.
+                type: boolean
+                x-struct:
+                x-validate:
+              login_available:
+                description: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                type: boolean
+                x-struct:
+                x-validate:
+              provider:
+                description: 'The provider. Known values: `claude`, `chatgpt`.'
+                type: string
+                x-struct:
+                x-validate:
+              updated_at:
+                description: When the connection last changed, or null if it was never connected.
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - provider
+              - connected
+              - updated_at
+              - login_available
+            title: AISubscription
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - subscriptions
+      title: AISubscriptions
+      type: object
+      x-struct:
+      x-validate:
     GradleBuildsIndexPage:
       default: 1
       description: The page number to return.
@@ -10268,6 +10359,44 @@ components:
         - actions
         - tests
       title: OnceRunDetail
+      type: object
+      x-struct:
+      x-validate:
+    ChatGPTSubscriptionLogin:
+      properties:
+        expires_at:
+          description: When the sign-in expires.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        interval:
+          description: The minimum number of seconds between polls.
+          type: integer
+          x-struct:
+          x-validate:
+        login_id:
+          description: The opaque ID to poll and cancel the sign-in with.
+          type: string
+          x-struct:
+          x-validate:
+        user_code:
+          description: The code the user enters on the verification page.
+          type: string
+          x-struct:
+          x-validate:
+        verification_url:
+          description: The OpenAI page where the user enters the code.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - login_id
+        - user_code
+        - verification_url
+        - interval
+        - expires_at
+      title: ChatGPTSubscriptionLogin
       type: object
       x-struct:
       x-validate:
@@ -12587,6 +12716,23 @@ components:
         - failure
       title: BuildStatus
       type: string
+      x-struct:
+      x-validate:
+    FeatureFlags:
+      properties:
+        enabled:
+          description: 'The names of the enabled flags. Known values: `ai`.'
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - enabled
+      title: FeatureFlags
+      type: object
       x-struct:
       x-validate:
     BuildIssuesIndexPage:
@@ -17457,6 +17603,94 @@ paths:
       summary: Get a runner job.
       tags:
         - Runners
+  /api/me/ai-subscriptions/{provider}:
+    delete:
+      callbacks: {}
+      description: Deletes the provider's saved credentials and any pending sign-in. It does not revoke the authorization at the provider.
+      operationId: disconnectAISubscription
+      parameters:
+        - description: The provider to disconnect.
+          in: path
+          name: provider
+          required: true
+          schema:
+            enum:
+              - chatgpt
+              - claude
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  subscriptions:
+                    items:
+                      properties:
+                        connected:
+                          description: Whether credentials are saved for the provider.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        login_available:
+                          description: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        provider:
+                          description: 'The provider. Known values: `claude`, `chatgpt`.'
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          description: When the connection last changed, or null if it was never connected.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - provider
+                        - connected
+                        - updated_at
+                        - login_available
+                      title: AISubscription
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - subscriptions
+                title: AISubscriptions
+                type: object
+                x-struct:
+                x-validate:
+          description: The user's AI subscriptions
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can manage AI subscriptions
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: AI subscriptions are not available to this user
+      summary: Disconnects one of the signed-in user's AI subscriptions
+      tags:
+        - AI subscriptions
   /api/cache:
     get:
       callbacks: {}
@@ -18084,6 +18318,112 @@ paths:
       summary: Returns a preview with a given id.
       tags:
         - Previews
+  /api/me/ai-subscriptions/claude:
+    put:
+      callbacks: {}
+      description: Saves the subscription token `claude setup-token` prints, replacing any saved one. Tuist validates its format only, not that the subscription can serve requests. The token is never returned.
+      operationId: connectClaudeSubscription
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                token:
+                  description: The token `claude setup-token` prints. Not an Anthropic API key.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - token
+              type: object
+              x-struct:
+              x-validate:
+        description: Claude subscription token
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  subscriptions:
+                    items:
+                      properties:
+                        connected:
+                          description: Whether credentials are saved for the provider.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        login_available:
+                          description: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        provider:
+                          description: 'The provider. Known values: `claude`, `chatgpt`.'
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          description: When the connection last changed, or null if it was never connected.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - provider
+                        - connected
+                        - updated_at
+                        - login_available
+                      title: AISubscription
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - subscriptions
+                title: AISubscriptions
+                type: object
+                x-struct:
+                x-validate:
+          description: The user's AI subscriptions
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can manage AI subscriptions
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: AI subscriptions are not available to this user
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The token is not a Claude subscription token
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The token could not be saved
+      summary: Connects the signed-in user's Claude subscription
+      tags:
+        - AI subscriptions
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}:
     get:
       callbacks: {}
@@ -29666,6 +30006,131 @@ paths:
       summary: List the volumes mounted by a runner job.
       tags:
         - Runners
+  /api/me/ai-subscriptions/chatgpt/login:
+    delete:
+      callbacks: {}
+      description: Discards the pending sign-in. A ChatGPT subscription that is already connected stays connected.
+      operationId: cancelChatGPTSubscriptionLogin
+      parameters:
+        - description: The opaque sign-in ID that `startChatGPTSubscriptionLogin` returned.
+          in: query
+          name: login_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The sign-in was cancelled
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can manage AI subscriptions
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No pending sign-in has that ID, or AI subscriptions are not available
+      summary: Cancels a pending ChatGPT sign-in
+      tags:
+        - AI subscriptions
+    post:
+      callbacks: {}
+      description: Starts an OpenAI device sign-in. Show the user the verification URL and code, then poll with the login ID no faster than `interval` seconds until it connects or `expires_at` passes. Saved credentials stay until the sign-in succeeds.
+      operationId: startChatGPTSubscriptionLogin
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  expires_at:
+                    description: When the sign-in expires.
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  interval:
+                    description: The minimum number of seconds between polls.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  login_id:
+                    description: The opaque ID to poll and cancel the sign-in with.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  user_code:
+                    description: The code the user enters on the verification page.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  verification_url:
+                    description: The OpenAI page where the user enters the code.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - login_id
+                  - user_code
+                  - verification_url
+                  - interval
+                  - expires_at
+                title: ChatGPTSubscriptionLogin
+                type: object
+                x-struct:
+                x-validate:
+          description: The pending sign-in
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can manage AI subscriptions
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: AI subscriptions are not available to this user
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many sign-in attempts. Try again in a few minutes.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: OpenAI could not start the sign-in
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ChatGPT sign-in is not configured on this server
+      summary: Starts connecting the signed-in user's ChatGPT subscription
+      tags:
+        - AI subscriptions
   /api/projects/{account_handle}/{project_handle}/cache/clean:
     put:
       callbacks: {}
@@ -41811,6 +42276,83 @@ paths:
       summary: Upload a crash report for a test case run.
       tags:
         - Tests
+  /api/me/ai-subscriptions:
+    get:
+      callbacks: {}
+      description: Returns connection metadata for every supported provider. Credentials are never returned.
+      operationId: listAISubscriptions
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  subscriptions:
+                    items:
+                      properties:
+                        connected:
+                          description: Whether credentials are saved for the provider.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        login_available:
+                          description: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        provider:
+                          description: 'The provider. Known values: `claude`, `chatgpt`.'
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          description: When the connection last changed, or null if it was never connected.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - provider
+                        - connected
+                        - updated_at
+                        - login_available
+                      title: AISubscription
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - subscriptions
+                title: AISubscriptions
+                type: object
+                x-struct:
+                x-validate:
+          description: The user's AI subscriptions
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can manage AI subscriptions
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: AI subscriptions are not available to this user
+      summary: Lists the signed-in user's AI subscriptions
+      tags:
+        - AI subscriptions
   /api/projects/{account_handle}/{project_handle}/cargo/crates:
     get:
       callbacks: {}
@@ -50988,6 +51530,123 @@ paths:
       summary: Get a Gradle build by ID.
       tags:
         - Gradle
+  /api/me/ai-subscriptions/chatgpt/login/poll:
+    post:
+      callbacks: {}
+      description: Returns `pending` until the user approves the code, then `connected`. Polls sooner than the sign-in's interval return `pending` without asking OpenAI.
+      operationId: pollChatGPTSubscriptionLogin
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                login_id:
+                  description: The opaque sign-in ID that `startChatGPTSubscriptionLogin` returned.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - login_id
+              type: object
+              x-struct:
+              x-validate:
+        description: Sign-in
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  status:
+                    description: 'Known values: `pending`, `connected`.'
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - status
+                title: ChatGPTSubscriptionLoginStatus
+                type: object
+                x-struct:
+                x-validate:
+          description: The sign-in status
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can manage AI subscriptions
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No pending sign-in has that ID, or AI subscriptions are not available
+        '410':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sign-in expired. Start a new one.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: OpenAI rejected the sign-in. Start a new one.
+      summary: Polls a pending ChatGPT sign-in
+      tags:
+        - AI subscriptions
+  /api/me/feature-flags:
+    get:
+      callbacks: {}
+      description: Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or the signed-in Tuist app can read them.
+      operationId: listFeatureFlags
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  enabled:
+                    description: 'The names of the enabled flags. Known values: `ai`.'
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - enabled
+                title: FeatureFlags
+                type: object
+                x-struct:
+                x-validate:
+          description: The enabled feature flags
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can read feature flags
+      summary: Lists the feature flags enabled for the signed-in user
+      tags:
+        - Feature flags
   /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}:
     get:
       callbacks: {}

@@ -1191,6 +1191,7 @@ defmodule TuistWeb.Router do
         NotificationPreferencesController,
         :update_project
 
+    get "/me/feature-flags", FeatureFlagsController, :index
     get "/me/ai-subscriptions", AISubscriptionsController, :index
     put "/me/ai-subscriptions/claude", AISubscriptionsController, :connect_claude
     post "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :start_chatgpt_login
