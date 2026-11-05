@@ -24268,6 +24268,69 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// Start a device sign-in.
+    ///
+    /// Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/auth/device_codes`.
+    /// - Remark: Generated from `#/paths//api/auth/device_codes/post(createDeviceCode)`.
+    public func createDeviceCode(_ input: Operations.createDeviceCode.Input) async throws -> Operations.createDeviceCode.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.createDeviceCode.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/auth/device_codes",
+                    parameters: []
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .post
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createDeviceCode.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Operations.createDeviceCode.Output.Ok.Body.jsonPayload.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
