@@ -150,7 +150,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Tuist.FeatureFlags.test_impact_analysis_enabled?(@selected_account, @selected_project)}
+          :if={TuistWeb.TestSelectionsLive.enabled?(@selected_account, @selected_project)}
           label={dgettext("dashboard", "Test Selection")}
           icon="filter"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"}

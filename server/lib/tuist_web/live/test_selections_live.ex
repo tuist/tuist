@@ -27,7 +27,7 @@ defmodule TuistWeb.TestSelectionsLive do
   @widgets ~w(selected skipped skip_rate runs)
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    if !FeatureFlags.test_impact_analysis_enabled?(account, project) do
+    if !enabled?(account, project) do
       raise NotFoundError, dgettext("dashboard_tests", "Test selection is not enabled for this project.")
     end
 
@@ -98,6 +98,13 @@ defmodule TuistWeb.TestSelectionsLive do
     query = socket.assigns.uri.query |> Query.put("search", search) |> Query.drop("page")
     {:noreply, push_patch(socket, to: path(socket) <> "?" <> query, replace: true)}
   end
+
+  @doc """
+  Whether the project gets the page and its sidebar item: selection is only
+  recorded for Xcode projects so far, behind `FeatureFlags.test_impact_analysis_enabled?/2`.
+  """
+  def enabled?(account, project),
+    do: project.build_system == :xcode and FeatureFlags.test_impact_analysis_enabled?(account, project)
 
   defp path(%{assigns: %{selected_account: account, selected_project: project}}),
     do: "/#{account.name}/#{project.name}/tests/test-selection"

@@ -185,6 +185,18 @@ defmodule TuistWeb.TestSelectionsLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection")
       end
     end
+
+    test "is not found for a project that isn't an Xcode one", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      project |> Ecto.Changeset.change(build_system: :gradle) |> Tuist.Repo.update!()
+
+      assert_raise NotFoundError, fn ->
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection")
+      end
+    end
   end
 
   describe "a test run's selection tabs" do
