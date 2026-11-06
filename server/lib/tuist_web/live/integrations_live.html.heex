@@ -1195,6 +1195,12 @@
     </form>
   </.card_section>
   <.live_component
+    module={TuistWeb.Components.AmpWorkspaces}
+    id="amp-workspaces"
+    account={@selected_account}
+    current_user={@current_user}
+  />
+  <.live_component
     module={TuistWeb.Components.AmpIntegration}
     id="amp-integration"
     account={@selected_account}

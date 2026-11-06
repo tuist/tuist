@@ -232,6 +232,39 @@ defmodule Tuist.OIDCTest do
     end
   end
 
+  describe "amp_workspace_id/2" do
+    @amp_issuer "https://ampcode.com/api/workload-identity"
+
+    test "returns the workspace of an Amp token minted for the audience" do
+      {token, jwks} =
+        generate_test_token_and_jwks(
+          issuer: @amp_issuer,
+          claims: %{"aud" => "tuist-amp-connect:n1", "workspace_id" => "ws"}
+        )
+
+      stub(Req, :get, fn "https://ampcode.com/api/workload-identity/jwks.json", _opts ->
+        {:ok, %{status: 200, body: jwks}}
+      end)
+
+      assert {:ok, "ws"} = OIDC.amp_workspace_id(token, "tuist-amp-connect:n1")
+      assert {:error, :invalid_audience} = OIDC.amp_workspace_id(token, "tuist-amp-connect:n2")
+    end
+
+    test "rejects login tokens, personal threads and other issuers" do
+      {login_token, jwks} = generate_test_token_and_jwks(issuer: @amp_issuer, claims: %{"workspace_id" => "ws"})
+      stub(Req, :get, fn _url, _opts -> {:ok, %{status: 200, body: jwks}} end)
+
+      assert {:error, :invalid_audience} = OIDC.amp_workspace_id(login_token, "connect")
+      assert {:error, :unsupported_provider} = OIDC.amp_workspace_id(gitlab_token(), "tuist-runner-cache")
+      assert {:error, :invalid_token} = OIDC.amp_workspace_id(nil, "connect")
+
+      {personal_token, jwks} = generate_test_token_and_jwks(issuer: @amp_issuer, claims: %{"aud" => "connect"})
+      stub(Req, :get, fn _url, _opts -> {:ok, %{status: 200, body: jwks}} end)
+
+      assert {:error, :missing_amp_workspace_claim} = OIDC.amp_workspace_id(personal_token, "connect")
+    end
+  end
+
   defp gitlab_token do
     {token, _jwks} = generate_test_token_and_jwks(issuer: "https://gitlab.com", claims: %{"aud" => "tuist-runner-cache"})
     token

@@ -62,6 +62,55 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert html =~ "Connect any of your GitHub repositories to a project"
   end
 
+  describe "Amp workspaces" do
+    test "connects a workspace with a token minted for the page's challenge and disconnects it", %{
+      conn: conn,
+      account: account
+    } do
+      key = JOSE.JWK.generate_key({:rsa, 2048})
+      {_, public} = key |> JOSE.JWK.to_public() |> JOSE.JWK.to_map()
+      stub(Tuist.KeyValueStore, :get_or_update, fn _, _, fetch -> fetch.() end)
+
+      stub(Req, :get, fn "https://ampcode.com/api/workload-identity/jwks.json", _ ->
+        {:ok, %{status: 200, body: %{"keys" => [Map.put(public, "kid", "amp")]}}}
+      end)
+
+      workspace_id = "8e5f0d8f-a1a5-429d-843d-6096a60fa0a1"
+
+      amp_token = fn audience ->
+        claims = %{
+          "iss" => "https://ampcode.com/api/workload-identity",
+          "aud" => audience,
+          "exp" => DateTime.to_unix(DateTime.utc_now()) + 600,
+          "workspace_id" => workspace_id
+        }
+
+        {_, token} = key |> JOSE.JWT.sign(%{"alg" => "RS256", "kid" => "amp"}, claims) |> JOSE.JWS.compact()
+        token
+      end
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/integrations")
+
+      [_, audience] = Regex.run(~r/--audience (tuist-amp-connect:[\w-]+)/, render(lv))
+
+      component = with_target(lv, "#amp-workspaces")
+
+      assert render_submit(component, "connect", %{"token" => amp_token.("tuist")}) =~
+               "The token is not valid for this connection"
+
+      render_submit(component, "connect", %{"token" => amp_token.(audience)})
+
+      assert [%{workspace_id: ^workspace_id} = connection] = Tuist.Accounts.list_amp_workspace_connections(account)
+      assert has_element?(lv, "#amp-workspace-#{connection.id}", workspace_id)
+      refute render(lv) =~ audience
+
+      lv |> element("#amp-workspace-#{connection.id} button", "Disconnect") |> render_click()
+
+      assert Tuist.Accounts.list_amp_workspace_connections(account) == []
+      refute has_element?(lv, "#amp-workspace-#{connection.id}")
+    end
+  end
+
   describe "Origin visibility" do
     test "hides unconfigured Origin in development", %{
       conn: conn,

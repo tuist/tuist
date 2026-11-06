@@ -6,6 +6,7 @@ defmodule Tuist.OIDC do
   - GitHub Actions
   - CircleCI
   - Bitrise
+  - Amp orbs, through account-connected Amp workspaces
   - Configured workload identity providers
   """
 
@@ -21,6 +22,7 @@ defmodule Tuist.OIDC do
   @github_actions_jwks_uri "https://token.actions.githubusercontent.com/.well-known/jwks"
   @bitrise_issuer "https://token.builds.bitrise.io"
   @circleci_issuer_prefix "https://oidc.circleci.com/org/"
+  @amp_issuer "https://ampcode.com/api/workload-identity"
   @audience "tuist"
 
   def claims(token, account_handle \\ nil)
@@ -58,6 +60,31 @@ defmodule Tuist.OIDC do
   end
 
   def github_actions_claims(_, _), do: {:error, :invalid_token}
+
+  @doc """
+  Verifies an Amp token against the account's custom trust policies, which
+  predate Amp workspace connections and also cover personal threads.
+  """
+  def amp_policy_claims(token, account_handle), do: Workload.claims(token, @amp_issuer, account_handle)
+
+  @doc """
+  The Amp workspace of an Amp orb token minted for `audience`, which proves
+  that whoever presents the token can run an orb in that workspace.
+  """
+  def amp_workspace_id(token, audience) when is_binary(token) and byte_size(token) <= 16_384 and is_binary(audience) do
+    with {:ok, @amp_issuer} <- peek_issuer(token),
+         {:ok, claims} <- verify(token, amp_jwks_uri()),
+         :ok <- audience_includes(claims, audience),
+         %{amp_workspace_id: workspace_id} when is_binary(workspace_id) <- amp_identity(claims) do
+      {:ok, workspace_id}
+    else
+      {:ok, _issuer} -> {:error, :unsupported_provider}
+      %{amp_workspace_id: nil} -> {:error, :missing_amp_workspace_claim}
+      error -> error
+    end
+  end
+
+  def amp_workspace_id(_, _), do: {:error, :invalid_token}
 
   defp audience_includes(%{"aud" => audience}, audience), do: :ok
 
@@ -98,6 +125,7 @@ defmodule Tuist.OIDC do
   end
 
   defp provider(@bitrise_issuer), do: {:ok, :bitrise}
+  defp provider(@amp_issuer), do: {:ok, :amp}
 
   defp provider(@circleci_issuer_prefix <> org_id = issuer) do
     if org_id == "" do
@@ -113,7 +141,15 @@ defmodule Tuist.OIDC do
 
   defp jwks_uri(:bitrise, _issuer), do: {:ok, "#{@bitrise_issuer}/.well-known/jwks"}
 
+  defp jwks_uri(:amp, _issuer), do: {:ok, amp_jwks_uri()}
+
   defp jwks_uri(:circleci, issuer), do: {:ok, "#{issuer}/.well-known/jwks-pub.json"}
+
+  defp amp_jwks_uri, do: "#{@amp_issuer}/jwks.json"
+
+  # Personal Amp threads have no workspace; the controller can still match
+  # them against custom trust policies.
+  defp identity_from_claims(claims, :amp), do: {:ok, amp_identity(claims)}
 
   defp identity_from_claims(claims, provider) do
     with {:ok, repository} <- repository_from_claims(claims, provider) do
@@ -144,6 +180,13 @@ defmodule Tuist.OIDC do
     case claims["oidc.circleci.com/vcs-origin"] do
       "github.com/" <> repo -> {:ok, repo}
       _ -> {:error, :missing_repository_claim}
+    end
+  end
+
+  defp amp_identity(claims) do
+    case claims["workspace_id"] do
+      workspace_id when is_binary(workspace_id) and byte_size(workspace_id) in 1..64 -> %{amp_workspace_id: workspace_id}
+      _ -> %{amp_workspace_id: nil}
     end
   end
 
@@ -221,12 +264,12 @@ defmodule Tuist.OIDC do
   defp validate_not_before(%{"nbf" => _}), do: {:error, :invalid_token}
   defp validate_not_before(_), do: :ok
 
-  defp validate_audience(%{"aud" => @audience}, provider) when provider in [:github_actions, :bitrise] do
+  defp validate_audience(%{"aud" => @audience}, provider) when provider in [:github_actions, :bitrise, :amp] do
     :ok
   end
 
   defp validate_audience(%{"aud" => audiences}, provider)
-       when is_list(audiences) and provider in [:github_actions, :bitrise] do
+       when is_list(audiences) and provider in [:github_actions, :bitrise, :amp] do
     if @audience in audiences do
       :ok
     else
@@ -234,7 +277,7 @@ defmodule Tuist.OIDC do
     end
   end
 
-  defp validate_audience(_claims, provider) when provider in [:github_actions, :bitrise] do
+  defp validate_audience(_claims, provider) when provider in [:github_actions, :bitrise, :amp] do
     {:error, :invalid_audience}
   end
 

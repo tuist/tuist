@@ -79,8 +79,10 @@ defmodule TuistWeb.API.OIDCController do
   )
 
   def exchange_token(%{body_params: %{token: token}} = conn, _opts) do
-    with {:ok, claims} <- OIDC.claims(token, Map.get(conn.body_params, :account_handle)),
-         {:ok, account, project_scope} <- authorized_account(claims),
+    account_handle = Map.get(conn.body_params, :account_handle)
+
+    with {:ok, claims} <- OIDC.claims(token, account_handle),
+         {:ok, account, project_scope} <- authorized_account(claims, token, account_handle),
          {:ok, access_token} <- generate_token(account, project_scope) do
       conn
       |> put_status(:ok)
@@ -149,6 +151,22 @@ defmodule TuistWeb.API.OIDCController do
           message: "No projects linked to the repository. Connect your project to GitHub in the Tuist dashboard first."
         })
 
+      {:error, :amp_workspace_not_connected} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message:
+            "This Amp workspace is not connected to a Tuist account. Connect it in your Tuist account's Integrations settings. Amp threads outside a workspace are not supported."
+        })
+
+      {:error, :ambiguous_amp_workspace, account_handles} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message:
+            "This Amp workspace is connected to several Tuist accounts (#{Enum.join(account_handles, ", ")}). Set TUIST_OIDC_ACCOUNT to the account to authenticate as."
+        })
+
       {:error, :ambiguous_repository, repository, account_handles} ->
         conn
         |> put_status(:forbidden)
@@ -163,6 +181,31 @@ defmodule TuistWeb.API.OIDCController do
         |> json(%{message: "Token validation failed: #{inspect(reason)}"})
     end
   end
+
+  defp authorized_account(%{amp_workspace_id: workspace_id}, token, account_handle) do
+    result =
+      if workspace_id,
+        do: Accounts.amp_workspace_account(workspace_id, account_handle),
+        else: {:error, :amp_workspace_not_connected}
+
+    case result do
+      {:ok, account} ->
+        {:ok, account, %{"all_projects" => true}}
+
+      {:error, :amp_workspace_not_connected} = error when is_binary(account_handle) ->
+        with {:ok, identity} <- OIDC.amp_policy_claims(token, account_handle),
+             {:ok, _account, _project_scope} = authorized <- authorized_account(identity) do
+          authorized
+        else
+          _ -> error
+        end
+
+      error ->
+        error
+    end
+  end
+
+  defp authorized_account(identity, _token, _account_handle), do: authorized_account(identity)
 
   defp authorized_account(%{provider: :oidc} = identity) do
     with {:ok, account} <- Accounts.oidc_account_by_grants(identity) do

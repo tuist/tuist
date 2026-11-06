@@ -20,6 +20,7 @@ msgstr ""
 
 #: lib/tuist_web/components/amp_integration.ex:233
 #: lib/tuist_web/components/amp_integration.ex:274
+#: lib/tuist_web/components/amp_workspaces.ex:209
 #: lib/tuist_web/live/integrations_live.html.heex:269
 #: lib/tuist_web/live/integrations_live.html.heex:462
 #: lib/tuist_web/live/integrations_live.html.heex:794
@@ -193,6 +194,7 @@ msgstr ""
 
 #: lib/tuist_web/components/amp_integration.ex:129
 #: lib/tuist_web/components/amp_integration.ex:240
+#: lib/tuist_web/components/amp_workspaces.ex:216
 #: lib/tuist_web/live/integrations_live.html.heex:526
 #: lib/tuist_web/live/integrations_live.html.heex:578
 #: lib/tuist_web/live/integrations_live.html.heex:749
@@ -216,6 +218,7 @@ msgstr ""
 #: lib/tuist_web/components/amp_integration.ex:121
 #: lib/tuist_web/components/amp_integration.ex:249
 #: lib/tuist_web/components/amp_integration.ex:281
+#: lib/tuist_web/components/amp_workspaces.ex:141
 #: lib/tuist_web/live/integrations_live.html.heex:504
 #: lib/tuist_web/live/integrations_live.html.heex:678
 #: lib/tuist_web/live/integrations_live.html.heex:997
@@ -674,4 +677,64 @@ msgstr ""
 #: lib/tuist_web/live/integrations_live.html.heex:847
 #, elixir-autogen, elixir-format
 msgid "Your access to repositories depends on your Entire and Tuist integration setup."
+msgstr ""
+
+#: lib/tuist_web/components/amp_workspaces.ex:200
+#, elixir-autogen, elixir-format
+msgid "Amp identity token"
+msgstr ""
+
+#: lib/tuist_web/components/amp_workspaces.ex:151
+#, elixir-autogen, elixir-format
+msgid "Connect an Amp workspace"
+msgstr ""
+
+#: lib/tuist_web/components/amp_workspaces.ex:117
+#, elixir-autogen, elixir-format
+msgid "Connect workspace"
+msgstr ""
+
+#: lib/tuist_web/components/amp_workspaces.ex:134
+#, elixir-autogen, elixir-format
+msgid "Connected %{time}"
+msgstr ""
+
+#: lib/tuist_web/components/amp_workspaces.ex:182
+#, elixir-autogen, elixir-format
+msgid "Copy command"
+msgstr ""
+
+#: lib/tuist_web/components/amp_workspaces.ex:168
+#, elixir-autogen, elixir-format
+msgid "In a thread of the workspace that runs in an Orb, run this command:"
+msgstr ""
+
+#: lib/tuist_web/components/amp_workspaces.ex:108
+#, elixir-autogen, elixir-format
+msgid "Let Amp Orbs in your workspaces sign in to Tuist without a stored token. Orbs get CI access, including cache uploads, to every project in this account."
+msgstr ""
+
+#: lib/tuist_web/components/amp_workspaces.ex:189
+#, elixir-autogen, elixir-format
+msgid "Paste the token it prints. It proves the Orb runs in the workspace and only works for this connection."
+msgstr ""
+
+#: lib/tuist_web/components/amp_workspaces.ex:73
+#, elixir-autogen, elixir-format
+msgid "The token is not valid for this connection. Run the command again and paste the new token within 10 minutes."
+msgstr ""
+
+#: lib/tuist_web/components/amp_workspaces.ex:69
+#, elixir-autogen, elixir-format
+msgid "This Amp workspace is already connected."
+msgstr ""
+
+#: lib/tuist_web/components/amp_workspaces.ex:63
+#, elixir-autogen, elixir-format
+msgid "This token comes from a personal Amp thread. Run the command in a thread of a workspace project."
+msgstr ""
+
+#: lib/tuist_web/components/amp_workspaces.ex:131
+#, elixir-autogen, elixir-format
+msgid "Workspace %{id}"
 msgstr ""

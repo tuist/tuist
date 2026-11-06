@@ -109,7 +109,7 @@ defmodule TuistWeb.Components.AmpIntegration do
       >
         <div data-part="header-row">
           <div data-part="header">
-            <span data-part="title">Amp</span>
+            <span data-part="title">Amp Orb provider</span>
             <span data-part="subtitle">
               {dgettext("dashboard_integrations", "Run your Amp workspace’s Orbs on Tuist sandboxes.")}
             </span>

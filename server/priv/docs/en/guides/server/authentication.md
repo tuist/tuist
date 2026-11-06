@@ -36,6 +36,8 @@ Tuist recognizes these CI providers and maps their tokens to projects through yo
 - CircleCI
 - Bitrise
 
+[Amp](#amp-orbs) orbs authenticate through Amp workspaces you connect to your Tuist account.
+
 Any other identity provider that issues OpenID Connect tokens can authenticate through a [workload identity trust policy](#workload-identity-trust-policies) that you configure once for all current and future projects in your account, for example [Fly.io Machines](#flyio-machines).
 
 ### Setting up OIDC authentication {#setting-up-oidc-authentication}
@@ -47,6 +49,18 @@ For GitHub Actions, CircleCI, and Bitrise:
 2. **Run `tuist auth login`**: In your CI workflow, run `tuist auth login` before any commands that require authentication. The CLI will automatically detect the CI environment and authenticate using OIDC.
 
 See the <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> for provider-specific configuration examples.
+
+### Amp orbs {#amp-orbs}
+
+[Amp](https://ampcode.com) orbs can mint OIDC tokens that identify their Amp workspace. Connect a workspace to your Tuist account once, and `tuist auth login` in any orb of that workspace signs in without a stored token:
+
+1. In your Tuist account, open **Settings → Integrations** and select **Connect workspace** on the Amp card. You need to be an account admin or owner.
+2. In a thread of the workspace that runs in an orb, run the `amp orb id-token` command the dialog shows, and paste the token it prints. The dialog's command contains a single-use audience, so the token can only complete this connection. It proves that the orb runs in the workspace you're connecting.
+3. In orbs of the workspace, run `tuist auth login`. The CLI detects the orb, mints a token with audience `tuist`, and exchanges it for a Tuist session.
+
+Every orb in a connected workspace gets CI access to all current and future projects owned by the account, including cache uploads, so connect only workspaces whose members you trust with that access. If you connect the same workspace to several Tuist accounts, set `TUIST_OIDC_ACCOUNT` to the account to sign in to. Threads outside a workspace have no workspace identity and can't use a connection. Disconnect a workspace from the Amp card to stop new sign-ins; sessions that were already issued stay valid until they expire after one hour. Orbs that run longer than that need to run `tuist auth login` again.
+
+Trust policies for the Amp issuer that you created before connecting a workspace keep working when you set `TUIST_OIDC_ACCOUNT`.
 
 ### Workload identity trust policies {#workload-identity-trust-policies}
 
@@ -150,7 +164,7 @@ Do not print or commit the token itself. Every Machine in the authorized Fly app
 
 ### OIDC token scopes {#oidc-token-scopes}
 
-OIDC tokens are granted the `ci` scope group. For GitHub Actions, CircleCI, and Bitrise, this provides access to all projects connected to the repository. For workload identity trust policies, this provides access to all current and future projects owned by the selected account, without granting project creation, project administration, runner administration, or account-member administration. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
+OIDC tokens are granted the `ci` scope group. For GitHub Actions, CircleCI, and Bitrise, this provides access to all projects connected to the repository. For connected Amp workspaces and workload identity trust policies, this provides access to all current and future projects owned by the selected account, without granting project creation, project administration, runner administration, or account-member administration. See [Scope groups](#scope-groups) for details about what the `ci` scope includes.
 
 > [!TIP]
 > **Security benefits**
