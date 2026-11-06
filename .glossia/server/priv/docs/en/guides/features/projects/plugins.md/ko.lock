@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "b2b17dd7ebff4cb041115edab76f563204367bb5033e876a131d13138d87a9b9",
+  "hash": "67b41210919313b02b93be77cf12b93390af35a5f8ad14f400cb3681137bf439",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,13 +11,13 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Plugins {#plugins}": {
-                  "content_hash": "e46b261f9e769ea762c2fa1be5f13680f0010c13c9c8e416b2a34d21945d244d"
+                  "content_hash": "690d0bda3296c1e723b6c217d54171cfb13bda5cacf1b9ea30bc5824f072fda7"
                 },
                 "## Plugin types {#plugin-types}": {
                   "content_hash": "7638999f3e6b375dfeb5d8c7ecf77e22da4305d30290650fb70ccefdafb84d3f"
                 },
                 "## Using plugins {#using-plugins}": {
-                  "content_hash": "1dd630382340bc9a90afc6bcd25038fdf6356a38997fc1329085a966e3bfc5d7"
+                  "content_hash": "47ced0f70ae469b6ec6313755ff256ac1b49acbed63b8af27fddc345c4056261"
                 },
                 "### Project description helper plugin {#project-description-helper-plugin}": {
                   "content_hash": "7837fc95122e1ae1f01989949aa512fe3d47461a4f3463acabc31328cf321eeb"
@@ -26,7 +26,7 @@
                   "content_hash": "2559b604e3012eecd2ef526af34ffafa60c9d1491e646dc072380cb110ae48e9"
                 },
                 "### Task plugin <Badge type=\"warning\" text=\"deprecated\" /> {#task-plugin-badge-typewarning-textdeprecated-}": {
-                  "content_hash": "7649c5f2952acdf52d0b5471af6704c77fac60282bf4fd7c96241a880de99618"
+                  "content_hash": "92f0b1bab2fcc561d3cb54f0ccf0a8c7af2874e72683dbaf55e7ab5bb1e7eac8"
                 },
                 "Preamble": {
                   "content_hash": "a1db2ebd0677e67f5b1f39f9a11ed5603eafe78a44827bd6f86689148e5193f4"
@@ -35,11 +35,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "740fe66f531a2a31708d307800aacc5636ad95c7e268a032bbe58b9fc1cff69c",
+          "hash": "35d74885c8f056a63c1405d776ee873e6d6828d83fffd4d3a0203c6b8b4c67ec",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/plugins.md",
           "metadata": {
-            "content_hash": "c55217398da269d6a687884a9e478eed85dbd3317335d5c165f33819ad99a06e"
+            "content_hash": "44c586f9635afb55ed056c145a47c9ad2da1022afaf3b0c882cb6f741afbbb71"
           }
         },
         {
@@ -100,7 +100,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -119,7 +119,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -148,11 +148,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -235,21 +235,21 @@
             }
           ],
           "details": {},
-          "hash": "3a88c8888aad6bf09ab4f869eeffb06f2bec8e2493a96bfe48dc08682c4b9c44",
+          "hash": "dc159d6479f5eb910de455eabc6ca79448740bce20743a659dfb32f13ddce4e9",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "b2b17dd7ebff4cb041115edab76f563204367bb5033e876a131d13138d87a9b9",
+      "hash": "67b41210919313b02b93be77cf12b93390af35a5f8ad14f400cb3681137bf439",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/plugins.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "14629dcbc83b31f1f4ff4df0758dca16c99d56845945c26b476f47016c824894",
+  "output_hash": "eb62518693f605604eb47ab5748cdf1b05ee7d416b4c1a83dbd7512eba61d2ad",
   "output_path": "server/priv/docs/ko/guides/features/projects/plugins.md",
   "protection_state": "recorded",
   "provider": "",
@@ -269,8 +269,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "76df90eab0037d52e6eb836363a6c65f9ade7c8a",
+  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
   "source_path": "server/priv/docs/en/guides/features/projects/plugins.md",
-  "translated_at": "2026-10-30T17:36:34.951768Z",
-  "translation_session_id": "01a18de0-fb8e-7f61-bd1b-b3b6b932ad69"
+  "translated_at": "2026-11-06T18:55:52.391928Z",
+  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
 }
