@@ -227,7 +227,7 @@ k8s-monitoring:
         // production-only.
         write_relabel_config {
           source_labels = ["__name__"]
-          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state|migration_bridge_armed|migration_bridge_ready|migration_bridge_last_proof_age_seconds)|tuist_clickhouse_.*|tuist_repo_.*|tuist_runner_cache_volume_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
+          regex = "kube_(customresource_.*|job_status_failed|node_labels|node_status_allocatable|node_status_capacity|pod_container_resource_requests|pod_container_status_restarts_total|pod_info|pod_status_unschedulable|statefulset_replicas|statefulset_status_replicas_ready|deployment_spec_replicas|deployment_status_replicas_available)|kura_(node_info|node_geo_info|volumes_thin_pool_.*|http_requests_total_total|artifact_reads_total_total|rocksdb_write_buffer_usage_bytes|rocksdb_write_buffer_capacity_bytes|backfill_ring_fullness_percent|memory_pressure_state|migration_bridge_armed|migration_bridge_ready|migration_bridge_last_proof_age_seconds)|tuist_clickhouse_.*|tuist_repo_.*|tuist_runner_cache_volume_.*|node_(filesystem_avail_bytes|filesystem_size_bytes|network_carrier_changes_total|load1)"
           target_label = "__tmp_nonprod_keep"
           replacement = "keep"
           action = "replace"
@@ -1058,8 +1058,10 @@ k8s-monitoring:
       # (Tuist.Kura.Regions node_pool, one pool per region), so that a node
       # counts towards its region's capacity before a cache pod lands on it.
       # The rack dashboards read a rack node's site from it.
+      # tuist.dev/kura-thin-ready marks a node whose thin pool was qualified;
+      # the "Kura thin pool metrics missing" alert joins on it.
       metricLabelsAllowlist:
-        - nodes=[node.cluster.x-k8s.io/pool,node.cluster.x-k8s.io/rack-site]
+        - nodes=[node.cluster.x-k8s.io/pool,node.cluster.x-k8s.io/rack-site,tuist.dev/kura-thin-ready]
       rbac:
         extraRules:
           - apiGroups: ["kura.tuist.dev"]
@@ -2494,6 +2496,58 @@ k8s-monitoring:
           forward_to = [prometheus.remote_write.tuist_alloy_receiver.receiver]
           job_name = "kura"
           scrape_interval = "65s"
+          scrape_timeout = "10s"
+        }
+
+        // The node's Kura CSI plugin (kura-volumes-csi-rack), for the thin pool
+        // gauges. Same job and labels as alloy-metrics' annotation scrape of
+        // the rented plugins, so the thin pool alerts read both alike.
+        discovery.kubernetes "rack_kura_volumes_csi" {
+          role = "pod"
+          namespaces {
+            names = ["kura-volumes"]
+          }
+          selectors {
+            role  = "pod"
+            label = "app.kubernetes.io/component=kura-volumes-csi,tuist.dev/node-local-network=true"
+            field = "spec.nodeName=" + sys.env("HOSTNAME")
+          }
+        }
+
+        discovery.relabel "rack_kura_volumes_csi" {
+          targets = discovery.kubernetes.rack_kura_volumes_csi.targets
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase"]
+            regex = "Running"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex = "metrics"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label = "container"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            target_label = "job"
+          }
+        }
+
+        prometheus.scrape "rack_kura_volumes_csi" {
+          targets = discovery.relabel.rack_kura_volumes_csi.output
+          forward_to = [prometheus.remote_write.tuist_alloy_receiver.receiver]
+          scrape_interval = "60s"
           scrape_timeout = "10s"
         }
 

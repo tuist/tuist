@@ -157,12 +157,13 @@ func TestThinWritePreparationPinsBothProcessesBeforeRouting(t *testing.T) {
 
 func TestThinHandoffAbortsOnlyAnUndemotedSourceWhoseNodeWasUnselected(t *testing.T) {
 	for _, tc := range []struct {
-		name                         string
-		selected, demoted, wantAbort bool
+		name                               string
+		selected, demoted, thin, wantAbort bool
 	}{
 		{name: "unselected source is disarmed", wantAbort: true},
 		{name: "selected source keeps its bridge", selected: true},
 		{name: "demoted source is never disarmed", demoted: true},
+		{name: "thin source rebuilt for a resize keeps its bridge", thin: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -188,6 +189,9 @@ func TestThinHandoffAbortsOnlyAnUndemotedSourceWhoseNodeWasUnselected(t *testing
 				PersistentVolumeSource: corev1.PersistentVolumeSource{CSI: &corev1.CSIPersistentVolumeSource{Driver: "kura-volumes.tuist.dev", VolumeHandle: "legacy", VolumeAttributes: map[string]string{"backing": "file"}}},
 				NodeAffinity:           &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{Key: corev1.LabelHostname, Operator: corev1.NodeSelectorOpIn, Values: []string{"source"}}}}}}},
 			}}
+			if tc.thin {
+				pv.Spec.CSI.VolumeAttributes = map[string]string{"backing": "thin", "layout": "thin-luks-xfs-v1", "capacity_mode": "ceiling-backed-v1"}
+			}
 			var aborts []migrationTarget
 			statuses := map[string]runtimeStatus{source.Name: {Ready: true, ConnectionIncarnation: "current-boot"}, target.Name: {Ready: true, ConnectionIncarnation: "target-boot"}}
 			c := fake.NewClientBuilder().WithScheme(meshTestScheme(t)).WithObjects(source, target, node, claim, pv, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(f.instance), Namespace: f.instance.Namespace}}).Build()
