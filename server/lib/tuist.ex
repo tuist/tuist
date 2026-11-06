@@ -329,6 +329,8 @@ defmodule Tuist do
       Sandboxes.AmpRuntime,
       Sandboxes.AgentEnvironment,
       Sandboxes.AgentSession,
+      Sandboxes.ClaudeCodeRunners,
+      Sandboxes.ClaudeCodeRuntime,
       Sandboxes.Anthropic.Client,
       Sandboxes.Analytics,
       Sandboxes.Concurrency,
