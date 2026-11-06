@@ -324,6 +324,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
       assert has_element?(lv, "[data-part='coverage-selection'] #selective-testing-table")
       refute has_element?(lv, "#selection-modules-table")
+      refute has_element?(lv, "[data-part='optimization-summary']")
 
       [auth, core] =
         lv
@@ -378,6 +379,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
       assert has_element?(lv, "[data-part='selective-testing'] #selective-testing-table")
       refute has_element?(lv, "[data-part='coverage-selection']")
+      assert has_element?(lv, "[data-part='optimization-summary']")
     end
 
     test "keeps the selection for a run that counted no tests and has no module hashes", %{

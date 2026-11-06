@@ -1863,6 +1863,7 @@
       <:modules :if={@has_selective_testing_data}>
         <.selective_testing_tab
           title={dgettext("dashboard_tests", "Modules")}
+          summary?={false}
           selection_targets={Map.new(@selection_targets, &{&1.module_name, &1})}
           project={@selected_project}
           selective_testing_analytics={@selective_testing_analytics}
