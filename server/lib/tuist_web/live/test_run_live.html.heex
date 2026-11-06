@@ -490,20 +490,6 @@
       <.card_section data-part="test-details-section">
         <div data-part="metadata-grid">
           <div data-part="metadata-row">
-            <div :if={Tuist.Tests.Selections.fallback?(@selection_run)} data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_tests", "Coverage")}</div>
-              <.badge
-                label={
-                  dgettext("dashboard_tests", "Coverage not applied: %{reason}",
-                    reason:
-                      TuistWeb.TestSelection.Components.fallback_label(@selection_run.reason)
-                  )
-                }
-                color="warning"
-                style="light-fill"
-                size="large"
-              />
-            </div>
             <div :if={@selection_run.requested_count > 0} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Selected tests")}</div>
               <span data-part="value">

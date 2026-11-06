@@ -521,7 +521,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "[data-part='test-selection-card']", "Not affected")
     end
 
-    test "shows a fallback without a baseline as a fallback on the overview's card, counting no test", %{
+    test "shows a run without a baseline on the overview's card by module, without its reason", %{
       conn: conn,
       organization: organization,
       project: project
@@ -530,7 +530,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
-      assert has_element?(lv, "[data-part='test-selection-card']", "Coverage not applied: No baseline")
+      refute has_element?(lv, "[data-part='test-selection-card']", "Coverage not applied")
       refute has_element?(lv, "[data-part='test-selection-card']", "Run all")
       refute has_element?(lv, "[data-part='test-selection-card']", "0 of 0 tests")
       refute has_element?(lv, "[data-part='test-selection-card']", "Skipped tests")
