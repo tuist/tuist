@@ -31,6 +31,7 @@ defmodule TuistWeb.UserMFAControllerTest do
 
     document = enrollment |> html_response(200) |> Floki.parse_document!()
     assert Floki.find(document, "#sso-link #user-security-settings #mfa-enrollment") != []
+    assert Floki.find(document, "[data-part='terms-notice']") == []
     assert Floki.find(document, ".layout__content") == []
     assert ["data:image/png;base64," <> png] = Floki.attribute(document, "#mfa-setup-qr", "src")
     assert <<137, "PNG", _::binary>> = Base.decode64!(png)
@@ -71,7 +72,39 @@ defmodule TuistWeb.UserMFAControllerTest do
     other = user_fixture()
     stale = login(other)
     stub(Time, :utc_now, fn -> DateTime.add(now, 301) end)
-    assert stale |> recycle() |> post(~p"/users/settings/mfa/enroll") |> html_response(403) =~ "Sign out"
+    assert stale |> recycle() |> post(~p"/users/settings/mfa/enroll") |> html_response(403) =~ "Sign in again"
+  end
+
+  test "stale management pages offer sign-in and return to actionable settings", %{user: user, now: now} do
+    signed_in = login(user)
+    old_token = get_session(signed_in, :user_token)
+    stub(Time, :utc_now, fn -> DateTime.add(now, 301) end)
+    path = ~p"/#{user.account.name}/settings/two-factor-authentication"
+    settings = signed_in |> recycle() |> get(path)
+    document = settings |> html_response(200) |> Floki.parse_document!()
+    assert Floki.find(document, "[data-part='terms-notice']") == []
+    assert Floki.find(document, "form[action='/users/settings/mfa/enroll']") == []
+    assert [logout] = Floki.attribute(document, "form", "action")
+    assert logout == "/users/log_out?" <> URI.encode_query(%{return_to: path})
+    assert Floki.attribute(document, "form input[name='_method']", "value") == ["delete"]
+
+    signed_out = settings |> recycle() |> delete(logout)
+    assert redirected_to(signed_out) == path
+    refute Accounts.get_user_by_session_token(old_token)
+    redirected = signed_out |> recycle() |> get(path)
+    assert redirected_to(redirected) == ~p"/users/log_in"
+    assert get_session(redirected, :user_return_to) == path
+
+    signed_in =
+      redirected
+      |> recycle()
+      |> post(~p"/users/log_in", %{"user" => %{"email" => user.email, "password" => valid_user_password()}})
+
+    assert redirected_to(signed_in) == path
+    {:ok, view, _} = signed_in |> recycle() |> live(path)
+    assert has_element?(view, "form[action='/users/settings/mfa/enroll']")
+    refute has_element?(view, "form[action^='/users/log_out']")
+    assert build_conn() |> get(~p"/users/log_in") |> html_response(200) =~ "terms-notice"
   end
 
   test "cancel discards only this browser's pending setup, never an enabled factor", %{user: user, now: now} do

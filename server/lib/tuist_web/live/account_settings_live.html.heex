@@ -166,57 +166,6 @@
     </.card_section>
   <% else %>
     <.preferred_locale_section preferred_locale_form={@preferred_locale_form} />
-    <.card_section
-      :if={@selected_account.user_id == @current_user.id and @passkeys_enabled?}
-      id="passkeys-settings"
-      data-part="security-card-section"
-    >
-      <div data-part="header">
-        <span data-part="title">{dgettext("dashboard_account", "Passkeys")}</span>
-        <span data-part="subtitle">{dgettext(
-          "dashboard_account",
-          "Sign in without a password using a passkey saved in your password manager or on a security key."
-        )}</span>
-        <span data-part="status">{dngettext(
-          "dashboard_account",
-          "%{count} passkey added",
-          "%{count} passkeys added",
-          length(@passkeys)
-        )}</span>
-      </div>
-      <div data-part="content">
-        <.button
-          href={~p"/users/settings/passkeys"}
-          variant="secondary"
-          size="medium"
-          label={dgettext("dashboard_account", "Manage passkeys")}
-        />
-      </div>
-    </.card_section>
-    <.card_section
-      :if={@selected_account.user_id == @current_user.id}
-      id="two-factor-settings"
-      data-part="security-card-section"
-    >
-      <div data-part="header">
-        <span data-part="title">{dgettext("dashboard_account", "Two-factor authentication")}</span>
-        <span data-part="subtitle">{dgettext(
-          "dashboard_account",
-          "Add an authenticator code to your password or SSO sign-in. Keep recovery codes as a backup."
-        )}</span>
-        <span data-part="status">{if @mfa_enabled?,
-          do: dgettext("dashboard_account", "Enabled"),
-          else: dgettext("dashboard_account", "Not enabled")}</span>
-      </div>
-      <div data-part="content">
-        <.button
-          href={~p"/users/settings/mfa"}
-          variant="secondary"
-          size="medium"
-          label={dgettext("dashboard_account", "Manage two-factor authentication")}
-        />
-      </div>
-    </.card_section>
     <.region_selection_section
       region_form={@region_form}
       selected_account={@selected_account}

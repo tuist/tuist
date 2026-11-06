@@ -27,7 +27,9 @@ async function fetchOptions(url) {
     error.status = response.status;
     // The server explains refusals it can predict, such as a stale session,
     // before the browser saves a credential that could never be used.
-    error.serverMessage = (await response.json().catch(() => ({}))).error;
+    const body = await response.json().catch(() => ({}));
+    error.serverMessage = body.error;
+    if (body.reauthenticate) window.location.reload();
     throw error;
   }
   return response.json();

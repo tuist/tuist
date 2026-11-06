@@ -24,6 +24,7 @@ defmodule TuistWeb.UserSecuritySettingsLive do
      socket
      |> assign(:title, title)
      |> assign(:head_title, "#{title} · Tuist")
+     |> assign(:fresh_session?, UserMFA.fresh_session?(socket.assigns.current_user_session, user))
      |> assign(:passkeys, UserPasskey.list(user))
      |> assign(:enabled, UserMFA.enabled?(user))
      |> assign(:recovery_code_count, UserMFA.recovery_code_count(user)), layout: false}

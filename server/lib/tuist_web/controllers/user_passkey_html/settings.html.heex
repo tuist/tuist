@@ -21,7 +21,8 @@
     size="small"
     title={Phoenix.Flash.get(@flash, :error)}
   />
-  <div data-part="passkey-settings">
+  <.reauthentication_notice :if={!@fresh_session?} return_to={~p"/users/settings/passkeys/new"} />
+  <div :if={@fresh_session?} data-part="passkey-settings">
     <div
       id="passkey-registration"
       data-part="form"
@@ -52,6 +53,7 @@
   </div>
   <div data-part="actions">
     <.button
+      :if={@fresh_session?}
       id="passkey-add"
       type="button"
       variant="primary"

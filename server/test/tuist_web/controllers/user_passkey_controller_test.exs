@@ -175,10 +175,11 @@ defmodule TuistWeb.UserPasskeyControllerTest do
     # The refusal comes before the browser ceremony, so no unusable
     # credential is saved in the user's password manager.
     stale_options = current |> recycle() |> post(~p"/users/settings/passkeys/options")
-    assert json_response(stale_options, 403)["error"] =~ "Sign out"
+    assert json_response(stale_options, 403)["error"] =~ "Sign in again"
+    assert json_response(stale_options, 403)["reauthenticate"]
 
     stale = current |> recycle() |> post(~p"/users/settings/passkeys/#{passkey.id}/delete", %{"confirm" => "true"})
-    assert Phoenix.Flash.get(stale.assigns.flash, :error) =~ "Sign out"
+    assert Phoenix.Flash.get(stale.assigns.flash, :error) =~ "Sign in again"
     assert [_] = UserPasskey.list(user)
 
     stub(Time, :utc_now, fn -> now end)
@@ -241,8 +242,27 @@ defmodule TuistWeb.UserPasskeyControllerTest do
       |> recycle()
       |> post(~p"/users/settings/passkeys/#{passkey.id}/rename", %{"name" => "Stale"})
 
-    assert Phoenix.Flash.get(stale.assigns.flash, :error) =~ "Sign out"
+    assert Phoenix.Flash.get(stale.assigns.flash, :error) =~ "Sign in again"
     assert Repo.get!(UserPasskey, passkey.id).name == String.duplicate("é", 64)
+  end
+
+  test "stale passkey pages offer reauthentication without exposing mutation forms", %{user: user, now: now} do
+    current = register(login(user), authenticator(), "My vault")
+    [passkey] = UserPasskey.list(user)
+    stub(Time, :utc_now, fn -> DateTime.add(now, 301) end)
+
+    for path <- [
+          ~p"/#{user.account.name}/settings/passkeys",
+          ~p"/users/settings/passkeys/new",
+          ~p"/users/settings/passkeys/#{passkey.id}/delete"
+        ] do
+      document = current |> recycle() |> get(path) |> html_response(200) |> Floki.parse_document!()
+      assert Floki.text(document) =~ "Sign in again"
+      assert Floki.find(document, "[data-part='terms-notice']") == []
+      assert Floki.find(document, "#passkey-add, #confirm-passkey-removal, form[action$='/rename']") == []
+      assert Floki.attribute(document, "form", "action") == ["/users/log_out?" <> URI.encode_query(%{return_to: path})]
+      assert UserPasskey.list(user) == [passkey]
+    end
   end
 
   test "removal confirmation and cancel are read-only and scoped to the signed-in user", %{user: user} do
