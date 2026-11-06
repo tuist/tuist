@@ -461,7 +461,7 @@ defmodule TuistWeb.WellKnownControllerTest do
         __DIR__
         |> Path.join("../../../../app/Fixtures/Navigation/routes.json")
         |> File.read!()
-        |> Jason.decode!()
+        |> JSON.decode!()
 
       for fixture <- fixtures["previews"] do
         canonical = URI.parse(fixture["canonical"])
