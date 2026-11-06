@@ -731,8 +731,7 @@ if Tuist.Environment.env() in [:prod, :can, :stag] do
         end
       end
 
-    config :tuist, Tuist.Mailer,
-      ses_cutover: {ses_starts_at, %{adapter: Bamboo.SesAdapter, ex_aws: ex_aws}}
+    config :tuist, Tuist.Mailer, ses_cutover: {ses_starts_at, %{adapter: Bamboo.SesAdapter, ex_aws: ex_aws}}
   end
 end
 
