@@ -81,6 +81,8 @@ defmodule TuistWeb.Endpoint do
 
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
 
+  plug TuistWeb.Plugs.EntireWebhookPlug
+
   plug Stripe.WebhookPlug,
     at: "/webhooks/stripe",
     handler: BillingController,
