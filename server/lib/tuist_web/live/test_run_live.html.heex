@@ -498,7 +498,7 @@
               <.badge
                 :if={Tuist.Tests.Selections.fallback?(@selection_run)}
                 label={
-                  dgettext("dashboard_tests", "Fell back: %{reason}",
+                  dgettext("dashboard_tests", "Coverage not applied: %{reason}",
                     reason:
                       TuistWeb.TestSelection.Components.fallback_label(@selection_run.reason)
                   )

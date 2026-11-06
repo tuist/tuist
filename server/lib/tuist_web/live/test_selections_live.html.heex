@@ -107,7 +107,7 @@
             description={
               dgettext(
                 "dashboard_tests",
-                "The average of the period's runs' skip rates. A run that fell back before finding its baseline counts the share of modules hashing skipped."
+                "The average of the period's runs' skip rates. A run without a baseline counts the share of modules selective testing skipped."
               )
             }
             value={if ready?, do: "#{@analytics.result.totals.skip_rate}%"}

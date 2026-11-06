@@ -386,7 +386,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
           ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
         )
 
-      assert has_element?(lv, "#test-selection-fallback", "Fell back to default selective testing: No baseline")
+      assert has_element?(lv, "#test-selection-fallback", "Coverage not applied: No baseline")
       refute has_element?(lv, "[data-part='selection-debug-card']")
       refute has_element?(lv, "[data-part='selection-details-section']")
     end
@@ -465,7 +465,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
-      assert has_element?(lv, "[data-part='test-selection-card']", "Fell back: No baseline")
+      assert has_element?(lv, "[data-part='test-selection-card']", "Coverage not applied: No baseline")
       refute has_element?(lv, "[data-part='test-selection-card']", "Run all")
       refute has_element?(lv, "[data-part='test-selection-card']", "0 of 0 tests")
       refute has_element?(lv, "[data-part='test-selection-card']", "In skipped modules")

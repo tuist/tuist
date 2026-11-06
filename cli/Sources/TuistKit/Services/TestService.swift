@@ -905,7 +905,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         case let .fallback(_, reason, matchedPath):
             let path = matchedPath.map { " (\($0))" } ?? ""
             Logger.current.notice(
-                "Coverage-based test selection fell back to selective testing: \(reason?.rawValue ?? "unknown reason")\(path)."
+                "Coverage-based test selection not applied: \(reason?.rawValue ?? "unknown reason")\(path). Every test of the targets selective testing left runs."
             )
         }
     }
