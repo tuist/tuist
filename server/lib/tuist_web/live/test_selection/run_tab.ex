@@ -288,13 +288,13 @@ defmodule TuistWeb.TestSelection.RunTab do
             />
           </div>
         </.card_section>
-        <.card_section data-part="selection-details-section">
+        <.card_section :if={has_baseline?(@selection_run)} data-part="selection-details-section">
           <dl data-part="details">
             <div>
               <dt>{dgettext("dashboard_tests", "Baseline")}</dt>
               <dd>
                 <.link_button
-                  :if={has_baseline?(@selection_run) and @baseline_coverage?}
+                  :if={@baseline_coverage?}
                   navigate={
                     "/#{@account.name}/#{@project.name}/tests/coverage/commits/#{@selection_run.baseline_sha}"
                   }
@@ -303,11 +303,8 @@ defmodule TuistWeb.TestSelection.RunTab do
                   size="large"
                   underline
                 />
-                <span :if={has_baseline?(@selection_run) and !@baseline_coverage?}>
+                <span :if={!@baseline_coverage?}>
                   {short_sha(@selection_run.baseline_sha)}
-                </span>
-                <span :if={!has_baseline?(@selection_run)}>
-                  {dgettext("dashboard_tests", "None")}
                 </span>
               </dd>
             </div>

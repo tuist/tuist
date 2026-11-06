@@ -375,6 +375,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
       assert has_element?(lv, "#test-selection-fallback", "No baseline")
       refute has_element?(lv, "[data-part='selection-debug-card']")
+      refute has_element?(lv, "[data-part='selection-details-section']")
     end
 
     test "explains a fallback", %{conn: conn, organization: organization, project: project} do
