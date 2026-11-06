@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -166,4 +167,119 @@ func jobWrote(t *testing.T, path string) {
 	t.Helper()
 	afterMarker(t, path)
 	writeFile(t, filepath.Join(path, "data", "output"), "written by the job")
+}
+
+// warmVolume attaches a clone of a saved version whose master holds the seeded
+// files, and answers debugfs reads of that master from them.
+func warmVolume(t *testing.T, seed map[string]string) (*LocalImages, *testTransfer, Slot, string) {
+	t.Helper()
+	b, remote := newLocal(t)
+	saved := installMaster(t, b, second, strings.Repeat("a", 64), 1, time.Now())
+	slot := Slot{Identity: saved.Identity, PodUID: "p"}
+	slot.ID = first
+	path := t.TempDir()
+	for name, contents := range seed {
+		writeFile(t, filepath.Join(path, name), contents)
+	}
+	run := b.Run
+	b.Run = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if name != "debugfs" {
+			return run(ctx, name, args...)
+		}
+		if len(args) != 4 || args[0] != "-c" || args[1] != "-f" || args[3] != b.master(slot) {
+			t.Fatalf("unexpected debugfs %v", args)
+		}
+		script, err := os.ReadFile(args[2])
+		if err != nil {
+			return nil, err
+		}
+		for _, line := range strings.Split(strings.TrimSpace(string(script)), "\n") {
+			quoted, ok := strings.CutPrefix(line, `dump -p "/`)
+			if !ok {
+				t.Fatalf("unexpected debugfs command %q", line)
+			}
+			source, target, _ := strings.Cut(strings.TrimSuffix(quoted, `"`), `" "`)
+			if contents, ok := seed[source]; ok {
+				writeFile(t, target, contents)
+				if err := os.Chmod(target, 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		return nil, nil
+	}
+	if err := b.Attach(context.Background(), slot, path); err != nil {
+		t.Fatal(err)
+	}
+	afterMarker(t, path)
+	return b, remote, slot, path
+}
+
+func TestLocalWithholdsAVolumeWhoseFilesTheJobOnlyTouched(t *testing.T) {
+	b, remote, slot, path := warmVolume(t, map[string]string{"cache.lock": "lock state", "entries/a1": "output", "gc.properties": ""})
+	now := time.Now()
+	for _, name := range []string{"cache.lock", "entries/a1", "gc.properties"} {
+		if err := os.Chtimes(filepath.Join(path, name), now, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeFile(t, filepath.Join(path, "cache.lock"), "lock state")
+
+	if err := b.Seal(slot, path); !errors.Is(err, ErrUnchanged) {
+		t.Fatal("saved a volume whose files only had their times updated:", err)
+	}
+	if remote.uploads != 0 {
+		t.Fatal("uploaded a volume the job only read")
+	}
+}
+
+func TestLocalPublishesAVolumeWhoseTouchedFilesChanged(t *testing.T) {
+	for name, change := range map[string]func(t *testing.T, path string){
+		"same-size rewrite": func(t *testing.T, path string) { writeFile(t, filepath.Join(path, "entries", "a1"), "OUTPUT") },
+		"added file":        func(t *testing.T, path string) { writeFile(t, filepath.Join(path, "entries", "b2"), "output") },
+		"deleted file":      func(t *testing.T, path string) { _ = os.Remove(filepath.Join(path, "entries", "a1")) },
+		"changed mode":      func(t *testing.T, path string) { _ = os.Chmod(filepath.Join(path, "entries", "a1"), 0600) },
+		"grown file": func(t *testing.T, path string) {
+			writeFile(t, filepath.Join(path, "entries", "a1"), "output, then more")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			b, remote, slot, path := warmVolume(t, map[string]string{"cache.lock": "lock state", "entries/a1": "output"})
+			writeFile(t, filepath.Join(path, "cache.lock"), "lock state")
+			change(t, path)
+
+			if err := b.Seal(slot, path); err != nil {
+				t.Fatal(err)
+			}
+			if remote.uploads != 1 {
+				t.Fatal("did not save the changed volume")
+			}
+		})
+	}
+}
+
+func TestLocalPublishesATouchedVolumeWhoseMasterIsGone(t *testing.T) {
+	b, remote, slot, path := warmVolume(t, map[string]string{"cache.lock": "lock state"})
+	writeFile(t, filepath.Join(path, "cache.lock"), "lock state")
+	evictMaster(t, b, slot)
+
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if remote.uploads != 1 {
+		t.Fatal("withheld a touched volume it could not compare with its master")
+	}
+}
+
+func TestLocalPublishesAVolumeWithMoreTouchedBytesThanItCompares(t *testing.T) {
+	large := strings.Repeat("x", maxComparedBytes+1)
+	b, remote, slot, path := warmVolume(t, map[string]string{"entries/large": large})
+	writeFile(t, filepath.Join(path, "entries", "large"), large)
+
+	if err := b.Seal(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	if remote.uploads != 1 {
+		t.Fatal("withheld a volume whose changes were over the comparison budget")
+	}
 }

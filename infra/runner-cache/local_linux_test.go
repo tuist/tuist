@@ -689,3 +689,55 @@ func TestLinuxLocalImagesWaitsForALingeringMountBeforePublishing(t *testing.T) {
 		t.Fatal("the published branch lost the job's writes", string(data), err)
 	}
 }
+
+func TestLinuxLocalImagesComparesTouchedFilesWithARealMaster(t *testing.T) {
+	for _, tool := range []string{"mkfs.ext4", "debugfs"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			t.Skip("requires e2fsprogs")
+		}
+	}
+	seed := t.TempDir()
+	writeFile(t, filepath.Join(seed, "build cache", "cache.lock"), "lock state")
+	writeFile(t, filepath.Join(seed, "build cache", "entry"), "output")
+	b := &LocalImages{Root: t.TempDir()}
+	slot := warmSlot(first, "p")
+	slot.Scope = strings.Repeat("a", 64)
+	for _, dir := range []string{filepath.Dir(b.master(slot)), filepath.Join(b.Root, "images")} {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out, err := exec.Command("mkfs.ext4", "-q", "-F", "-d", seed, b.master(slot), "8M").CombinedOutput(); err != nil {
+		t.Fatal(string(out), err)
+	}
+	files := []string{filepath.Join("build cache", "cache.lock"), filepath.Join("build cache", "entry")}
+	branch := func(t *testing.T, change func(path string)) string {
+		path := t.TempDir()
+		if out, err := exec.Command("cp", "-a", seed+"/.", path).CombinedOutput(); err != nil {
+			t.Fatal(string(out), err)
+		}
+		change(path)
+		return path
+	}
+
+	if !b.matchesMaster(slot, branch(t, func(string) {}), files) {
+		t.Fatal("files holding the master's bytes did not match it")
+	}
+	entry, added := filepath.Join("build cache", "entry"), filepath.Join("build cache", "new")
+	for name, change := range map[string]func(path string) string{
+		"same-size rewrite": func(path string) string { writeFile(t, filepath.Join(path, entry), "OUTPUT"); return entry },
+		"changed mode":      func(path string) string { _ = os.Chmod(filepath.Join(path, entry), 0600); return entry },
+		"new file":          func(path string) string { writeFile(t, filepath.Join(path, added), "output"); return added },
+	} {
+		t.Run(name, func(t *testing.T) {
+			var changed string
+			path := branch(t, func(path string) { changed = change(path) })
+			if b.matchesMaster(slot, path, []string{changed}) {
+				t.Fatal("a changed file matched the master")
+			}
+		})
+	}
+	if entries, _ := filepath.Glob(filepath.Join(b.Root, "images", "*")); len(entries) != 0 {
+		t.Fatal("left comparison copies behind:", entries)
+	}
+}
