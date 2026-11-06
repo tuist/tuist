@@ -18,7 +18,7 @@ enum CIOIDCAuthenticatorError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .unsupportedCIEnvironment:
-            return "OIDC authentication is not supported in this environment. Use GitHub Actions, CircleCI, Bitrise, or supply a workload identity token through TUIST_OIDC_TOKEN."
+            return "OIDC authentication is not supported in this environment. Use GitHub Actions, CircleCI, Bitrise, an Amp orb, or supply a workload identity token through TUIST_OIDC_TOKEN."
         case .emptyOIDCToken:
             return "TUIST_OIDC_TOKEN is empty. Fetch an OIDC token with audience 'tuist' from your workload identity provider."
         case .missingGitHubActionsOIDCPermissions:
@@ -66,6 +66,10 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
             return try bitriseOIDCToken()
         }
 
+        if Environment.current.isAmpOrb {
+            return try await oidcTokenFetcher.fetchAmpOrbToken(audience: "tuist")
+        }
+
         throw CIOIDCAuthenticatorError.unsupportedCIEnvironment
     }
 
@@ -95,7 +99,7 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
                     statusCode: statusCode,
                     body: body
                 )
-            case .invalidTokenRequestURL:
+            case .invalidTokenRequestURL, .ampOrbTokenCommandFailed:
                 throw error
             }
         }

@@ -99,7 +99,9 @@ public struct LoginCommandService: LoginCommandServicing {
                 password: password,
                 serverURL: resolvedServerURL
             )
-        } else if Environment.current.isCI || Environment.current.variables["TUIST_OIDC_TOKEN"] != nil {
+        } else if Environment.current.isCI || Environment.current.isAmpOrb
+            || Environment.current.variables["TUIST_OIDC_TOKEN"] != nil
+        {
             try await authenticateWithCIOIDC(serverURL: resolvedServerURL, onEvent: onEvent)
         } else {
             try await authenticateWithBrowserLogin(serverURL: resolvedServerURL, onEvent: onEvent)
