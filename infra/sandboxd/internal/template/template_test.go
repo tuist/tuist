@@ -356,6 +356,40 @@ func TestBuilderEnsureCallerCancellationDoesNotAbortBuild(t *testing.T) {
 	}
 }
 
+func TestPruneTagsKeepsCurrentAndInUseTags(t *testing.T) {
+	dir := t.TempDir()
+	store := &Store{Dir: dir}
+	for _, tag := range []string{"old", "paused", "current"} {
+		seedTemplate(t, dir, "default", tag)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "default", "broken"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	other := seedTemplate(t, dir, "bazel", "old")
+
+	removed, err := store.PruneTags("default", "current", map[string]bool{"paused": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(removed, ",") != "broken,old" {
+		t.Fatalf("removed %v", removed)
+	}
+	list, err := store.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var left []string
+	for _, tmpl := range list {
+		left = append(left, tmpl.Name+"/"+tmpl.Tag)
+	}
+	if strings.Join(left, ",") != "bazel/old,default/current,default/paused" || !vm.Exists(other.Dir) {
+		t.Fatalf("left %v", left)
+	}
+	if removed, err := store.PruneTags("missing", "current", nil); err != nil || len(removed) != 0 {
+		t.Fatalf("missing template: %v %v", removed, err)
+	}
+}
+
 func TestCleanPartialBuilds(t *testing.T) {
 	dataDir := t.TempDir()
 	tmpl := seedTemplate(t, filepath.Join(dataDir, "templates"), "default", "t1")

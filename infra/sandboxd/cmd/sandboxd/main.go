@@ -212,6 +212,24 @@ func main() {
 		logger.Error("recovering sandboxes", "error", err)
 		os.Exit(1)
 	}
+	inUse := map[string]bool{}
+	for _, sb := range manager.List() {
+		if sb.Template == defaultTemplate.Name {
+			inUse[sb.TemplateTag] = true
+		}
+	}
+	for _, snap := range manager.DiskSnapshots() {
+		if snap.Template == defaultTemplate.Name {
+			inUse[snap.TemplateTag] = true
+		}
+	}
+	removed, err := store.PruneTags(defaultTemplate.Name, defaultTemplate.Tag, inUse)
+	if len(removed) > 0 {
+		logger.Info("removed unused template tags", "template", defaultTemplate.Name, "tags", removed)
+	}
+	if err != nil {
+		logger.Error("removing unused template tags", "error", err)
+	}
 
 	go func() {
 		for _, shape := range prebuild {

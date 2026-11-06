@@ -293,6 +293,39 @@ func (s *Store) Resolve(name, tag string) (Template, error) {
 	}
 }
 
+// PruneTags removes every tag of the named template except keep and the tags
+// in inUse, and returns the tags it removed. Each deploy seeds a new tag
+// (a rootfs plus a memory image per built shape) on the filesystem kubelet
+// also runs from, so tags left behind fill it until kubelet evicts Pods.
+func (s *Store) PruneTags(name, keep string, inUse map[string]bool) ([]string, error) {
+	name, err := safepath.Segment(name)
+	if err != nil {
+		return nil, fmt.Errorf("template name: %w", err)
+	}
+	dir, err := safepath.Under(s.Dir, name)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var removed []string
+	for _, e := range entries {
+		if !e.IsDir() || e.Name() == keep || inUse[e.Name()] {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(dir, e.Name())); err != nil {
+			return removed, err
+		}
+		removed = append(removed, e.Name())
+	}
+	return removed, nil
+}
+
 // CleanPartialBuilds removes shape directories an interrupted build left
 // behind.
 func (s *Store) CleanPartialBuilds() error {

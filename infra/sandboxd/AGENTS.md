@@ -84,6 +84,11 @@ that disk, not the pristine one. The template VM is never resumed. The guest
 does not mount the workspace disk at template time; `create` formats and
 mounts the sandbox's own disk after the restore (see `configure`).
 
+Each deploy seeds a new tag. At startup, after recovering jails, the daemon
+deletes every other tag of `TEMPLATE_NAME` that no jail or disk snapshot
+records. `/data` is also kubelet's filesystem, so leftover tags (about 7.5 GB
+each with one shape) end in kubelet evicting runner Pods.
+
 Boot args: `console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw
 rootfstype=ext4 init=/sbin/sbx-init sbx.dns=<ip,ip> sbx.hostname=sandbox`.
 The DNS list is the daemon Pod's own resolvers (cluster DNS), so guests
