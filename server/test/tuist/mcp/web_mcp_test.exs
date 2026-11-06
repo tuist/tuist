@@ -60,6 +60,10 @@ defmodule Tuist.MCP.WebMCPTest do
 
     read_only = for {name, module} <- Server.server().tools, module.annotations().readOnlyHint, do: name
 
-    assert read_only -- List.flatten(page_tools) == []
+    # Notification rules span every account the user belongs to, so no account page offers them.
+    account_spanning = ~w(list_notification_events list_notification_condition_options list_notification_rules)
+
+    assert read_only -- (account_spanning ++ List.flatten(page_tools)) == []
+    assert account_spanning -- List.flatten(page_tools) == account_spanning
   end
 end

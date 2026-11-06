@@ -297,6 +297,19 @@ defmodule Tuist.Authorization do
     end
   end
 
+  # Who can subscribe to a notification event for a project (`Tuist.Notifications`).
+  # Each event type names its action here. Checked when a rule is saved and again
+  # for each recipient when the event fires, so leaving an organization stops its
+  # notifications. Members only: public-project readers and ops grants can't subscribe.
+  object :notification do
+    action :preview_published do
+      desc("Allows members of a project's account to be notified when one of its previews is published.")
+      allow([:authenticated_as_user, user_role: :user])
+      allow([:authenticated_as_user, user_role: :admin])
+      allow([:authenticated_as_user, user_role: :viewer])
+    end
+  end
+
   object :project do
     action :cache_create do
       desc("Allows users of a project's account to create entries in the project cache.")

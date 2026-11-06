@@ -1,7 +1,7 @@
 defmodule TuistWeb.Plugs.AppSessionPlug do
   @moduledoc """
   Admits only requests from a signed-in Tuist app (see `Tuist.Push.oauth_session/2`)
-  to the `/api/me` push device and notification preference endpoints. It runs after
+  to the `/api/me` push device and notification rule endpoints. It runs after
   `TuistWeb.AuthenticationPlug`, assigns `:app_user` and `:app_session`, and marks
   responses `no-store`. Other OAuth clients, account tokens and agent credentials
   get a 403, whatever their scopes.

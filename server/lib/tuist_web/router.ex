@@ -1219,15 +1219,13 @@ defmodule TuistWeb.Router do
     put "/me/push-devices/:installation_id", PushDevicesController, :update
     delete "/me/push-devices/:installation_id", PushDevicesController, :delete
     delete "/me/push-device-registrations/:registration_id", PushDevicesController, :remove
-    get "/me/notification-preferences/:kind", NotificationPreferencesController, :show
+    get "/me/notification-events", NotificationRulesController, :events
 
-    put "/me/notification-preferences/:kind/accounts/:account_handle",
-        NotificationPreferencesController,
-        :update_account
+    get "/me/notification-events/:event/projects/:account_handle/:project_handle/condition-options",
+        NotificationRulesController,
+        :condition_options
 
-    put "/me/notification-preferences/:kind/projects/:account_handle/:project_handle",
-        NotificationPreferencesController,
-        :update_project
+    resources "/me/notification-rules", NotificationRulesController, only: [:index, :show, :create, :update, :delete]
 
     get "/me/feature-flags", FeatureFlagsController, :index
     get "/me/ai-subscriptions", AISubscriptionsController, :index
