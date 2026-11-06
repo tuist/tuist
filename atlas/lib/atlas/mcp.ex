@@ -17,7 +17,9 @@ defmodule Atlas.MCP do
   alias Atlas.Users.User
 
   def list_servers(%User{} = user) do
-    Enum.map(Proxy.configured_servers(), fn %Server{} = server ->
+    Proxy.configured_servers()
+    |> Enum.filter(&Proxy.user_allowed?(&1, user))
+    |> Enum.map(fn %Server{} = server ->
       session = oauth_session_for(user, server)
 
       %{
