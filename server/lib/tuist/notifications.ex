@@ -1,202 +1,275 @@
 defmodule Tuist.Notifications do
   @moduledoc """
-  A user's own choices about which notifications they get, independent of how
-  they are delivered.
+  A user's own notification rules, independent of how notifications are
+  delivered. A rule says: when an event (`Tuist.Notifications.Event`, today
+  only `preview_published`) happens in one of the rule's projects, or in any
+  project the user can subscribe to when it lists none, and the event meets the
+  rule's conditions, run its actions (`Tuist.Notifications.Action`, today only
+  `push`). A user with no rules gets no notifications.
 
-  The choices are scoped by kind (today `new_preview`) and by account and project:
-  `AccountPreference` covers one account's projects (the user's personal account
-  or an organization), and `ProjectPreference` overrides it for one project.
-  Missing rows mean the default: an account is enabled and a project follows its
-  account. The same choices apply to every delivery channel: the Tuist apps
-  (`Tuist.Push`) today, and email or the browser later. Which devices receive
-  app notifications is governed by the device registry, not by a preference.
+  Who can subscribe to an event for a project is decided by the event's
+  `:notification` policy in `Tuist.Authorization`. It is checked when a rule is
+  saved and again for each recipient when the event fires, so a user who leaves
+  an organization stops getting its notifications even though their rules stay.
+
+  Rules are private to their user. The REST API (`/api/me/notification-rules`)
+  and the MCP tools act only for the authenticated user.
 
   Transactional email (sign-in, security, invitations, billing; see
-  `Tuist.Accounts.UserNotifier`) is never governed by these preferences.
+  `Tuist.Accounts.UserNotifier`) is never governed by these rules.
   """
 
   import Ecto.Query
 
-  alias Tuist.Accounts
+  alias Tuist.Accounts.Account
+  alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
-  alias Tuist.Notifications.AccountPreference
-  alias Tuist.Notifications.ProjectPreference
+  alias Tuist.Accounts.UserRole
+  alias Tuist.Authorization
+  alias Tuist.Notifications.Action
+  alias Tuist.Notifications.Event
+  alias Tuist.Notifications.Rule
+  alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
-  @kinds ["new_preview"]
+  @max_rules_per_user 100
+  @max_projects_per_rule 100
 
-  def kinds, do: @kinds
+  def max_rules_per_user, do: @max_rules_per_user
+  def max_projects_per_rule, do: @max_projects_per_rule
+
+  @doc "The event types rules can subscribe to."
+  def events, do: Event.all()
+
+  @doc "The action types rules can run."
+  def action_types, do: Action.types()
+
+  @doc "`user`'s rules, oldest first, with their projects and accounts loaded."
+  def list_rules(%User{id: user_id}) do
+    Rule
+    |> where([r], r.user_id == ^user_id)
+    |> order_by([r], asc: r.inserted_at, asc: r.id)
+    |> preload(projects: :account)
+    |> Repo.all()
+  end
+
+  @doc "One of `user`'s rules, or `{:error, :not_found}`."
+  def get_rule(%User{id: user_id}, id) do
+    with {:ok, id} <- Ecto.UUID.cast(id),
+         %Rule{} = rule <- Rule |> where([r], r.id == ^id and r.user_id == ^user_id) |> Repo.one() do
+      {:ok, Repo.preload(rule, projects: :account)}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
 
   @doc """
-  `user`'s own `kind` choices for every account they belong to (their personal
-  account and their organizations), sorted by name:
+  Creates a rule for `user` from `attrs`: `event`, `conditions`, `actions`,
+  optional `enabled`, and `projects`, a list of `account/project` handles (empty
+  or missing for any project). Each project must be one the user can subscribe
+  to for the event.
 
-      [%{account: account, enabled: boolean,
-         projects: [%{project: project, override: nil | boolean, enabled: boolean}]}]
-
-  An account is enabled unless the user turned it off. A project's `override`
-  is nil when it follows its account; `enabled` is the effective choice.
+  Returns `{:ok, rule}`, `{:error, %Ecto.Changeset{}}`, `{:error, {:invalid, message}}`
+  or `{:error, :limit_reached}`.
   """
-  def preferences(%User{id: user_id} = user, kind) when kind in @kinds do
-    account_choices =
-      AccountPreference
-      |> where([p], p.user_id == ^user_id and p.kind == ^kind)
-      |> select([p], {p.account_id, p.enabled})
-      |> Repo.all()
-      |> Map.new()
+  def create_rule(%User{id: user_id} = user, attrs) when is_map(attrs) do
+    attrs = stringify(attrs)
 
-    overrides =
-      ProjectPreference
-      |> where([p], p.user_id == ^user_id and p.kind == ^kind)
-      |> select([p], {p.project_id, p.enabled})
-      |> Repo.all()
-      |> Map.new()
+    with :ok <- check_rule_limit(user_id),
+         {:ok, projects} <- authorized_projects(user, attrs["event"], Map.get(attrs, "projects", [])) do
+      %Rule{user_id: user_id}
+      |> Rule.changeset(attrs, projects)
+      |> Repo.insert()
+      |> preload_result()
+    end
+  end
 
-    accounts = accessible_accounts(user)
-    account_ids = Enum.map(accounts, & &1.id)
+  @doc """
+  Updates `rule` with the given fields of `attrs`. The event can't change.
+  Passing `projects` replaces the rule's projects. Returns what `create_rule/2` does.
+  """
+  def update_rule(%User{id: user_id} = user, %Rule{user_id: user_id} = rule, attrs) when is_map(attrs) do
+    attrs = attrs |> stringify() |> Map.delete("event")
+    rule = Repo.preload(rule, projects: :account)
 
     projects =
-      Project
-      |> where([p], p.account_id in ^account_ids)
-      |> preload(:account)
-      |> Repo.all()
-      |> Enum.group_by(& &1.account_id)
+      case Map.fetch(attrs, "projects") do
+        {:ok, handles} -> authorized_projects(user, rule.event, handles)
+        :error -> {:ok, rule.projects}
+      end
 
-    accounts
-    |> Enum.map(fn account ->
-      enabled = Map.get(account_choices, account.id, true)
+    with {:ok, projects} <- projects do
+      rule
+      |> Rule.changeset(attrs, projects)
+      |> Repo.update()
+      |> preload_result()
+    end
+  end
 
-      %{
-        account: account,
-        enabled: enabled,
-        projects:
-          projects
-          |> Map.get(account.id, [])
-          |> Enum.sort_by(& &1.name)
-          |> Enum.map(fn project ->
-            override = Map.get(overrides, project.id)
-            %{project: project, override: override, enabled: if(is_nil(override), do: enabled, else: override)}
-          end)
-      }
+  @doc "Deletes one of `user`'s rules."
+  def delete_rule(%User{id: user_id}, %Rule{user_id: user_id} = rule) do
+    {:ok, _rule} = Repo.delete(rule)
+    :ok
+  end
+
+  @doc """
+  The JSON representation of `rule` that the REST and MCP APIs return, with
+  string keys. Its projects must be loaded with their accounts.
+  """
+  def rule_to_map(%Rule{} = rule) do
+    %{
+      "id" => rule.id,
+      "event" => rule.event,
+      "enabled" => rule.enabled,
+      "projects" => rule.projects |> Enum.map(&"#{&1.account.name}/#{&1.name}") |> Enum.sort(),
+      "conditions" => rule.conditions,
+      "actions" => rule.actions,
+      "inserted_at" => DateTime.to_iso8601(rule.inserted_at),
+      "updated_at" => DateTime.to_iso8601(rule.updated_at)
+    }
+  end
+
+  @doc "The JSON representation of an event type, for listing."
+  def event_to_map(event) do
+    %{
+      "id" => event.id(),
+      "title" => event.title(),
+      "description" => event.description(),
+      "conditions_schema" => event.conditions_schema()
+    }
+  end
+
+  @doc "A sentence describing why `create_rule/2` or `update_rule/3` failed."
+  def error_message(:limit_reached), do: "You can have at most #{@max_rules_per_user} notification rules."
+  def error_message({:invalid, message}), do: message
+
+  def error_message(%Ecto.Changeset{} = changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {message, opts} ->
+      Enum.reduce(opts, message, fn {key, value}, acc -> String.replace(acc, "%{#{key}}", to_string(value)) end)
     end)
-    |> Enum.sort_by(& &1.account.name)
+    |> Enum.flat_map(fn {field, messages} -> Enum.map(List.wrap(messages), &"#{field} #{&1}") end)
+    |> Enum.join("; ")
   end
 
   @doc """
-  `user`'s `kind` choice for one project, as
-  `%{override: nil | boolean, account_enabled: boolean, enabled: boolean}`,
-  or nil when the project is outside the user's accounts (for example a public
-  project they only browse).
+  Values a client can suggest for `event_id`'s conditions on `project`, or
+  `{:error, :not_found}` when the event is unknown or the user can't subscribe
+  to it for the project.
   """
-  def project_preference(%User{id: user_id} = user, kind, %Project{id: project_id, account_id: account_id})
-      when kind in @kinds do
-    if account_id in accessible_account_ids(user) do
-      override =
-        ProjectPreference
-        |> where([p], p.user_id == ^user_id and p.project_id == ^project_id and p.kind == ^kind)
-        |> select([p], p.enabled)
-        |> Repo.one()
-
-      account_enabled =
-        AccountPreference
-        |> where([p], p.user_id == ^user_id and p.account_id == ^account_id and p.kind == ^kind)
-        |> select([p], p.enabled)
-        |> Repo.one()
-        |> Kernel.!=(false)
-
-      %{
-        override: override,
-        account_enabled: account_enabled,
-        enabled: if(is_nil(override), do: account_enabled, else: override)
-      }
-    end
-  end
-
-  def project_preference(_user, _kind, _project), do: nil
-
-  @doc """
-  Turns `kind` on or off for the projects of `account_id`, which must be the
-  user's personal account or one of their organizations. Project overrides
-  are kept. Returns `:ok` or `{:error, :invalid}`.
-  """
-  def update_account_preference(%User{id: user_id} = user, kind, account_id, enabled)
-      when kind in @kinds and is_integer(account_id) and is_boolean(enabled) do
-    if account_id in accessible_account_ids(user) do
-      Repo.insert!(%AccountPreference{user_id: user_id, account_id: account_id, kind: kind, enabled: enabled},
-        on_conflict: [set: [enabled: enabled, updated_at: now()]],
-        conflict_target: [:user_id, :account_id, :kind]
-      )
-
-      :ok
+  def condition_options(%User{} = user, event_id, %Project{} = project) do
+    with event when not is_nil(event) <- Event.get(event_id),
+         :ok <- Authorization.authorize(event.authorization_action(), user, project) do
+      {:ok, event.condition_options(project)}
     else
-      {:error, :invalid}
+      _ -> {:error, :not_found}
     end
   end
 
-  def update_account_preference(_user, _kind, _account_id, _enabled), do: {:error, :invalid}
-
   @doc """
-  Overrides `kind` for one project the user can access: `true` or `false`, or
-  `nil` to follow the project's account again. Returns `:ok` or
-  `{:error, :invalid}`.
+  Who to notify about `subject`, an `event` that happened in `project`: one
+  `{user_id, action_types}` entry for each user with an enabled rule for the
+  event that covers the project, meets `subject`, and who may subscribe to the
+  event for the project right now. `action_types` is the union of their
+  matching rules' action types, so several matching rules notify once.
   """
-  def update_project_preference(%User{id: user_id} = user, kind, project_id, override)
-      when kind in @kinds and is_integer(project_id) and (is_boolean(override) or is_nil(override)) do
-    case Repo.get(Project, project_id) do
-      %Project{account_id: account_id} ->
-        if account_id in accessible_account_ids(user) do
-          save_project_override(user_id, kind, project_id, override)
-        else
-          {:error, :invalid}
-        end
+  def recipients(event, %Project{} = project, subject) do
+    project = Repo.preload(project, :account)
+    event_id = event.id()
+    project_id = project.id
 
-      nil ->
-        {:error, :invalid}
+    rules =
+      Rule
+      |> from(as: :rule)
+      |> where([r], r.user_id in ^member_ids(project.account) and r.event == ^event_id and r.enabled)
+      |> where(
+        [r],
+        not exists(from(rp in "notification_rule_projects", where: rp.rule_id == parent_as(:rule).id, select: 1)) or
+          exists(
+            from(rp in "notification_rule_projects",
+              where: rp.rule_id == parent_as(:rule).id and rp.project_id == ^project_id,
+              select: 1
+            )
+          )
+      )
+      |> Repo.all()
+
+    users = User |> where([u], u.id in ^Enum.map(rules, & &1.user_id)) |> Repo.all() |> Map.new(&{&1.id, &1})
+
+    rules
+    |> Enum.group_by(& &1.user_id)
+    |> Enum.filter(fn {user_id, _rules} ->
+      Authorization.authorize(event.authorization_action(), Map.fetch!(users, user_id), project) == :ok
+    end)
+    |> Enum.flat_map(fn {user_id, rules} ->
+      action_types =
+        rules
+        |> Enum.filter(&event.matches?(&1.conditions, subject, user_id))
+        |> Enum.flat_map(fn rule -> Enum.map(rule.actions, & &1["type"]) end)
+        |> Enum.uniq()
+
+      if action_types == [], do: [], else: [{user_id, action_types}]
+    end)
+    |> Enum.sort()
+  end
+
+  defp member_ids(%Account{user_id: user_id}) when is_integer(user_id), do: [user_id]
+
+  defp member_ids(%Account{organization_id: organization_id}) do
+    UserRole
+    |> join(:inner, [ur], r in Role, on: ur.role_id == r.id)
+    |> where([_ur, r], r.resource_type == "Organization" and r.resource_id == ^organization_id)
+    |> distinct(true)
+    |> select([ur], ur.user_id)
+    |> Repo.all()
+  end
+
+  defp check_rule_limit(user_id) do
+    count = Rule |> where([r], r.user_id == ^user_id) |> Repo.aggregate(:count)
+    if count < @max_rules_per_user, do: :ok, else: {:error, :limit_reached}
+  end
+
+  defp authorized_projects(_user, _event_id, nil), do: {:ok, []}
+
+  defp authorized_projects(user, event_id, handles) when is_list(handles) do
+    cond do
+      length(handles) > @max_projects_per_rule ->
+        {:error, {:invalid, "A rule can list at most #{@max_projects_per_rule} projects."}}
+
+      not Enum.all?(handles, &is_binary/1) ->
+        {:error, {:invalid, "Projects must be account/project handles."}}
+
+      true ->
+        event = Event.get(event_id)
+
+        handles
+        |> Enum.uniq()
+        |> Enum.reduce_while({:ok, []}, fn handle, {:ok, acc} ->
+          case authorized_project(user, event, handle) do
+            {:ok, project} -> {:cont, {:ok, acc ++ [project]}}
+            :error -> {:halt, {:error, {:invalid, "#{handle} isn't a project you can get these notifications for."}}}
+          end
+        end)
     end
   end
 
-  def update_project_preference(_user, _kind, _project_id, _override), do: {:error, :invalid}
+  defp authorized_projects(_user, _event_id, _handles), do: {:error, {:invalid, "Projects must be a list."}}
 
-  defp save_project_override(user_id, kind, project_id, nil) do
-    ProjectPreference
-    |> where([p], p.user_id == ^user_id and p.project_id == ^project_id and p.kind == ^kind)
-    |> Repo.delete_all()
+  # An unknown event fails later in the changeset; without one, no project can be authorized.
+  defp authorized_project(_user, nil, _handle), do: :error
 
-    :ok
+  defp authorized_project(user, event, handle) do
+    with {:ok, project} <- Projects.get_project_by_slug(handle),
+         :ok <- Authorization.authorize(event.authorization_action(), user, project) do
+      {:ok, project}
+    else
+      _ -> :error
+    end
   end
 
-  defp save_project_override(user_id, kind, project_id, enabled) do
-    Repo.insert!(%ProjectPreference{user_id: user_id, project_id: project_id, kind: kind, enabled: enabled},
-      on_conflict: [set: [enabled: enabled, updated_at: now()]],
-      conflict_target: [:user_id, :project_id, :kind]
-    )
+  defp preload_result({:ok, rule}), do: {:ok, Repo.preload(rule, [projects: :account], force: true)}
+  defp preload_result(error), do: error
 
-    :ok
-  end
-
-  defp accessible_accounts(user) do
-    [Accounts.get_account_from_user(user) | Enum.map(Accounts.get_user_organization_accounts(user), & &1.account)]
-  end
-
-  defp accessible_account_ids(user), do: user |> accessible_accounts() |> Enum.map(& &1.id)
-
-  @doc """
-  Whether `user_id` wants `kind` notifications about `project_id`: their
-  project override, else their choice for the project's account, else yes.
-  Callers still have to check that the user can access the project at send time.
-  """
-  def notify?(user_id, kind, project_id) when kind in @kinds do
-    Project
-    |> where([p], p.id == ^project_id)
-    |> join(:left, [p], o in ProjectPreference, on: o.project_id == p.id and o.user_id == ^user_id and o.kind == ^kind)
-    |> join(:left, [p], a in AccountPreference,
-      on: a.account_id == p.account_id and a.user_id == ^user_id and a.kind == ^kind
-    )
-    |> select([_p, o, a], coalesce(o.enabled, coalesce(a.enabled, true)))
-    |> Repo.one()
-    |> Kernel.==(true)
-  end
-
-  defp now, do: DateTime.truncate(DateTime.utc_now(), :second)
+  defp stringify(attrs), do: Map.new(attrs, fn {key, value} -> {to_string(key), value} end)
 end

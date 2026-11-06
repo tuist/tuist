@@ -288,6 +288,19 @@ These tools manage the authenticated user's own Claude and ChatGPT subscriptions
 | `cancel_chatgpt_subscription_login` | Cancel a pending sign-in. A connected subscription stays connected. | `login_id` |
 | `disconnect_ai_subscription` | Delete a subscription's saved credentials and any pending sign-in. | `provider` |
 
+#### Notification rules
+
+These tools manage the authenticated user's own notification rules: when an event, such as a new preview, happens in the rule's projects (or any project you can be notified about, when it lists none) and meets its conditions, run its actions, such as a push notification to your Tuist app devices. Without rules you get no notifications. They require user authentication, act only on your own rules, and only accept projects of accounts you belong to. They aren't offered to dashboard pages, because rules span all your accounts.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_notification_events` | List the event types rules can subscribe to, each with a JSON Schema for its conditions. | None |
+| `list_notification_condition_options` | Suggest condition values for an event in a project, such as the tracks and branches of its recent previews. | `event`, `account_handle`, `project_handle` |
+| `list_notification_rules` | List your rules. | None |
+| `create_notification_rule` | Create a rule from an event, optional projects and conditions, and at least one action. | `event`, `actions` |
+| `update_notification_rule` | Change a rule's enabled state, projects, conditions or actions. | `rule_id` |
+| `delete_notification_rule` | Delete a rule. | `rule_id` |
+
 #### Continuous-integration runners
 
 | Tool | Description | Required parameters |

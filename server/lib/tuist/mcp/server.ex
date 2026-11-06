@@ -36,6 +36,12 @@ defmodule Tuist.MCP.Server do
     Tools.PollChatGPTSubscriptionLogin,
     Tools.CancelChatGPTSubscriptionLogin,
     Tools.DisconnectAISubscription,
+    Tools.ListNotificationEvents,
+    Tools.ListNotificationConditionOptions,
+    Tools.ListNotificationRules,
+    Tools.CreateNotificationRule,
+    Tools.UpdateNotificationRule,
+    Tools.DeleteNotificationRule,
     Tools.ListRunnerJobs,
     Tools.GetRunnerJob,
     Tools.ListRunnerJobSteps,
@@ -165,7 +171,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.50.1",
+      version: "1.51.0",
       title: "Tuist",
       description: "Tuist project setup, build, cache, and test insights.",
       instructions: instructions(),

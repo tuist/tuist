@@ -786,7 +786,7 @@ msgstr ""
 msgid "United States"
 msgstr ""
 
-#: lib/tuist/vcs.ex:882
+#: lib/tuist/vcs.ex:883
 #: lib/tuist_web/live/account_token_helpers.ex:96
 #, elixir-autogen, elixir-format
 msgid "Unknown"
