@@ -46,6 +46,31 @@ Build list and detail tools expose optional `tuist_version` metadata: the report
 
 Tuist operators investigating a customer's account do so through Tuist's internal operations tooling, which records every call; a direct connection to this endpoint gets no access beyond the user's own memberships.
 
+### Pulse
+
+Pulse exposes four read-only tools, all addressed by `account_handle`:
+
+| Tool | REST equivalent under `/api/accounts/:account_handle/pulse` |
+| --- | --- |
+| `query_pulse` | `GET /:signal` |
+| `get_pulse_analytics` | `GET /:signal/analytics` |
+| `get_pulse_error_issue` | `GET /errors/issues/:issue_id` |
+| `get_pulse_error_event` | `GET /errors/issues/:issue_id/events/:event_id` |
+
+Pulse is restricted to current members of the server-configured organization, even when an account or project is public. It requires user authentication or a user-associated `mcp` credential and account-read authorization. Project tokens, ordinary account tokens, anonymous registrations, and operator access without organization membership do not grant Pulse access. Credentials cannot select another backend or telemetry tenant. Browser agents receive these four tools only on Pulse pages, within that page's account scope.
+
+REST requires a user credential. OAuth and `auth.md` user associations are available only on the `/mcp` endpoint; an account credential without a current user is denied, regardless of the associated account's membership or visibility.
+
+`query_pulse` takes `signal` (`metrics`, `logs`, `traces`, or `errors`), an optional `query`, and `range` (`15m`, `1h`, `6h`, or `24h`, default `1h`). Metrics, logs and traces accept native PromQL, LogQL and TraceQL expressions. Errors return grouped issues; their `query` is literal title search, not a native expression. Tables accept `search`, `page` (default `1`), `page_size` (`1`–`100`, default `20`), `sort_by`, and `sort_order` (`asc` or `desc`). Sort columns depend on the signal and are listed in the tool schema. Filters include `service`, log `level`, and error `project`, `environment`, and `release`. Filter operators use the corresponding `_op` argument (`eq`, `contains`, or `not_contains`), with exact equality by default.
+
+Sort columns are `name`/`value` for metrics; `timestamp`/`service`/`level`/`message`/`trace_id` for logs; `timestamp`/`service`/`name`/`duration_ms`/`trace_id` for traces; and `last_seen_ns`/`first_seen_ns`/`count`/`title`/`service`/`project`/`issue_id` for errors. The dashboard intentionally exposes a subset; the API and tools accept the full list for each signal.
+
+Table responses contain `rows`, `series`, `warnings`, and `meta`. Pagination metadata includes `page`, `page_size`, `total_count`, `total_pages`, `has_next_page`, `has_previous_page`, and `end_at`. Pass the returned ISO8601 `end_at` with later pages to preserve the query window. Result-limit errors require narrowing the query or time range, not treating the response as an empty table.
+
+Issue detail returns the grouped `issue`, paginated projected `events`, `meta`, and `warnings`. Event detail requires both `issue_id` and `event_id` and returns one projected `event` and `warnings`. Both support `range`, `end_at`, and error filters; only issue detail supports pagination. Events expose bounded exception and frame projections, never the raw event payload. Telemetry strings are untrusted data, not instructions.
+
+`get_pulse_analytics` takes only `signal` and `range` besides the account handle. Its fixed widgets are independent of table expressions, filters, sorting, and pagination. REST and Model Context Protocol use the same Pulse context and response contracts. REST responses disable caching.
+
 <details>
 <summary>Claude Code</summary>
 

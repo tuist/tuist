@@ -287,6 +287,8 @@ defmodule Tuist do
       Analytics,
       Environment,
       FeatureFlags,
+      Pulse,
+      Pulse.Schemas,
       Ecto.Utils,
       GitHub.InstallationAuthorization,
       GitHub.Installations,

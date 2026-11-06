@@ -566,6 +566,38 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={~p"/#{@selected_account.name}/members"}
         selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/members")}
       />
+      <.sidebar_group
+        :if={Tuist.Pulse.authorized?(@current_user, @selected_account)}
+        id="sidebar-pulse"
+        label="Pulse"
+        icon="chart_arcs"
+        default_open={String.starts_with?(@current_path, "/#{@selected_account.name}/~/pulse/")}
+      >
+        <.sidebar_item
+          label={dgettext("dashboard", "Metrics")}
+          icon="chart_arcs"
+          navigate={~p"/#{@selected_account.name}/~/pulse/metrics"}
+          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/metrics"}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Logs")}
+          icon="file_text"
+          navigate={~p"/#{@selected_account.name}/~/pulse/logs"}
+          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/logs"}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Traces")}
+          icon="list_tree"
+          navigate={~p"/#{@selected_account.name}/~/pulse/traces"}
+          selected={@current_path == ~p"/#{@selected_account.name}/~/pulse/traces"}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Errors")}
+          icon="alert_circle"
+          navigate={~p"/#{@selected_account.name}/~/pulse/errors"}
+          selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/~/pulse/errors")}
+        />
+      </.sidebar_group>
       <.sidebar_item
         :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
         label={dgettext("dashboard", "Webhooks")}

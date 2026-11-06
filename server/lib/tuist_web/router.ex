@@ -853,6 +853,13 @@ defmodule TuistWeb.Router do
       patch "/", AccountController, :update_account
       delete "/", AccountController, :delete_account
 
+      scope "/pulse" do
+        get "/errors/issues/:issue_id/events/:event_id", PulseController, :event
+        get "/errors/issues/:issue_id", PulseController, :issue
+        get "/:signal/analytics", PulseController, :analytics
+        get "/:signal", PulseController, :query
+      end
+
       scope "/tokens" do
         post "/", AccountTokensController, :create
         get "/", AccountTokensController, :index
@@ -1777,6 +1784,12 @@ defmodule TuistWeb.Router do
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
+      live "/~/pulse/errors/issues/:issue_id/events/:event_id", PulseErrorLive, :event
+      live "/~/pulse/errors/issues/:issue_id", PulseErrorLive, :issue
+      live "/~/pulse/metrics", PulseLive, :metrics
+      live "/~/pulse/logs", PulseLive, :logs
+      live "/~/pulse/traces", PulseLive, :traces
+      live "/~/pulse/errors", PulseLive, :errors
       live "/runners/profiles", RunnerProfilesLive
       live "/runners/volumes", RunnerVolumesLive
       live "/runners/volumes/:id", RunnerVolumesLive

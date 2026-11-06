@@ -20,6 +20,16 @@ import Config
 alias Tuist.Oban.RuntimeConfig
 alias Tuist.Runners.Catalog
 
+# Initial Pulse enrollment is one stable organization account ID, never a handle
+# supplied by the browser. Leave unset outside the Tuist deployment.
+config :tuist, :pulse,
+  account_id:
+    if(System.get_env("TUIST_PULSE_ACCOUNT_ID"), do: String.to_integer(System.fetch_env!("TUIST_PULSE_ACCOUNT_ID"))),
+  base_url: System.get_env("TUIST_PULSE_URL"),
+  tenant: System.get_env("TUIST_PULSE_TENANT"),
+  token: System.get_env("TUIST_PULSE_TOKEN"),
+  token_file: System.get_env("TUIST_PULSE_TOKEN_FILE")
+
 # Explicit account-to-issuer trust, separate from account CI workload identities.
 if raw = System.get_env("TUIST_ATLAS_ENVIRONMENT_TRUST") do
   trusts = JSON.decode!(raw)
