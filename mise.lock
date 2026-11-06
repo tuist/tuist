@@ -677,32 +677,32 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
 [[tools.tuist]]
-version = "4.217.0-canary.28"
+version = "4.217.0-canary.39"
 backend = "aqua:tuist/tuist"
 
 [tools.tuist."platforms.linux-arm64"]
-checksum = "sha256:b7ba96beb6b2fa81fee03e09f5db1c25c5ce950db6e08c48cee0e4a7ce714dec"
-url = "https://github.com/tuist/tuist/releases/download/4.217.0-canary.28/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:e29dcfca1964a07518e23b1bfca652ae3489788a20a639ce3bc60f09628c887a"
+url = "https://github.com/tuist/tuist/releases/download/4.217.0-canary.39/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-arm64-musl"]
-checksum = "sha256:b7ba96beb6b2fa81fee03e09f5db1c25c5ce950db6e08c48cee0e4a7ce714dec"
-url = "https://github.com/tuist/tuist/releases/download/4.217.0-canary.28/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:e29dcfca1964a07518e23b1bfca652ae3489788a20a639ce3bc60f09628c887a"
+url = "https://github.com/tuist/tuist/releases/download/4.217.0-canary.39/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-x64"]
-checksum = "sha256:41960d3d0b22203a1bfb6c469370af2b62ef1294beaeae8bf39cdbe5f5cc9782"
-url = "https://github.com/tuist/tuist/releases/download/4.217.0-canary.28/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:699896baaba1f9ff797a7c86db22405c8fca83263b1844e1c6b46bfea5d0c487"
+url = "https://github.com/tuist/tuist/releases/download/4.217.0-canary.39/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.linux-x64-musl"]
-checksum = "sha256:41960d3d0b22203a1bfb6c469370af2b62ef1294beaeae8bf39cdbe5f5cc9782"
-url = "https://github.com/tuist/tuist/releases/download/4.217.0-canary.28/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:699896baaba1f9ff797a7c86db22405c8fca83263b1844e1c6b46bfea5d0c487"
+url = "https://github.com/tuist/tuist/releases/download/4.217.0-canary.39/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.macos-arm64"]
-checksum = "sha256:64c496ce2115973f6d1f26242c52bbbaeee1f3f8e49681071958d3da39d3e8f1"
-url = "https://github.com/tuist/tuist/releases/download/4.217.0-canary.28/tuist.zip"
+checksum = "sha256:7a729139500968e0c944621f922dc5371f34381ea7306ff2b04990140bb20b69"
+url = "https://github.com/tuist/tuist/releases/download/4.217.0-canary.39/tuist.zip"
 
 [tools.tuist."platforms.macos-x64"]
-checksum = "sha256:64c496ce2115973f6d1f26242c52bbbaeee1f3f8e49681071958d3da39d3e8f1"
-url = "https://github.com/tuist/tuist/releases/download/4.217.0-canary.28/tuist.zip"
+checksum = "sha256:7a729139500968e0c944621f922dc5371f34381ea7306ff2b04990140bb20b69"
+url = "https://github.com/tuist/tuist/releases/download/4.217.0-canary.39/tuist.zip"
 
 [[tools.xcodes]]
 version = "2.1.0"
