@@ -2,12 +2,12 @@
 {
   "title": "測試洞察",
   "titleTemplate": ":title · 功能 · 指南 · Tuist",
-  "description": "使用 Tuist 測試洞察，找出 Xcode、Gradle、Bazel、Elixir 和 Rust 專案中不穩定與緩慢的測試。"
+  "description": "使用 Tuist 測試洞察，識別 Xcode、Gradle、Bazel、Elixir、Rust 和 Once 專案中不穩定與緩慢的測試。"
 }
 ---
 # 測試洞察 {#test-insights}
 
-使用「測試洞察」監控測試套件的健全狀況，包括識別緩慢測試、追蹤不穩定測試，以及快速了解失敗的 CI 執行。目前支援 Xcode、Gradle、Bazel、Elixir 與 Rust。若要追蹤測試執行的程式碼，請參閱 <.localized_link href="/guides/features/test-code-coverage">程式碼涵蓋率</.localized_link>。
+使用測試洞察來監控你的測試套件健康狀況，包括識別緩慢測試、追蹤不穩定測試，以及快速了解失敗的 CI 執行。目前支援 Xcode、Gradle、Bazel、Elixir、Rust 和 Once。可用的結果與時間取決於你的 runner。若要查看在支援的建置系統上測試執行了哪些程式碼，請參閱 <.localized_link href="/guides/features/test-code-coverage">程式碼涵蓋率</.localized_link>。
 
 <.home_cards>
   <.home_card
@@ -32,7 +32,12 @@
 />
   <.home_card
     title="Rust"
-    details="使用你慣用的測試指令追蹤 Cargo 測試結果、套件執行時間與 doctests。"
+    details="使用你慣用的測試指令追蹤 Cargo 測試結果、套件持續時間與 doctests。"
     link="/guides/features/test-insights/rust"
+/>
+  <.home_card
+    title="Once"
+    details="透過 Once 的原生整合追蹤回報的測試目標、套件、案例、失敗與重試次數。"
+    link="/guides/features/test-insights/once"
 />
 </.home_cards>
