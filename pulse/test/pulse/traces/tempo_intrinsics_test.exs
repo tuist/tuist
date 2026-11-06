@@ -56,14 +56,24 @@ defmodule Pulse.Traces.TempoIntrinsicsTest do
     end
   end
 
-  test "virtual shortcuts do not infer arbitrary empty values, accept filters, or apply v2 status semantics to v1" do
+  test "static vocabulary validates filters without claiming stored presence; ID dictionaries require storage" do
     Runtime.put_env(:pulse, TempoSearch, enabled: true)
+    Runtime.put_env(:pulse, Storage, adapter: FailingStorage)
 
-    for key <- ~w(error status.code link:spanID link:traceID span:id span:parentID trace:id) do
+    for key <- ~w(error status.code) do
       assert {:error, :unsupported_trace_discovery} = TempoDiscovery.query("static", "intrinsic", key)
     end
 
-    for key <- ["", "status"], q <- [~s'{resource.service.name="absent"}', "{", "{} with (most_recent=true)"] do
+    for key <- ~w(link:spanID link:traceID span:id span:parentID trace:id), version <- [1, 2] do
+      assert {:error, :storage_unavailable} = TempoDiscovery.query("static", "intrinsic", key, version)
+    end
+
+    for c <- cases(), q <- [~s'{resource.service.name="absent"}', ~s'{span.cached=true || span.count>1}'] do
+      assert {:ok, body} = TempoDiscovery.query("static", "intrinsic", c["key"], 2, "json", q)
+      assert Pulse.JSON.decode!(body) == c["response"]
+    end
+
+    for key <- ["", "status"], q <- ["{", "{} with (most_recent=true)"] do
       assert {:error, :unsupported_trace_discovery} = TempoDiscovery.query("static", "intrinsic", key, 2, "json", q)
     end
 

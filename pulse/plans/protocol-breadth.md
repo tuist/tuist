@@ -11,6 +11,20 @@ Keep a versioned contract matrix with supported forms, explicit rejections,
 semantic references, bounds and operational qualifications. The operator-facing
 current boundary is [protocol coverage](../docs/protocol-coverage.md).
 
+### Grafana Tempo query-builder increment
+
+The current search/autocomplete profile accepts typed single-spanset filters,
+quoted keys, all five owner scopes and the advertised intrinsics, including
+retained root/duration context and stored ID dictionaries. Search capability
+10 and discovery 13 require matching query-serving app/native artifacts; metric
+capability 7 and stored/keyed bytes stay unchanged. The pinned
+[fixture ledger](../test/fixtures/traces/tempo_integration/README.md#grafana-builder-autocomplete-engine-probes)
+records 53 actual engine/Parquet autocomplete outcomes, separating 46 exact
+dictionaries from 7 complete-filter/stored-value extensions. These extend the
+selected public integration tables, not replace production/client acceptance.
+Full TraceQL, discovery omission parity, structural/select autocomplete,
+indexed capacity and provider/failure cutover validation remain separate gates.
+
 Error collection belongs in this same compatibility backlog. Use Sentry/Relay's
 actual ingestion integration tests as independent inputs and expected outcomes,
 not only SDK smoke tests or Pulse-authored cases. Pin selections and explicitly
@@ -645,6 +659,24 @@ implementations to fill a gap: retain test attribution and independently
 implement behavior within Pulse's architecture and resource bounds.
 
 ### Surface and error backlog
+
+The [Grafana datasource contract ledger](../test/fixtures/grafana/README.md#datasource-http-request-contracts)
+adds current-client discovery limits/escaped names, optional query statistics
+selectors, Prometheus result-limit tables and Loki health/log-volume requests.
+These close verified request-shape gaps, not the complete HTTP handler backlog
+below; bounded whole-query safety failures remain authoritative before caps.
+
+The [Tempo ledger](../test/fixtures/traces/tempo_integration/README.md) also
+records actual engine/Parquet oracles for empty/typed/name/kind search and
+complete-retained trace-duration comparisons, plus actual HTTP-parser outcomes
+for Grafana's discovery `limit`/`tag`. The subsequent builder increment adds
+quoted search keys, link/instrumentation owners, all 25 advertised intrinsic
+spellings and single-spanset typed/boolean/intrinsic discovery filters with
+stored ID dictionaries. Search10/discovery13/metrics7 supersede older snapshots.
+The 76 search and 53 discovery engine/Parquet probes distinguish unchanged
+upstream predicates from authored probes and deliberate completeness extensions.
+Full TraceQL, structural/selected discovery, streaming and deployed-client
+acceptance remain open.
 
 | Area | Remaining source-backed work and qualifications |
 | --- | --- |

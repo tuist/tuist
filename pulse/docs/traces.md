@@ -249,7 +249,7 @@ remain unsupported.
 
 ## Typed-metadata upgrade boundary
 
-Current required native trace tuple is `{2,1,3,7,12}`. Before accepting non-finite
+Current required native trace tuple is `{2,1,3,10,13}`. Before accepting non-finite
 values, upgrade all participants; old readers/compactors reject them. NaN
 normalizes by class, not payload bits. Service promotion now requires original
 `stringValue`, also removing prior byte-service promotion; drain those keyed
@@ -289,16 +289,19 @@ scan bytes and aggregate provider pressure. This enables `GET /api/search` and
 MCP `search_trace_metadata`; it does not change `search_traces` or exact-ID
 lookup. Disabled HTTP search returns `501`; MCP returns `tempo_search_disabled`.
 
-The supported subset requires one same-span selector. Results are always the
+Each spanset's predicates match one span. Results are always the
 most recent matching traces, so `with (most_recent=true)` is optional; Grafana
 omits it by default, and real Tempo may return any matching traces without it. Positive original-string equality/anchored-regex AND selectors
 retain native source planning. [Bounded boolean expressions](trace-query-expressions.md)
-add negated string predicates, original-int64 comparisons, status and own-span
-duration, AND/OR and parentheses, without that planner. Unsupported/default
-TraceQL queries fail, never approximate. Tags-style search, structural/spanset
-operators, pipelines, variable expansion and streaming endpoints remain unsupported.
+add empty spansets, typed bool/double/int64 comparisons, all five original owner
+scopes, quoted keys, Grafana's 25 intrinsic spellings (including root fields,
+IDs, instrumentation and event timing), own-span and retained-trace duration,
+negated strings, AND/OR and parentheses, without that planner. Bounded structural
+operators and one trailing `select` are also supported. Other TraceQL queries
+fail, never approximate. Tags-style search,
+other pipelines, variable expansion and streaming endpoints remain unsupported.
 Separate [tag discovery](#experimental-scoped-tag-discovery) is available behind
-the same default-off gate and retains its narrower parent-string grammar.
+the same default-off gate with its own filter/value contract.
 
 HTTP accepts only `q`, paired decimal `start` and `end` (uint32 Unix
 **seconds**, positive start ≤ end), `limit` (1–1000, default 100), and `spss`
@@ -363,14 +366,32 @@ trace completeness. Unknown inspection metrics are omitted, not invented.
 
 ### Bounded boolean expressions
 
-Retained-context search also supports original-string `!=`/`!~`, original-int64
-comparisons, `status`/`span:status` enum comparisons and own-span
-`duration`/`span:duration` comparisons, combined with `&&`, `||` and parentheses.
+Retained-context search supports `{}`, original-string `!=`/`!~`, original-int64
+and float64 comparisons, original booleans, `name`/`span:name` strings,
+`kind`/`span:kind` and `status`/`span:status` enums, and own-span
+`duration`/`span:duration`, combined with `&&`, `||` and parentheses.
+Grafana's migrated min/max filters also work: `traceDuration` and `trace:duration`
+compare the **complete retained trace** max-end minus min-start, not the root's
+or selected span's duration. This search mode recovers context outside the
+ordinary one-hour horizon, then replays already captured bytes for final matching;
+it retains every existing input/group/sample/work ceiling and can reject whole
+requests for broad histories. Trace metrics and legacy filters do not gain this
+trace-wide semantic. It is not exporter completeness.
 TraceQL gives AND/OR equal precedence and groups left-to-right. Missing or
 mismatched types do not match even negative predicates; no inferred/coerced data.
+Int and float literals target different original types, including above 2^53;
+this is typed Parquet predicate behavior, not full TraceQL numeric arithmetic.
+Name is the intrinsic span name, not an attribute; kind uses the six OTel enums.
+Empty spansets can be structural operands but do not broaden structural metrics.
+Original link/instrumentation attributes and double-quoted key segments retain
+their types and owner boundaries. Root name/service predicates recover complete
+retained context; event/link/instrumentation intrinsics use their original owner
+metadata. ID predicates retain the pinned engine/Parquet normalization caveats,
+and event/link conjunctions require a single repeated owner. These are verified
+bounded forms, not full TraceQL or arbitrary existential event expressions.
 Expressions skip summary pruning but use the same newest-first planning, plus an
-additional 20M prefilter work ceiling per scan attempt. Window-local search and
-discovery retain their narrower grammar. Read [expression semantics, costs and
+additional 20M prefilter work ceiling per scan attempt. Window-local search,
+exact-ID filters, metrics and discovery keep separate capabilities. Read [expression semantics, costs and
 upgrade requirements](trace-query-expressions.md) before use.
 
 ### Candidate pruning and newest-first planning
@@ -444,9 +465,9 @@ Record-based reference adapters have no source indexes or native compressed-inpu
 owner caps. Dirty native work can outlive deadlines; exceptions/panics rely on
 resource cleanup and lock contention remains a generic resource error.
 
-Require complete-context search capability **6**, current tuple **`{2,1,3,7,12}`**, on
+Require complete-context search capability **10**, current tuple **`{2,1,3,10,13}`**, on
 all serving application/native artifacts before use; discovery capability is
-**12**. Startup verifies only local artifacts, not other running nodes. Smaller
+**13**. Startup verifies only local artifacts, not other running nodes. Smaller
 windows/result limits do not themselves reduce retained context. Broad, legacy,
 dense or retain-forever histories can still exhaust catalog/input/group bounds.
 Representative posting/index planning and provider/capacity validation remain
@@ -513,8 +534,9 @@ JSON-compatible escapes. Quoted dots are literal key bytes, not nested-object
 traversal. Normalization inputs cap at 2048 bytes and decoded keys at 256 UTF-8
 bytes. Adjacent quotes, suffix text after a quoted portion and malformed mixed
 escapes reject. Upgrade query-serving applications consistently; no native or
-storage-format change is required. Search, metric and filter grammars do not
-gain this identifier syntax.
+storage-format change is required for target parsing. Retained-context search
+and expression discovery also accept quoted keys; metrics and legacy filters
+retain their separate grammars.
 
 Supported explicit scopes are **resource, span, instrumentation, event and link**.
 Each searches only original attributes of that owner: instrumentation does not
@@ -532,13 +554,53 @@ supported filtered selector below; name routes accept it with the distinct
 Tenant/auth rules match lookup. Disabled queries return HTTP `501` or MCP
 `tempo_search_disabled` without storage reads.
 
-Stored-attribute name/value discovery accepts a nonempty `{ resource.<key> = "string" &&
+### Grafana query-builder filters and stored IDs
+
+Discovery accepts the single-spanset search expression grammar: typed string,
+int64, boolean and float predicates, AND/OR/groups, quoted keys, all five
+attribute scopes and the advertised intrinsic spellings. Repeated event/link
+conjunctions require one owner; values preserve original types. Structural
+operators, `select`, hints, malformed/incomplete expressions and one-sided or
+zero-sentinel discovery windows still reject rather than dropping filters.
+
+The five ID targets `trace:id`, `span:id`, `span:parentID`, `link:traceID` and
+`link:spanID` now return stored string dictionaries, not static empty results.
+Root and duration predicates recover complete retained context before matching
+parents in selected source envelopes. Duration is retained max-end minus
+min-start, not own-span or window-clipped duration. Root ambiguity and unknown
+original root service fail whole when root evidence is required; span-local or
+duration-only queries do not require a root.
+
+Expression discovery requires capability **13**, search **10**, metrics **7**:
+startup tuple `{{2,1,3,10,13},7}`. Upgrade every serving application/native pair.
+Custom adapters need `tempo_expression_discovery_json/5` or the bounded complete
+reference fallback; old callbacks never receive new programs. Flat references
+cannot implement source windows. Retained inputs cap at 1024 objects / 32 MiB /
+1M physical rows, with independent replay, context, work, dictionary and output
+limits. Captured inputs replay without another provider GET. Stored/keyed bytes
+are unchanged.
+
+The following string-AND descriptions document the preserved fast path, not
+the whole expression grammar. Same-target original-string equality remains
+rejected on that path rather than returning a query literal as stored evidence.
+Expression queries always project stored values. The existing complete name-hint
+and static-vocabulary distinctions still apply. Valid filters on static
+vocabularies are syntax-checked but do not make them stored-value evidence.
+
+Pinned upstream engine/Parquet probes cover 53 discovery cases: 46 exact
+dictionaries and seven explicitly documented complete-filter/stored-ID
+extensions. Upstream omissions remain unchanged in the oracle. Native/reference,
+legacy-adapter and authenticated OTLP → Parquet → owned S3 HTTP replays cover
+these cases; they do not establish real-provider capacity or deployed Grafana
+acceptance. See the [fixture ledger](../test/fixtures/traces/tempo_integration/README.md).
+
+The string fast path accepts a nonempty `{ resource.<key> = "string" &&
 span.<key> =~ "pattern" }` selector: 1–16 AND-combined original-string equality
 or fully anchored RE2-subset predicates, at most eight regexes. All predicates
 must match the **same parent span**, not different siblings under a resource.
 For instrumentation/event/link value targets, these resource/span filters select
 parents, then union the selected parents' original target-owner attributes.
-Filters on instrumentation/event/link attributes themselves remain unsupported;
+Instrumentation/event/link predicates use expression discovery instead;
 no cross-event or cross-link predicate matching is inferred. Typed
 boolean/integer/bytes projections never become strings for filtering. Query size
 is at most 16,384 UTF-8 bytes; keys/exact values/patterns have the same 256/4096/
@@ -555,8 +617,8 @@ to unfiltered results. Grafana can send the editor's half-typed query while
 suggesting values; these requests return `400` until a complete supported
 selector is supplied, rather than extracting/guessing partial conditions.
 
-**No one-sided/zero-sentinel time ranges, TraceQL hints, OR, nonstring predicates, structural
-operators, `scope=all`, intrinsic predicates or remaining
+**No one-sided/zero-sentinel time ranges, TraceQL hints, structural
+operators, `scope=all` or remaining
 stored span-duration intrinsic values are supported. Default combined names and static intrinsic vocabulary are
 explicit exceptions described below.** Such requests reject with
 `400`, never silently drop filters or approximate autocomplete. Grafana may
@@ -623,6 +685,23 @@ or legacy/corruption checks: failure rejects the **whole** response, not a parti
 intrinsic dictionary. Intrinsic-only requests remain independently storage-free.
 No new storage format, mutable index or cross-instance authority is introduced.
 
+### Grafana discovery transport parameters
+
+Names endpoints accept and ignore `limit`, matching the pinned Tempo parser.
+Values endpoints accept a decimal uint32 `limit` of at most ten bytes:
+omitted, empty or zero means no output cap **within existing safety budgets**.
+A positive limit caps the final values after the complete bounded scan and v1
+conversion/deduplication; it does not reduce provider, row, dictionary or work
+charges, suppress errors or authorize partial results. The
+`x-pulse-trace-discovery-limit` header reports the effective policy.
+
+Values endpoints also accept Grafana's redundant encoded `tag` query parameter;
+the path target always wins, including when the two disagree. The datasource's
+default `limit=5000` and retained `tag` no longer reject autocomplete requests.
+Filter support is described above; transport compatibility does not establish
+deployed Grafana acceptance. See the [actual pinned parser/HTTP
+evidence](../test/fixtures/traces/tempo_integration/README.md#basic-same-span-search-and-discovery-transport).
+
 Independent public Tempo execution establishes 15 combined cases: 12 exact, three
 complete conservative supersets rather than upstream shared-key omissions. Actual
 frontend HTTP handlers were also exercised on 90 requests with **owned stub
@@ -655,8 +734,9 @@ not each returned value. No event/link value, intrinsic, name hint or missing
 service.name default is invented. Equality on the requested key in any resource/span
 namespace remains deliberately unsupported to avoid the upstream literal-shortcut
 contract, not because other-owner values are impossible to compute. Same-key
-original-string regex is the supported workaround. Instrumentation/nested/intrinsic predicates and malformed/hinted/partial
-selectors still reject, never degrade to unfiltered execution.
+original-string regex is the fast-path workaround. Instrumentation/nested/intrinsic
+predicates use expression discovery; malformed/hinted/partial selectors still
+reject, never degrade to unfiltered execution.
 
 Every selected visible parent validates even when it does not match. All three
 requested owners and **all their attributes** spend the shared work budget before
@@ -667,7 +747,7 @@ metadata always fails. Empty matches return an empty list only after the admitte
 scan completes. Source routing/windows and raw provider/footer bounds are unchanged;
 this does not use metadata search's service/ID optimizer.
 
-Require discovery capability **12**, tuple **`{2,1,3,7,12}`**, across all serving apps
+Require discovery capability **13**, tuple **`{2,1,3,10,13}`**, across all serving apps
 and native artifacts. Non-window adapters need explicit query-aware unscoped
 execution or a bounded reference scan; old unfiltered callbacks cannot receive
 queries. Windowed filtered-unscoped execution requires separate explicit support,
@@ -770,8 +850,8 @@ provider capacity, migration or cutover acceptance. An additional 68 actual
 Parquet/engine cases cover all five scopes, shared keys with different owners,
 multiple events/links under one parent, typed extremes/empty values and parent
 filters. Actual public protobuf decoders also consumed all 68 current results.
-Install matching native artifacts: discovery capability is **12** (startup
-tuple `{2,1,3,7,12}`); no physical column changes are introduced. Upgrade/drain every
+Install matching native artifacts: discovery capability is **13** (startup
+tuple `{2,1,3,10,13}`); no physical column changes are introduced. Upgrade/drain every
 instance serving discovery before clients use event-time/filtered-unscoped/time-windowed/float/stored-intrinsic values through a shared pool.
 Startup only checks the local artifact; it does not fence older running nodes.
 
@@ -843,7 +923,7 @@ support**; they never pass through that older generic callback. Non-window callb
 support does not establish window support. Flat-record/old adapters reject rather
 than ignore time or invent segment boundaries. There is no storage-format or
 mutable coordination change. Upgrade/drain **every** serving app/native participant
-to capability **12**, tuple **`{2,1,3,7,12}`**, before use.
+to capability **13**, tuple **`{2,1,3,10,13}`**, before use.
 
 ### Stored intrinsic string values
 
@@ -891,7 +971,7 @@ Public protobuf decoders consumed all 62 current native-result Elixir responses
 in **each of v1 and v2** (124 wire messages). This verifies envelopes and values,
 not legacy v1 target-alias interpretation.
 These are repository interoperability fixtures, not running Grafana acceptance.
-Root/service-root/trace-duration values remain unsupported;
+Root/service-root/trace-duration dictionaries use the separate context paths below;
 unknown targets fail, never guessed empty. No storage format changes are required.
 
 ### Stored event-time offsets are integer nanoseconds
@@ -922,8 +1002,9 @@ Optional bounded original-string resource/span AND filters select **one parent**
 before collecting all its event offsets. This is a **complete filtered extension**:
 actual Tempo's public parent-filtered event-time path returned empty results for
 five nonempty fixture selections. We do not copy that omission or claim filtered
-backend parity. No intrinsic/event predicates, hints, partial grammar or type
-coercion are enabled. Work charges **one parent plus every event and its attrs
+backend parity. Intrinsic/event predicates use expression discovery; hints,
+partial grammar and type coercion still reject. Fast-path work charges
+**one parent plus every event and its attrs
 before filtering**, even an empty event list/impossible predicate; 2M work, 1M
 raw rows, 5000 typed values and independent 1MiB dictionary/result limits remain.
 Window bounds select whole **parent-span source envelopes**, not event times;
@@ -939,7 +1020,7 @@ because windows include whole sources and compaction can broaden them. Filters
 reduce returned values but **not** requested-owner work or provider/header costs.
 Inspect the tagged reason: dictionary/row/work exhaustion is not stored corruption.
 
-Requires current discovery **12**, tuple **`{2,1,3,7,12}`**, on every serving app/native
+Requires current discovery **13**, tuple **`{2,1,3,10,13}`**, on every serving app/native
 participant. Explicit event-time execution or a bounded reference is required;
 old stored-string callbacks cannot receive the new target. Windowed event-time
 execution needs separate explicit support and cannot use an old generic window
@@ -970,7 +1051,8 @@ AND equality/anchored-regex predicates. A matching **parent span selects its tra
 then recover all retained spans for that ID before proving its root. The root
 need not match the predicate or belong to the selected source envelope. This is
 not returning a child span's own name/service or the first span encountered.
-Intrinsic/nonstring/structural predicates remain unsupported.
+Intrinsic/nonstring predicates use expression discovery; structural predicates
+remain unsupported.
 
 A root has no parent ID and no original string `opentracing.ref_type="child_of"`
 link. Identical root copies with the same span ID/name/original service coalesce.
@@ -1021,7 +1103,7 @@ The global **2M work / 5000 values / independent 1 MiB dictionary and encoded-re
 limits still reject whole requests. Filters do not evade prefilter work or raw I/O.
 No native bound is a node/deployment-wide capacity guarantee.
 
-Requires current discovery **12**, tuple **`{2,1,3,7,12}`**, across every serving
+Requires current discovery **13**, tuple **`{2,1,3,10,13}`**, across every serving
 app/native participant. New explicit root execution or bounded complete reference
 is required; windowed roots need dedicated window-aware support with source
 boundaries. Old span-local string or generic window callbacks never receive
@@ -1088,7 +1170,7 @@ and narrow source windows can help without a guarantee, and do not avoid raw
 provider/header costs or prefilter work. Compaction can broaden candidate sources.
 This is not representative indexed capacity or transparent production autocomplete.
 
-Current discovery **12**, tuple **`{2,1,3,7,12}`**, is required across every serving
+Current discovery **13**, tuple **`{2,1,3,10,13}`**, is required across every serving
 app/native participant. New explicit trace-duration execution or a bounded complete
 sentinel reference is required; windows need dedicated support preserving source
 boundaries. Old root/string/generic-window callbacks never receive this mode.
@@ -1107,12 +1189,11 @@ This is scoped evidence, not generalized physical-layout/deployed-client parity.
 The discovery gate also enables explicit `scope=intrinsic` name lookup on both
 `/api/search/tags` and `/api/v2/search/tags`, and the same MCP scope. This returns
 Tempo's 25 intrinsic names as **protocol vocabulary**, not evidence that a tenant
-has those fields or that Pulse supports the advertised TraceQL syntax. Selecting
-suggestions does not broaden the supported search/filter grammar. In particular,
+has those fields. Selecting suggestions does not broaden the supported grammar.
+The single-spanset builder forms are supported as described above. In particular,
 `link:spanID`, `link:traceID`, `span:id`, `span:parentID` and `trace:id` are name
-suggestions only: v2 ID-value discovery and explicit MCP intrinsic-value requests
-still reject rather than inventing empty dictionaries. V1 bare-key attribute
-lookup keeps its existing semantics, not core-ID discovery.
+suggestions whose value requests now scan stored IDs. Canonical intrinsic targets
+route to these dictionaries; arbitrary v1 bare keys retain attribute lookup.
 
 The vocabulary follows the pinned newer Tempo integration profile, superseding
 the 20-name v2.9 snapshot. Combined default discovery reserves all 25 entries
@@ -1120,10 +1201,10 @@ inside the existing global 5,000-pair ceiling, even for v1 before intrinsic name
 are removed from the response; near-cap requests can therefore reject five keys
 earlier. With only the required resource `service.name` hint, 4,974 distinct span
 keys fit and 4,975 reject whole. Upgrade all query-serving applications and their
-native artifacts together for consistent names and admission. The native API
-tuple, storage/keyed bytes, overall dictionary/byte/work ceilings and seven
-static value vocabularies are unchanged; no migration or keyed-retry drain is
-required.
+native artifacts together for consistent names and admission. The current native
+tuple is `{2,1,3,10,13}`; storage/keyed bytes, overall dictionary/byte/work ceilings
+and seven static value vocabularies are unchanged. No stored-data migration or
+keyed-retry drain is required for this read-only increment.
 
 V2 static value lookup accepts these canonical targets (without an attribute-scope
 prefix), for example `/api/v2/search/tag/span:kind/values`:
@@ -1136,8 +1217,8 @@ prefix), for example `/api/v2/search/tag/span:kind/values`:
 
 MCP `discover_trace_tag_values` uses `scope: "intrinsic"` and the exact target as
 `key`. The seven stored string targets and integer event-time offsets above use
-separate data scans, not these shortcuts. Other intrinsic values, including `trace:duration` and root fields,
-**reject** rather than invent empty data results.
+separate data scans, not these shortcuts. Root fields, canonical `trace:duration`
+and the five IDs likewise use the stored-data paths described above.
 Dotted attribute targets such as `span.kind` remain original stored attributes,
 not intrinsic keywords. `intrinsic.kind` is not an HTTP target alias.
 
@@ -1147,8 +1228,10 @@ HTTP vocabulary polling can still receive `429` (MCP `query_overloaded`); static
 lookups are not an admission bypass. They remain static
 even when the tenant has no data, legacy metadata or unavailable storage; they
 are not stored-value proofs. HTTP coverage is
-`static-protocol-vocabulary; not-stored-values`. Nonempty `q`/MCP `query` filters
-reject; absent, empty or exactly `{}` is unfiltered. Valid paired time bounds
+`static-protocol-vocabulary; not-stored-values`. Valid nonempty `q`/MCP `query`
+filters are validated but do not restrict static vocabulary; malformed,
+structural, selected or hinted filters reject. Absent, empty or exactly `{}` is
+unfiltered. Valid paired time bounds
 are window-independent here, not stored-data evidence. V1 value
 shortcuts reject because that protocol conflates attributes with intrinsics;
 its explicit intrinsic-name lookup and the canonical stored string-list envelopes
@@ -1161,7 +1244,7 @@ without backend clients established the seven v2 static shortcuts and public
 protobuf decoders consumed all eight name/value responses. This is not a running
 Grafana/Tempo deployment acceptance result. Upgrade every instance serving
 discovery before clients use the new mode in a shared pool. Matching native
-artifacts require tuple `{2,1,3,7,12}`; static vocabulary itself does not alter
+artifacts require tuple `{2,1,3,10,13}`; static vocabulary itself does not alter
 native or storage formats. Startup does not fence older application nodes.
 
 ### Tempo v1 trace lookup
@@ -1299,8 +1382,8 @@ wire. The client conversion itself is not lossless: this Grafana version renders
 bytes as empty string, projects nanosecond times to float milliseconds and exposes
 large int64s to downstream JavaScript-number limitations. Keep Pulse metadata/wire
 as the fidelity boundary rather than treating a frame as an original OTLP record.
-Install matching native artifacts: complete-context search capability is now 5
-(metadata 2/export 3/discovery 12), tuple `{2,1,3,7,12}`. Startup checks reject
+Install matching native artifacts: complete-context search capability is **10**
+(metadata 2/export 3/discovery 13), tuple `{2,1,3,10,13}`. Startup checks reject
 previous bindings; unscoped search adds no storage-format change. Upgrade or drain **every node serving
 Tempo endpoints** before pointing Grafana at the pool: a rolling mix with the
 previous exporter can still omit default status and intermittently crash client

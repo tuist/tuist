@@ -6,6 +6,7 @@ defmodule Pulse.Traces.TempoRootsTest do
   alias Pulse.Storage
   alias Pulse.Test.PreRootDiscoveryStorage
   alias Pulse.Traces.{TempoDiscovery, TempoRootDiscovery}
+  alias Pulse.Traces.TempoSearch
 
   @fixture "test/fixtures/traces/"
   @keys ~w(rootName trace:rootName rootServiceName trace:rootService)
@@ -38,6 +39,76 @@ defmodule Pulse.Traces.TempoRootsTest do
 
       for segments <- [[rows], [Enum.reverse(rows)], Enum.map(rows, &[&1]), [rows, rows]] do
         assert decoded(native(segments, c["target"], opts)) == expected
+      end
+    end
+  end
+
+  test "expression root dictionaries disqualify original cross-trace child_of evidence", %{rows: rows} do
+    # The independently produced fixture's trace 6 has no retained root: its
+    # parentless span explicitly points to a child_of parent in trace 100.
+    linked = Enum.find(rows, &(&1.trace_id == hex(6, 32) and is_nil(&1.parent_span_id)))
+    assert [%{"trace_id" => linked_trace}] = linked.links
+    assert linked_trace == hex(100, 32)
+    assert [[%{"key" => "opentracing.ref_type", "value" => %{"stringValue" => "child_of"}}]] = linked.otlp["links"]
+
+    assert :ok = Storage.append(:traces, "root-expression", rows)
+    Pulse.Runtime.put_env(:pulse, TempoSearch, enabled: true)
+
+    for query <- [
+          ~s({span.case="childlink" || span.case=2}),
+          ~s({span.case="childlink" && trace:duration>0ns})
+        ],
+        key <- @keys do
+      opts = [discovery_query: query]
+      assert {:ok, {:expression, program}} = TempoDiscovery.filter("intrinsic", key, query)
+
+      assert TempoDiscovery.query("root-expression", "intrinsic", key, 2, "json", query) ==
+               {:error, :trace_root_unknown}
+
+      for parts <- [[rows], [Enum.reverse(rows)], Enum.map(rows, &[&1]), [rows, rows]] do
+        assert TempoDiscovery.expression_segments_json(parts, "intrinsic", key, program, opts) ==
+                 {:error, :trace_root_unknown}
+
+        assert {:ok, state} = NIF.tempo_expression_discovery_new(0, "intrinsic", key, program, 0, 0)
+        for part <- parts, do: assert({:ok, _} = NIF.tempo_discovery_add(state, blob(part)))
+        assert NIF.tempo_discovery_finish(state) == {:error, :trace_root_unknown}
+      end
+
+      # A separate genuine root remains valid regardless of capture order;
+      # the disqualified span must not poison the shared context's root ID.
+      recovered = %{hd(rows) | trace_id: linked.trace_id, span_id: hex(99, 16), name: "independent root"}
+      wanted = if key in ~w(rootName trace:rootName), do: "independent root", else: "gateway"
+      expected = {:ok, %{"tagValues" => [%{"type" => "string", "value" => wanted}]}}
+
+      for parts <- [[[linked], [recovered]], [[recovered], [linked]]] do
+        assert decoded(TempoDiscovery.expression_segments_json(parts, "intrinsic", key, program, opts)) == expected
+        assert {:ok, state} = NIF.tempo_expression_discovery_new(0, "intrinsic", key, program, 0, 0)
+        for part <- parts, do: assert({:ok, _} = NIF.tempo_discovery_add(state, blob(part)))
+        assert decoded(NIF.tempo_discovery_finish(state)) == expected
+      end
+    end
+
+    assert :ok = Storage.append(:traces, "linked-root-only", [linked])
+
+    for query <- [
+          ~s({span.case="childlink" && rootName="GET /api"}),
+          ~s({span.case="childlink" && rootServiceName="gateway"})
+        ],
+        key <- @keys do
+      {:ok, {:expression, program}} = TempoDiscovery.filter("intrinsic", key, query)
+      expected = {:ok, %{"tagValues" => []}}
+
+      assert decoded(TempoDiscovery.query("linked-root-only", "intrinsic", key, 2, "json", query)) == expected
+
+      for parts <- [[[linked]], [[linked], [linked]]] do
+        assert decoded(
+                 TempoDiscovery.expression_segments_json(parts, "intrinsic", key, program, discovery_query: query)
+               ) ==
+                 expected
+
+        assert {:ok, state} = NIF.tempo_expression_discovery_new(0, "intrinsic", key, program, 0, 0)
+        for part <- parts, do: assert({:ok, _} = NIF.tempo_discovery_add(state, blob(part)))
+        assert decoded(NIF.tempo_discovery_finish(state)) == expected
       end
     end
   end
@@ -162,10 +233,10 @@ defmodule Pulse.Traces.TempoRootsTest do
              Keyword.put(opts, :discovery_window, {1, 10_000_000_000})
            ) == {:error, :unsupported_trace_discovery}
 
-    assert {:error, :unsupported_trace_discovery} =
+    assert {:ok, {:expression, _}} =
              TempoDiscovery.filter("intrinsic", "rootName", ~s({trace:rootName="GET /api"}))
 
-    assert {:error, :unsupported_trace_discovery} = TempoDiscovery.filter("intrinsic", "rootName", ~s({span.case=2}))
+    assert {:ok, {:expression, _}} = TempoDiscovery.filter("intrinsic", "rootName", ~s({span.case=2}))
 
     for key <- ["root.name", "root.service.name"],
         do: assert(TempoDiscovery.validate("none", key) == {:error, :unsupported_trace_discovery})

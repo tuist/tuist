@@ -6,8 +6,10 @@ defmodule Pulse.Traces.SearchExpressionTest do
   alias Pulse.OTLP.Traces
   alias Pulse.Storage
   alias Pulse.Storage.S3
+  alias Pulse.Test.LegacyExpressionTempoStorage
   alias Pulse.Test.SDKIngestHarness
   alias Pulse.Test.StringOnlyTempoSearchStorage
+  alias Pulse.Test.TempoSearchOracle
   alias Pulse.Traces.SearchExpression
   alias Pulse.Traces.SearchExpression.Evaluator
   alias Pulse.Traces.TempoSearch
@@ -53,6 +55,204 @@ defmodule Pulse.Traces.SearchExpressionTest do
       expected = normalize(c["response"])
       assert normalize(Pulse.JSON.decode!(actual)) === expected, c["query"]
       assert normalize(Pulse.JSON.decode!(reference)) === expected, c["query"]
+    end
+  end
+
+  test "pinned Tempo basic search engine/Parquet oracle agrees natively and through the bounded reference" do
+    dir = Path.expand("../../fixtures/traces/tempo_integration", __DIR__)
+    input = File.read!(Path.join(dir, "basic-search-input.protobuf"))
+    oracle = File.read!(Path.join(dir, "basic-search-oracle.json"))
+    assert sha(input) == "5815f74bae44f36b164a3708aa0d75c9542fe95d4db23c55cda67cdcccc6a704"
+    assert sha(oracle) == "d425942e621d1147c5db51bc676f9a692d16a7b4c1e379efbf8c51be214232da"
+    assert {:ok, rows, 0} = Traces.decode_protobuf(input)
+    assert length(rows) == 14
+    cases = Pulse.JSON.decode!(oracle)
+    assert length(cases) == 48
+    Pulse.Runtime.put_env(:pulse, Storage, adapter: StringOnlyTempoSearchStorage)
+    assert :ok = Storage.append(:traces, "basic", rows)
+
+    for c <- cases do
+      assert {:ok, {:expression, program} = expression} = TempoSearch.parse(c["query"])
+      assert {:ok, actual} = native(rows, program)
+      assert {:ok, reference} = TempoSearch.json(rows, expression, @opts)
+      assert {:ok, stored} = Storage.tempo_search_json("basic", expression, @opts)
+      expected = TempoSearchOracle.response(c["response"])
+      assert TempoSearchOracle.response(Pulse.JSON.decode!(actual)) === expected, c["query"]
+      assert TempoSearchOracle.response(Pulse.JSON.decode!(reference)) === expected, c["query"]
+      assert TempoSearchOracle.response(Pulse.JSON.decode!(stored)) === expected, c["query"]
+
+      if SearchExpression.typed?(program) do
+        Pulse.Runtime.put_env(:pulse, Storage, adapter: LegacyExpressionTempoStorage)
+        assert {:ok, legacy} = Storage.tempo_search_json("basic", expression, @opts)
+        assert TempoSearchOracle.response(Pulse.JSON.decode!(legacy)) === expected, c["query"]
+        Pulse.Runtime.put_env(:pulse, Storage, adapter: StringOnlyTempoSearchStorage)
+      end
+    end
+  end
+
+  test "selecting intrinsic name fences old structural adapters even with an old string predicate" do
+    dir = Path.expand("../../fixtures/traces/tempo_integration", __DIR__)
+    assert {:ok, rows, 0} = dir |> Path.join("basic-search-input.protobuf") |> File.read!() |> Traces.decode_protobuf()
+    Pulse.Runtime.put_env(:pulse, Storage, adapter: LegacyExpressionTempoStorage)
+    assert :ok = Storage.append(:traces, "selected-name", rows)
+    assert {:ok, {:expression, program} = expression} = TempoSearch.parse(~s|{span.name = "Bob"} \| select(name)|)
+    assert SearchExpression.typed?(program)
+    assert {:ok, actual} = Storage.tempo_search_json("selected-name", expression, @opts)
+    assert {:ok, reference} = TempoSearch.json(rows, expression, @opts)
+    assert actual == reference
+    samples = actual |> Pulse.JSON.decode!() |> Map.fetch!("traces") |> Enum.flat_map(& &1["spanSet"]["spans"])
+    assert Enum.any?(samples, &(&1["name"] == "hello"))
+
+    assert Enum.all?(samples, fn sample ->
+             Enum.filter(sample["attributes"], &(&1["key"] == "name")) ==
+               [%{"key" => "name", "value" => %{"stringValue" => "Bob"}}]
+           end)
+  end
+
+  @tag :intrinsic_search
+  test "pinned Tempo full intrinsic and owner engine oracle agrees with native and reference search" do
+    dir = Path.expand("../../fixtures/traces/tempo_integration", __DIR__)
+    input = File.read!(Path.join(dir, "intrinsics-input.protobuf"))
+    assert sha(input) == "c1cbfcc6e3f68fdc37324b228ea79d78a862ac66f198a84283072dbafd638000"
+
+    assert sha(File.read!(Path.join(dir, "intrinsics-input.json"))) ==
+             "82b9b84f6653b7e9759afcf78b20bc8f460d382095d9f8b7a09b580fe612de8c"
+
+    assert sha(File.read!(Path.join(dir, "produce_intrinsics.go.txt"))) ==
+             "a689a0db28794d53edf9c70b1c3719740055bfefcf31df6d4221f43216433d1c"
+
+    assert {:ok, rows, 0} = Traces.decode_protobuf(input)
+    assert length(rows) == 6
+    oracle = File.read!(Path.join(dir, "intrinsics-oracle.json"))
+    assert sha(oracle) == "d7def6e45a5a4b759f8dc77b4c1f309db94679ebc99bb60d1d323cf05c8abb94"
+    cases = Pulse.JSON.decode!(oracle)
+    assert length(cases) == 76
+    Pulse.Runtime.put_env(:pulse, Storage, adapter: LegacyExpressionTempoStorage)
+    assert :ok = Storage.append(:traces, "intrinsics", rows)
+
+    for c <- cases do
+      assert c["error"] == nil, c["query"]
+      assert {:ok, {:expression, program} = expression} = SearchExpression.parse(c["query"])
+      assert {:ok, actual} = native(rows, program)
+      assert {:ok, reference} = TempoSearch.json(rows, expression, @opts)
+      expected = TempoSearchOracle.response(c["response"])
+
+      assert TempoSearchOracle.response(Pulse.JSON.decode!(actual)) === expected,
+             "native " <> c["query"] <> "\n" <> actual <> "\nexpected " <> inspect(expected, limit: :infinity)
+
+      assert TempoSearchOracle.response(Pulse.JSON.decode!(reference)) === expected, "reference " <> c["query"]
+
+      if SearchExpression.scoped?(program) do
+        assert {:ok, fallback} = Storage.tempo_search_json("intrinsics", expression, @opts)
+        assert TempoSearchOracle.response(Pulse.JSON.decode!(fallback)) === expected, "adapter " <> c["query"]
+      end
+    end
+  end
+
+  test "pinned ParseIdentifier quoted segments preserve their exact decoded key bytes" do
+    # Unchanged rows from pkg/traceql/parse_test.go TestParseIdentifier.
+    for {identifier, key} <- [
+          {~S(."foo bar"), "foo bar"},
+          {~S(."bar z".foo), "bar z.foo"},
+          {~S(.foo."bar baz".bar), "foo.bar baz.bar"},
+          {~S(span."bar z".foo), "bar z.foo"},
+          {~S(resource."foo bar"), "foo bar"},
+          {~S(.foo."bar \" baz"), "foo.bar \" baz"},
+          {~S(.foo."bar \\ baz"), "foo.bar \\ baz"},
+          {~S(."foo.bar"), "foo.bar"},
+          {".😝", "😝"}
+        ] do
+      assert {:ok, {:expression, [{_, ^key, "=", "x"}]}} = SearchExpression.parse("{" <> identifier <> ~s| = "x"}|)
+
+      assert {:ok, {:expression, [_, {"select", _, ^key, ""}]}} =
+               SearchExpression.parse("{} | select(" <> identifier <> ")")
+    end
+
+    for key <- [~S(span."bad\n"), ~S(span."bad\u0020"), ~S(span."bad\x20"), ~S(span."unclosed)] do
+      assert {:error, _} = SearchExpression.parse("{" <> key <> ~s| = "x"}|)
+    end
+  end
+
+  test "shared context defers root ambiguity until a root predicate and charges original link attributes" do
+    dir = Path.expand("../../fixtures/traces/tempo_integration", __DIR__)
+
+    assert {:ok, [root, child | _], 0} =
+             dir |> Path.join("intrinsics-input.protobuf") |> File.read!() |> Traces.decode_protobuf()
+
+    child = %{child | parent_span_id: nil}
+    assert {:ok, contexts, work} = Evaluator.trace_context([root, child])
+
+    assert work ==
+             Enum.reduce([root, child], 0, fn row, work ->
+               work + 2 + length(row.otlp["resource"]) + Enum.reduce(row.otlp["links"], 0, &(1 + length(&1) + &2))
+             end)
+
+    context = Map.fetch!(contexts, root.trace_id)
+    assert context.root_conflict
+    assert {:ok, {:expression, duration}} = SearchExpression.parse("{trace:duration > 2h}")
+    assert {:ok, {:expression, duration}} = Evaluator.prepare(duration)
+    assert {:ok, true, _, _, _} = Evaluator.evaluate_mask(root, Evaluator.with_context(duration, context), 0)
+    assert {:ok, {:expression, named}} = SearchExpression.parse(~s|{rootName = "hello"}|)
+    assert {:ok, {:expression, named}} = Evaluator.prepare(named)
+    assert {:error, :trace_root_conflict} = Evaluator.evaluate_mask(root, Evaluator.with_context(named, context), 0)
+    assert {:error, :query_resource_limit} = Evaluator.trace_context([root], 20_000_000 - 5)
+  end
+
+  test "quoted attribute keys named like intrinsics never request unrelated owner metadata" do
+    for key <- ~w(event:name event:timeSinceStart link:spanID instrumentation:name) do
+      assert {:ok, {:expression, program}} = SearchExpression.parse(~s|{span."#{key}" = "x"}|)
+      assert [{"span.string", ^key, "=", "x"}] = program
+      assert {:ok, {:expression, compiled}} = Evaluator.prepare(program)
+      refute compiled.events or compiled.links or compiled.instrumentation or compiled.context
+    end
+  end
+
+  test "root service predicates never promote absent or wrong original service types into known empty values" do
+    dir = Path.expand("../../fixtures/traces/tempo_integration", __DIR__)
+
+    assert {:ok, [root | _], 0} =
+             dir |> Path.join("intrinsics-input.protobuf") |> File.read!() |> Traces.decode_protobuf()
+
+    assert {:ok, {:expression, program} = expression} = SearchExpression.parse(~s|{rootServiceName = ""}|)
+
+    for attrs <- [[], [%{"key" => "service.name", "value" => %{"boolValue" => false}}]] do
+      row = %{root | otlp: Map.put(root.otlp, "resource", attrs)}
+      assert {:error, :trace_root_unknown} = TempoSearch.json([row], expression, @opts)
+      assert {:error, :trace_root_unknown} = native([row], program)
+    end
+  end
+
+  test "actual trace-duration engine oracle uses the entire trace in native/reference and legacy fallback" do
+    dir = Path.expand("../../fixtures/traces/tempo_integration", __DIR__)
+
+    assert {:ok, rows, 0} =
+             dir |> Path.join("trace-duration-input.protobuf") |> File.read!() |> Traces.decode_protobuf()
+
+    cases = dir |> Path.join("trace-duration-oracle.json") |> File.read!() |> Pulse.JSON.decode!()
+    assert length(rows) == 5
+    assert length(cases) == 20
+    opts = Keyword.put(@opts, :trace_end, 8_000_000_000_000)
+    Pulse.Runtime.put_env(:pulse, Storage, adapter: LegacyExpressionTempoStorage)
+    assert :ok = Storage.append(:traces, "duration", rows)
+
+    for c <- cases do
+      assert {:ok, {:expression, program} = expression} = TempoSearch.parse(c["query"])
+      assert {:ok, actual} = native(rows, program, opts)
+      assert {:ok, reference} = TempoSearch.json(Enum.reverse(rows), expression, opts)
+      expected = TempoSearchOracle.response(c["response"])
+      assert TempoSearchOracle.response(Pulse.JSON.decode!(actual)) === expected, c["query"]
+      assert TempoSearchOracle.response(Pulse.JSON.decode!(reference)) === expected, c["query"]
+
+      if SearchExpression.trace_duration?(program) do
+        assert {:ok, fallback} = Storage.tempo_search_json("duration", expression, opts)
+        assert TempoSearchOracle.response(Pulse.JSON.decode!(fallback)) === expected
+
+        # Memory's record sentinel rejects before the reference scan runs.
+        assert {:error, :query_sample_limit} =
+                 Storage.tempo_search_json("duration", expression, Keyword.put(opts, :max_scan_rows, 1))
+
+        assert {:error, :trace_metadata_unknown} = TempoSearch.json([%{hd(rows) | otlp: nil}], expression, opts)
+      end
     end
   end
 
@@ -248,13 +448,13 @@ defmodule Pulse.Traces.SearchExpressionTest do
           "duration > 9223372036854775808ns",
           "span.code >= 9223372036854775808",
           "span.code >= -9223372036854775809",
-          "span.code >= 500.5",
-          "resource.x = true",
+          "span.code >= 1e999",
+          "resource.x > true",
           "span.x !~ 1",
           "! (status = error)",
           "status = error >> status = ok",
           "span.route !~ \"${route}\"",
-          "trace:duration > 500ms"
+          "trace:duration > -1s"
         ] do
       assert {:error, _} = TempoSearch.parse("{" <> condition <> "} with (most_recent=true)"), condition
     end
@@ -281,6 +481,13 @@ defmodule Pulse.Traces.SearchExpressionTest do
           [{"boolean", "", "||", ""}],
           [{"span.int", "code", ">=", "9223372036854775808"}],
           [{"intrinsic", "status", "=", "999"}],
+          [{"constant", "", "false", ""}],
+          [{"span.float", "x", "=", "NaN"}],
+          [{"span.float", "x", "=", "1e999"}],
+          [{"span.bool", "x", ">", "true"}],
+          [{"span.bool", "x", "=", "1"}],
+          [{"intrinsic.string", "kind", "=", "client"}],
+          [{"intrinsic", "kind", "=", "6"}],
           [{"span.string", "x", "!~", "(?=x)"}],
           [{"span.string", "x", "!~", "x"}, {"span.string", "x", "!~", "x"}]
         ] do

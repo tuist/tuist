@@ -13,7 +13,7 @@ defmodule Pulse.Traces.WorkloadContractTest do
     for query <- workflow["logs"], do: assert({:ok, _} = Parser.parse(query))
   end
 
-  test "observed negation, intrinsic OR and span-duration workflows parse without widening discovery or window search" do
+  test "typed, boolean and duration workflows use expressions rather than legacy selectors" do
     workflow = Pulse.JSON.decode!(File.read!(@workflows))
 
     for query <- workflow["expressions"] do

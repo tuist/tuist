@@ -626,6 +626,11 @@ defmodule PulseWeb.MimirServiceConformanceTest do
       labels = [{"__name__", "utf_metric😀C"}, {"label\"😀", "test"}]
       assert post_write(label_request(version, [%{labels: labels, samples: [{@start, 100}]}]), version).status == 204
 
+      # Grafana's escaped path and default limit, not an extra Mimir scenario.
+      assert discovery("/api/v1/label/U__label_22__1f600_/values", [start: @start, end: @start, limit: 40_000], []) == [
+               "test"
+             ]
+
       for query <- [
             ~S({"utf_metric\U0001f600C","label\"😀"="test"}),
             ~S({ "label\"😀" =~ "te.*", "utf_metric😀C", }),

@@ -1,7 +1,7 @@
 # Bounded trace search expressions
 
 Experimental `GET /api/search` and MCP `search_trace_metadata` support a
-bounded TraceQL subset (same-span spansets, `event.` attributes, structural
+bounded TraceQL subset (same-span spansets, original typed owner attributes, structural
 operators and `select`); `with (most_recent=true)` is optional because results
 are always the most recent matching traces. They remain
 behind `PULSE_TEMPO_SEARCH_ENABLED` / `tempoSearch.enabled`, disabled by default.
@@ -21,33 +21,55 @@ This is not full TraceQL or deployed Grafana compatibility.
 | --- | --- | --- |
 | `resource.<key>`, `span.<key>` with a JSON string literal | `=`, `!=`, `=~`, `!~` | Original `stringValue` only, never a projected/coerced value |
 | `resource.<key>`, `span.<key>` with a signed int64 literal | `=`, `!=`, `<`, `<=`, `>`, `>=` | Original `intValue`, compared exactly, including values above 2^53 |
+| `resource.<key>`, `span.<key>` with a finite decimal/scientific float literal | `=`, `!=`, `<`, `<=`, `>`, `>=` | Original `doubleValue`, compared as float64; `1.0` and `1` target different stored types |
+| `resource.<key>`, `span.<key>` with `true` or `false` | `=`, `!=` | Original `boolValue` only |
+| `name`, `span:name` with a JSON string literal | `=`, `!=`, `=~`, `!~` | Stored span name, including its empty default, not an attribute called `name` |
+| `kind`, `span:kind` | `=`, `!=` with `unspecified`, `internal`, `server`, `client`, `producer`, `consumer` | Stored OTel span kind, not an attribute called `kind` |
 | `status`, `span:status` | `=`, `!=` with `unset`, `ok`, `error` | Stored span status, not an attribute called `status` |
 | `duration`, `span:duration` | `=`, `!=`, `<`, `<=`, `>`, `>=` with a duration literal | That span's end minus start in exact nanoseconds |
-| `event.<key>` with a string or int64 literal | Same as `span.<key>` | True when **any** event of the span has a matching original value |
+| `traceDuration`, `trace:duration` | `=`, `!=`, `<`, `<=`, `>`, `>=` with a duration literal | Complete retained trace max-end minus min-start, in exact nanoseconds, not the selected span's duration |
+| `event.<key>` with a string, int64, float or boolean literal | Same as `span.<key>` | True when **any** event of the span has a matching original value |
+| `link.<key>`, `instrumentation.<key>` | Same original typed comparisons as `span.<key>` | Span links or the span's original instrumentation scope, never projected strings |
+| `statusMessage`, `span:statusMessage` | `=`, `!=`, `=~`, `!~` with a string | Original status message, including its empty default |
+| `rootName`, `trace:rootName`, `rootServiceName`, `trace:rootService` | `=`, `!=`, `=~`, `!~` with a string | Root of the complete retained trace, not the selected span's name/service |
+| `trace:id`, `span:id`, `span:parentID`, `link:traceID`, `link:spanID` | `=`, `!=` with a string | ID string predicates; regex/ordering reject, and the pinned Parquet ID caveats below apply |
+| `event:name`, `instrumentation:name`, `instrumentation:version` | `=`, `!=`, `=~`, `!~` with a string | Original event name or instrumentation metadata |
+| `event:timeSinceStart` | All six duration comparisons | Event timestamp minus that span's start, not trace start |
 
-Unscoped `.<key>` accepts the same string/int64 comparisons. An original span
+Empty `{}` spansets select all spans, including as structural operands such as
+`{name = "request"} >> {}` or `{} > {}`. They still require known valid stored
+metadata, complete retained context and all the existing query budgets.
+
+Unscoped `.<key>` accepts the same typed comparisons. An original span
 attribute takes precedence over an original resource attribute with that key,
 even when the span value has the wrong type or fails the predicate. Only an
 absent span key falls back to the resource. Event attributes are searched only
-with an explicit `event.` scope; link and instrumentation attributes are not
-search owners. For example, `.region = "eu"` does
+with an explicit `event.` scope; links and instrumentation also require their
+explicit scopes. For example, `.region = "eu"` does
 not match a resource value `eu` when the same span has `region = "us"`.
-This syntax is specific to retained-context search; discovery and window-local
-search filters are unchanged. Expressions never prune sources by
+Window-local search retains its separate narrower filter grammar. Expressions never prune sources by
 summaries, but are planned newest first like selectors.
 
 Missing and differently typed attributes **do not match even negative
 predicates**. Integer-literal attribute predicates do not coerce doubles,
 strings or booleans; the pinned Tempo 2.9 Parquet search also excludes a double
 `503.5` from `>= 500` and `!= 503`. This is not general TraceQL numeric arithmetic.
+Likewise, a float literal never coerces an integer attribute. Float literals round
+to float64 (so `9007199254740993.0` equals the stored double
+`9007199254740992.0`, but not an original int64). Signed zeros compare equal.
+Stored NaN doubles match only `!=` against finite literals; stored infinities
+follow IEEE ordering. Nonfinite/overflowing **query literals** reject.
 Strings use JSON quoting, not the entire Go/TraceQL string grammar: JSON `\/`
 is accepted as `/`, while raw tabs and Go `\x`/octal escapes reject. Do not assume
 all string spellings accepted by Tempo are interchangeable.
-Float/boolean query literals, `traceDuration` / `trace:duration` predicates,
-unary negation, arithmetic, pipeline stages other than one trailing `select`,
-spanset `&&`/`||`, negated structural operators (`!>>`, ...), empty `{}`
-spansets and unexpanded variables reject the whole query. Discovery of `trace:duration`
-remains a separate API, not a supported search predicate.
+Double-quoted attribute-key segments are supported, including spaces, Unicode,
+commas/parentheses and concatenated pieces: `span."http.route"`,
+`span.http."route name"`, `link."odd,key)"`. In identifiers, only `\"` and `\\`
+escapes decode; JSON `\n`, `\u` and `\x` escapes do not. Quoted keys and value
+literals deliberately have different lexers. Keys are limited to 256 decoded
+UTF-8 bytes. Unary negation, arithmetic, pipeline stages other than one trailing `select`,
+spanset `&&`/`||`, negated structural operators (`!>>`, ...) and unexpanded
+variables reject the whole query. Discovery of `trace:duration` remains a separate API.
 
 Regexes use the existing bounded RE2 subset, fully anchored with dot matching
 newlines. `!~` complements the regex **only for a present original string**.
@@ -68,6 +90,36 @@ The sum must fit signed int64 nanoseconds. Other spellings, units,
 negative durations and bare numbers reject. Span duration is **not** the full
 retained trace envelope returned as search metadata.
 
+Trace duration is the full **retained** envelope, not a sum of span durations,
+root-only timing, selected-span timing, query-window clipping or an assertion of
+exporter completeness. Grafana's migrated min/max duration filters use
+`traceDuration`; both aliases compare this same envelope. Candidate discovery
+conservatively substitutes true for unknown trace-duration leaves, then recovers
+all candidate-ID context **without the ordinary one-hour context horizon**.
+Final matching/sampling runs only after bounds are complete. Native evaluation
+replays the captured immutable inputs without another GET or payload copy;
+reference evaluation revisits its admitted records. The extra pass has its own
+1M-row ceiling and consumes the same 20M work budget; 32 MiB/1024 input,
+candidate-ID, sample and output bounds remain. Broad retained histories can
+therefore fail whole even with `limit=1`. Root predicates also recover all
+retained candidate-ID context without a time horizon. A genuinely absent root
+has empty name/service intrinsic defaults; conflicting root evidence fails
+whole instead of choosing an ingestion-order-dependent root. An observed root
+whose original service is absent or not a string cannot establish a known
+root service and returns `trace_root_unknown` for a root-service predicate.
+Trace metrics, exact-ID filters and window-local legacy filters do not acquire
+these complete-context semantics. Broader autocomplete filters use the separate
+bounded discovery API.
+
+ID predicates follow the pinned public engine and Parquet fetch, not arbitrary
+numeric conversion. Trace IDs trim leading zeroes but preserve query case;
+span/link ID strings are case-sensitive. In particular, the pinned Parquet
+span-ID byte predicate trims leading zeroes **without padding bytes back**.
+Conjunctive search for a leading-zero span/parent ID can consequently return no
+match even with a canonical-looking string. Root parent IDs render as sixteen
+zeroes. Search preserves these independently observed upstream outcomes;
+autocomplete's stored-value/filter completeness extensions are separate.
+
 ## Events, structural operators and select
 
 Exceptions recorded as OTel span events (`exception.type`,
@@ -78,11 +130,16 @@ Exceptions recorded as OTel span events (`exception.type`,
 { event.exception.stacktrace != "" } | select(event.exception.type, event.exception.stacktrace)
 ```
 
-An `event.` predicate selects the **span** when any one of its events
-matches; `&&` between two `event.` predicates may be satisfied by different
-events of the same span. As with other scopes, a missing or differently typed
-event value never matches, so `!= ""` means "has a nonempty string value".
-The sampled value is the first matching event's value.
+An `event.` predicate selects the **span**, not an event result. In a pure
+conjunction, all requested event predicates must match **one event**; links have
+the same single-owner rule. Separate events/links cannot satisfy separate AND
+leaves. In mixed boolean programs, Parquet first retains owners matching any
+requested leaf, then the engine evaluates the program against the first fetched
+value of each requested field. This can differ from independently existential
+leaves. Missing or differently typed original values never match, so `!= ""`
+means "has a nonempty string value". Sampling uses the last fetched value of a
+field, which can differ from the value used for boolean evaluation. These
+rules follow the pinned engine/Parquet outputs, not a generalized event language.
 
 Up to four spansets can be joined, left to right, by structural operators.
 Each operator returns spans of its **right-hand** spanset related to spans
@@ -108,10 +165,14 @@ example above by itself. The search result's `matched` count and samples are
 the returned right-hand spans; traces without one are not results.
 
 A trailing `| select(attr, ...)` (at most 8) adds the named values to every
-sampled span. It accepts `resource.`, `span.`, `event.` and unscoped
-attributes, and `name`, `status` and `kind` (optionally `span:`-prefixed).
-Absent attributes are omitted. Selecting `duration` rejects:
-`durationNanos` already carries it.
+sampled span. It accepts all five owner scopes, unscoped attributes and the
+intrinsics above, including their aliases. As in the public engine, duration,
+trace/root and span-ID selections are not duplicated in sampled attributes:
+the search metadata/dedicated sample fields already carry them. Parent IDs,
+status messages, instrumentation/event/link intrinsics are sampled using their
+canonical intrinsic names. Absent original attributes are omitted; selecting an
+event/link intrinsic on a span with no such owner returns its upstream empty/
+zero default. Event times render as Go duration strings, not integer attributes.
 
 TraceQL metrics accept `event.` predicates; a span counts once however many
 of its events match. Structural operators and `select` are search-only:
@@ -137,7 +198,10 @@ completeness. HTTP seconds and MCP nanosecond window semantics remain as
 
 Samples include original typed values from individually matching predicates;
 false OR branches do not invent attributes. Status samples use enum strings;
-span duration is already represented by `durationNanos`, not an added attribute.
+kind samples use enum strings too. Intrinsic name predicates and `select(name)`
+populate the sample's dedicated `name` field (omitted when empty), not an
+attribute called `name`. An original `.name` attribute remains an attribute.
+Span duration is already represented by `durationNanos`, not an added attribute.
 An unscoped predicate samples independently matching values from both owners;
 the same key may appear twice. A matching resource value can appear when an
 overriding span value makes that leaf false but another OR branch selects the
@@ -151,7 +215,10 @@ predicate/group limits. Existing 256-byte keys, 4096-byte string literals and
 program. An additional **20,000,000 work-unit ceiling per scan attempt** charges
 two resource/span owners, every original resource/span attribute and every
 program instruction before filtering, in both candidate and context passes.
-Queries naming an `event.` attribute also charge each event and its attributes,
+Queries naming event/link attributes or intrinsics also charge each requested
+owner and its original attributes, plus a conservative bound for repeated-owner
+predicate/selection revisits. Instrumentation predicates charge the original
+scope attributes. Complete root context charges every link attribute it traverses,
 and structural queries charge every candidate-trace span once per operator.
 Structural queries retain 48 bytes plus the rendered sample per candidate-trace
 span against the 16 MiB bookkeeping bound.
@@ -169,21 +236,42 @@ retain complete-or-error behavior. These are per-instance safety ceilings, not
 capacity or total native-memory guarantees; native work may outlive a deadline.
 
 Original positive-string AND searches retain their existing planner. Window-local
-MCP `search_traces` and tag-discovery filters retain their narrower positive
-string-AND grammar; this change does **not** widen those APIs.
+MCP `search_traces` retains its narrower positive string-AND grammar; this change
+does **not** widen it. Trace metrics and exact-ID filters continue rejecting the
+new scoped/intrinsic forms rather than silently adopting search semantics.
+
+## Remaining client-visible gaps
+
+The pinned Grafana datasource's five attribute scopes, quoted key-builder forms
+and 25 advertised intrinsic spellings are covered by this bounded search
+grammar. This is not all of TraceQL: arrays, nil/existence tests, arbitrary
+expressions, additional pipeline stages, broader spanset/structural forms and
+all Go string spellings remain unsupported. Metrics, legacy window filters,
+discovery and exact-ID APIs have distinct capability boundaries. No
+deployed-client or full generic protocol parity is claimed.
 
 ## Upgrade and evidence
 
-Require matching application/native search capability **7** and trace metrics
-capability **6** (for `event.` metrics), current trace tuple
-**`{2,1,3,7,12}`**, on every serving instance before sending new expressions.
+Require matching application/native search capability **10** and trace metrics
+capability **7**, current trace tuple **`{2,1,3,10,13}`**, on every serving instance
+before sending new expressions.
 Startup verifies only the local pair, not an old serving pool. There is no
 Parquet/envelope/idempotency-format change from these operators. Existing rich
 metadata upgrade and retry-draining requirements still apply independently.
 Custom adapters need explicit expression-search support or the bounded complete
 reference path; old string-search callbacks never receive expression programs,
 and adapters without the separate event/structural/select callback never
-receive such programs.
+receive such programs. Empty spansets, boolean/double attributes and name/kind
+predicates, plus intrinsic name selection, require the separate typed-search
+callback; otherwise the bounded complete reference path runs rather than sending
+new wire programs to old adapters.
+Trace-duration predicates require their own `tempo_context_search_json/3`
+callback or the bounded complete reference path, never an older typed callback.
+New intrinsic/link/instrumentation programs require
+`tempo_scoped_search_json/3`; expression discovery uses
+`tempo_expression_discovery_json/5`. Old adapters receive neither program through
+an older callback. The complete reference fallback fetches a max-row sentinel
+and fails whole rather than truncating dictionaries or context.
 
 Frozen synthetic inputs and expected results come from actual public **Tempo
 2.9.0 Parquet blocks and TraceQL engine execution**, with ordinary offline native
@@ -196,6 +284,26 @@ and zero-bound windows against actual Tempo 2.9.0 Parquet fetches.
 Event, structural and select semantics are checked against a hand-built
 fixture shaped like the tuist server's spans
 (`test/pulse_web/controllers/tuist_dashboards_test.exs`), with expected spans
-derived from Tempo's documented semantics, not from a Tempo engine run.
+derived from Tempo's documented semantics. An additional **48 actual pinned
+Tempo public-engine/Parquet cases** establish basic boolean/double/intrinsic
+search, empty structural operands and selected names. Those independent oracles
+replay through native and reference evaluation, old-adapter fallback, and
+authenticated HTTP ingestion → native Parquet → owned S3 → search. See the
+[basic-search provenance](../test/fixtures/traces/tempo_integration/README.md#basic-same-span-search-and-discovery-transport).
+An additional **20 actual pinned-engine/Parquet cases** compare both trace-duration
+aliases and all six comparisons with own-span timing, boolean combinations,
+selection and one structural operator. HTTP replay publishes five spans as
+separate sources, including two tiny spans over two hours apart, and exercises
+a limit-1 query with an early-root-only window and the late-child predicate.
 This is not production Alloy, real-provider, separate-node, capacity, full
 TraceQL or cutover acceptance.
+
+An additional **76 pinned public-engine/Parquet cases** cover the remaining
+Grafana intrinsic/owner/key forms, including original type/missing controls,
+repeated owners, ID normalization and independently executed selection outputs.
+The first eleven predicates are transplanted unchanged from Tempo's fetch unit
+table; the rest are authored probes. Six spans include an absent root, empty
+instrumentation, typed links/scope attributes and a child over two hours after
+its root. Native/reference and separately published authenticated HTTP/S3
+replays retain this asymmetry and compare the frozen upstream outcomes.
+See [intrinsic provenance](../test/fixtures/traces/tempo_integration/README.md).

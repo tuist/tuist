@@ -1,0 +1,1199 @@
+[
+  {
+    "query": "{traceDuration \u003e 1s} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "21",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "durationMs": 1003,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1000000"
+              },
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "103000000000",
+                "durationNanos": "3000000"
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1000000"
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "103000000000",
+                  "durationNanos": "3000000"
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        },
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "1000000"
+              },
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "7300000000000",
+                "durationNanos": "2000000"
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "1000000"
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "7300000000000",
+                  "durationNanos": "2000000"
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{trace:duration \u003e 1s} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "21",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "durationMs": 1003,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1000000"
+              },
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "103000000000",
+                "durationNanos": "3000000"
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1000000"
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "103000000000",
+                  "durationNanos": "3000000"
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        },
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "1000000"
+              },
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "7300000000000",
+                "durationNanos": "2000000"
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "1000000"
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "7300000000000",
+                  "durationNanos": "2000000"
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{traceDuration \u003e= 1s} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "21",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "durationMs": 1003,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1000000"
+              },
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "103000000000",
+                "durationNanos": "3000000"
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1000000"
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "103000000000",
+                  "durationNanos": "3000000"
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        },
+        {
+          "traceID": "20",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "1000000"
+              },
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "7300000000000",
+                "durationNanos": "2000000"
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "1000000"
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "7300000000000",
+                  "durationNanos": "2000000"
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{trace:duration \u003c 1s} with (most_recent=true)",
+    "response": {
+      "traces": []
+    }
+  },
+  {
+    "query": "{traceDuration \u003c= 1s} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "20",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{trace:duration = 1s} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "20",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{traceDuration != 1s} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "21",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "durationMs": 1003,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1000000"
+              },
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "103000000000",
+                "durationNanos": "3000000"
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1000000"
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "103000000000",
+                  "durationNanos": "3000000"
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        },
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "1000000"
+              },
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "7300000000000",
+                "durationNanos": "2000000"
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "1000000"
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "7300000000000",
+                  "durationNanos": "2000000"
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{traceDuration = 2h2ms} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "1000000"
+              },
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "7300000000000",
+                "durationNanos": "2000000"
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "1000000"
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "7300000000000",
+                  "durationNanos": "2000000"
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{trace:duration \u003e 2h} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "1000000"
+              },
+              {
+                "spanID": "0000000000000002",
+                "startTimeUnixNano": "7300000000000",
+                "durationNanos": "2000000"
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "1000000"
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "startTimeUnixNano": "7300000000000",
+                  "durationNanos": "2000000"
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{traceDuration \u003e 3h} with (most_recent=true)",
+    "response": {
+      "traces": []
+    }
+  },
+  {
+    "query": "{duration \u003e 1s} with (most_recent=true)",
+    "response": {
+      "traces": []
+    }
+  },
+  {
+    "query": "{duration = 1ms} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "21",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "durationMs": 1003,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        },
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "1000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "1000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{name = \"request\" \u0026\u0026 traceDuration \u003e 2h} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "name": "request",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "1000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "name": "request",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "1000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{name = \"leaf\" \u0026\u0026 trace:duration \u003e 2h} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "name": "leaf",
+                "startTimeUnixNano": "7300000000000",
+                "durationNanos": "2000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "name": "leaf",
+                  "startTimeUnixNano": "7300000000000",
+                  "durationNanos": "2000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{name = \"request\" \u0026\u0026 traceDuration \u003c 2h} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "21",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "durationMs": 1003,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "name": "request",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "name": "request",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        },
+        {
+          "traceID": "20",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "name": "request",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "name": "request",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{traceDuration \u003e 2h \u0026\u0026 duration \u003c 2ms} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "1000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "1000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{trace:duration \u003c 2h || name = \"leaf\"} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "21",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "durationMs": 1003,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1000000"
+              },
+              {
+                "spanID": "0000000000000002",
+                "name": "leaf",
+                "startTimeUnixNano": "103000000000",
+                "durationNanos": "3000000"
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1000000"
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "name": "leaf",
+                  "startTimeUnixNano": "103000000000",
+                  "durationNanos": "3000000"
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        },
+        {
+          "traceID": "20",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "101000000000",
+          "durationMs": 1000,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "startTimeUnixNano": "101000000000",
+                "durationNanos": "1000000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "startTimeUnixNano": "101000000000",
+                  "durationNanos": "1000000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 1
+            }
+          }
+        },
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "name": "leaf",
+                "startTimeUnixNano": "7300000000000",
+                "durationNanos": "2000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "name": "leaf",
+                  "startTimeUnixNano": "7300000000000",
+                  "durationNanos": "2000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{traceDuration != 1s \u0026\u0026 name = \"request\"} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "21",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "102000000000",
+          "durationMs": 1003,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "name": "request",
+                "startTimeUnixNano": "102000000000",
+                "durationNanos": "1000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "name": "request",
+                  "startTimeUnixNano": "102000000000",
+                  "durationNanos": "1000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        },
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "name": "request",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "1000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "name": "request",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "1000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{traceDuration \u003e 2h} | select(name) with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000001",
+                "name": "request",
+                "startTimeUnixNano": "100000000000",
+                "durationNanos": "1000000"
+              },
+              {
+                "spanID": "0000000000000002",
+                "name": "leaf",
+                "startTimeUnixNano": "7300000000000",
+                "durationNanos": "2000000"
+              }
+            ],
+            "matched": 2
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000001",
+                  "name": "request",
+                  "startTimeUnixNano": "100000000000",
+                  "durationNanos": "1000000"
+                },
+                {
+                  "spanID": "0000000000000002",
+                  "name": "leaf",
+                  "startTimeUnixNano": "7300000000000",
+                  "durationNanos": "2000000"
+                }
+              ],
+              "matched": 2
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "query": "{traceDuration \u003e 2h} \u003e {name = \"leaf\"} with (most_recent=true)",
+    "response": {
+      "traces": [
+        {
+          "traceID": "1f",
+          "rootServiceName": "duration",
+          "rootTraceName": "request",
+          "startTimeUnixNano": "100000000000",
+          "durationMs": 7200002,
+          "spanSet": {
+            "spans": [
+              {
+                "spanID": "0000000000000002",
+                "name": "leaf",
+                "startTimeUnixNano": "7300000000000",
+                "durationNanos": "2000000"
+              }
+            ],
+            "matched": 1
+          },
+          "spanSets": [
+            {
+              "spans": [
+                {
+                  "spanID": "0000000000000002",
+                  "name": "leaf",
+                  "startTimeUnixNano": "7300000000000",
+                  "durationNanos": "2000000"
+                }
+              ],
+              "matched": 1
+            }
+          ],
+          "serviceStats": {
+            "duration": {
+              "spanCount": 2
+            }
+          }
+        }
+      ]
+    }
+  }
+]

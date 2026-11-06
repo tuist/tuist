@@ -23,6 +23,11 @@ With these in place the Grafana Cloud **Observability → Kubernetes** app popul
 The recommended incident alerts and Grafana setup steps are in
 [`alerts.md`](alerts.md).
 
+For using Pulse as storage while retaining Grafana Cloud dashboards, alert
+evaluation and notifications, see [the private Pulse connection and cutover checks](pulse-grafana.md).
+The accompanying `pulse-datasources.json` is an API configuration template,
+not an automatically provisioned Helm resource.
+
 ## Install
 
 Installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) for the managed workload clusters. The path is idempotent, so the chart tracks whatever's committed on `main`.

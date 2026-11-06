@@ -22,6 +22,14 @@ read instance profiles, cloud workload identity, or other ambient cloud credenti
 
 ## Optional
 
+For the current Tempo search and autocomplete grammar, every serving application/native pair
+requires trace tuple `{2,1,3,10,13}` and trace metrics capability `7`. This
+supersedes the earlier capability snapshots and string-only discovery grammar
+descriptions in the detailed settings below.
+The [search contract](trace-query-expressions.md) and [discovery contract](traces.md)
+describe typed predicates, quoted keys, all five attribute scopes, intrinsic
+filters, retained root/duration context and the remaining language limitations.
+
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `PORT` | `4000` | HTTP listener port. |

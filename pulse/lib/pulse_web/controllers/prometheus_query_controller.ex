@@ -7,6 +7,7 @@ defmodule PulseWeb.PrometheusQueryController do
   alias Pulse.PromQL.Parser
   alias Pulse.PromQL.Time
   alias Pulse.QueryLimit
+  alias PulseWeb.PrometheusLimit
 
   def query(conn, params), do: run(conn, params, :instant)
   def query_range(conn, params), do: run(conn, params, :range)
@@ -20,12 +21,13 @@ defmodule PulseWeb.PrometheusQueryController do
 
     with :ok <- authorize(conn, tenant),
          :ok <- supported_parameters(params, mode),
+         {:ok, limit} <- PrometheusLimit.parse(params["limit"]),
          query when is_binary(query) <- params["query"],
          {:ok, opts} <- options(params, mode),
          {:ok, opts} <- timeout_options(params, opts),
          {:ok, opts} <- lookback_options(params, opts),
          {:ok, result} <- Evaluator.query(query, tenant, opts) do
-      json(conn, result)
+      json(conn, PrometheusLimit.response(result, limit))
     else
       {:error, :unauthorized} ->
         error(conn, :unauthorized, "unauthorized", "unauthorized")
@@ -136,9 +138,13 @@ defmodule PulseWeb.PrometheusQueryController do
   defp supported_parameters(params, mode) do
     allowed = if mode == :instant, do: ["query", "time", "timeout"], else: ["query", "start", "end", "step", "timeout"]
 
-    if Enum.all?(Map.keys(params), &(&1 in ["lookback_delta" | allowed])),
-      do: :ok,
-      else: {:error, :unsupported_parameters}
+    # Like Mimir, accept Prometheus' optional stats selector without inventing
+    # JSON execution statistics. Grafana's query-statistics setting sends it
+    # for both GET and form POST, including backend alert queries.
+    if Enum.all?(Map.keys(params), &(&1 in ["limit", "stats", "lookback_delta" | allowed])) and
+         (not Map.has_key?(params, "stats") or is_binary(params["stats"])),
+       do: :ok,
+       else: {:error, :unsupported_parameters}
   end
 
   defp lookback_options(params, opts) do

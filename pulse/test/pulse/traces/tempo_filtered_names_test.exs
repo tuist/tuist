@@ -95,9 +95,7 @@ defmodule Pulse.Traces.TempoFilteredNamesTest do
     for q <- [
           "{",
           "{} with (most_recent=true)",
-          "{true}",
-          ~s'{span.request.kind="api" || span.request.kind="rpc"}',
-          ~s'{span.cached=false}'
+          "{true}"
         ] do
       assert {:error, :unsupported_trace_discovery} = TempoDiscovery.query("promoted", "span", "", 2, "json", q)
     end

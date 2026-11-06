@@ -97,6 +97,11 @@ defmodule Pulse.Storage do
   @callback tempo_search_json(tenant, list(), query_opts) :: {:ok, binary()} | {:error, term()}
   @callback tempo_expression_search_json(tenant, list(), query_opts) :: {:ok, binary()} | {:error, term()}
   @callback tempo_traceql_search_json(tenant, list(), query_opts) :: {:ok, binary()} | {:error, term()}
+  @callback tempo_typed_search_json(tenant, list(), query_opts) :: {:ok, binary()} | {:error, term()}
+  @callback tempo_context_search_json(tenant, list(), query_opts) :: {:ok, binary()} | {:error, term()}
+  @callback tempo_scoped_search_json(tenant, list(), query_opts) :: {:ok, binary()} | {:error, term()}
+  @callback tempo_expression_discovery_json(tenant, String.t(), String.t(), list(), query_opts) ::
+              {:ok, binary()} | {:error, term()}
   @callback tempo_discovery_json(tenant, String.t(), String.t(), query_opts) :: {:ok, binary()} | {:error, term()}
   @callback tempo_windowed_discovery_json(
               tenant,
@@ -184,6 +189,10 @@ defmodule Pulse.Storage do
                       tempo_search_json: 3,
                       tempo_expression_search_json: 3,
                       tempo_traceql_search_json: 3,
+                      tempo_typed_search_json: 3,
+                      tempo_context_search_json: 3,
+                      tempo_scoped_search_json: 3,
+                      tempo_expression_discovery_json: 5,
                       tempo_discovery_json: 4,
                       tempo_windowed_discovery_json: 7,
                       tempo_unscoped_tag_values_json: 3,
@@ -528,6 +537,14 @@ defmodule Pulse.Storage do
     end
   end
 
+  # Expression programs must never reach old same-target/window callbacks
+  # which could ignore OR, types, or complete trace context.
+  defp discovery_backend(backend, tenant, scope, key, opts, {:expression, program}, _window) do
+    if function_exported?(backend, :tempo_expression_discovery_json, 5),
+      do: backend.tempo_expression_discovery_json(tenant, scope, key, program, opts),
+      else: discovery_reference(backend, tenant, scope, key, opts)
+  end
+
   defp discovery_backend(backend, tenant, scope, key, opts, predicates, nil),
     do: discovery_backend(backend, tenant, scope, key, opts, predicates)
 
@@ -638,15 +655,28 @@ defmodule Pulse.Storage do
 
   defp discovery_reference(backend, tenant, scope, key, opts) do
     scan = opts |> Keyword.drop([:start_ts, :end_ts, :limit])
-    scan = Keyword.put(scan, :max_records, min(opts[:max_scan_rows] || 1_000_000, 1_000_000))
-    with {:ok, spans} <- backend.query(:traces, tenant, scan), do: TempoDiscovery.json(spans, scope, key, opts)
+    maximum = min(opts[:max_scan_rows] || 1_000_000, 1_000_000)
+    scan = Keyword.put(scan, :max_records, maximum + 1)
+
+    with {:ok, spans} <- backend.query(:traces, tenant, scan), true <- length(spans) <= maximum do
+      TempoDiscovery.json(spans, scope, key, opts)
+    else
+      false -> {:error, :query_scan_limit}
+      error -> error
+    end
   end
 
   # Never pass a new expression to an old adapter that might drop OR/types.
   # Event scopes, structural operators and select need an explicit callback.
   defp searched_tempo_json(backend, tenant, {:expression, program} = expression, opts) do
     callback =
-      if SearchExpression.extended?(program), do: :tempo_traceql_search_json, else: :tempo_expression_search_json
+      cond do
+        SearchExpression.scoped?(program) -> :tempo_scoped_search_json
+        SearchExpression.trace_duration?(program) -> :tempo_context_search_json
+        SearchExpression.typed?(program) -> :tempo_typed_search_json
+        SearchExpression.extended?(program) -> :tempo_traceql_search_json
+        true -> :tempo_expression_search_json
+      end
 
     if function_exported?(backend, callback, 3) do
       apply(backend, callback, [tenant, program, opts])

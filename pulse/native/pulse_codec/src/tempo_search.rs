@@ -18,6 +18,7 @@ const INPUT_MAX: usize = 33_554_432;
 struct Summary {
     start: i64,
     end: i64,
+    context: crate::tempo_expression::TraceContext,
     unknown: bool,
     root_conflict: bool,
     root: Option<(String, String)>,
@@ -58,6 +59,9 @@ struct State {
     spss: usize,
     scanned: usize,
     replayed: usize,
+    duration_rows: usize,
+    duration_phase: bool,
+    duration_blobs: Vec<bytes::Bytes>,
     context_phase: bool,
     plan_hashes: Option<Vec<u64>>,
     plan_probes: usize,
@@ -113,7 +117,7 @@ pub(crate) fn predicates(input: Vec<(String, String, String, String)>) -> Res<Ve
 }
 #[rustler::nif]
 fn tempo_search_api_version() -> u32 {
-    7
+    10
 }
 #[rustler::nif(schedule = "DirtyCpu")]
 fn tempo_search_new<'a>(
@@ -436,6 +440,7 @@ fn finish<'a>(env: Env<'a>, search: ResourceArc<Search>) -> Res<(Binary<'a>, Opt
         return Err(Error::Invalid);
     }
     state.assemble_candidates()?;
+    state.resolve_duration()?;
     state.resolve_links()?;
     let rows = state.selected()?;
     let kth = (rows.len() == state.limit)
@@ -479,18 +484,6 @@ fn valid_id(id: &str, width: usize) -> bool {
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
         && id.bytes().any(|b| b != b'0')
 }
-fn has_child_link(metadata: &crate::json_read::RawFields<'_>) -> Res<bool> {
-    let mut p = Parser::new(field(metadata, b"links")?);
-    for attrs in p.raw_array().map_err(|_| Error::Invalid)? {
-        if typed_attributes(attrs)?
-            .get("opentracing.ref_type")
-            .is_some_and(|v| v == "child_of")
-        {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
 fn sample(
     out: &mut impl Sink,
     start: i64,
@@ -504,9 +497,26 @@ fn sample(
     if end > start {
         out.extend(format!(",\"durationNanos\":\"{}\"", end - start).as_bytes());
     }
-    if !attrs.is_empty() {
+    // Tempo promotes selected intrinsic name to the SearchResponse span's
+    // dedicated field, not an AnyValue attribute (including under select).
+    let name = attrs.get(&("name".to_owned(), "intrinsic".to_owned()));
+    if let Some(value) = name {
+        if let Ok(fields) = object(value) {
+            if let Ok(raw) = field(&fields, b"stringValue") {
+                if raw != b"\"\"" {
+                    out.extend(b",\"name\":");
+                    out.extend(raw);
+                }
+            }
+        }
+    }
+    if attrs.len() > usize::from(name.is_some()) {
         out.extend(b",\"attributes\":[");
-        for (i, ((key, _scope), value)) in attrs.iter().enumerate() {
+        for (i, ((key, _scope), value)) in attrs
+            .iter()
+            .filter(|((key, scope), _)| !(key == "name" && scope == "intrinsic"))
+            .enumerate()
+        {
             if i > 0 {
                 out.push(b',');
             }
@@ -623,8 +633,12 @@ impl State {
             // The new-trace insertion above charges its summary exactly once.
             return Ok(());
         }
+        if self.expression.as_ref().is_some_and(|e| e.needs_context()) {
+            let before = summary.context.retained_bytes();
+            summary.context.observe(fields, &mut self.expression_work)?;
+            self.retained += summary.context.retained_bytes() - before;
+        }
         let resource = typed_attributes(field(&metadata, b"resource")?)?;
-        let span = typed_attributes(field(&metadata, b"attributes")?)?;
         let service = resource.get("service.name").cloned().unwrap_or_default();
         if self.roots.is_none() {
             if !summary.services.contains_key(&service) {
@@ -637,8 +651,13 @@ impl State {
                 stats.1 += 1;
             }
         }
-        let root_candidate =
-            field(fields, b"parent_span_id")? == b"null" && !has_child_link(&metadata)?;
+        let root_candidate = if field(fields, b"parent_span_id")? != b"null" {
+            false
+        } else if self.roots.is_some() {
+            !crate::tempo_discovery::root_child_link(&metadata)?
+        } else {
+            !crate::tempo_expression::has_child_link(fields, &metadata)?
+        };
         if self.roots.is_some() {
             let sid = string(field(fields, b"span_id")?)?;
             match summary.root_flags.insert(sid.clone(), root_candidate) {
@@ -676,6 +695,32 @@ impl State {
                 }
             }
         }
+        if self.expression.as_ref().is_some_and(|e| e.trace_duration()) {
+            // Bounds are not complete yet. Charge the usual context work,
+            // but defer matching/sampling until every candidate span arrives.
+            self.expression.as_ref().ok_or(Error::Invalid)?.evaluate(
+                fields,
+                &mut self.expression_work,
+                false,
+            )?;
+            return Ok(());
+        }
+        self.observe_sample(id, start, end, fields)
+    }
+    fn observe_sample(
+        &mut self,
+        id: &str,
+        start: i64,
+        end: i64,
+        fields: &crate::json_read::RawFields<'_>,
+    ) -> Res<()> {
+        if field(fields, b"otlp")? == b"null" {
+            return Ok(());
+        }
+        let metadata = object(field(fields, b"otlp")?)?;
+        let resource = typed_attributes(field(&metadata, b"resource")?)?;
+        let span = typed_attributes(field(&metadata, b"attributes")?)?;
+        let summary = self.traces.get_mut(id).ok_or(Error::Invalid)?;
         if self
             .expression
             .as_ref()
@@ -696,7 +741,14 @@ impl State {
         let evaluation = self
             .expression
             .as_ref()
-            .map(|e| e.evaluate(fields, &mut self.expression_work, collect))
+            .map(|e| {
+                e.evaluate_trace(
+                    fields,
+                    &mut self.expression_work,
+                    collect,
+                    e.needs_context().then_some(&summary.context),
+                )
+            })
             .transpose()?;
         let matched = evaluation.as_ref().map_or_else(
             || matches(&self.predicates, &resource, &span),
@@ -763,7 +815,13 @@ impl State {
         fields: &crate::json_read::RawFields<'_>,
     ) -> Res<()> {
         let expression = self.expression.as_ref().ok_or(Error::Invalid)?;
-        let evaluation = expression.evaluate(fields, &mut self.expression_work, true)?;
+        let summary = self.traces.get(id).ok_or(Error::Invalid)?;
+        let evaluation = expression.evaluate_trace(
+            fields,
+            &mut self.expression_work,
+            true,
+            expression.needs_context().then_some(&summary.context),
+        )?;
         let sid = string(field(fields, b"span_id")?)?;
         let span = u64::from_str_radix(&sid, 16).map_err(|_| Error::Invalid)?;
         let parent = match field(fields, b"parent_span_id")? {
@@ -795,6 +853,14 @@ impl State {
                 start,
                 sample,
             });
+        Ok(())
+    }
+    fn resolve_duration(&mut self) -> Res<()> {
+        self.duration_phase = true;
+        for blob in std::mem::take(&mut self.duration_blobs) {
+            self.scan(blob, false, true)?;
+        }
+        self.duration_phase = false;
         Ok(())
     }
     // Structural matches need every retained span of a trace: resolve them
@@ -849,6 +915,11 @@ impl State {
         }
         self.input_segments += 1;
         let blob = crate::erlang_bytes::from_binary(blob);
+        if self.expression.as_ref().is_some_and(|e| e.trace_duration()) {
+            // Shared immutable input ownership, not another provider read or
+            // payload copy. All captures share the existing 32 MiB/1024 caps.
+            self.duration_blobs.push(blob.clone());
+        }
         if self.context_phase {
             self.unplanned = unplanned;
             let rows = self.scan(blob, false, true);
@@ -999,14 +1070,19 @@ impl State {
                     return Err(Error::Invalid);
                 }
                 rows += 1;
-                if discover {
+                if self.duration_phase {
+                    self.duration_rows += 1;
+                } else if discover {
                     self.scanned += 1;
                 } else {
                     self.replayed += 1;
                 }
                 // Provider accounting charges each source once; native work
                 // independently caps discovery and complete-context passes.
-                if self.scanned > 1_000_000 || self.replayed > 1_000_000 {
+                if self.scanned > 1_000_000
+                    || self.replayed > 1_000_000
+                    || self.duration_rows > 1_000_000
+                {
                     return Err(Error::Rows);
                 }
                 if starts.value(i) >= self.floor {
@@ -1030,6 +1106,7 @@ impl State {
                                 payloads.value(i).as_bytes(),
                             )?;
                             if self.context_phase
+                                && !self.duration_phase
                                 && !selected
                                 && !self.unplanned
                                 && self.potential(&fields)?
@@ -1040,12 +1117,21 @@ impl State {
                                 if self.roots.is_some() && !source_selected {
                                     self.charge_root(&fields)?;
                                 }
-                                self.observe(
-                                    ids.value(i),
-                                    starts.value(i),
-                                    ends.value(i),
-                                    &fields,
-                                )?;
+                                if self.duration_phase {
+                                    self.observe_sample(
+                                        ids.value(i),
+                                        starts.value(i),
+                                        ends.value(i),
+                                        &fields,
+                                    )?;
+                                } else {
+                                    self.observe(
+                                        ids.value(i),
+                                        starts.value(i),
+                                        ends.value(i),
+                                        &fields,
+                                    )?;
+                                }
                             }
                         }
                     }

@@ -65,3 +65,38 @@ equal; this happens for one query on synthetic data, where a join yields
 duplicate series. Log-stream results ignore the `service` and
 `detected_level` labels that Pulse copies from the pushed `service_name` and
 `level` labels (see docs/protocol-coverage.md).
+
+## Datasource HTTP request contracts
+
+Dashboard queries do not cover Grafana's surrounding discovery and transport
+requests. The HTTP controller tests additionally preserve these client shapes,
+inspected on 2026-11-05:
+
+| Pinned source | Contract replay |
+| --- | --- |
+| [Prometheus datasource `3bfc304`, `resource_clients.test.ts:101–135`](https://github.com/grafana/grafana-prometheus-datasource/blob/3bfc304ade246040662915c46662c3d4352690b3/packages/grafana-prometheus/src/resource_clients.test.ts#L101-L135) | Label dictionaries with the default `limit=40000`, including `U__http_2e_status:sum` for `http.status:sum`. |
+| [Same revision, `utf8_support.test.ts:12–36`](https://github.com/grafana/grafana-prometheus-datasource/blob/3bfc304ade246040662915c46662c3d4352690b3/packages/grafana-prometheus/src/utf8_support.test.ts#L12-L36) | Seven original encoded names, including doubled underscores, Chinese text and an emoji, through authenticated tenant-scoped GET/form POST discovery. The separately authored mixed space/underscore/dot case is a local control. |
+| [Prometheus common `v0.73.1`, `TestValueUnescapeErrors`](https://github.com/prometheus/common/blob/v0.73.1/model/metric_test.go#L574-L636) | All nine nonempty input/output rows; the empty name has no HTTP path segment and is not counted. Malformed escapes preserve the whole original name, including surrogate rejection. Additional controls cover decoded 256/257-byte boundaries, one decoding pass and the pinned five-hex-digit ceiling. |
+| [Prometheus `v3.5.0` (`8be3a956`), `TestEndpoints` result-limit rows](https://github.com/prometheus/prometheus/blob/8be3a9560fbdd18a94dedec4b747c35178177202/web/api/v1/api_test.go#L1146-L1464) | The original two-series expression, 0..2 inclusive range and values 42/3.1415; limits 0/1/2 retain full samples and exact truncation warnings. Additional controls cover empty/oversized limits, sorted instant vectors, unchanged scalar/string results and safety failures despite `limit=1`. These are API-table ports, not additional Mimir deployment scenarios. |
+| [Prometheus datasource `3bfc304`, `custom_query_params_test.go:179–243`](https://github.com/grafana/grafana-prometheus-datasource/blob/3bfc304ade246040662915c46662c3d4352690b3/pkg/promlib/middleware/custom_query_params_test.go#L179-L243) | Optional `stats=all` on GET and form POST instant/range queries. Pulse returns ordinary truthful results without fabricated JSON statistics, matching [Mimir's renderer policy](https://github.com/grafana/mimir/blob/54720776b661e67dd6e90cf033793076686741bc/pkg/querier/stats_renderer.go#L13-L21). |
+| [Loki datasource `280bf26`, `logs_volume.go:237–256`](https://github.com/grafana/grafana-loki-datasource/blob/280bf268a25b1577b620568b34c0f8d721b25255/pkg/loki/logs_volume.go#L237-L256) and [`healthcheck.go`](https://github.com/grafana/grafana-loki-datasource/blob/280bf268a25b1577b620568b34c0f8d721b25255/pkg/loki/healthcheck.go) | Actual `vector(1)+vector(1)` health query and generated count-range shape with `offset 1ns`/millisecond steps. Authored asymmetric boundary data proves counts 3 then 1, not merely successful parsing. This is a client-callsite control inside the HTTP/native-Parquet/S3 Loki harness, not a new upstream Loki scenario. |
+
+`mimir_service_conformance_test.exs` retains the original Mimir integration
+inputs/oracles and adds separately labelled RW1/RW2 UTF-8 discovery controls
+through native Parquet/S3 with Grafana's escaped path and default limit.
+The complete-store work and dictionary budgets apply before explicit HTTP
+truncation; MCP discovery remains complete-or-error.
+
+The surrounding [Mimir](../promql/mimir/services/README.md),
+[Loki](../logs/loki-upstream/README.md) and
+[Tempo](../traces/tempo_integration/README.md) ledgers distinguish original
+upstream cases from adaptations and local controls. These tests exercise Pulse,
+not a running Grafana Cloud instance or the complete upstream deployment suites.
+Passing them does not establish full language parity, production capacity,
+notification delivery or historical data migration. Optional datasource-managed
+ruler/Alertmanager APIs remain distinct from Grafana-managed alert queries.
+
+The adapted Prometheus API/common table rows retain their Apache-2.0 notices;
+the license text is retained in [LICENSE-Prometheus](../promql/mimir/LICENSE-Prometheus)
+and [Prometheus-common-LICENSE](../logs/loki-upstream/Prometheus-common-LICENSE).
+The Mimir/Loki/Tempo ledgers retain their separate upstream test licenses.

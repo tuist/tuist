@@ -55,7 +55,7 @@ defmodule Pulse.OTLP.TraceNonfiniteTest do
 
     assert NIF.trace_metadata_api_version() == 2
     assert NIF.tempo_trace_api_version() == 3
-    assert NIF.tempo_discovery_api_version() == 12
+    assert NIF.tempo_discovery_api_version() == 13
   end
 
   test "JSON and protobuf agree on canonical classes and finite numeric strings; malformed doubles retain rejection semantics" do

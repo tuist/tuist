@@ -18,6 +18,8 @@ defmodule Mix.Tasks.Pulse.Parity do
     * `--var name=value` — a dashboard variable; unset ones match anything.
     * `--datasource uid=prometheus|loki` — the language of a datasource UID
       that queries reference without a type.
+    * `--scrape-interval` — scrape interval in seconds for `$__rate_interval`,
+      default 15. Use 60 for a one-minute scrape cadence.
     * `--tolerance` — relative tolerance for values, default 1e-9.
     * `--report PATH` — write every result as JSON.
 
@@ -38,6 +40,7 @@ defmodule Mix.Tasks.Pulse.Parity do
     lag: :integer,
     var: :keep,
     datasource: :keep,
+    scrape_interval: :integer,
     tolerance: :float,
     report: :string
   ]
@@ -54,9 +57,15 @@ defmodule Mix.Tasks.Pulse.Parity do
     datasources = pairs(opts, :datasource)
 
     queries =
-      Enum.flat_map(files, &(&1 |> File.read!() |> Pulse.JSON.decode!() |> Pulse.Parity.extract(&1, datasources)))
+      Enum.flat_map(files, fn file ->
+        queries = file |> File.read!() |> Pulse.JSON.decode!() |> Pulse.Parity.extract(file, datasources)
+        if queries == [], do: Mix.raise("No PromQL or LogQL queries extracted from #{file}")
+        queries
+      end)
 
-    queries = Enum.uniq_by(queries, &{&1.expr, &1.kind})
+    queries = Enum.uniq_by(queries, &{&1.expr, &1.language, &1.kind})
+    scrape_interval = Keyword.get(opts, :scrape_interval, 15)
+    if scrape_interval <= 0, do: Mix.raise("--scrape-interval must be positive")
     endpoints = endpoints(opts, queries)
     windows = opts |> Keyword.get(:window, "1h,6h,24h,7d") |> String.split(",") |> Enum.map(&seconds/1)
 
@@ -64,6 +73,7 @@ defmodule Mix.Tasks.Pulse.Parity do
       now: System.os_time(:second),
       lag: Keyword.get(opts, :lag, 300),
       vars: pairs(opts, :var),
+      scrape_interval: scrape_interval,
       tolerance: Keyword.get(opts, :tolerance, 1.0e-9)
     ]
 

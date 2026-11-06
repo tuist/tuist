@@ -1,3 +1,6 @@
+# Escaped-name cases adapted from Prometheus common v0.73.1 model/metric_test.go.
+# Copyright 2013 The Prometheus Authors, Apache-2.0.
+# Source/case mapping: test/fixtures/grafana/README.md.
 defmodule PulseWeb.PrometheusDiscoveryControllerTest do
   use PulseWeb.ConnCase, async: true
 
@@ -51,6 +54,99 @@ defmodule PulseWeb.PrometheusDiscoveryControllerTest do
     assert data(conn, "/api/v1/label/unicode/values") == ["µ\"\\\n"]
   end
 
+  test "explicit result limits warn only when a complete dictionary is truncated", %{conn: conn} do
+    for {route, selectors, expected} <- [
+          {"/api/v1/labels", [], ["__name__", "env", "host", "unicode"]},
+          {"/api/v1/label/host/values", [], ["a", "b"]},
+          {"/api/v1/series", [{"match[]", "requests"}],
+           [
+             %{"__name__" => "requests", "env" => "dev", "host" => "b"},
+             %{"__name__" => "requests", "env" => "prod", "host" => "a"}
+           ]}
+        ],
+        method <- [:get, :post],
+        limit <- ["", "0", "1", Integer.to_string(length(expected))] do
+      params = URI.encode_query(selectors ++ [{"limit", limit}])
+
+      response =
+        case method do
+          :get ->
+            conn |> get(route <> "?" <> params) |> json_response(200)
+
+          :post ->
+            conn
+            |> put_req_header("content-type", "application/x-www-form-urlencoded")
+            |> post(route, params)
+            |> json_response(200)
+        end
+
+      assert response["data"] == if(limit == "1", do: Enum.take(expected, 1), else: expected)
+      assert Map.get(response, "warnings", []) == if(limit == "1", do: ["results truncated due to limit"], else: [])
+    end
+
+    for params <- [
+          [{"limit", "-1"}],
+          [{"limit", "1.5"}],
+          [{"limit", "9223372036854775808"}],
+          [{"limit", "1"}, {"limit", "2"}]
+        ] do
+      assert conn |> get(path("/api/v1/labels", params)) |> json_response(400)
+    end
+  end
+
+  test "Grafana escaped label paths use upstream whole-name decoding", %{conn: conn} do
+    # Grafana's utf8_support.test.ts and Prometheus common v0.73.1
+    # TestValueUnescapeErrors table; see Grafana fixture provenance.
+    cases = [
+      {"no:escaping_required", "no:escaping_required"},
+      {"U__mysystem_2e_prod_2e_west_2e_cpu_2e_load", "mysystem.prod.west.cpu.load"},
+      {"U__mysystem_2e_prod_2e_west_2e_cpu_2e_load__total", "mysystem.prod.west.cpu.load_total"},
+      {"U__http_2e_status:sum", "http.status:sum"},
+      {"U__my_20_lovely__http_2e_status:sum", "my lovely_http.status:sum"},
+      {"U___82b1__706b_", "花火"},
+      {"U__label_20_with_20__1f631_", "label with 😱"},
+      {"U__no:unescapingrequired", "no:unescapingrequired"},
+      {"U__capitals_2E_ok", "capitals.ok"},
+      {"U__underscores__doubled__", "underscores_doubled_"},
+      {"U__underscores_doubled_", "U__underscores_doubled_"},
+      {"U__underscores__doubled_", "U__underscores__doubled_"},
+      {"U__my__hack_2e_attempt_872348732fabdabbab_", "U__my__hack_2e_attempt_872348732fabdabbab_"},
+      {"U__my__hack_2e", "U__my__hack_2e"},
+      {"U__bad__utf_2eg_", "U__bad__utf_2eg_"},
+      {"U__bad__utf_D900_", "U__bad__utf_D900_"},
+      # Local decoded-length, single-pass and pinned six-digit-policy controls.
+      {"U__" <> String.duplicate("_00061_", 256), String.duplicate("a", 256)},
+      {"U__U____http__2e__status:sum", "U__http_2e_status:sum"},
+      {"U___10ffff_", "U___10ffff_"}
+    ]
+
+    labels = Map.new(Enum.with_index(cases), fn {{_, decoded}, i} -> {decoded, "value#{i}"} end)
+    :ok = Storage.append(:metrics, "escaped", [%MetricSample{timestamp_ns: 10_000_000_000, value: 1.0, labels: labels}])
+    conn = put_req_header(conn, "x-scope-orgid", "escaped")
+
+    for {{encoded, _decoded}, i} <- Enum.with_index(cases), method <- [:get, :post] do
+      route = "/api/v1/label/#{encoded}/values"
+      params = URI.encode_query(start: "10", end: "10", limit: "40000")
+
+      response =
+        case method do
+          :get ->
+            conn |> get(route <> "?" <> params) |> json_response(200)
+
+          :post ->
+            conn
+            |> put_req_header("content-type", "application/x-www-form-urlencoded")
+            |> post(route, params)
+            |> json_response(200)
+        end
+
+      assert response == %{"status" => "success", "data" => ["value#{i}"]}
+    end
+
+    oversized = "U__" <> String.duplicate("_00061_", 257)
+    assert conn |> get("/api/v1/label/#{oversized}/values?limit=40000") |> json_response(400)
+  end
+
   test "repeated selectors union branches and AND within a branch, deduplicating series", %{conn: conn, rows: rows} do
     selectors = [{"match[]", ~s(requests{env="prod"})}, {"match[]", ~s(latency{host=~"b"})}]
     result = data(conn, path("/api/v1/series", selectors))
@@ -99,7 +195,6 @@ defmodule PulseWeb.PrometheusDiscoveryControllerTest do
           [{"match[]", ~s({host=~".*"})}],
           [{"match[]", "{"}],
           [{"match[]", ""}],
-          [{"limit", "1"}],
           [{"query", "requests"}],
           [{"start", "NaN"}],
           [{"start", "20"}, {"end", "10"}],
@@ -187,8 +282,10 @@ defmodule PulseWeb.PrometheusDiscoveryControllerTest do
     :ok = Storage.append(:metrics, "wide", rows)
     conn = put_req_header(conn, "x-scope-orgid", "wide")
 
-    assert %{"status" => "error", "errorType" => "execution"} =
-             conn |> get("/api/v1/label/host/values") |> json_response(422)
+    for suffix <- ["", "?limit=1"] do
+      assert %{"status" => "error", "errorType" => "execution"} =
+               conn |> get("/api/v1/label/host/values" <> suffix) |> json_response(422)
+    end
 
     assert data(conn, path("/api/v1/label/host/values", [{"match[]", ~s(wide{host="h1"})}])) == ["h1"]
   end

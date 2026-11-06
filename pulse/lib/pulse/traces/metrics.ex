@@ -255,8 +255,13 @@ defmodule Pulse.Traces.Metrics do
 
   defp expression(text, root_only) do
     case SearchExpression.parse("{" <> text <> "}") do
-      {:ok, {:expression, program}} -> {:ok, program, root_only}
-      {:error, _} = error -> error
+      {:ok, {:expression, program}} ->
+        if SearchExpression.context?(program) or SearchExpression.scoped?(program),
+          do: {:error, :unsupported_trace_selector},
+          else: {:ok, program, root_only}
+
+      {:error, _} = error ->
+        error
     end
   end
 
