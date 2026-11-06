@@ -32,7 +32,7 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
     public var isStandardOutputInteractive: Bool = false
     private var manifestLoadingVariablesOverride: [String: String]?
     public var manifestLoadingVariables: [String: String] {
-        get { manifestLoadingVariablesOverride ?? Environment.manifestLoadingVariables(from: variables) }
+        get { manifestLoadingVariablesOverride ?? Environment(variables: variables).manifestLoadingVariables }
         set { manifestLoadingVariablesOverride = newValue }
     }
 
