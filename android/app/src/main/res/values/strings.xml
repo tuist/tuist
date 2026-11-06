@@ -33,6 +33,7 @@
     <string name="cancel">"Cancel"</string>
     <string name="back">"Back"</string>
     <string name="share">"Share"</string>
+    <string name="preview_open_on_web">"Open on web"</string>
     <string name="preview_default_app_name">"App"</string>
     <string name="preview_default_name">"Preview"</string>
     <string name="preview_supported_platforms">"Supported platforms"</string>
@@ -189,4 +190,6 @@
     <string name="notifications_rule_save">"Save"</string>
     <string name="notifications_search_projects">"Search projects"</string>
     <string name="done">"Done"</string>
+    <string name="navigation_link_error">"This link is invalid or belongs to a different server."</string>
+    <string name="navigation_browser_unavailable">"No browser is available to open this link."</string>
 </resources>

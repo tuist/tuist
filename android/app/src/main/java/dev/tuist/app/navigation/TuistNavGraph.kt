@@ -13,19 +13,22 @@ import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 fun TuistNavGraph(
-    authState: StateFlow<AuthState>,
+    authState: StateFlow<AuthState?>,
+    navigation: AppNavigationViewModel,
 ) {
+    val observedAuthState by authState.collectAsStateWithLifecycle()
+    val currentAuthState = observedAuthState ?: return
     val navController = rememberNavController()
-    val currentAuthState by authState.collectAsStateWithLifecycle()
 
     LaunchedEffect(currentAuthState) {
         when (currentAuthState) {
-            is AuthState.LoggedIn, is AuthState.Authenticating -> {
+            is AuthState.LoggedIn -> {
                 navController.navigate(Routes.Home) {
                     popUpTo(Routes.Login) { inclusive = true }
+                    launchSingleTop = true
                 }
             }
-            is AuthState.LoggedOut -> {
+            is AuthState.LoggedOut, is AuthState.Authenticating -> {
                 navController.navigate(Routes.Login) {
                     popUpTo(0) { inclusive = true }
                 }
@@ -34,8 +37,8 @@ fun TuistNavGraph(
     }
 
     val startDestination: Routes = when (currentAuthState) {
-        is AuthState.LoggedIn, is AuthState.Authenticating -> Routes.Home
-        is AuthState.LoggedOut -> Routes.Login
+        is AuthState.LoggedIn -> Routes.Home
+        is AuthState.LoggedOut, is AuthState.Authenticating -> Routes.Login
     }
 
     NavHost(
@@ -46,7 +49,7 @@ fun TuistNavGraph(
             LoginScreen()
         }
         composable<Routes.Home> {
-            HomeScreen()
+            HomeScreen(navigation = navigation, authState = currentAuthState)
         }
     }
 }

@@ -1,12 +1,14 @@
 import Foundation
 import NukeUI
 import SwiftUI
+import TuistNavigation
 import TuistNoora
 import TuistServer
 
 struct PreviewRowView: View {
     let preview: ServerPreview
-    @Binding var navigationPath: NavigationPath
+    let fullHandle: String
+    @Environment(AppNavigation.self) private var navigation
     @Binding var pressedPreviewId: String?
     @State private var isPressed = false
 
@@ -106,7 +108,9 @@ struct PreviewRowView: View {
             NooraDivider()
         }
         .onTapGesture {
-            navigationPath.append(preview)
+            let handles = fullHandle.split(separator: "/")
+            guard handles.count == 2 else { return }
+            navigation.navigate(to: .preview(account: String(handles[0]), project: String(handles[1]), id: preview.id))
         }
         .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity) { isPressing in
             isPressed = isPressing

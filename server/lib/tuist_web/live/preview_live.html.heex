@@ -98,6 +98,15 @@
   </div>
   <div data-part="actions">
     <.button
+      :if={@user_agent.os.family in ["iOS", "Android"]}
+      id="preview-open-in-app"
+      label={dgettext("dashboard_previews", "Open in app")}
+      variant="secondary"
+      href={@mobile_app_href}
+    >
+      <:icon_left><.icon name="device_mobile" /></:icon_left>
+    </.button>
+    <.button
       label={dgettext("dashboard_previews", "Download")}
       variant="secondary"
       href={
