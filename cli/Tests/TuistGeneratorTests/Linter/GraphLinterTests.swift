@@ -218,7 +218,7 @@ struct GraphLinterTests {
                 Target.test(name: "App", dependencies: [.package(product: "PackageTarget", type: .runtime)]),
                 Target.test(name: "AppTests"),
             ],
-            packages: [.local(path: packagePath)]
+            packages: [.local(config: .init(path: packagePath))]
         )
 
         let workspace = Workspace.test(
@@ -275,7 +275,7 @@ struct GraphLinterTests {
                 Target.test(name: "App", dependencies: [.package(product: "PackageTarget", type: .runtime)]),
                 Target.test(name: "AppTests"),
             ],
-            packages: [.local(path: packagePath)]
+            packages: [.local(config: .init(path: packagePath))]
         )
 
         let workspace = Workspace.test(
@@ -339,7 +339,7 @@ struct GraphLinterTests {
                 Target.test(name: "App", dependencies: [.package(product: "PackageTarget", type: .runtime)]),
                 Target.test(name: "AppTests"),
             ],
-            packages: [.local(path: packagePath)]
+            packages: [.local(config: .init(path: packagePath))]
         )
 
         let workspace = Workspace.test(

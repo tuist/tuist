@@ -9,7 +9,7 @@ extension Package {
         /// The type of package dependency.
         public enum Kind: Codable, Equatable, Sendable {
             /// A dependency located at a local path.
-            case fileSystem(path: Path)
+            case fileSystem(path: Path, config: LocalPackageReferenceConfig?)
             /// A dependency hosted in a source control repository.
             case sourceControl(location: String, requirement: SourceControlRequirement)
             /// A dependency published to a package registry.
@@ -82,8 +82,8 @@ extension Package {
         init(legacyPackage: Package) {
             traits = [.defaults]
             switch legacyPackage {
-            case let .local(path):
-                kind = .fileSystem(path: path)
+            case let .local(path, config):
+                kind = .fileSystem(path: path, config: config)
             case let .remote(url, requirement):
                 kind = .sourceControl(
                     location: url,
@@ -104,8 +104,8 @@ extension Package {
         /// The corresponding legacy package value.
         public var package: Package {
             switch kind {
-            case let .fileSystem(path):
-                .local(path: path)
+            case let .fileSystem(path, config):
+                .local(path: path, config: config)
             case let .sourceControl(location, requirement):
                 .remote(url: location, requirement: requirement.packageRequirement)
             case let .registry(id, requirement):
@@ -195,9 +195,10 @@ extension Package {
         /// Creates a local package dependency with enabled traits.
         public static func package(
             path: Path,
-            traits: Set<Trait> = [.defaults]
+            traits: Set<Trait> = [.defaults],
+            config: LocalPackageReferenceConfig? = nil
         ) -> Dependency {
-            .init(kind: .fileSystem(path: path), traits: traits)
+            .init(kind: .fileSystem(path: path, config: config), traits: traits)
         }
 
         /// Creates a registry package dependency using a minimum version and enabled traits.

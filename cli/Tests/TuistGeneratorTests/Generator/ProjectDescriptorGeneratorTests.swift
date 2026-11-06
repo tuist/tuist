@@ -619,8 +619,8 @@ struct ProjectDescriptorGeneratorTests {
         // Given
         let project = Project.test(
             packages: [
-                .local(path: try AbsolutePath(validating: "/LocalPackages/LocalPackageA")),
-                .local(path: try AbsolutePath(validating: "/LocalPackages/LocalPackageB")),
+                .local(config: .init(path: try AbsolutePath(validating: "/LocalPackages/LocalPackageA"))),
+                .local(config: .init(path: try AbsolutePath(validating: "/LocalPackages/LocalPackageB"))),
             ]
         )
 
@@ -657,14 +657,14 @@ struct ProjectDescriptorGeneratorTests {
             sourceRootPath: projectPath,
             name: "Project",
             targets: [target, .test(name: "B", dependencies: [.package(product: "A", type: .runtime)])],
-            packages: [.local(path: localPackagePath)]
+            packages: [.local(config: .init(path: localPackagePath))]
         )
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
         let graph = Graph.test(
             projects: [project.path: project],
             packages: [
                 project.path: [
-                    "A": .local(path: localPackagePath),
+                    "A": .local(config: .init(path: localPackagePath)),
                 ],
             ],
             dependencies: [
@@ -734,7 +734,7 @@ struct ProjectDescriptorGeneratorTests {
         let projectPath = try AbsolutePath(validating: "/Project")
         let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
         let target = Target.test(name: "A")
-        let package = Package.local(path: localPackagePath)
+        let package = Package.local(config: .init(path: localPackagePath))
         let project = Project.test(
             path: projectPath,
             sourceRootPath: projectPath,
@@ -748,7 +748,7 @@ struct ProjectDescriptorGeneratorTests {
             projects: [project.path: project],
             packages: [
                 project.path: [
-                    "A": .local(path: localPackagePath),
+                    "A": .local(config: .init(path: localPackagePath)),
                 ],
             ],
             dependencies: [
@@ -844,5 +844,196 @@ struct ProjectDescriptorGeneratorTests {
             "A",
         ])
         #expect(rootObject.remotePackages.first?.traits == [])
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    )
+    func test_generate_localSwiftPackageWithNestedCustomGroupPath() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let localPackagePath = try AbsolutePath(validating: "/Project/LocalPackages/LocalPackageA")
+        let target = Target.test(name: "A")
+
+        let project = Project.test(
+            path: projectPath,
+            sourceRootPath: projectPath,
+            name: "Project",
+            targets: [target],
+            packages: [
+                .local(config: .init(path: localPackagePath, grouping: .custom("Vendor/Features"))),
+            ]
+        )
+
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
+        // When
+        let result = try await subject.generate(project: project, graphTraverser: graphTraverser)
+
+        // Then
+        let pbxproj = result.xcodeProj.pbxproj
+        let rootGroup = try #require(try pbxproj.rootGroup())
+
+        let packagesGroup = try #require(rootGroup.group(named: "Packages"))
+        let vendorGroup = try #require(packagesGroup.group(named: "Vendor"))
+        let myLibGroup = try #require(vendorGroup.group(named: "Features"))
+
+        let packageRef = try #require(myLibGroup.children.first as? PBXFileReference)
+        #expect(packageRef.name == "LocalPackageA")
+        #expect(packageRef.path == "LocalPackages/LocalPackageA")
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    )
+    func test_generate_localSwiftPackageWithSingleLevelCustomGroupPath() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let localPackagePath = try AbsolutePath(validating: "/Project/LocalPackages/LocalPackageB")
+        let project = Project.test(
+            path: projectPath,
+            sourceRootPath: projectPath,
+            name: "Project",
+            targets: [],
+            packages: [
+                .local(config: .init(path: localPackagePath, grouping: .custom("External"))),
+            ]
+        )
+
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
+        // When
+        let result = try await subject.generate(project: project, graphTraverser: graphTraverser)
+
+        // Then
+        let pbxproj = result.xcodeProj.pbxproj
+        let rootGroup = try #require(try pbxproj.rootGroup())
+
+        let packagesGroup = try #require(rootGroup.group(named: "Packages"))
+        let externalGroup = try #require(packagesGroup.group(named: "External"))
+        let packageRef = try #require(externalGroup.children.first as? PBXFileReference)
+
+        #expect(packageRef.name == "LocalPackageB")
+        #expect(packageRef.path == "LocalPackages/LocalPackageB")
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    )
+    func test_addLocalPackageReference_trimminPrefix() async throws {
+        // Given
+        let pbxproj = PBXProj()
+        let rootGroup = PBXGroup(children: [], sourceTree: .group)
+        pbxproj.add(object: rootGroup)
+
+        let reference = PBXFileReference(sourceTree: .group, name: "MyPackage", path: "LocalPackages/Vendor/Features/MyPackage")
+        pbxproj.add(object: reference)
+
+        let config = GeneratorLocalPackageReferenceConfig(
+            path: "/Project/LocalPackages/Vendor/Features/MyPackage",
+            sourceRoot: "/Project",
+            grouping: .trimmingPrefix("LocalPackages/Vendor")
+        )
+
+        // When
+        try subject.addLocalPackageReference(
+            root: rootGroup,
+            reference: reference,
+            project: pbxproj,
+            localConfig: config
+        )
+
+        // Then
+        let packagesGroup = try #require(rootGroup.group(named: "Packages"))
+        let featuresGroup = try #require(packagesGroup.group(named: "Features"))
+
+        let addedRef = try #require(featuresGroup.children.first as? PBXFileReference)
+        #expect(addedRef.name == "MyPackage")
+        #expect(addedRef.path == "LocalPackages/Vendor/Features/MyPackage")
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    )
+    func test_addLocalPackageReference_withKeepStructure() async throws {
+        // Given
+        let pbxproj = PBXProj()
+        let rootGroup = PBXGroup(children: [], sourceTree: .group)
+        pbxproj.add(object: rootGroup)
+
+        let reference = PBXFileReference(
+            sourceTree: .group,
+            name: "MyPackage",
+            path: "LocalPackages/MyPackage"
+        )
+        pbxproj.add(object: reference)
+
+        let config = GeneratorLocalPackageReferenceConfig(
+            path: "/Project/LocalPackages/MyPackage",
+            sourceRoot: "/Project",
+            grouping: .original
+        )
+
+        // When
+        try subject.addLocalPackageReference(
+            root: rootGroup,
+            reference: reference,
+            project: pbxproj,
+            localConfig: config
+        )
+
+        // Then
+        let projectGroup = try #require(rootGroup.group(named: "Project"))
+
+        let localPackagesGroup = try #require(
+            projectGroup.children.compactMap { $0 as? PBXGroup }
+                .first { $0.name == "LocalPackages" || $0.path == "LocalPackages" }
+        )
+
+        let addedRef = try #require(localPackagesGroup.children.first as? PBXFileReference)
+        #expect(addedRef.name == "MyPackage")
+        #expect(addedRef.path == "LocalPackages/MyPackage")
+    }
+
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    )
+    func test_resolveStructuredReference_replacesFileWithGroup() async throws {
+        // Given
+        let parent = PBXGroup(children: [], sourceTree: .group)
+        let pbxproj = PBXProj()
+        let file = PBXFileReference(sourceTree: .group, name: "Features", path: "Features")
+        parent.children.append(file)
+
+        // When
+        let group = try subject.resolveStructuredReference(named: "Features", in: parent, project: pbxproj)
+
+        // Then
+        #expect(group.path == "Features")
+        #expect(parent.children.contains(where: { $0 === group }))
+        #expect(!parent.children.contains(file))
     }
 }
