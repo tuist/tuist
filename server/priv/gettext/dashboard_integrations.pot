@@ -731,7 +731,7 @@ msgstr ""
 
 #: lib/tuist_web/components/amp_workspaces.ex:62
 #, elixir-autogen, elixir-format
-msgid "Enter the workspace ID, a UUID such as 8e5f0d8f-a1a5-429d-843d-6096a60fa0a1."
+msgid "Enter the workspace ID, a UUID such as 123e4567-e89b-12d3-a456-426614174000."
 msgstr ""
 
 #: lib/tuist_web/components/amp_workspaces.ex:191

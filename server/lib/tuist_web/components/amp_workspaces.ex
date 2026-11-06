@@ -59,7 +59,7 @@ defmodule TuistWeb.Components.AmpWorkspaces do
         dgettext("dashboard_integrations", "This Amp workspace is already connected.")
 
       [workspace_id: _] ->
-        dgettext("dashboard_integrations", "Enter the workspace ID, a UUID such as 8e5f0d8f-a1a5-429d-843d-6096a60fa0a1.")
+        dgettext("dashboard_integrations", "Enter the workspace ID, a UUID such as 123e4567-e89b-12d3-a456-426614174000.")
 
       _ ->
         dgettext("dashboard_integrations", "Enter the project ID as a UUID, or leave it empty for the whole workspace.")
@@ -189,7 +189,7 @@ defmodule TuistWeb.Components.AmpWorkspaces do
             name="workspace_id"
             type="basic"
             label={dgettext("dashboard_integrations", "Workspace ID")}
-            placeholder="8e5f0d8f-a1a5-429d-843d-6096a60fa0a1"
+            placeholder="123e4567-e89b-12d3-a456-426614174000"
             value=""
             required
             show_required
@@ -205,7 +205,7 @@ defmodule TuistWeb.Components.AmpWorkspaces do
                 "Optional. Leave empty for every project in the workspace."
               )
             }
-            placeholder="1e345004-78e8-4e1d-bb72-27bb1a22d450"
+            placeholder="123e4567-e89b-12d3-a456-426614174001"
             value=""
           />
           <div data-part="actions">
