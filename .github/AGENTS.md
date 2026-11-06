@@ -413,16 +413,21 @@ off pull requests, the merge queue, the floor shards and the unsharded
 fallback, and never let it fail the run. Xcode coverage of `tuist/tuist` comes
 from `tuist-project-tests.yml` (`tuist/tuist Tests`), which runs every macOS `tuist test` of the
 CLI and the app (cli.yml and app.yml keep builds, lint and the Linux suite). On
-a pull request the unit, app and acceptance tests run selectively, and
+a pull request the unit, app and acceptance tests run selectively: hashing
+skips whole targets, then `Tuist.swift`'s `.coverage()` strategy asks the server
+which XCTest tests of the targets left to run (Swift Testing and the
+acceptance targets, which don't link TestCoverageAttribution, always run when
+their target does; see `server/docs/coverage-test-selection.md`), and
 `coverage-complete` runs `tuist coverage complete` once all three finished,
 whatever their result (not on drafts or forks). On a push to main the
 `cache` job warms the binary cache first, uploading the compilation-cache plugin's `cas.log`
-and the CLI session logs when it fails, then the unit and app tests run in full
-(`--no-selective-testing`) and `coverage-complete`
-follows when both passed and the selective acceptance run has finished. The unit, app and acceptance tests record per-target evidence,
+and the CLI session logs when it fails, then the unit, app and acceptance tests run in full
+(`--no-selective-testing`), so every measured merge is a complete baseline for
+coverage-based test selection, and `coverage-complete`
+follows when unit and app passed and the acceptance run has finished. The unit, app and acceptance tests record per-target evidence,
 which the CLI reads from Xcode's raw profiles: the server carries
 targets selective testing skipped only from runs that recorded evidence under
-the same hash: main's runs (full for unit and app, selective for acceptance)
+the same hash: main's full runs
 for every selective run and a pull request's own runs for its later pushes.
 The CLI's unit test targets and the app's `TuistMenuBarTests` also
 link TestCoverageAttribution (as a dynamic framework), so their XCTest tests
@@ -442,7 +447,8 @@ full run of an earlier commit on main, tested with main's `mise.toml`. The
 selective runs upload coverage too; the server drops from their skips whatever a
 full run of the scheme at the commit executed. The coverage settings are set once, in the
 root `Tuist.swift`'s `coverage: .coverage(enabled: true, prefixMapping: true)`
-and `testInsights: .testInsights(coverage: .coverage(upload: true))`, so every job and
+and `testInsights: .testInsights(coverage: .coverage(upload: true), selectiveTesting:
+.selectiveTesting(strategy: .coverage()))`, so every job and
 every developer resolve the same variant and the same prefix mapping; both are
 hashed into binary-cache and selective-testing keys, so never override them per
 step with `TUIST_COVERAGE_ENABLED` or `TUIST_COVERAGE_PREFIX_MAPPING`. The test runs pass no
