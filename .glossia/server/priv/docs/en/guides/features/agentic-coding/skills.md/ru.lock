@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "d6fbce9bc171a13d5b30b61a425122cd361df3146a29a771d29330524a55cf4f",
+  "hash": "4b76a88c46a0c21cee65759b211be082e2e42b587bc92ff644a09ccf50036c32",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Skills": {
-                  "content_hash": "559188c24cac55fc7e27cfec69d7dcb707a10b2f993c0af438b13cab567034b7"
+                  "content_hash": "50c4bdfb43b7e6a8d2acc45772b73346296ef02cd0e0a530c147cc1766fc179b"
                 },
                 "## Available skills": {
                   "content_hash": "68cbe692887920d9d9e887b5d7f87df422e1373098b07f68bfe53905dfcadac1"
@@ -47,11 +47,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "007e690f199778f0ab9e58680ba5cc08fb8caafb72190ff09485610cd8539060",
+          "hash": "66de44aa0591cd933163a02fe5222d061f73329485ab832c5d2dfb5ec0b26a06",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/agentic-coding/skills.md",
           "metadata": {
-            "content_hash": "70b6b6ab05136307a2a2bd93f9fe6aeedcb689c5c6fa74f32148262a54b006bc"
+            "content_hash": "dd728769f3fa71a2c211d581a396474eed774558cf4a9660be0254fd3f57331d"
           }
         },
         {
@@ -254,14 +254,14 @@
         }
       ],
       "details": {},
-      "hash": "d6fbce9bc171a13d5b30b61a425122cd361df3146a29a771d29330524a55cf4f",
+      "hash": "4b76a88c46a0c21cee65759b211be082e2e42b587bc92ff644a09ccf50036c32",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/agentic-coding/skills.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "d246066e09a451162eb955b2049291f404d75361f45f9c240159e3c8395b7432",
+  "output_hash": "50f5d2bf037015ba3749d124d13b116e0d7da538a9ed72b9c079e0ec7b47ffb8",
   "output_path": "server/priv/docs/ru/guides/features/agentic-coding/skills.md",
   "protection_state": "recorded",
   "provider": "",
@@ -282,8 +282,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5e9d7c17d002aff6035ec604c8e944aa411b79fa",
+  "source_commit_sha": "b5d0ae8f0fc6f3571b57e76a4b1b7f1e23ac200f",
   "source_path": "server/priv/docs/en/guides/features/agentic-coding/skills.md",
-  "translated_at": "2026-11-04T18:35:06.776785Z",
-  "translation_session_id": "01a1a7d6-1524-7d6d-85ce-7d4c649e29cb"
+  "translated_at": "2026-11-06T16:14:21.939420Z",
+  "translation_session_id": "01a1b1a1-7590-734d-8ccf-e3b04f251e96"
 }

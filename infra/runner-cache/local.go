@@ -1289,12 +1289,17 @@ func (b *LocalImages) Prefetch(ctx context.Context, slot Slot) error {
 // the reserve: it never evicts a master or reclaims checkouts, so a speculative
 // download cannot push out masters jobs on this host still read. Its master of a
 // lineage no job used here is speculative until a job clones it.
+//
+// The floor it leaves is at least a checkout volume's capacity, which a job's
+// checkout needs free and never evicts for: spare downloads that filled the
+// space down to the reserve kept hosts below what a checkout needs.
 func (b *LocalImages) PrefetchSpare(ctx context.Context, slot Slot) error {
 	if slot.BaseGeneration <= 0 || !validHead(slot.Identity) || !scopePattern.MatchString(slot.Scope) {
 		return errors.New("invalid prefetch identity")
 	}
 	ctx = WithSubject(ctx, SubjectOf(slot))
-	if err := b.reserveSpare(ctx, b.MinFreeBytes+uint64(slot.RestoreBytes(int64(b.SizeGB)*1_000_000_000))); err != nil {
+	floor := max(b.MinFreeBytes, uint64(CheckoutCapacity))
+	if err := b.reserveSpare(ctx, floor+uint64(slot.RestoreBytes(int64(b.SizeGB)*1_000_000_000))); err != nil {
 		return err
 	}
 	return b.prefetch(ctx, slot, true)

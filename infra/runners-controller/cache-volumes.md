@@ -126,8 +126,9 @@ init container runs this same script in the host mount namespace before the
 agent starts, covering both current and replacement hosts. It requires the XFS
 tools already installed by fleet bootstrap, checks free space, and installs the
 persistent systemd mount without restarting kubelet or repartitioning disks.
-Retries retain existing contents and reject size mismatches, foreign mounts,
-symlinks, and nonempty unprovisioned paths. Failure leaves the agent unready;
+Retries retain existing contents and reject foreign mounts, symlinks, and
+nonempty unprovisioned paths. An existing image of another size is kept as it
+is; a new `sizeGB` reaches only images created after it. Failure leaves the agent unready;
 the host cannot advertise volume readiness. Each reconcile also labels the Node
 `tuist.dev/cache-volume-<scope prefix>` for every lineage with an installed
 master and removes the labels of evicted ones. Disabling provisioning never deletes
@@ -135,6 +136,41 @@ the backing file or unmounts existing storage. Runner scheduling prefers ready
 hosts but does not require them; jobs on other hosts fall back to ordinary
 directories. If unprovisioned hosts have accumulated pod directories, drain those
 pods and remove only their confirmed-unused directories before retrying setup.
+
+### Changing the cache size
+
+The backing file is preallocated and never resized, so a new
+`runnersFleetLinux.cacheVolumes.provisioning.sizeGB` applies to replacement
+hosts and to hosts whose image is rebuilt. Size it against `/data`, which the
+cache shares with containerd and kubelet: kubelet evicts Pods once
+`imagefs.available` drops below 15%, so the image plus the host's peak use
+outside it (`node_filesystem_size_bytes - node_filesystem_avail_bytes` on
+`/data`, less the current image) must leave that margin.
+
+Rebuilding a host's image discards its masters, checkouts and Docker caches;
+jobs there start cold until prefetch and jobs refill it. Do one host at a time.
+Writes to canary or production need elevation (infra/AGENTS.md).
+
+1. `kubectl cordon <node>` and wait until no runner Pod is left on it.
+2. Wait until the host's agent has published every job: its log shows no
+   `publish`, `upload` or `delete` operation for ten minutes, and
+   `kubectl debug node/<node> --image=busybox --profile=sysadmin -q -- ls /host/var/lib/kubelet/tuist-runner-cache/state`
+   lists no journals.
+3. Move the agent off with a taint it does not tolerate:
+   `kubectl taint node <node> tuist.dev/cache-rebuild=true:NoExecute`, and
+   wait for its `runner-cache-volumes` Pod to go.
+4. In a sysadmin debug shell (`kubectl debug node/<node> --image=ubuntu --profile=sysadmin -it -- chroot /host bash`):
+   `systemctl stop "$(systemd-escape --path --suffix=mount /var/lib/kubelet/tuist-runner-cache)"`,
+   confirm `findmnt /var/lib/kubelet/tuist-runner-cache` and
+   `losetup -j /var/lib/kubelet/tuist-runner-cache.img` print nothing and the
+   directory is empty, then `rm /var/lib/kubelet/tuist-runner-cache.img`.
+5. `kubectl taint node <node> tuist.dev/cache-rebuild-`. The agent's init
+   container provisions the new size (it needs that size plus 40 GB free on
+   `/data`), and the agent becomes ready.
+6. Check the new size with
+   `kubectl debug node/<node> --image=busybox --profile=sysadmin -q -- df -B1G /host/var/lib/kubelet/tuist-runner-cache`
+   (the agents' capacity metric does not keep a node label), then
+   `kubectl uncordon <node>`.
 
 ## Trust, publication and recovery
 
@@ -422,7 +458,8 @@ volumes used in the last day, for the repositories the server places on this
 node (a few nodes per repository; dispatch leaves its young jobs to them). The
 agent restores the ones it lacks one at a time, separately from the job
 prefetch, with a ten-minute deadline each, through `LocalImages.PrefetchSpare`:
-only into free space above the reserve, never evicting, and as a speculative
+only into free space above the reserve and a checkout volume's 60 GB capacity
+(a checkout never evicts for its room), never evicting, and as a speculative
 master that pressure eviction takes first until a job clones it.
 `tuist_runner_cache_volume_prefetched_bytes_total{reason}` counts the saved
 heads' used bytes it installed (`job`, `prewarm`, `recent`). Checkout HEADs in the list (`kind: "checkout"`)
