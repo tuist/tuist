@@ -147,7 +147,9 @@ aggregationRule:
           values: ["external-secrets"]
     - matchLabels:
         tuist.dev/aggregate-to-write: "true"
-rules: []
+# No `rules`: the aggregation controller owns them. Rendering `rules: []` makes
+# Helm's server-side apply reset a field that controller manages, which fails
+# every upgrade after the first.
 ---
 # Force-syncing an ExternalSecret (`kubectl annotate externalsecret ...
 # force-sync=...`) is a patch; reads come from External Secrets' view role.
@@ -640,6 +642,11 @@ subjects:
 #     scope the actual patch to the diagnosed field; fleet configuration still
 #     goes through a reviewed chart change. Like the other recovery verbs,
 #     this is standing access in staging and JIT-only in canary/production.
+#   * vultrmachines patch — the same grant for Vultr hosts. Its use is the
+#     one-host Kura LVM conversion: annotate a replacement VultrMachine
+#     tuist.dev/kura-storage-layout=lvm-v1 before its Converting stage, after
+#     deleting the emptied host's Machine above. The same resource-level
+#     caveat applies; patch only that annotation.
 #   * nodes update/patch/delete + pods/eviction create — cordon and drain a
 #     live host before recreating it, or remove a confirmed orphaned Node after
 #     its Machine and infrastructure are already gone.
@@ -680,7 +687,7 @@ rules:
     resources: ["scalewayapplesiliconmachinetemplates"]
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
-    resources: ["ovhdedicatedmachines"]
+    resources: ["ovhdedicatedmachines", "vultrmachines"]
     verbs: ["patch"]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources: ["rackapplesiliconmachines"]

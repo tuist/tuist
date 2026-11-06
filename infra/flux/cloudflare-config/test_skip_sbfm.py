@@ -126,6 +126,18 @@ class SbfmExemptionTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertFalse(self.exempt(path))
 
+    def test_native_threads_socket_handshake_is_exempt(self):
+        self.assertTrue(self.exempt("/threads/socket/websocket"))
+        for method in ["HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]:
+            with self.subTest(method=method):
+                self.assertFalse(self.exempt("/threads/socket/websocket", method))
+        for path in [
+            "/threads/socket/longpoll", "/threads/socket/websocket/",
+            "/threads/socket/websocket/extra", "/threads/socket/private",
+        ]:
+            with self.subTest(path=path):
+                self.assertFalse(self.exempt(path))
+
     def test_non_read_methods_remain_protected(self):
         for path in [
             "/tuist/tuist", "/en/docs", "/en/docs/guides/install-tuist",

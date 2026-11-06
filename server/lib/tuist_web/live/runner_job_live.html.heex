@@ -1,4 +1,8 @@
-<div id="runner-job">
+<div
+  id="runner-job"
+  phx-hook="PageFavicon"
+  data-favicon-status={TuistWeb.RunnerJobLive.header_status(@job)}
+>
   <.button
     navigate={~p"/#{@selected_account.name}/runners/jobs"}
     variant="secondary"

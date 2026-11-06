@@ -395,27 +395,58 @@ func TestCarriedWriterRefusesBytesTheStreamDidNotCarry(t *testing.T) {
 	}
 }
 
-func TestLocalCheckoutClonesNeverEvictForTheirRoom(t *testing.T) {
+// Attach eviction keeps only the reserve free, so a checkout clone evicts idle
+// custom masters for the rest of its room. Being optional, it never takes a
+// master a job holds, cancels speculative work, or reclaims checkouts.
+func TestLocalCheckoutClonesEvictOnlyIdleMastersForTheirRoom(t *testing.T) {
 	b, _ := newLocal(t)
 	b.MinFreeBytes = 10
-	b.FreeBytes = func(string) (uint64, error) { return CheckoutCapacity - 1, nil }
 	b.Seed = func(_ context.Context, _ Slot, dst string) error { return os.WriteFile(dst, nil, 0600) }
-	master := filepath.Join(b.Root, "masters", strings.Repeat("c", 64), "00000000000000000001-"+strings.Repeat("d", 64)+".img")
-	if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
-		t.Fatal(err)
+	install := func(scope string) string {
+		master := filepath.Join(b.Root, "masters", scope, "00000000000000000001-"+strings.Repeat("d", 64)+".img")
+		if err := os.MkdirAll(filepath.Dir(master), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(master, []byte("custom master"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		return master
 	}
-	if err := os.WriteFile(master, []byte("custom master"), 0600); err != nil {
-		t.Fatal(err)
+	held := install(strings.Repeat("c", 64))
+	b.InUse = func(scope string) bool { return scope == strings.Repeat("c", 64) }
+	// Free space is one byte short of a checkout's room until the idle master goes.
+	idle := ""
+	b.FreeBytes = func(string) (uint64, error) {
+		if _, err := os.Stat(idle); idle != "" && os.IsNotExist(err) {
+			return CheckoutCapacity, nil
+		}
+		return CheckoutCapacity - 1, nil
 	}
-	reclaimed := false
+	reclaimed, displaced := false, false
 	b.Reclaim = func(context.Context, uint64) error { reclaimed = true; return nil }
-	slot := Slot{Identity: identity(first), PodUID: "p"}
-	slot.Kind, slot.Generation = KindCheckout, 1
-	if err := b.Attach(context.Background(), slot, t.TempDir()); !errors.Is(err, ErrCapacity) {
-		t.Fatalf("got %v", err)
+	b.Displace = func(context.Context) bool { displaced = true; return false }
+	checkout := func(pod string) error {
+		slot := Slot{Identity: identity(first), PodUID: pod}
+		slot.Kind, slot.Generation = KindCheckout, 1
+		return b.Attach(context.Background(), slot, t.TempDir())
 	}
-	if _, err := os.Stat(master); err != nil || reclaimed {
-		t.Fatal("a checkout clone evicted for its room")
+
+	if err := checkout("p"); !errors.Is(err, ErrCapacity) {
+		t.Fatalf("a checkout was admitted with only a held master to evict: %v", err)
+	}
+	if _, err := os.Stat(held); err != nil || reclaimed || displaced {
+		t.Fatal("a checkout evicted a held master, reclaimed checkouts or displaced speculative work")
+	}
+
+	idle = install(strings.Repeat("e", 64))
+	if err := checkout("q"); err != nil {
+		t.Fatalf("a checkout was refused although an idle master could make its room: %v", err)
+	}
+	if _, err := os.Stat(idle); !os.IsNotExist(err) {
+		t.Fatal("the idle master was not evicted for the checkout")
+	}
+	if _, err := os.Stat(held); err != nil || reclaimed || displaced {
+		t.Fatal("a checkout evicted a held master, reclaimed checkouts or displaced speculative work")
 	}
 }
 

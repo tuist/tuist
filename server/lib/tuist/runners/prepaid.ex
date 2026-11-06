@@ -81,8 +81,8 @@ defmodule Tuist.Runners.Prepaid do
   @bp_basis 10_000
 
   # Hundredths of a US cent per compute-unit minute, one minute on the
-  # platform's baseline machine, on demand: $0.05 on the macOS 6 vCPU /
-  # 14 GB baseline and $0.0024 on the Linux 2 vCPU / 8 GB one, which puts
+  # platform's baseline machine, on demand: $0.05 on the macOS 8 vCPU /
+  # 24 GB baseline and $0.0024 on the Linux 2 vCPU / 8 GB one, which puts
   # the 1 vCPU / 2 GB Linux machine at $0.001. This duplicates what each
   # platform's Stripe Price says, the same way `Tuist.Billing.UsagePricing`
   # duplicates the usage meter Prices, and has to be kept in step with it
@@ -220,7 +220,7 @@ defmodule Tuist.Runners.Prepaid do
 
   @doc """
   What a pool paying `paid_cents` at `credit_multiplier` grants, as the
-  credit and the minutes it buys on the macOS 6 vCPU / 14 GB baseline.
+  credit and the minutes it buys on the macOS 8 vCPU / 24 GB baseline.
   `:error` for terms `grant_pool/2` would refuse.
   """
   def quote_pool(paid_cents, credit_multiplier) do

@@ -600,8 +600,8 @@ observability:
 # Xcode beta" in `infra/macos-xcode-image/AGENTS.md`.
 runnersFleet:
   shapes:
-    - vcpus: 6
-      memoryGb: 14
+    - vcpus: 8
+      memoryGb: 24
       default: true
   xcodeOverrides:
     "27.2":

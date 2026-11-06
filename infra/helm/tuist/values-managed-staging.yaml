@@ -272,7 +272,7 @@ server:
     prices:
       # macOS is billable here so runner billing can be exercised end to
       # end before production sees it. The Price is graduated: the first
-      # 120000 compute-unit milliseconds (2 minutes on the 6 vCPU / 14 GB
+      # 120000 compute-unit milliseconds (2 minutes on the 8 vCPU / 24 GB
       # baseline) are free, and beyond that each millisecond costs
       # 0.000083333333 cents, which is $0.05 per baseline machine-minute
       # (cut at the 12 decimals Stripe accepts, see production).
@@ -1084,10 +1084,8 @@ rackFleet:
     enabled: true
     # ber1-runner-b01 runs macOS 27 and Tart 2.41.1.
     stackedImages: true
-    # As in production: the 6 vCPU shape runs an 8 vCPU / 24 GB guest on the
-    # rack, which ber1-runner-b01's production sizing (16 CPU / 48 GB) fits two of.
-    guestShapes:
-      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    # ber1-runner-b01's production sizing (16 CPU / 48 GB) fits two 8 vCPU /
+    # 24 GB guests.
     # One host, two guest slots.
     autoscaling:
       enabled: true
