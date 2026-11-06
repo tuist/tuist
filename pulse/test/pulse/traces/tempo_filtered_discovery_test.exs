@@ -64,8 +64,6 @@ defmodule Pulse.Traces.TempoFilteredDiscoveryTest do
           ~s'{span.request.kind="api"} | count()',
           ~s'{span.request.kind="api"} with (most_recent=true)',
           ~s'{span.request.kind="${variable}"}',
-          ~s'{span.cached=false}',
-          ~s'{span.request.kind="api" || span.request.kind="rpc"}',
           ~s'{span.request.kind=~"x)|(?:y"}'
         ] do
       assert {:error, :unsupported_trace_discovery} = Discovery.filter("span", "request.kind", q)
@@ -78,6 +76,53 @@ defmodule Pulse.Traces.TempoFilteredDiscoveryTest do
 
     assert :fallback =
              NIF.tempo_filtered_discovery_new(0, "span", "retries", [{"span", "request.kind", "=~", "x)|(?:y"}])
+  end
+
+  defp expression_native(segments, scope, key, query, window \\ {0, 0}) do
+    {:ok, {:expression, program}} = Discovery.filter(scope, key, query)
+    {start, finish} = window
+    {:ok, state} = NIF.tempo_expression_discovery_new(0, scope, key, program, start, finish)
+
+    result =
+      Enum.reduce_while(segments, :ok, fn rows, _ ->
+        {:ok, blob, _, _} = S3.encode_segment(:traces, rows)
+
+        case NIF.tempo_discovery_add(state, blob) do
+          {:ok, _} -> {:cont, :ok}
+          error -> {:halt, error}
+        end
+      end)
+
+    if result == :ok, do: NIF.tempo_discovery_finish(state), else: result
+  end
+
+  test "expression discovery evaluates stored same-target values without query-literal invention" do
+    {rows, _} = fixture()
+
+    for query <- [
+          ~s'{span.request.kind="api" || span.request.kind="rpc"}',
+          ~s'{span.request.kind="invented" || span.request.kind="also-invented"}',
+          ~s'{span.cached=false}',
+          ~s'{span.retries>=0}'
+        ] do
+      assert {:ok, native} = expression_native([rows], "span", "request.kind", query)
+      assert {:ok, reference} = Discovery.json(rows, "span", "request.kind", discovery_query: query)
+      assert Pulse.JSON.decode!(native) == Pulse.JSON.decode!(reference)
+      refute String.contains?(native, "invented")
+    end
+  end
+
+  test "span-local and duration-only expressions do not require unique roots" do
+    {[base | _], _} = fixture()
+    a = %{base | parent_span_id: nil}
+    b = %{a | span_id: "ffffffffffffffff", name: "another-root"}
+    rows = [a, b]
+
+    for query <- [~s'{span.retries<=0}', ~s'{trace:duration>=0ns}'] do
+      assert {:ok, native} = expression_native([rows], "span", "retries", query)
+      assert {:ok, reference} = Discovery.json(rows, "span", "retries", discovery_query: query)
+      assert Pulse.JSON.decode!(native) == Pulse.JSON.decode!(reference)
+    end
   end
 
   test "legacy unknown still fails nonmatching filters; unsupported types fail only on matching rows; floors do not create partial dictionaries" do
@@ -101,6 +146,19 @@ defmodule Pulse.Traces.TempoFilteredDiscoveryTest do
       | attributes: Map.put(span.attributes, "candidate.value", value),
         otlp: Map.update!(span.otlp, "attributes", &(&1 ++ [pair]))
     }
+  end
+
+  test "expression replay fails whole on dictionary exhaustion and consumes the handle" do
+    {[base | _], _} = fixture()
+    rows = for n <- 1..5001, do: with_candidate(base, "value#{n}")
+    query = ~s'{span.retries<=0}'
+    {:ok, {:expression, program}} = Discovery.filter("span", "candidate.value", query)
+    {:ok, state} = NIF.tempo_expression_discovery_new(0, "span", "candidate.value", program, 0, 0)
+    {:ok, blob, _, _} = S3.encode_segment(:traces, rows)
+    assert {:ok, 5001} = NIF.tempo_discovery_add(state, blob)
+    assert {:error, :query_resource_limit} = NIF.tempo_discovery_finish(state)
+    assert :fallback = NIF.tempo_discovery_finish(state)
+    assert {:error, :query_resource_limit} = Discovery.json(rows, "span", "candidate.value", discovery_query: query)
   end
 
   test "filtered dictionaries and escaped output still fail whole and poison state at their independent caps" do

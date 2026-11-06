@@ -2177,6 +2177,14 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Where Claude Code orchestrator workloads run: the Amp provider namespace,
+  URL and node selector, with their own image.
+  """
+  def claude_code_provider_config do
+    Map.put(amp_provider_config(), :image, System.get_env("TUIST_CLAUDE_CODE_PROVIDER_IMAGE"))
+  end
+
+  @doc """
   Override for the Anthropic API base URL used by the sandbox work
   poller, or `nil` to use the public API. Set `TUIST_ANTHROPIC_API_URL`
   to point the poller and the in-guest worker at a stub.

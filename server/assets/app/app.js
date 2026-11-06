@@ -49,6 +49,7 @@ import RunnerVNCClient from "./js/RunnerVNCClient.js";
 import RunnerVNCFullscreen from "./js/RunnerVNCFullscreen.js";
 import Turnstile from "./js/Turnstile.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
+import { trackBrowserSessionPath } from "./js/BrowserSessionPath.mjs";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
 import { GoogleOneTap } from "../shared/js/hooks/google-one-tap.js";
@@ -102,14 +103,16 @@ const liveSocketFallbackMs = 30000;
 // up on WebSocket too quickly and pins itself to longpoll, which then loops
 // into `exceeded 10 consecutive reloads. Entering failsafe mode`. See
 // https://elixirforum.com/t/liveview-falls-back-to-longpoll-after-dev-server-restart/61736
+const browserSessionPath = trackBrowserSessionPath(window);
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: window.location.host.startsWith("localhost") ? undefined : liveSocketFallbackMs,
-  params: {
+  params: () => ({
     _csrf_token: csrfToken,
     _csp_nonce: cspNonce,
     user_locale: getUserLocale(),
     user_timezone: getUserTimezone(),
-  },
+    tuist_return_to: browserSessionPath(),
+  }),
   hooks: { ...Hooks, ...Noora.Hooks },
 });
 

@@ -17,7 +17,9 @@ defmodule Atlas.MCP do
   alias Atlas.Users.User
 
   def list_servers(%User{} = user) do
-    Enum.map(Proxy.configured_servers(), fn %Server{} = server ->
+    Proxy.configured_servers()
+    |> Enum.filter(&Proxy.user_allowed?(&1, user))
+    |> Enum.map(fn %Server{} = server ->
       session = oauth_session_for(user, server)
 
       %{
@@ -567,6 +569,9 @@ defmodule Atlas.MCP do
   defp canonical_json(value), do: JSON.encode!(value)
 
   defp session_status(%Server{auth_type: :bearer_token}, _session), do: :shared_credentials
+  # Atlas authenticates with its own projected ServiceAccount token, so there
+  # is no per-user connection either.
+  defp session_status(%Server{auth_type: :service_account_token}, _session), do: :shared_credentials
   defp session_status(%Server{auth_type: :none}, _session), do: :connected
   defp session_status(%Server{auth_type: :oauth2}, nil), do: :not_connected
 

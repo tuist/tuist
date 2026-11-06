@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Run from the pinned Tempo module root with go run -mod=vendor.
+package main
+
+import (
+	"encoding/json"
+	"net/http/httptest"
+	"net/url"
+	"os"
+
+	"github.com/gorilla/mux"
+	"github.com/grafana/tempo/v3/pkg/api"
+)
+
+func main() {
+	type Case struct {
+		Mode string `json:"mode"`
+		Limit string `json:"limit"`
+		Accepted bool `json:"accepted"`
+		Max uint32 `json:"max"`
+		Target string `json:"target,omitempty"`
+	}
+	cases := []Case{}
+	for _,mode := range []string{"names","values"} {
+		for _,limit := range []string{"", "0", "1", "5000", "4294967295", "4294967296", "-1", "+1", "five", "001"} {
+			r := httptest.NewRequest("GET","http://tempo/api/v2/search/tags?scope=span&limit="+url.QueryEscape(limit)+"&tag=span.wrong%252Ftarget",nil)
+			c := Case{Mode:mode,Limit:limit}
+			if mode == "names" {
+				_,err := api.ParseSearchTagsRequest(r); c.Accepted = err == nil
+			} else {
+				r = mux.SetURLVars(r,map[string]string{api.MuxVarTagName:"span.correct"})
+				req,err := api.ParseSearchTagValuesRequestV2(r)
+				c.Accepted = err == nil
+				if err == nil { c.Max,c.Target = req.MaxTagValues,req.TagName }
+			}
+			cases = append(cases,c)
+		}
+	}
+	enc := json.NewEncoder(os.Stdout); enc.SetIndent("","  ")
+	if err := enc.Encode(cases); err != nil { panic(err) }
+}

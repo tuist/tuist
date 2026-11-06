@@ -60,13 +60,16 @@ defmodule Tuist.Sandboxes.Anthropic.PollerTest do
     assert Poller.whereis(agent_environment.id)
   end
 
-  test "leaves a session item queued and backs off when no node has room for its sandbox" do
+  test "leaves a session item queued and backs off when no node has room for the platform its session asks for" do
     agent_environment = agent_environment_fixture(anthropic_environment_id: "env_full", environment_key: "sk-full")
     test_pid = self()
-    item = work_item("work_full", %{"id" => "session_full", "type" => "session"})
+
+    item =
+      work_item("work_full", %{"id" => "session_full", "type" => "session", "metadata" => %{"tuist_platform" => "macos"}})
+
     queue_poll_responses([{:ok, item}, {:ok, item}])
 
-    stub(Capacity, :admissible?, fn environment, "session_full" ->
+    stub(Capacity, :admissible?, fn %{platform: :darwin} = environment, "session_full" ->
       send(test_pid, {:checked, environment.id, System.monotonic_time(:millisecond)})
       false
     end)

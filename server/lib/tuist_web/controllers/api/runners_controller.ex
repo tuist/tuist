@@ -4,6 +4,7 @@ defmodule TuistWeb.API.RunnersController do
 
   alias OpenApiSpex.Schema
   alias Tuist.FeatureFlags
+  alias Tuist.Runners.APIJobs
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
@@ -24,7 +25,7 @@ defmodule TuistWeb.API.RunnersController do
 
   plug AuthorizationPlug,
        {:account, :runners, :update}
-       when action in [:create_profile, :update_profile, :delete_profile]
+       when action in [:create_profile, :update_profile, :delete_profile, :create_job, :cancel_job]
 
   plug AuthorizationPlug,
        {:account, :runners}
@@ -450,6 +451,164 @@ defmodule TuistWeb.API.RunnersController do
     else
       runners_unavailable(conn)
     end
+  end
+
+  @variables_schema %Schema{
+    type: :object,
+    additionalProperties: %Schema{type: :string},
+    description:
+      "Up to 100 variables. Names are letters, digits and underscores, not starting with a digit or TUIST_RUNNER_; values are up to 32 KiB."
+  }
+
+  operation(:create_job,
+    summary: "Run a job on a runner profile.",
+    description: """
+    Queues a job for git forges and orchestrators without a runner protocol of their own. A runner on the profile's pool clones the repository over HTTPS at `commit_sha` and runs `script` with Bash in the checkout. The job fails when the script exits non-zero or runs past `timeout_minutes`.
+
+    Follow the job with `getRunnerJob` and `listRunnerJobLogs`, or subscribe a webhook endpoint to `runner_job.started` and `runner_job.completed`. A request with an `idempotency_key` already used in the account returns that job with 200 instead of creating another one.
+
+    Jobs are untrusted: they get no cache signing grant and no shared cache volumes.
+    """,
+    operation_id: "createRunnerJob",
+    parameters: @account_parameters,
+    request_body:
+      {"Runner job", "application/json",
+       %Schema{
+         title: "CreateRunnerJob",
+         type: :object,
+         properties: %{
+           profile: %Schema{type: :string, description: "The profile's name or its runs_on_label."},
+           repository_url: %Schema{
+             type: :string,
+             description: "The repository's HTTPS clone URL, without credentials."
+           },
+           repository: %Schema{
+             type: :string,
+             description: "The repository name the dashboard shows. Defaults to the clone URL's path."
+           },
+           clone_token: %Schema{
+             type: :string,
+             description:
+               "A short-lived credential for cloning, sent as `Authorization: Bearer <token>` to the repository's host only. Never stored past the job."
+           },
+           commit_sha: %Schema{type: :string, description: "The full commit SHA to check out."},
+           ref: %Schema{
+             type: :string,
+             description:
+               "The ref the commit belongs to, such as refs/heads/main. Shown in the dashboard and fetched when the server does not serve the commit by SHA."
+           },
+           name: %Schema{type: :string, description: "The job name. Defaults to job."},
+           script: %Schema{
+             type: :string,
+             description: "The Bash script to run, up to 256 KiB. Runs with `set -eo pipefail` in a login shell."
+           },
+           env: @variables_schema,
+           secrets: %{
+             @variables_schema
+             | description: "Variables like env, with their values masked in the job log."
+           },
+           timeout_minutes: %Schema{
+             type: :integer,
+             minimum: 1,
+             maximum: APIJobs.max_timeout_minutes(),
+             description: "Defaults to #{APIJobs.default_timeout_minutes()}."
+           },
+           idempotency_key: %Schema{
+             type: :string,
+             maxLength: 255,
+             description:
+               "Identifies the job in the account, such as <repository>:<commit>:<check>, so retries return the same job."
+           }
+         },
+         required: [:profile, :repository_url, :commit_sha, :script]
+       }},
+    responses: %{
+      created: {"Created runner job", "application/json", @runner_job_schema},
+      ok: {"The job created earlier with the same idempotency key", "application/json", @runner_job_schema},
+      bad_request: {"Missing or malformed fields", "application/json", Error},
+      forbidden: {"Forbidden", "application/json", Error},
+      not_found: {"Runners are not enabled", "application/json", Error},
+      payment_required: {"The account's runner allowance is exhausted", "application/json", Error},
+      unprocessable_entity: {"The profile does not exist or a field is invalid", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def create_job(%{assigns: %{selected_account: account}, body_params: body} = conn, _params) do
+    attrs =
+      Map.take(body, [
+        :profile,
+        :repository_url,
+        :repository,
+        :clone_token,
+        :commit_sha,
+        :ref,
+        :name,
+        :script,
+        :env,
+        :secrets,
+        :timeout_minutes,
+        :idempotency_key
+      ])
+
+    with true <- FeatureFlags.runners_enabled?(account),
+         {:ok, job, outcome} <- APIJobs.create_job(account, attrs),
+         {:ok, runner_job} <- Jobs.get_for_account(account.id, job.workflow_job_id) do
+      conn
+      |> put_status(if(outcome == :created, do: :created, else: :ok))
+      |> json(serialize_job(runner_job))
+    else
+      false ->
+        runners_unavailable(conn)
+
+      {:error, :allowance_exhausted} ->
+        conn |> put_status(:payment_required) |> json(%{message: "The account's runner allowance is exhausted."})
+
+      {:error, :unknown_profile} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{message: "No runner profile matches the profile field."})
+
+      {:error, {:invalid, field}} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{message: "The #{field} field is invalid."})
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{message: changeset_message(changeset)})
+
+      {:error, :not_found} ->
+        conn |> put_status(:not_found) |> json(%{message: "Runner job not found."})
+    end
+  end
+
+  operation(:cancel_job,
+    summary: "Cancel a runner job created through the API.",
+    description:
+      "A job no runner has started is cancelled immediately. A running job stops within a few seconds and completes as cancelled. Cancelling a completed job changes nothing.",
+    operation_id: "cancelRunnerJob",
+    parameters:
+      @account_parameters ++
+        [workflow_job_id: [in: :path, type: :integer, required: true, description: "The workflow job identifier."]],
+    responses: %{
+      ok: {"The job after the request", "application/json", @runner_job_schema},
+      forbidden: {"Forbidden", "application/json", Error},
+      not_found: {"No API job with that identifier", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def cancel_job(%{assigns: %{selected_account: account}, params: %{workflow_job_id: workflow_job_id}} = conn, _params) do
+    with true <- FeatureFlags.runners_enabled?(account),
+         {:ok, _outcome} <- APIJobs.cancel_job(account.id, workflow_job_id),
+         {:ok, runner_job} <- Jobs.get_for_account(account.id, workflow_job_id) do
+      json(conn, serialize_job(runner_job))
+    else
+      false -> runners_unavailable(conn)
+      {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{message: "Runner job not found."})
+    end
+  end
+
+  defp changeset_message(changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+    |> Enum.map_join("; ", fn {field, messages} -> "#{field} #{Enum.join(messages, ", ")}" end)
   end
 
   operation(:index_job_steps,

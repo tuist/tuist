@@ -123,6 +123,52 @@ defmodule PulseWeb.LokiUpstreamIntegrationTest do
     }
   end
 
+  test "Grafana health and shifted log-volume requests preserve client boundaries", ctx do
+    # Current Grafana Loki datasource healthcheck.go and logs_volume.go,
+    # not additional Loki upstream integration scenarios.
+    base = div(ctx.now, @second) * @second
+    before = Agent.get(ctx.store, & &1.requests)
+    health = request(ctx, "/query", [query: "vector(1)+vector(1)", time: to_string(base)], 200)
+
+    assert health["data"]["resultType"] == "vector"
+    assert health["data"]["result"] == [%{"metric" => %{}, "value" => [div(base, @second), "2"]}]
+
+    assert Agent.get(ctx.store, & &1.requests) == before
+
+    for {time, line} <- [
+          {base - 1, "before"},
+          {base, "start one"},
+          {base, "start two"},
+          {base + 5 * @second, "middle"},
+          {base + 10 * @second, "next window"}
+        ] do
+      push(ctx, line, time, %{"job" => "grafana-volume"})
+    end
+
+    for method <- [&request/4, &request_form/4] do
+      response =
+        method.(
+          ctx,
+          "/query_range",
+          [
+            query: ~s/sum(count_over_time({job="grafana-volume"}[10s] offset 1ns))/,
+            start: to_string(base + 10 * @second),
+            end: to_string(base + 20 * @second),
+            step: "10000ms"
+          ],
+          200
+        )
+
+      assert response["data"]["resultType"] == "matrix"
+
+      assert response["data"]["result"] == [
+               %{"metric" => %{}, "values" => [[div(base, @second) + 10, "3"], [div(base, @second) + 20, "1"]]}
+             ]
+    end
+
+    assert_parquet(ctx, 5)
+  end
+
   @tag :sort_grouping_batch
   test "complete Loki named-sort rejection table rejects before provider work", ctx do
     # Original Test_SampleExpr_Sort_Fail has no loads. Keep both original

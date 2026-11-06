@@ -183,6 +183,35 @@ defmodule TuistWeb.API.SandboxesControllerTest do
                conn |> get(~p"/api/accounts/#{account.name}/sandboxes/agent-environments") |> json_response(:ok)
     end
 
+    test "connects a Claude Code environment, which keeps idle sessions for half an hour and starts its orchestrator",
+         %{conn: conn, account: account} do
+      response =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/agent-environments", %{
+          kind: "claude_code",
+          anthropic_environment_id: "ccpool_01mac",
+          environment_key: "sk-ant-cc-secret",
+          platform: "darwin"
+        })
+        |> json_response(:created)
+
+      assert %{"kind" => "claude_code", "platform" => "darwin", "template" => "macos", "max_idle_seconds" => 1800} =
+               response
+
+      assert_enqueued(worker: Tuist.Sandboxes.ClaudeCodeReconciler)
+
+      response =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/agent-environments", %{
+          kind: "claude_code",
+          anthropic_environment_id: "env_01managed",
+          environment_key: "sk-ant-secret"
+        })
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "does not name a claude_code environment"
+    end
+
     test "rejects invalid params", %{conn: conn, account: account} do
       response =
         conn

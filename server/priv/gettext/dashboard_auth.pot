@@ -582,7 +582,7 @@ msgstr ""
 msgid "Link account"
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:126
+#: lib/tuist_web/controllers/sso_link_controller.ex:120
 #, elixir-autogen, elixir-format
 msgid "Link expired"
 msgstr ""
@@ -592,7 +592,7 @@ msgstr ""
 msgid "Link only if %{organization} is your organization. Anyone who can sign in to this identity provider account can sign in to your whole Tuist account."
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:134
+#: lib/tuist_web/controllers/sso_link_controller.ex:128
 #, elixir-autogen, elixir-format
 msgid "Link single sign-on · Tuist"
 msgstr ""
@@ -607,7 +607,7 @@ msgstr ""
 msgid "Log in to your Tuist account to link it to your organization's single sign-on."
 msgstr ""
 
-#: lib/tuist_web/controllers/sso_link_controller.ex:127
+#: lib/tuist_web/controllers/sso_link_controller.ex:121
 #, elixir-autogen, elixir-format
 msgid "Sign in with single sign-on again to link your account."
 msgstr ""
@@ -885,7 +885,7 @@ msgstr ""
 msgid "This passkey is already registered."
 msgstr ""
 
-#: lib/tuist_web/authentication.ex:756
+#: lib/tuist_web/authentication.ex:789
 #, elixir-autogen, elixir-format
 msgid "Your organizations each require their own single sign-on, so this session can't sign in to the Tuist CLI, app, or MCP clients. Ask an organization admin for help."
 msgstr ""

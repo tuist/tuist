@@ -57,11 +57,21 @@ defmodule Tuist.Push.Workers.NewPreviewWorkerTest do
     installation
   end
 
+  defp push_rule(user, attrs \\ %{}) do
+    {:ok, rule} =
+      Notifications.create_rule(
+        user,
+        Map.merge(%{"event" => "preview_published", "actions" => [%{"type" => "push"}]}, attrs)
+      )
+
+    rule
+  end
+
   defp enqueued_registration_ids do
     [worker: DeliveryWorker] |> all_enqueued() |> Enum.map(& &1.args["registration_id"]) |> Enum.sort()
   end
 
-  test "sends to the devices of members who want the project's previews", %{
+  test "sends once to the devices of members whose rules match the preview", %{
     client: client,
     creator: creator,
     organization: organization,
@@ -80,9 +90,19 @@ defmodule Tuist.Push.Workers.NewPreviewWorkerTest do
     register(opted_out, client, "ios")
     register(opted_out, client, "android")
     register(outsider, client, "ios")
-    :ok = Notifications.update_project_preference(opted_out, "new_preview", project.id, false)
+    other_project = ProjectsFixtures.project_fixture(account: account)
 
-    preview = AppBuildsFixtures.preview_fixture(project: project, display_name: "TuistApp", version: "1.2")
+    # Two matching rules still notify once.
+    push_rule(creator)
+    push_rule(creator, %{"projects" => ["#{account.name}/#{project.name}"]})
+    push_rule(wants, %{"conditions" => %{"track" => %{"operator" => "contains", "value" => "BET"}}})
+    push_rule(opted_out, %{"projects" => ["#{account.name}/#{other_project.name}"]})
+    push_rule(opted_out, %{"conditions" => %{"track" => %{"operator" => "is", "value" => "nightly"}}})
+    push_rule(opted_out, %{"enabled" => false})
+    push_rule(outsider)
+
+    preview =
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "TuistApp", version: "1.2", track: "beta")
 
     assert :ok = perform_job(NewPreviewWorker, %{"preview_id" => preview.id})
 
@@ -112,6 +132,12 @@ defmodule Tuist.Push.Workers.NewPreviewWorkerTest do
              "account_handle" => account.name,
              "project_handle" => project.name
            }
+
+    # Leaving the organization stops its notifications, though the rules stay.
+    Repo.delete_all(Oban.Job)
+    Accounts.remove_user_from_organization(wants, organization)
+    assert :ok = perform_job(NewPreviewWorker, %{"preview_id" => preview.id})
+    assert enqueued_registration_ids() == [creator_device.id]
   end
 
   test "sends a personal project's previews to its owner only", %{client: client} do
@@ -119,6 +145,8 @@ defmodule Tuist.Push.Workers.NewPreviewWorkerTest do
     other = AccountsFixtures.user_fixture()
     owner_device = register(owner, client, "ios")
     register(other, client, "ios")
+    push_rule(owner)
+    push_rule(other)
     project = ProjectsFixtures.project_fixture(account: Accounts.get_account_from_user(owner))
     preview = AppBuildsFixtures.preview_fixture(project: project)
 
@@ -133,6 +161,7 @@ defmodule Tuist.Push.Workers.NewPreviewWorkerTest do
     project: project
   } do
     register(creator, client, "ios")
+    push_rule(creator)
 
     preview =
       AppBuildsFixtures.preview_fixture(project: project, inserted_at: DateTime.add(DateTime.utc_now(), -25, :hour))
@@ -146,6 +175,7 @@ defmodule Tuist.Push.Workers.NewPreviewWorkerTest do
     stub(Environment, :fcm_configured?, fn -> false end)
     ios = register(creator, client, "ios")
     register(creator, client, "android")
+    push_rule(creator)
     preview = AppBuildsFixtures.preview_fixture(project: project)
 
     assert :ok = perform_job(NewPreviewWorker, %{"preview_id" => preview.id})

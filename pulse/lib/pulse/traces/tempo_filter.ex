@@ -32,7 +32,8 @@ defmodule Pulse.Traces.TempoFilter do
       # Trace-by-ID filters keep or drop single spans: no joins or selection.
       with {:ok, {:expression, program}} <- SearchExpression.parse(query),
            {:ok, {:expression, prepared}} <- Evaluator.prepare(program),
-           false <- Evaluator.structural?(prepared) or prepared.select != [] do
+           false <- SearchExpression.scoped?(program),
+           false <- Evaluator.structural?(prepared) or prepared.select != [] or prepared.context do
         {:ok, prepared}
       else
         true -> {:error, :unsupported_trace_selector}

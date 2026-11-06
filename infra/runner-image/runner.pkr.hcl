@@ -586,6 +586,11 @@ build {
   }
 
   provisioner "file" {
+    source      = "${path.root}/build/tuist-job-runner"
+    destination = "/tmp/tuist-job-runner"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/build/runner-shell-agent"
     destination = "/tmp/runner-shell-agent"
   }
@@ -618,6 +623,7 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cache-volume /usr/local/bin/tuist-cache-volume",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-runner-cache /usr/local/bin/tuist-runner-cache",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-gitlab-runner /opt/tuist/tuist-gitlab-runner",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-job-runner /opt/tuist/tuist-job-runner",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cas-proxy /opt/tuist/tuist-cas-proxy",
       "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.runner-shell-agent.plist /Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist",

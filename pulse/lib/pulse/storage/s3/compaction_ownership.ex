@@ -10,6 +10,8 @@ defmodule Pulse.Storage.S3.CompactionOwnership do
 
   def scope, do: @scope
   def group(config), do: {__MODULE__, config[:endpoint], config[:region], config[:bucket]}
+  def group(%{maintenance_operation: :metric_consolidate} = config, "metrics"), do: {group(config), :metric_consolidate}
+
   def group(config, "metrics"), do: group(config)
   def group(config, "traces"), do: {group(config), :traces}
   def group(config, "logs"), do: {group(config), :logs}

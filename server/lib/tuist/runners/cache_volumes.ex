@@ -746,6 +746,24 @@ defmodule Tuist.Runners.CacheVolumes do
     do: is_integer(mounted) and is_integer(base) and mounted < base
 
   @doc """
+  Why a use's runner host had no copy of its volume, so the job started empty,
+  as a sentence, or nil when the host did not say.
+  """
+  def cold_reason_description(%Usage{cold_reason: "downloading"}),
+    do: "The job started empty because its runner host was still downloading the saved copy."
+
+  def cold_reason_description(%Usage{cold_reason: "not_on_host"}),
+    do: "The job started empty because its runner host had no copy of the volume."
+
+  def cold_reason_description(%Usage{cold_reason: "evicted_expired"}),
+    do: "The job started empty because its runner host removed its copy after seven days without use."
+
+  def cold_reason_description(%Usage{cold_reason: "evicted_" <> _}),
+    do: "The job started empty because its runner host removed its copy to free disk space or replace it."
+
+  def cold_reason_description(_usage), do: nil
+
+  @doc """
   Whether a Docker use's guest could not mount the saved data root and started
   an empty one instead, which makes the job a miss however warm its host was.
   """
@@ -817,6 +835,17 @@ defmodule Tuist.Runners.CacheVolumes do
 
   defp mounted_generation(_usage, _params), do: nil
 
+  # Why a host had no copy of a warm use's volume, from runner-cache's Cold*
+  # reasons. Only a known reason on a cold report is kept; anything else is
+  # ignored rather than failing an otherwise valid report.
+  @cold_reasons ~w(downloading not_on_host) ++
+                  Enum.map(~w(idle in_use speculative superseded expired no_metadata head_conflict), &("evicted_" <> &1))
+
+  defp cold_reason(%Usage{base_generation: base}, %{"warm" => false, "cold_reason" => reason})
+       when is_integer(base) and base > 0 and reason in @cold_reasons, do: reason
+
+  defp cold_reason(_usage, _params), do: nil
+
   defp valid_metric?(nil), do: true
   defp valid_metric?(value), do: is_integer(value) and value >= 0 and value <= 9_000_000_000_000_000
 
@@ -872,6 +901,7 @@ defmodule Tuist.Runners.CacheVolumes do
           last_reported_at: now,
           warm: params["warm"],
           mounted_generation: usage.mounted_generation || mounted_generation(usage, params),
+          cold_reason: usage.cold_reason || cold_reason(usage, params),
           attached_at: usage.attached_at || now,
           status: if(usage.status == "allocated", do: "attached", else: usage.status),
           docker_images: docker_images || usage.docker_images
@@ -1091,7 +1121,7 @@ defmodule Tuist.Runners.CacheVolumes do
   With `node:`, the lists are those of that one of `node_names`: only the
   repositories `VolumePlacement` places on it, every volume of a repository on
   the same Nodes, and the caps apply to that Node's lists. A repository is held
-  by one more Node than its jobs ran on at once over the week
+  by half again as many Nodes as its jobs ran on at once over the week
   (`VolumePlacement.replicas/2`), chosen by `weights` (Node name to weight,
   equal when absent).
   """

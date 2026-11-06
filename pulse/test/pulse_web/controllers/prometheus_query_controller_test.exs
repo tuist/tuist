@@ -1,3 +1,6 @@
+# Result-limit cases adapted from Prometheus v3.5.0 web/api/v1/api_test.go.
+# Copyright 2016 The Prometheus Authors, Apache-2.0.
+# Source/case mapping: test/fixtures/grafana/README.md.
 defmodule PulseWeb.PrometheusQueryControllerTest do
   use PulseWeb.ConnCase, async: true
 
@@ -84,10 +87,58 @@ defmodule PulseWeb.PrometheusQueryControllerTest do
     end
 
     assert %{"errorType" => "bad_data"} =
-             conn |> get("/api/v1/query", %{"query" => "boundary", "limit" => "1"}) |> json_response(400)
-
-    assert %{"errorType" => "bad_data"} =
              conn |> get("/api/v1/query", %{query: "boundary", time: "9999-01-01T00:00:00Z"}) |> json_response(400)
+  end
+
+  test "upstream result limits count series, preserve samples and warn only on truncation", %{conn: conn} do
+    # Prometheus v3.5.0 web/api/v1/api_test.go TestEndpoints, limit rows.
+    query =
+      ~s/label_replace(vector(42), "foo", "bar", "", "") or label_replace(vector(3.1415), "dings", "bums", "", "")/
+
+    for method <- [:get, :post], limit <- ["", "0", "1", "2", "3"] do
+      params = %{query: query, start: "0", end: "2", step: "1", limit: limit}
+      response = range_request(conn, method, params) |> json_response(200)
+
+      expected = [
+        %{"metric" => %{"dings" => "bums"}, "values" => [[0, "3.1415"], [1, "3.1415"], [2, "3.1415"]]},
+        %{"metric" => %{"foo" => "bar"}, "values" => [[0, "42"], [1, "42"], [2, "42"]]}
+      ]
+
+      assert response["data"] == %{
+               "resultType" => "matrix",
+               "result" => if(limit == "1", do: Enum.take(expected, 1), else: expected)
+             }
+
+      assert Map.get(response, "warnings", []) == if(limit == "1", do: ["results truncated due to limit"], else: [])
+    end
+
+    for limit <- ["0", "1", "2"] do
+      response =
+        conn |> get("/api/v1/query", %{query: "sort_desc(#{query})", time: "123.4", limit: limit}) |> json_response(200)
+
+      expected = [
+        %{"metric" => %{"foo" => "bar"}, "value" => [123.4, "42"]},
+        %{"metric" => %{"dings" => "bums"}, "value" => [123.4, "3.1415"]}
+      ]
+
+      assert response["data"] == %{
+               "resultType" => "vector",
+               "result" => if(limit == "1", do: Enum.take(expected, 1), else: expected)
+             }
+
+      assert Map.get(response, "warnings", []) == if(limit == "1", do: ["results truncated due to limit"], else: [])
+    end
+
+    for {query, type, result} <- [{"2", "scalar", [123.4, "2"]}, {~s("hello"), "string", [123.4, "hello"]}] do
+      response = conn |> get("/api/v1/query", %{query: query, time: "123.4", limit: "1"}) |> json_response(200)
+      assert response["data"] == %{"resultType" => type, "result" => result}
+      refute Map.has_key?(response, "warnings")
+    end
+
+    for limit <- ["-1", "1.5", "bad", "9223372036854775808", ["1"], %{"nested" => "1"}] do
+      assert %{"errorType" => "bad_data"} =
+               conn |> post("/api/v1/query", %{query: "2", limit: limit}) |> json_response(400)
+    end
   end
 
   test "range parameter diagnostics are field-aware with GET and form POST", %{conn: conn} do
@@ -203,6 +254,42 @@ defmodule PulseWeb.PrometheusQueryControllerTest do
     |> post("/api/v1/query_range", URI.encode_query(params))
   end
 
+  test "Grafana query statistics selectors preserve truthful ordinary GET and POST results", %{conn: conn} do
+    conn = put_req_header(conn, "x-scope-orgid", "acme")
+
+    for {route, params, expected} <- [
+          {"/api/v1/query", %{query: "requests_total", time: "20"},
+           %{
+             "resultType" => "vector",
+             "result" => [%{"metric" => %{"__name__" => "requests_total"}, "value" => [20, "20"]}]
+           }},
+          {"/api/v1/query_range", %{query: "requests_total", start: "10", end: "20", step: "10s"},
+           %{
+             "resultType" => "matrix",
+             "result" => [%{"metric" => %{"__name__" => "requests_total"}, "values" => [[10, "10"], [20, "20"]]}]
+           }}
+        ],
+        method <- [:get, :post] do
+      response =
+        case method do
+          :get ->
+            conn |> get(route <> "?" <> URI.encode_query(Map.put(params, :stats, "all"))) |> json_response(200)
+
+          :post ->
+            conn
+            |> put_req_header("content-type", "application/x-www-form-urlencoded")
+            |> post(route <> "?stats=all", URI.encode_query(params))
+            |> json_response(200)
+        end
+
+      assert response == %{"status" => "success", "data" => expected}
+    end
+
+    for stats <- [["all"], %{"nested" => "all"}] do
+      assert conn |> post("/api/v1/query", %{query: "requests_total", time: "20", stats: stats}) |> json_response(400)
+    end
+  end
+
   test "client timeouts are accepted and invalid durations rejected", %{conn: conn} do
     for timeout <- ["30s", "1s", "0.1"] do
       assert %{"status" => "success"} =
@@ -219,9 +306,11 @@ defmodule PulseWeb.PrometheusQueryControllerTest do
     adapter = BlockingMetricStorage
     Pulse.Runtime.put_env(:pulse, Storage, adapter: adapter)
 
-    for reason <- [:query_scan_limit, :query_timeout] do
+    for reason <- [:query_scan_limit, :query_timeout], limit <- ["0", "1"] do
       Pulse.Runtime.put_env(:pulse, adapter, {:error, reason})
-      assert %{"errorType" => "execution"} = conn |> get("/api/v1/query", %{query: "m"}) |> json_response(422)
+
+      assert %{"errorType" => "execution"} =
+               conn |> get("/api/v1/query", %{query: "m", limit: limit}) |> json_response(422)
     end
 
     Pulse.Runtime.put_env(:pulse, adapter, self())

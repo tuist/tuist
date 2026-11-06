@@ -41,19 +41,18 @@ public struct BazelSetupCommand: AsyncParsableCommand {
     )
     var remoteDownloader = true
 
-    @Option(name: .long, help: "Opt in to Linux remote execution using the account's grpc:// or grpcs:// executor endpoint.")
-    var remoteExecutor: String?
-
-    @Option(name: .long, help: "Immutable sha-<commit> execution image enabled for the account.")
-    var executionImage: String?
+    @Flag(
+        name: .long,
+        help: "Run Linux actions on Tuist remote executors when the account has remote execution enabled. Falls back to the remote cache alone when it is not available."
+    )
+    var remoteExecution = false
 
     public func run() async throws {
         try await BazelSetupCommandService().run(
             directory: path,
             buildInsights: buildInsights,
             remoteDownloader: remoteDownloader,
-            remoteExecutor: remoteExecutor,
-            executionImage: executionImage,
+            remoteExecution: remoteExecution,
             addBazelrcImport: addBazelrcImport
         )
     }

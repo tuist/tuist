@@ -204,11 +204,16 @@ predicates (structural/select reject); MCP `traceql_metrics` mirrors
 `/api/metrics/query{,_range}`. Event value sets deliberately stay out of
 segment summaries. `test/pulse_web/controllers/tuist_dashboards_test.exs` runs
 the Tuist dashboard queries; `tuist_dashboards_bench_test.exs` (`--include
-query_bench`) times them at 140-190 ms GETs. Search capability **7**, trace
-metrics capability **6**.
+query_bench`) times them at 140-190 ms GETs. Search capability **10**, trace
+metrics capability **7**.
 
-Current trace search capability was **6**, tuple `{2,1,3,6,12}` (now
-`{2,1,3,7,12}`), superseding the search4/search5 snapshot references below. `/api/search` (`search_trace_metadata`)
+Current trace tuple is `{2,1,3,10,13}`, metrics **7**, superseding the older
+snapshot references below. Search accepts quoted keys, all five attribute owners
+and the 25 advertised intrinsic spellings. Discovery13 adds single-spanset typed/
+boolean/intrinsic filters through `tempo_expression_discovery_json/5` or a bounded
+complete reference; old callbacks cannot receive new programs. Structural/select/
+hinted discovery still rejects. Root/duration predicates recover retained context;
+duration-only queries do not require roots. `/api/search` (`search_trace_metadata`)
 plans candidates newest first in rounds of 4, 16, 64... (`S3.tempo_search/5`),
 prunes proven sources by the `query_traces` service/attribute value sets
 (`TraceSummary.tempo_filters/1`, `proven_only`), selects context by ID summaries
@@ -217,15 +222,16 @@ after the newest unread candidate (`tempo_search_finish_window`,
 `tempo_search_add_unplanned`). Unscoped original-string/int64 search uses
 span-key presence before resource fallback; sampled values may include both
 owners. Omitted or paired-zero HTTP search bounds scan bounded retained context,
-not an ingester-only tier; partial bounds reject. Discovery/window-local grammar,
+not an ingester-only tier; partial bounds reject. Window-local grammar,
 storage formats and resource ceilings are unchanged. See `docs/trace-query-expressions.md`.
 
 Tempo name discovery advertises 25 pinned intrinsic suggestions, superseding
-the 20-name v2.9 snapshots below. The five ID suggestions are vocabulary only,
-not ID-value discovery. All 25 reserve entries inside the existing global
+the 20-name v2.9 snapshots below. The five ID targets now scan stored values;
+static status/kind/duration vocabulary remains distinct from stored evidence.
+All 25 reserve entries inside the existing global
 5,000-pair default-name ceiling, including before v1 flattening. Upgrade serving
-apps/native artifacts together; native tuples and storage/keyed bytes are
-unchanged. See `docs/traces.md#static-intrinsic-vocabulary`.
+apps/native artifacts together; storage/keyed bytes are unchanged.
+See `docs/traces.md#static-intrinsic-vocabulary`.
 
 Trace metrics capability **5** adds a single finite scalar prefilter before
 native topk/bottomk on an unranked leaf, preserving stage order and charging
@@ -929,7 +935,7 @@ even logically equivalent ones, fail permanently with HTTP409 `keyed_content_mis
 never overwrite or infer semantic/hash equality. Object-store ABI is `{1,1,1,1}`
 (retention, keyed publication, snapshot GET, async requests); every writer, including recording evaluators,
 must upgrade/drain because local startup does not fence older unconditional
-writers. See `docs/keyed-ingestion.md`. Codec trace `{2,1,3,7,12}` and metric
+writers. See `docs/keyed-ingestion.md`. Codec trace `{2,1,3,10,13}` and metric
 `{2,2,1,1,1}` are the current codec requirements; footer reads do not change keyed encoder bytes.
 Remote-write 2.0 legacy series-created and modern per-point starts retain optional
 signed-int64 `start_timestamp_ms` without synthetic zeros or start-aware rates.

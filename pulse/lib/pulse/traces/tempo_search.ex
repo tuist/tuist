@@ -54,6 +54,7 @@ defmodule Pulse.Traces.TempoSearch do
     with :ok <- bounds(spans, opts),
          {:ok, predicates} <- prepare_predicates(predicates),
          {:ok, groups, work} <- collect(spans, predicates, opts),
+         {:ok, groups, work} <- duration_samples(spans, groups, predicates, opts, work),
          {:ok, groups} <- resolve(groups, predicates, opts, work),
          {:ok, rows} <- selected(groups, opts),
          body = Pulse.JSON.encode!(%{"traces" => rows}),
@@ -81,7 +82,11 @@ defmodule Pulse.Traces.TempoSearch do
          do: collect_candidates(spans, predicates, opts, ids, work)
   end
 
-  defp prepare_predicates({:expression, program}), do: Evaluator.prepare(program)
+  defp prepare_predicates({:expression, program}) do
+    with {:ok, {:expression, compiled}} <- Evaluator.prepare(program),
+         do: {:ok, {:expression, Map.put(compiled, :parquet_ids, true)}}
+  end
+
   defp prepare_predicates(predicates), do: {:ok, Enum.map(predicates, &prepare/1)}
 
   defp candidates(spans, predicates, opts) do
@@ -191,6 +196,13 @@ defmodule Pulse.Traces.TempoSearch do
 
   # Structural matches need the complete trace: keep each span's links and
   # resolve them once every retained span is observed.
+  defp observe_sample(%{otlp: nil}, group, _predicates, _spss, work), do: {:ok, group, work}
+
+  defp observe_sample(span, group, {:expression, compiled}, _spss, work)
+       when compiled.context and not is_map_key(compiled, :trace_context) do
+    with {:ok, _, _, work} <- Evaluator.evaluate(span, compiled, work), do: {:ok, group, work}
+  end
+
   defp observe_sample(span, group, {:expression, compiled}, _spss, work) when compiled.relations != [] do
     with {:ok, matched, mask, attributes, work} <- Evaluator.evaluate_mask(span, compiled, work) do
       link = {span.span_id, span.parent_span_id, mask, if(matched, do: sample(span, attributes))}
@@ -219,7 +231,7 @@ defmodule Pulse.Traces.TempoSearch do
   defp error_count(span), do: if(span.status["code"] == 2, do: 1, else: 0)
 
   defp root(group, %{parent_span_id: nil} = span, service) do
-    child_link? = Enum.any?(span.otlp["links"], &(Map.get(strings(&1), "opentracing.ref_type") == "child_of"))
+    child_link? = Evaluator.child_link?(span)
     candidate = {service, span.name}
 
     cond do
@@ -270,6 +282,17 @@ defmodule Pulse.Traces.TempoSearch do
     |> Enum.map(fn {{key, _}, value} -> %{"key" => key, "value" => %{"stringValue" => value}} end)
   end
 
+  defp sample(span, selected) when is_map(selected) do
+    {name, selected} = Map.pop(selected, {"name", "intrinsic"})
+    attributes = selected |> Enum.sort() |> Enum.map(fn {{key, _}, value} -> %{"key" => key, "value" => value} end)
+    sample = sample(span, attributes)
+
+    case name do
+      %{"stringValue" => name} when name != "" -> Map.put(sample, "name", name)
+      _ -> sample
+    end
+  end
+
   defp sample(span, attributes) do
     sample = %{
       "spanID" => span.span_id,
@@ -297,6 +320,47 @@ defmodule Pulse.Traces.TempoSearch do
     Enum.reduce(group.samples, root + services, fn sample, n ->
       n + byte_size(Pulse.JSON.encode!(sample)) + byte_size(sample["spanID"]) + 32
     end)
+  end
+
+  defp duration_samples(spans, groups, {:expression, %{context: true} = compiled}, opts, work) do
+    spans = Enum.filter(spans, &Map.has_key?(groups, &1.trace_id))
+
+    with {:ok, contexts, work} <- Evaluator.trace_context(spans, work),
+         do: context_samples(spans, groups, compiled, contexts, opts, work)
+  end
+
+  defp duration_samples(_spans, groups, _predicates, _opts, work), do: {:ok, groups, work}
+
+  defp context_samples(spans, groups, compiled, contexts, opts, work) do
+    bytes = Enum.reduce(groups, 0, fn {_, group}, n -> n + group_size(group) end)
+
+    Enum.reduce_while(spans, {:ok, groups, bytes, work}, fn span, acc ->
+      context_sample(span, acc, compiled, contexts, opts)
+    end)
+    |> case do
+      {:ok, groups, _, work} -> {:ok, groups, work}
+      error -> error
+    end
+  end
+
+  defp context_sample(span, {:ok, groups, bytes, work}, compiled, contexts, opts) do
+    case Map.get(groups, span.trace_id) do
+      nil ->
+        {:cont, {:ok, groups, bytes, work}}
+
+      group ->
+        expression = {:expression, Evaluator.with_context(compiled, Map.fetch!(contexts, span.trace_id))}
+
+        with :ok <- deadline(opts),
+             {:ok, next, work} <- observe_sample(span, group, expression, opts[:spss], work),
+             bytes = bytes + group_size(next) - group_size(group),
+             true <- bytes <= @max do
+          {:cont, {:ok, Map.put(groups, span.trace_id, next), bytes, work}}
+        else
+          false -> {:halt, {:error, :query_resource_limit}}
+          error -> {:halt, error}
+        end
+    end
   end
 
   defp resolve(groups, {:expression, compiled}, opts, work) when compiled.relations != [] do

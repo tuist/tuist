@@ -13,6 +13,16 @@ defmodule Pulse.Traces.TempoRootDiscovery do
     if opts[:discovery_window], do: {:error, :unsupported_trace_discovery}, else: segments_json([spans], key, opts)
   end
 
+  @doc false
+  def expression_json(rows, ids, key, opts) do
+    opts = Keyword.put(opts, :trace_duration?, TempoIntrinsics.trace_duration_key?(key))
+    rows = Enum.map(rows, &{&1, false})
+
+    with {:ok, groups} <- context(rows, ids, 0, opts),
+         :ok <- complete(groups, key),
+         do: dictionary(groups, key, Keyword.get(opts, :expression_filtered?, true))
+  end
+
   def segments_json(segments, key, opts) do
     floor = opts[:discovery_floor] || 0
     opts = Keyword.put(opts, :trace_duration?, TempoIntrinsics.trace_duration_key?(key))
@@ -140,7 +150,9 @@ defmodule Pulse.Traces.TempoRootDiscovery do
     do: observe(span, %{root: nil, id: nil, known: true, conflict: false, flags: %{}}, false)
 
   defp observe(span, group, false) do
-    child_link = Enum.any?(span.otlp["links"], &(Map.get(strings(&1), "opentracing.ref_type") == "child_of"))
+    child_link =
+      Enum.any?(span.otlp["links"], &(Map.get(strings(&1), "opentracing.ref_type") == "child_of"))
+
     root = is_nil(span.parent_span_id) and not child_link
     previous = Map.get(group.flags, span.span_id)
     extra = if is_nil(previous), do: byte_size(span.span_id) + 64, else: 0

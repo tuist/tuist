@@ -1,0 +1,62 @@
+[
+  {
+    "uid": "pulse-metrics",
+    "name": "Pulse Metrics",
+    "type": "prometheus",
+    "access": "proxy",
+    "url": "http://pulse.observability.svc.cluster.local:4000",
+    "basicAuth": true,
+    "basicAuthUser": "tuist",
+    "isDefault": false,
+    "jsonData": {
+      "httpMethod": "POST",
+      "timeInterval": "60s",
+      "queryTimeout": "30s",
+      "timeout": 30,
+      "prometheusType": "Prometheus",
+      "manageAlerts": false,
+      "allowAsRecordingRulesTarget": true,
+      "enableSecureSocksProxy": true,
+      "pdcInjected": true,
+      "secureSocksProxyUsername": "c569b125-9082-4fe2-92a4-a7c47ae938c6"
+    }
+  },
+  {
+    "uid": "pulse-logs",
+    "name": "Pulse Logs",
+    "type": "loki",
+    "access": "proxy",
+    "url": "http://pulse.observability.svc.cluster.local:4000",
+    "basicAuth": true,
+    "basicAuthUser": "tuist",
+    "isDefault": false,
+    "jsonData": {
+      "maxLines": 1000,
+      "timeout": 30,
+      "manageAlerts": false,
+      "enableSecureSocksProxy": true,
+      "pdcInjected": true,
+      "secureSocksProxyUsername": "c569b125-9082-4fe2-92a4-a7c47ae938c6"
+    }
+  },
+  {
+    "uid": "pulse-traces",
+    "name": "Pulse Traces",
+    "type": "tempo",
+    "access": "proxy",
+    "url": "http://pulse.observability.svc.cluster.local:4000",
+    "basicAuth": true,
+    "basicAuthUser": "tuist",
+    "isDefault": false,
+    "jsonData": {
+      "timeout": 30,
+      "streamingEnabled": {
+        "search": false,
+        "metrics": false
+      },
+      "enableSecureSocksProxy": true,
+      "pdcInjected": true,
+      "secureSocksProxyUsername": "c569b125-9082-4fe2-92a4-a7c47ae938c6"
+    }
+  }
+]

@@ -107,10 +107,10 @@ defmodule Pulse.Codec.NIF do
         ErlangError -> :unavailable
       end
 
-    if version != {{2, 1, 3, 7, 12}, 6},
+    if version != {{2, 1, 3, 10, 13}, 7},
       do:
         raise(
-          "codec native artifact cannot validate typed OTLP trace metadata and run bounded trace-level search/Tempo trace export/scoped discovery/metrics with shared expression budgets, directional string-group ranking ties and scalar prefilters before ranking, event-scope predicates, structural operators and select; rebuild with PULSE_NIF_FORCE_BUILD=1 or install matching release artifacts"
+          "codec native artifact cannot validate typed OTLP trace metadata and run bounded trace-level search/Tempo trace export/scoped discovery/metrics with shared expression budgets, directional string-group ranking ties and scalar prefilters before ranking, event/link/instrumentation predicates, structural operators, select, empty spansets, boolean/double attributes, quoted keys and retained root/duration/intrinsic predicates or expression discovery; rebuild with PULSE_NIF_FORCE_BUILD=1 or install matching release artifacts"
         )
 
     :ok
@@ -120,6 +120,9 @@ defmodule Pulse.Codec.NIF do
   def trace_payload_size(_records, _limit), do: :erlang.nif_error(:nif_not_loaded)
   def tempo_discovery_api_version, do: :erlang.nif_error(:nif_not_loaded)
   def tempo_filtered_discovery_new(_floor, _scope, _key, _predicates), do: :erlang.nif_error(:nif_not_loaded)
+
+  def tempo_expression_discovery_new(_floor, _scope, _key, _program, _start, _end),
+    do: :erlang.nif_error(:nif_not_loaded)
 
   def tempo_windowed_discovery_new(_floor, _scope, _key, _predicates, _start, _end),
     do: :erlang.nif_error(:nif_not_loaded)

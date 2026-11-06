@@ -10,6 +10,13 @@ Helm chart with the same version:
 
 Pick a version from the [releases page](https://github.com/tuist/tuist/releases).
 
+Current Tempo search and autocomplete require matching application/native artifacts with trace
+tuple `{2,1,3,10,13}` and trace metrics capability `7`, superseding earlier
+capability snapshots and string-only discovery grammar descriptions in the
+detailed chart settings below. Upgrade serving
+pairs together before enabling the [documented search grammar](trace-query-expressions.md).
+These read changes do not alter stored/keyed bytes.
+
 ## Monorepo migration
 
 Pulse development now lives in the Tuist monorepo. Releases use
@@ -554,13 +561,23 @@ its own retry queue so a problem with one does not hold back the other.
 
 To check that Pulse answers like the existing backend while both receive the
 same data, run `mix pulse.parity` from a Pulse checkout. It takes Grafana
-dashboard JSON exports, Grafana alert rule exports or a plain list of queries,
+dashboard JSON exports (including Git Sync v1/v2 resources), Grafana alert rule
+exports, a `queries` corpus envelope or a plain list of queries,
 runs every PromQL and LogQL query over several windows (default 1h, 6h, 24h,
 7d) against both backends with identical step-aligned bounds, and reports
 series or streams that differ, values beyond a relative tolerance (default
 1e-9) and errors on either side, exiting non-zero if any. Credentials go in
 `PULSE_PARITY_REFERENCE_HEADERS` and `PULSE_PARITY_CANDIDATE_HEADERS` (one
 `Name: value` per line); `mix help pulse.parity` lists the options.
+
+Files that yield no supported queries fail instead of reporting an empty success.
+Set `--scrape-interval` to the source's scrape cadence in seconds (default 15)
+so `$__rate_interval` uses max(step + scrape, 4 × scrape). `$__auto` uses the
+range step. Supply explicit `--var name=value` selections: unset matcher
+variables broaden to regexes, and corpus dashboard defaults are not applied
+automatically. Corpus `modes` retains instant and range executions separately.
+This comparison does not test SQL, TraceQL, Grafana expression chains,
+notification delivery or alert lifecycle transitions.
 
 ## Querying
 

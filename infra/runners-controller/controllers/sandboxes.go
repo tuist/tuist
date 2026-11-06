@@ -269,9 +269,6 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 	if r.SandboxesNamespace == "" || (pool.Spec.OS != "linux" && pool.Spec.OS != "darwin") || fleet == nil {
 		return false, nil
 	}
-	if pool.Spec.OS == "darwin" && macOSCIQueued(fleet) {
-		return false, nil
-	}
 
 	var nodes corev1.NodeList
 	// The same nodes the fleet's budget counts.

@@ -6,20 +6,52 @@ defmodule PulseWeb.PrometheusDiscoveryController do
   alias Pulse.Auth
   alias Pulse.PromQL.{Discovery, Parser, Time}
   alias Pulse.Storage.S3
+  alias PulseWeb.PrometheusLimit
 
   def labels(conn, _params), do: run(conn, "names", "")
-  def label_values(conn, %{"name" => name}), do: run(conn, "values", name)
+  def label_values(conn, %{"name" => name}), do: run(conn, "values", unescape_label(name))
   def series(conn, _params), do: run(conn, "series", "")
+
+  # Prometheus ValueEncodingEscaping, used by Grafana for UTF-8 label paths.
+  # Like upstream UnescapeName, a malformed escape preserves the entire literal
+  # name, never a partly decoded prefix or a second decoding pass.
+  defp unescape_label("U__" <> encoded = name) when byte_size(name) <= 2048 do
+    case unescape_label(encoded, []) do
+      {:ok, parts} -> IO.iodata_to_binary(Enum.reverse(parts))
+      :error -> name
+    end
+  end
+
+  defp unescape_label(name), do: name
+  defp unescape_label("", parts), do: {:ok, parts}
+  defp unescape_label("__" <> rest, parts), do: unescape_label(rest, ["_" | parts])
+
+  defp unescape_label("_" <> rest, parts) do
+    with [hex, tail] <- :binary.split(rest, "_"),
+         true <- byte_size(hex) in 1..5 and Regex.match?(~r/\A[0-9a-fA-F]+\z/, hex),
+         {codepoint, ""} <- Integer.parse(hex, 16),
+         true <- codepoint not in 0xD800..0xDFFF do
+      unescape_label(tail, [<<codepoint::utf8>> | parts])
+    else
+      _ -> :error
+    end
+  end
+
+  defp unescape_label(<<byte, rest::binary>>, parts), do: unescape_label(rest, [byte | parts])
 
   defp run(conn, mode, key) do
     with {:ok, tenant} <- tenant(conn),
          :ok <- authorize(conn, tenant),
          :ok <- S3.validate_tenant(tenant),
-         {:ok, selectors, opts} <- parameters(conn),
+         {:ok, selectors, opts, limit} <- parameters(conn),
          {:ok, data} <- Discovery.query(tenant, mode, key, selectors, opts) do
-      conn
-      |> put_resp_content_type("application/json")
-      |> send_resp(200, [~s({"status":"success","data":), data, "}"])
+      if limit > 0 do
+        json(conn, PrometheusLimit.response(%{"status" => "success", "data" => Pulse.JSON.decode!(data)}, limit))
+      else
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, [~s({"status":"success","data":), data, "}"])
+      end
     else
       {:error, :unauthorized} ->
         failure(conn, 401, "unauthorized", "unauthorized")
@@ -53,6 +85,9 @@ defmodule PulseWeb.PrometheusDiscoveryController do
 
       {:error, :unsupported_media_type} ->
         failure(conn, 415, "bad_data", "POST requires application/x-www-form-urlencoded.")
+
+      {:error, {:invalid_parameter, message}} ->
+        failure(conn, 400, "bad_data", message)
 
       {:error, reason}
       when reason in [
@@ -90,20 +125,21 @@ defmodule PulseWeb.PrometheusDiscoveryController do
   defp parameters(conn) do
     query = conn.query_params
     body = conn.body_params
-    allowed = ~w(match start end timeout)
+    allowed = ~w(match start end timeout limit)
 
     with :ok <- content_type(conn),
          true <- is_map(body) and not is_struct(body),
          true <- byte_size(conn.query_string) <= 32_768,
          true <- Enum.all?(Map.keys(query) ++ Map.keys(body), &(&1 in allowed)),
-         true <- Enum.all?(~w(start end timeout), &(not (Map.has_key?(query, &1) and Map.has_key?(body, &1)))),
+         true <- Enum.all?(~w(start end timeout limit), &(not (Map.has_key?(query, &1) and Map.has_key?(body, &1)))),
          true <- unique_scalars?(conn.query_string),
          true <- unique_scalars?(Map.get(conn.assigns, :prometheus_discovery_form, "")),
          params = Map.merge(query, body),
          selectors = Map.get(query, "match", []) ++ Map.get(body, "match", []),
+         {:ok, limit} <- PrometheusLimit.parse(params["limit"]),
          {:ok, opts} <- time_options(params),
          {:ok, opts} <- timeout_options(params, opts) do
-      {:ok, selectors, opts}
+      {:ok, selectors, opts, limit}
     else
       {:error, _} = error -> error
       _ -> {:error, :invalid_parameters}
@@ -115,8 +151,8 @@ defmodule PulseWeb.PrometheusDiscoveryController do
   defp unique_scalars?(query) do
     pairs = URI.query_decoder(query) |> Enum.to_list()
 
-    Enum.all?(pairs, fn {key, _} -> key in ~w(match[] start end timeout) end) and
-      Enum.all?(~w(start end timeout), fn key -> Enum.count(pairs, &(elem(&1, 0) == key)) <= 1 end)
+    Enum.all?(pairs, fn {key, _} -> key in ~w(match[] start end timeout limit) end) and
+      Enum.all?(~w(start end timeout limit), fn key -> Enum.count(pairs, &(elem(&1, 0) == key)) <= 1 end)
   end
 
   defp content_type(%{method: "GET"}), do: :ok

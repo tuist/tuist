@@ -44,15 +44,20 @@ defmodule PulseWeb.TempoController do
     with {:ok, tenant} <- tenant(conn),
          :ok <- authorize(conn, tenant),
          {:ok, scope, key} <- discovery_params(params, mode, version),
+         {:ok, limit} <- discovery_limit(params, mode),
          {:ok, window} <- discovery_window(params),
          {:ok, format} <- format(conn),
-         {:ok, body} <- TempoDiscovery.query(tenant, scope, key, version, format, params["q"], window) do
+         {:ok, body} <- TempoDiscovery.query(tenant, scope, key, version, format, params["q"], window, limit) do
       type = if format == "protobuf", do: "application/protobuf", else: "application/json"
 
       conn
       |> put_resp_content_type(type)
       |> put_resp_header("x-pulse-trace-coverage", discovery_coverage(scope, mode, params["q"], version, key))
       |> put_resp_header("x-pulse-trace-discovery-window", window_coverage(scope, key, window))
+      |> put_resp_header(
+        "x-pulse-trace-discovery-limit",
+        if(limit == 0, do: "unlimited-within-safety-budgets", else: Integer.to_string(limit))
+      )
       |> send_resp(200, body)
     else
       {:error, reason} -> failure(conn, reason)
@@ -86,7 +91,9 @@ defmodule PulseWeb.TempoController do
     do: "all-visible-stored-attributes; exporter-completeness-unknown"
 
   defp discovery_params(params, mode, version) do
-    allowed = if mode == :names, do: ~w(scope q start end), else: ~w(tag_name q start end)
+    # Grafana's resource proxy retains its encoded `tag` query parameter.
+    # As Tempo, use the path target and ignore that redundant parameter.
+    allowed = if mode == :names, do: ~w(scope q start end limit), else: ~w(tag_name tag q start end limit)
 
     if Enum.all?(Map.keys(params), &(&1 in allowed)) do
       discovery_target(params, mode, version)
@@ -94,6 +101,20 @@ defmodule PulseWeb.TempoController do
       {:error, :unsupported_trace_discovery}
     end
   end
+
+  # Pinned Tempo parses uint32 limits only for values. Names ignore the
+  # parameter altogether; zero/empty/omission on values means no output cap.
+  defp discovery_limit(_params, :names), do: {:ok, 0}
+
+  defp discovery_limit(%{"limit" => value}, :values) when value not in [nil, ""] do
+    if is_binary(value) and byte_size(value) <= 10 and Regex.match?(~r/\A[0-9]+\z/, value) do
+      search_seconds(value, :limit)
+    else
+      search_parse_error(value, :limit)
+    end
+  end
+
+  defp discovery_limit(_params, :values), do: {:ok, 0}
 
   defp discovery_window(params) do
     case {params["start"], params["end"]} do

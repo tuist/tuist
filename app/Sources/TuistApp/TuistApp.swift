@@ -84,10 +84,6 @@ import TuistServer
     import TuistProfile
     import TuistSDK
 
-    enum TabIdentifier: Hashable {
-        case previews, profile
-    }
-
     @main
     struct TuistApp: App {
         @UIApplicationDelegateAdaptor(PushNotificationsAppDelegate.self) private var appDelegate
@@ -96,7 +92,24 @@ import TuistServer
         var body: some Scene {
             WindowGroup {
                 if bootstrapper.isReady {
-                    RootView()
+                    Group {
+                        #if DEBUG
+                            if ProcessInfo.processInfo.arguments.contains("--layout-preview") ||
+                                Bundle.main.object(forInfoDictionaryKey: "TuistThreadsPreview") as? Bool == true
+                            {
+                                AccountHomeView(
+                                    account: Account(email: "preview@example.com", handle: "pedro"),
+                                    isLayoutPreview: true
+                                )
+                                .environment(FeatureFlags(enabled: ProcessInfo.processInfo.arguments
+                                        .contains("--without-ai") ? [] : [.ai]))
+                            } else {
+                                RootView()
+                            }
+                        #else
+                            RootView()
+                        #endif
+                    }
                 } else {
                     ProgressView()
                 }
@@ -107,7 +120,6 @@ import TuistServer
     private struct RootView: View {
         @StateObject private var authenticationService = AuthenticationService()
         @State private var featureFlags = FeatureFlags()
-        @State private var activeTab = TabIdentifier.previews
         @Environment(\.scenePhase) private var scenePhase
 
         var body: some View {
@@ -139,29 +151,7 @@ import TuistServer
         private var content: some View {
             switch authenticationService.authenticationState {
             case let .loggedIn(account, _):
-                TabView(selection: $activeTab) {
-                    PreviewsView()
-                        .tabItem {
-                            NooraIcon(.deviceMobile)
-                            Text("Previews")
-                        }
-                        .tag(TabIdentifier.previews)
-
-                    ProfileView(account: account)
-                        .tabItem {
-                            NooraIcon(.user)
-                                .frame(width: 24, height: 24)
-                            Text("Profile")
-                        }
-                        .tag(TabIdentifier.profile)
-                }
-                .onOpenURL { _ in
-                    activeTab = .previews
-                }
-                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { _ in
-                    activeTab = .previews
-                }
-                .accentColor(Noora.Colors.accent)
+                AccountHomeView(account: account)
             case .loggedOut:
                 LogInView()
                 #if DEBUG

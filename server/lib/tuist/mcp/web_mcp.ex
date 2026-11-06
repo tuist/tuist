@@ -189,7 +189,9 @@ defmodule Tuist.MCP.WebMCP do
 
   defp page_tools("module-cache", _build_system), do: @module_cache_tools
   defp page_tools("bundles", _build_system), do: [Tools.ListBundles, Tools.GetBundle, Tools.GetBundleArtifactTree]
+
   defp page_tools("previews", _build_system), do: [Tools.ListPreviews, Tools.GetPreview, Tools.GetLatestPreview]
+
   defp page_tools("project-settings", _build_system), do: @project_settings_tools
 
   defp page_tools("connect", :gradle), do: [Tools.GetGradleIntegrationGuide]

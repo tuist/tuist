@@ -191,6 +191,22 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 			control = p
 		}
 	}
+	// A control Pod is Ready once the host accepts its configuration. Template
+	// preparation can take an hour or wait for disk, and the server learns a
+	// host can place sandboxes from its connection, not from this Pod, so
+	// readiness must not hold a chart rollout on that background work.
+	if control != nil {
+		var cfg Config
+		if err = json.Unmarshal([]byte(control.Annotations[ConfigAnnotation]), &cfg); err != nil {
+			return err
+		}
+		if err = validateConfig(cfg); err != nil {
+			return err
+		}
+		if err = s.markRunning(ctx, control); err != nil {
+			return err
+		}
+	}
 	s.mu.Lock()
 	m := s.manager
 	s.mu.Unlock()
@@ -402,20 +418,26 @@ func (s *Service) tick(ctx, parent context.Context, controlUID *string, cancel *
 				continue
 			}
 		}
-		if pod.Labels[RoleLabel] == "control" || pod.Labels[RoleLabel] == "execution" {
-			if pod.Status.Phase != corev1.PodRunning && pod.DeletionTimestamp.IsZero() {
-				copy := pod.DeepCopy()
-				copy.Status.Phase = corev1.PodRunning
-				copy.Status.Conditions = []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue, LastTransitionTime: metav1.Now()}}
-				if _, err = s.Kube.CoreV1().Pods(Namespace).UpdateStatus(ctx, copy, metav1.UpdateOptions{}); err != nil {
-					return err
-				}
+		if pod.Labels[RoleLabel] == "execution" {
+			if err = s.markRunning(ctx, pod); err != nil {
+				return err
 			}
 		}
 	}
 	m.Gate.Lock()
 	defer m.Gate.Unlock()
 	return s.repairReservations(ctx, m)
+}
+
+func (s *Service) markRunning(ctx context.Context, pod *corev1.Pod) error {
+	if pod.Status.Phase == corev1.PodRunning || !pod.DeletionTimestamp.IsZero() {
+		return nil
+	}
+	copy := pod.DeepCopy()
+	copy.Status.Phase = corev1.PodRunning
+	copy.Status.Conditions = []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue, LastTransitionTime: metav1.Now()}}
+	_, err := s.Kube.CoreV1().Pods(Namespace).UpdateStatus(ctx, copy, metav1.UpdateOptions{})
+	return err
 }
 
 // repairReservations runs under the launch gate, including immediately before

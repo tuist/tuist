@@ -97,8 +97,6 @@ defmodule Pulse.Traces.TempoFilteredUnscopedTest do
     for {key, query} <- [
           {"mixed", ~s'{resource.mixed="literal"}'},
           {"mixed", ~s'{span.mixed="literal"}'},
-          {"mixed", ~s'{instrumentation.mixed="literal"}'},
-          {"mixed", ~s'{span.n=1}'},
           {"mixed", @worker <> " with (most_recent=true)"},
           {"root.name", @worker},
           {"root.service.name", @worker}

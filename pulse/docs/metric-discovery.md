@@ -44,12 +44,26 @@ Supported parameters:
 - Optional `timeout` is seconds or a duration such as `500ms`, clamped to ten
   seconds and the server timeout. This is a query-work deadline, not a body-read
   deadline or preemption guarantee for native calls already running.
+- Optional HTTP `limit` is a nonnegative signed-int64 integer. Omission, empty
+  text and zero leave the result unlimited within server budgets. A positive
+  limit returns the first entries in the normal result order and adds
+  `warnings: ["results truncated due to limit"]` only when entries were omitted.
+  It never bypasses scan, dictionary or result budgets: discovery completes
+  before applying the requested response limit.
+
+Label-value paths also accept Prometheus `U__` value-name escaping, including
+hexadecimal Unicode code points and doubled underscores. For example,
+`/api/v1/label/U__http_2e_status:sum/values` queries `http.status:sum`, not the
+literal encoded name. Decoding follows Prometheus common v0.73.1: malformed
+escapes preserve the entire original name, and decoding happens only once.
+Its five-hex-digit escape ceiling is retained; six-digit escapes remain literal.
+Decoded names still need valid UTF-8 and fit the normal 256-byte name budget.
 
 At most 16 selectors, 64 total matchers, eight regexes, 1024 bytes per regex and
 16 KiB total selector text/matcher name-value bytes are accepted. Matcher names
 and requested label names are capped at 256 bytes. Selector syntax remains the
 legacy ASCII-name subset; this is not all Prometheus UTF-8 selector grammar.
-Full expressions, ranges, unsupported offsets, hints, `query`, `limit`, malformed
+Full expressions, ranges, unsupported offsets, hints, `query`, malformed
 selectors and unknown parameters reject rather than falling back to an unfiltered
 scan. Duplicate scalar parameters reject, including across query/form sources;
 selectors from both sources are combined.
@@ -83,8 +97,9 @@ not byte-for-byte, equivalent.
 
 ## Resource limits and storage costs
 
-A request returns a **complete result or an error**, never a sampled/truncated
-metadata dictionary. Fixed bounds are 5000 distinct entries, 1 MiB dictionary-key
+A request computes a **complete result or an error**, never silently sampling
+metadata to fit budgets. An explicit HTTP `limit` can truncate that completed
+result with a warning. Fixed bounds are 5000 distinct entries, 1 MiB dictionary-key
 bytes and an independent 1 MiB encoded discovery-payload ceiling (including
 success-envelope headroom). Outer JSON-RPC/MCP wrapping adds bytes outside that
 payload limit. Narrow queries when these bind; no `limit` parameter bypasses them.

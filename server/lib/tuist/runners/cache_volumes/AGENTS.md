@@ -18,8 +18,9 @@ these schemas persist volume identities and per-job uses.
   idle period, including a weekend. Two runs leave out keys one run made for
   itself (every `e2e-reuse-*` key). Hosts download only into free space. Each
   host gets only the repositories `VolumePlacement` places on it: every volume of
-  an account's repository goes to the same hosts, one more than the repository's
-  jobs ran on at once over the week and at least two, picked by rendezvous
+  an account's repository goes to the same hosts, half again as many as the
+  repository's jobs ran on at once over the week (rounded up) and at least two,
+  since holders also run other repositories' jobs, picked by rendezvous
   hashing weighted by advertised cache capacity, and the caps apply per host.
   Dispatch then leaves a young job to an idle holder (`VolumeAffinities`). A
   schedule learned per
@@ -54,6 +55,11 @@ these schemas persist volume identities and per-job uses.
   mounted when the use's base was not local; only values below the base are kept.
   Such uses may still publish (last publication wins). `older_copy?/1` drives the
   "Older copy" dashboard badge and the API status description.
+- A cold report's `cold_reason` records why the host had no copy of a warm use's
+  volume (runner-cache's `Cold*` reasons: `downloading`, `not_on_host`,
+  `evicted_<eviction reason>`). Only a known reason on a `warm: false` report of
+  a use with a base is kept, and the first one stays. `cold_reason_description/1`
+  adds it to the API status description.
 - Increment generation under the volume row lock on deletion.
   Publication takes the same lock, so old clones cannot resurrect cleared data.
 - The live executed-job binding and `Identity` provider adapter determine scope

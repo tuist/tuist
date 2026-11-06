@@ -35,6 +35,10 @@ defmodule TuistWeb.Endpoint do
     websocket: true,
     longpoll: false
 
+  socket "/threads/socket", TuistWeb.ThreadsSocket,
+    websocket: [auth_token: true],
+    longpoll: false
+
   plug TuistWeb.Plugs.DrainingPlug
 
   # Serve at "/" the static files from "priv/static" directory.
@@ -80,6 +84,8 @@ defmodule TuistWeb.Endpoint do
     body_scrubber: {__MODULE__, :scrub_sentry_body}
 
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
+
+  plug TuistWeb.Plugs.EntireWebhookPlug
 
   plug Stripe.WebhookPlug,
     at: "/webhooks/stripe",
@@ -175,6 +181,9 @@ defmodule TuistWeb.Endpoint do
   # `arguments` can carry them at any depth of a JSON-RPC body.
   @sentry_scrubbed_body_keys ["mfa_code", "token", "arguments"]
 
+  # Private conversations and Ship approvals must not become error-report data.
+  def scrub_sentry_body(%{path_info: ["api", "accounts", _handle, "threads" | _]}), do: %{}
+
   def scrub_sentry_body(conn) do
     conn
     |> Sentry.PlugContext.default_body_scrubber()
@@ -192,6 +201,7 @@ defmodule TuistWeb.Endpoint do
     conn
     |> Sentry.PlugContext.default_header_scrubber()
     |> Map.drop([
+      "sec-websocket-protocol",
       "x-csrf-token",
       "x-tuist-actor-id",
       "x-tuist-runner-grant" | TuistWeb.OperatorGrant.credential_headers()

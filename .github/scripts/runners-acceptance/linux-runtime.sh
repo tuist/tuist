@@ -18,7 +18,7 @@ test -r /dev/kvm
 test -w /dev/kvm
 printf 'set -e\necho login-shell-ready\nexit 0\n' | env SHLVL=0 /bin/bash --login
 
-for executable in dispatch-poll.sh run-job.sh vitals.sh metrics-sampler.sh runner-shell-agent tuist-cache-volume tuist-gitlab-runner; do
+for executable in dispatch-poll.sh run-job.sh vitals.sh metrics-sampler.sh runner-shell-agent tuist-cache-volume tuist-gitlab-runner tuist-job-runner; do
   test -x "/usr/local/bin/${executable}"
 done
 test -x /home/runner/actions-runner/externals/tuist-cache-volume

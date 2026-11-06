@@ -108,6 +108,27 @@ Fix the build."
                Sandboxes.start_agent_session(account, %{prompt: "Hello"})
     end
 
+    test "a macOS session on a Linux environment records its platform and names the macOS checkout" do
+      account = account_fixture()
+      agent_environment_fixture(account: account, anthropic_api_key: "sk-ant-api", anthropic_agent_id: "agent_cached")
+
+      expect(ControlPlane, :create_session, fn "sk-ant-api", %{metadata: metadata, initial_events: [event]} ->
+        assert metadata["tuist_platform"] == "darwin"
+
+        assert [%{text: "The repository https://github.com/tuist/tuist is cloned at /Users/runner/work/tuist." <> _}] =
+                 event.content
+
+        {:ok, %{"id" => "sesn_mac", "status" => "running"}}
+      end)
+
+      assert {:ok, %AgentSession{platform: :darwin}} =
+               Sandboxes.start_agent_session(account, %{
+                 prompt: "Build the app.",
+                 repository_url: "https://github.com/tuist/tuist",
+                 platform: "darwin"
+               })
+    end
+
     test "creates a one-off agent for a model override without caching it" do
       account = account_fixture()
 
@@ -185,6 +206,31 @@ Fix the build."
                Sandboxes.start_agent_session(account, %{prompt: "Hello", agent_environment_id: first.id})
 
       assert id == first.id
+    end
+
+    test "only starts sessions on Managed Agents environments" do
+      account = account_fixture()
+
+      managed =
+        agent_environment_fixture(account: account, anthropic_api_key: "sk-ant-api", anthropic_agent_id: "agent_1")
+
+      claude_code =
+        agent_environment_fixture(
+          account: account,
+          kind: :claude_code,
+          anthropic_environment_id: "ccpool_one",
+          anthropic_api_key: "sk-ant-api"
+        )
+
+      assert {:error, :no_agent_environment} =
+               Sandboxes.start_agent_session(account, %{prompt: "Hello", agent_environment_id: claude_code.id})
+
+      expect(ControlPlane, :create_session, fn "sk-ant-api", %{agent: "agent_1"} ->
+        {:ok, %{"id" => "sesn_only_managed", "status" => "running"}}
+      end)
+
+      assert {:ok, %AgentSession{agent_environment_id: id}} = Sandboxes.start_agent_session(account, %{prompt: "Hello"})
+      assert id == managed.id
     end
 
     test "rejects invalid params before talking to Anthropic" do

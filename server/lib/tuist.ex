@@ -11,6 +11,10 @@ defmodule Tuist do
     # that `Tuist.OnceEvents` projects from.
     deps: [Once],
     exports: [
+      Threads,
+      Threads.Checkpoints,
+      Threads.Thread,
+      Threads.RecoveryWorker,
       # Marketing
       # -----
       # These modules contain utilities that are used for the marketing-related
@@ -252,6 +256,9 @@ defmodule Tuist do
       Origin.Client,
       Origin.Signatures,
       Origin.WebhookWorker,
+      Entire,
+      Entire.Client,
+      EntireTrails,
       VCS.RemoteURL,
       Alerts,
       Alerts.Alert,
@@ -329,6 +336,8 @@ defmodule Tuist do
       Sandboxes.AmpRuntime,
       Sandboxes.AgentEnvironment,
       Sandboxes.AgentSession,
+      Sandboxes.ClaudeCodeRunners,
+      Sandboxes.ClaudeCodeRuntime,
       Sandboxes.Anthropic.Client,
       Sandboxes.Analytics,
       Sandboxes.Concurrency,
@@ -367,6 +376,8 @@ defmodule Tuist do
       Runners.Workers.FetchLogsWorker,
       Runners.Workers.PruneArchivedLogsWorker,
       Runners.Claims,
+      Runners.APIJobs,
+      Runners.APIJobs.Job,
       Runners.GitLab,
       Runners.GitLab.Cache,
       Runners.GitLab.Connection,

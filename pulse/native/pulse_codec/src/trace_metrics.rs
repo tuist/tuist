@@ -253,7 +253,7 @@ fn lookup(scope: &str, key: &str) -> Res<Lookup> {
 
 #[rustler::nif]
 fn trace_metrics_api_version() -> u32 {
-    6
+    7
 }
 
 /// `program` is a `tempo_expression` program or nil; `op` an operation name;

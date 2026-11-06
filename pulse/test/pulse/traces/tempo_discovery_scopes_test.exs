@@ -74,7 +74,11 @@ defmodule Pulse.Traces.TempoDiscoveryScopesTest do
              "tagValues" => [%{"type" => "string", "value" => "api"}, %{"type" => "string", "value" => "rpc"}]
            }
 
-    assert {:error, _} = TempoDiscovery.query("scopes", "event", "phase", 2, "json", ~s'{event.phase="first"}')
+    assert {:ok, nested} = TempoDiscovery.query("scopes", "event", "phase", 2, "json", ~s'{event.phase="first"}')
+
+    assert Pulse.JSON.decode!(nested) == %{
+             "tagValues" => [%{"type" => "string", "value" => "first"}, %{"type" => "string", "value" => "second"}]
+           }
   end
 
   test "unknown metadata and matching unsupported nested values fail whole, while floors exclude only expired parents" do

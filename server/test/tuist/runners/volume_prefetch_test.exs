@@ -37,6 +37,14 @@ defmodule Tuist.Runners.VolumePrefetchTest do
     }
   end
 
+  # A Linux host carries its CAPI node pool, and no `tuist.dev/fleet`.
+  defp linux_node(name, capacity \\ @m2) do
+    %{
+      "metadata" => %{"name" => name, "labels" => %{"node.cluster.x-k8s.io/pool" => "runners-linux"}},
+      "status" => %{"capacity" => capacity}
+    }
+  end
+
   defp stub_fleet(nodes) do
     stub(K8sClient, :get_node, fn name ->
       case Enum.find(nodes, &(get_in(&1, ["metadata", "name"]) == name)) do
@@ -45,7 +53,10 @@ defmodule Tuist.Runners.VolumePrefetchTest do
       end
     end)
 
-    stub(K8sClient, :list_nodes, fn "tuist.dev/fleet=" <> _ -> {:ok, %{"items" => nodes}} end)
+    stub(K8sClient, :list_nodes, fn selector ->
+      [label, value] = String.split(selector, "=")
+      {:ok, %{"items" => Enum.filter(nodes, &(get_in(&1, ["metadata", "labels", label]) == value))}}
+    end)
   end
 
   describe "node_for_service_account/2" do
@@ -117,7 +128,7 @@ defmodule Tuist.Runners.VolumePrefetchTest do
     end
 
     test "lists a Linux fleet's HEADs from every Node of it, whatever its capacity" do
-      stub_fleet([fleet_node("linux-01", "runners-linux"), fleet_node("linux-02", "runners-linux", @m4)])
+      stub_fleet([linux_node("linux-01"), linux_node("linux-02", @m4), fleet_node("mac-01")])
 
       expect(CacheVolumes, :prefetch_heads, fn "linux", nodes, %DateTime{}, opts ->
         assert Enum.sort(nodes) == ["linux-01", "linux-02"]
@@ -129,7 +140,7 @@ defmodule Tuist.Runners.VolumePrefetchTest do
     end
 
     test "answers nothing for a Node outside a fleet of the platform" do
-      stub_fleet([fleet_node("linux-01", "runners-linux"), fleet_node("mac-01")])
+      stub_fleet([linux_node("linux-01"), fleet_node("mac-01")])
       reject(&CacheVolumes.prefetch_heads/4)
 
       assert VolumePrefetch.for_node("linux-01", :macos) == []

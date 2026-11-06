@@ -102,23 +102,8 @@ jobs:
           yq ea -o=json -I=0 '.' "$dir/rendered.yaml" | jq -s 'map(select(. != null))' > "$dir/resources.json"
           expected_host="pulse-$DEPLOY_ENV.tuist.dev"
           if [[ "$DEPLOY_ENV" == production ]]; then expected_host=pulse.tuist.dev; fi
-          jq -e --arg image "ghcr.io/tuist/pulse:$VERSION@$IMAGE_DIGEST" --arg host "$expected_host" '
-            ([.[] | select(.kind == "Deployment")] | length == 1) and
-            ([.[] | select(.kind == "Deployment")][0] |
-              .metadata.name == "pulse" and .spec.replicas == 1 and .spec.strategy.type == "Recreate" and
-              ([.spec.template.spec.containers[].image] == [$image]) and
-              ([.spec.template.spec.containers[].env[]?.valueFrom.secretKeyRef.name // empty] | unique == ["pulse-credentials"])) and
-            ([.[] | select(.kind == "ExternalSecret" and .metadata.name == "pulse-credentials") ] | length == 1) and
-            ([.[] | select(.kind == "Service" and .metadata.name == "pulse")][0] |
-              .spec.type == "ClusterIP" and ((.spec.externalIPs // []) | length == 0)) and
-            ([.[] | select(.kind == "Ingress")] | length == 1) and
-            ([.[] | select(.kind == "Ingress")][0] |
-              .metadata.name == "pulse" and .spec.ingressClassName == "nginx" and
-              .spec.rules == [{host: $host, http: {paths: [{path: "/mcp", pathType: "Exact",
-                backend: {service: {name: "pulse", port: {name: "http"}}}}]}}] and
-              .spec.tls == [{hosts: [$host], secretName: "pulse-tls"}]) and
-            all(.[]; .kind != "Secret" and .kind != "HorizontalPodAutoscaler")
-          ' "$dir/resources.json" >/dev/null
+          jq -e --arg image "ghcr.io/tuist/pulse:$VERSION@$IMAGE_DIGEST" --arg host "$expected_host" \
+            --arg version "$VERSION" -f .github/scripts/pulse-render-contract.jq "$dir/resources.json" >/dev/null
       - name: Prepare release-source monitoring chart without historical scripts
         run: |
           set -euo pipefail

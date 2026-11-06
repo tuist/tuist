@@ -119,6 +119,11 @@ SSH covers `git@` dependencies, SSH submodules, deploy keys, and `ssh` or `scp` 
     link="/guides/features/runners/ci-providers/bitrise"
 />
   <.home_card
+    title="API"
+    details="Run jobs from your own git forge or orchestrator with one request and follow them with webhooks."
+    link="/guides/features/runners/ci-providers/api"
+/>
+  <.home_card
     title="Profiles"
     details="Choose a platform, size, and Xcode version with named machine profiles you reference from your jobs."
     link="/guides/features/runners/profiles"
@@ -129,6 +134,10 @@ SSH covers `git@` dependencies, SSH submodules, deploy keys, and `ssh` or `scp` 
     link="/guides/features/runners/cache-volumes"
 />
 </.home_cards>
+
+## Once graph actions {#once-graph-actions}
+
+Once can execute eligible graph command actions on Tuist's Linux workers when the account has remote execution enabled and the server advertises compatible worker capabilities. This is action-level execution, separate from the CI-provider jobs above. See <.localized_link href="/guides/features/runners/once">Once remote execution</.localized_link> for setup, image requirements, and compatibility checks.
 
 ## Why Tuist Runners {#why-tuist-runners}
 

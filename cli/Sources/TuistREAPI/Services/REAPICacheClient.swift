@@ -125,6 +125,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     private func metadata(presenceLookup: Bool = false) async throws -> Metadata {
         var result = Metadata()
+        result.addString(REAPI.userAgent, forKey: "user-agent")
         if let token = try await token() {
             result.addString("Bearer \(token)", forKey: "authorization")
         }

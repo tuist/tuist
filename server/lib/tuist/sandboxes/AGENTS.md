@@ -105,14 +105,23 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `{:global, {Poller, agent_environment_id}}`), kept in sync with the
   table by `Manager` every 30s. Started on web pods outside tests
   (`sandboxes_children/0` in `Tuist.Application`).
+- `Router.session_environment/2` decides the OS a session runs on, for
+  the poller's admission and the router alike: an existing sandbox keeps
+  its platform; a new one takes the `AgentSession` row's `platform`, else
+  the `tuist_platform` session metadata key (`linux`, `darwin`, `macos`),
+  else the environment's. A platform other than the environment's runs
+  that platform's default template and shape (`Sandboxes.platform_defaults/1`).
 - `Tuist.Sandboxes.Router`: finds or creates the session's sandbox,
   resumes it and records the residency in one step
   (`Sandboxes.prepare_residency/2`), then starts `sbx-worker` with the
   session credentials; force-stops the work item on any failure so
-  Anthropic re-queues it. The residency that creates the sandbox also
-  binds it to the `AgentSession` row (looked up by
-  `anthropic_session_id`) and clones the requested repository into
-  `/workspace/<name>` with `git clone --filter=blob:none` (branch via
+  Anthropic re-queues it. Like an Amp Orb's spawn, a turn that just
+  created a macOS sandbox records its residency without a fresh CI grant
+  (`created: true`): the VM already holds its slot. Inside the residency
+  that created the sandbox, the router binds it to the `AgentSession` row
+  (looked up by `anthropic_session_id`) and clones the requested
+  repository into `<workspace>/<name>` (`/workspace` on Linux,
+  `/Users/runner/work` on macOS) with `git clone --filter=blob:none` (branch via
   `--branch`, a commit sha via a follow-up `checkout`; 90s budget). A
   github.com repository named on the `AgentSession` row is cloned with a
   token minted for that one repository with `contents: read`
@@ -122,6 +131,21 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   session metadata (which anyone with access to the Anthropic workspace
   can set) is cloned anonymously. A failed clone is logged and the
   worker still starts.
+- Claude Code cloud environments (`kind: :claude_code`, `ccpool_...`) are
+  agent environments the Managed Agents `Manager` skips. Users pick the OS
+  by picking the environment in Claude Code, so each runs its own platform.
+  `ClaudeCodeReconciler` (Oban cron, every minute, and on create/delete)
+  keeps one orchestrator Deployment per enabled environment
+  (`ClaudeCodeRuntime`, `infra/claude-code-runners`) in the Amp provider
+  namespace. Its spawn hook calls `ClaudeCodeRunnersController` with a
+  projected token (audience `tuist-claude-code-runners`) that names the
+  environment. `ClaudeCodeRunners.spawn/2` answers before the VM boots:
+  `:running` when the session's sandbox holds a residency, `:accepted` after
+  `Capacity.admissible?/2`, else `:no_capacity`. A supervised task then, under
+  the `claude-code:<env>:<session>` lock (`wait: false`), finds or creates
+  the sandbox, records the residency with `created:` like the router, and
+  starts `sbx-worker` with `SBX_CLAUDE_CODE_WORK_ORDER`. The work order is
+  the runner's credential: keep it out of rows and logs.
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
   `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
   sandbox is still running, has no residency and the epoch it was

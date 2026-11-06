@@ -101,6 +101,7 @@ defmodule Pulse.Storage.S3 do
   alias Pulse.Storage.S3.Retention
   alias Pulse.Storage.S3.TraceSummary
   alias Pulse.Storage.SortOrder
+  alias Pulse.Traces.SearchExpression
   alias Pulse.Traces.TempoDiscovery
 
   @tenant_regex ~r/\A[A-Za-z0-9_.\-]{1,128}\z/
@@ -304,6 +305,16 @@ defmodule Pulse.Storage.S3 do
     do: tempo_discovery_json(tenant, scope, key, Keyword.put(opts, :discovery_query, query))
 
   @impl Pulse.Storage
+  def tempo_expression_discovery_json(tenant, scope, key, program, opts) do
+    with :ok <- TempoDiscovery.validate(scope, key),
+         :ok <- TempoDiscovery.validate_window(opts[:discovery_window]),
+         :ok <- SearchExpression.validate(program) do
+      opts = opts |> Keyword.drop([:start_ts, :end_ts, :limit])
+      query(:traces, tenant, discovery_opts(scope, key, {:expression, program}, opts))
+    end
+  end
+
+  @impl Pulse.Storage
   def tempo_discovery_json(tenant, scope, key, opts) do
     opts =
       opts
@@ -314,6 +325,15 @@ defmodule Pulse.Storage.S3 do
          :ok <- TempoDiscovery.validate_window(opts[:discovery_window]),
          {:ok, predicates} <- TempoDiscovery.filter(scope, key, opts[:discovery_query]),
          do: query(:traces, tenant, discovery_opts(scope, key, predicates, opts))
+  end
+
+  defp discovery_opts(scope, key, {:expression, _} = predicates, opts) do
+    opts
+    |> Keyword.take([:max_scan_segments, :max_scan_bytes, :max_scan_rows, :deadline_ms, :discovery_window])
+    |> Keyword.put(:max_scan_rows, min(opts[:max_scan_rows] || 1_000_000, 1_000_000))
+    |> Keyword.put(:max_scan_bytes, min(opts[:max_scan_bytes] || 33_554_432, 33_554_432))
+    |> Keyword.put(:max_scan_segments, min(opts[:max_scan_segments] || 1024, 1024))
+    |> Keyword.put(:tempo_discovery, {scope, key, predicates})
   end
 
   defp discovery_opts("intrinsic", key, predicates, opts)
@@ -332,6 +352,15 @@ defmodule Pulse.Storage.S3 do
 
   @impl Pulse.Storage
   def tempo_traceql_search_json(tenant, program, opts), do: tempo_search_json(tenant, {:expression, program}, opts)
+
+  @impl Pulse.Storage
+  def tempo_typed_search_json(tenant, program, opts), do: tempo_search_json(tenant, {:expression, program}, opts)
+
+  @impl Pulse.Storage
+  def tempo_context_search_json(tenant, program, opts), do: tempo_search_json(tenant, {:expression, program}, opts)
+
+  @impl Pulse.Storage
+  def tempo_scoped_search_json(tenant, program, opts), do: tempo_search_json(tenant, {:expression, program}, opts)
 
   @impl Pulse.Storage
   def tempo_search_json(tenant, predicates, opts) do
@@ -1842,6 +1871,16 @@ defmodule Pulse.Storage.S3 do
   @tempo_window 4
   defp tempo_search(manifest, start_ts, opts, tenant, config) do
     filters = TraceSummary.tempo_filters(opts[:tempo_search])
+    # A trace-duration predicate must use every retained span, even when an
+    # asymmetric child starts beyond the ordinary context horizon.
+    config =
+      case opts[:tempo_search] do
+        {:expression, program} ->
+          if SearchExpression.context?(program), do: Map.put(config, :trace_context_horizon_ms, 0), else: config
+
+        _ ->
+          config
+      end
 
     plan = %{
       candidates: tempo_candidates(manifest, start_ts, Keyword.merge(opts, filters), tenant, config),
@@ -2063,6 +2102,11 @@ defmodule Pulse.Storage.S3 do
       true ->
         start_native_span_query(start, finish, opts)
     end
+  end
+
+  defp start_discovery(floor, scope, key, {:expression, program}, window) do
+    {start, finish} = window || {0, 0}
+    native_result(NIF.tempo_expression_discovery_new(floor, scope, key, program, start, finish))
   end
 
   defp start_discovery(floor, scope, key, predicates, {start, finish}),

@@ -107,7 +107,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
     ) throws -> Self {
         try recording(
             debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
-            compileUnits: compileUnits, resolvedDebugSources: [:], symlinkedSources: []
+            compileUnits: compileUnits, metadataOnlyStaticBinary: false, resolvedDebugSources: [:], symlinkedSources: []
         )
     }
 
@@ -116,6 +116,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         prefixMappings: [[String: String]] = [],
         linkedDebugSymbols: Bool = false,
         compileUnits: Set<String> = [],
+        staticBinary: AbsolutePath? = nil,
         fileSystem: FileSysteming
     ) async throws -> Self {
         try Task.checkCancellation()
@@ -138,10 +139,25 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
                 }
             }
         }
-        return try recording(
-            debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
-            compileUnits: compileUnits, resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
-        )
+        do {
+            return try recording(
+                debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
+                compileUnits: compileUnits, metadataOnlyStaticBinary: false,
+                resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
+            )
+        } catch DebuggingMetadataError.missingSources {
+            // Only inspect the archive when ordinary source/compile-unit matching failed. Generated version
+            // constants can have DWARF sources even when none of the target's declared sources emitted code.
+            guard let staticBinary, !linkedDebugSymbols,
+                  try await MetadataOnlyStaticArchive.verify(fileSystem.readFile(at: staticBinary), moduleName: moduleName)
+            else { throw DebuggingMetadataError.missingSources }
+            try Task.checkCancellation()
+            return try recording(
+                debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
+                compileUnits: compileUnits, metadataOnlyStaticBinary: true,
+                resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
+            )
+        }
     }
 
     private func recording(
@@ -149,6 +165,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         prefixMappings: [[String: String]],
         linkedDebugSymbols: Bool,
         compileUnits: Set<String>,
+        metadataOnlyStaticBinary: Bool,
         resolvedDebugSources: [String: Set<String>],
         symlinkedSources: Set<String>
     ) throws -> Self {
@@ -192,7 +209,8 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         }
         if !sources.isEmpty, paths.isEmpty {
             let names = Set((Array(sources.keys) + Array(sourcePaths.values)).map(Self.lowercasedFileName))
-            let withoutCode = linkedDebugSymbols || candidatesBySource.values.contains { !$0.isDisjoint(with: compileUnits) }
+            let withoutCode = linkedDebugSymbols || metadataOnlyStaticBinary
+                || candidatesBySource.values.contains { !$0.isDisjoint(with: compileUnits) }
             guard withoutCode, !debugSources.contains(where: { names.contains(Self.lowercasedFileName($0)) }) else {
                 throw DebuggingMetadataError.missingSources
             }

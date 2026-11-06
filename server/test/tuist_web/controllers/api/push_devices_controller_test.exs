@@ -81,49 +81,73 @@ defmodule TuistWeb.API.PushDevicesControllerTest do
              build_conn() |> authorized(bearer) |> put("/api/me/push-devices/#{id}", device) |> json_response(410)
   end
 
-  test "reads and updates notification preferences per account and project", %{user: user, bearer: bearer} do
-    project = ProjectsFixtures.project_fixture(account_id: user.account.id, name: "ios-app")
+  test "manages the user's notification rules", %{user: user, bearer: bearer} do
+    ProjectsFixtures.project_fixture(account_id: user.account.id, name: "ios-app")
     handle = user.account.name
-    base = "/api/me/notification-preferences/new_preview"
 
-    assert %{
-             "kind" => "new_preview",
-             "accounts" => [
-               %{
-                 "handle" => ^handle,
-                 "enabled" => true,
-                 "projects" => [%{"handle" => "ios-app", "setting" => "default", "enabled" => true}]
-               }
-             ]
-           } = build_conn() |> authorized(bearer) |> get(base) |> json_response(200)
+    assert %{"events" => [%{"id" => "preview_published", "conditions_schema" => %{"type" => "object"}}]} =
+             build_conn() |> authorized(bearer) |> get("/api/me/notification-events") |> json_response(200)
 
-    assert %{"accounts" => [%{"enabled" => false, "projects" => [%{"setting" => "default", "enabled" => false}]}]} =
+    assert %{"rules" => []} =
+             build_conn() |> authorized(bearer) |> get("/api/me/notification-rules") |> json_response(200)
+
+    assert %{"id" => id, "projects" => [project_handle], "enabled" => true} =
              build_conn()
              |> authorized(bearer)
-             |> put("#{base}/accounts/#{handle}", %{enabled: false})
-             |> json_response(200)
+             |> post("/api/me/notification-rules", %{
+               event: "preview_published",
+               projects: ["#{handle}/ios-app"],
+               conditions: %{track: %{operator: "is", value: "beta"}},
+               actions: [%{type: "push"}]
+             })
+             |> json_response(201)
 
-    assert %{"accounts" => [%{"enabled" => false, "projects" => [%{"setting" => "on", "enabled" => true}]}]} =
+    assert project_handle == "#{handle}/ios-app"
+
+    assert %{"enabled" => false, "conditions" => %{"track" => %{"value" => "beta"}}} =
              build_conn()
              |> authorized(bearer)
-             |> put("#{base}/projects/#{handle}/ios-app", %{setting: "on"})
+             |> patch("/api/me/notification-rules/#{id}", %{enabled: false})
              |> json_response(200)
 
-    assert Notifications.notify?(user.id, "new_preview", project.id)
+    assert %{"message" => message} =
+             build_conn()
+             |> authorized(bearer)
+             |> post("/api/me/notification-rules", %{event: "preview_published", actions: []})
+             |> json_response(400)
+
+    assert message =~ "actions"
 
     foreign = ProjectsFixtures.project_fixture(preload: [:account])
 
     assert build_conn()
            |> authorized(bearer)
-           |> put("#{base}/projects/#{foreign.account.name}/#{foreign.name}", %{setting: "off"})
-           |> json_response(404)
+           |> post("/api/me/notification-rules", %{
+             event: "preview_published",
+             projects: ["#{foreign.account.name}/#{foreign.name}"],
+             actions: [%{type: "push"}]
+           })
+           |> json_response(400)
 
     assert build_conn()
            |> authorized(bearer)
-           |> put("#{base}/accounts/#{foreign.account.name}", %{enabled: false})
+           |> get(
+             "/api/me/notification-events/preview_published/projects/#{foreign.account.name}/#{foreign.name}/condition-options"
+           )
            |> json_response(404)
 
-    assert build_conn() |> authorized(bearer) |> get("/api/me/notification-preferences/unknown") |> json_response(404)
+    assert %{"options" => %{"track" => [], "git_branch" => []}} =
+             build_conn()
+             |> authorized(bearer)
+             |> get("/api/me/notification-events/preview_published/projects/#{handle}/ios-app/condition-options")
+             |> json_response(200)
+
+    other_bearer = sign_in(AccountsFixtures.user_fixture(), Clients.public!())
+    assert build_conn() |> authorized(other_bearer) |> get("/api/me/notification-rules/#{id}") |> json_response(404)
+    assert build_conn() |> authorized(other_bearer) |> delete("/api/me/notification-rules/#{id}") |> json_response(404)
+
+    assert build_conn() |> authorized(bearer) |> delete("/api/me/notification-rules/#{id}") |> response(204)
+    assert Notifications.list_rules(user) == []
   end
 
   test "ignores unknown device fields so newer apps can send them", %{conn: conn, user: user, bearer: bearer} do
@@ -174,14 +198,14 @@ defmodule TuistWeb.API.PushDevicesControllerTest do
             # Rejected before its body is validated.
             &put(&1, "/api/me/push-devices/#{Ecto.UUID.generate()}", %{unknown: true}),
             &get(&1, "/api/me/push-devices"),
-            &get(&1, "/api/me/notification-preferences/new_preview"),
-            &put(&1, "/api/me/notification-preferences/new_preview/accounts/#{user.account.name}", %{enabled: false})
+            &get(&1, "/api/me/notification-rules"),
+            &post(&1, "/api/me/notification-rules", %{event: "preview_published", actions: [%{type: "push"}]})
           ] do
         assert build_conn() |> authorized(bearer) |> request.() |> json_response(403)
       end
     end
 
     assert Push.live_installations(user.id) == []
-    assert [%{enabled: true}] = Notifications.preferences(user, "new_preview")
+    assert Notifications.list_rules(user) == []
   end
 end

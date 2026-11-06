@@ -24,6 +24,8 @@ defmodule Atlas.MCP.Proxy.Server do
     read_only: false,
     tool_allowlist: [],
     approval_required_tools: [],
+    allowed_user_emails: [],
+    call_policy: nil,
     atlas_identity_header: nil,
     bearer_token: nil,
     token_path: nil,

@@ -29,6 +29,7 @@ defmodule PulseWeb.TempoUpstreamIntegrationTest do
   alias Pulse.Test.MCPMessages
   alias Pulse.Test.OTLPTraceFixture
   alias Pulse.Test.RuntimePlug
+  alias Pulse.Test.TempoSearchOracle
   alias Pulse.Traces.Protobuf
   alias Pulse.Traces.Tempo
   alias Pulse.Traces.TempoFilter
@@ -995,7 +996,7 @@ defmodule PulseWeb.TempoUpstreamIntegrationTest do
   end
 
   @tag :name_vocabulary
-  test "Pulse controls: current intrinsic names are vocabulary, never ID-value support or unauthenticated access",
+  test "Pulse controls: intrinsic names stay storage-free while stored IDs require authenticated discovery",
        ctx do
     before_requests = Agent.get(ctx.store, & &1.requests)
     expected = %{"scopes" => [%{"name" => "intrinsic", "tags" => @intrinsic_names}]}
@@ -1008,14 +1009,17 @@ defmodule PulseWeb.TempoUpstreamIntegrationTest do
 
     assert call_tool(ctx, "discover_trace_tags", %{"tenant" => ctx.tenant, "scope" => "intrinsic"}) == expected
 
-    for key <- ~w(link:spanID link:traceID span:id span:parentID trace:id) do
-      response = Req.get!(ctx.url <> values_path(2, key), headers: ctx.headers)
-      assert response.status == 400
-    end
-
     denied = Req.get!(ctx.url <> "/api/v2/search/tags", params: %{"scope" => "intrinsic"})
     assert denied.status == 401
     assert Agent.get(ctx.store, & &1.requests) == before_requests
+
+    # ID-value targets now use bounded stored discovery, not static literals.
+    # This owned tenant is empty, so none can invent an ID value.
+    for key <- ~w(link:spanID link:traceID span:id span:parentID trace:id) do
+      response = Req.get!(ctx.url <> values_path(2, key), headers: ctx.headers)
+      assert response.status == 200
+      assert response.body == %{"tagValues" => []}
+    end
   end
 
   test "TestSearchTraceQL: original resource and span attributes find the persisted trace with default or explicit bounds",
@@ -1073,6 +1077,287 @@ defmodule PulseWeb.TempoUpstreamIntegrationTest do
     for c <- dir |> Path.join("search-oracle.json") |> File.read!() |> Pulse.JSON.decode!() do
       params = %{"q" => c["query"], "start" => c["Start"], "end" => c["End"]}
       assert get(ctx, "/api/search", params) === c["response"], c["query"]
+    end
+  end
+
+  @tag :basic_search
+  test "pinned Tempo basic-type/intrinsic/empty engine searches through HTTP, native Parquet and S3", ctx do
+    dir = Path.expand("../../fixtures/traces/tempo_integration", __DIR__)
+    input = File.read!(Path.join(dir, "basic-search-input.protobuf"))
+
+    response =
+      Req.post!(ctx.url <> "/v1/traces",
+        headers: [{"content-type", "application/x-protobuf"} | ctx.headers],
+        body: input
+      )
+
+    assert response.status == 200
+    assert :ok = stop_supervised(ManifestSupervision)
+    start_supervised!(ManifestSupervision)
+
+    for c <- dir |> Path.join("basic-search-oracle.json") |> File.read!() |> Pulse.JSON.decode!() do
+      before_reads = Agent.get(ctx.store, & &1.reads)
+      actual = get(ctx, "/api/search", %{"q" => c["query"], "start" => 99, "end" => 200})
+      assert TempoSearchOracle.response(actual) === TempoSearchOracle.response(c["response"]), c["query"]
+      assert Agent.get(ctx.store, & &1.reads) != before_reads
+    end
+
+    assert NIF.tempo_search_api_version() == 10
+    assert NIF.trace_metrics_api_version() == 7
+  end
+
+  @tag :trace_duration_search
+  test "actual Tempo trace-duration oracle spans asymmetric separate HTTP/Parquet/S3 sources", ctx do
+    dir = Path.expand("../../fixtures/traces/tempo_integration", __DIR__)
+    input = dir |> Path.join("trace-duration-input.json") |> File.read!() |> Pulse.JSON.decode!()
+
+    for resource <- input["resourceSpans"] do
+      # jsonpb emits protobuf byte IDs as base64; OTLP/HTTP JSON requires hex.
+      resource =
+        update_in(resource, ["scopeSpans", Access.all(), "spans", Access.all()], fn span ->
+          # Every producer span is SERVER; use its equivalent OTel number.
+          Enum.reduce(~w(traceId spanId parentSpanId), Map.put(span, "kind", 2), fn key, acc ->
+            if Map.has_key?(acc, key),
+              do: Map.update!(acc, key, &Base.encode16(Base.decode64!(&1), case: :lower)),
+              else: acc
+          end)
+        end)
+
+      response = Req.post!(ctx.url <> "/v1/traces", headers: ctx.headers, json: %{"resourceSpans" => [resource]})
+      assert response.status == 200
+      assert response.body["partialSuccess"] in [nil, %{}]
+    end
+
+    assert :ok = stop_supervised(ManifestSupervision)
+    start_supervised!(ManifestSupervision)
+    cases = dir |> Path.join("trace-duration-oracle.json") |> File.read!() |> Pulse.JSON.decode!()
+
+    for c <- cases do
+      before_reads = Agent.get(ctx.store, & &1.reads)
+      actual = get(ctx, "/api/search", %{"q" => c["query"], "start" => 99, "end" => 8000})
+      assert TempoSearchOracle.response(actual) === TempoSearchOracle.response(c["response"]), c["query"]
+      assert Agent.get(ctx.store, & &1.reads) != before_reads
+    end
+
+    # A newest-first limit-1 candidate is the late child. Its early root is
+    # outside the usual one-hour context horizon and must still establish the
+    # full two-hour envelope, even with a window around the root only.
+    c = Enum.find(cases, &String.starts_with?(&1["query"], ~s|{name = "leaf" && trace:duration|))
+    actual = get(ctx, "/api/search", %{"q" => c["query"], "limit" => 1, "start" => 99, "end" => 200})
+    assert TempoSearchOracle.response(actual) === TempoSearchOracle.response(c["response"])
+    assert hd(actual["traces"])["durationMs"] == 7_200_002
+    assert hd(actual["traces"])["spanSet"]["matched"] == 1
+
+    Runtime.put_env(:pulse, Pulse.QueryRunner, max_scan_rows: 1)
+    response = Req.get!(ctx.url <> "/api/search", headers: ctx.headers, params: [q: c["query"], limit: 1])
+    assert response.status == 422
+  end
+
+  @tag :intrinsic_search
+  test "pinned full intrinsic/owner search oracle through separate authenticated HTTP/Parquet/S3 sources", ctx do
+    dir = Path.expand("../../fixtures/traces/tempo_integration", __DIR__)
+    input = dir |> Path.join("intrinsics-input.json") |> File.read!() |> Pulse.JSON.decode!()
+
+    for resource <- input["resourceSpans"] do
+      response =
+        Req.post!(ctx.url <> "/v1/traces",
+          headers: ctx.headers,
+          json: %{"resourceSpans" => [intrinsic_otlp_json(resource)]}
+        )
+
+      assert response.status == 200
+      assert response.body["partialSuccess"] in [nil, %{}]
+    end
+
+    assert :ok = stop_supervised(ManifestSupervision)
+    start_supervised!(ManifestSupervision)
+    cases = dir |> Path.join("intrinsics-oracle.json") |> File.read!() |> Pulse.JSON.decode!()
+
+    for c <- cases do
+      before_reads = Agent.get(ctx.store, & &1.reads)
+      actual = get(ctx, "/api/search", %{"q" => c["query"], "start" => 99, "end" => 200})
+      assert TempoSearchOracle.response(actual) === TempoSearchOracle.response(c["response"]), c["query"]
+      assert Agent.get(ctx.store, & &1.reads) != before_reads
+    end
+
+    c = Enum.find(cases, &(&1["query"] == ~s|{name = "leaf" && rootName = "hello"}|))
+    actual = get(ctx, "/api/search", %{"q" => c["query"], "start" => 99, "end" => 103, "limit" => 1})
+    assert TempoSearchOracle.response(actual) === TempoSearchOracle.response(c["response"])
+    assert hd(actual["traces"])["durationMs"] == 7_200_010
+
+    before_requests = Agent.get(ctx.store, & &1.requests)
+
+    for query <- [
+          ~S|{span."bad\nkey" = "x"}|,
+          ~S|{span."unclosed = "x"}|,
+          ~s|{span:id =~ ".*"}|,
+          ~s|{event:timeSinceStart = 3}|,
+          ~s|{instrumentation:name = true}|,
+          ~S'{} | select(link."bad\nkey")'
+        ] do
+      response = Req.get!(ctx.url <> "/api/search", headers: ctx.headers, params: [q: query])
+      assert response.status == 400, query
+    end
+
+    for query <- [~s|{rootName = "hello"}|, ~s|{instrumentation.b = true}|, ~s|{event:name = "e1"}|] do
+      response =
+        Req.get!(ctx.url <> "/api/metrics/query_range",
+          headers: ctx.headers,
+          params: [q: query <> " | rate()", start: 99, end: 103, step: "1s"]
+        )
+
+      assert response.status == 400
+      response = Req.get!(ctx.url <> "/api/v2/traces/1", headers: ctx.headers, params: [q: query])
+      assert response.status == 400
+    end
+
+    denied = Req.get!(ctx.url <> "/api/search", params: [q: ~s|{rootName = "hello"}|])
+    assert denied.status == 401
+    assert Agent.get(ctx.store, & &1.requests) == before_requests
+
+    Runtime.put_env(:pulse, Pulse.QueryRunner, max_scan_rows: 1)
+    response = Req.get!(ctx.url <> "/api/search", headers: ctx.headers, params: [q: c["query"], limit: 1])
+    assert response.status == 422
+  end
+
+  defp intrinsic_otlp_json(map) when is_map(map) do
+    Map.new(map, fn
+      {key, value} when key in ~w(traceId spanId parentSpanId) ->
+        {key, Base.encode16(Base.decode64!(value), case: :lower)}
+
+      {"kind", "SPAN_KIND_SERVER"} ->
+        {"kind", 2}
+
+      {key, value} ->
+        {key, intrinsic_otlp_json(value)}
+    end)
+  end
+
+  defp intrinsic_otlp_json(list) when is_list(list), do: Enum.map(list, &intrinsic_otlp_json/1)
+  defp intrinsic_otlp_json(value), do: value
+
+  @tag :basic_search
+  test "basic search admission rejects unsupported types/structural metrics/discovery before provider access", ctx do
+    before_requests = Agent.get(ctx.store, & &1.requests)
+
+    for query <- [
+          "{span.x > true}",
+          "{span.x =~ false}",
+          "{span.x = NaN}",
+          "{span.x = 1e999}",
+          "{kind = 2}",
+          "{kind = invalid}",
+          "{kind =~ client}",
+          "{name = true}",
+          "{trace:duration > -1s}",
+          "{} && {}",
+          "{} !>> {}",
+          "{()}"
+        ] do
+      response = Req.get!(ctx.url <> "/api/search", headers: ctx.headers, params: [q: query])
+      assert response.status == 400, query
+    end
+
+    for query <- [
+          "{} > {} | rate()",
+          "{} | select(name) | rate()",
+          "{traceDuration > 1s} | rate()",
+          "{trace:duration > 1s} | rate()"
+        ] do
+      response =
+        Req.get!(ctx.url <> "/api/metrics/query_range",
+          headers: ctx.headers,
+          params: [q: query, start: 99, end: 200, step: "1s"]
+        )
+
+      assert response.status == 400, query
+    end
+
+    for query <- ["{} > {}", "{} | select(name)", "{span.x = NaN}"] do
+      response =
+        Req.get!(ctx.url <> "/api/v2/search/tag/span.x/values", headers: ctx.headers, params: [q: query])
+
+      assert response.status == 400, query
+    end
+
+    for query <- ["{traceDuration > 1s}", "{trace:duration > 1s}"] do
+      response = Req.get!(ctx.url <> "/api/v2/traces/1", headers: ctx.headers, params: [q: query])
+      assert response.status == 400
+    end
+
+    assert Agent.get(ctx.store, & &1.requests) == before_requests
+  end
+
+  @tag :discovery_transport
+  test "actual Tempo discovery parser limits and Grafana redundant encoded tag survive HTTP/S3", ctx do
+    ingest(ctx, @cases["batches"])
+    dir = Path.expand("../../fixtures/traces/tempo_integration", __DIR__)
+    rows = dir |> Path.join("discovery-params.json") |> File.read!() |> Pulse.JSON.decode!()
+
+    for version <- [1, 2] do
+      prefix = if version == 1, do: "/api", else: "/api/v2"
+      names = get(ctx, prefix <> "/search/tags", %{"scope" => "span"})
+      values = get(ctx, values_path(version, "span.twoSpan"), %{})
+
+      for row <- rows do
+        {path, params, expected} =
+          if row["mode"] == "names" do
+            {prefix <> "/search/tags", %{"scope" => "span", "limit" => row["limit"]}, names}
+          else
+            # The actual Grafana proxy retains the percent-encoded tag query
+            # parameter. The target still comes exclusively from the path.
+            params = %{"limit" => row["limit"], "tag" => "span.wrong%2Ftarget"}
+
+            expected =
+              if row["max"] > 0,
+                do: Map.update!(values, "tagValues", &Enum.take(&1, row["max"])),
+                else: values
+
+            {values_path(version, "span.twoSpan"), params, expected}
+          end
+
+        before_requests = Agent.get(ctx.store, & &1.requests)
+        response = Req.get!(ctx.url <> path, headers: ctx.headers, params: params)
+
+        if row["accepted"] do
+          assert response.status == 200, inspect(row)
+          assert response.body == expected, inspect(row)
+          assert Agent.get(ctx.store, & &1.requests) != before_requests
+
+          wire =
+            Req.get!(ctx.url <> path,
+              headers: [{"accept", "application/protobuf"} | ctx.headers],
+              params: params
+            )
+
+          schema =
+            case {row["mode"], version} do
+              {"names", 1} -> :tags
+              {"names", 2} -> :tags_v2
+              {"values", 1} -> :tag_values
+              {"values", 2} -> :tag_values_v2
+            end
+
+          assert wire.status == 200
+          assert wire.body == Protobuf.encode(expected, schema)
+        else
+          assert response.status == 400, inspect(row)
+          assert Agent.get(ctx.store, & &1.requests) == before_requests
+        end
+      end
+
+      # Exact default client parameters, not just the mismatched-target control.
+      assert get(ctx, prefix <> "/search/tags", %{"limit" => 5000}) == get(ctx, prefix <> "/search/tags", %{})
+      assert get(ctx, values_path(version, "span.twoSpan"), %{"limit" => 5000, "tag" => "span.twoSpan"}) == values
+    end
+
+    Runtime.put_env(:pulse, Pulse.QueryRunner, max_scan_rows: 1)
+
+    for limit <- ["1", "0", "4294967295"] do
+      response =
+        Req.get!(ctx.url <> values_path(2, "span.twoSpan"), headers: ctx.headers, params: [limit: limit])
+
+      assert response.status == 422
     end
   end
 
@@ -1312,16 +1597,12 @@ defmodule PulseWeb.TempoUpstreamIntegrationTest do
         assert response.body == "invalid or unsupported trace lookup parameters"
       end
 
-      # Normalizing the target does not widen discovery's predicate grammar.
-      response =
-        Req.get!(ctx.url <> values_path(unquote(version), ~S(span.foo."quote\"key")),
-          headers: ctx.headers,
-          params: %{"q" => ~s({span."probe"="segmented"})}
-        )
-
-      assert response.status == 400
-      assert response.body == "invalid or unsupported trace lookup parameters"
       assert Agent.get(ctx.store, & &1.requests) == before_requests
+
+      # The separate expression-filter grammar now accepts quoted builder keys.
+      assert_values(ctx, unquote(version), ~S(span.foo."quote\"key"), ["quote"], %{
+        "q" => ~s({span."probe"="segmented"})
+      })
     end
   end
 
@@ -2016,7 +2297,7 @@ defmodule PulseWeb.TempoUpstreamIntegrationTest do
         end
 
       assert result == %{"series" => expected}
-      assert NIF.trace_metrics_api_version() == 6
+      assert NIF.trace_metrics_api_version() == 7
     end
   end
 

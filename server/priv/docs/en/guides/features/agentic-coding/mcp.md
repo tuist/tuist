@@ -288,6 +288,19 @@ These tools manage the authenticated user's own Claude and ChatGPT subscriptions
 | `cancel_chatgpt_subscription_login` | Cancel a pending sign-in. A connected subscription stays connected. | `login_id` |
 | `disconnect_ai_subscription` | Delete a subscription's saved credentials and any pending sign-in. | `provider` |
 
+#### Notification rules
+
+These tools manage the authenticated user's own notification rules: when an event, such as a new preview, happens in the rule's projects (or any project you can be notified about, when it lists none) and meets its conditions, run its actions, such as a push notification to your Tuist app devices. Without rules you get no notifications. They require user authentication, act only on your own rules, and only accept projects of accounts you belong to. They aren't offered to dashboard pages, because rules span all your accounts.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_notification_events` | List the event types rules can subscribe to, each with a JSON Schema for its conditions. | None |
+| `list_notification_condition_options` | Suggest condition values for an event in a project, such as the tracks and branches of its recent previews. | `event`, `account_handle`, `project_handle` |
+| `list_notification_rules` | List your rules. | None |
+| `create_notification_rule` | Create a rule from an event, optional projects and conditions, and at least one action. | `event`, `actions` |
+| `update_notification_rule` | Change a rule's enabled state, projects, conditions or actions. | `rule_id` |
+| `delete_notification_rule` | Delete a rule. | `rule_id` |
+
 #### Continuous-integration runners
 
 | Tool | Description | Required parameters |
@@ -383,6 +396,8 @@ The same operations are available over the HTTP API at `GET /api/projects/{accou
 | `get_gradle_build_step` | Inspect recorded step metadata by opaque ID; per-step logs are unavailable. | `build_run_id`, `step_id` |
 
 Gradle and Bazel step lists default to 20 results (maximum 100), support `search`, exact `project`, `target`, `category` and `status`, overlapping `start_ms` / `end_ms` filters (exclusive end), and `duration_ms` or `start_ms` ordering. Pass returned IDs unchanged; they are scoped to their build. Lists expose `time_origin` and `coverage`. Older Gradle reports use `first_recorded_timestamp` because no build start was uploaded. Bazel profiles expose all recorded intervals with `trace_profile` coverage and `profile_start` as the time origin. Older builds fall back to retained BEP summaries. Source records expire after 90 days. Bazel details include sanitized action logs when published; Gradle detail `log` is null. The `compare_builds` prompt uses this coverage to distinguish full Bazel traces from retained summaries and directs agents to step details for action outcomes and logs before checking broader invocation output.
+
+The single-step tools `get_gradle_build_step` and `get_bazel_build_step` retrieve a step by ID and do not accept time filters; use the corresponding list tools to filter steps by time range.
 
 Bazel step IDs returned from retained summaries remain readable if a full profile arrives between listing and fetching a step. An indexed profile whose step data has expired reports unavailable. Gradle step lists include zero-duration cached and skipped operations.
 

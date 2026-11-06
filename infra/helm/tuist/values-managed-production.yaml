@@ -109,6 +109,8 @@ server:
       enabled: true
     fcm:
       enabled: true
+    entirePluginKey:
+      enabled: true
     atlasEmail:
       enabled: true
     # Point server error reporting at the Atlas error-tracking ingest
@@ -435,11 +437,12 @@ pdcAgent:
   # single replica would make a node drain take every PDC-routed panel down.
   # Three is Grafana's production recommendation.
   replicas: 3
-  # Pin the tunnel to the CNPG read-only service and the ClickHouse HTTP port.
+  # Pin the tunnel to CNPG, ClickHouse and the private Pulse query endpoint.
   # Without this the agent permits any destination reachable from its pod.
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
     - tuist-tuist-clickhouse.tuist.svc.cluster.local:8123
+    - pulse.observability.svc.cluster.local:4000
 
 capi:
   ovhRunnerEgress:

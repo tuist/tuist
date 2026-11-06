@@ -1360,7 +1360,8 @@ defmodule TuistWeb.AuthControllerTest do
       assert conn |> recycle() |> get(protected_path) |> redirected_to() == expected
 
       {:ok, view, _} = live(recycle(conn), ~p"/#{other.account.name}/projects")
-      assert {:error, {:redirect, %{to: ^expected}}} = live_redirect(view, to: protected_path)
+      assert {:error, {:redirect, %{to: ^protected_path}}} = live_redirect(view, to: protected_path)
+      assert conn |> recycle() |> get(protected_path) |> redirected_to() == expected
 
       stub_sso_userinfo("linked-user", user.email)
       correct_conn = sso_callback(build_conn(), target)
@@ -1383,7 +1384,8 @@ defmodule TuistWeb.AuthControllerTest do
         else
           assert verified |> recycle() |> get(protected_path) |> redirected_to() == expected
           {:ok, view, _} = live(recycle(verified), ~p"/#{other.account.name}/projects")
-          assert {:error, {:redirect, %{to: ^expected}}} = live_redirect(view, to: protected_path)
+          assert {:error, {:redirect, %{to: ^protected_path}}} = live_redirect(view, to: protected_path)
+          assert verified |> recycle() |> get(protected_path) |> redirected_to() == expected
         end
       end
     end
@@ -1802,6 +1804,7 @@ defmodule TuistWeb.AuthControllerTest do
 
       assert callback.(%{oauth_return_to: "/legacy"}) == "/legacy"
       assert callback.(%{oauth_return_to: "/legacy", user_return_to: "/current"}) == "/current"
+      assert callback.(%{oauth_return_to: "/\\evil.example"}) == TuistWeb.Authentication.signed_in_path(user)
 
       # Only provider sign-ins ever honored the legacy key.
       password_conn =

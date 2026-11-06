@@ -2179,18 +2179,21 @@ max by (cluster, namespace, pod) (kura_migration_bridge_armed)
   [`kura-migration-alert-rules.json`](kura-migration-alert-rules.json) (UID
   `kura-migration-bridge-unready`); it must be created in Grafana separately.
 
-During a planned thin-storage move the source pod arms a write bridge after
-its preparation walk (`infra/kura-controller/thin-migration.md`). From then
-on every write it acknowledges was verified on the named destination process.
-A healthy bridge is armed and ready within seconds of arming. It goes armed
-but unready when the controller rebinds it to a restarted destination process
-and the re-proof cannot finish: the restarted process lost retained records or
-cannot be reached. The controller will not retire the donor until it is ready
-again, so the move is stuck with routing possibly already on the destination.
+During a planned thin-storage move the source pod pins its sync feed at the
+head, proves every write from that pin through the head on the named
+destination process, confirms the destination identity and then arms a write
+bridge (`infra/kura-controller/thin-migration.md`). Records retained from
+before the pin are not part of the proof. From then on every write it
+acknowledges was verified on the destination. A healthy bridge is armed and
+ready within seconds of arming. It goes armed but unready when the controller
+rebinds it to a restarted destination process and the re-proof of the feed from
+the pin cannot finish: the restarted process lost a post-pin write, the feed
+history below the pin was trimmed, or the destination cannot be reached. The
+controller will not retire the donor until it is ready again, so the move is
+stuck with routing possibly already on the destination.
 
 **When it fires.** Look at `kura_migration_reproof_failures_total_total` and
-the source's `kura.migration.reproof_failed` warning for the cause, and at
-`kura_migration_preparation_walk_records` for how far the re-proof got. Keep
+the source's `kura.migration.reproof_failed` warning for the cause. Keep
 both volumes. Follow the destination process restart section of the handoff
 protocol; never clear a bridge whose source was already demoted.
 
@@ -2217,6 +2220,91 @@ the source refuses writes it cannot prove. Keep both volumes, read the source's
 `kura.migration.bridge_failed` warning and the destination pod's state, and
 follow the handoff protocol. Never clear a bridge whose source was already
 demoted.
+
+### Kura thin pool rules
+
+Six rules in folder `Alerts`, group **Kura thin pools**, recorded in
+[`kura-thin-pool-alert-rules.json`](kura-thin-pool-alert-rules.json). They read
+the `kura_volumes_thin_pool_*` gauges the Kura CSI node plugin serves on
+`:9809` on nodes with a thin pool (`infra/kura-volumes-csi/AGENTS.md`).
+`alloy-metrics` scrapes rented plugins through their `prometheus.io/*`
+annotations, and `alloy-rack` scrapes the rack plugin on its node. Every series
+carries `cluster`, `node`, `vg` and `pool`. The gauges are on the
+non-production keep list in `values.yaml`, because thin pools are rehearsed on
+staging, so every rule covers all environments. **No Data: Normal**,
+**Error: Error**. None sets `notification_settings`: the three critical rules
+page only in production through the sibling routes in
+[`kura-thin-pool-notification-policy.json`](kura-thin-pool-notification-policy.json)
+(the same shape as the Kura availability policy), and staging and canary land
+in `#notifications-non-prod`. `test-kura-thin-pool-alerts.sh` tests the
+expressions with promtool and the routing with amtool. The rules are proposed:
+create them and the policy routes in Grafana separately.
+
+| Rule | UID | Threshold | Pending | Severity | Routing |
+| --- | --- | --- | --- | --- | --- |
+| Kura thin pool data usage high | `kura-thin-pool-data-high` | data used > 80% | 15m | warning | policy tree |
+| Kura thin pool data almost full | `kura-thin-pool-data-full` | data used > 90% | 5m | critical | `Incidents` in production |
+| Kura thin pool metadata usage high | `kura-thin-pool-metadata-high` | metadata used > 70% | 15m | warning | policy tree |
+| Kura thin pool metadata almost full | `kura-thin-pool-metadata-full` | metadata used > 85% | 5m | critical | `Incidents` in production |
+| Kura thin pool read-only or out of data space | `kura-thin-pool-degraded` | mode gauge > 0 | 2m | critical, `affected_service: Cache` | `Incidents` in production |
+| Kura thin pool metrics missing | `kura-thin-pool-metrics-missing` | see below | 15m | warning | policy tree |
+
+#### Kura thin pool data usage
+
+```promql
+max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_used_bytes)
+/ max by (cluster, node, vg, pool) (kura_volumes_thin_pool_data_size_bytes)
+```
+
+Pools are created with `error_if_no_space`, so a full pool fails tenant writes
+with I/O errors rather than queueing them. In `ceiling-backed-v1` every volume
+is fully backed and the driver keeps a data reserve, so crossing 80% means
+committed ceilings are near the pool size or mappings are unattributed; once
+tenants share overcommitted disk this becomes the main capacity signal. Read
+`GET /v1/node` on the node's allocator socket and compare `committed_bytes`,
+`unattributed_mapped_bytes` and per-volume `mapped_bytes`. Reclaim or move
+volumes through the planned migration path. Never extend, convert or change the
+geometry of a populated pool as the fix.
+
+#### Kura thin pool metadata usage
+
+The same ratio over `kura_volumes_thin_pool_metadata_{used,size}_bytes`, with
+lower thresholds, because exhausting metadata makes the pool read-only or fail
+and recovery needs an offline `thin_check`. The conservative profile reserves
+128 bytes per chunk and 1 MiB per device slot, so growth here means more
+devices than planned or snapshots. Stop new placements on the node and
+inspect `lvs -a`. Never run `thin_check` against the live metadata device.
+
+#### Kura thin pool read-only or out of data space
+
+```promql
+max by (cluster, node, vg, pool) ({__name__=~"kura_volumes_thin_pool_(read_only|out_of_data_space)"})
+```
+
+device-mapper reports the pool as `out_of_data_space`, `ro`, `needs_check` or
+`Fail`. The plugin reports this mode even when its full observation fails.
+Writes to every thin volume on the node fail now. Check `dmsetup status` and
+the kernel log on the node, keep every volume, and move instances off the node.
+Do not run `thin_check` or `lvconvert --repair` against an active pool.
+
+#### Kura thin pool metrics missing
+
+```promql
+max by (cluster, node) (kube_node_labels{label_tuist_dev_kura_thin_ready="true"})
+unless on (cluster, node) (
+  max by (cluster, node) (kura_volumes_thin_pool_data_size_bytes)
+  and on (cluster, node)
+  (max by (cluster, node) (time() - kura_volumes_thin_pool_last_observation_timestamp_seconds) < 600)
+)
+```
+
+Fires for a node labelled `tuist.dev/kura-thin-ready=true` (kube-state-metrics
+exports that label through `metricLabelsAllowlist`) that has no fresh pool
+observation: the plugin is down or unscraped, or its observations fail, which
+also withdraws the node's `tuist.dev/kura-disk` capacity. The usage rules are
+blind for the node meanwhile. Read the `driver` container's logs for the
+observation error, then the pod's scrape target. An unlabelled node whose pool
+disappears is not covered: label a node only once it is qualified.
 
 ### Kura receiving no REAPI requests
 

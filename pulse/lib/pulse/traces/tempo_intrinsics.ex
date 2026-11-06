@@ -5,7 +5,7 @@ defmodule Pulse.Traces.TempoIntrinsics do
   @status ~w(error ok unset)
   @kind ~w(client consumer internal producer server unspecified)
   @keys ~w(status span:status kind span:kind duration span:duration traceDuration)
-  @dynamic ~w(name span:name statusMessage span:statusMessage instrumentation:name instrumentation:version event:name)
+  @dynamic ~w(name span:name statusMessage span:statusMessage instrumentation:name instrumentation:version event:name trace:id span:id span:parentID link:traceID link:spanID)
 
   @doc false
   def names, do: @names

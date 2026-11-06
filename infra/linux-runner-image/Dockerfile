@@ -53,6 +53,17 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w" -o /out/tuist-gitlab-runner .
 
+# Executor for runner jobs created through the Tuist API. Stdlib only.
+FROM --platform=$BUILDPLATFORM golang:1.26.10-bookworm AS job-runner-builder
+WORKDIR /src
+COPY job-runner/go.mod ./
+COPY job-runner/*.go ./
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tuist-job-runner .
+
 # Android SDK resolver. sdkmanager is a JVM tool, so it runs here in a
 # JDK stage and only the resolved SDK is copied into the final image —
 # workflow steps bring their own JDK via mise, so the runner image
@@ -451,6 +462,7 @@ USER root
 # Compiled clients precede scripts so a shell-only release leaves their layers
 # untouched, including the copy exposed to Docker job containers via /__e.
 COPY --from=gitlab-runner-builder /out/tuist-gitlab-runner /usr/local/bin/tuist-gitlab-runner
+COPY --from=job-runner-builder /out/tuist-job-runner /usr/local/bin/tuist-job-runner
 COPY --from=runner-shell-agent-builder /out/runner-shell-agent /usr/local/bin/runner-shell-agent
 COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /usr/local/bin/tuist-cache-volume
 COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /home/runner/actions-runner/externals/tuist-cache-volume

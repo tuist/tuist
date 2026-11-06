@@ -179,25 +179,48 @@ const BATCH_UPDATE_GROUP_CONCURRENCY: usize = 2;
 /// temp-file write.
 pub(super) const REAPI_STAGING_WRITE_BUFFER_BYTES: u64 = 1024 * 1024;
 const REAPI_REQUEST_METADATA_HEADER: &str = "build.bazel.remote.execution.v2.requestmetadata-bin";
-const MAX_CONCURRENT_SPLICE_VERIFICATIONS: usize = 4;
-static ACTIVE_SPLICE_VERIFICATIONS: AtomicUsize = AtomicUsize::new(0);
+/// How long a splice waits for a verification slot, matching the upload
+/// admission wait. Clients upload chunks concurrently and splice each blob as
+/// its last chunk lands, so bursts above the slot count are the normal case.
+const SPLICE_VERIFICATION_WAIT: Duration = Duration::from_secs(30);
+/// Splices that may queue per verification slot. A queued splice keeps its
+/// decoded recipe and reply reservation, so the queue is bounded and anything
+/// beyond it is refused at once.
+const SPLICE_VERIFICATION_QUEUE_PER_SLOT: usize = 4;
 
-struct SpliceVerificationSlot;
-
-impl SpliceVerificationSlot {
-    fn try_acquire() -> Option<Self> {
-        ACTIVE_SPLICE_VERIFICATIONS
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |active| {
-                (active < MAX_CONCURRENT_SPLICE_VERIFICATIONS).then_some(active + 1)
-            })
-            .ok()
-            .map(|_| Self)
-    }
+#[derive(Clone)]
+struct SpliceVerificationSlots {
+    running: Arc<tokio::sync::Semaphore>,
+    admitted: Arc<tokio::sync::Semaphore>,
 }
 
-impl Drop for SpliceVerificationSlot {
-    fn drop(&mut self) {
-        ACTIVE_SPLICE_VERIFICATIONS.fetch_sub(1, Ordering::Release);
+struct SpliceVerificationSlot {
+    _running: tokio::sync::OwnedSemaphorePermit,
+    _admitted: tokio::sync::OwnedSemaphorePermit,
+}
+
+impl SpliceVerificationSlots {
+    fn new(concurrency: usize) -> Self {
+        Self {
+            running: Arc::new(tokio::sync::Semaphore::new(concurrency)),
+            admitted: Arc::new(tokio::sync::Semaphore::new(
+                concurrency * (1 + SPLICE_VERIFICATION_QUEUE_PER_SLOT),
+            )),
+        }
+    }
+
+    /// Waits in FIFO order for a slot, up to `wait`. `None` means the queue
+    /// was full or the wait ran out.
+    async fn acquire(&self, wait: Duration) -> Option<SpliceVerificationSlot> {
+        let admitted = self.admitted.clone().try_acquire_owned().ok()?;
+        let running = tokio::time::timeout(wait, self.running.clone().acquire_owned())
+            .await
+            .ok()?
+            .ok()?;
+        Some(SpliceVerificationSlot {
+            _running: running,
+            _admitted: admitted,
+        })
     }
 }
 #[derive(Clone)]
@@ -206,6 +229,7 @@ pub struct ReapiService {
     // Per-namespace action-cache snapshot indexes and their in-flight
     // builds, shared across the service clones tonic hands each server.
     snapshot_cache: std::sync::Arc<SnapshotCache>,
+    splice_verifications: SpliceVerificationSlots,
 }
 
 #[derive(Clone, Copy)]
@@ -371,6 +395,9 @@ impl ReapiService {
     pub(super) fn new(state: SharedState) -> Self {
         Self {
             snapshot_cache: state.snapshot_cache.clone(),
+            splice_verifications: SpliceVerificationSlots::new(
+                state.config.reapi_splice_verification_concurrency,
+            ),
             state,
         }
     }
@@ -2973,14 +3000,18 @@ impl ContentAddressableStorage for ReapiService {
                 MAX_INLINE_REPLICATION_BODY_BYTES
             )));
         }
-        let _verification_slot = SpliceVerificationSlot::try_acquire().ok_or_else(|| {
+        let Some(_verification_slot) = self
+            .splice_verifications
+            .acquire(SPLICE_VERIFICATION_WAIT)
+            .await
+        else {
             self.state
                 .metrics
                 .record_reapi_chunking_event("splice", "shed");
-            Status::resource_exhausted(
+            return Err(write_admission_rejected(
                 "server is limiting concurrent blob splice verification; retry shortly",
-            )
-        })?;
+            ));
+        };
         if let Err(status) = verify_spliced_blob(&self.state, namespace_id, &recipe).await {
             let outcome = match status.code() {
                 tonic::Code::NotFound => "chunk_missing",
@@ -6961,6 +6992,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let insert = |generation: u64| {
@@ -7355,6 +7387,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let insert = |cache_key: String, reconciled_at: Instant| {
@@ -7423,6 +7456,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -7562,6 +7596,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -7676,6 +7711,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -7934,6 +7970,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -8175,6 +8212,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let empty = reapi::Digest {
@@ -8218,6 +8256,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let empty = reapi::Digest {
@@ -8245,11 +8284,55 @@ mod tests {
         );
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn splice_verifications_queue_for_a_slot_and_refuse_beyond_the_bounded_queue() {
+        let slots = SpliceVerificationSlots::new(1);
+        let held = slots
+            .acquire(SPLICE_VERIFICATION_WAIT)
+            .await
+            .expect("a free slot is granted at once");
+
+        let started = tokio::time::Instant::now();
+        assert!(slots.acquire(SPLICE_VERIFICATION_WAIT).await.is_none());
+        assert_eq!(
+            started.elapsed(),
+            SPLICE_VERIFICATION_WAIT,
+            "a splice waits the whole bound for a busy slot before it is refused"
+        );
+
+        let waiters = (0..SPLICE_VERIFICATION_QUEUE_PER_SLOT)
+            .map(|_| {
+                let slots = slots.clone();
+                tokio::spawn(async move { slots.acquire(SPLICE_VERIFICATION_WAIT).await.is_some() })
+            })
+            .collect::<Vec<_>>();
+        while slots.admitted.available_permits() > 0 {
+            tokio::task::yield_now().await;
+        }
+        let started = tokio::time::Instant::now();
+        assert!(slots.acquire(SPLICE_VERIFICATION_WAIT).await.is_none());
+        assert_eq!(
+            started.elapsed(),
+            Duration::ZERO,
+            "a splice beyond the bounded queue is refused without waiting"
+        );
+
+        tokio::time::sleep(SPLICE_VERIFICATION_WAIT / 2).await;
+        drop(held);
+        for waiter in waiters {
+            assert!(
+                waiter.await.unwrap(),
+                "queued splices take the slot in turn as it frees"
+            );
+        }
+    }
+
     #[tokio::test]
     async fn splice_keeps_a_composite_blob_recoverable_without_materializing_it_in_the_store() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let first = vec![0x11; 1024 * 1024];
@@ -8417,6 +8500,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -8546,6 +8630,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -8627,6 +8712,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -8749,6 +8835,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let mut blob_digests: Vec<reapi::Digest> = (0..FIND_MISSING_BATCH_DIGESTS + 1)
@@ -8778,6 +8865,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let first = vec![0x31; FAST_CDC_AVERAGE_CHUNK_BYTES as usize];
@@ -8897,6 +8985,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let chunk = b"hello";
@@ -9287,6 +9376,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let blob_hash = [0x11u8; 32];
@@ -9396,6 +9486,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -9515,6 +9606,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -9592,6 +9684,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -9674,6 +9767,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -9764,6 +9858,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         // Stall the build at its memory permit: with no cached index the
@@ -10154,6 +10249,7 @@ mod tests {
                 let service = ReapiService {
                     state: context.state.clone(),
                     snapshot_cache: Default::default(),
+                    splice_verifications: SpliceVerificationSlots::new(4),
                 };
                 let resource_name = resource.clone();
                 let completed = completed_admission.clone();
@@ -11375,6 +11471,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let token = jsonwebtoken::encode(
@@ -11434,6 +11531,7 @@ mod tests {
         let context = test_context_with_auth(|_| {}, Some(auth)).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
 
@@ -11542,6 +11640,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let action_result = reapi::ActionResult::default();
@@ -11638,6 +11737,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let leaf = reapi::Directory {
@@ -11678,6 +11778,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let missing = reapi::Digest {
@@ -11702,6 +11803,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let oversized = reapi::Digest {
@@ -11784,6 +11886,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let input = persist_blob(&context, b"input").await;
@@ -11838,6 +11941,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let small = persist_blob(&context, b"tiny").await;
@@ -11906,6 +12010,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let bytes = b"blob-bytes";
@@ -11956,6 +12061,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let oversized_bytes = vec![b'x'; 9 * 1024 * 1024];
@@ -12035,6 +12141,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let bytes = b"present-bytes";
@@ -12090,6 +12197,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let budget_bytes = context.state.memory.reapi_response_budget_bytes();
@@ -12151,14 +12259,17 @@ mod tests {
         .await;
         let first_service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let second_service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let third_service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let bytes = vec![b'b'; 8 * 1024 * 1024];
@@ -12258,6 +12369,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let bytes = b"blob-bytes";
@@ -12313,6 +12425,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let stdout_bytes = vec![b's'; 9 * 1024 * 1024];
@@ -12462,6 +12575,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let first_bytes = b"first output".to_vec();
@@ -12507,6 +12621,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let small = b"small".to_vec();
@@ -12562,6 +12677,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         // Larger than the response budget under this memory config (the same
@@ -12620,6 +12736,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let bytes = vec![b'x'; 2 * 1024 * 1024];
@@ -12699,6 +12816,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         // Larger than the response budget; listed BOTH via "*" and explicitly.
@@ -12736,6 +12854,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         context.state.enter_draining();
@@ -12827,6 +12946,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
 
@@ -12957,6 +13077,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
 
@@ -13082,6 +13203,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
 
@@ -13198,6 +13320,7 @@ mod tests {
         .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
 
@@ -13522,6 +13645,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let capabilities = service
@@ -13551,6 +13675,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         // A highly redundant payload so the wire size shrinks visibly; the
@@ -14116,6 +14241,7 @@ mod tests {
         let memory = context.state.memory.clone();
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let reserved_before = memory.transient_reserved_bytes();
@@ -14168,6 +14294,7 @@ mod tests {
         let memory = context.state.memory.clone();
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let reserved_before = memory.transient_reserved_bytes();
@@ -14196,6 +14323,7 @@ mod tests {
         let context = test_context(|config| with_floor_pool(config, 64 * 1024 * 1024)).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
+            splice_verifications: SpliceVerificationSlots::new(4),
             state: context.state.clone(),
         };
         let (reached, resume) = pause_after_metadata_commit(&context);

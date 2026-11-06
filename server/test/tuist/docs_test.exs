@@ -269,7 +269,7 @@ defmodule Tuist.DocsTest do
 
     test "cache documentation exposes Rust with its experimental qualification" do
       index = Docs.get_page("/en/index").markdown
-      assert index =~ "supported_for=\"apple,gradle,bazel,elixir,rust\""
+      assert index =~ "supported_for=\"apple,gradle,bazel,elixir,rust,once\""
       assert index =~ "Rust's experimental compilation cache"
 
       cache = Docs.get_page("/en/guides/features/cache").markdown

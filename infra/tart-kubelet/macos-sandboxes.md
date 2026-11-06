@@ -3,7 +3,11 @@
 macOS sandboxes use the existing account API and Managed Agents session router.
 macOS sandboxes share the `sandboxes` account feature flag with Linux sandboxes;
 there is no separate macOS flag. Select `platform: "darwin"` when creating a sandbox
-or agent environment. Defaults are template `macos`, 8 vCPU, 8 GiB RAM and a
+or agent environment, or per Managed Agents session with `platform` on Tuist's
+agent-sessions API or the `tuist_platform` session metadata key (`macos` or
+`darwin`) on any agent environment. Claude Code (desktop, web, CLI) selects
+the OS by environment: connect a `claude_code` environment with
+`platform: "darwin"` (`infra/claude-code-runners/README.md`). Defaults are template `macos`, 8 vCPU, 8 GiB RAM and a
 10 GB workspace. The other native shapes are 8 vCPU with 16 or 24 GiB RAM.
 The workspace is `/Users/runner/work`; Linux requests retain their existing defaults.
 
@@ -21,16 +25,20 @@ Deploy all of the following before enabling an account:
    change. An older image can halt when it finds no CI dispatch token. The chart
    uses the configured, versioned Xcode 26.6 runner image by default;
    `sandboxes.macos.image` can pin an explicit compatible digest.
-4. Wait for the `tuist-macos-sandboxd` control Pod to become Ready, its host to
-   appear in sandbox node presence with the `macos` template, and a fresh
-   `tuist.dev/macos-sandbox-grant` Node annotation. Preparation compiles the
+4. Wait for each host to appear in sandbox node presence with the `macos`
+   template and a fresh `tuist.dev/macos-sandbox-grant` Node annotation. The
+   control Pod turns Ready as soon as tart-kubelet accepts its configuration,
+   before preparation, so a chart rollout that waits on the DaemonSet never
+   waits on an image pull or for disk room; readiness does not mean the host
+   can place sandboxes. Only a host that has prepared its template connects to
+   the server, so placement never reaches an unprepared host. Preparation compiles the
    isolated runtime once and downloads the base image at background priority.
    Cold template preparation has a one-hour deadline: staging's first Xcode
    image pull exceeded the normal twenty-minute CI deadline. Removal or
    replacement of the control Pod cancels preparation within one polling
    interval plus the bounded API probe. Transient API failures are retried
    without discarding a healthy download; a fresh control identity check is
-   required after the pull before readiness. Ownership recovery and eviction keep
+   required after the pull before the host connects. Ownership recovery and eviction keep
    running independently. Prewarm the image before enabling an account;
    this one-time transfer is not part of resident resume latency.
 5. Run the acceptance checks below on staging, then enable `sandboxes`
@@ -41,7 +49,12 @@ Enabling the feature flag does not provision new hardware. No available grant
 means no placement. Disabling it stops new native creation, resumes, commands and
 Managed Agents admission. Pause, stop-worker and delete remain available.
 
-## Capacity and CI priority
+## Capacity and CI sharing
+
+macOS follows the Linux policy in
+[`fleet-sharing.md`](../sandboxd/fleet-sharing.md): queued CI jobs and sandbox
+work have equal priority for uncommitted host capacity, and each account's
+sandbox vCPU, memory and disk limits bound how much of it that account can take.
 
 The server reserves native CPU, RAM and one VM slot in a PostgreSQL transaction
 under a per-node advisory lock. It binds ownership to the Kubernetes Node UID;
@@ -50,9 +63,11 @@ Account sandbox concurrency quotas also apply to native creation and resume,
 including resident resume. Pausing releases the account's active concurrency
 quota; a retained VM still holds its full host reservation against CI capacity.
 
-The CI allocator publishes grants only with known, unqueued CI demand and a
-healthy, unreserved host. Grants expire after 15 seconds and are also bound to
-the current control Pod UID. Unknown or stale demand denies new native work.
+The CI allocator publishes grants for every healthy, unreserved host while fleet
+demand is known. CI queued elsewhere in the fleet does not revoke a grant; a
+host reservation for a waiting CI shape does. Grants expire after 15 seconds and
+are also bound to the current control Pod UID. Unknown or stale demand denies
+new native work.
 Each grant specifies CPU, RAM and VM slots remaining after non-reclaimable CI
 reservations. Placement subtracts existing native reservations from that allowance,
 so a host occupied by CI is not selected just because its queue is empty.
@@ -112,7 +127,7 @@ tart-kubelet's sandbox service, not the CI launch path, boots a warm Pod, and
 only on hosts advertising `tuist.dev/macos-sandbox-warm-host=v1`. The VM is
 named `sbw-<pod UID>`, holds no credential and is not journalled; it fails
 instead of waiting when the host lacks room, the template or disk. A create of
-the same template, image and shape claims a ready VM under the same CI-first
+the same template, image and shape claims a ready VM under the same
 grant as a cold create: the host creates the execution Pod, deletes the warm
 Pod, and the VM keeps its name for life. Other shapes and hosts without a
 ready VM cold-boot. Hosts report the shapes of ready VMs, placement tries those

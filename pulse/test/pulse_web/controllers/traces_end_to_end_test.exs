@@ -158,11 +158,16 @@ defmodule PulseWeb.TracesEndToEndTest do
     for params <- [
           %{scope: "unknown"},
           %{scope: "span", start: "10"},
-          %{scope: "span", q: "{true}"},
-          %{scope: "span", limit: "1"}
+          %{scope: "span", q: "{true}"}
         ] do
       assert Req.get!(ctx.url <> "/api/v2/search/tags", headers: headers, params: params).status == 400
     end
+
+    limited_names =
+      Req.get!(ctx.url <> "/api/v2/search/tags", headers: headers, params: %{scope: "resource", limit: "1"})
+
+    resource_names = Enum.find(cases, &(&1["mode"] == "names" and &1["scope"] == "resource"))
+    assert limited_names.status == 200 and limited_names.body == resource_names["response"]
 
     assert Req.get!(ctx.url <> "/api/v2/search/tags",
              headers: [{"authorization", "Bearer wrong"}, {"x-scope-orgid", ctx.tenant}],
@@ -224,7 +229,7 @@ defmodule PulseWeb.TracesEndToEndTest do
              params: %{q: c["query"]}
            ).status == 401
 
-    for params <- [%{q: "{"}, %{q: c["query"], start: "10"}, %{q: "{true}"}, %{q: c["query"], limit: "1"}] do
+    for params <- [%{q: "{"}, %{q: c["query"], start: "10"}, %{q: "{true}"}, %{q: c["query"], limit: "-1"}] do
       assert Req.get!(ctx.url <> path, headers: headers, params: params).status == 400
     end
 
@@ -293,8 +298,7 @@ defmodule PulseWeb.TracesEndToEndTest do
 
     for {target, q} <- [
           {".value", ~s'{resource.value="literal"}'},
-          {"name", "{true}"},
-          {"kind", ~s'{resource.service.name="worker"}'}
+          {"name", "{true}"}
         ] do
       assert Req.get!(ctx.url <> "/api/v2/search/tag/" <> target <> "/values", headers: headers, params: %{q: q}).status ==
                400
@@ -423,11 +427,16 @@ defmodule PulseWeb.TracesEndToEndTest do
     for params <- [
           %{scope: "resource", q: "{"},
           %{scope: "span", q: "{} with (most_recent=true)"},
-          %{scope: "intrinsic", q: c["query"]},
           %{scope: "resource", q: c["query"], start: "10"}
         ] do
       assert Req.get!(ctx.url <> "/api/v2/search/tags", headers: headers, params: params).status == 400
     end
+
+    intrinsic_names =
+      Req.get!(ctx.url <> "/api/v2/search/tags", headers: headers, params: %{scope: "intrinsic", q: c["query"]})
+
+    assert intrinsic_names.status == 200 and
+             intrinsic_names.body == %{"scopes" => [%{"name" => "intrinsic", "tags" => @intrinsic_names}]}
 
     response =
       mcp(ctx, "tools/call", %{
@@ -468,6 +477,11 @@ defmodule PulseWeb.TracesEndToEndTest do
       schema = if c["key"] == "", do: :tags_v2, else: :tag_values_v2
       assert response.status == 200 and response.body == Protobuf.encode(c["response"], schema)
 
+      # Static suggestions accept valid filters without claiming stored matches.
+      filtered = Req.get!(ctx.url <> path, headers: headers, params: %{q: ~s'{resource.service.name="absent"}'})
+      assert filtered.status == 200 and filtered.body == c["response"]
+      assert filtered.headers["x-pulse-trace-coverage"] == ["static-protocol-vocabulary; not-stored-values"]
+
       assert Req.get!(ctx.url <> path, headers: [{"authorization", "Bearer wrong"}, {"x-scope-orgid", ctx.tenant}]).status ==
                401
     end
@@ -486,7 +500,6 @@ defmodule PulseWeb.TracesEndToEndTest do
           "/api/v2/search/tag/trace:unsupported/values",
           "/api/v2/search/tag/intrinsic.kind/values",
           "/api/v2/search/tags?scope=all",
-          "/api/v2/search/tag/kind/values?q=%7Bresource.service.name%3D%22absent%22%7D",
           "/api/v2/search/tag/kind/values?start=10"
         ] do
       assert Req.get!(ctx.url <> path, headers: headers).status == 400, path
@@ -688,7 +701,8 @@ defmodule PulseWeb.TracesEndToEndTest do
       refute result.body["result"]["isError"]
       assert Pulse.JSON.decode!(hd(result.body["result"]["content"])["text"]) == expected
       assert Req.get!(path, headers: [{"authorization", "Bearer wrong"}]).status == 401
-      assert Req.get!(path, headers: headers, params: %{q: "{trace:rootName=\"GET /api\"}"}).status == 400
+      # This broad filter now parses, but the corpus includes unprovable roots.
+      assert Req.get!(path, headers: headers, params: %{q: "{trace:rootName=\"GET /api\"}"}).status == 409
     end
   end
 
@@ -732,7 +746,24 @@ defmodule PulseWeb.TracesEndToEndTest do
     path = ctx.url <> "/api/v2/search/tag/trace:duration/values"
     assert Req.get!(path, headers: headers, params: %{q: c["query"], start: 20, end: 20}).body == c["complete"]
     assert Req.get!(path, headers: [{"authorization", "Bearer wrong"}]).status == 401
-    assert Req.get!(path, headers: headers, params: %{q: "{trace:duration>1s}"}).status == 400
+
+    filtered = Req.get!(path, headers: headers, params: %{q: "{trace:duration>1s}"})
+    assert filtered.status == 200
+
+    assert filtered.body == %{
+             "tagValues" =>
+               Enum.map(
+                 [
+                   "1.000000001s",
+                   "19.0000001s",
+                   "2501h59m59.254740991s",
+                   "2501h59m59.254740992s",
+                   "2501h59m59.254740993s",
+                   "2562047h47m16.854775806s"
+                 ],
+                 &%{"type" => "duration", "value" => &1}
+               )
+           }
   end
 
   test "trace duration replays out-of-window context once without requiring roots", ctx do
@@ -818,7 +849,12 @@ defmodule PulseWeb.TracesEndToEndTest do
              "stored-intrinsic-values; exporter-completeness-unknown"
            ]
 
-    assert Req.get!(path, headers: headers, params: %{q: "{event:timeSinceStart>0ns}"}).status == 400
+    filtered = Req.get!(path, headers: headers, params: %{q: "{event:timeSinceStart>0ns}"})
+    assert filtered.status == 200
+    # Every event-bearing parent has a +1ns event except the minimum-offset
+    # boundary parent, whose retained events are only the negative offset and 0.
+    all = Enum.find(cases, &(&1["query"] == "{}"))["complete"]["tagValues"]
+    assert filtered.body == %{"tagValues" => Enum.reject(all, &(&1["value"] == "-9223372036854775807"))}
     assert Req.get!(path, headers: [{"authorization", "Bearer wrong"}]).status == 401
   end
 

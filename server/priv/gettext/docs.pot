@@ -385,12 +385,6 @@ msgstr ""
 msgid "Speed up builds, improve test reliability, understand performance, and run workflows on infrastructure designed for your toolchain."
 msgstr ""
 
-#: lib/tuist_web/live/docs_live.ex:414
-#: lib/tuist_web/live/docs_live.ex:770
-#, elixir-autogen, elixir-format
-msgid "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
-msgstr ""
-
 #: lib/tuist_web/live/docs_live.ex:347
 #: lib/tuist_web/live/docs_live.ex:747
 #, elixir-autogen, elixir-format
@@ -472,20 +466,26 @@ msgstr ""
 msgid "Run continuous integration workflows on managed macOS and Linux runners, with cache infrastructure colocated next to compute for the best results and shared with your developer machines."
 msgstr ""
 
+#: lib/tuist_web/docs/components/page_layout.html.heex:40
+#: lib/tuist_web/docs/components/page_layout.html.heex:50
+#, elixir-autogen, elixir-format
+msgid "Overview"
+msgstr ""
+
 #: lib/tuist_web/live/docs_live.ex:198
 #: lib/tuist_web/live/docs_live.ex:719
 #, elixir-autogen, elixir-format
-msgid "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects, providing the infrastructure that lets software integration and delivery keep pace."
+msgid "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, Rust, and Once projects, providing the infrastructure that lets software integration and delivery keep pace."
 msgstr ""
 
 #: lib/tuist_web/live/docs_live.ex:329
 #: lib/tuist_web/live/docs_live.ex:742
 #, elixir-autogen, elixir-format
-msgid "Share Xcode, Gradle, Bazel, and Rust build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
+msgid "Share Xcode, Gradle, Bazel, Rust, and Once build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
 msgstr ""
 
-#: lib/tuist_web/docs/components/page_layout.html.heex:40
-#: lib/tuist_web/docs/components/page_layout.html.heex:50
+#: lib/tuist_web/live/docs_live.ex:414
+#: lib/tuist_web/live/docs_live.ex:770
 #, elixir-autogen, elixir-format
-msgid "Overview"
+msgid "Track test performance, catch slow tests early, and investigate continuous integration failures through reported results and test history."
 msgstr ""

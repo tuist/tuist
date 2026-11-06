@@ -1,0 +1,125 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Run in pinned Tempo's tempodb/encoding/vparquet4 package; first eleven
+// predicates are unchanged fetch-table rows, remaining probes are authored.
+package vparquet4
+
+import (
+	"context"
+	"encoding/json"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/v3/pkg/tempopb"
+	cv "github.com/grafana/tempo/v3/pkg/tempopb/common/v1"
+	rv "github.com/grafana/tempo/v3/pkg/tempopb/resource/v1"
+	tv "github.com/grafana/tempo/v3/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v3/pkg/traceql"
+	"github.com/grafana/tempo/v3/tempodb/backend"
+	"github.com/grafana/tempo/v3/tempodb/encoding/common"
+	"os"
+	"sort"
+	"testing"
+)
+
+func TestPulseIntrinsics(t *testing.T) {
+	dir := "/tmp/pulse-tempo-intrinsics"
+	os.MkdirAll(dir, 0755)
+	str := func(k, v string) *cv.KeyValue {
+		return &cv.KeyValue{Key: k, Value: &cv.AnyValue{Value: &cv.AnyValue_StringValue{StringValue: v}}}
+	}
+	attrs := func() []*cv.KeyValue {
+		return []*cv.KeyValue{str("scope-attr-str", "scope-attr-1"), str("odd,key)", "quoted"), {Key: "n", Value: &cv.AnyValue{Value: &cv.AnyValue_IntValue{IntValue: 7}}}, {Key: "b", Value: &cv.AnyValue{Value: &cv.AnyValue_BoolValue{BoolValue: true}}}, {Key: "f", Value: &cv.AnyValue{Value: &cv.AnyValue_DoubleValue{DoubleValue: 1.5}}}}
+	}
+	all := &tempopb.Trace{}
+	var rows []*Trace
+	for i := 0; i < 3; i++ {
+		tid := make([]byte, 16)
+		tid[15] = byte(41 + i)
+		tr := &tempopb.Trace{}
+		for j := 0; j < 2; j++ {
+			sid := make([]byte, 8)
+			sid[7] = byte(j + 1)
+			var parent []byte
+			if j > 0 || i == 2 {
+				parent = make([]byte, 8)
+				parent[7] = 1
+				if i == 2 {
+					parent[7] = 9
+				}
+			}
+			sp := &tv.Span{TraceId: tid, SpanId: sid, ParentSpanId: parent, Name: "hello", Kind: tv.Span_SPAN_KIND_SERVER, StartTimeUnixNano: uint64(100+10*i+j) * 1000000000, EndTimeUnixNano: uint64(100+10*i+j)*1000000000 + 10000000, Status: &tv.Status{Message: "STATUS_CODE_ERROR"}, Attributes: attrs()}
+			if i == 0 && j == 1 {
+				sp.Name = "leaf"
+				sp.StartTimeUnixNano = 7300000000000
+				sp.EndTimeUnixNano = 7300010000000
+			}
+			if i == 2 {
+				sp.SpanId[0] = 0x12
+			}
+			scope := &cv.InstrumentationScope{Name: "scope-1", Version: "version-1", Attributes: attrs()}
+			if i == 0 {
+				sp.Events = []*tv.Span_Event{{Name: "e1", TimeUnixNano: sp.StartTimeUnixNano + 1000000, Attributes: []*cv.KeyValue{str("message", "first")}}, {Name: "e2", TimeUnixNano: sp.StartTimeUnixNano + 3000000, Attributes: []*cv.KeyValue{str("message", "exception")}}}
+				sp.Links = []*tv.Span_Link{{TraceId: []byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef}, SpanId: []byte{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef}, Attributes: append(attrs(), str("opentracing.ref_type", "child-of"))}, {TraceId: tid, SpanId: sid, Attributes: []*cv.KeyValue{str("scope-attr-str", "other")}}}
+			}
+			if i == 1 {
+				sp.Status = &tv.Status{}
+				scope = &cv.InstrumentationScope{}
+				sp.Attributes = nil
+			}
+			r := &tv.ResourceSpans{Resource: &rv.Resource{Attributes: []*cv.KeyValue{str("service.name", "myservice"), str("odd,key)", "resource")}}, ScopeSpans: []*tv.ScopeSpans{{Scope: scope, Spans: []*tv.Span{sp}}}}
+			tr.ResourceSpans = append(tr.ResourceSpans, r)
+			all.ResourceSpans = append(all.ResourceSpans, r)
+		}
+		row, _ := traceToParquet(&backend.BlockMeta{}, tid, tr, nil)
+		rows = append(rows, row)
+	}
+	block := makeBackendBlockWithTraces(t, rows)
+	// First eleven predicates are unchanged from block_traceql_test.go's fetch table.
+	queries := []string{`{statusMessage = "STATUS_CODE_ERROR"}`, `{event:name = "e1"}`, `{event:timeSinceStart > 2ms}`, `{event.message =~ "exception"}`, `{link:spanID = "1234567890abcdef"}`, `{link:traceID = "1234567890abcdef1234567890abcdef"}`, `{link.opentracing.ref_type = "child-of"}`, `{instrumentation:name = "scope-1"}`, `{instrumentation:version = "version-1"}`, `{instrumentation.scope-attr-str = "scope-attr-1"}`, `{name = "hello"}`,
+		`{span:statusMessage != ""}`, `{statusMessage = ""}`, `{statusMessage =~ ".*ERROR"}`, `{rootName = "hello"}`, `{trace:rootName = "hello"}`, `{rootServiceName = "myservice"}`, `{trace:rootService = "myservice"}`, `{rootName = ""}`, `{rootName != "hello"}`, `{span:id = "0000000000000001"}`, `{span:id = "1"}`, `{span:id != "1"}`, `{span:parentID = "0000000000000000"}`, `{span:parentID = "1"}`, `{trace:id = "29"}`, `{trace:id = "00000000000000000000000000000029"}`, `{trace:id != "29"}`, `{trace:id = "2A"}`, `{span:id = "invalid"}`, `{span:id != "invalid"}`,
+		`{event:name != "e1"}`, `{event:timeSinceStart = 1ms}`, `{event:name = "e1" && event:timeSinceStart > 2ms}`, `{event:name = "e1" || event:timeSinceStart > 2ms}`, `{link.scope-attr-str = "scope-attr-1" && link.scope-attr-str = "other"}`, `{link.n = 7}`, `{link.n = 7.0}`, `{link.f = 1.5}`, `{link.b = true}`, `{instrumentation.n = 7}`, `{instrumentation.n = 7.0}`, `{instrumentation.f = 1.5}`, `{instrumentation.b = true}`, `{link.missing != true}`, `{instrumentation.missing != 1.5}`,
+		`{span."odd,key)" = "quoted"}`, `{."odd,key)" = "quoted"}`, `{resource."odd,key)" = "resource"}`, `{instrumentation."odd,key)" = "quoted"}`, `{link."odd,key)" = "quoted"}`, `{span."scope-attr"-str = "scope-attr-1"}`,
+		`{} | select(span:id,span:parentID,trace:id)`, `{} | select(rootName,rootServiceName)`, `{} | select(trace:rootName,trace:rootService)`, `{} | select(duration,trace:duration,statusMessage)`, `{} | select(event:name,event:timeSinceStart)`, `{} | select(link:spanID,link:traceID)`, `{} | select(instrumentation:name,instrumentation:version)`, `{} | select(span."odd,key)",resource."odd,key)")`, `{} | select(link.n,instrumentation.b)`,
+		`{event:timeSinceStart > 2ms} | select(event:name)`, `{link.scope-attr-str = "other"} | select(link:traceID,link:spanID)`, `{instrumentation:name = ""}`, `{instrumentation:version != "version-1"}`, `{trace:rootName =~ "hell.*"}`, `{trace:duration > 1s && trace:rootName = "hello"}`,
+		`{span:id = "1200000000000001"}`, `{name = "leaf" && rootName = "hello"}`, `{name = "leaf" && rootServiceName = "myservice"}`,
+		`{event:name != ""}`, `{event:timeSinceStart > 0ns}`, `{event.message != "missing"}`, `{link.scope-attr-str != "missing"}`, `{event:name = "e1" || event:name = "e2"}`, `{event:name = "e1" && event:name = "e2" || name = "no"}`,
+	}
+	type Case struct {
+		Query    string          `json:"query"`
+		Response json.RawMessage `json:"response"`
+		Error    string          `json:"error,omitempty"`
+	}
+	cases := []Case{}
+	for _, q := range queries {
+		resp, err := traceql.NewEngine().ExecuteSearch(context.Background(), &tempopb.SearchRequest{Query: q + " with (most_recent=true)", Start: 99, End: 200, Limit: 100, SpansPerSpanSet: 3}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return block.Fetch(ctx, req, common.DefaultSearchOptions())
+		}))
+		if err != nil {
+			cases = append(cases, Case{Query: q, Error: err.Error()})
+			continue
+		}
+		resp.Metrics = nil
+		for _, tr := range resp.Traces {
+			for _, ss := range tr.SpanSets {
+				for _, sp := range ss.Spans {
+					sort.Slice(sp.Attributes, func(i, j int) bool {
+						if sp.Attributes[i].Key == sp.Attributes[j].Key {
+							return sp.Attributes[i].Value.String() < sp.Attributes[j].Value.String()
+						}
+						return sp.Attributes[i].Key < sp.Attributes[j].Key
+					})
+				}
+			}
+		}
+		out, err := (&jsonpb.Marshaler{}).MarshalToString(resp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cases = append(cases, Case{q, json.RawMessage(out), ""})
+	}
+	input, _ := proto.Marshal(all)
+	os.WriteFile(dir+"/intrinsics-input.protobuf", input, 0644)
+	raw, _ := (&jsonpb.Marshaler{}).MarshalToString(all)
+	os.WriteFile(dir+"/intrinsics-input.json", []byte(raw), 0644)
+	out, _ := json.MarshalIndent(cases, "", "  ")
+	os.WriteFile(dir+"/intrinsics-oracle.json", out, 0644)
+}

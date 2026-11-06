@@ -33,6 +33,34 @@ defmodule Pulse.Parity do
 
   def extract(%{"dashboard" => dashboard}, source, datasources), do: extract(dashboard, source, datasources)
 
+  def extract(%{"kind" => "Dashboard", "spec" => dashboard}, source, datasources),
+    do: extract(dashboard, source, datasources)
+
+  def extract(%{"elements" => elements}, source, datasources) do
+    elements
+    |> Map.values()
+    |> Enum.flat_map(fn
+      %{"kind" => "Panel", "spec" => panel} ->
+        for %{"spec" => %{"query" => %{"group" => group, "spec" => target}}} <-
+              get_in(panel, ["data", "spec", "queries"]) || [],
+            group in ["prometheus", "loki"],
+            expr = target["expr"],
+            is_binary(expr),
+            expr != "" do
+          %{
+            expr: expr,
+            language: language(%{"type" => group}, expr, datasources),
+            kind: if(target["instant"] == true, do: :instant, else: :range),
+            source: "#{source}: #{panel["title"]}",
+            tolerance: nil
+          }
+        end
+
+      _ ->
+        []
+    end)
+  end
+
   def extract(%{"panels" => panels}, source, datasources) do
     panels
     |> Enum.flat_map(&[&1 | Map.get(&1, "panels", [])])
@@ -40,6 +68,8 @@ defmodule Pulse.Parity do
   end
 
   def extract(%{"rules" => rules}, source, datasources), do: extract(rules, source, datasources)
+
+  def extract(%{"queries" => queries}, source, datasources), do: extract(queries, source, datasources)
 
   def extract(rules, source, datasources) when is_list(rules) do
     Enum.flat_map(rules, fn
@@ -53,6 +83,17 @@ defmodule Pulse.Parity do
             kind: :instant,
             source: "#{source}: #{rule["title"]} (#{node["refId"]})",
             tolerance: nil
+          }
+        end
+
+      %{"expr" => expr, "modes" => modes} = query ->
+        for {mode, kind} <- [{"i", :instant}, {"r", :range}], String.contains?(modes, mode) do
+          %{
+            expr: expr,
+            language: plain_language(query["language"], expr),
+            kind: kind,
+            source: "#{source}: #{query["id"]}",
+            tolerance: query["tolerance"]
           }
         end
 
@@ -113,9 +154,9 @@ defmodule Pulse.Parity do
   and `$__range` from the step and window (seconds), named variables from
   `vars`, and unset variables in label matchers by a match-anything regex.
   """
-  @spec substitute(String.t(), pos_integer(), pos_integer(), map()) :: String.t()
-  def substitute(expr, step, window, vars) do
-    rate = max(step + 15, 60)
+  @spec substitute(String.t(), pos_integer(), pos_integer(), map(), pos_integer()) :: String.t()
+  def substitute(expr, step, window, vars, scrape_interval \\ 15) do
+    rate = max(step + scrape_interval, 4 * scrape_interval)
 
     expr
     |> String.replace(~r/\$\{?__rate_interval\}?/, "#{rate}s")
@@ -123,6 +164,7 @@ defmodule Pulse.Parity do
     |> String.replace(~r/\$\{?__range_ms\}?/, "#{window * 1000}")
     |> String.replace(~r/\$\{?__interval_ms\}?/, "#{step * 1000}")
     |> String.replace(~r/\$\{?__interval\}?/, "#{step}s")
+    |> String.replace(~r/\$\{?__auto\}?/, "#{step}s")
     |> String.replace(~r/\$\{?__range\}?/, "#{window}s")
     |> substitute_named(vars)
     |> String.replace(~r/(=~?|!~|!=)\s*"[^"]*\$\{?\w+(?::\w+)?\}?[^"]*"/, ~s(=~".+"))
@@ -152,7 +194,7 @@ defmodule Pulse.Parity do
   """
   def run(query, endpoints, window, opts) do
     {start, finish, step} = bounds(Keyword.fetch!(opts, :now), window, Keyword.get(opts, :lag, 300))
-    expr = substitute(query.expr, step, window, Keyword.get(opts, :vars, %{}))
+    expr = substitute(query.expr, step, window, Keyword.get(opts, :vars, %{}), Keyword.get(opts, :scrape_interval, 15))
     request = %{expr: expr, kind: query.kind, start: start, end: finish, step: step}
     tolerance = query.tolerance || Keyword.get(opts, :tolerance, @default_tolerance)
     fetch = Keyword.get(opts, :fetch, &fetch/3)

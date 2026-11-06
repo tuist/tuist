@@ -114,8 +114,9 @@ defmodule PulseWeb.TuistDashboardsTest do
 
     # No typed event: only the selected value that exists.
     assert attributes.(queries.recent_errors, 63) == %{"status" => "error", "exception.message" => "no type"}
-    # Several events: the first event with a matching value.
-    assert attributes.(queries.errors_by_type, 52) == %{"exception.type" => "Postgrex.Error"}
+    # As in the pinned public-engine oracle, AllAttributes samples the last
+    # fetched matching event value, not AttributeFor's first evaluation value.
+    assert attributes.(queries.errors_by_type, 52) == %{"exception.type" => "Bandit.HTTPError"}
 
     assert attributes.(queries.stacktraces, 62) == %{
              "exception.type" => "Elixir.TuistWeb.Errors.NotFoundError",
@@ -142,7 +143,14 @@ defmodule PulseWeb.TuistDashboardsTest do
         params: Map.put(ctx.params, "q", ~s[{ status = error } | select(span:duration)])
       )
 
-    assert response.status == 400
+    assert response.status == 200
+
+    assert response.body["traces"]
+           |> Enum.flat_map(& &1["spanSet"]["spans"])
+           |> Enum.all?(fn span ->
+             is_binary(span["durationNanos"]) and
+               Enum.all?(span["attributes"] || [], &(&1["key"] != "duration"))
+           end)
   end
 
   test "Error Monitoring rates count spans with a matching event, over HTTP and MCP", ctx do

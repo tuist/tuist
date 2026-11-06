@@ -203,6 +203,19 @@ values are capped at ten seconds. Results use Prometheus scalar, vector, and mat
 formats, plus string results for instant queries, so Grafana can use Pulse as a
 Prometheus data source within the supported subset below.
 
+Optional `limit` caps returned vector/matrix **series**, not samples per series.
+Scalars and strings are unchanged. Omission, empty text and zero disable this
+response cap; positive signed-int64 values preserve the evaluated result order
+and emit `warnings: ["results truncated due to limit"]` only when truncating.
+All evaluation, scan, sample and result budgets still apply to the complete
+query before this cap. Label and series discovery support the same explicit
+[HTTP response limit](metric-discovery.md), without changing complete MCP reads.
+
+Grafana's optional query-statistics setting sends `stats=all` on instant and
+range requests. This selector is accepted on GET and form POST, but responses
+do not include JSON execution statistics. Query results and safety budgets are
+unchanged; no synthetic statistics are reported.
+
 Range requests return HTTP 400/`bad_data` with field-specific diagnostics for
 invalid `start`, `end` or `step`, reversed bounds and zero/negative numeric steps.
 The existing limit is 11,000 inclusive evaluation points, not 11,000 intervals;

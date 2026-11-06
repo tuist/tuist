@@ -72,6 +72,13 @@ if value = System.get_env("TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION") do
   end
 end
 
+config :tuist, Tuist.Entire.Client,
+  slug: System.get_env("TUIST_ENTIRE_PLUGIN_SLUG"),
+  private_key: System.get_env("TUIST_ENTIRE_PLUGIN_PRIVATE_KEY"),
+  key_id: System.get_env("TUIST_ENTIRE_PLUGIN_KEY_ID"),
+  core_url: System.get_env("TUIST_ENTIRE_CORE_URL", "https://eu.auth.entire.io"),
+  delivery_jwks_url: System.get_env("TUIST_ENTIRE_DELIVERY_JWKS_URL")
+
 config :tuist, :network_trusted_cache_access, System.get_env("TUIST_NETWORK_TRUSTED_CACHE_ACCESS") == "true"
 
 config :tuist,
@@ -749,6 +756,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # Coverage file deltas: a project's writes take turns on an advisory lock, so a
 # burst for one project would otherwise hold :default's slots while it waits.
 base_queues = [
+  threads: 10,
   remote_execution_maintenance: 1,
   runner_gitlab: 10,
   default: 10,

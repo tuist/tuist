@@ -100,8 +100,8 @@ defmodule Pulse.Traces.TempoTraceDurationsTest do
     assert Storage.tempo_discovery_json("durations", "intrinsic", @key, window) ==
              {:error, :unsupported_trace_discovery}
 
-    for q <- ["{trace:duration>1s}", "{span.parity=1}", "{} with (most_recent=true)"],
-        do: assert(TempoDiscovery.filter("intrinsic", @key, q) == {:error, :unsupported_trace_discovery})
+    assert TempoDiscovery.filter("intrinsic", @key, "{} with (most_recent=true)") ==
+             {:error, :unsupported_trace_discovery}
   end
 
   @tag timeout: 120_000

@@ -37,6 +37,61 @@ defmodule Pulse.ParityTest do
                %{expr: "rate(x[5m])", language: :promql, kind: :range, source: "d.json: Rate"},
                %{expr: ~s({app="a"}), language: :logql, kind: :instant, source: "d.json: Logs"}
              ] = Parity.extract(dashboard, "d.json", %{"logs" => "loki"})
+
+      assert Parity.extract(%{"kind" => "Dashboard", "spec" => dashboard["dashboard"]}, "d.json", %{"logs" => "loki"}) ==
+               Parity.extract(dashboard, "d.json", %{"logs" => "loki"})
+    end
+
+    test "reads Git Sync v2 panels without treating Tempo or SQL as PromQL" do
+      panel = fn group, expression, instant ->
+        %{
+          "kind" => "Panel",
+          "spec" => %{
+            "title" => group,
+            "data" => %{
+              "spec" => %{
+                "queries" => [
+                  %{
+                    "spec" => %{"query" => %{"group" => group, "spec" => %{"expr" => expression, "instant" => instant}}}
+                  }
+                ]
+              }
+            }
+          }
+        }
+      end
+
+      dashboard = %{
+        "kind" => "Dashboard",
+        "spec" => %{
+          "elements" => %{
+            "a" => panel.("loki", ~s({app="api"}), true),
+            "b" => panel.("prometheus", "up", false),
+            "c" => panel.("tempo", "{}", false),
+            "d" => panel.("postgres", "select 1", false)
+          }
+        }
+      }
+
+      assert [
+               %{expr: ~s({app="api"}), language: :logql, kind: :instant},
+               %{expr: "up", language: :promql, kind: :range}
+             ] = Parity.extract(dashboard, "v2.json")
+    end
+
+    test "keeps both execution modes in a query corpus" do
+      corpus = %{
+        "queries" => [
+          %{"id" => "p1", "expr" => "up", "language" => "promql", "modes" => "ir"},
+          %{"id" => "l1", "expr" => ~s({app="api"}), "language" => "logql", "modes" => "i"}
+        ]
+      }
+
+      assert [
+               %{expr: "up", language: :promql, kind: :instant},
+               %{expr: "up", language: :promql, kind: :range},
+               %{expr: ~s({app="api"}), language: :logql, kind: :instant}
+             ] = Parity.extract(corpus, "corpus.json")
     end
 
     test "reads alert rule queries, skipping expressions, and plain query lists" do
@@ -77,6 +132,22 @@ defmodule Pulse.ParityTest do
     assert {start, finish, 15} = Parity.bounds(1_000_000, 3600, 300)
     assert rem(finish, 15) == 0 and finish <= 1_000_000 - 300 and finish - start == 3600
     assert {_, _, 2016} = Parity.bounds(1_000_000, 7 * 86_400, 0)
+  end
+
+  test "uses the configured scrape interval on both sides of Grafana's rate-window boundary" do
+    assert Parity.substitute("rate(x[$__rate_interval])", 30, 3600, %{}, 60) == "rate(x[240s])"
+    assert Parity.substitute("rate(x[$__rate_interval])", 300, 3600, %{}, 60) == "rate(x[360s])"
+    assert Parity.substitute("rate(x[$__auto])", 90, 3600, %{}, 60) == "rate(x[90s])"
+  end
+
+  @tag :tmp_dir
+  test "the command fails closed on an unsupported or empty input instead of reporting parity", %{tmp_dir: directory} do
+    file = Path.join(directory, "empty.json")
+    File.write!(file, ~s({"unsupported":[]}))
+
+    assert_raise Mix.Error, ~r/No PromQL or LogQL queries extracted/, fn ->
+      Mix.Tasks.Pulse.Parity.run([file])
+    end
   end
 
   describe "compare/3" do

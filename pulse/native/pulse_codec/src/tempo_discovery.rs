@@ -7,10 +7,27 @@ use arrow::array::{Array, Int64Array, StringArray};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ProjectionMask;
 use rustler::{Binary, Env, ResourceArc, Term};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 const MAX: usize = 1_048_576;
 const WORK_MAX: usize = 2_000_000;
+
+// Root dictionaries require positive root evidence. Unlike expression/search
+// link ancestry, any original child_of marker disqualifies a parentless span,
+// including a linked parent belonging to another trace.
+pub(crate) fn root_child_link(metadata: &RawFields<'_>) -> Res<bool> {
+    let mut child_link = false;
+    for owner in Parser::new(field(metadata, b"links")?)
+        .raw_array()
+        .map_err(|_| Error::Invalid)?
+    {
+        child_link |= typed_attributes(owner)?
+            .get("opentracing.ref_type")
+            .is_some_and(|value| value == "child_of");
+    }
+    Ok(child_link)
+}
+
 const INTRINSICS: &[&str] = &[
     "duration",
     "event:name",
@@ -47,6 +64,11 @@ const DYNAMIC: &[&str] = &[
     "instrumentation:version",
     "event:name",
     "event:timeSinceStart",
+    "trace:id",
+    "span:id",
+    "span:parentID",
+    "link:traceID",
+    "link:spanID",
 ];
 fn scopes(scope: &str, names: bool) -> Res<&'static [&'static str]> {
     match scope {
@@ -81,6 +103,8 @@ fn new_state(floor: i64, scope: String, key: String, predicates: Vec<Predicate>)
         values: BTreeSet::new(),
         predicates,
         window: None,
+        expression: None,
+        expression_match: None,
     };
     if state.scope == "none" && state.names {
         for name in INTRINSICS {
@@ -110,6 +134,24 @@ struct State {
     values: BTreeSet<(String, String)>,
     predicates: Vec<Predicate>,
     window: Option<(i64, i64)>,
+    expression: Option<ExpressionDiscovery>,
+    expression_match: Option<bool>,
+}
+struct ExpressionDiscovery {
+    program: crate::tempo_expression::Expression,
+    filtered: bool,
+    blobs: Vec<(bytes::Bytes, bool, usize)>,
+    input_bytes: usize,
+    work: usize,
+    contexts: BTreeMap<String, crate::tempo_expression::TraceContext>,
+    context_bytes: usize,
+    needs_context: bool,
+    needs_roots: bool,
+    root_errors: BTreeSet<String>,
+    unknown_root_services: BTreeSet<String>,
+    root_flags: BTreeMap<(String, String), bool>,
+    root_ids: BTreeMap<String, String>,
+    projection_work: BTreeMap<String, usize>,
 }
 fn promoted_name(scope: &str, key: &str, value: &[u8]) -> Res<bool> {
     let kind = match (scope, key) {
@@ -147,7 +189,85 @@ pub struct Discovery(Mutex<Option<State>>);
 impl rustler::Resource for Discovery {}
 #[rustler::nif]
 fn tempo_discovery_api_version() -> u32 {
-    12
+    13
+}
+#[rustler::nif(schedule = "DirtyCpu")]
+fn tempo_expression_discovery_new<'a>(
+    env: Env<'a>,
+    floor: i64,
+    scope: String,
+    key: String,
+    input: Vec<(String, String, String, String)>,
+    start: i64,
+    end: i64,
+) -> Term<'a> {
+    result(
+        env,
+        (|| {
+            if input
+                .iter()
+                .any(|(scope, _, _, _)| matches!(scope.as_str(), "spanset" | "select"))
+                || start < 0
+                || end < start
+                || (start == 0 && end != 0)
+            {
+                return Err(Error::Invalid);
+            }
+            let filtered = !matches!(input.as_slice(), [(scope, key, op, value)] if scope == "constant" && key.is_empty() && op == "true" && value.is_empty());
+            let root_filter = input.iter().any(|(scope, key, _, _)| {
+                scope == "intrinsic.string"
+                    && matches!(key.as_str(), "rootName" | "rootServiceName")
+            });
+            let needs_roots = root_filter
+                || (scope == "intrinsic"
+                    && matches!(
+                        key.as_str(),
+                        "rootName" | "trace:rootName" | "rootServiceName" | "trace:rootService"
+                    ));
+            let program =
+                crate::tempo_expression::Expression::compile(input).ok_or(Error::Invalid)?;
+            let needs_context = needs_roots
+                || program.needs_context()
+                || (scope == "intrinsic" && key == "trace:duration");
+            // Trace-wide/static targets are only admitted by this new callback,
+            // never by an older adapter that could silently drop the program.
+            let target = key.clone();
+            let mut state = new_state(
+                floor,
+                scope.clone(),
+                if scope == "intrinsic" {
+                    "name".into()
+                } else {
+                    key
+                },
+                Vec::new(),
+            )?;
+            if scope == "intrinsic" && !INTRINSICS.contains(&target.as_str()) && !target.is_empty()
+            {
+                return Err(Error::Invalid);
+            }
+            state.key = target;
+            state.names = state.key.is_empty();
+            state.window = (start > 0).then_some((start, end));
+            state.expression = Some(ExpressionDiscovery {
+                program,
+                filtered,
+                blobs: Vec::new(),
+                input_bytes: 0,
+                work: 0,
+                contexts: BTreeMap::new(),
+                context_bytes: 0,
+                needs_context,
+                needs_roots,
+                root_errors: BTreeSet::new(),
+                unknown_root_services: BTreeSet::new(),
+                root_flags: BTreeMap::new(),
+                root_ids: BTreeMap::new(),
+                projection_work: BTreeMap::new(),
+            });
+            Ok(ResourceArc::new(Discovery(Mutex::new(Some(state)))))
+        })(),
+    )
 }
 #[rustler::nif]
 fn tempo_discovery_new<'a>(env: Env<'a>, floor: i64, scope: String, key: String) -> Term<'a> {
@@ -242,12 +362,13 @@ fn tempo_discovery_finish<'a>(env: Env<'a>, handle: ResourceArc<Discovery>) -> T
     result(
         env,
         (|| {
-            let state = handle
+            let mut state = handle
                 .0
                 .lock()
                 .map_err(|_| Error::Invalid)?
                 .take()
                 .ok_or(Error::Invalid)?;
+            state.finish_expression()?;
             let mut count = Counter::new(MAX);
             state.write(&mut count);
             if count.len() > MAX {
@@ -260,6 +381,273 @@ fn tempo_discovery_finish<'a>(env: Env<'a>, handle: ResourceArc<Discovery>) -> T
     )
 }
 impl State {
+    fn capture_expression(&mut self, bytes: bytes::Bytes) -> Res<usize> {
+        let expression = self.expression.as_ref().ok_or(Error::Invalid)?;
+        if expression.blobs.len() >= 1024
+            || expression
+                .input_bytes
+                .checked_add(bytes.len())
+                .ok_or(Error::Budget)?
+                > 33_554_432
+        {
+            return Err(Error::Budget);
+        }
+        let (selected, expected) = match self.window {
+            Some(window) => {
+                let (selected, rows) = source_window_selection(bytes.clone(), self.floor, window)?;
+                (selected, Some(rows))
+            }
+            None => (true, None),
+        };
+        let trace_projection = self.scope == "intrinsic"
+            && matches!(
+                self.key.as_str(),
+                "rootName"
+                    | "trace:rootName"
+                    | "rootServiceName"
+                    | "trace:rootService"
+                    | "trace:duration"
+            );
+        let duration_projection = self.key == "trace:duration";
+        let expression = self.expression.as_mut().ok_or(Error::Invalid)?;
+        let rows = visit_expression_rows(bytes.clone(), self.floor, |id, fields| {
+            if !expression.needs_context {
+                return Ok(());
+            }
+            if trace_projection {
+                let meta = object(field(fields, b"otlp")?)?;
+                let mut units = 2;
+                for key in [b"resource".as_slice(), b"attributes".as_slice()] {
+                    units += Parser::new(field(&meta, key)?)
+                        .raw_array()
+                        .map_err(|_| Error::Invalid)?
+                        .len();
+                }
+                if !duration_projection {
+                    for owner in Parser::new(field(&meta, b"links")?)
+                        .raw_array()
+                        .map_err(|_| Error::Invalid)?
+                    {
+                        units += 1 + Parser::new(owner)
+                            .raw_array()
+                            .map_err(|_| Error::Invalid)?
+                            .len();
+                    }
+                }
+                if !expression.projection_work.contains_key(id) {
+                    expression.context_bytes += id.len() + 40;
+                }
+                let work = expression.projection_work.entry(id.to_owned()).or_default();
+                *work = work.checked_add(units).ok_or(Error::DiscoveryWork)?;
+            }
+            let new = !expression.contexts.contains_key(id);
+            if !expression.contexts.contains_key(id) {
+                if expression.contexts.len() >= 65_536 {
+                    return Err(Error::Groups);
+                }
+                expression.context_bytes += id.len() + 96;
+            }
+            let context = expression.contexts.entry(id.to_owned()).or_default();
+            let previous = context.retained_bytes();
+            if expression.needs_roots {
+                let meta = object(field(fields, b"otlp")?)?;
+                let disqualified =
+                    field(fields, b"parent_span_id")? == b"null" && root_child_link(&meta)?;
+                let root = field(fields, b"parent_span_id")? == b"null" && !disqualified;
+                let flag = (id.to_owned(), string(field(fields, b"span_id")?)?);
+                if root {
+                    let service = typed_attributes(field(&meta, b"resource")?)?
+                        .get("service.name")
+                        .cloned()
+                        .unwrap_or_default();
+                    let pair = (service, string(field(fields, b"name")?)?);
+                    if expression
+                        .root_ids
+                        .get(id)
+                        .is_some_and(|previous| previous != &flag.1)
+                        || context
+                            .root
+                            .as_ref()
+                            .is_some_and(|previous| previous != &pair)
+                    {
+                        expression.root_errors.insert(id.to_owned());
+                    }
+                    if !expression.root_ids.contains_key(id) {
+                        expression.context_bytes += id.len() + flag.1.len() + 32;
+                        expression.root_ids.insert(id.to_owned(), flag.1.clone());
+                    }
+                }
+                match expression.root_flags.insert(flag.clone(), root) {
+                    None => expression.context_bytes += flag.0.len() + flag.1.len() + 64,
+                    Some(previous) if previous != root => {
+                        expression.root_errors.insert(id.to_owned());
+                    }
+                    _ => {}
+                }
+                if root
+                    && !typed_attributes(field(&meta, b"resource")?)?.contains_key("service.name")
+                {
+                    expression.unknown_root_services.insert(id.to_owned());
+                }
+                let start = crate::tempo_search::integer(field(fields, b"timestamp_ns")?)?;
+                let end = crate::tempo_search::integer(field(fields, b"end_timestamp_ns")?)?;
+                let start = if new { start } else { context.start.min(start) };
+                let end = if new { end } else { context.end.max(end) };
+                // Keep the shared observer's complete work accounting without
+                // admitting its weaker same-trace root evidence. Disqualified
+                // rows still contribute to the complete trace duration.
+                let observed = if disqualified {
+                    crate::tempo_expression::TraceContext::default()
+                        .observe(fields, &mut expression.work)
+                } else {
+                    context.observe(fields, &mut expression.work)
+                };
+                match observed {
+                    Err(Error::Root) => {
+                        expression.root_errors.insert(id.to_owned());
+                    }
+                    result => result?,
+                }
+                context.start = start;
+                context.end = end;
+            } else {
+                let start = crate::tempo_search::integer(field(fields, b"timestamp_ns")?)?;
+                let end = crate::tempo_search::integer(field(fields, b"end_timestamp_ns")?)?;
+                context.start = if new { start } else { context.start.min(start) };
+                context.end = if new { end } else { context.end.max(end) };
+                expression.work += 1;
+                if expression.work > crate::tempo_expression::WORK_MAX {
+                    return Err(Error::Budget);
+                }
+            }
+            expression.context_bytes += context.retained_bytes().saturating_sub(previous);
+            if expression.context_bytes > 16_777_216 {
+                return Err(Error::Budget);
+            }
+            Ok(())
+        })?;
+        self.rows = self.rows.checked_add(rows).ok_or(Error::Rows)?;
+        if self.rows > 1_000_000 {
+            return Err(Error::Rows);
+        }
+        if expected.is_some_and(|expected| expected != rows) {
+            return Err(Error::Invalid);
+        }
+        expression.input_bytes += bytes.len();
+        expression.blobs.push((bytes, selected, rows));
+        Ok(rows)
+    }
+
+    fn finish_expression(&mut self) -> Res<()> {
+        let Some(mut expression) = self.expression.take() else {
+            return Ok(());
+        };
+        let trace_target = self.scope == "intrinsic"
+            && matches!(
+                self.key.as_str(),
+                "rootName"
+                    | "trace:rootName"
+                    | "rootServiceName"
+                    | "trace:rootService"
+                    | "trace:duration"
+            );
+        let static_target = self.scope == "intrinsic"
+            && matches!(
+                self.key.as_str(),
+                "" | "status"
+                    | "span:status"
+                    | "kind"
+                    | "span:kind"
+                    | "duration"
+                    | "span:duration"
+                    | "traceDuration"
+            );
+        let mut ids = BTreeSet::new();
+        for (blob, selected, expected) in std::mem::take(&mut expression.blobs) {
+            // Even unselected sources were validated and charged during capture;
+            // context is complete before the first projected parent is tested.
+            if !selected {
+                continue;
+            }
+            let rows = visit_expression_rows(blob, self.floor, |id, fields| {
+                let context = expression.contexts.get(id);
+                let matched = expression
+                    .program
+                    .evaluate_context(fields, None, &mut expression.work, false, context)?
+                    .matched;
+                if trace_target {
+                    if matched {
+                        ids.insert(id.to_owned());
+                    }
+                } else if !static_target {
+                    self.expression_match = Some(matched);
+                    let meta = object(field(fields, b"otlp")?)?;
+                    self.observe_fields(fields, &meta)?;
+                }
+                Ok(())
+            })?;
+            if rows != expected {
+                return Err(Error::Invalid);
+            }
+        }
+        if trace_target {
+            for id in ids {
+                self.charge(*expression.projection_work.get(&id).ok_or(Error::Invalid)?)?;
+                let context = expression.contexts.get(&id).ok_or(Error::Invalid)?;
+                let (typ, value) = if self.key == "trace:duration" {
+                    if expression.filtered {
+                        (
+                            "duration",
+                            crate::tempo_duration::format(context.duration() as u64),
+                        )
+                    } else {
+                        ("int", context.duration().to_string())
+                    }
+                } else {
+                    if expression.root_errors.contains(&id) {
+                        return Err(Error::Root);
+                    }
+                    if matches!(self.key.as_str(), "rootServiceName" | "trace:rootService")
+                        && expression.unknown_root_services.contains(&id)
+                    {
+                        return Err(Error::RootUnknown);
+                    }
+                    let root = context.root.as_ref().ok_or(Error::RootUnknown)?;
+                    (
+                        "string",
+                        if matches!(self.key.as_str(), "rootName" | "trace:rootName") {
+                            root.1.clone()
+                        } else {
+                            root.0.clone()
+                        },
+                    )
+                };
+                self.keep(typ.into(), value)?;
+            }
+        } else if static_target {
+            let values: &[&str] = match self.key.as_str() {
+                "" => INTRINSICS,
+                "status" | "span:status" => &["error", "ok", "unset"],
+                "kind" | "span:kind" => &[
+                    "client",
+                    "consumer",
+                    "internal",
+                    "producer",
+                    "server",
+                    "unspecified",
+                ],
+                _ => &[],
+            };
+            for value in values {
+                self.keep(
+                    if self.names { "intrinsic" } else { "keyword" }.into(),
+                    (*value).into(),
+                )?;
+            }
+        }
+        Ok(())
+    }
+
     fn observe(&mut self, id: &str, start: i64, end: i64, payload: &[u8]) -> Res<()> {
         let fields = crate::tempo_search::validate_row(id, start, end, payload)?;
         let metadata = field(&fields, b"otlp").map_err(|_| Error::Unknown)?;
@@ -267,12 +655,15 @@ impl State {
             return Err(Error::Unknown);
         }
         let metadata = object(metadata)?;
+        self.observe_fields(&fields, &metadata)
+    }
+    fn observe_fields(&mut self, fields: &RawFields<'_>, metadata: &RawFields<'_>) -> Res<()> {
         if self.scope == "intrinsic" {
-            return self.observe_intrinsic(&fields, &metadata);
+            return self.observe_intrinsic(fields, metadata);
         }
         let mut owners = Vec::new();
         for scope in scopes(&self.scope, self.names)? {
-            let raw = field(&metadata, scope_field(scope)?)?;
+            let raw = field(metadata, scope_field(scope)?)?;
             if matches!(*scope, "event" | "link") {
                 for owner in Parser::new(raw).raw_array().map_err(|_| Error::Invalid)? {
                     owners.push((*scope, owner));
@@ -287,14 +678,16 @@ impl State {
             let pairs = Parser::new(owner).raw_array().map_err(|_| Error::Invalid)?;
             self.charge(1 + pairs.len())?;
         }
-        let matched = self.matches_metadata(&metadata)?;
+        let matched = self.matches_metadata(metadata)?;
         // Tempo's filtered names include promoted-column hints from all visible
         // context, not just matching owners. ServiceName is a required column,
         // even when no original service.name attribute exists. Never use this
         // shortcut for values or unfiltered original-key discovery.
         for (scope, owner) in owners {
             if self.names
-                && (self.scope == "none" || !self.predicates.is_empty())
+                && (self.scope == "none"
+                    || !self.predicates.is_empty()
+                    || self.expression_match.is_some())
                 && scope == "resource"
             {
                 self.keep(scope.into(), "service.name".into())?;
@@ -313,7 +706,7 @@ impl State {
             let key = string(field(&pair, b"key")?)?;
             if self.names {
                 if matched
-                    || (!self.predicates.is_empty()
+                    || ((!self.predicates.is_empty() || self.expression_match.is_some())
                         && promoted_name(scope, &key, field(&pair, b"value")?)?)
                 {
                     self.keep(scope.into(), key)?;
@@ -348,6 +741,9 @@ impl State {
         Ok(())
     }
     fn matches_metadata(&self, meta: &RawFields<'_>) -> Res<bool> {
+        if let Some(matched) = self.expression_match {
+            return Ok(matched);
+        }
         if self.predicates.is_empty() {
             return Ok(true);
         }
@@ -367,6 +763,57 @@ impl State {
         Ok(())
     }
     fn observe_intrinsic(&mut self, fields: &RawFields<'_>, meta: &RawFields<'_>) -> Res<()> {
+        if self.key.starts_with("link:") {
+            self.charge(1)?;
+            for owner in Parser::new(field(meta, b"links")?)
+                .raw_array()
+                .map_err(|_| Error::Invalid)?
+            {
+                self.charge(
+                    1 + Parser::new(owner)
+                        .raw_array()
+                        .map_err(|_| Error::Invalid)?
+                        .len(),
+                )?;
+            }
+            if self.matches_metadata(meta)? {
+                let key = if self.key == "link:traceID" {
+                    b"trace_id".as_slice()
+                } else {
+                    b"span_id".as_slice()
+                };
+                for link in Parser::new(field(fields, b"links")?)
+                    .raw_array()
+                    .map_err(|_| Error::Invalid)?
+                {
+                    self.keep("string".into(), string(field(&object(link)?, key)?)?)?;
+                }
+            }
+            return Ok(());
+        }
+        if matches!(self.key.as_str(), "trace:id" | "span:id" | "span:parentID") {
+            self.charge(
+                1 + Parser::new(field(meta, b"attributes")?)
+                    .raw_array()
+                    .map_err(|_| Error::Invalid)?
+                    .len(),
+            )?;
+            if self.matches_metadata(meta)? {
+                let key = match self.key.as_str() {
+                    "trace:id" => b"trace_id".as_slice(),
+                    "span:id" => b"span_id".as_slice(),
+                    _ => b"parent_span_id".as_slice(),
+                };
+                let raw = field(fields, key)?;
+                let value = if raw == b"null" {
+                    "0000000000000000".into()
+                } else {
+                    string(raw)?
+                };
+                self.keep("string".into(), value)?;
+            }
+            return Ok(());
+        }
         if matches!(self.key.as_str(), "event:name" | "event:timeSinceStart") {
             let owners = Parser::new(field(meta, b"events")?)
                 .raw_array()
@@ -534,6 +981,9 @@ impl State {
     }
     fn scan(&mut self, blob: Binary<'_>) -> Res<usize> {
         let bytes = crate::erlang_bytes::from_binary(blob);
+        if self.expression.is_some() {
+            return self.capture_expression(bytes);
+        }
         let expected = if self.window.is_some() {
             let (selected, rows) = self.window_selection(bytes.clone())?;
             if !selected {
@@ -642,6 +1092,74 @@ impl State {
             out.extend(b"]}");
         }
     }
+}
+
+// Decode directly over the captured Erlang-owned bytes. No retained payload
+// copies or BEAM span expansion; every source's physical rows count once.
+fn visit_expression_rows(
+    bytes: bytes::Bytes,
+    floor: i64,
+    mut observe: impl FnMut(&str, &RawFields<'_>) -> Res<()>,
+) -> Res<usize> {
+    let builder = ParquetRecordBatchReaderBuilder::try_new(bytes).map_err(|_| Error::Invalid)?;
+    let expected = usize::try_from(builder.metadata().file_metadata().num_rows())
+        .map_err(|_| Error::Invalid)?;
+    if expected > 1_000_000 {
+        return Err(Error::Rows);
+    }
+    let reader = builder
+        .with_batch_size(1024)
+        .build()
+        .map_err(|_| Error::Invalid)?;
+    let mut rows = 0usize;
+    for batch in reader {
+        let batch = batch.map_err(|_| Error::Invalid)?;
+        let starts = batch
+            .column_by_name("timestamp_ns")
+            .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+            .ok_or(Error::Invalid)?;
+        let ends = batch
+            .column_by_name("end_timestamp_ns")
+            .and_then(|c| c.as_any().downcast_ref::<Int64Array>())
+            .ok_or(Error::Invalid)?;
+        let ids = batch
+            .column_by_name("trace_id")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
+            .ok_or(Error::Invalid)?;
+        let payloads = batch
+            .column_by_name("payload")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
+            .ok_or(Error::Invalid)?;
+        for i in 0..batch.num_rows() {
+            rows += 1;
+            if rows > expected
+                || starts.is_null(i)
+                || ends.is_null(i)
+                || ids.is_null(i)
+                || payloads.is_null(i)
+                || starts.value(i) < 0
+                || ends.value(i) < starts.value(i)
+            {
+                return Err(Error::Invalid);
+            }
+            if starts.value(i) >= floor {
+                let fields = crate::tempo_search::validate_row(
+                    ids.value(i),
+                    starts.value(i),
+                    ends.value(i),
+                    payloads.value(i).as_bytes(),
+                )?;
+                if field(&fields, b"otlp")? == b"null" {
+                    return Err(Error::Unknown);
+                }
+                observe(ids.value(i), &fields)?;
+            }
+        }
+    }
+    if rows != expected {
+        return Err(Error::Invalid);
+    }
+    Ok(rows)
 }
 
 #[cfg(test)]

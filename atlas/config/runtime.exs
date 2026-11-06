@@ -2,8 +2,10 @@ import Config
 
 alias Atlas.Config.DevInstance
 alias Atlas.Demo.Config, as: DemoConfig
+alias Atlas.Engineering.Errors.PulseMirror
 alias Atlas.Environments.Tuist
 alias Atlas.LLMs.ChatGPT
+alias Atlas.MCP.Proxy.StripeCallPolicy
 alias Atlas.Push.Config
 alias AtlasWeb.NativeLinks.Config, as: NativeLinksConfig
 alias Cloak.Ciphers.AES.GCM
@@ -731,6 +733,34 @@ case System.get_env("MCP_PROXY_SERVERS") do
               registration_url: "https://mcp.us.ovhcloud.com/oauth-proxy/register",
               scopes: ["all"],
               tool_allowlist: ["get-order-list", "get-order-infos", "get-order-status", "get-order-details-list"]
+            },
+            # Stripe's hosted MCP server, reached with each person's own Stripe
+            # login: Stripe's consent screen picks the accounts and sandboxes
+            # the session covers, so Atlas holds no Stripe key. Reserved for the
+            # people who run billing. Reads pass; `stripe_api_write` takes any
+            # write operation, so StripeCallPolicy judges each call: live-mode
+            # writes wait for the caller's approval of that exact call at
+            # /admin/mcps, test-mode writes run, and meter events are refused.
+            %{
+              name: "stripe",
+              url: "https://mcp.stripe.com",
+              auth_type: "oauth2",
+              authorization_url: "https://access.stripe.com/mcp/oauth2/authorize",
+              token_url: "https://access.stripe.com/mcp/oauth2/token",
+              registration_url: "https://access.stripe.com/mcp/oauth2/register",
+              scopes: ["mcp"],
+              authorization_params: %{"resource" => "https://mcp.stripe.com"},
+              allowed_user_emails: ["marek@tuist.dev", "pedro@tuist.dev"],
+              tool_allowlist: [
+                "list_available_accounts_or_orgs",
+                "get_stripe_account_info",
+                "stripe_api_search",
+                "stripe_api_details",
+                "stripe_api_read",
+                "search_stripe_documentation",
+                "stripe_api_write"
+              ],
+              call_policy: StripeCallPolicy
             }
           ] ++ pulse_servers
     end
@@ -768,6 +798,12 @@ config :atlas, :slack,
   bot_name: System.get_env("ATLAS_SLACK_BOT_NAME") || System.get_env("SLACK_COMPANY_BOT_NAME")
 
 config :atlas, :slack_agent, mcp_user_email: System.get_env("ATLAS_SLACK_AGENT_MCP_USER_EMAIL") || "pedro@tuist.dev"
+
+# No mirroring unless explicitly provisioned. This is independent of the SDK
+# DSN: the shared Atlas recorder also covers native LoggerHandler capture.
+if routes = System.get_env("ATLAS_PULSE_ERROR_ROUTES_JSON") do
+  config :atlas, PulseMirror, routes: Jason.decode!(routes)
+end
 
 # Sentry error reporting. Only configured when SENTRY_DSN is set so dev
 # and self-hosted boots don't try to ship events. SENTRY_RELEASE is
