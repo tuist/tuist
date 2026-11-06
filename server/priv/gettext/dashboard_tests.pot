@@ -2753,17 +2753,12 @@ msgstr ""
 msgid "%{selected} of %{requested} tests"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:139
-#, elixir-autogen, elixir-format
-msgid "A complete run of the requested scope is recent enough to be the baseline, but none of its tests recorded per-test coverage. Only XCTest tests in targets that link TestCoverageAttribution record it."
-msgstr ""
-
-#: lib/tuist_web/live/test_selection/components.ex:149
+#: lib/tuist_web/live/test_selection/components.ex:141
 #, elixir-autogen, elixir-format
 msgid "A file that can affect any test without showing up in coverage changed, such as a dependency pin or build settings."
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:169
+#: lib/tuist_web/live/test_selection/components.ex:161
 #, elixir-autogen, elixir-format
 msgid "Added"
 msgstr ""
@@ -2795,7 +2790,7 @@ msgstr ""
 msgid "Changed files it executed"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:124
+#: lib/tuist_web/live/test_selection/components.ex:123
 #, elixir-autogen, elixir-format
 msgid "Commit unknown"
 msgstr ""
@@ -2816,17 +2811,17 @@ msgstr ""
 msgid "Decision:"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:170
+#: lib/tuist_web/live/test_selection/components.ex:162
 #, elixir-autogen, elixir-format
 msgid "Deleted"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:122
+#: lib/tuist_web/live/test_selection/components.ex:121
 #, elixir-autogen, elixir-format
 msgid "Diff too large"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:123
+#: lib/tuist_web/live/test_selection/components.ex:122
 #, elixir-autogen, elixir-format
 msgid "Diff unavailable"
 msgstr ""
@@ -2870,7 +2865,7 @@ msgstr ""
 msgid "Hashing left no module to decide"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:120
+#: lib/tuist_web/live/test_selection/components.ex:119
 #, elixir-autogen, elixir-format
 msgid "History too shallow"
 msgstr ""
@@ -2900,7 +2895,7 @@ msgstr ""
 msgid "Matched path"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:171
+#: lib/tuist_web/live/test_selection/components.ex:163
 #, elixir-autogen, elixir-format
 msgid "Modified"
 msgstr ""
@@ -2910,12 +2905,12 @@ msgstr ""
 msgid "Modules (%{count})"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:155
+#: lib/tuist_web/live/test_selection/components.ex:147
 #, elixir-autogen, elixir-format
 msgid "More than 5,000 files changed since the baseline."
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:129
+#: lib/tuist_web/live/test_selection/components.ex:128
 #, elixir-autogen, elixir-format
 msgid "No ancestor of this commit has a complete run of the requested scope on this platform."
 msgstr ""
@@ -2923,11 +2918,6 @@ msgstr ""
 #: lib/tuist_web/live/test_selection/components.ex:117
 #, elixir-autogen, elixir-format
 msgid "No baseline"
-msgstr ""
-
-#: lib/tuist_web/live/test_selection/components.ex:119
-#, elixir-autogen, elixir-format
-msgid "No baseline evidence"
 msgstr ""
 
 #: lib/tuist_web/live/test_selection/run_tab.ex:609
@@ -3132,7 +3122,7 @@ msgstr ""
 msgid "Tests skipped"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:145
+#: lib/tuist_web/live/test_selection/components.ex:137
 #, elixir-autogen, elixir-format
 msgid "The CLI couldn't fetch enough history to diff against the baseline in time."
 msgstr ""
@@ -3142,7 +3132,7 @@ msgstr ""
 msgid "The baseline recorded no files for it"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:158
+#: lib/tuist_web/live/test_selection/components.ex:150
 #, elixir-autogen, elixir-format
 msgid "The changed files since the baseline couldn't be read."
 msgstr ""
@@ -3157,7 +3147,7 @@ msgstr ""
 msgid "The invocation requested no tests"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:135
+#: lib/tuist_web/live/test_selection/components.ex:134
 #, elixir-autogen, elixir-format
 msgid "The nearest baseline is more than 20 measured commits back."
 msgstr ""
@@ -3174,7 +3164,7 @@ msgstr ""
 msgid "Tracked"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:121
+#: lib/tuist_web/live/test_selection/components.ex:120
 #, elixir-autogen, elixir-format
 msgid "Tracked file changed"
 msgstr ""
@@ -3184,7 +3174,7 @@ msgstr ""
 msgid "Tracked files"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/components.ex:162
+#: lib/tuist_web/live/test_selection/components.ex:154
 #, elixir-autogen, elixir-format
 msgid "Tuist's commit history has neither the checked-out commit nor its parents, so it couldn't look for a baseline."
 msgstr ""

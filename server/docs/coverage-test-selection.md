@@ -266,6 +266,8 @@ There's no separate accuracy measurement. Default-branch runs are the safety net
 | &nbsp;&nbsp;Debug | Tuist operators only (`Accounts.tuist_operator?/1`): the rule trace (selected, skipped and verdict per rule, aborts highlighted) and the tracked files | `test_impact_runs`; the tracked files are `GitHistory.settings/1`'s `tracked_file_globs` |
 | Test case run page, Selective Testing tab (`TuistWeb.TestSelection.TestCaseRunTab`, `?tab=selective-testing`) | Why the test ran (rule, matched path), its shard, and the files the baseline's evidence says it executed, the changed ones first | The run's `test_impact_run_tests` row and the baseline's `coverage_files` evidence |
 
+Impact runs that fell back with `no_baseline_evidence`, a reason the server recorded before a baseline without test-scoped evidence became a regular one, read as no coverage selection everywhere: the run pages show the selective testing data a run without an impact run shows, and the Test Selection page and its analytics leave them out (`Selections.run_for_test_run/2` and `reported_runs`). Those runs ran exactly what hashing left and stored no decisions to show.
+
 ## Known limits
 
 - Evidence records what ran, so it can't see compile-time dependencies (a changed macro, a constant folded at compile time). Inside modules whose hash changed, rule 6 catches files no evidence includes, but not a file that some test executed and another depends on only at compile time.

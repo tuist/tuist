@@ -116,7 +116,6 @@ defmodule TuistWeb.TestSelection.Components do
   @doc "Why an impact run fell back to default selective testing."
   def fallback_label("no_baseline"), do: dgettext("dashboard_tests", "No baseline")
   def fallback_label("baseline_too_old"), do: dgettext("dashboard_tests", "Baseline too far back")
-  def fallback_label("no_baseline_evidence"), do: dgettext("dashboard_tests", "No baseline evidence")
   def fallback_label("history_unavailable"), do: dgettext("dashboard_tests", "History too shallow")
   def fallback_label("tracked_file_changed"), do: dgettext("dashboard_tests", "Tracked file changed")
   def fallback_label("diff_too_large"), do: dgettext("dashboard_tests", "Diff too large")
@@ -133,13 +132,6 @@ defmodule TuistWeb.TestSelection.Components do
 
   def fallback_description("baseline_too_old"),
     do: dgettext("dashboard_tests", "The nearest baseline is more than 20 measured commits back.")
-
-  def fallback_description("no_baseline_evidence"),
-    do:
-      dgettext(
-        "dashboard_tests",
-        "A complete run of the requested scope is recent enough to be the baseline, but none of its tests recorded per-test coverage. Only XCTest tests in targets that link TestCoverageAttribution record it."
-      )
 
   def fallback_description("history_unavailable"),
     do: dgettext("dashboard_tests", "The CLI couldn't fetch enough history to diff against the baseline in time.")

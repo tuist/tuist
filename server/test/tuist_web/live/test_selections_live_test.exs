@@ -470,6 +470,23 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "[data-part='test-selection-card']", "0 of 0 tests")
       refute has_element?(lv, "[data-part='test-selection-card']", "In skipped modules")
     end
+
+    test "reads a fallback the server no longer records as no coverage selection", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      %{test_run: test_run} =
+        selection(project, outcome: "fallback", reason: "no_baseline_evidence", baseline_sha: nil)
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+      {:ok, overview, _html} = live(conn, path)
+      {:ok, tab, _html} = live(conn, path <> "?tab=test-optimizations")
+
+      refute has_element?(overview, "[data-part='test-selection-card']")
+      refute has_element?(overview, "a[href*='tab=test-optimizations']")
+      refute has_element?(tab, "#test-selection-fallback")
+    end
   end
 
   describe "a test case run's Selective Testing tab" do

@@ -216,7 +216,7 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@has_selective_testing_data || @run.test_impact_run_id}
+      :if={@has_selective_testing_data || @selection_run || @selection_expired?}
       label={dgettext("dashboard_tests", "Selective Testing")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
@@ -1839,7 +1839,7 @@
   <div
     :if={
       @selected_tab == "test-optimizations" &&
-        (@has_selective_testing_data || @run.test_impact_run_id)
+        (@has_selective_testing_data || @selection_run || @selection_expired?)
     }
     data-part="selective-testing"
   >
