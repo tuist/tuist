@@ -454,6 +454,21 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "a[href*='tab=test-optimizations']", "Selective Testing")
       assert has_element?(lv, "[data-part='test-selection-card']", "Selected by coverage")
       assert has_element?(lv, "[data-part='test-selection-card'] a[href*='tab=test-optimizations']")
+      assert has_element?(lv, "[data-part='test-selection-card']", "1 of 4 tests")
+    end
+
+    test "counts no test on the overview's card for a run that ran every test", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      %{test_run: test_run} = selection(project, outcome: "fallback", reason: "no_baseline", baseline_sha: nil)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert has_element?(lv, "[data-part='test-selection-card']", "Run all: No baseline")
+      refute has_element?(lv, "[data-part='test-selection-card']", "0 of 0 tests")
+      refute has_element?(lv, "[data-part='test-selection-card']", "In skipped modules")
     end
   end
 

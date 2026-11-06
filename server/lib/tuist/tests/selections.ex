@@ -339,19 +339,6 @@ defmodule Tuist.Tests.Selections do
     end
   end
 
-  def run_for_test_run(project_id, test_run_id) when is_binary(test_run_id) do
-    id =
-      ClickHouseRepo.one(
-        from(t in Test,
-          where: t.project_id == ^project_id and t.id == ^test_run_id and not is_nil(t.test_impact_run_id),
-          select: t.test_impact_run_id,
-          limit: 1
-        )
-      )
-
-    run_for_test_run(project_id, %{test_impact_run_id: id})
-  end
-
   @doc """
   The diff an impact run used, or `nil` when it had no baseline, ran from a
   dirty checkout (whose diff isn't stored) or its diff expired.
@@ -419,63 +406,29 @@ defmodule Tuist.Tests.Selections do
 
   @doc """
   What an impact run's tests add up to: requested, selected and skipped
-  tests, the skipped tests' estimated duration from the baseline, the
-  selected tests that failed or never reported a result in `test_run_id`,
-  and the number of tests per decision and reason.
+  tests, the skipped tests' estimated duration from the baseline, and
+  whether `test_run_id` is there to report the selected tests' results.
   """
   def run_summary(%Run{} = run, test_run_id) do
-    selected_reasons =
-      from(t in selected_query(run), group_by: t.reason, select: %{reason: t.reason, count: count()})
-      |> ClickHouseRepo.all()
-      |> Enum.map(&%{decision: "selected", reason: &1.reason, count: to_integer(&1.count)})
-
-    unaffected = unaffected_count(run)
-
-    skipped_reasons =
-      if unaffected > 0, do: [%{decision: "skipped", reason: "unaffected", count: unaffected}], else: []
-
-    outcomes =
-      if is_nil(test_run_id) do
-        %{not_run: 0, failed: 0, reported: false}
-      else
-        row =
-          ClickHouseRepo.one(
-            from(t in selected_query(run),
-              left_join: o in subquery(outcomes_query(run.project_id, test_run_id)),
-              on: o.test_case_id == t.test_case_id,
-              select: %{
-                not_run: fragment("countIf(ifNull(?, '') = '')", o.status),
-                failed: fragment("countIf(? = 'failure')", o.status)
-              }
-            )
-          )
-
-        %{not_run: to_integer(row.not_run), failed: to_integer(row.failed), reported: true}
-      end
-
     skipped_duration =
-      if has_baseline?(run) do
-        run
-        |> skipped_queries()
-        |> Enum.sum_by(fn query ->
-          from(t in subquery(query), select: sum(t.duration)) |> ClickHouseRepo.one() |> to_integer()
-        end)
-      else
-        0
-      end
+      run
+      |> skipped_queries()
+      |> Enum.sum_by(fn query ->
+        from(t in subquery(query), select: sum(t.duration)) |> ClickHouseRepo.one() |> to_integer()
+      end)
 
-    Map.merge(outcomes, %{
+    %{
+      reported: not is_nil(test_run_id),
       requested: run.requested_count,
       selected: run.selected_count,
       skipped: run.skipped_count,
-      unaffected: unaffected,
+      unaffected: unaffected_count(run),
       module_skipped: module_skipped_count(run),
       skipped_modules: map_size(run.skipped_modules),
       modules: length(run.requested_modules) + map_size(run.skipped_modules),
       skip_rate: skip_rate(run),
-      skipped_duration: skipped_duration,
-      reasons: Enum.sort_by(selected_reasons ++ skipped_reasons, &{&1.decision != "selected", -&1.count, &1.reason})
-    })
+      skipped_duration: skipped_duration
+    }
   end
 
   @doc """
@@ -555,12 +508,7 @@ defmodule Tuist.Tests.Selections do
     end
   end
 
-  # A fallback decided no test: the requested modules' tests all ran.
-  defp skipped_queries(run) do
-    if fallback?(run),
-      do: [module_skipped_query(run)],
-      else: [unaffected_query(run), module_skipped_query(run)]
-  end
+  defp skipped_queries(run), do: for({true, branch} <- branches(run, [decision: "skipped"], [], nil), do: branch.())
 
   # The requested modules' baseline tests a fallback that found its baseline
   # ran, under its reason.
@@ -580,7 +528,7 @@ defmodule Tuist.Tests.Selections do
   end
 
   # The requested modules' baseline tests coverage didn't select.
-  defp unaffected_query(run, filters \\ []) do
+  defp unaffected_query(run, filters) do
     selected_ids = select(selected_query(run), [t], t.test_case_id)
 
     skipped_branch(
@@ -591,7 +539,7 @@ defmodule Tuist.Tests.Selections do
   end
 
   # The baseline tests of the modules selective testing skipped by hash.
-  defp module_skipped_query(run, filters \\ []) do
+  defp module_skipped_query(run, filters) do
     skipped_branch(
       from(b in subquery(baseline_tests_query(run, Map.keys(run.skipped_modules)))),
       filters,
@@ -651,8 +599,10 @@ defmodule Tuist.Tests.Selections do
       Keyword.get(opts, :reason) in [nil, "", "any", run.reason] and not is_integer(Keyword.get(opts, :shard))
   end
 
+  # A fallback that ran every test ran the modules hashing would have
+  # skipped too.
   defp skipped_branch?(run, opts, reason) do
-    has_baseline?(run) and Keyword.get(opts, :decision) in [nil, "", "any", "skipped"] and
+    has_baseline?(run) and not run_all?(run) and Keyword.get(opts, :decision) in [nil, "", "any", "skipped"] and
       Keyword.get(opts, :reason) in [nil, "", "any", reason] and
       not is_integer(Keyword.get(opts, :shard))
   end

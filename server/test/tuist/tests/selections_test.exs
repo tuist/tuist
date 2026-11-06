@@ -156,14 +156,13 @@ defmodule Tuist.Tests.SelectionsTest do
       assert {:error, :not_found} = Selections.get_run(project.id, UUIDv7.generate())
       assert {:error, :not_found} = Selections.get_run(project.id, "not-a-uuid")
       assert {:ok, %{id: ^id}} = Selections.run_for_test_run(project.id, test_run)
-      assert {:ok, %{id: ^id}} = Selections.run_for_test_run(project.id, test_run.id)
       assert {:error, :none} = Selections.run_for_test_run(project.id, %{test_impact_run_id: nil})
       assert {:error, :expired} = Selections.run_for_test_run(project.id, %{test_impact_run_id: UUIDv7.generate()})
     end
   end
 
   describe "run_summary/2" do
-    test "adds up the run's tests, those hashing skipped, the skipped tests' baseline duration and the selected tests that never reported",
+    test "adds up the run's tests, those hashing skipped and the skipped tests' baseline duration",
          %{project: project} do
       %{run: run, test_run: test_run} = run(project)
       summary = Selections.run_summary(run, test_run.id)
@@ -178,14 +177,7 @@ defmodule Tuist.Tests.SelectionsTest do
       assert summary.skip_rate == 75.0
       # The not-affected AuthTests and BillingTests, which hashing skipped.
       assert summary.skipped_duration == 1700
-      assert summary.not_run == 1
       assert summary.reported
-
-      assert summary.reasons == [
-               %{decision: "selected", reason: "impacted", count: 1},
-               %{decision: "selected", reason: "no_evidence", count: 1},
-               %{decision: "skipped", reason: "unaffected", count: 2}
-             ]
     end
   end
 
@@ -276,6 +268,25 @@ defmodule Tuist.Tests.SelectionsTest do
       assert Enum.all?(rows, &match?({:ok, _}, Ecto.UUID.cast(&1.test_case_id)))
       assert Enum.all?(rows, &(byte_size(&1.test_case_id) == 36))
       assert Selections.run_summary(run, test_run.id).skipped_duration == 1000
+    end
+  end
+
+  describe "a fallback that ran every test" do
+    test "lists no test, as hashing skipped none", %{project: project} do
+      %{run: run, test_run: test_run} =
+        run(project, outcome: "fallback", reason: "diff_too_large", selected: [], rule_trace: [])
+
+      [billing] =
+        Tuist.ClickHouseRepo.all(
+          Ecto.Query.from(c in Tuist.Tests.TestCaseRun,
+            where: c.project_id == ^project.id and c.module_name == "BillingTests",
+            select: c.test_case_id
+          )
+        )
+
+      assert {[], _meta} = Selections.run_tests(run, test_run.id)
+      assert {:error, :not_found} = Selections.get_run_test(run, test_run.id, billing)
+      assert Selections.run_summary(run, test_run.id).skipped_duration == 0
     end
   end
 

@@ -89,7 +89,7 @@ defmodule TuistWeb.TestCaseRunLive do
         )
       )
       |> assign_text_attachment_urls(test_case_run)
-      |> assign(:selection, TestCaseRunTab.load(project, test_case_run))
+      |> assign(:selection, TestCaseRunTab.load(project, test_run, test_case_run))
 
     {:ok, socket}
   end

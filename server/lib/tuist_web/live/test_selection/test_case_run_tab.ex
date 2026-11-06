@@ -21,11 +21,10 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
 
   @doc """
   The impact run the test case run's test run points to and the test's row
-  in it, or `nil` when there is none.
+  in it, or `nil` when there is none (or the test run wasn't found).
   """
-  def load(project, %{test_run_id: test_run_id, test_case_id: test_case_id})
-      when not is_nil(test_run_id) and not is_nil(test_case_id) do
-    with {:ok, run} <- Selections.run_for_test_run(project.id, test_run_id),
+  def load(project, %{id: test_run_id} = test_run, %{test_case_id: test_case_id}) when not is_nil(test_case_id) do
+    with {:ok, run} <- Selections.run_for_test_run(project.id, test_run),
          {:ok, test} <- Selections.get_run_test(run, test_run_id, test_case_id) do
       %{run: run, test: test}
     else
@@ -33,7 +32,7 @@ defmodule TuistWeb.TestSelection.TestCaseRunTab do
     end
   end
 
-  def load(_project, _test_case_run), do: nil
+  def load(_project, _test_run, _test_case_run), do: nil
 
   @doc """
   Loads the files the test executed in the baseline, once, and the page of
