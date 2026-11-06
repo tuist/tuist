@@ -121,6 +121,8 @@
             #expect(request.url?.lastPathComponent == "ship")
             #expect(body["head_sha"] as? String == "head")
             #expect(body["base_sha"] as? String == "base")
+            #expect(body["target_branch"] as? String == "develop")
+            #expect(body["mode"] as? String == "branch")
             #expect(body["request_id"] as? String == id.uuidString.lowercased())
         }
 

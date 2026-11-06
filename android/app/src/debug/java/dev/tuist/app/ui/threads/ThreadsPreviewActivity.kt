@@ -203,6 +203,8 @@ private fun sampleState(screen: String?): ThreadsState {
         "empty-models" -> base.copy(sheet = ThreadSheet.MODELS, models = emptyList())
         "loading" -> base.copy(sheet = ThreadSheet.NEW, models = emptyList(), catalogLoading = true)
         "conversation" -> base.copy(selected = sampleThread)
+        "interrupted" -> base.copy(selected = sampleThread.copy(status = "interrupted"))
+        "outcome-unknown" -> base.copy(selected = sampleThread.copy(status = "outcome_unknown"))
         "reconnecting" ->
             base.copy(selected = sampleThread.copy(status = "running"), reconnecting = true)
         "details" -> base.copy(selected = sampleThread, sheet = ThreadSheet.DETAILS)

@@ -442,6 +442,8 @@ constructor(
     private fun merge(old: ServerThread?, fresh: ServerThread?): ServerThread? {
         if (fresh == null || old?.id != fresh.id) return fresh
         if ((fresh.revision ?: 0) < (old.revision ?: 0)) return old
+        if (fresh.messages.none { incoming -> old.messages.any { it.id == incoming.id } })
+            return fresh
         val firstFresh = fresh.messages.mapNotNull { it.position }.minOrNull()
         val hasEarlier =
             firstFresh != null &&
@@ -459,4 +461,4 @@ constructor(
 }
 
 fun ServerThread.canMessage(): Boolean =
-    archiveStatus != "archived" && status in listOf("idle", "failed")
+    archiveStatus != "archived" && status in listOf("idle", "failed", "interrupted")

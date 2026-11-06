@@ -129,6 +129,7 @@ public struct ThreadClient {
         try await request(path: [id, "ship"], method: "POST", body: [
             "request_id": approval.requestID.uuidString.lowercased(),
             "head_sha": approval.headSHA, "base_sha": approval.baseSHA,
+            "target_branch": approval.targetBranch, "mode": approval.mode,
         ])
     }
 

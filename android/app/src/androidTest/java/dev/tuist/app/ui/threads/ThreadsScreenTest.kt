@@ -32,14 +32,35 @@ class ThreadsScreenTest {
     fun suggestionsOnlyFillTheComposerAndArchiveDisablesIt() {
         withPreview("conversation") {
             click("Show the changes")
-            assertTrue(find("Show the changes").any { it.isEditable })
+            eventually { find("Show the changes").any { it.isEditable } }
             click("Thread actions")
             click("Archive thread")
-            assertTrue(
+            eventually {
                 find("This thread is archived. Restore it from the menu to continue.").isNotEmpty()
-            )
-            assertTrue(find("Send message").isEmpty())
+            }
+            eventually { find("Send message").isEmpty() }
             capture("archived")
+        }
+    }
+
+    @Test
+    fun interruptedThreadsEnableFollowUpsButUnknownOutcomesStayBlocked() {
+        withPreview("interrupted") {
+            assertTrue(
+                nodes(instrumentation.uiAutomation.rootInActiveWindow)
+                    .single { it.isEditable }
+                    .isEnabled
+            )
+            click("Show the changes")
+            eventually { actionNode("Send message").isEnabled }
+        }
+        withPreview("outcome-unknown") {
+            assertFalse(
+                nodes(instrumentation.uiAutomation.rootInActiveWindow)
+                    .single { it.isEditable }
+                    .isEnabled
+            )
+            assertFalse(actionNode("Send message").isEnabled)
         }
     }
 
