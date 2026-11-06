@@ -602,10 +602,7 @@ defmodule Tuist.Threads do
     unknown = Repo.exists?(from c in ToolCall, where: c.run_id == ^run.id and c.status == "executing")
     uncheckpointed = Repo.exists?(from c in ToolCall, where: c.run_id == ^run.id and not c.checkpointed)
 
-    terminal =
-      access_revoked or unknown or uncheckpointed or run.kind == "ship" or run.attempt >= 3 or thread.status != :active or
-        not worker_access?(thread)
-
+    terminal = access_revoked or unknown or uncheckpointed or not retryable?(thread, run)
     status = recovery_status(run, unknown, terminal)
 
     run = Repo.update!(Changeset.change(run, status: status, session_id: nil))
@@ -619,6 +616,10 @@ defmodule Tuist.Threads do
     else
       insert_job!(run)
     end
+  end
+
+  defp retryable?(thread, run) do
+    run.kind != "ship" and run.attempt < 3 and thread.status == :active and worker_access?(thread)
   end
 
   defp recovery_status(%{kind: "ship"}, _unknown, _terminal), do: "outcome_unknown"

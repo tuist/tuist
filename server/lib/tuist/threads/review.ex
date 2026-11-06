@@ -97,22 +97,7 @@ defmodule Tuist.Threads.Review do
     entries = response["tree"]
     require!(is_list(entries) and length(entries) <= 50_000)
 
-    {flat, expected} =
-      Enum.reduce(entries, {%{}, %{"" => root_sha}}, fn entry, {flat, expected} ->
-        require!(is_map(entry))
-        path = entry["path"]
-        require!(safe_path?(path) and not Map.has_key?(flat, path) and sha?(entry["sha"]))
-        mode = entry["mode"]
-        type = entry["type"]
-
-        require!(
-          (mode in @blob_modes and type == "blob") or (mode == "040000" and type == "tree") or
-            (mode == "160000" and type == "commit")
-        )
-
-        expected = if type == "tree", do: Map.put(expected, path, entry["sha"]), else: expected
-        {Map.put(flat, path, {mode, entry["sha"]}), expected}
-      end)
+    {flat, expected} = Enum.reduce(entries, {%{}, %{"" => root_sha}}, &put_tree_entry!/2)
 
     # Explicit parent directories and every subtree hash are checked, not just
     # a leaf inventory which could omit a submodule or an empty tree.
@@ -124,6 +109,22 @@ defmodule Tuist.Threads.Review do
     grouped = Enum.group_by(flat, fn {path, _} -> parent(path) end)
     tree = build_base!("", grouped, expected, store)
     {tree, root_sha}
+  end
+
+  defp put_tree_entry!(entry, {flat, expected}) do
+    require!(is_map(entry))
+    path = entry["path"]
+    require!(safe_path?(path) and not Map.has_key?(flat, path) and sha?(entry["sha"]))
+    mode = entry["mode"]
+    type = entry["type"]
+
+    require!(
+      (mode in @blob_modes and type == "blob") or (mode == "040000" and type == "tree") or
+        (mode == "160000" and type == "commit")
+    )
+
+    expected = if type == "tree", do: Map.put(expected, path, entry["sha"]), else: expected
+    {Map.put(flat, path, {mode, entry["sha"]}), expected}
   end
 
   defp build_base!(path, grouped, expected, store) do
