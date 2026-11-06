@@ -735,63 +735,6 @@ defmodule Tuist.Tests.Selections do
   end
 
   @doc """
-  The shards of a plan that distributes an impact run: for each, the
-  selected tests planned on it and its estimated duration, and, when
-  `test_run_id` reported, how many ran, failed and never reported a result.
-  """
-  def run_shards(_run, nil, _test_run_id), do: []
-
-  def run_shards(%Run{} = run, %ShardPlan{} = plan, test_run_id) do
-    durations =
-      from(s in ShardPlanTestSuite,
-        where: s.project_id == ^plan.project_id and s.shard_plan_id == ^plan.id,
-        group_by: s.shard_index,
-        select: {s.shard_index, sum(s.estimated_duration_ms)}
-      )
-      |> ClickHouseRepo.all()
-      |> Map.new(fn {index, duration} -> {index, to_integer(duration)} end)
-
-    query =
-      from(t in selected_query(run),
-        join: s in subquery(shard_suites_query(plan)),
-        on: s.module_name == t.module_name and s.test_suite_name == t.suite_name
-      )
-
-    rows =
-      if is_nil(test_run_id) do
-        ClickHouseRepo.all(
-          from([t, s] in query,
-            group_by: s.shard_index,
-            select: %{shard_index: s.shard_index, planned: count(), ran: 0, failed: 0, not_run: 0}
-          )
-        )
-      else
-        ClickHouseRepo.all(
-          from([t, s] in query,
-            left_join: o in subquery(outcomes_query(run.project_id, test_run_id)),
-            on: o.test_case_id == t.test_case_id,
-            group_by: s.shard_index,
-            select: %{
-              shard_index: s.shard_index,
-              planned: count(),
-              ran: fragment("countIf(ifNull(?, '') != '')", o.status),
-              failed: fragment("countIf(? = 'failure')", o.status),
-              not_run: fragment("countIf(ifNull(?, '') = '')", o.status)
-            }
-          )
-        )
-      end
-
-    rows
-    |> Enum.map(fn row ->
-      row
-      |> Map.new(fn {key, value} -> {key, to_integer(value)} end)
-      |> Map.put(:estimated_duration, Map.get(durations, row.shard_index, 0))
-    end)
-    |> Enum.sort_by(& &1.shard_index)
-  end
-
-  @doc """
   An impact run's tests per module: requested, selected and skipped, the
   skipped tests' estimated duration and why the selected ones run, most
   selected first.

@@ -301,16 +301,11 @@ defmodule Tuist.Tests.SelectionsTest do
     end
   end
 
-  describe "run_shards/3 and run_targets/1" do
-    test "add up the run's tests per shard and per module", %{project: project} do
-      %{run: run, test_run: test_run, plan: plan} = run(project)
+  describe "run_targets/1" do
+    test "add up the run's tests per module", %{project: project} do
+      %{run: run, plan: plan} = run(project)
 
       assert Selections.shard_plan(run).id == plan.id
-
-      assert Selections.run_shards(run, plan, test_run.id) == [
-               %{shard_index: 0, planned: 1, estimated_duration: 400, ran: 1, failed: 0, not_run: 0},
-               %{shard_index: 1, planned: 1, estimated_duration: 400, ran: 0, failed: 0, not_run: 1}
-             ]
 
       assert [
                %{module_name: "SearchTests", requested: 2, selected: 2, skipped: 0},

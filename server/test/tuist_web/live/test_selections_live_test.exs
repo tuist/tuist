@@ -210,7 +210,8 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       {:ok, lv, _html} = live(conn, path <> "?tab=test-optimizations")
 
       assert has_element?(lv, "#widget-selection-selected", "1 / 4")
-      assert has_element?(lv, "#widget-selection-skipped", "3 / 4")
+      assert has_element?(lv, "#widget-selection-skipped", "3")
+      refute has_element?(lv, "#widget-selection-skipped", "3 / 4")
       assert has_element?(lv, "#widget-selection-skip-rate", "75.0%")
       assert has_element?(lv, "#widget-selection-skipped-modules", "1 / 3")
       refute has_element?(lv, "#widget-selection-not-affected")
@@ -273,11 +274,10 @@ defmodule TuistWeb.TestSelectionsLiveTest do
         |> Enum.map(&String.trim/1)
         |> Enum.filter(&(&1 =~ ~r/^(Tests|Modules|Changed files|Shards) \(|^Debug$/))
 
-      assert [tests, modules, files, shards, debug] = tabs
+      assert [tests, modules, files, debug] = tabs
       assert tests == "Tests (4)"
       assert modules =~ "Modules"
       assert files =~ "Changed files"
-      assert shards =~ "Shards"
       assert debug == "Debug"
 
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=files")
@@ -288,9 +288,6 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "#selection-modules-table", "AuthTests")
       assert has_element?(lv, "#selection-skipped-modules-table", "BillingTests")
       assert render(lv) =~ "Modules (3)"
-
-      {:ok, lv, _html} = live(conn, path <> "&selection-tab=shards")
-      assert has_element?(lv, "#selection-shards-table", "Shard 0")
 
       {:ok, lv, _html} = live(conn, path <> "&selection-tab=debug")
       refute has_element?(lv, "[data-part='selection-debug-card']", "Rules version")
