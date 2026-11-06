@@ -29,22 +29,29 @@ export TUIST_TOKEN=$(tuist auth token)
 
 ### Connect an environment {#managed-agents-connect}
 
-1. In the [Claude Console](https://platform.claude.com/environments), click **Create environment** and, under **Hosting**, select **Self-hosted**. Open the environment, click **Generate environment key**, and copy the environment's `env_…` ID and the key. See Anthropic's [self-hosted sandboxes](https://platform.claude.com/docs/en/managed-agents/self-hosted-sandboxes) guide for details.
-2. Connect it to your Tuist account:
+Connect from your account's **Settings → Integrations → Claude**, or from **Connect** on the Claude tile of the Sandboxes page. Tuist authenticates with Anthropic's [Workload Identity Federation](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation), so you never give it an Anthropic API key. You need the admin role in your Anthropic organization.
 
-   ```bash
-   curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments" \
-     -H "Authorization: Bearer $TUIST_TOKEN" -H "Content-Type: application/json" \
-     -d '{
-       "anthropic_environment_id": "env_...",
-       "environment_key": "<environment key>",
-       "anthropic_api_key": "<Anthropic API key>"
-     }'
-   ```
+1. **Trust Tuist.** Tuist shows your account's issuer URL and subject prefix. In the Claude Console, open [Workload identity](https://platform.claude.com/settings/workload-identity-federation), click **Connect workload**, choose **Custom OIDC**, and enter them with the scope `workspace:developer`. Add the service account the wizard creates to the workspace that should run the sessions.
+2. **Paste the IDs.** Paste the exchange snippet from the federation rule's page, or enter the organization, workspace, service account and rule IDs. None of them is a secret. Tuist exchanges a token right away to check the setup; if Anthropic rejects it, the Console's [authentication history](https://platform.claude.com/settings/workload-identity-federation?tab=history) shows why.
+3. **Create the environment.** Tuist creates a self-hosted environment in your workspace.
+4. **Paste the environment key.** Anthropic only generates environment keys in the Console: open the environment on the [Environments](https://platform.claude.com/environments) page, click **Generate environment key**, paste it into Tuist and choose the platform and shape of the environment's sandboxes. Tuist stores the key encrypted and never shows it again.
 
-   `anthropic_api_key` is optional. It lets you start sessions through Tuist's API, as described below. Tuist stores both keys encrypted and never returns them. To start sessions without giving Tuist an API key, see [Connect without an API key](#managed-agents-federation).
+Within a minute, Tuist starts serving the environment's sessions. See <.localized_link href="/guides/features/sandboxes#platforms">Linux and macOS</.localized_link> for the shapes.
 
-Within a minute, Tuist starts serving the environment's sessions. The environment runs on Linux unless you pass `"platform": "darwin"`. You can also pass `vcpus`, `memory_mb` and `workspace_gb` to change the shape of its sandboxes; see <.localized_link href="/guides/features/sandboxes#platforms">Linux and macOS</.localized_link>.
+#### With the API {#managed-agents-connect-api}
+
+To connect from automation, create a self-hosted environment in the [Claude Console](https://platform.claude.com/environments), generate its key, and send both to Tuist:
+
+```bash
+curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments" \
+  -H "Authorization: Bearer $TUIST_TOKEN" -H "Content-Type: application/json" \
+  -d '{
+    "anthropic_environment_id": "env_...",
+    "environment_key": "<environment key>"
+  }'
+```
+
+To start sessions through Tuist's API, also send either the four federation IDs (see [Connect without an API key](#managed-agents-federation)) or an `anthropic_api_key`. The environment runs on Linux unless you pass `"platform": "darwin"`; `vcpus`, `memory_mb` and `workspace_gb` change the shape of its sandboxes.
 
 ### Start a session {#managed-agents-sessions}
 
@@ -92,31 +99,13 @@ The repository is checked out in `/workspace` on Linux and `/Users/runner/work` 
 
 ### Connect without an API key {#managed-agents-federation}
 
-Instead of storing an Anthropic API key, Tuist can authenticate with Anthropic's [Workload Identity Federation](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation). Tuist then signs a short-lived token for the environment each time it calls Anthropic and exchanges it for an Anthropic access token that lasts a few minutes. Your account has its own OpenID Connect issuer at Tuist, so a federation rule that trusts it never accepts tokens Tuist signs for other accounts.
+The dashboard sets this up for you. Through the API, Tuist works the same way: every account has its own OpenID Connect issuer at Tuist, `https://tuist.dev/oidc/accounts/<account id>`, and signs a short-lived token for each call to Anthropic, which it exchanges for an Anthropic access token that lasts a few minutes. A federation rule that trusts your issuer never accepts tokens Tuist signs for other accounts.
 
-1. Connect the environment as described above, without `anthropic_api_key`, and note `federation_issuer_url` and `federation_subject` in the response. They look like `https://tuist.dev/oidc/accounts/123` and `account:123:agent-environment:456`.
-2. In the Claude Console, open [Workload identity](https://platform.claude.com/settings/workload-identity-federation), click **Connect workload** and select **Custom OIDC**:
-   - **Issuer URL**: the `federation_issuer_url`, with the default discovery JWKS source.
-   - **Subject**: the `federation_subject` to admit only this environment, or `account:123:*` (your account's prefix with a trailing `*`) to admit every environment of the account. Always set a subject.
-   - **Scope**: `workspace:developer`.
-3. Note the IDs the Console shows: your organization ID (a UUID, on the [Organization](https://platform.claude.com/settings/organization) page), the workspace (`wrkspc_…`), the service account (`svac_…`) and the federation rule (`fdrl_…`). None of them is a secret.
-4. Send the four IDs to Tuist:
-
-   ```bash
-   curl -X PATCH "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments/456" \
-     -H "Authorization: Bearer $TUIST_TOKEN" -H "Content-Type: application/json" \
-     -d '{
-       "anthropic_organization_id": "00000000-0000-0000-0000-000000000000",
-       "anthropic_workspace_id": "wrkspc_...",
-       "anthropic_service_account_id": "svac_...",
-       "anthropic_federation_rule_id": "fdrl_..."
-     }'
-   ```
-
-Starting a session through Tuist's agent-sessions API completes the Console's connection test. When an environment has both the four IDs and an API key, Tuist uses federation; you can then remove the key from the Claude Console. If Anthropic rejects the exchange, the agent-sessions API answers with an error, and the Console's [authentication history](https://platform.claude.com/settings/workload-identity-federation?tab=history) shows why.
+- Every agent environment response includes `federation_issuer_url` and `federation_subject` (`account:123:agent-environment:456`). In the Console's Custom OIDC wizard, use the issuer URL and either that exact subject, to admit only this environment, or `account:123:*` to admit every environment of the account. The dashboard's setup checks use the subject `account:123:setup`, which only the prefix admits. Use the scope `workspace:developer`.
+- Send the organization, workspace, service account and rule IDs as `anthropic_organization_id`, `anthropic_workspace_id`, `anthropic_service_account_id` and `anthropic_federation_rule_id`, on create or with `PATCH /agent-environments/{id}`. When an environment has both the IDs and an API key, Tuist uses federation.
 
 > [!NOTE]
-> Anthropic fetches the issuer's keys over HTTPS on port 443 from a public hostname. If your self-hosted Tuist server is not reachable from the internet, choose the **inline** JWKS source in the Console and paste the key set your server serves at `<federation_issuer_url>/jwks.json`. Paste it again whenever Tuist's signing key changes, which happens when the server's `TUIST_SECRET_KEY_TOKENS` (or, when it is unset, `TUIST_SECRET_KEY_BASE`) changes.
+> Anthropic fetches the issuer's keys over HTTPS on port 443 from a public hostname. If your self-hosted Tuist server is not reachable from the internet, choose the **inline** JWKS source in the Console and paste the key set your server serves at `<issuer>/jwks.json`. Paste it again whenever Tuist's signing key changes, which happens when the server's `TUIST_SECRET_KEY_TOKENS` (or, when it is unset, `TUIST_SECRET_KEY_BASE`) changes.
 
 ## Claude Code {#claude-code}
 

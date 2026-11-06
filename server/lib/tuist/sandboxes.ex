@@ -19,6 +19,8 @@ defmodule Tuist.Sandboxes do
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSessions
   alias Tuist.Sandboxes.AmpOrbs
+  alias Tuist.Sandboxes.Anthropic.ControlPlane
+  alias Tuist.Sandboxes.Anthropic.Federation
   alias Tuist.Sandboxes.Archives
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Concurrency
@@ -141,6 +143,23 @@ defmodule Tuist.Sandboxes do
     agent_environment
     |> AgentEnvironment.update_changeset(attrs)
     |> Repo.update()
+  end
+
+  @doc """
+  Creates a self-hosted Managed Agents environment named `name` in the
+  account's Anthropic organization, authenticated with a federated token
+  for `ids` (see `Tuist.Sandboxes.Anthropic.Federation.verify/2`), and
+  returns its `env_...` id. Its environment key can only be generated in
+  the Claude Console.
+  """
+  def create_anthropic_environment(%Account{id: account_id}, %{} = ids, name) when is_binary(name) do
+    with {:ok, token} <- Federation.verify(account_id, ids),
+         {:ok, %{"id" => id}} when is_binary(id) <- ControlPlane.create_environment({:bearer, token}, name) do
+      {:ok, id}
+    else
+      {:ok, body} -> {:error, {:malformed_response, body}}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   # ----- Agent sessions -----

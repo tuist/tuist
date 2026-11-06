@@ -112,6 +112,17 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
     |> reset_cached_agent()
   end
 
+  @doc """
+  Validates the four federation ids on their own, all required, for the
+  dashboard's connect flow, which checks them before the environment exists.
+  """
+  def federation_changeset(attrs) do
+    %__MODULE__{}
+    |> cast(attrs, @federation_fields)
+    |> validate_required(@federation_fields)
+    |> validate_federation_fields()
+  end
+
   def cache_agent_changeset(agent_environment, anthropic_agent_id) do
     change(agent_environment, anthropic_agent_id: anthropic_agent_id)
   end

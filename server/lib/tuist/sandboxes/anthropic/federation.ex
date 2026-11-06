@@ -75,19 +75,31 @@ defmodule Tuist.Sandboxes.Anthropic.Federation do
   end
 
   def federated?(%AgentEnvironment{} = agent_environment) do
-    Enum.all?(federation_ids(agent_environment), &(is_binary(&1) and &1 != ""))
+    agent_environment |> ids() |> Map.values() |> Enum.all?(&(is_binary(&1) and &1 != ""))
   end
+
+  @doc """
+  The subject Tuist signs with while an account connects Claude, before
+  the agent environment exists: the test exchange and creating the
+  self-hosted environment. A rule whose subject prefix is
+  `account:<id>:*` admits it as well as every environment of the account.
+  """
+  def setup_subject(account_id) when is_integer(account_id), do: "account:#{account_id}:setup"
 
   @doc """
   Signs a fresh identity token for the agent environment, with `iss` and
   `sub` taken from the environment's own account.
   """
   def sign(%AgentEnvironment{account_id: account_id} = agent_environment) when is_integer(account_id) do
+    sign(account_id, subject(agent_environment))
+  end
+
+  defp sign(account_id, subject) do
     now = DateTime.to_unix(Time.utc_now())
 
     claims = %{
       "iss" => issuer(account_id),
-      "sub" => subject(agent_environment),
+      "sub" => subject,
       "aud" => @audience,
       "jti" => UUIDv7.generate(),
       "iat" => now,
@@ -107,16 +119,31 @@ defmodule Tuist.Sandboxes.Anthropic.Federation do
   Returns `{:ok, %{token: token, expires_at: datetime}}`. A rejected
   exchange is `{:error, {:federation_rejected, %{status: status, message: message}}}`.
   """
-  def exchange(%AgentEnvironment{} = agent_environment) do
-    {:ok, assertion} = sign(agent_environment)
+  def exchange(%AgentEnvironment{account_id: account_id} = agent_environment) do
+    exchange(account_id, subject(agent_environment), ids(agent_environment))
+  end
+
+  @doc """
+  Exchanges a token signed with the account's setup subject for the given
+  ids (`organization_id`, `workspace_id`, `service_account_id`,
+  `federation_rule_id`), without caching it. Used to check the Console
+  setup before an environment exists, and completes the Console's
+  connection test.
+  """
+  def verify(account_id, %{} = ids) when is_integer(account_id) do
+    with {:ok, %{token: token}} <- exchange(account_id, setup_subject(account_id), ids), do: {:ok, token}
+  end
+
+  defp exchange(account_id, subject, ids) do
+    {:ok, assertion} = sign(account_id, subject)
 
     body = %{
       grant_type: @grant_type,
       assertion: assertion,
-      organization_id: agent_environment.anthropic_organization_id,
-      workspace_id: agent_environment.anthropic_workspace_id,
-      service_account_id: agent_environment.anthropic_service_account_id,
-      federation_rule_id: agent_environment.anthropic_federation_rule_id
+      organization_id: ids.organization_id,
+      workspace_id: ids.workspace_id,
+      service_account_id: ids.service_account_id,
+      federation_rule_id: ids.federation_rule_id
     }
 
     case Req.post(Environment.anthropic_api_url() <> "/v1/oauth/token", json: body, retry: false) do
@@ -133,6 +160,27 @@ defmodule Tuist.Sandboxes.Anthropic.Federation do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  @doc """
+  Picks the federation ids out of text a customer pastes, such as the
+  exchange snippet on a federation rule's page in the Claude Console.
+  Returns a map with the ids it found; missing ones are absent.
+  """
+  def parse_ids(text) when is_binary(text) do
+    [
+      organization_id: ~r/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
+      workspace_id: ~r/\bwrkspc_[A-Za-z0-9_-]+/,
+      service_account_id: ~r/\bsvac_[A-Za-z0-9_-]+/,
+      federation_rule_id: ~r/\bfdrl_[A-Za-z0-9_-]+/
+    ]
+    |> Enum.flat_map(fn {key, pattern} ->
+      case Regex.run(pattern, text) do
+        [match] -> [{key, match}]
+        nil -> []
+      end
+    end)
+    |> Map.new()
   end
 
   @doc """
@@ -168,16 +216,20 @@ defmodule Tuist.Sandboxes.Anthropic.Federation do
   # leaves the replica's memory. The ids are part of the key so that changing
   # them on the environment stops using a token minted for the previous rule.
   defp cache_key(%AgentEnvironment{id: id, account_id: account_id} = agent_environment) do
-    ["anthropic_federation", account_id, id | federation_ids(agent_environment)]
+    ids = ids(agent_environment)
+
+    ["anthropic_federation", account_id, id, ids.organization_id, ids.workspace_id] ++
+      [ids.service_account_id, ids.federation_rule_id]
   end
 
-  defp federation_ids(%AgentEnvironment{} = agent_environment) do
-    [
-      agent_environment.anthropic_organization_id,
-      agent_environment.anthropic_workspace_id,
-      agent_environment.anthropic_service_account_id,
-      agent_environment.anthropic_federation_rule_id
-    ]
+  @doc "The federation ids of an agent environment, in the shape `verify/2` takes."
+  def ids(%AgentEnvironment{} = agent_environment) do
+    %{
+      organization_id: agent_environment.anthropic_organization_id,
+      workspace_id: agent_environment.anthropic_workspace_id,
+      service_account_id: agent_environment.anthropic_service_account_id,
+      federation_rule_id: agent_environment.anthropic_federation_rule_id
+    }
   end
 
   defp error_message(%{"error" => %{"message" => message}}) when is_binary(message), do: message

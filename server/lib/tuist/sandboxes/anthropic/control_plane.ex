@@ -38,6 +38,17 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlane do
   end
 
   @doc """
+  Creates a self-hosted environment named `name`. Its environment key can
+  only be generated in the Claude Console.
+  """
+  def create_environment(credential, name) when is_binary(name) do
+    credential
+    |> request()
+    |> Req.post(url: "/v1/environments", json: %{name: name, config: %{type: "self_hosted"}})
+    |> handle_response()
+  end
+
+  @doc """
   Creates a session. `attrs` takes `agent`, `environment_id`, and
   optionally `title`, `metadata` (a string map), `initial_events` and
   `budget_cents`, which becomes a USD list-cost limit.

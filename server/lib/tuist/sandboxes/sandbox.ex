@@ -25,6 +25,7 @@ defmodule Tuist.Sandboxes.Sandbox do
   # list is short and matches the nodes' ALLOWED_SHAPES (chart
   # `sandboxes.allowedShapes`).
   @shapes [{2, 4096}, {4, 8192}, {8, 16_384}]
+  @darwin_shapes [{8, 8192}, {8, 16_384}, {8, 24_576}]
   @max_workspace_gb 100
 
   @primary_key {:id, :binary_id, autogenerate: true}
@@ -69,6 +70,8 @@ defmodule Tuist.Sandboxes.Sandbox do
 
   def states, do: @states
   def shapes, do: @shapes
+  def shapes(:darwin), do: @darwin_shapes
+  def shapes(_platform), do: @shapes
   def max_workspace_gb, do: @max_workspace_gb
 
   @doc """
@@ -80,7 +83,7 @@ defmodule Tuist.Sandboxes.Sandbox do
     vcpus = get_field(changeset, :vcpus)
     memory_mb = get_field(changeset, :memory_mb)
 
-    shapes = if get_field(changeset, :platform) == :darwin, do: [{8, 8192}, {8, 16_384}, {8, 24_576}], else: @shapes
+    shapes = shapes(get_field(changeset, :platform))
 
     changeset =
       if is_nil(vcpus) or is_nil(memory_mb) or {vcpus, memory_mb} in shapes do

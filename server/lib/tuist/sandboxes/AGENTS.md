@@ -118,7 +118,15 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   token-signing secret with its own purpose label
   (`AgentAuthSigningKey.derived_jwk/1`); rotation is in the moduledoc. The
   work queue (`Anthropic.Client`) still uses the environment key: whether
-  federated tokens work on the environments work endpoints is untested. `list_events` fetches one page (`limit`, `order`, `page`,
+  federated tokens work on the environments work endpoints is untested.
+- Connecting from the dashboard (`TuistWeb.Components.ClaudeIntegration`,
+  Settings → Integrations): the four ids are checked with
+  `Federation.verify/2` and the self-hosted environment is created with
+  `Sandboxes.create_anthropic_environment/3` before any agent environment
+  row exists, so both sign with the setup subject `account:<id>:setup`
+  (admitted by the recommended `account:<id>:*` prefix). The environment
+  key, which only the Console generates, goes from the last form straight
+  into the row and never into socket assigns. `list_events` fetches one page (`limit`, `order`, `page`,
   `created_at_gte` / `created_at_gt`) and returns `%{data, next_page}`.
   Non-2xx answers become `{:error, %{status, message}}`.
 - `Tuist.Sandboxes.Anthropic.Supervisor`: task supervisor + dynamic

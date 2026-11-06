@@ -524,3 +524,158 @@
     gap: var(--noora-spacing-4);
   }
 }
+
+#integrations > [data-part="claude-card-section"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  &[hidden] {
+    display: none;
+  }
+
+  & > [data-part="header-row"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-8);
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      min-width: 0;
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      flex-shrink: 0;
+      gap: var(--noora-spacing-4);
+    }
+  }
+
+  & > [data-part="claude-environments"] {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding: 0;
+    list-style: none;
+
+    & > [data-part="claude-environment"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+      border-bottom: 1px solid var(--noora-surface-border-primary);
+      padding-block: var(--noora-spacing-5);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+      & > [data-part="name"] {
+        color: var(--noora-surface-label-primary);
+        font-weight: var(--noora-font-weight-medium);
+      }
+
+      & > code {
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        font-family: "Geist Mono", monospace;
+      }
+
+      & > [data-part="meta"] {
+        flex-grow: 1;
+      }
+
+      &:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+    }
+  }
+}
+
+#connect-claude-modal > [data-part="positioner"] > [data-part="content"] {
+  width: min(600px, 92vw);
+}
+
+#connect-claude-modal [data-part="claude-wizard"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-5);
+  padding: var(--noora-spacing-6) var(--noora-spacing-4);
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+  & > [data-part="step-indicator"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & .noora-link-button {
+    align-self: flex-start;
+  }
+
+  & > [data-part="step"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+
+    & p {
+      margin: 0;
+    }
+
+    & > .noora-alert {
+      align-self: flex-start;
+    }
+
+    & > [data-part="actions"] {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--noora-spacing-4);
+    }
+  }
+
+  & [data-part="copy-row"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="copy-label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    }
+  }
+
+  & [data-part="read-only-value"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-tertiary);
+    padding-inline: var(--noora-spacing-5) var(--noora-spacing-3);
+    padding-block: var(--noora-spacing-3);
+    min-width: 0;
+
+    & > code {
+      flex-grow: 1;
+      overflow: hidden;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      font-family: "Geist Mono", monospace;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
