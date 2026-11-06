@@ -1,6 +1,9 @@
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "%@ simulator" = "Symulator %@";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"AI subscriptions" = "Subskrypcje AI";
+
 /* TuistAuthentication/AuthenticationService.swift */
 "Access token or refresh token missing from response" = "Brak tokenu dostępu lub tokenu odświeżania w odpowiedzi";
 
@@ -32,10 +35,10 @@
 "Apps in" = "Aplikacje w";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Are you sure you want to delete this preview? This action cannot be undone." = "Czy na pewno chcesz usunąć ten podgląd? Tej operacji nie można cofnąć.";
+"Are you sure you want to delete this preview? This action cannot be undone." = "Czy na pewno chcesz usunąć ten podgląd? Tej akcji nie można cofnąć.";
 
 /* TuistProfile/ProfileView.swift */
-"Are you sure you want to delete your account? This action cannot be undone." = "Czy na pewno chcesz usunąć swoje konto? Tej operacji nie można cofnąć.";
+"Are you sure you want to delete your account? This action cannot be undone." = "Czy na pewno chcesz usunąć swoje konto? Tej akcji nie można cofnąć.";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Authorization code not found" = "Nie znaleziono kodu autoryzacyjnego";
@@ -46,7 +49,7 @@
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Bundle identifier" = "Identyfikator pakietu";
 
-/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/AISubscriptionsSection.swift, TuistProfile/ProfileView.swift */
 "Cancel" = "Anuluj";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
@@ -55,8 +58,23 @@
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Commit SHA" = "SHA commita";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect" = "Połącz";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect ChatGPT" = "Połącz z ChatGPT";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect Claude" = "Połącz z Claude";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features." = "Połącz swoje osobiste subskrypcje Claude i ChatGPT, aby korzystać z nich w funkcjach AI Tuist.";
+
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Connected" = "Połączono";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Copy code" = "Skopiuj kod";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Copy identifier" = "Skopiuj identyfikator";
@@ -71,10 +89,10 @@
 "Could not find app bundle in the downloaded archive" = "Nie można znaleźć pakietu aplikacji w pobranym archiwum";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "Nie udało się zainstalować aplikacji dla %@, ponieważ nie zawiera ona żadnych prawidłowych kompilacji aplikacji.";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "Nie można zainstalować aplikacji dla %@, ponieważ nie zawiera ona żadnych prawidłowych kompilacji.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "Nie udało się zainstalować aplikacji dla %@. Platforma dla %@ to %@, a aplikacja obsługuje tylko następujące platformy: %@";
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "Nie można zainstalować aplikacji dla %@. Platforma %@ to %@, a aplikacja obsługuje tylko następujące platformy: %@";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Created at" = "Utworzono";
@@ -103,14 +121,23 @@
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Devices" = "Urządzenia";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect" = "Odłącz";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect subscription" = "Anuluj subskrypcję";
+
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
-"Disconnected" = "Rozłączono";
+"Disconnected" = "Odłączono";
 
 /* TuistProfile/ProfileView.swift */
 "Email" = "E-mail";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
 "Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "Wprowadź prawidłowy adres URL serwera HTTPS bez danych logowania, zapytania ani fragmentu.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Enter the code on the OpenAI sign-in page. This screen closes once you approve it." = "Wpisz kod na stronie logowania OpenAI. Ten ekran zamknie się po zatwierdzeniu.";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "Błąd";
@@ -122,7 +149,7 @@
 "Get help" = "Uzyskaj pomoc";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"Install latest previews with one click." = "Zainstaluj najnowsze wersje podglądowe jednym kliknięciem.";
+"Install latest previews with one click." = "Instaluj najnowsze wersje testowe jednym kliknięciem.";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "Installation failed" = "Instalacja nie powiodła się";
@@ -134,7 +161,7 @@
 "Installed %@@%@" = "Zainstalowano %@@%@";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installing preview" = "Instalowanie wersji podglądowej";
+"Installing preview" = "Instalowanie wersji testowej";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Invalid callback URL received" = "Otrzymano nieprawidłowy adres URL wywołania zwrotnego";
@@ -167,10 +194,13 @@
 "No previews found" = "Nie znaleziono podglądów";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews match your filters" = "Brak podglądów spełniających kryteria filtrów";
+"No previews match your filters" = "Żadne podglądy nie pasują do filtrów";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Ok" = "OK";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Open the OpenAI sign-in page" = "Otwórz stronę logowania OpenAI";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Other devices" = "Inne urządzenia";
@@ -191,10 +221,10 @@
 "Profile" = "Profil";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your previews." = "Pociągnij w dół, aby odświeżyć podglądy.";
+"Pull down to refresh your previews." = "Przeciągnij w dół, aby odświeżyć podglądy.";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your projects." = "Pociągnij w dół, aby odświeżyć projekty.";
+"Pull down to refresh your projects." = "Przeciągnij w dół, aby odświeżyć projekty.";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Quit Tuist" = "Zamknij Tuist";
@@ -208,14 +238,17 @@
 /* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
 "Run" = "Uruchom";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Run claude setup-token in a terminal and paste the token it prints." = "Uruchom polecenie claude setup-token w terminalu i wklej wyświetlony token.";
+
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Search" = "Szukaj";
 
 /* TuistOnboarding/SelfHostedServerAlert.swift */
-"Self-hosted" = "Self-hosted";
+"Self-hosted" = "Własna infrastruktura";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
-"Self-hosted server" = "Serwer self-hosted";
+"Self-hosted server" = "Serwer na własnej infrastrukturze";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Share logs" = "Udostępnij logi";
@@ -224,7 +257,7 @@
 "Sign in" = "Zaloguj się";
 
 /* TuistOnboarding/LogInView.swift */
-"Sign in to access your projects and\ncollaborate with your team" = "Zaloguj się, aby uzyskać dostęp do swoich projektów i współpracować z zespołem";
+"Sign in to access your projects and\ncollaborate with your team" = "Zaloguj się, aby uzyskać dostęp do projektów\ni współpracować z zespołem";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
 "Sign in to run previews" = "Zaloguj się, aby uruchamiać podglądy";
@@ -247,6 +280,9 @@
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Simulators" = "Symulatory";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Subscription token" = "Token subskrypcji";
+
 /* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
 "Supported platforms" = "Obsługiwane platformy";
 
@@ -254,34 +290,37 @@
 "Terms of Service" = "Warunki korzystania z usługi";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"The app preview %@ was not found." = "Nie znaleziono podglądu aplikacji %@.";
+"The app preview %@ was not found." = "Podgląd aplikacji %@ nie został znaleziony.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The latest preview for %@ was not found. Has any preview been published?" = "Nie znaleziono najnowszego podglądu dla %@. Czy opublikowano jakikolwiek podgląd?";
+"The latest preview for %@ was not found. Has any preview been published?" = "Najnowszy podgląd dla %@ nie został znaleziony. Czy opublikowano jakikolwiek podgląd?";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "The preview %@ does not have a package name set." = "Podgląd %@ nie ma ustawionej nazwy pakietu.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"The preview deeplink %@ is invalid." = "Link bezpośredni do podglądu %@ jest nieprawidłowy.";
+"The preview deeplink %@ is invalid." = "Link bezpośredni podglądu %@ jest nieprawidłowy.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
 "The server returned a preview page that did not advance. Update your server or try again." = "Serwer zwrócił stronę podglądu, która nie uległa aktualizacji. Zaktualizuj swój serwer lub spróbuj ponownie.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"The sign-in expired. Close this screen and connect again." = "Sesja logowania wygasła. Zamknij ten ekran i połącz się ponownie.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
 "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "Ten serwer nie obsługuje filtrowania podglądów według ścieżki. Zaktualizuj swój samodzielnie hostowany serwer Tuist lub wybierz Wszystkie ścieżki.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "Ten serwer nie obsługuje wyszukiwania podglądów. Zaktualizuj swój samodzielnie hostowany serwer Tuist lub wyczyść wyszukiwanie.";
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "Ten serwer nie obsługuje wyszukiwania podglądów. Zaktualizuj swój samodzielnie hostowany serwer Tuist lub wyczyść wyniki wyszukiwania.";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
 "This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "Ten serwer nie obsługuje logowania z aplikacji Tuist. Poproś administratora o jego aktualizację.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"To run a preview, you must have a simulator selected." = "Aby uruchomić podgląd, musisz mieć wybrany symulator.";
+"To run a preview, you must have a simulator selected." = "Aby uruchomić podgląd, musisz wybrać symulator.";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Token exchange failed with status code: %lld" = "Wymiana tokena nie powiodła się z kodem statusu: %lld";
+"Token exchange failed with status code: %lld" = "Wymiana tokena nie powiodła się z kodem stanu: %lld";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Track" = "Ścieżka";
@@ -290,7 +329,13 @@
 "Tracks" = "Ścieżki";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Try a different search or select another track." = "Spróbuj wyszukać coś innego lub wybierz inną ścieżkę.";
+"Try a different search or select another track." = "Spróbuj innego wyszukiwania lub wybierz inną ścieżkę.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Tuist will delete the saved %@ credentials." = "Tuist usunie zapisane dane logowania dla %@.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Unavailable" = "Niedostępne";
 
 /* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
 "Unknown" = "Nieznane";
@@ -299,13 +344,144 @@
 "Unpin" = "Odepnij";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Update your self-hosted Tuist server to select a track." = "Zaktualizuj swój samodzielnie hostowany serwer Tuist, aby wybrać ścieżkę.";
+"Update your self-hosted Tuist server to select a track." = "Zaktualizuj swój self-hosted serwer Tuist, aby wybrać ścieżkę.";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
 "Use the root address of your Tuist server" = "Użyj głównego adresu swojego serwera Tuist";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
-"Welcome to Tuist" = "Witamy w Tuist";
+"Welcome to Tuist" = "Witaj w Tuist";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "or" = "lub";
+
+/* TuistApp/AccountHomeView.swift, TuistApp/ThreadsPreview.swift, TuistApp/ThreadConversationView.swift */
+"Account" = "Konto";
+"Accounts" = "Konta";
+"Active" = "Aktywne";
+"Archived" = "Zarchiwizowane";
+"Archive thread" = "Archiwizuj wątek";
+"Archive this thread?" = "Czy zarchiwizować ten wątek?";
+"Ask Tuist a question or choose a repository to work on." = "Zadaj pytanie Tuist lub wybierz repozytorium do pracy.";
+"Base branch" = "Gałąź bazowa";
+"Changes" = "Zmiany";
+"Close" = "Zamknij";
+"Close new thread" = "Zamknij nowy wątek";
+"Conversation actions" = "Akcje konwersacji";
+"Copy message" = "Kopiuj wiadomość";
+"Create preview thread" = "Utwórz wątek podglądu";
+"Design preview · Sample accounts" = "Podgląd projektu · Przykładowe konta";
+"Design preview · Sample builds" = "Podgląd projektu · Przykładowe kompilacje";
+"Design preview · Sample conversation" = "Podgląd projektu · Przykładowa konwersacja";
+"Design preview · Sample data" = "Podgląd projektu · Przykładowe dane";
+"Design preview · Sample threads and people" = "Podgląd projektu · Przykładowe wątki i osoby";
+"Design preview · Starting creates a sample thread, not a running environment." = "Podgląd projektu · Uruchomienie tworzy przykładowy wątek, a nie środowisko uruchomieniowe.";
+"Done" = "Gotowe";
+"Each repository thread gets its own worktree and branch. The original checkout is not edited." = "Każdy wątek repozytorium otrzymuje własny worktree i gałąź. Oryginalny checkout nie jest modyfikowany.";
+"Environment" = "Środowisko";
+"Goal" = "Cel";
+"Hide keyboard" = "Ukryj klawiaturę";
+"Illustrative diff · Not a live repository change" = "Ilustracyjne różnice · Nie jest to zmiana w żywym repozytorium";
+"In progress" = "W toku";
+"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "Zaproszenie użytkownika %@ udostępnia wszystkie istniejące wiadomości, wyniki narzędzi i przyszłe odpowiedzi. Ten podgląd nie wysyła żadnych zaproszeń ani powiadomień.";
+"Latest builds" = "Najnowsze kompilacje";
+"Latest message" = "Ostatnia wiadomość";
+"Layout preview" = "Podgląd układu";
+"Linux" = "Linux";
+"Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only." = "Wspomnij kogoś w wiadomości, aby go zaprosić. Zaproszenie udostępnia istniejącą historię. @Tuist prosi bota o działanie. Tylko przykładowe osoby.";
+"Message…" = "Wiadomość…";
+"Message Tuist…" = "Wyślij wiadomość do Tuist…";
+"Message, or ask @Tuist…" = "Napisz lub wspomnij @Tuist…";
+"New thread" = "Nowy wątek";
+"No account is signed in. These screens use sample data." = "Brak zalogowanego konta. Te ekrany używają danych przykładowych.";
+"Only you" = "Tylko Ty";
+"Original response" = "Oryginalna odpowiedź";
+"People" = "Osoby";
+"Previous builds" = "Poprzednie kompilacje";
+"Private thread" = "Prywatny wątek";
+"Private · Design preview · No work runs" = "Prywatne · Podgląd projektu · Brak uruchomień";
+"Private · Saved to your account" = "Prywatne · Zapisano na Twoim koncie";
+"Private · Threads are saved to your account" = "Prywatne · Wątki są zapisywane na Twoim koncie";
+"Prompt" = "Prompt";
+"Prompts" = "Prompty";
+"Provider" = "Dostawca";
+"Recent" = "Ostatnie";
+"Reconnect" = "Połącz ponownie";
+"Repositories" = "Repozytoria";
+"Repository" = "Repozytorium";
+"Resources" = "Zasoby";
+"Restore thread" = "Przywróć wątek";
+"Review changes" = "Przejrzyj zmiany";
+"Repositories available to this account." = "Repozytoria dostępne dla tego konta.";
+"Sample repositories · Design preview" = "Przykładowe repozytoria · Podgląd projektu";
+"Search projects" = "Szukaj projektów";
+"Search repositories" = "Szukaj repozytoriów";
+"Select project" = "Wybierz projekt";
+"Send" = "Wyślij";
+"Share preview and send" = "Udostępnij podgląd i wyślij";
+"Share the conversation history?" = "Udostępnić historię rozmowy?";
+"Shared conversation" = "Współdzielona rozmowa";
+"Shared with 2 people" = "Udostępniono 2 osobom";
+"Sign out of Tuist?" = "Wylogować się z Tuist?";
+"Signing out of this app does not stop running threads." = "Wylogowanie z tej aplikacji nie zatrzymuje działających wątków.";
+"Start privately. Inviting someone would share the existing conversation with them." = "Rozpocznij prywatnie. Zaproszenie kogoś udostępni mu istniejącą rozmowę.";
+"Start thread" = "Rozpocznij wątek";
+"Start with a goal" = "Zacznij od celu";
+"Switch account" = "Przełącz konto";
+"The conversation stays available in Archived." = "Rozmowa pozostaje dostępna w Archiwum.";
+"The server owns the thread; only tools run in the environment. Repository threads have their own worktrees." = "Serwer zarządza wątkiem; w środowisku uruchamiane są tylko narzędzia. Wątki repozytorium mają własne drzewa robocze.";
+"Thread details" = "Szczegóły wątku";
+"Thread settings" = "Ustawienia wątku";
+"Threads" = "Wątki";
+"Tool actions" = "Akcje narzędzi";
+"Tool environment" = "Środowisko narzędzi";
+"Tool outcome unknown. Nothing will be retried automatically." = "Nieznany wynik działania narzędzia. Nic nie zostanie automatycznie ponowione.";
+"Tool provider" = "Dostawca narzędzi";
+"Tool result" = "Wynik działania narzędzia";
+"Try again" = "Spróbuj ponownie";
+"Tuist is working…" = "Tuist pracuje…";
+"What would you like Tuist to do?" = "Co chciałbyś, aby Tuist zrobił?";
+"Worktree branch" = "Gałąź worktree";
+"You" = "Ty";
+"macOS" = "macOS";
+"Adds this suggestion to your draft without sending." = "Dodaje tę sugestię do szkicu bez wysyłania.";
+"Connection lost. Reconnecting…" = "Utracono połączenie. Ponowne łączenie…";
+"Needs attention" = "Wymaga uwagi";
+"Outcome unknown" = "Nieznany wynik";
+"Preview" = "Podgląd";
+"Queued" = "W kolejce";
+"Ready to review" = "Gotowe do przeglądu";
+"Running" = "Uruchamianie";
+"Load earlier messages" = "Załaduj wcześniejsze wiadomości";
+"Load more threads" = "Załaduj więcej wątków";
+"No repository" = "Brak repozytorium";
+"Private threads only" = "Tylko prywatne wątki";
+"Ship" = "Wdrażaj";
+"Approve and ship" = "Zatwierdź i wdrażaj";
+"Target branch" = "Gałąź docelowa";
+"Mode" = "Tryb";
+"Base" = "Baza";
+"Head" = "Nagłówek";
+"Shipping follows repository policy. Approving queues this exact reviewed change." = "Wysyłka jest zgodna z polityką repozytorium. Zatwierdzenie umieszcza w kolejce tę konkretną, przejrzaną zmianę.";
+"Shipping requires a separate review and explicit approval. Repository policy determines the target." = "Wysyłka wymaga osobnego przeglądu i wyraźnego zatwierdzenia. Polityka repozytorium określa cel.";
+"Design preview · Ship requires a live account and repository policy." = "Podgląd projektu · Wysłanie wymaga aktywnego konta i zgodności z polityką repozytorium.";
+"Review again" = "Przejrzyj ponownie";
+"Organization" = "Organizacja";
+"Model" = "Model";
+"Choose model" = "Wybierz model";
+"Loading models…" = "Ładowanie modeli…";
+"Couldn’t load models" = "Nie udało się załadować modeli";
+"Check your connection or try again in a moment." = "Sprawdź połączenie lub spróbuj ponownie za chwilę.";
+"No models available" = "Brak dostępnych modeli";
+"Connect an AI subscription in your profile, then try again." = "Podłącz subskrypcję AI w swoim profilu, a następnie spróbuj ponownie.";
+"Models unavailable. Try again later." = "Modele niedostępne. Spróbuj ponownie później.";
+"Refresh models" = "Odśwież modele";
+"Models available through your profile’s AI subscriptions. The model cannot be changed after creation." = "Modele dostępne dzięki subskrypcjom AI w Twoim profilu. Modelu nie można zmienić po utworzeniu.";
+"Sample model catalog · Design preview · No subscription access implied" = "Przykładowy katalog modeli · Podgląd projektu · Nie obejmuje dostępu przez subskrypcję";
+"AI model" = "Model AI";
+"AI provider" = "Dostawca AI";
+"Not recorded" = "Nie zapisano";
+"The provider and model are fixed for this thread. Start a new thread to choose another model." = "Dostawca i model są ustalone dla tego wątku. Rozpocznij nowy wątek, aby wybrać inny model.";
+"This subscription is not supported for Threads." = "Ta subskrypcja nie jest obsługiwana w przypadku wątków.";
+"ChatGPT" = "ChatGPT";
+"Claude" = "Claude";

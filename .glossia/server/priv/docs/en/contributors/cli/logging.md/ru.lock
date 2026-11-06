@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "904a0d89e9e46c0a882c4bfc4e7d88a587acd2276f21277d562a076016c31317",
+  "hash": "04f0578fa1bd941053e82e3516981a142a283a331fb4c231e867c76c1c52ab7a",
   "hash_tree": {
     "root": {
       "children": [
@@ -14,7 +14,7 @@
                   "content_hash": "be4ae8403d871f7f27a820ca243d6037c9a0eaae5c14fe3b172ba6fd51d7f403"
                 },
                 "## What to log {#what-to-log}": {
-                  "content_hash": "e8906eda26d454ab4ce363431c4a2a81ac9fca7655d753449e4333de3f2ffe38"
+                  "content_hash": "4f313a3779a513aaca08e991c5dcb1a8fce9fd6d19dff5dc34df19464725950c"
                 },
                 "Preamble": {
                   "content_hash": "19d3a2a373a6db8e911dfef8cae9ce3ae903d400059113c0127a7de69c9dda60"
@@ -23,11 +23,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "ccfba1f5feeaf098dad6e6f028ee05dbb4d22c00e78dc2bbc2f197149bf7f974",
+          "hash": "784feee7df00987019036f30f783df746632f8a97457e6a7e2ae781daba59c28",
           "kind": "source",
           "label": "server/priv/docs/en/contributors/cli/logging.md",
           "metadata": {
-            "content_hash": "7e652597a94f29ed91f676a091da6c5daa14ff516d7d5139d765bf0eb9e927e4"
+            "content_hash": "bb70c7ddcb6c5aec4e19147352b609eb129862f1d69b13e47ea11642cad5f05f"
           }
         },
         {
@@ -224,14 +224,14 @@
         }
       ],
       "details": {},
-      "hash": "904a0d89e9e46c0a882c4bfc4e7d88a587acd2276f21277d562a076016c31317",
+      "hash": "04f0578fa1bd941053e82e3516981a142a283a331fb4c231e867c76c1c52ab7a",
       "kind": "translation_input",
       "label": "server/priv/docs/en/contributors/cli/logging.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "d902511ecbc0cdcbdef6d7c64ca15c413a6ec50f5784fdbff677cf459b578331",
+  "output_hash": "f2b4598209455f9f13abe2cc8e0df1559c851345e9c7f37988a098cf8c799fc9",
   "output_path": "server/priv/docs/ru/contributors/cli/logging.md",
   "protection_state": "recorded",
   "provider": "",
@@ -251,8 +251,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "6c347061fea76d5caffe166a674f5ca4aaf2c8d4",
+  "source_commit_sha": "3a76a23f214a12697c3164887ff481d4fcc9d2d2",
   "source_path": "server/priv/docs/en/contributors/cli/logging.md",
-  "translated_at": "2026-11-04T17:45:58.240754Z",
-  "translation_session_id": "01a1a7a8-f0b3-71a2-89a5-e7cf7ef2a4b6"
+  "translated_at": "2026-11-06T15:45:36.767849Z",
+  "translation_session_id": "01a1b186-4f71-7643-aa9d-bb098a21373f"
 }

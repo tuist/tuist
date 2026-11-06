@@ -35,7 +35,7 @@ CC_VERSION="$pins"
 
 drift=0
 
-gates=$(grep -E "enabledIf: .*builtin\.(controlPlane|machineDeployment)\.version" "$CC" \
+gates=$(grep -E "enabledIf: .*ne \.builtin\.(controlPlane|machineDeployment)\.version \"v" "$CC" \
   | sed -E 's/.*"v([0-9.]+)".*/\1/')
 if [ "$(echo "$gates" | grep -c .)" -ne 2 ]; then
   echo "ERROR: expected the two *KubernetesPackages enabledIf gates in clusterclass-tuist.yaml" >&2
