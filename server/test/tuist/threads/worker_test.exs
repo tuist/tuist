@@ -9,8 +9,10 @@ defmodule Tuist.Threads.WorkerTest do
   alias Tuist.OAuth2.PinnedHTTP
   alias Tuist.OAuth2.SSRFGuard
   alias Tuist.Threads
+  alias Tuist.Threads.Approval
   alias Tuist.Threads.Provider
   alias Tuist.Threads.Run
+  alias Tuist.Threads.Shipping
   alias Tuist.Threads.ToolCall
   alias Tuist.Threads.Worker
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -221,6 +223,94 @@ defmodule Tuist.Threads.WorkerTest do
 
     reject(Provider, :complete, 3)
     assert %{status: 409} = Provider.call(conn, user_id: user.id, model: "selected-model")
+  end
+
+  test "model-process notifications cannot postpone the lease heartbeat" do
+    user = AccountsFixtures.user_fixture()
+    stub(Provider, :client_opts, fn _, _ -> {:ok, []} end)
+    {:ok, _} = Threads.create(user, user.account, request("Keep working"))
+    run = Repo.one!(Run)
+    test = self()
+    old_heartbeat = DateTime.add(DateTime.utc_now(:second), -30)
+
+    stub(Provider, :client_opts, fn _, _ ->
+      Repo.update!(Ecto.Changeset.change(Repo.get!(Run, run.id), heartbeat_at: old_heartbeat))
+      send(test, {:model_waiting, self()})
+
+      receive do
+        :complete -> {:error, :disconnected}
+      end
+    end)
+
+    stub(Threads, :heartbeat, fn current ->
+      result = Mimic.call_original(Threads, :heartbeat, [current])
+      send(test, {:heartbeat, result, Repo.reload!(current).heartbeat_at})
+      result
+    end)
+
+    model = spawn(fn -> receive do: (:stop -> :ok) end)
+    worker = Task.async(fn -> Worker.perform(%Oban.Job{args: %{"run_id" => run.id}}) end)
+    {:ok, timer} = :timer.send_interval(100, worker.pid, {:thread_model_process, model})
+
+    try do
+      assert_receive {:model_waiting, inference}, 5_000
+      # The old receive-after implementation never reaches renewal while these
+      # notifications keep arriving, even though the model remains active.
+      assert_receive {:heartbeat, :ok, renewed}, 10_000
+      assert DateTime.after?(renewed, old_heartbeat)
+      assert Threads.owns_run?(run.id, 1)
+      send(inference, :complete)
+      assert :ok = Task.await(worker, 5_000)
+      assert Repo.reload!(run).status == "failed"
+      refute Process.alive?(model)
+    after
+      :timer.cancel(timer)
+      Task.shutdown(worker, :brutal_kill)
+      Process.exit(model, :kill)
+    end
+  end
+
+  test "Ship receives the claimed attempt and an uncertain result is never replayed" do
+    user = AccountsFixtures.user_fixture()
+    stub(Provider, :client_opts, fn _, _ -> {:ok, []} end)
+    {:ok, thread} = Threads.create(user, user.account, request("Ship the review"))
+
+    approval =
+      Repo.insert!(%Approval{
+        thread_id: thread.id,
+        account_id: user.account.id,
+        request_id: Ecto.UUID.generate(),
+        repository: "example/repo",
+        head_sha: String.duplicate("a", 40),
+        diff: "+ reviewed",
+        target_branch: "threads/example",
+        mode: :branch,
+        status: :approved,
+        approved_by_id: user.id,
+        approved_at: DateTime.utc_now(:second)
+      })
+
+    run = Repo.update!(Ecto.Changeset.change(Repo.one!(Run), kind: "ship", approval_id: approval.id))
+    test = self()
+
+    expect(Shipping, :execute, fn bound_thread, bound_approval, bound_run ->
+      send(test, {:ship_attempt, bound_thread.id, bound_approval, bound_run})
+      {:error, :shipping_uncertain}
+    end)
+
+    assert :ok = Worker.perform(%Oban.Job{args: %{"run_id" => run.id}})
+    assert_receive {:ship_attempt, thread_id, bound_approval, bound_run}
+    assert thread_id == thread.id
+    assert bound_approval.id == approval.id
+    assert bound_approval.status == :executing
+    assert bound_run.id == run.id
+    assert bound_run.attempt == 1
+    assert bound_run.status == "running"
+    assert Repo.reload!(run).status == "outcome_unknown"
+    assert :ok = Threads.recover()
+    assert :ok = Worker.perform(%Oban.Job{args: %{"run_id" => run.id}})
+    refute_receive {:ship_attempt, _, _, _}
+    assert Repo.reload!(run).status == "outcome_unknown"
   end
 
   defp request(body),

@@ -38,13 +38,31 @@ defmodule Tuist.Threads.Worker do
       end)
 
     try do
-      await(task, run, System.monotonic_time(:millisecond) + 900_000, [])
+      now = System.monotonic_time(:millisecond)
+      await(task, run, now + 900_000, now + 5_000, [])
     after
       Task.shutdown(task, :brutal_kill)
     end
   end
 
-  defp await(task, run, deadline, models) do
+  defp await(task, run, deadline, heartbeat_at, models) do
+    now = System.monotonic_time(:millisecond)
+
+    # Check the absolute heartbeat deadline before receiving another message.
+    # Model-process notifications must not postpone renewal of the shared lease.
+    if now >= heartbeat_at do
+      if now < deadline and Threads.heartbeat(run) == :ok and Threads.owns_run?(run.id, run.attempt) do
+        await(task, run, deadline, System.monotonic_time(:millisecond) + 5_000, models)
+      else
+        stop_models(models)
+        :ok
+      end
+    else
+      await_message(task, run, deadline, heartbeat_at, models, heartbeat_at - now)
+    end
+  end
+
+  defp await_message(task, run, deadline, heartbeat_at, models, timeout) do
     receive do
       {ref, result} when ref == task.ref ->
         Process.demonitor(task.ref, [:flush])
@@ -53,7 +71,7 @@ defmodule Tuist.Threads.Worker do
         :ok
 
       {:thread_model_process, pid} ->
-        await(task, run, deadline, [pid | models])
+        await(task, run, deadline, heartbeat_at, [pid | models])
 
       {:DOWN, ref, :process, _pid, _reason} when ref == task.ref ->
         stop_models(models)
@@ -62,26 +80,20 @@ defmodule Tuist.Threads.Worker do
         :ok
 
       {:EXIT, _pid, :normal} ->
-        await(task, run, deadline, models)
+        await(task, run, deadline, heartbeat_at, models)
 
       {:EXIT, _pid, _reason} ->
         stop_models(models)
         :ok
     after
-      5_000 ->
-        if System.monotonic_time(:millisecond) < deadline and Threads.heartbeat(run) == :ok and
-             Threads.owns_run?(run.id, run.attempt) do
-          await(task, run, deadline, models)
-        else
-          stop_models(models)
-          :ok
-        end
+      timeout -> await(task, run, deadline, heartbeat_at, models)
     end
   end
 
   defp stop_models(models), do: Enum.each(models, &Process.exit(&1, :kill))
 
-  defp run(%{kind: "ship", approval_id: id}, thread, _parent), do: Shipping.execute(thread, Repo.get!(Approval, id))
+  defp run(%{kind: "ship", approval_id: id} = run, thread, _parent),
+    do: Shipping.execute(thread, Repo.get!(Approval, id), run)
 
   defp run(run, %{repository: nil} = thread, parent), do: infer(run, thread, nil, parent)
 

@@ -2,6 +2,7 @@ defmodule Tuist.ThreadsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.Accounts
   alias Tuist.FeatureFlags
   alias Tuist.Threads
   alias Tuist.Threads.Approval
@@ -200,6 +201,109 @@ defmodule Tuist.ThreadsTest do
     Repo.update!(change(user, active: false))
     refute Threads.owns_run?(run.id, run.attempt)
     assert {:error, :stale_run} = Threads.rename(run, "Late title")
+  end
+
+  for revocation <- [:permission, :inactive, :disabled, :feature] do
+    @revocation revocation
+    test "claim and recovery terminalize queued work after #{@revocation} revocation", %{user: user} do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      :ok = Accounts.add_user_to_organization(user, organization, role: :admin)
+      {:ok, claimed_thread} = Threads.create(user, account, request())
+      {:ok, recovered_thread} = Threads.create(user, account, request())
+      claimed = Repo.get_by!(Run, thread_id: claimed_thread.id)
+      recovered = Repo.get_by!(Run, thread_id: recovered_thread.id)
+      Repo.delete_all(Oban.Job)
+
+      case @revocation do
+        :permission -> Accounts.update_user_role_in_organization(user, organization, :user)
+        :inactive -> Repo.update!(change(user, active: false))
+        :disabled -> Repo.update!(change(user, disabled_at: DateTime.utc_now(:second)))
+        :feature -> stub(FeatureFlags, :ai_enabled?, fn _ -> false end)
+      end
+
+      assert {:error, :forbidden} = Threads.claim(claimed.id)
+      assert Repo.reload!(claimed).status == "interrupted"
+      assert Repo.reload!(claimed).attempt == 0
+      assert :ok = Threads.recover()
+      assert Repo.reload!(recovered).status == "interrupted"
+      assert Repo.reload!(recovered).attempt == 0
+      assert Repo.reload!(recovered_thread).agent_status == "interrupted"
+      refute_enqueued(worker: Worker)
+
+      case @revocation do
+        :permission -> Accounts.update_user_role_in_organization(user, organization, :admin)
+        :inactive -> Repo.update!(change(Repo.reload!(user), active: true))
+        :disabled -> Repo.update!(change(Repo.reload!(user), disabled_at: nil))
+        :feature -> stub(FeatureFlags, :ai_enabled?, fn _ -> true end)
+      end
+
+      assert :ok = Threads.recover()
+      assert {:error, :stale_run} = Threads.claim(claimed.id)
+      assert {:error, :stale_run} = Threads.claim(recovered.id)
+      assert Enum.count(Threads.history(Repo.reload!(claimed_thread)).messages, &(&1.kind == "notice")) == 1
+      assert Enum.count(Threads.history(Repo.reload!(recovered_thread)).messages, &(&1.kind == "notice")) == 1
+      refute_enqueued(worker: Worker)
+    end
+  end
+
+  test "unauthorized queued runs leave the bounded recovery window", %{user: user, account: account} do
+    for _ <- 1..100 do
+      {:ok, _} = Threads.create(user, account, request())
+    end
+
+    blocked_ids = Repo.all(from r in Run, select: r.id)
+    Repo.update!(change(user, disabled_at: DateTime.utc_now(:second)))
+
+    permitted = AccountsFixtures.user_fixture()
+    {:ok, thread} = Threads.create(permitted, permitted.account, request())
+    waiting = Repo.get_by!(Run, thread_id: thread.id)
+    Repo.delete_all(Oban.Job)
+
+    # Give every revoked run priority over the still-authorized queued run.
+    Repo.update_all(from(r in Run, where: r.id in ^blocked_ids),
+      set: [heartbeat_at: DateTime.add(DateTime.utc_now(:second), -120)]
+    )
+
+    assert :ok = Threads.recover()
+    assert Repo.aggregate(from(r in Run, where: r.id in ^blocked_ids and r.status == "interrupted"), :count) == 100
+    refute_enqueued(worker: Worker)
+    assert :ok = Threads.recover()
+    assert_enqueued(worker: Worker, args: %{run_id: waiting.id, attempt: 0})
+    assert {:ok, {_, _}} = Threads.claim(waiting.id)
+  end
+
+  test "revocation preserves uncertain effects in queued attempts", %{user: user, account: account} do
+    runs =
+      for _ <- 1..2 do
+        {:ok, thread} = Threads.create(user, account, request())
+        {:ok, {run, _}} = Threads.claim(Repo.get_by!(Run, thread_id: thread.id).id)
+
+        assert {:error, :tool_outcome_unknown} =
+                 Threads.call_external_tool(run, Ecto.UUID.generate(), "remote_write", %{}, fn ->
+                   {:error, :timeout}
+                 end)
+
+        Repo.update!(change(run, status: "queued", heartbeat_at: nil))
+      end
+
+    [claimed, recovered] = runs
+    Repo.delete_all(Oban.Job)
+    Repo.update!(change(user, active: false))
+    assert {:error, :forbidden} = Threads.claim(claimed.id)
+    assert :ok = Threads.recover()
+    assert Repo.reload!(claimed).status == "outcome_unknown"
+    assert Repo.reload!(recovered).status == "outcome_unknown"
+    assert Repo.aggregate(from(c in "thread_tool_calls", where: c.status == "executing"), :count) == 2
+
+    Repo.update!(change(Repo.reload!(user), active: true))
+    assert :ok = Threads.recover()
+    refute_enqueued(worker: Worker)
+
+    for run <- runs do
+      assert {:error, :stale_run} = Threads.claim(run.id)
+      assert {:error, :tool_outcome_unknown} = Threads.message(user, account, run.thread_id, request("Continue"))
+    end
   end
 
   test "archive cancels active work, restore does not restart it", %{user: user, account: account} do

@@ -3,6 +3,7 @@ defmodule Tuist.Threads.Repository do
 
   alias Tuist.GitHub.App
   alias Tuist.GitHub.Client
+  alias Tuist.Threads.Review
   alias Tuist.Threads.Workspace
   alias Tuist.VCS
 
@@ -69,6 +70,23 @@ defmodule Tuist.Threads.Repository do
 
   def environment(_, _, _), do: {:error, :write_credentials_server_only}
 
+  def review(account, snapshot, objects) do
+    with {:ok, repository} <- authorize(account, snapshot.repository),
+         true <- repository.name == snapshot.repository,
+         {:ok, installation} <- installation(account),
+         [_owner, name] <- String.split(repository.name, "/"),
+         {:ok, %{token: token}} <- App.create_scoped_installation_token(installation, [name], %{"contents" => "read"}) do
+      Review.diff(snapshot, objects, fn path ->
+        case api(:get, snapshot, path, token) do
+          {:ok, 200, body} -> {:ok, body}
+          _ -> {:error, :shipping_review_unavailable}
+        end
+      end)
+    else
+      _ -> {:error, :shipping_review_unavailable}
+    end
+  end
+
   @doc "Read-only positive reconciliation; absence is not proof of no in-flight effect."
   def reconcile(account, approval) do
     with {:ok, repository} <- authorize(account, approval.repository),
@@ -85,8 +103,9 @@ defmodule Tuist.Threads.Repository do
   end
 
   @doc "Server-only Git object broker. The export callback never receives a token."
-  def ship(account, approval, export) do
-    with {:ok, repository} <- authorize(account, approval.repository),
+  def ship(account, approval, export, fence) do
+    with :ok <- fence.(),
+         {:ok, repository} <- authorize(account, approval.repository),
          true <- repository.name == approval.repository,
          {:ok, installation} <- installation(account),
          [_owner, name] <- String.split(repository.name, "/"),
@@ -100,7 +119,7 @@ defmodule Tuist.Threads.Repository do
           {:error, :shipping_base_changed}
 
         true ->
-          publish(account, approval, export, remote, token)
+          publish(account, approval, export, remote, token, fence)
       end
     else
       {:error, _} = error -> error
@@ -108,17 +127,21 @@ defmodule Tuist.Threads.Repository do
     end
   end
 
-  defp publish(account, approval, export, remote, token) do
+  defp publish(account, approval, export, remote, token, fence) do
     with :ok <- shipping_policy(account, approval.repository, approval.target_branch),
          {:ok, objects} <- export.(),
          :ok <- upload_commit(approval, objects, token) do
       # A ref write may succeed even when its response is lost. Never
       # repeat a write before observing the immutable reviewed head.
-      update_ref(approval, remote, token)
+      case update_ref(approval, remote, token, fence) do
+        {:error, :stale_run} = error ->
+          error
 
-      case remote_head(approval, token) do
-        {:ok, head} when head == approval.head_sha -> :ok
-        _ -> {:error, :shipping_uncertain}
+        _ ->
+          case remote_head(approval, token) do
+            {:ok, head} when head == approval.head_sha -> :ok
+            _ -> {:error, :shipping_uncertain}
+          end
       end
     end
   end
@@ -201,7 +224,7 @@ defmodule Tuist.Threads.Repository do
     end
   end
 
-  defp update_ref(approval, remote, token) do
+  defp update_ref(approval, remote, token, fence) do
     # GitHub's atomic updateRefs beforeOid is a real compare-and-swap, including
     # all-zero beforeOid for creation. force:false independently forbids history
     # rewrites. REST update-ref has no expected-head precondition.
@@ -217,6 +240,7 @@ defmodule Tuist.Threads.Repository do
              }
            ]
          },
+         :ok <- fence.(),
          {:ok, %{status: 200, body: body}} <-
            Req.post(
              url: "https://api.github.com/graphql",
@@ -230,6 +254,7 @@ defmodule Tuist.Threads.Repository do
       # subsequent observation of the approved head establishes publication.
       if Map.has_key?(body, "errors"), do: {:error, :shipping_uncertain}, else: :ok
     else
+      {:error, :stale_run} = error -> error
       _ -> {:error, :shipping_uncertain}
     end
   end
@@ -244,6 +269,8 @@ defmodule Tuist.Threads.Repository do
       headers: [{"authorization", "Bearer #{token}"}, {"accept", "application/vnd.github+json"}],
       redirect: false,
       retry: false,
+      compressed: false,
+      into: &bounded_body/2,
       receive_timeout: 15_000
     ]
 
@@ -253,6 +280,14 @@ defmodule Tuist.Threads.Repository do
       {:ok, %{status: status, body: body}} -> {:ok, status, body}
       _ -> {:error, :github_unavailable}
     end
+  end
+
+  defp bounded_body({:data, chunk}, {request, response}) do
+    body = response.body || ""
+
+    if byte_size(body) + byte_size(chunk) <= 8_388_608,
+      do: {:cont, {request, %{response | body: body <> chunk}}},
+      else: {:halt, {request, %{response | status: 413, body: ""}}}
   end
 
   @doc "Fail closed on unknown policy, including Apps configured to bypass PR rules."

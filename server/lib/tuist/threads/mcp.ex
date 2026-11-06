@@ -309,8 +309,9 @@ defmodule Tuist.Threads.MCP do
       {:ok, %{"jsonrpc" => "2.0", "id" => ^id, "result" => %{} = result} = envelope} ->
         if Map.has_key?(envelope, "error"), do: {:error, :mcp_invalid_response}, else: {:ok, result}
 
-      {:ok, %{"jsonrpc" => "2.0", "id" => ^id, "error" => _}} ->
-        {:error, :mcp_tool_failed}
+      {:ok, %{"jsonrpc" => "2.0", "id" => ^id, "error" => %{"code" => code, "message" => message}} = envelope}
+      when is_integer(code) and is_binary(message) ->
+        if Map.has_key?(envelope, "result"), do: {:error, :mcp_invalid_response}, else: {:error, :mcp_tool_failed}
 
       {:ok, %{"jsonrpc" => "2.0", "method" => method} = message} when is_binary(method) ->
         if Map.has_key?(message, "id"), do: {:error, :mcp_invalid_response}, else: :unrelated

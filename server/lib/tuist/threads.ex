@@ -307,29 +307,41 @@ defmodule Tuist.Threads do
   end
 
   def claim(id) do
-    transact(fn ->
-      run = Repo.get!(Run, id)
-      thread = lock_thread(run.thread_id)
-      run = Repo.one!(from r in Run, where: r.id == ^id, lock: "FOR UPDATE")
-      require_worker_access!(thread)
-      if run.status != "queued", do: Repo.rollback(:stale_run)
+    result =
+      transact(fn ->
+        run = Repo.get!(Run, id)
+        thread = lock_thread(run.thread_id)
+        run = Repo.one!(from r in Run, where: r.id == ^id, lock: "FOR UPDATE")
+        if run.status != "queued", do: Repo.rollback(:stale_run)
 
-      run =
-        Repo.update!(
-          Changeset.change(run,
-            status: "running",
-            attempt: run.attempt + 1,
-            session_id: Ecto.UUID.generate(),
-            heartbeat_at: now()
-          )
-        )
+        if thread.status != :active or not worker_access?(thread) do
+          # Commit the terminal state before acknowledging the forbidden job.
+          # Rolling back here would leave it queued for every recovery sweep.
+          resume_or_interrupt!(thread, run, true)
+          :forbidden
+        else
+          run =
+            Repo.update!(
+              Changeset.change(run,
+                status: "running",
+                attempt: run.attempt + 1,
+                session_id: Ecto.UUID.generate(),
+                heartbeat_at: now()
+              )
+            )
 
-      if run.approval_id,
-        do: Repo.update_all(from(a in Approval, where: a.id == ^run.approval_id), set: [status: :executing])
+          if run.approval_id,
+            do: Repo.update_all(from(a in Approval, where: a.id == ^run.approval_id), set: [status: :executing])
 
-      thread = update_thread!(thread, %{agent_status: if(run.kind == "ship", do: "shipping", else: "running")})
-      {run, thread}
-    end)
+          thread = update_thread!(thread, %{agent_status: if(run.kind == "ship", do: "shipping", else: "running")})
+          {run, thread}
+        end
+      end)
+
+    case result do
+      {:ok, :forbidden} -> {:error, :forbidden}
+      other -> other
+    end
   end
 
   def owns_run?(id, attempt) do
@@ -569,17 +581,31 @@ defmodule Tuist.Threads do
 
   defp recover_locked(thread, run) do
     cond do
-      run.status == "queued" -> insert_job!(run)
-      run.status != "running" -> :ok
-      not is_nil(run.heartbeat_at) and DateTime.diff(now(), run.heartbeat_at) < 60 -> :ok
-      true -> resume_or_interrupt!(thread, run)
+      run.status == "queued" and (thread.status != :active or not worker_access?(thread)) ->
+        resume_or_interrupt!(thread, run, true)
+
+      run.status == "queued" ->
+        insert_job!(run)
+
+      run.status != "running" ->
+        :ok
+
+      not is_nil(run.heartbeat_at) and DateTime.diff(now(), run.heartbeat_at) < 60 ->
+        :ok
+
+      true ->
+        resume_or_interrupt!(thread, run)
     end
   end
 
-  defp resume_or_interrupt!(thread, run) do
+  defp resume_or_interrupt!(thread, run, access_revoked \\ false) do
     unknown = Repo.exists?(from c in ToolCall, where: c.run_id == ^run.id and c.status == "executing")
     uncheckpointed = Repo.exists?(from c in ToolCall, where: c.run_id == ^run.id and not c.checkpointed)
-    terminal = unknown or uncheckpointed or run.kind == "ship" or run.attempt >= 3 or not worker_access?(thread)
+
+    terminal =
+      access_revoked or unknown or uncheckpointed or run.kind == "ship" or run.attempt >= 3 or thread.status != :active or
+        not worker_access?(thread)
+
     status = recovery_status(run, unknown, terminal)
 
     run = Repo.update!(Changeset.change(run, status: status, session_id: nil))

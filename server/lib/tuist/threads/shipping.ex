@@ -3,7 +3,7 @@ defmodule Tuist.Threads.Shipping do
   Host-controlled Ship. Never registered as a model tool.
 
   The caller persists the complete preview before showing it, and passes only
-  a database-loaded, explicitly approved record to execute/2. Approval fields:
+  a database-loaded, explicitly approved record and owning run to execute/3. Approval fields:
   request_id, thread_id, account_id, repository, sandbox_id, head_sha, base_sha,
   target_branch, mode, status (:approved or :executing), approved_by_id,
   approved_at. Preview creates immutable
@@ -12,7 +12,7 @@ defmodule Tuist.Threads.Shipping do
   On success the domain must atomically record the request result and advance
   thread.base_sha to result.head_sha. On :shipping_uncertain retain the same
   immutable approval, durably block further work, and use reconcile/2 only.
-  Do not replay execute/2 after an uncertain or crashed invocation. A
+  Do not replay execute/3 after an uncertain or crashed invocation. A
   failed/uncertain Ship never repeats an agent's shell command.
   """
 
@@ -69,7 +69,7 @@ defmodule Tuist.Threads.Shipping do
                       os.close(fd)
                       fd = nxt
                   info = os.stat(parts[-1], dir_fd=fd, follow_symlinks=False)
-              except FileNotFoundError: continue
+              except (FileNotFoundError, NotADirectoryError): continue
               oid = None
               if stat.S_ISDIR(info.st_mode) and original.get(raw, (None,))[0] == '160000':
                   # Preserve unchanged submodules, but never silently ship a
@@ -77,6 +77,8 @@ defmodule Tuist.Threads.Shipping do
                   git(['diff', '--quiet', '--ignore-submodules=none', base, '--', raw.decode('utf-8')])
                   mode, _, oid = original[raw]
                   data = b''
+              elif stat.S_ISDIR(info.st_mode):
+                  continue
               elif stat.S_ISLNK(info.st_mode):
                   data = os.readlink(parts[-1], dir_fd=fd).encode('utf-8')
                   mode = '120000'
@@ -174,7 +176,7 @@ defmodule Tuist.Threads.Shipping do
         request_id = Ecto.UUID.generate()
 
         with_residency(thread, "preview:#{thread.id}", fn sandbox ->
-          snapshot_preview(sandbox, thread, repository, request_id)
+          snapshot_preview(account, sandbox, thread, repository, request_id)
         end)
       else
         false -> {:error, :shipping_preview_unavailable}
@@ -183,18 +185,12 @@ defmodule Tuist.Threads.Shipping do
     end)
   end
 
-  defp snapshot_preview(sandbox, thread, repository, request_id) do
+  defp snapshot_preview(account, sandbox, thread, repository, request_id) do
     with {:ok, head} <- snapshot(sandbox, thread),
+         snapshot = %{thread_id: thread.id, repository: repository.name, base_sha: thread.base_sha, head_sha: head},
+         {:ok, objects} <- export_objects(sandbox, snapshot),
          {:ok, diff} <-
-           Workspace.git(sandbox, [
-             "diff",
-             "--no-ext-diff",
-             "--no-textconv",
-             "--binary",
-             thread.base_sha,
-             head,
-             "--"
-           ]),
+           Repository.review(account, snapshot, objects),
          true <- byte_size(diff) <= 131_072,
          true <- diff != "" do
       {:ok,
@@ -217,18 +213,19 @@ defmodule Tuist.Threads.Shipping do
     end
   end
 
-  def execute(thread, approval) do
+  def execute(thread, approval, run) do
     Workspace.exclusive(thread.id, fn ->
       thread = Repo.reload!(thread)
 
       with :ok <- approved(thread, approval),
+           :ok <- owns_run(thread, approval, run),
            :ok <- ready(thread),
            {:ok, account} <- Accounts.get_account_by_id(thread.account_id),
            user when not is_nil(user) <- Accounts.get_user_by_id(approval.approved_by_id),
            :ok <- Threads.authorize(user, account),
            {:ok, _} <- Repository.authorize(account, approval.repository) do
         with_residency(thread, approval.request_id, fn sandbox ->
-          publish_reviewed(account, sandbox, thread, approval)
+          publish_reviewed(account, sandbox, thread, approval, run)
         end)
       else
         {:error, _} = error -> error
@@ -237,8 +234,20 @@ defmodule Tuist.Threads.Shipping do
     end)
   end
 
-  defp publish_reviewed(account, sandbox, thread, approval) do
-    case Repository.ship(account, approval, fn -> reviewed_objects(sandbox, thread, approval) end) do
+  defp publish_reviewed(account, sandbox, thread, approval, run) do
+    export = fn ->
+      with :ok <- owns_run(thread, approval, run),
+           {:ok, objects} <- reviewed_objects(sandbox, thread, approval),
+           {:ok, diff} <- Repository.review(account, approval, objects),
+           true <- diff == approval.diff do
+        {:ok, objects}
+      else
+        false -> {:error, :shipping_review_stale}
+        {:error, _} = error -> error
+      end
+    end
+
+    case Repository.ship(account, approval, export, fn -> owns_run(thread, approval, run) end) do
       :ok -> success(approval)
       {:error, _} = error -> error
     end
@@ -270,7 +279,16 @@ defmodule Tuist.Threads.Shipping do
 
   defp reviewed_objects(sandbox, thread, approval) do
     with {:ok, head} <- snapshot(sandbox, thread),
-         true <- head == approval.head_sha,
+         true <- head == approval.head_sha do
+      export_objects(sandbox, approval)
+    else
+      false -> {:error, :shipping_review_stale}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp export_objects(sandbox, approval) do
+    with true <- Workspace.sha?(approval.base_sha) and Workspace.sha?(approval.head_sha),
          {:ok, %{exit_code: 0, stdout: output}} when byte_size(output) <= 900_000 <-
            Sandboxes.exec(sandbox, ["python3", "-c", @export, approval.base_sha, approval.head_sha],
              cwd: "/workspace",
@@ -280,9 +298,15 @@ defmodule Tuist.Threads.Shipping do
          {:ok, objects} <- JSON.decode(output) do
       {:ok, objects}
     else
-      false -> {:error, :shipping_review_stale}
       _ -> {:error, :shipping_export_failed}
     end
+  end
+
+  defp owns_run(thread, approval, run) do
+    if run.thread_id == thread.id and run.approval_id == approval.id and run.kind == "ship" and
+         Threads.owns_run?(run.id, run.attempt),
+       do: :ok,
+       else: {:error, :stale_run}
   end
 
   defp approved(thread, approval, reconcile \\ false) do

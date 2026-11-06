@@ -250,7 +250,7 @@ defmodule Tuist.Threads.MCPTest do
   test "protocol failures complete the ledger but malformed replies after tools/call remain uncertain", context do
     parent = self()
 
-    for mode <- [:tool_error, :rpc_error, :broken] do
+    for mode <- [:tool_error, :rpc_error, :broken, :null_error, :invalid_code, :missing_message, :result_and_error] do
       stub_mint(fn envelope ->
         data =
           if envelope["method"] == "tools/call" do
@@ -269,6 +269,18 @@ defmodule Tuist.Threads.MCPTest do
 
               :broken ->
                 "invalid upstream reply with " <> @token
+
+              :null_error ->
+                JSON.encode!(%{jsonrpc: "2.0", id: envelope["id"], error: nil})
+
+              :invalid_code ->
+                JSON.encode!(%{jsonrpc: "2.0", id: envelope["id"], error: %{code: "invalid", message: @token}})
+
+              :missing_message ->
+                JSON.encode!(%{jsonrpc: "2.0", id: envelope["id"], error: %{code: -32_603}})
+
+              :result_and_error ->
+                JSON.encode!(%{jsonrpc: "2.0", id: envelope["id"], error: %{code: -32_603, message: @token}, result: nil})
             end
           else
             JSON.encode!(%{jsonrpc: "2.0", id: envelope["id"], result: protocol_result(envelope)})
@@ -279,11 +291,11 @@ defmodule Tuist.Threads.MCPTest do
 
       assert {:ok, [tool]} = MCP.discover(context.user, context.run)
 
-      if mode == :broken do
-        assert {:error, :mcp_invalid_response} = execute(tool)
-      else
+      if mode in [:tool_error, :rpc_error] do
         assert {:ok, %{"isError" => true} = result} = execute(tool)
         refute inspect(result) =~ @token
+      else
+        assert {:error, :mcp_invalid_response} = execute(tool)
       end
 
       assert_received {:remote_call, ^mode}
