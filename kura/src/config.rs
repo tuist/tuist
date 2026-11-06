@@ -53,6 +53,8 @@ const KURA_DRAIN_COMPLETION_TIMEOUT_MS: &str = "KURA_DRAIN_COMPLETION_TIMEOUT_MS
 const KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS: &str = "KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS";
 const MAX_RELAXED_DURABILITY_SYNC_INTERVAL_MS: u64 = 60_000;
 const KURA_SEGMENT_HANDLE_CACHE_SIZE: &str = "KURA_SEGMENT_HANDLE_CACHE_SIZE";
+const KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY: &str =
+    "KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY";
 const KURA_MEMORY_SOFT_LIMIT_BYTES: &str = "KURA_MEMORY_SOFT_LIMIT_BYTES";
 const KURA_MEMORY_HARD_LIMIT_BYTES: &str = "KURA_MEMORY_HARD_LIMIT_BYTES";
 const KURA_SNAPSHOT_CACHE_MAX_BYTES: &str = "KURA_SNAPSHOT_CACHE_MAX_BYTES";
@@ -213,6 +215,9 @@ pub struct Config {
     /// interval of acknowledged writes. A process crash loses nothing. `None`
     /// keeps the default: every acknowledged write is fsynced first.
     pub relaxed_durability_sync_interval_ms: Option<u64>,
+    /// `SpliceBlob` verifications that may stream chunks at once. Further
+    /// splices wait for a slot instead of being refused.
+    pub reapi_splice_verification_concurrency: usize,
     pub segment_handle_cache_size: usize,
     pub memory_limit_bytes: u64,
     pub memory_soft_limit_bytes: u64,
@@ -390,6 +395,7 @@ struct DerivedRuntimeDefaults {
     file_descriptor_acquire_timeout_ms: u64,
     drain_completion_timeout_ms: u64,
     segment_handle_cache_size: usize,
+    reapi_splice_verification_concurrency: usize,
     memory_soft_limit_bytes: u64,
     memory_hard_limit_bytes: u64,
     manifest_cache_max_bytes: usize,
@@ -466,6 +472,9 @@ impl DerivedRuntimeDefaults {
             file_descriptor_acquire_timeout_ms: DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS,
             drain_completion_timeout_ms: DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS,
             segment_handle_cache_size,
+            // Each verification hashes chunks through one 256 KiB buffer, so
+            // the limit is CPU- and disk-bound rather than memory-bound.
+            reapi_splice_verification_concurrency: clamp_usize(host_resources.cpu_count, 4, 16),
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
             manifest_cache_max_bytes,
@@ -1003,6 +1012,22 @@ impl Config {
         if segment_handle_cache_size >= file_descriptor_pool_size {
             invalid.push(format!(
                 "{KURA_SEGMENT_HANDLE_CACHE_SIZE} must be less than {KURA_FILE_DESCRIPTOR_POOL_SIZE} so transient file operations keep headroom"
+            ));
+        }
+        let reapi_splice_verification_concurrency = optional_parsed_value(
+            &mut lookup,
+            KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(derived_defaults.reapi_splice_verification_concurrency);
+        if reapi_splice_verification_concurrency == 0 {
+            invalid.push(format!(
+                "{KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY} must be greater than 0"
             ));
         }
         let memory_soft_limit_bytes_override = optional_parsed_value(
@@ -2032,6 +2057,7 @@ impl Config {
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
             relaxed_durability_sync_interval_ms,
+            reapi_splice_verification_concurrency,
             segment_handle_cache_size,
             memory_limit_bytes,
             memory_soft_limit_bytes,
