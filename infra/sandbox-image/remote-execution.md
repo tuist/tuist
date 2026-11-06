@@ -333,9 +333,12 @@ reads three sources, none labelled by account or project:
   `reapi_gateway_action_phase_seconds{phase}` splits each executed action into
   `queued` (admission to worker start, including VM creation), `input_fetch`,
   `execution` and `output_upload` from the executor's metadata; gateways also
-  log one `action phases:` line per action with the same durations. The line
-  ends with the executor's `cas_reads` summary, carried in the result's
-  `auxiliary_metadata`: input reads per RPC (`batch`, `stream`, `seeded`) with
+  log one `action phases:` line per action with the same durations. When
+  `input_fetch` takes 5 s or more, the line ends with the executor's
+  `cas_reads` summary. The executor carries it in the result's
+  `auxiliary_metadata`, and the gateway removes it before answering the client
+  or publishing to the action cache, so it is never stored. It has input reads
+  per RPC (`batch`, `stream`, `seeded`) with
   calls, blobs, bytes and summed milliseconds, the five slowest reads with
   size, duration, time to first byte for streams, gRPC code and serving peer
   address, the CAS endpoint and whether the prepared connection was used. It

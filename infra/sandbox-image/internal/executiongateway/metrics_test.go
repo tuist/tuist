@@ -90,7 +90,7 @@ func TestExecutedActionPhasesAreAttributed(t *testing.T) {
 	}
 }
 
-func TestPhaseLogIncludesTheExecutorsCASReads(t *testing.T) {
+func TestPhaseLogIncludesCASReadsOnlyForSlowInputFetches(t *testing.T) {
 	var out bytes.Buffer
 	log.SetOutput(&out)
 	defer log.SetOutput(os.Stderr)
@@ -98,19 +98,25 @@ func TestPhaseLogIncludesTheExecutorsCASReads(t *testing.T) {
 	other, _ := structpb.NewStruct(map[string]any{"kind": "other"})
 	readsAny, _ := anypb.New(reads)
 	otherAny, _ := anypb.New(other)
-	at := timestamppb.New(time.Unix(1_000, 0))
-	newMetrics(prometheus.NewRegistry()).observePhases(&re.ExecutedActionMetadata{
-		InputFetchStartTimestamp: at, InputFetchCompletedTimestamp: at,
-		AuxiliaryMetadata: []*anypb.Any{otherAny, readsAny},
-	})
-	line := strings.TrimSpace(out.String())
-	_, suffix, ok := strings.Cut(line, " cas_reads=")
-	var got structpb.Struct
-	if !ok || protojson.Unmarshal([]byte(suffix), &got) != nil {
-		t.Fatalf("phase log %q lacks the CAS reads", line)
-	}
 	delete(reads.Fields, "kind")
-	if !proto.Equal(&got, reads) {
-		t.Fatalf("logged CAS reads %v; want %v", &got, reads)
+	start := time.Unix(1_000, 0)
+	for _, fetch := range []time.Duration{slowInputFetch - time.Millisecond, slowInputFetch} {
+		out.Reset()
+		newMetrics(prometheus.NewRegistry()).observePhases(&re.ExecutedActionMetadata{
+			InputFetchStartTimestamp: timestamppb.New(start), InputFetchCompletedTimestamp: timestamppb.New(start.Add(fetch)),
+			AuxiliaryMetadata: []*anypb.Any{otherAny, readsAny},
+		})
+		line := strings.TrimSpace(out.String())
+		_, suffix, logged := strings.Cut(line, " cas_reads=")
+		if slow := fetch >= slowInputFetch; logged != slow {
+			t.Fatalf("input fetch %v logged %q; want CAS reads only from %v", fetch, line, slowInputFetch)
+		}
+		if !logged {
+			continue
+		}
+		var got structpb.Struct
+		if protojson.Unmarshal([]byte(suffix), &got) != nil || !proto.Equal(&got, reads) {
+			t.Fatalf("logged CAS reads %q; want %v", suffix, reads)
+		}
 	}
 }

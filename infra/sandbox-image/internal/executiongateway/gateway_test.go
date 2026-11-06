@@ -24,6 +24,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -316,7 +318,15 @@ func TestSuccessfulResultIsPublishedAfterTheClientHasIt(t *testing.T) {
 				return grpc.NewClient("passthrough:///cache", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return l.Dial() }))
 			}
 			hash := strings.Repeat("a", 64)
-			b, _ := proto.Marshal(&re.ExecuteResponse{Result: &re.ActionResult{ExitCode: test.exit}})
+			reads, _ := structpb.NewStruct(map[string]any{"kind": "tuist.cas_reads"})
+			other, _ := structpb.NewStruct(map[string]any{"kind": "other"})
+			readsAny, _ := anypb.New(reads)
+			otherAny, _ := anypb.New(other)
+			b, _ := proto.Marshal(&re.ExecuteResponse{Result: &re.ActionResult{ExitCode: test.exit, ExecutionMetadata: &re.ExecutedActionMetadata{AuxiliaryMetadata: []*anypb.Any{readsAny, otherAny}}}})
+			// The executor's CAS read summary is logged, never returned or stored.
+			onlyOther := func(md *re.ExecutedActionMetadata) bool {
+				return len(md.GetAuxiliaryMetadata()) == 1 && proto.Equal(md.AuxiliaryMetadata[0], otherAny)
+			}
 			op, _ := json.Marshal(map[string]any{"id": id, "state": "completed", "done": true, "response": base64.StdEncoding.EncodeToString(b),
 				"cacheable": test.cacheable, "action_hash": hash, "action_size": 5, "cas_endpoint": "grpcs://cache.example"})
 			client, _ := gatewayWith(t, g, func(*http.Request) (*http.Response, error) { return response(202, string(op)), nil })
@@ -324,7 +334,9 @@ func TestSuccessfulResultIsPublishedAfterTheClientHasIt(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if result, err := stream.Recv(); err != nil || !result.Done {
+			result, err := stream.Recv()
+			var got re.ExecuteResponse
+			if err != nil || !result.Done || result.GetResponse().UnmarshalTo(&got) != nil || !onlyOther(got.Result.GetExecutionMetadata()) {
 				t.Fatalf("result: %v %v", result, err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -342,7 +354,7 @@ func TestSuccessfulResultIsPublishedAfterTheClientHasIt(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal("result was not published")
 			}
-			if update.InstanceName != "app" || update.ActionDigest.Hash != hash || update.ActionDigest.SizeBytes != 5 || update.ActionResult.ExitCode != 0 {
+			if update.InstanceName != "app" || update.ActionDigest.Hash != hash || update.ActionDigest.SizeBytes != 5 || update.ActionResult.ExitCode != 0 || !onlyOther(update.ActionResult.GetExecutionMetadata()) {
 				t.Fatalf("update: %v", update)
 			}
 			if auth := <-cache.auth; len(auth) != 2 || auth[0] != "Bearer secret" || auth[1] != "tuist" {
