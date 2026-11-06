@@ -395,8 +395,9 @@ A listed test is removed, not marked skipped: it's absent from the result bundle
 
 ### Acceptance tests
 
-`cli/Tests/TuistCoverageSelectionAcceptanceTests` checks selection end to end against a real server. Each test copies the `CoverageTestSelection` fixture, creates a fresh organization and project, records a baseline on `main`, makes one change on a branch, runs `tuist test` and asserts a few tests that change must or mustn't run.
+`cli/Tests/TuistCoverageSelectionAcceptanceTests` checks selection end to end against a real server. Each test copies the `CoverageTestSelection` fixture, creates a fresh organization and project, records a baseline on `main`, makes changes on branches, runs `tuist test` after each and asserts a few tests each change must or mustn't run.
 
+- **Changes that need the same baseline share it.** Recording the baseline is the slowest step, so the source, test file, Swift Testing and merge checkout changes run in one test against one unsharded baseline, each on its own branch from the baseline commit. The sharded and UI tests need baselines of their own. Evidence isn't bounded by branch ([Concepts](#concepts)), so no two of those changes give a file the same content: one change's run would record versions a later checkout reproduces and let it skip tests it asserts ran, depending on whether the server ingested them before the later run asked.
 - **Baselines run with `--no-selective-testing`**, as a default branch's CI does, since the default branch gets no automatic full run ([Baselines come from runs without selection](#baselines-come-from-runs-without-selection)).
 - **Assertions read the CLI's output:** its selection line, which also tells a selection from a run with a reason, and xcodebuild's per-test results. No API returns a run's stored counts to the client, so the tests don't assert them.
 - **XCTest, not Swift Testing,** so selection can later skip these tests one by one: Swift Testing records no test-scoped evidence ([Swift Testing](#swift-testing)). Not XCUITest either: the tests drive the CLI, and the fixture's own UI tests run through its nested xcodebuild.
