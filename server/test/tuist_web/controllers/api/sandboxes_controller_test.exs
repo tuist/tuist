@@ -575,4 +575,103 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       |> json_response(:bad_request)
     end
   end
+
+  describe "commands" do
+    # The guest's read answer: a header line, then the stdout chunk.
+    defp guest_read(header, stdout) do
+      fn "node-a", "exec", _args, opts ->
+        opts[:on_stream].({:stdout, header <> "\n" <> stdout})
+        {:ok, %{"exit_code" => 0}}
+      end
+    end
+
+    defp member_conn(conn, role) do
+      admin = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: admin, preload: [:account])
+      member = AccountsFixtures.user_fixture()
+      :ok = Tuist.Accounts.add_user_to_organization(member, organization, role: role)
+      {Authentication.put_current_user(conn, member), organization.account}
+    end
+
+    test "a member starts a command and streams its output to the exit", %{conn: conn} do
+      {conn, account} = member_conn(conn, :user)
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+
+      expect(Nodes, :call, fn "node-a", "exec", %{env: env}, _opts ->
+        assert env["TUIST_COMMAND"] == "exec 'xcodebuild' '-scheme' 'My App'"
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      assert %{"id" => id, "status" => "running"} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{
+                 command: "xcodebuild",
+                 args: ["-scheme", "My App"]
+               })
+               |> json_response(:accepted)
+
+      expect(Nodes, :call, guest_read("running - 6 0 -", "hello\n"))
+      expect(Nodes, :call, guest_read("exited 0 12 0 -", "world\n"))
+
+      response = get(conn, ~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands/#{id}/logs?stdout_offset=0")
+
+      assert response.status == 200
+      assert response |> get_resp_header("content-type") |> hd() =~ "application/x-ndjson"
+
+      assert response.resp_body |> String.split("\n", trim: true) |> Enum.map(&JSON.decode!/1) == [
+               %{"type" => "stdout", "data" => "hello\n", "offset" => 6},
+               %{"type" => "stdout", "data" => "world\n", "offset" => 12},
+               %{"type" => "exit", "status" => "exited", "exit_code" => 0}
+             ]
+
+      assert %{"commands" => [%{"id" => ^id, "status" => "exited", "exit_code" => 0}]} =
+               conn |> get(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands") |> json_response(:ok)
+    end
+
+    test "streams 404 as a plain status for an unknown command", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      reject(&Nodes.call/4)
+
+      conn
+      |> get(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands/#{Ecto.UUID.generate()}/logs")
+      |> json_response(:not_found)
+    end
+
+    test "a member cannot use an agent's sandbox or admin-only routes", %{conn: conn} do
+      {conn, account} = member_conn(conn, :user)
+      environment = agent_environment_fixture(account: account)
+
+      sandbox =
+        sandbox_fixture(account: account, state: :running, node_name: "node-a", agent_environment_id: environment.id)
+
+      reject(&Nodes.call/4)
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "env"})
+      |> json_response(:forbidden)
+
+      conn |> get(~p"/api/accounts/#{account.name}/sandboxes/analytics") |> json_response(:forbidden)
+    end
+
+    test "a viewer cannot run commands", %{conn: conn} do
+      {conn, account} = member_conn(conn, :viewer)
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      reject(&Nodes.call/4)
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "true"})
+      |> json_response(:forbidden)
+    end
+
+    test "rejects stdin data that is not base64", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      reject(&Nodes.call/4)
+
+      conn
+      |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands/#{Ecto.UUID.generate()}/stdin", %{
+        data: "not base64!"
+      })
+      |> json_response(:bad_request)
+    end
+  end
 end
