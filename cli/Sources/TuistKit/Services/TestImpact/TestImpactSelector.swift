@@ -78,6 +78,14 @@ actor TestImpactSelector {
 
     let invocation: Invocation
     private(set) var outcome: TestImpactOutcome?
+    /// The run recorded when hashing left no module: it has no outcome, so nothing plans shards
+    /// from it or prunes by it, but the test run still points to it.
+    private var hashSkippedRunID: String?
+
+    /// The run the test run points to, so the server reports what the selection saved.
+    var runID: String? {
+        outcome?.runID ?? hashSkippedRunID
+    }
 
     private let gitController: GitControlling
     private let resolveBaselineService: ResolveTestImpactBaselineServicing
@@ -112,7 +120,7 @@ actor TestImpactSelector {
         platform: String?,
         affectedModules: @Sendable (AbsolutePath) -> [String]?
     ) async -> TestImpactGraphDecision {
-        guard outcome == nil, !modules.isEmpty || !skippedModules.isEmpty,
+        guard runID == nil, !modules.isEmpty || !skippedModules.isEmpty,
               await gitController.isInGitRepository(workingDirectory: invocation.path)
         else {
             return .unchanged
@@ -184,9 +192,12 @@ actor TestImpactSelector {
             serverURL: invocation.serverURL,
             request: request
         )
-        // The run only records what hashing skipped: no outcome, so nothing plans shards from it.
         if modules.isEmpty {
-            if case let .failed(message) = result { warn(message) }
+            switch result {
+            case let .selected(selection): hashSkippedRunID = selection.runID
+            case let .fallback(runID, _, _): hashSkippedRunID = runID
+            case let .failed(message): warn(message)
+            }
             return .unchanged
         }
         switch result {

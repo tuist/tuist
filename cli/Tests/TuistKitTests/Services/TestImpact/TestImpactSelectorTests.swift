@@ -307,8 +307,9 @@ struct TestImpactSelectorTests {
         let decision = await subject.decide(modules: [], skippedModules: ["CoreTests"], platform: "ios") { _ in [] }
 
         #expect(decision == .unchanged)
-        // No outcome, so no shard plan or upload points to the run.
+        // No outcome, so no shard plan or pruning comes from the run, but the test run points to it.
         #expect(await subject.outcome == nil)
+        #expect(await subject.runID == "run")
         verify(gitController).changedFiles(workingDirectory: .any, since: .any, deepening: .any, limits: .any).called(0)
         verify(createRunService).createTestImpactRun(
             fullHandle: .any,
@@ -318,6 +319,19 @@ struct TestImpactSelectorTests {
                     && $0.basis == .baseline(sha: "baseline", changedFiles: nil, dirty: false)
             }
         ).called(1)
+    }
+
+    @Test func records_one_run_per_invocation_when_every_target_matched() async throws {
+        givenPullRequestCheckout()
+        givenBaseline(.baseline(sha: "baseline", diffCached: false))
+        given(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
+            .willReturn(.selected(TestImpactSelection(runID: "run", requested: 0, selected: 0, skipped: 0, skippedTests: [])))
+
+        _ = await subject.decide(modules: [], skippedModules: ["CoreTests"], platform: "ios") { _ in [] }
+        let decision = await subject.decide(modules: [], skippedModules: ["CoreTests"], platform: "ios") { _ in [] }
+
+        #expect(decision == .unchanged)
+        verify(createRunService).createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any).called(1)
     }
 
     @Test func runs_nothing_more_than_hashing_on_a_fallback_when_every_target_matched() async throws {
@@ -330,6 +344,7 @@ struct TestImpactSelectorTests {
 
         #expect(decision == .unchanged)
         #expect(await subject.outcome == nil)
+        #expect(await subject.runID == "run")
         verify(createRunService).createTestImpactRun(
             fullHandle: .any,
             serverURL: .any,
@@ -347,6 +362,7 @@ struct TestImpactSelectorTests {
 
         #expect(decision == .unchanged)
         #expect(await subject.outcome == nil)
+        #expect(await subject.runID == nil)
         verify(gitController).deepenShallowClone(workingDirectory: .any, refs: .any, limits: .any).called(1)
         verify(resolveBaselineService).resolveTestImpactBaseline(
             fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .value(["parent", "grandparent"]),

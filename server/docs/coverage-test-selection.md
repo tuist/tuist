@@ -364,7 +364,7 @@ What each outcome does to the generated graph (`TestImpactGraphDecision`):
 | `no_baseline`, `baseline_too_old`, `diff_too_large` | Every test target in scope runs, hash hits included (`runAll`) |
 | Any other fallback, `not_enabled`, a failed or timed-out request | As hashing left it (`unchanged`) |
 
-`TestImpactSelector.runAllReasons` holds the reasons in the second row. A target `--skip-ui-tests` or something else made prunable before hashing stays pruned under `runAll`. The impact run's ID goes into `RunMetadataStorage.testImpactRunId`, so every `createTest` of the invocation sends `test_impact_run_id`.
+`TestImpactSelector.runAllReasons` holds the reasons in the second row. A target `--skip-ui-tests` or something else made prunable before hashing stays pruned under `runAll`. The impact run's ID goes into `RunMetadataStorage.testImpactRunId`, so every `createTest` of the invocation sends `test_impact_run_id`. That includes a run whose modules hashing all skipped: it leaves the graph unchanged and plans no shards from its run, but its skipped-run upload still points to it.
 
 A target some of whose tests the skip file removed doesn't store its selective-testing hash when it passes, the way a target narrowed by `-only-testing` doesn't: the tests it skipped never ran at that hash, and a later run, a fallback included, would otherwise skip the whole target by hash.
 

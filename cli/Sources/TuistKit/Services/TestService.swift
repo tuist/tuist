@@ -153,6 +153,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let uploadBuildRunService: UploadBuildRunServicing?
     private let stressNewTestsService: StressNewTestsServicing
     private let coverageBuildSourcesService: CoverageBuildSourcesService
+    private let resolveTestImpactBaselineService: ResolveTestImpactBaselineServicing
+    private let createTestImpactRunService: CreateTestImpactRunServicing
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -200,9 +202,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
         stressNewTestsService: StressNewTestsServicing = StressNewTestsService(),
-        coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService()
+        coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService(),
+        resolveTestImpactBaselineService: ResolveTestImpactBaselineServicing = ResolveTestImpactBaselineService(),
+        createTestImpactRunService: CreateTestImpactRunServicing = CreateTestImpactRunService()
     ) {
         self.coverageBuildSourcesService = coverageBuildSourcesService
+        self.resolveTestImpactBaselineService = resolveTestImpactBaselineService
+        self.createTestImpactRunService = createTestImpactRunService
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
         self.xcodebuildController = xcodebuildController
@@ -471,7 +477,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
         let testImpactOutcome = await testImpactSelector?.outcome
-        await RunMetadataStorage.current.update(testImpactRunId: testImpactOutcome?.runID)
+        await RunMetadataStorage.current.update(testImpactRunId: await testImpactSelector?.runID)
         let testImpactSkipList = testImpactOutcome?.skipList
         if !isSharding {
             await RunMetadataStorage.current.update(testImpactSkip: testImpactSkipList?.identifiers)
@@ -869,7 +875,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 destination: destination,
                 platform: platform.flatMap { try? XcodeGraph.Platform.from(commandLineValue: $0) }
                     ?? resolvedDestination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:))
-            )
+            ),
+            gitController: gitController,
+            resolveBaselineService: resolveTestImpactBaselineService,
+            createRunService: createTestImpactRunService
         )
     }
 
