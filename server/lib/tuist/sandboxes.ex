@@ -552,7 +552,7 @@ defmodule Tuist.Sandboxes do
 
     with {:ok, sandbox} <- running_or_resume(sandbox) do
       # A macOS create or resume was just admitted, by the server and
-      # under the host's CI-first check. A grant that closed while the VM
+      # under the host's grant check. A grant that closed while the VM
       # booted or restored must not refuse the turn: the VM already holds
       # its slot, and the refusal would only fail the spawn for a retry.
       if admitted?, do: record_residency(sandbox, work_id), else: begin_residency(sandbox, work_id)
