@@ -1,17 +1,17 @@
 ---
 {
-  "title": "Once artifact publication",
+  "title": "Once previews",
   "titleTemplate": ":title · Previews · Tuist",
-  "description": "Publish immutable Once application artifacts to an existing Tuist project with explicit destination authorization."
+  "description": "Publish Android, Apple simulator, and macOS application previews through Once's native Tuist provider."
 }
 ---
-# Once artifact publication
+# Once previews {#once-previews}
 
-[Once](https://buildonce.dev/docs/guide/infrastructure/tuist#publish-application-previews) can publish immutable artifacts using existing Tuist authentication. This requires Once 0.74.0+ and a Tuist server with the artifact receiver. Once 0.73.x uses the legacy single-payload adapter instead.
+[Once](https://buildonce.dev/docs/guide/infrastructure/tuist#publish-application-previews) can publish application artifacts to Tuist so teammates can try a build without rebuilding it locally. This requires Once 0.74.0+ and a Tuist server with the artifact receiver. Once 0.73.x uses the legacy single-payload adapter instead.
 
 ## Configure the destination
 
-In the workspace's `once.toml`:
+Complete <.localized_link href="/guides/get-started/once-project">Get started with Once</.localized_link>, then add the artifact binding in the workspace's `once.toml`. Reuse the provider if it is already configured for caching:
 
 ```toml
 [infrastructures.tuist]

@@ -135,6 +135,10 @@ SSH covers `git@` dependencies, SSH submodules, deploy keys, and `ssh` or `scp` 
 />
 </.home_cards>
 
+## Once graph actions {#once-graph-actions}
+
+Once can execute eligible graph command actions on Tuist's Linux workers when the account has remote execution enabled and the server advertises compatible worker capabilities. This is action-level execution, separate from the CI-provider jobs above. See <.localized_link href="/guides/features/runners/once">Once remote execution</.localized_link> for setup, image requirements, and compatibility checks.
+
 ## Why Tuist Runners {#why-tuist-runners}
 
 Most CI runner providers make jobs faster by giving you beefier machines and a persistent cache, typically a shared volume mounted back into your CI runs. That helps, but a volume is just a disk: it carries whatever previous CI runs happened to leave on it. It isn't replicated to keep just the freshest artifacts close to where builds run, and it never reaches the other places your code gets built.

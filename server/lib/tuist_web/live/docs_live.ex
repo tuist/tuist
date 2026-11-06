@@ -56,7 +56,7 @@ defmodule TuistWeb.DocsLive do
     root_path = Paths.root_path(locale)
 
     description =
-      "Build, test, and run Xcode, Gradle, Bazel, Elixir, and Rust projects with Tuist's shared build infrastructure."
+      "Build, test, and run Xcode, Gradle, Bazel, Elixir, Rust, and Once projects with Tuist's shared build infrastructure."
 
     {:noreply,
      socket
@@ -197,7 +197,7 @@ defmodule TuistWeb.DocsLive do
           <p>
             {dgettext(
               "docs",
-              "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects, providing the infrastructure that lets software integration and delivery keep pace."
+              "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, Rust, and Once projects, providing the infrastructure that lets software integration and delivery keep pace."
             )}
           </p>
         </section>
@@ -328,10 +328,10 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Share Xcode, Gradle, Bazel, and Rust build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
+                    "Share Xcode, Gradle, Bazel, Rust, and Once build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
             <.link
@@ -349,7 +349,7 @@ defmodule TuistWeb.DocsLive do
                     "Understand build performance across local and continuous integration environments before slowdowns affect your team."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
           </div>
@@ -398,7 +398,7 @@ defmodule TuistWeb.DocsLive do
                     "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
             <.link
@@ -413,10 +413,10 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
+                    "Track test performance, catch slow tests early, and investigate continuous integration failures through reported results and test history."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
           </div>
@@ -444,7 +444,7 @@ defmodule TuistWeb.DocsLive do
                     "Share your app with a link so others can run it on their device or simulator without TestFlight setup."
                   )}
                 </p>
-                <.supported_for systems={~w(apple android)} />
+                <.supported_for systems={~w(apple android once)} />
               </div>
             </.link>
           </div>
@@ -475,7 +475,7 @@ defmodule TuistWeb.DocsLive do
                     "Run continuous integration workflows on managed macOS and Linux runners, with cache infrastructure colocated next to compute for the best results and shared with your developer machines."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel elixir rust)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
           </div>
@@ -718,7 +718,7 @@ defmodule TuistWeb.DocsLive do
         "",
         dgettext(
           "docs",
-          "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, and Rust projects, providing the infrastructure that lets software integration and delivery keep pace."
+          "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, Rust, and Once projects, providing the infrastructure that lets software integration and delivery keep pace."
         ),
         "",
         markdown_link(dgettext("docs", "Install Tuist"), install_path),
@@ -741,7 +741,7 @@ defmodule TuistWeb.DocsLive do
         "- #{markdown_link(dgettext("docs", "Cache"), cache_path)}: " <>
           dgettext(
             "docs",
-            "Share Xcode, Gradle, Bazel, and Rust build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
+            "Share Xcode, Gradle, Bazel, Rust, and Once build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
           ),
         "- #{markdown_link(dgettext("docs", "Insights"), build_insights_path)}: " <>
           dgettext(
@@ -769,7 +769,7 @@ defmodule TuistWeb.DocsLive do
         "- #{markdown_link(dgettext("docs", "Insights"), test_insights_path)}: " <>
           dgettext(
             "docs",
-            "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
+            "Track test performance, catch slow tests early, and investigate continuous integration failures through reported results and test history."
           ),
         "",
         "## " <> dgettext("docs", "Artifacts"),
