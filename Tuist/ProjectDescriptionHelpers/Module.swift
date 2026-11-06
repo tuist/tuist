@@ -1217,6 +1217,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Crypto"),
                     .external(name: "FileSystem"),
                     .external(name: "libzstd"),
+                    .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.http.targetName),
                     .external(name: "NIOCore"),
