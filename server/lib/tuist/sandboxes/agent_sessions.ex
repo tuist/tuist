@@ -32,7 +32,7 @@ defmodule Tuist.Sandboxes.AgentSessions do
   Creates the Anthropic session for `attrs.prompt` and records it.
 
   `attrs` may also carry `agent_environment_id` (defaults to the account's
-  single enabled environment), `title`, `repository_url`, `repository_ref`,
+  single enabled Managed Agents environment), `title`, `repository_url`, `repository_ref`,
   `model` (defaults to the environment's), `budget_cents`, `platform`
   (`:linux` or `:darwin`, defaults to the environment's) and `agent_id`
   (skips the cached agent). `opts` takes `:created_by_user_id`.
@@ -193,14 +193,17 @@ defmodule Tuist.Sandboxes.AgentSessions do
   end
 
   defp resolve_agent_environment(%Account{id: account_id}, nil) do
-    case Repo.all(from e in AgentEnvironment, where: e.account_id == ^account_id and e.enabled == true) do
+    case Repo.all(
+           from e in AgentEnvironment,
+             where: e.account_id == ^account_id and e.enabled == true and e.kind == :managed_agents
+         ) do
       [agent_environment] -> {:ok, agent_environment}
       _ -> {:error, :no_agent_environment}
     end
   end
 
   defp resolve_agent_environment(%Account{id: account_id}, id) do
-    case Repo.get_by(AgentEnvironment, id: id, account_id: account_id) do
+    case Repo.get_by(AgentEnvironment, id: id, account_id: account_id, kind: :managed_agents) do
       %AgentEnvironment{} = agent_environment -> {:ok, agent_environment}
       nil -> {:error, :no_agent_environment}
     end
