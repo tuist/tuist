@@ -2,21 +2,8 @@
 {{- $namespace := .Values.sandboxes.namespace | default "tuist-sandboxes" }}
 {{- if ne $namespace "tuist-sandboxes" }}{{ fail "macOS sandbox host identity currently requires the tuist-sandboxes namespace" }}{{- end }}
 {{- $image := .Values.sandboxes.macos.image }}
-{{- $stacked := false }}
 {{- if not $image }}
 {{- $image = include "tuist.macosRunnerImage" (dict "root" . "xcodeVersion" .Values.sandboxes.macos.xcodeVersion) }}
-{{- /*
-Run the image the rack CI pools run. A release rebuilds the stacked image when
-the runner sources change but only re-tags the standalone one, so the
-standalone image can predate the TUIST_SANDBOX boot guard. Stacked images boot
-only on the rack's macOS 27 hosts, so the host service then stays on the rack.
-*/}}
-{{- if and .Values.rackFleet.enabled (dig "stackedImages" false (.Values.rackFleet.runners | default dict)) }}
-{{- with include "tuist.macosRunnerStackedImage" (dict "root" . "xcodeVersion" .Values.sandboxes.macos.xcodeVersion) }}
-{{- $image = . }}
-{{- $stacked = true }}
-{{- end }}
-{{- end }}
 {{- end }}
 {{- if not .Values.sandboxes.enabled }}
 apiVersion: v1
@@ -91,9 +78,7 @@ spec:
                   - key: tuist.dev/fleet
                     operator: In
                     values:
-                      {{- if not $stacked }}
                       - {{ include "tuist.runnersFleetName" . | quote }}
-                      {{- end }}
                       - {{ include "tuist.rackFleetName" . | quote }}
       tolerations:
         - operator: Exists
@@ -129,7 +114,7 @@ spec:
   replicas: 0
   image: {{ $image | quote }}
   os: darwin
-  fleetSelector: {{ .fleetSelector | default (include (ternary "tuist.rackFleetName" "tuist.runnersFleetName" $stacked) $) | quote }}
+  fleetSelector: {{ .fleetSelector | default (include "tuist.runnersFleetName" $) | quote }}
   dispatchLabel: "tuist-internal-macos-sandbox-warm"
   runnerLabels: []
   # The shape a default sandbox create asks for; other shapes cold-boot.
