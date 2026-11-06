@@ -43,6 +43,7 @@ jobs:
           sparse-checkout: |
             .github/actions/setup-docker-builder
             .github/scripts/docker-build-cache-benchmark.sh
+          sparse-checkout-cone-mode: false
       - name: Require candidate runner and mounted cache
         env:
           EXPECTED_LINUX_IMAGE: ${{ inputs.expected_linux_image }}
