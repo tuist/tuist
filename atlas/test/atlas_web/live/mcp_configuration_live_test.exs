@@ -4,6 +4,7 @@ defmodule AtlasWeb.MCPConfigurationLiveTest do
   import Phoenix.LiveViewTest
 
   alias Atlas.MCP
+  alias Atlas.MCP.Proxy.Config
 
   test "an administrator can add a server from the page", %{conn: conn} do
     attrs = server_attrs()
@@ -107,6 +108,27 @@ defmodule AtlasWeb.MCPConfigurationLiveTest do
 
     assert MCP.get_server_configuration(server.id)
     assert has_element?(view, "#mcp-actions-#{server.name}")
+  end
+
+  test "lists servers that authenticate as Atlas's service account", %{conn: conn} do
+    configured = Application.get_env(:atlas, :mcp_proxy, [])
+
+    pulse = %{
+      name: "pulse",
+      url: "https://pulse.example.org/mcp",
+      auth_type: "service_account_token",
+      token_path: "/tmp/token"
+    }
+
+    Mimic.stub(Config, :get, fn ->
+      Keyword.update(configured, :servers, [pulse], &[pulse | &1])
+    end)
+
+    {conn, _user} = log_in_user(conn, %{scopes: ["admin:read"]})
+    {:ok, view, _html} = live(conn, ~p"/admin/mcps")
+
+    assert view |> element("#mcp-auth-pulse") |> render() =~ "Service account"
+    refute has_portal_element?(view, "#mcp-connect-pulse")
   end
 
   test "read-only administrators cannot create or delete servers", %{conn: conn} do
