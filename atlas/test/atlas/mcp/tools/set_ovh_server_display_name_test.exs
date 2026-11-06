@@ -126,8 +126,12 @@ defmodule Atlas.MCP.Tools.SetOVHServerDisplayNameTest do
         {"GET", "/1.0/dedicated/server/ns1.ip-1-2-3.us/serviceInfos"} ->
           Req.Test.json(conn, %{"serviceId" => 42})
 
-        {"GET", "/1.0/service/42"} ->
+        {"GET", "/1.0/services/42"} ->
           Req.Test.json(conn, %{"resource" => %{"displayName" => Process.get(:display_name)}})
+
+        # The legacy endpoint keeps serving the name from before any rename.
+        {"GET", "/1.0/service/42"} ->
+          Req.Test.json(conn, %{"resource" => %{"displayName" => display_name}})
 
         {"PUT", "/1.0/service/42"} ->
           {:ok, body, conn} = Plug.Conn.read_body(conn)

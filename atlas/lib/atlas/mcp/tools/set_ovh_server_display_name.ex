@@ -132,8 +132,11 @@ defmodule Atlas.MCP.Tools.SetOVHServerDisplayName do
     end
   end
 
+  # Read from /services/{id}, the endpoint the fleet's adoption scan uses. The
+  # legacy /service/{id} kept returning the old name after a rename that
+  # /services/{id} already showed.
   defp display_name(token, service_id) do
-    with {:ok, body} <- ovh(token, :get, "/service/#{service_id}") do
+    with {:ok, body} <- ovh(token, :get, "/services/#{service_id}") do
       {:ok, get_in(body, ["resource", "displayName"])}
     end
   end
