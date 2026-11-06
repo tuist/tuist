@@ -713,10 +713,13 @@ build {
   # shape it has.
   #
   # The reboot fires 2 s after its provisioner returns. Packer reconnects
-  # after `pause_before` and retries until sshd is back, so the pause only
-  # has to outlast the old session's sshd; each step after a reboot fails
-  # if it still sees the boot time from before it, rather than checking
-  # the approvals on a VM that never rebooted.
+  # after `pause_before` and retries until sshd is back, so the first pause
+  # only has to outlast the old session's sshd; each step after a reboot
+  # fails if it still sees the boot time from before it, rather than
+  # checking the approvals on a VM that never rebooted. The second pause
+  # stays at 45 s: with 15 s, a build's VM halted right after the runner
+  # LaunchAgent was installed, most likely because runner's still-starting
+  # login session loaded it and dispatch-poll.sh halted the VM.
   provisioner "file" {
     source      = "${path.root}/tcc-approvals.sh"
     destination = "/tmp/tcc-approvals.sh"
@@ -760,7 +763,7 @@ build {
   }
 
   provisioner "shell" {
-    pause_before = "15s"
+    pause_before = "45s"
     inline = [
       "set -euo pipefail",
       "[ \"$(sysctl -n kern.boottime)\" != \"$(cat /var/tmp/tuist-boottime-before-reboot)\" ] || { echo 'connected before the reboot; raise pause_before' >&2; exit 1; }",
