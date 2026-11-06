@@ -1,6 +1,9 @@
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "%@ simulator" = "%@ simulator";
 
+/* TuistProfile/ProfileView.swift */
+"AI" = "AI";
+
 /* TuistProfile/AISubscriptionsSection.swift */
 "AI subscriptions" = "AI subscriptions";
 

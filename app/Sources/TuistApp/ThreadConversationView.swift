@@ -169,7 +169,7 @@
                 guard let client, scenePhase == .active else { return }
                 await refresh()
                 await client.watch(threadID: session.id, invalidate: { await refresh() }, disconnected: {
-                    error = String(localized: "Connection lost. Reconnecting…")
+                    if error == nil { error = String(localized: "Connection lost. Reconnecting…") }
                 })
             }
             .onDisappear { lifecycle = UUID(); historyID = UUID() }

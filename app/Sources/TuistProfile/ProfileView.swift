@@ -50,11 +50,23 @@ public struct ProfileView: View {
                 }
             }
 
-            if featureFlags.isEnabled(.ai) {
-                AISubscriptionsSection()
-            }
-
             Section {
+                if featureFlags.isEnabled(.ai) {
+                    NavigationLink {
+                        List {
+                            AISubscriptionsSection()
+                        }
+                        .listStyle(.insetGrouped)
+                        .background(Noora.Colors.surfaceBackgroundPrimary)
+                        .navigationTitle("AI")
+                        .navigationBarTitleDisplayMode(.inline)
+                    } label: {
+                        Text("AI")
+                            .font(.body)
+                            .foregroundColor(Noora.Colors.surfaceLabelPrimary)
+                    }
+                }
+
                 NavigationLink {
                     NotificationsView()
                 } label: {
