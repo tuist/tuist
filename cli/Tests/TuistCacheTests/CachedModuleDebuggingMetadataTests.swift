@@ -129,6 +129,71 @@ struct CachedModuleDebuggingMetadataTests {
         }
     }
 
+    @Test(
+        .inTemporaryDirectory,
+        arguments: [
+            "empty", "debug", "stripped", "data", "bss", "common", "mixed",
+            "fat-mixed", "fat-empty", "fat64-mixed", "fat64-empty", "bitcode",
+        ]
+    )
+    func staticArchivesRequireDebugSourcesUnlessEveryMemberIsEmpty(kind: String) async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let source = root.appending(component: "anchor.c")
+        let contents = switch kind {
+        case "data": "int value = 42;"
+        case "bss", "common": "int value;"
+        case "debug", "stripped", "bitcode": "int value(void) { return 42; }"
+        default: "// intentionally empty"
+        }
+        try await fileSystem.writeText(contents, at: source)
+        let object = root.appending(component: "anchor.o")
+        _ = try runTool([
+            "clang", "-g", "-arch", "arm64", "-c", source.pathString, "-o", object.pathString,
+        ] + (["stripped", "data", "bss", "common", "bitcode"].contains(kind) ? ["-g0"] : [])
+            + (kind == "bitcode" ? ["-emit-llvm"] : []) + (kind == "common" ? ["-fcommon"] : []))
+        let binary = root.appending(component: "libFeature.a")
+        _ = try runTool(["libtool", "-static", "-o", binary.pathString, object.pathString])
+        if kind == "mixed" || kind.hasPrefix("fat") {
+            let other = root.appending(component: "other.c")
+            let otherObject = root.appending(component: "other.o")
+            try await fileSystem.writeText(kind.hasSuffix("empty") ? "// empty" : "int hidden(void) { return 7; }", at: other)
+            _ = try runTool([
+                "clang", "-g0", "-arch", kind.hasPrefix("fat") ? "x86_64" : "arm64",
+                "-c", other.pathString, "-o", otherObject.pathString,
+            ])
+            if kind == "mixed" {
+                _ = try runTool(["libtool", "-static", "-o", binary.pathString, object.pathString, otherObject.pathString])
+            } else {
+                let otherArchive = root.appending(component: "other.a")
+                _ = try runTool(["libtool", "-static", "-o", otherArchive.pathString, otherObject.pathString])
+                _ = try runTool([
+                    "lipo", "-create", binary.pathString, otherArchive.pathString, "-output", binary.pathString,
+                ] + (kind.hasPrefix("fat64") ? ["-fat64"] : []))
+            }
+        }
+        let target = Target.test(name: "Feature", product: .staticFramework, sources: [SourceFile(path: source)])
+        let graphTarget = GraphTarget(
+            path: root,
+            target: target,
+            project: .test(path: root, sourceRootPath: root, targets: [target])
+        )
+        let metadata = try await CachedModuleDebuggingMetadata.capture(target: graphTarget)
+        let output = kind == "bitcode" ? "" : try runTool(["dwarfdump", "--show-sources", binary.pathString])
+        let debugSources = Set(output.split(whereSeparator: \.isNewline).map(String.init).filter { $0.hasPrefix("/") })
+        if ["empty", "fat-empty", "fat64-empty", "debug"].contains(kind) {
+            let recorded = try await metadata.recording(debugSources: debugSources, staticBinary: binary, fileSystem: fileSystem)
+            let artifact = root.appending(component: "Feature.xcframework")
+            try await write(recorded, at: artifact)
+            let mappings = try #require(await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: graphTarget))
+            #expect(mappings.count == (kind == "debug" ? 1 : 0))
+        } else {
+            await #expect(throws: (any Error).self) {
+                try await metadata.recording(debugSources: debugSources, staticBinary: binary, fileSystem: fileSystem)
+            }
+        }
+    }
+
     @Test(.inTemporaryDirectory)
     func admitsSourcesWithoutLinkedCodeWithNothingToRelocate() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)
@@ -374,6 +439,19 @@ struct CachedModuleDebuggingMetadataTests {
                 ["/^shared": root.appending(component: "Feature").pathString], ["/^shared": other.parentDirectory.pathString],
             ])
         }
+    }
+
+    private func runTool(_ arguments: [String]) throws -> String {
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        process.arguments = arguments
+        process.standardOutput = output
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        try #require(process.terminationStatus == 0, "Command failed: \(arguments)")
+        return String(decoding: data, as: UTF8.self)
     }
 
     private func target(at root: AbsolutePath, contents: String = "public let value = 42\n") async throws -> GraphTarget {
