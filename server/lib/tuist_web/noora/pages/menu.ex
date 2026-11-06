@@ -11,8 +11,8 @@ defmodule TuistWeb.Noora.Pages.Menu do
       "Put destructive items last, after a separator, with a specific label such as Delete project.",
       "Give an item either a 16px `icon` or a 20px `image` (an avatar or a logo). Keep leading content consistent within a menu so labels line up.",
       "Use `sublabel` for a short qualifier and `description` for a sentence. A description makes the item two lines tall.",
-      "Mark the current choice with `selected`. It shows a check at the end of the item.",
-      "Use `checked` for options people pick several of, such as visible columns, and set `close_on_select={false}` on the menu so it stays open while they toggle.",
+      "Mark the current choice with `selected`. It shows a check at the end of the item; it highlights like any other item only when hovered or reached with the keyboard.",
+      "Use `checked` for options people pick several of, such as visible columns. Items toggle as they're chosen, keep the menu open, and send `on_select` with the new `checked`.",
       "Disable items that aren't available instead of hiding them, so the menu keeps its shape. Keyboard navigation skips them.",
       "Long labels truncate. Use `truncate=\"middle\"` for identifiers such as schemes, branches, and project names, so both ends stay readable; keep the default end truncation for actions."
     ]
@@ -117,16 +117,16 @@ defmodule TuistWeb.Noora.Pages.Menu do
 
   example "Checkbox items",
     description:
-      "`checked` makes an item a checkbox for choosing several options. The LiveView owns the state, and the menu stays open while people toggle.",
+      "`checked` makes an item a checkbox for choosing several options. Items toggle in place and the menu stays open while people toggle.",
     layout: :start do
     ~H"""
-    <.menu id="menu-checkboxes" label="Columns" close_on_select={false}>
+    <.menu id="menu-checkboxes" label="Columns">
       <.menu_item value="status" label="Status" checked={true} />
       <.menu_item value="duration" label="Duration" checked={true} />
       <.menu_item value="branch" label="Branch" checked={false} />
       <.menu_item value="ran-by" label="Ran by" checked={false} />
     </.menu>
-    <.menu id="menu-checkbox-icons" label="Platforms" close_on_select={false}>
+    <.menu id="menu-checkbox-icons" label="Platforms">
       <.menu_item value="ios" label="iOS" checked={true}>
         <:icon><.device_mobile /></:icon>
       </.menu_item>
