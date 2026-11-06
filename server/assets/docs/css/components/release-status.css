@@ -1,0 +1,114 @@
+#docs-release-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-5);
+  min-width: 0;
+
+  & :is(h4, p, dl, dd) {
+    margin: 0;
+  }
+
+  & [data-part="release-calendar-header"],
+  & [data-part="release-footer"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+  }
+
+  & h4 {
+    padding: 0;
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  /* Noora cells own their padding; do not add the prose table's outer padding. */
+  & .noora-table td {
+    padding: 0;
+  }
+
+  & .noora-table [data-part="cell"] {
+    padding: var(--noora-spacing-4) var(--noora-spacing-5);
+  }
+
+  & [data-part="release-channels"] {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--noora-spacing-5);
+  }
+
+  & dt,
+  & [data-part="release-note"],
+  & [data-part="release-footer"],
+  & [data-part="release-published"],
+  & [data-part="release-empty"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & dt {
+    margin-bottom: var(--noora-spacing-3);
+  }
+
+  & [data-part="release-published"] {
+    display: block;
+    margin-top: var(--noora-spacing-3);
+  }
+
+  & [data-part="release-history"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="release-history-footer"] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="release-history"] summary {
+    cursor: pointer;
+    padding-block: var(--noora-spacing-3);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="release-history-version"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    padding: var(--noora-spacing-4) var(--noora-spacing-5);
+    white-space: nowrap;
+  }
+
+  & [data-part="release-date"] {
+    display: block;
+    padding: var(--noora-spacing-4) var(--noora-spacing-5);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-small);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 600px) {
+    & [data-part="release-channels"] {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    & .noora-table table {
+      table-layout: fixed;
+      min-width: 100%;
+    }
+
+    & [data-part="release-history-version"] {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    & [data-part="release-date"],
+    & .noora-table [data-part="label"] {
+      white-space: normal;
+    }
+  }
+}

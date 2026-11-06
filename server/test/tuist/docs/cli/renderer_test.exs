@@ -184,6 +184,14 @@ defmodule Tuist.Docs.CLI.RendererTest do
       [cli_group, _] = Renderer.build_sidebar(@spec_fixture)
 
       labels = Enum.map(cli_group.items, & &1.label)
+
+      assert %Item{label: "Release", items: release_pages} = hd(cli_group.items)
+
+      assert release_pages == [
+               %Item{label: "Channels", slug: "/en/cli/release/channels"},
+               %Item{label: "Calendar", slug: "/en/cli/release/calendar"}
+             ]
+
       assert "Compatibility" in labels
       assert "Debugging" in labels
       assert "Directories" in labels
