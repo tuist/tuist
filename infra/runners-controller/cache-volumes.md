@@ -578,8 +578,8 @@ probe fails if authorization or a profile opt-out prevents mounting. Do not
 bypass that failure.
 
 The normal production cascade runs native and actual job-container Linux probes,
-then five separate jobs on that canary pool: cold, warm layers, changed source,
-same-size write, and final reuse. Each job checks both the embedded Docker driver
+then three separate jobs on that canary pool: cold (which also builds the changed
+source within the job), same-size write, and final reuse. Each job checks both the embedded Docker driver
 and a stable-key docker-container builder, sequentially in one snapshot to avoid
 their seed jobs overwriting each other's state. An experiment key is unique to
 the workflow run and attempt. The compile vertex must be cached for unchanged
