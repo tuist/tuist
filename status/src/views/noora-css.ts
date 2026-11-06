@@ -157,6 +157,10 @@ export const NOORA_CSS = String.raw`
     var(--noora-neutral-light-100),
     var(--noora-neutral-dark-1100)
   );
+  --noora-surface-background-destructive: light-dark(
+    var(--noora-red-100),
+    var(--noora-alpha-red)
+  );
   --noora-surface-overlay: light-dark(
     var(--noora-neutral-gray-24),
     var(--noora-neutral-gray-16)
