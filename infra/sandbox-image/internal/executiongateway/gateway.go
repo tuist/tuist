@@ -303,6 +303,8 @@ func (g *Gateway) stream(s grpc.ServerStreamingServer[lro.Operation], account, p
 				if observe && !response.CachedResult && response.Result != nil {
 					g.metrics.observePhases(response.Result.ExecutionMetadata)
 				}
+				// Diagnostics only: neither the client nor the action cache keeps them.
+				stripCASReads(response.GetResult().GetExecutionMetadata())
 				payload, _ := anypb.New(response)
 				message.Result = &lro.Operation_Response{Response: payload}
 			}

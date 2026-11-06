@@ -705,6 +705,12 @@ build {
   # before the LaunchAgent is installed: dispatch-poll.sh halts a VM
   # it cannot dispatch from. See AGENTS.md for why each row has the
   # shape it has.
+  #
+  # The reboot fires 2 s after its provisioner returns. Packer reconnects
+  # after `pause_before` and retries until sshd is back, so the pause only
+  # has to outlast the old session's sshd; each step after a reboot fails
+  # if it still sees the boot time from before it, rather than checking
+  # the approvals on a VM that never rebooted.
   provisioner "file" {
     source      = "${path.root}/tcc-approvals.sh"
     destination = "/tmp/tcc-approvals.sh"
@@ -721,13 +727,18 @@ build {
   provisioner "shell" {
     expect_disconnect = true
     skip_clean        = true
-    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+    inline = [
+      "sysctl -n kern.boottime > /var/tmp/tuist-boottime-before-reboot",
+      "(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"
+    ]
   }
 
   provisioner "shell" {
-    pause_before = "45s"
+    pause_before = "15s"
     inline = [
       "set -euo pipefail",
+      "[ \"$(sysctl -n kern.boottime)\" != \"$(cat /var/tmp/tuist-boottime-before-reboot)\" ] || { echo 'connected before the reboot; raise pause_before' >&2; exit 1; }",
+      "rm -f /var/tmp/tuist-boottime-before-reboot",
       "sudo /opt/tuist/tcc-approvals.sh wait",
       "sudo -u runner /opt/tuist/tcc-approvals.sh seed"
     ]
@@ -736,13 +747,18 @@ build {
   provisioner "shell" {
     expect_disconnect = true
     skip_clean        = true
-    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+    inline = [
+      "sysctl -n kern.boottime > /var/tmp/tuist-boottime-before-reboot",
+      "(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"
+    ]
   }
 
   provisioner "shell" {
-    pause_before = "45s"
+    pause_before = "15s"
     inline = [
       "set -euo pipefail",
+      "[ \"$(sysctl -n kern.boottime)\" != \"$(cat /var/tmp/tuist-boottime-before-reboot)\" ] || { echo 'connected before the reboot; raise pause_before' >&2; exit 1; }",
+      "rm -f /var/tmp/tuist-boottime-before-reboot",
       "sudo /opt/tuist/tcc-approvals.sh wait",
       "sudo -u runner /opt/tuist/tcc-approvals.sh check"
     ]

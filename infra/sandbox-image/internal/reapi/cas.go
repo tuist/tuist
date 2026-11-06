@@ -10,15 +10,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	bs "google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
@@ -38,6 +42,82 @@ type CAS struct {
 	seeded      map[string][]byte
 	mu          sync.Mutex
 	transferred int64
+	reads       map[string]*readTotal
+	slowest     []casRead
+}
+
+// casRead is one input read RPC. It carries sizes, durations and the serving
+// address, never digests.
+type casRead struct {
+	rpc       string
+	blobs     int
+	bytes     int64
+	took      time.Duration
+	firstByte time.Duration
+	code      codes.Code
+	peer      string
+}
+
+type readTotal struct {
+	calls, blobs int
+	bytes        int64
+	took         time.Duration
+}
+
+const slowestReads = 5
+
+func (c *CAS) observeRead(r casRead) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.reads == nil {
+		c.reads = map[string]*readTotal{}
+	}
+	t := c.reads[r.rpc]
+	if t == nil {
+		t = &readTotal{}
+		c.reads[r.rpc] = t
+	}
+	t.calls++
+	t.blobs += r.blobs
+	t.bytes += r.bytes
+	t.took += r.took
+	if r.rpc == "seeded" {
+		return
+	}
+	i := sort.Search(len(c.slowest), func(i int) bool { return c.slowest[i].took < r.took })
+	if i < slowestReads {
+		c.slowest = slices.Insert(c.slowest, i, r)
+		c.slowest = c.slowest[:min(len(c.slowest), slowestReads)]
+	}
+}
+
+// ReadTimings summarizes the input reads so far: per-RPC totals and the
+// slowest individual reads. Durations of concurrent reads overlap, so totals
+// can exceed the input-fetch phase.
+func (c *CAS) ReadTimings() map[string]any {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ms := func(d time.Duration) float64 { return float64(d.Milliseconds()) }
+	totals := map[string]any{}
+	for rpc, t := range c.reads {
+		totals[rpc] = map[string]any{"calls": float64(t.calls), "blobs": float64(t.blobs), "bytes": float64(t.bytes), "ms": ms(t.took)}
+	}
+	slowest := make([]any, len(c.slowest))
+	for i, r := range c.slowest {
+		read := map[string]any{"rpc": r.rpc, "blobs": float64(r.blobs), "bytes": float64(r.bytes), "ms": ms(r.took), "code": r.code.String(), "peer": r.peer}
+		if r.rpc == "stream" {
+			read["first_byte_ms"] = ms(r.firstByte)
+		}
+		slowest[i] = read
+	}
+	return map[string]any{"totals": totals, "slowest": slowest}
+}
+
+func peerAddress(p *peer.Peer) string {
+	if p == nil || p.Addr == nil {
+		return ""
+	}
+	return p.Addr.String()
 }
 
 func NewCAS(conn grpc.ClientConnInterface, instance string) *CAS {
@@ -117,6 +197,9 @@ func (c *CAS) ReadBatch(ctx context.Context, digests []*re.Digest) ([][]byte, er
 	if err := c.reserve(total); err != nil {
 		return nil, err
 	}
+	if seeded := len(unique) - len(request.Digests); seeded > 0 {
+		c.observeRead(casRead{rpc: "seeded", blobs: seeded})
+	}
 	if len(request.Digests) > 0 {
 		if err := c.readBatch(ctx, request, unique, data, total); err != nil {
 			return nil, err
@@ -135,7 +218,14 @@ func (c *CAS) ReadBatch(ctx context.Context, digests []*re.Digest) ([][]byte, er
 func (c *CAS) readBatch(ctx context.Context, request *re.BatchReadBlobsRequest, unique map[string]*re.Digest, data map[string][]byte, total int64) error {
 	// Identity only. Leave generous protobuf overhead below the worker's normal
 	// metadata cap; a malformed peer cannot return an unbounded response.
-	response, err := c.Blobs.BatchReadBlobs(ctx, request, grpc.MaxCallRecvMsgSize(2*inputBatchBytes))
+	var p peer.Peer
+	started := time.Now()
+	response, err := c.Blobs.BatchReadBlobs(ctx, request, grpc.MaxCallRecvMsgSize(2*inputBatchBytes), grpc.Peer(&p))
+	var size int64
+	for _, d := range request.Digests {
+		size += d.SizeBytes
+	}
+	c.observeRead(casRead{rpc: "batch", blobs: len(request.Digests), bytes: size, took: time.Since(started), code: status.Code(err), peer: peerAddress(&p)})
 	if status.Code(err) == codes.Unimplemented {
 		c.noBatch.Store(true)
 		c.mu.Lock()
@@ -194,11 +284,23 @@ func (c *CAS) Read(ctx context.Context, d *re.Digest, out io.Writer) error {
 		return err
 	}
 	if b, ok := c.seededBlob(d); ok {
+		c.observeRead(casRead{rpc: "seeded", blobs: 1, bytes: d.SizeBytes})
 		_, err := out.Write(b)
 		return err
 	}
-	r, err := c.Stream.Read(ctx, &bs.ReadRequest{ResourceName: fmt.Sprintf("%s/blobs/%s/%d", c.Instance, d.Hash, d.SizeBytes)})
+	var p peer.Peer
+	started := time.Now()
+	read := casRead{rpc: "stream", blobs: 1, bytes: d.SizeBytes}
+	// Recorded however the read ends, including a stall the action's deadline
+	// cuts short.
+	defer func() {
+		read.took = time.Since(started)
+		read.peer = peerAddress(&p)
+		c.observeRead(read)
+	}()
+	r, err := c.Stream.Read(ctx, &bs.ReadRequest{ResourceName: fmt.Sprintf("%s/blobs/%s/%d", c.Instance, d.Hash, d.SizeBytes)}, grpc.Peer(&p))
 	if err != nil {
+		read.code = status.Code(err)
 		return missingBlob(err, d)
 	}
 	h := sha256.New()
@@ -206,10 +308,14 @@ func (c *CAS) Read(ctx context.Context, d *re.Digest, out io.Writer) error {
 	var size int64
 	for {
 		part, err := r.Recv()
+		if read.firstByte == 0 {
+			read.firstByte = time.Since(started)
+		}
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
+			read.code = status.Code(err)
 			return missingBlob(err, d)
 		}
 		size += int64(len(part.Data))

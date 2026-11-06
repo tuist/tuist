@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func batchResponse(m *memoryCAS, r *re.BatchReadBlobsRequest) *re.BatchReadBlobsResponse {
@@ -294,5 +295,43 @@ func TestSeededInputsAvoidCASRoundTrips(t *testing.T) {
 	}
 	if batches.Load() != 1 || streams.Load() != 0 {
 		t.Fatalf("batches=%d streams=%d", batches.Load(), streams.Load())
+	}
+}
+
+func TestReadTimingsRankTheSlowestReads(t *testing.T) {
+	w, m := harness(t)
+	stalled := m.put([]byte("stalled input\n"))
+	m.beforeRead = func(_ context.Context, hash string) error {
+		if hash == stalled.Hash {
+			time.Sleep(300 * time.Millisecond)
+		}
+		return nil
+	}
+	files := []*re.FileNode{{Name: "stalled", Digest: stalled}}
+	for i := range 7 {
+		files = append(files, &re.FileNode{Name: fmt.Sprintf("input%d", i), Digest: m.put(fmt.Appendf(nil, "input %d\n", i))})
+	}
+	d := action(t, m, "cat stalled > result", &re.Directory{Files: files}, []string{"result"})
+	if response, _ := w.Execute(context.Background(), d); response.Status.Code != 0 {
+		t.Fatalf("execute: %v", response)
+	}
+	timings := w.CAS.ReadTimings()
+	slowest := timings["slowest"].([]any)
+	if len(slowest) != slowestReads {
+		t.Fatalf("kept %d slowest reads; want %d", len(slowest), slowestReads)
+	}
+	first := slowest[0].(map[string]any)
+	if first["rpc"] != "stream" || first["bytes"] != float64(stalled.SizeBytes) || first["code"] != "OK" || first["peer"] == "" ||
+		first["ms"].(float64) < 300 || first["first_byte_ms"].(float64) < 300 {
+		t.Fatalf("slowest read %v; want the stalled stream", first)
+	}
+	for i := 1; i < len(slowest); i++ {
+		if slowest[i].(map[string]any)["ms"].(float64) > slowest[i-1].(map[string]any)["ms"].(float64) {
+			t.Fatalf("slowest reads out of order: %v", slowest)
+		}
+	}
+	// The action, command, input root and 8 files, all streamed.
+	if calls := timings["totals"].(map[string]any)["stream"].(map[string]any)["calls"]; calls != float64(11) {
+		t.Fatalf("stream calls %v; want 11", calls)
 	}
 }
