@@ -5,7 +5,11 @@ import (
 	"testing"
 	"time"
 
+	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestExecutionsAreCountedByPathAndStatus(t *testing.T) {
@@ -44,5 +48,36 @@ func TestPrefetchesAreCountedByHowTheInputsWereRead(t *testing.T) {
 				t.Fatalf("%v prefetches counted as %s", n, test.name)
 			}
 		})
+	}
+}
+
+func TestExecutedActionPhasesAreAttributed(t *testing.T) {
+	m := newMetrics(prometheus.NewRegistry())
+	at := func(s float64) *timestamppb.Timestamp {
+		return timestamppb.New(time.Unix(1_000, 0).Add(time.Duration(s * float64(time.Second))))
+	}
+	m.observePhases(&re.ExecutedActionMetadata{
+		QueuedTimestamp:                at(0),
+		WorkerStartTimestamp:           at(2),
+		InputFetchStartTimestamp:       at(2),
+		InputFetchCompletedTimestamp:   at(172),
+		ExecutionStartTimestamp:        at(172.5),
+		ExecutionCompletedTimestamp:    at(176),
+		OutputUploadStartTimestamp:     at(177),
+		OutputUploadCompletedTimestamp: at(176), // reversed: skipped
+	})
+	m.observePhases(nil)
+
+	for phase, want := range map[string]float64{"queued": 2, "input_fetch": 170, "execution": 3.5} {
+		var metric dto.Metric
+		if err := m.phases.WithLabelValues(phase).(prometheus.Histogram).Write(&metric); err != nil {
+			t.Fatal(err)
+		}
+		if got := metric.GetHistogram().GetSampleSum(); got != want || metric.GetHistogram().GetSampleCount() != 1 {
+			t.Fatalf("%s: %d samples summing to %vs; want one of %vs", phase, metric.GetHistogram().GetSampleCount(), got, want)
+		}
+	}
+	if n := testutil.CollectAndCount(m.phases); n != 3 {
+		t.Fatalf("%d phase series; the reversed output upload must not be recorded", n)
 	}
 }

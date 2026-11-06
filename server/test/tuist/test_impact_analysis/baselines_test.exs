@@ -192,22 +192,23 @@ defmodule Tuist.TestImpactAnalysis.BaselinesTest do
       assert {:ok, %{sha: "c4"}} = Baselines.resolve(project, scope("c5", %{scheme: nil}))
     end
 
-    test "answers no_baseline_evidence when the run in reach uploaded no test-scoped evidence", %{
+    test "takes a full run whose tests recorded no evidence as the baseline", %{account: account, project: project} do
+      repository_id = CoverageFixtures.seed_history(account, chain("c", 2, nil))
+      [run_id] = CoverageFixtures.commit_coverage(project, repository_id, "c1", runs: [[evidence: false]])
+
+      assert {:ok, %{sha: "c1", run_ids: [^run_id], distance: 1}} = Baselines.resolve(project, scope("c2"))
+    end
+
+    test "picks the nearest full run, with or without evidence, and all its full runs", %{
       account: account,
       project: project
     } do
-      repository_id = CoverageFixtures.seed_history(account, chain("c", 2, nil))
-      CoverageFixtures.commit_coverage(project, repository_id, "c1", runs: [[evidence: false]])
-
-      assert Baselines.resolve(project, scope("c2")) == {:error, :no_baseline_evidence}
-    end
-
-    test "passes over a nearer run without evidence to one with it", %{account: account, project: project} do
       repository_id = CoverageFixtures.seed_history(account, chain("c", 3, nil))
-      CoverageFixtures.commit_coverage(project, repository_id, "c2", runs: [[evidence: false]])
+      run_ids = CoverageFixtures.commit_coverage(project, repository_id, "c2", runs: [[evidence: false], []])
       CoverageFixtures.commit_coverage(project, repository_id, "c1")
 
-      assert {:ok, %{sha: "c1", distance: 2}} = Baselines.resolve(project, scope("c3"))
+      assert {:ok, %{sha: "c2", run_ids: resolved, distance: 1}} = Baselines.resolve(project, scope("c3"))
+      assert Enum.sort(resolved) == Enum.sort(run_ids)
     end
 
     test "answers no_baseline without any full run", %{account: account, project: project} do

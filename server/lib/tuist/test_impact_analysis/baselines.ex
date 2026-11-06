@@ -20,9 +20,12 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
     `schemes` and not in `partial_schemes`;
   - ran it whole: its coverage isn't partial, so no `-only-testing` narrowed
     it and every shard reported (`Tuist.Tests.CoverageRun`);
-  - ran on the requested platform;
-  - uploaded test-scoped evidence (`coverage_files` rows with
-    `scope_kind = 'test'`).
+  - ran on the requested platform.
+
+  It needn't have uploaded test-scoped evidence: each test's evidence comes
+  from whichever run recorded it, and tests without any are selected by the
+  `no_evidence` rule, as Swift Testing tests and targets that don't link
+  TestCoverageAttribution always are.
 
   A commit's measured set is only written once its runs' coverage is folded,
   so a run still being processed isn't eligible yet.
@@ -36,7 +39,6 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   alias Tuist.Repo
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.CoverageCommit
-  alias Tuist.Tests.CoverageFile
   alias Tuist.Tests.CoverageRun
 
   @window_measured_commits 20
@@ -56,9 +58,7 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   - `:no_baseline`: no full run on the platform is an ancestor within the
     history window, or the project has no coverage to walk from;
   - `:baseline_too_old`: the nearest full run is more than #{@window_measured_commits}
-    commits with coverage back;
-  - `:no_baseline_evidence`: a run within the window would be the baseline,
-    but uploaded no test-scoped evidence.
+    commits with coverage back.
 
   `scope` has the `commit_sha`, and optionally `parent_shas`,
   `ancestor_shas` (the checkout's ancestors the client has, nearest first:
@@ -167,15 +167,15 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
     runs = full_runs(project.id, candidates, scope)
     {within, beyond} = Enum.split_with(candidates, &(&1.rank <= @window_measured_commits))
 
-    case Enum.find(within, &(Map.get(runs, &1.sha, %{evidence: []}).evidence != [])) do
+    case Enum.find(within, &Map.has_key?(runs, &1.sha)) do
       nil ->
-        verdict(within, beyond, runs, exhausted or counted >= @window_measured_commits, exhausted)
+        verdict(beyond, runs, exhausted or counted >= @window_measured_commits, exhausted)
 
       baseline ->
         {:ok,
          %{
            sha: baseline.sha,
-           run_ids: Map.fetch!(runs, baseline.sha).evidence,
+           run_ids: Map.fetch!(runs, baseline.sha),
            window_shas: for({sha, depth} <- ancestors, depth <= baseline.depth, do: sha),
            distance: baseline.rank
          }}
@@ -184,11 +184,10 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
 
   # Why there's no baseline, once the walk saw the whole window. Telling a
   # baseline too old from none needs the walk to reach a full run past it.
-  defp verdict(_within, _beyond, _runs, false = _window_complete, _exhausted), do: :undecided
+  defp verdict(_beyond, _runs, false = _window_complete, _exhausted), do: :undecided
 
-  defp verdict(within, beyond, runs, true = _window_complete, exhausted) do
+  defp verdict(beyond, runs, true = _window_complete, exhausted) do
     cond do
-      Enum.any?(within, &Map.has_key?(runs, &1.sha)) -> {:error, :no_baseline_evidence}
       Enum.any?(beyond, &Map.has_key?(runs, &1.sha)) -> {:error, :baseline_too_old}
       exhausted -> {:error, :no_baseline}
       true -> :undecided
@@ -235,8 +234,7 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
   defp candidate?(commit, %{scheme: scheme}), do: scheme in commit.schemes and scheme not in commit.partial_schemes
 
   # Per candidate commit, its full runs on the platform, as
-  # `%{sha => %{evidence: run_ids}}`: the commit is in the map when it has
-  # any, and `evidence` lists those that uploaded test-scoped evidence.
+  # `%{sha => run_ids}`: the commit is in the map when it has any.
   defp full_runs(_project_id, [], _scope), do: %{}
 
   defp full_runs(project_id, candidates, scope) do
@@ -245,12 +243,9 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
 
     run_ids = Map.keys(sha_by_run)
     full = run_ids |> chunked(&whole_runs(project_id, &1, scope)) |> MapSet.new()
-    evidenced = full |> MapSet.to_list() |> chunked(&evidenced_runs(project_id, &1)) |> MapSet.new()
 
     for run_id <- run_ids, MapSet.member?(full, run_id), reduce: %{} do
-      acc ->
-        evidence = if MapSet.member?(evidenced, run_id), do: [run_id], else: []
-        Map.update(acc, Map.fetch!(sha_by_run, run_id), %{evidence: evidence}, &%{evidence: &1.evidence ++ evidence})
+      acc -> Map.update(acc, Map.fetch!(sha_by_run, run_id), [run_id], &(&1 ++ [run_id]))
     end
   end
 
@@ -274,17 +269,5 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
       end
 
     ClickHouseRepo.all(query)
-  end
-
-  defp evidenced_runs(_project_id, []), do: []
-
-  defp evidenced_runs(project_id, run_ids) do
-    ClickHouseRepo.all(
-      from(f in CoverageFile,
-        where: f.project_id == ^project_id and f.test_run_id in ^run_ids and f.scope_kind == "test",
-        distinct: true,
-        select: fragment("toString(?)", f.test_run_id)
-      )
-    )
   end
 end

@@ -128,14 +128,18 @@ defmodule TuistWeb.TestSelection.Components do
     do:
       dgettext(
         "dashboard_tests",
-        "No ancestor of this commit has a complete full run with per-test evidence for the requested scope."
+        "No ancestor of this commit has a complete run of the requested scope on this platform."
       )
 
   def fallback_description("baseline_too_old"),
     do: dgettext("dashboard_tests", "The nearest baseline is more than 20 measured commits back.")
 
   def fallback_description("no_baseline_evidence"),
-    do: dgettext("dashboard_tests", "The baseline recorded no per-test coverage evidence.")
+    do:
+      dgettext(
+        "dashboard_tests",
+        "A complete run of the requested scope is recent enough to be the baseline, but none of its tests recorded per-test coverage. Only XCTest tests in targets that link TestCoverageAttribution record it."
+      )
 
   def fallback_description("history_unavailable"),
     do: dgettext("dashboard_tests", "The CLI couldn't fetch enough history to diff against the baseline in time.")
