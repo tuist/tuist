@@ -3189,7 +3189,8 @@ mod tests {
 #[cfg(test)]
 mod credential_breaker_tests {
     use super::{
-        CredentialBreaker, CREDENTIAL_REFUSAL_BACKOFF_MS, MAX_CREDENTIAL_REFUSAL_BACKOFF_MS,
+        CredentialBreaker, PublicationGate, CREDENTIAL_REFUSAL_BACKOFF_MS,
+        MAX_CREDENTIAL_REFUSAL_BACKOFF_MS,
     };
 
     const REFUSED: u64 = 1;
@@ -3220,6 +3221,40 @@ mod credential_breaker_tests {
             breaker.admit(ROTATED, WRITE, 1),
             "a new credential is always sent"
         );
+    }
+
+    // What the spool sweep reads from: nothing while a publication method
+    // refuses, one record once the window runs out, every record again once the
+    // probe is answered by anything but another refusal.
+    #[test]
+    fn the_publication_gate_follows_the_refusal_window_and_its_probe() {
+        let breaker = CredentialBreaker::new("acme/app".into());
+        assert_eq!(breaker.publication_gate(REFUSED, 0), PublicationGate::Open);
+        breaker.observe_at(REFUSED, READ, Some(&denied()), 0);
+        assert_eq!(
+            breaker.publication_gate(REFUSED, 1),
+            PublicationGate::Open,
+            "a refused read holds back no publication"
+        );
+
+        breaker.observe_at(REFUSED, WRITE, Some(&denied()), 0);
+        assert_eq!(breaker.publication_gate(REFUSED, 1), PublicationGate::Refusing);
+        assert_eq!(
+            breaker.publication_gate(ROTATED, 1),
+            PublicationGate::Open,
+            "a new credential is not held back"
+        );
+
+        let elapsed = CREDENTIAL_REFUSAL_BACKOFF_MS;
+        assert_eq!(breaker.publication_gate(REFUSED, elapsed), PublicationGate::ProbeDue);
+        assert!(breaker.admit(REFUSED, WRITE, elapsed), "the probe");
+        assert_eq!(
+            breaker.publication_gate(REFUSED, elapsed + 1),
+            PublicationGate::Refusing,
+            "while the probe is out"
+        );
+        breaker.observe_at(REFUSED, WRITE, None, elapsed + 2);
+        assert_eq!(breaker.publication_gate(REFUSED, elapsed + 3), PublicationGate::Open);
     }
 
     #[test]
