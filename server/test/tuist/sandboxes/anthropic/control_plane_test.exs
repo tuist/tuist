@@ -167,7 +167,9 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlaneTest do
              ControlPlane.create_session({:api_key, "sk-ant-api"}, %{agent: "agent_1", environment_id: "env_1"})
 
     expect(Req, :get, fn _request, _opts -> {:ok, %Req.Response{status: 401, body: "unauthorized"}} end)
-    assert {:error, %{status: 401, message: "unauthorized"}} = ControlPlane.get_session({:api_key, "sk-ant-api"}, "sesn_1")
+
+    assert {:error, %{status: 401, message: "unauthorized"}} =
+             ControlPlane.get_session({:api_key, "sk-ant-api"}, "sesn_1")
 
     expect(Req, :get, fn _request, _opts -> {:error, %Req.TransportError{reason: :econnrefused}} end)
 
