@@ -315,7 +315,7 @@ func (m *Manager) Create(ctx context.Context, a protocol.CreateArgs) error {
 	return m.finish(r, err)
 }
 
-// createOnWarm gives a sandbox a booted warm VM under the same CI-first
+// createOnWarm gives a sandbox a booted warm VM under the same
 // grant as a cold create. Once the claim is journaled the VM is the
 // sandbox's: a failure keeps its charge and needs an explicit delete.
 func (m *Manager) createOnWarm(ctx context.Context, a protocol.CreateArgs, w *warmVM) error {

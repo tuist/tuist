@@ -48,7 +48,13 @@ defmodule Tuist.ReleaseRunnerCacheVolumeTest do
 
   test "clears the volume when no Oban instance runs", %{account: account, volume: volume, master: master} do
     :ok = Supervisor.terminate_child(Tuist.Supervisor, Oban)
-    on_exit(fn -> {:ok, _} = Supervisor.restart_child(Tuist.Supervisor, Oban) end)
+
+    on_exit(fn ->
+      await_notifier_shutdown()
+      {:ok, _} = Supervisor.restart_child(Tuist.Supervisor, Oban)
+    end)
+
+    await_notifier_shutdown()
 
     assert {:ok, cleared} = Release.clear_runner_cache_volume(account.id, volume.id)
 
@@ -65,5 +71,18 @@ defmodule Tuist.ReleaseRunnerCacheVolumeTest do
     end
 
     assert Repo.get!(Volume, volume.id).generation == volume.generation
+  end
+
+  defp await_notifier_shutdown do
+    # Oban links its PG scope to the notifier, outside the supervision tree.
+    # Wait for that scope to exit before another notifier can reuse its name.
+    case Process.whereis(Oban.Notifiers.PG) do
+      nil ->
+        :ok
+
+      pid ->
+        ref = Process.monitor(pid)
+        assert_receive {:DOWN, ^ref, :process, ^pid, _reason}, 5_000
+    end
   end
 end

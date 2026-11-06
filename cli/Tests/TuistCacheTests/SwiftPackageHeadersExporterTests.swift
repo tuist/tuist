@@ -210,7 +210,8 @@ struct SwiftPackageHeadersExporterTests {
         #expect(result.references.count == 3)
     }
 
-    @Test func rejectsModuleMapReferencesOutsideTarget() throws {
+    @Test(arguments: ["../../Other.h", "/usr/include/zlib.h", "/usr/include/zconf.h"])
+    func rejectsModuleMapReferencesOutsideTarget(header: String) throws {
         let layout = Headers.SourceLayout(
             root: "/package/target", publicHeaders: "/package/target/include",
             moduleMap: "/package/target/include/module.modulemap", moduleName: "CLib",
@@ -218,7 +219,7 @@ struct SwiftPackageHeadersExporterTests {
         )
         #expect(throws: SwiftPackageHeadersExportError.self) {
             try SwiftPackageModuleMapRelocator.relocate(
-                "module CLib { header \"../../Other.h\" export * }", layout: layout, framework: true
+                "module CLib { header \"\(header)\" export * }", layout: layout, framework: true
             )
         }
     }

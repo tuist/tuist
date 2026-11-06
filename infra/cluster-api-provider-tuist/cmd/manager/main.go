@@ -654,12 +654,25 @@ func main() {
 		setupLog.Info("auto-discovered api server url", "source", "kube-public/cluster-info", "url", apiServerURL)
 	}
 
+	// controller-runtime's 15s lease / 10s renew deadline makes the manager
+	// exit whenever the apiserver is unreachable for 10s. Replacing a
+	// control-plane Machine (a Kubernetes upgrade) blackholes the in-cluster
+	// apiserver Service for 35s or more per member, so every upgrade
+	// crash-looped this pod. Nothing here is latency-sensitive, so trade
+	// slower failover for riding out a control-plane member swap. Releasing
+	// on cancel keeps rolling deploys from waiting out the longer lease;
+	// main exits as soon as the manager stops.
+	leaseDuration, renewDeadline, retryPeriod := 90*time.Second, 60*time.Second, 10*time.Second
 	mgrOptions := ctrl.Options{
-		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+		Scheme:                        scheme,
+		Metrics:                       metricsserver.Options{BindAddress: metricsAddr},
+		HealthProbeBindAddress:        probeAddr,
+		LeaderElection:                enableLeaderElection,
+		LeaderElectionID:              "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+		LeaderElectionReleaseOnCancel: true,
+		LeaseDuration:                 &leaseDuration,
+		RenewDeadline:                 &renewDeadline,
+		RetryPeriod:                   &retryPeriod,
 		// The cache holds cluster-wide Pods, Secrets, Nodes and PVCs,
 		// and managedFields are a third to a half of each object. No
 		// controller reads them.

@@ -194,6 +194,7 @@ var tuistREAPIDependencies: [Target.Dependency] = [
     fileSystemDependency,
     .product(name: "libzstd", package: "facebook.zstd"),
     pathDependency,
+    "TuistConstants",
     "TuistEnvironment",
     "TuistHTTP",
     .product(name: "NIOCore", package: "apple.swift-nio"),

@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -33,6 +34,9 @@ var version = "dev"
 const shutdownGrace = 30 * time.Second
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "prepare-pool" {
+		os.Exit(preparePool(os.Args[2:]))
+	}
 	endpoint := flag.String("endpoint", "unix:///csi/csi.sock", "CSI gRPC endpoint (unix socket)")
 	nodeID := flag.String("node-id", "", "Kubernetes node name, also the topology value")
 	stateDir := flag.String("state-dir", "/data/kura-volumes", "canonical directory holding the volume backing files")
@@ -47,6 +51,9 @@ func main() {
 	thinDataReserve := flag.Int64("thin-data-reserve-bytes", 1<<30, "physical pool data safety reserve")
 	thinMetadataReserve := flag.Int64("thin-metadata-reserve-bytes", 64<<20, "physical pool metadata safety reserve")
 	thinMaxVolumes := flag.Int("thin-max-volumes", 128, "maximum thin devices including pending and retained volumes")
+	// The chart sets METRICS_ADDRESS rather than the flag so that a rendered
+	// chart never crash-loops an older pinned image that lacks the flag.
+	metricsAddress := flag.String("metrics-address", os.Getenv("METRICS_ADDRESS"), "TCP address serving Prometheus metrics; empty disables it")
 	flag.Parse()
 
 	var level slog.Level
@@ -55,13 +62,13 @@ func main() {
 		os.Exit(2)
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
-	if err := run(logger, *endpoint, *nodeID, *stateDir, *reserveBytes, *volumeGroup, *keyServiceURL, os.Getenv("KEY_SERVICE_PUBLIC_KEY"), *advertiseInterval, driver.ThinConfig{Pool: *thinPool, DataReserveBytes: *thinDataReserve, MetadataReserveBytes: *thinMetadataReserve, MaxVolumes: *thinMaxVolumes}); err != nil {
+	if err := run(logger, *endpoint, *nodeID, *stateDir, *reserveBytes, *volumeGroup, *keyServiceURL, os.Getenv("KEY_SERVICE_PUBLIC_KEY"), *advertiseInterval, *metricsAddress, driver.ThinConfig{Pool: *thinPool, DataReserveBytes: *thinDataReserve, MetadataReserveBytes: *thinMetadataReserve, MaxVolumes: *thinMaxVolumes}); err != nil {
 		logger.Error("kura-volumes-csi failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes int64, volumeGroup, keyServiceURL, keyServicePublicKey string, advertiseInterval time.Duration, thin driver.ThinConfig) error {
+func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes int64, volumeGroup, keyServiceURL, keyServicePublicKey string, advertiseInterval time.Duration, metricsAddress string, thin driver.ThinConfig) error {
 	socket, err := socketPath(endpoint)
 	if err != nil {
 		return err
@@ -136,6 +143,20 @@ func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes in
 				logger.Error("thin allocator API failed", "error", err)
 				stop()
 			}
+		}()
+	}
+	if metricsAddress != "" {
+		mux := http.NewServeMux()
+		mux.Handle("GET /metrics", d.MetricsHandler())
+		metrics := &http.Server{Addr: metricsAddress, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+		go func() {
+			if err := metrics.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Error("metrics listener failed", "error", err)
+			}
+		}()
+		go func() {
+			<-ctx.Done()
+			_ = metrics.Close()
 		}()
 	}
 	if advertiseInterval > 0 {

@@ -193,6 +193,12 @@ defmodule Tuist.Runners.CacheVolumes.Query do
             " The job started from an older saved copy because the latest one was not on its runner host yet.",
         else: description
 
+    description =
+      case CacheVolumes.cold_reason_description(use) do
+        nil -> description
+        reason -> description <> " " <> reason
+      end
+
     %{
       id: use.id,
       workflow_job_id: use.workflow_job_id,

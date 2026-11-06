@@ -79,7 +79,7 @@ jq -r '.jobs[] | select(.conclusion != "skipped") | "\(.id)\t\(.name)"' <<< "${j
 # A successful workflow with a skipped/missing Linux probe must not promote.
 probes=('Linux native ' 'Linux container ')
 if [ "$ENVIRONMENT" = canary ]; then
-  for phase in cold warm-layers changed-source same-size-write verify-final; do
+  for phase in cold same-size-write verify-final; do
     probes+=("Linux Docker cache $phase / Build")
   done
 fi

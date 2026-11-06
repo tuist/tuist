@@ -30,6 +30,7 @@ compilation-cache transport lives in `cas-plugin/`.
 - Provide `RemoteCacheProbeService` (`RemoteCacheProbing`), which issues the REAPI `GetCapabilities` handshake Bazel performs on start-up to verify a remote cache endpoint is reachable, terminates TLS, and authorizes the request before it is handed to Bazel.
 
 - Module-cache capability validation and standalone capability probes share `REAPICapabilityNegotiation`: 30 seconds per attempt and up to four attempts for UNAVAILABLE/RESOURCE_EXHAUSTED, so the first authenticated request can wake a cold cache. Authorization failures and deadlines are not retried; cancellation interrupts requests and retry waits. Keep this handshake budget independent of ordinary metadata and blob-transfer timeouts.
+- Every REAPI call, including capability probes, sends `user-agent: tuist/<version>`. gRPC Swift sets none, and CDN and WAF managed rules commonly block requests without one.
 - Capability probe regressions live in `cli/Tests/TuistREAPITests` and use a local HTTP/2 gRPC server.
 
 ## Filesystem access

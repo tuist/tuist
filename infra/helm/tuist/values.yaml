@@ -848,6 +848,13 @@ server:
     # the item exists in the environment's vault.
     fcm:
       enabled: false
+    # Entire plugin signing key. Enable only after the Ed25519 private PEM
+    # exists in the environment's vault. Slug and delivery JWKS URL are
+    # configured separately after partner registration with Entire.
+    entirePluginKey:
+      enabled: false
+      item: ENTIRE_PLUGIN
+      field: private_key
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
     # a pair exists in the environment's vault: cache tokens are then signed by

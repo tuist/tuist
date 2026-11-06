@@ -220,6 +220,23 @@ type ThinSnapshot struct {
 	Healthy             bool              `json:"healthy"`
 	Reason              string            `json:"reason,omitempty"`
 	Volumes             []ThinObservation `json:"volumes"`
+
+	// Pool modes for metrics; not part of the /v1/node schema.
+	poolReadOnly, poolOutOfDataSpace bool
+}
+
+// poolStatus returns the fields of the pool's device-mapper status line.
+func (d *Driver) poolStatus(ctx context.Context) ([]string, error) {
+	out, err := d.run(ctx, nil, "dmsetup", "status", dmName(d.volumeGroup, d.thin.Pool)+"-tpool")
+	if err != nil {
+		// LVM exposes an empty active pool directly; after the first thin device
+		// the same target moves behind the -tpool layer. Validate either payload.
+		out, err = d.run(ctx, nil, "dmsetup", "status", dmName(d.volumeGroup, d.thin.Pool))
+	}
+	if err != nil {
+		return nil, err
+	}
+	return strings.Fields(string(out)), nil
 }
 
 func parsePair(s string, unit int64) (int64, int64, error) {
@@ -266,16 +283,10 @@ func (d *Driver) observeThin(ctx context.Context) (*ThinSnapshot, error) {
 			return nil, err
 		}
 	}
-	out, err := d.run(ctx, nil, "dmsetup", "status", dmName(d.volumeGroup, d.thin.Pool)+"-tpool")
-	if err != nil {
-		// LVM exposes an empty active pool directly; after the first thin device
-		// the same target moves behind the -tpool layer. Validate either payload.
-		out, err = d.run(ctx, nil, "dmsetup", "status", dmName(d.volumeGroup, d.thin.Pool))
-	}
+	fields, err := d.poolStatus(ctx)
 	if err != nil {
 		return nil, err
 	}
-	fields := strings.Fields(string(out))
 	if len(fields) < 11 || fields[2] != "thin-pool" {
 		return nil, fmt.Errorf("invalid thin pool status")
 	}
@@ -413,14 +424,10 @@ func (d *Driver) observeThin(ctx context.Context) (*ThinSnapshot, error) {
 	// In particular, deleted/unattributed mappings cannot become free admission
 	// credit just because their LV disappeared from the LVM inventory. Mounts
 	// use explicit trim (not continuous discard); all trims share this lock.
-	poolOut, e := d.run(ctx, nil, "dmsetup", "status", dmName(d.volumeGroup, d.thin.Pool)+"-tpool")
-	if e != nil {
-		poolOut, e = d.run(ctx, nil, "dmsetup", "status", dmName(d.volumeGroup, d.thin.Pool))
-	}
+	latest, e := d.poolStatus(ctx)
 	if e != nil {
 		return nil, e
 	}
-	latest := strings.Fields(string(poolOut))
 	if len(latest) < 11 || latest[2] != "thin-pool" {
 		return nil, fmt.Errorf("invalid final pool status")
 	}
@@ -432,6 +439,7 @@ func (d *Driver) observeThin(ctx context.Context) (*ThinSnapshot, error) {
 	if e != nil || latestMetadataTotal != mt {
 		return nil, fmt.Errorf("pool metadata geometry changed during observation")
 	}
+	s.poolReadOnly, s.poolOutOfDataSpace, _ = poolMode(latest)
 	s.DataUsed = latestUsed
 	s.MetadataUsed = latestMetadata
 	if latest[7] != "rw" || latest[8] == "ignore_discard" || latest[9] != "error_if_no_space" || latest[10] != "-" {

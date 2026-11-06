@@ -39,6 +39,8 @@ on:
       - .github/scripts/ghcr-manifest-digest*
       - .github/scripts/helm-adopt-release-objects*
       - .github/scripts/helm-move-release-objects*
+      - .github/scripts/pulse-render-contract.jq
+      - .github/workflows/pulse-instance-deployment.yml
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
@@ -58,6 +60,8 @@ on:
       - .github/scripts/ghcr-manifest-digest*
       - .github/scripts/helm-adopt-release-objects*
       - .github/scripts/helm-move-release-objects*
+      - .github/scripts/pulse-render-contract.jq
+      - .github/workflows/pulse-instance-deployment.yml
       - .github/workflows/server-deployment.yml
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
@@ -142,6 +146,10 @@ jobs:
         run: |
           mise use -g yq@4.52.5
           bash infra/helm/k8s-monitoring/test-cost-controls.sh
+      - name: Test Pulse ingestion and service graph metrics
+        run: |
+          bash infra/helm/pulse/test-managed.sh
+          bash infra/helm/k8s-monitoring/test-pulse-ingestion.sh
       - name: Test mixed-version Kura latency query
         run: |
           mise use -g aqua:prometheus/prometheus@3.5.0
@@ -158,6 +166,10 @@ jobs:
         run: bash infra/helm/k8s-monitoring/test-runner-queue-time-alert.sh
       - name: Test remote execution alerts
         run: bash infra/helm/k8s-monitoring/test-remote-execution-alerts.sh
+      - name: Test Kura thin pool alerts
+        run: |
+          mise use -g aqua:prometheus/alertmanager@0.28.1
+          bash infra/helm/k8s-monitoring/test-kura-thin-pool-alerts.sh
 
   render:
     name: Render

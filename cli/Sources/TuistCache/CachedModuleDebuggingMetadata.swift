@@ -107,7 +107,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
     ) throws -> Self {
         try recording(
             debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
-            compileUnits: compileUnits, resolvedDebugSources: [:], symlinkedSources: []
+            compileUnits: compileUnits, emptyStaticBinary: false, resolvedDebugSources: [:], symlinkedSources: []
         )
     }
 
@@ -116,9 +116,15 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         prefixMappings: [[String: String]] = [],
         linkedDebugSymbols: Bool = false,
         compileUnits: Set<String> = [],
+        staticBinary: AbsolutePath? = nil,
         fileSystem: FileSysteming
     ) async throws -> Self {
         try Task.checkCancellation()
+        var emptyStaticBinary = false
+        if let staticBinary, !sources.isEmpty, debugSources.isEmpty, !linkedDebugSymbols {
+            emptyStaticBinary = try await EmptyStaticArchive.isEmpty(fileSystem.readFile(at: staticBinary))
+            try Task.checkCancellation()
+        }
         let declaredPaths = Set(sourcePaths.values)
         var resolvedDebugSources: [String: Set<String>] = [:]
         for source in debugSources.union(compileUnits).sorted() {
@@ -140,7 +146,8 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         }
         return try recording(
             debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
-            compileUnits: compileUnits, resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
+            compileUnits: compileUnits, emptyStaticBinary: emptyStaticBinary,
+            resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
         )
     }
 
@@ -149,6 +156,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         prefixMappings: [[String: String]],
         linkedDebugSymbols: Bool,
         compileUnits: Set<String>,
+        emptyStaticBinary: Bool,
         resolvedDebugSources: [String: Set<String>],
         symlinkedSources: Set<String>
     ) throws -> Self {
@@ -192,7 +200,8 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         }
         if !sources.isEmpty, paths.isEmpty {
             let names = Set((Array(sources.keys) + Array(sourcePaths.values)).map(Self.lowercasedFileName))
-            let withoutCode = linkedDebugSymbols || candidatesBySource.values.contains { !$0.isDisjoint(with: compileUnits) }
+            let withoutCode = linkedDebugSymbols || emptyStaticBinary
+                || candidatesBySource.values.contains { !$0.isDisjoint(with: compileUnits) }
             guard withoutCode, !debugSources.contains(where: { names.contains(Self.lowercasedFileName($0)) }) else {
                 throw DebuggingMetadataError.missingSources
             }

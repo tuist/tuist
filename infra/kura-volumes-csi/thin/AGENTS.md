@@ -17,8 +17,8 @@ reusable local Linux qualification harness, not a deployed allocator.
 - VM measurements qualify mechanisms only. They do not establish hosted NVMe
   throughput, regional capacity gains, memory costs, or CSI lifecycle safety.
 
-- `prepare_pool.rb` only creates a new pool from free VG extents and writes per-node opt-in configuration. Never use it to convert populated thick storage.
-- Host preparation must make `dm_thin_pool` available before creation and after reboot. The script checks loaded device-mapper targets and fails before mutation if support is absent; loading modules belongs to authorized host preparation.
+- Pool preparation is the driver binary's `prepare-pool` subcommand (`../internal/driver/thin_prepare.go`, operator command in `interface.md`). It only creates a new pool from free VG extents and writes per-node opt-in configuration, and is idempotent for identical geometry and configuration. Never use it to convert populated thick storage, and keep it refusing any mismatch rather than repairing it.
+- Host preparation must make `dm_thin_pool` available before creation and after reboot. `prepare-pool` checks loaded device-mapper targets and fails before mutation if support is absent; loading modules belongs to authorized host preparation.
 - The real CSI Linux test is `../internal/driver/thin_integration_test.go`; compile it for the disposable VM and opt in explicitly. Its failure cleanup retains backing files if detachment cannot be verified.
 
 - `validation.md` separates local mechanism tests, actual CSI qualification and

@@ -225,8 +225,8 @@ func (r *KuraInstanceReconciler) abortUnselectedLVMHandoffs(ctx context.Context,
 }
 
 // lvmSourceSelected reports whether a pod may still hand off its volume: its
-// claim is pinned to the selected source node, or it is a single-copy
-// migration's standby handing the endpoint back.
+// claim is pinned to the selected source node, it already has verified thin
+// backing, or it is a single-copy migration's standby handing the endpoint back.
 func (r *KuraInstanceReconciler) lvmSourceSelected(ctx context.Context, instance *kurav1.KuraInstance, pod string) (bool, error) {
 	ordinal, ok := podOrdinal(pod, instance.Name)
 	if !ok {
@@ -248,6 +248,11 @@ func (r *KuraInstanceReconciler) lvmSourceSelected(ctx context.Context, instance
 	pv := &corev1.PersistentVolume{}
 	if err := r.Get(ctx, client.ObjectKey{Name: claim.Spec.VolumeName}, pv); err != nil {
 		return true, client.IgnoreNotFound(err)
+	}
+	// A volume already on verified thin backing is rebuilt for a resize, not
+	// migrated off legacy storage, so no source node selection applies to it.
+	if verifiedStorageBacking(instance, pv) {
+		return true, nil
 	}
 	hosts := pvRequiredHostnames(pv)
 	if len(hosts) != 1 {

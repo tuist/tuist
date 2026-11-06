@@ -37,6 +37,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var featureFlags: FeatureFlagsRepository
+
+    @Inject
     lateinit var pushRegistrationManager: PushRegistrationManager
 
     override fun onCreate(savedInstanceState: Bundle?) {

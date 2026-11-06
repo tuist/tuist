@@ -606,9 +606,14 @@ covered only by the production schedule.
   conclusion is successful. Validate this contract with
   `node --test .github/scripts/runners-acceptance/acceptance.test.cjs` after
   `npm ci --ignore-scripts` at the repository root.
-- Canary also runs five sequential Docker-cache phases through
-  `runners-docker-cache-probe.yml` after both ordinary Linux probes. Count the
-  five `Linux Docker cache ... / Build` jobs in the watchdog; exclude their
+- Canary also runs three sequential Docker-cache phases through
+  `runners-docker-cache-probe.yml` after both ordinary Linux probes: cold (which
+  also builds the changed source in-job), same-size write and final reuse. Each
+  publication wait costs the deploy about 2.5 minutes, so the gate keeps only the
+  cross-job transitions: the next job reads the cold job's mutable marker, and
+  final reuse hits the same-size write's compile layer. The Docker e2e test in
+  `linux-runner-image.yml` runs every phase as its own job. Count the
+  three `Linux Docker cache ... / Build` jobs in the watchdog; exclude their
   GitHub-hosted publication-window jobs. Require every phase in `gate.sh`,
   including final reuse, and pass the deploy's intended Linux image digest
   before staging holds. A mounted cache, correct compile output and actual
