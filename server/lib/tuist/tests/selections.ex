@@ -53,12 +53,13 @@ defmodule Tuist.Tests.Selections do
   def run_all?(_run), do: false
 
   @doc """
-  Whether an impact run's row reads by module rather than by test: a
-  fallback to default selective testing that ended before the baseline, so
-  it stored no test counts. One that found a baseline counts the tests in
-  the modules hashing skipped and reads like any selection.
+  Whether an impact run reads by module rather than by test: one that stored
+  no test counts, such as a fallback to default selective testing that ended
+  before the baseline. One that found a baseline counts the tests in the
+  modules hashing skipped and reads like any selection.
   """
-  def counted_by_module?(%Run{} = run), do: fallback?(run) and not run_all?(run) and run.requested_count == 0
+  def counted_by_module?(%Run{} = run),
+    do: not run_all?(run) and run.requested_count == 0 and module_counts(run).total > 0
 
   @doc """
   Whether an impact run fell back to default selective testing after finding
@@ -85,6 +86,27 @@ defmodule Tuist.Tests.Selections do
     skip_rate(ran, total - ran)
   end
 
+  # The mean of the runs' skip rates, each as `skip_rate/1` computes it, as a
+  # fraction.
+  defmacrop run_skip_rate_avg(r) do
+    quote do
+      fragment(
+        "avg(multiIf(? = 'fallback' AND has(?, ?), 0, ? > 0, ? / ?, length(?) + length(mapKeys(?)) > 0, length(mapKeys(?)) / (length(?) + length(mapKeys(?))), 0))",
+        unquote(r).outcome,
+        ^unquote(@run_all_reasons),
+        unquote(r).reason,
+        unquote(r).requested_count,
+        unquote(r).skipped_count,
+        unquote(r).requested_count,
+        unquote(r).requested_modules,
+        unquote(r).skipped_modules,
+        unquote(r).skipped_modules,
+        unquote(r).requested_modules,
+        unquote(r).skipped_modules
+      )
+    end
+  end
+
   @doc """
   The project's impact runs over a period, counting only those a test run
   reported: totals, their trend against the
@@ -105,7 +127,8 @@ defmodule Tuist.Tests.Selections do
           date: fragment("formatDateTime(?, ?)", r.inserted_at, ^format),
           runs: count(),
           selected: sum(r.selected_count),
-          skipped: sum(r.skipped_count)
+          skipped: sum(r.skipped_count),
+          skip_rate: run_skip_rate_avg(r)
         }
       )
       |> ClickHouseRepo.all()
@@ -115,14 +138,14 @@ defmodule Tuist.Tests.Selections do
       start_datetime
       |> buckets(end_datetime, bucket)
       |> Enum.map(fn {date, key} ->
-        row = Map.get(rows, key, %{runs: 0, selected: 0, skipped: 0})
+        row = Map.get(rows, key, %{runs: 0, selected: 0, skipped: 0, skip_rate: 0.0})
 
         %{
           date: date,
           runs: to_integer(row.runs),
           selected: to_integer(row.selected),
           skipped: to_integer(row.skipped),
-          skip_rate: skip_rate(to_integer(row.selected), to_integer(row.skipped))
+          skip_rate: percentage(row.runs, row.skip_rate)
         }
       end)
 
@@ -149,21 +172,23 @@ defmodule Tuist.Tests.Selections do
             runs: count(),
             fallbacks: fragment("countIf(? = 'fallback')", r.outcome),
             selected: sum(r.selected_count),
-            skipped: sum(r.skipped_count)
+            skipped: sum(r.skipped_count),
+            skip_rate: run_skip_rate_avg(r)
           }
         )
       ) || %{}
 
-    selected = to_integer(row[:selected])
-    skipped = to_integer(row[:skipped])
-
     %{
       runs: to_integer(row[:runs]),
       fallbacks: to_integer(row[:fallbacks]),
-      selected: selected,
-      skipped: skipped,
-      skip_rate: skip_rate(selected, skipped)
+      selected: to_integer(row[:selected]),
+      skipped: to_integer(row[:skipped]),
+      skip_rate: percentage(row[:runs], row[:skip_rate])
     }
+  end
+
+  defp percentage(runs, fraction) do
+    if to_integer(runs) == 0 or not is_number(fraction), do: 0.0, else: Float.round(fraction * 100, 1)
   end
 
   @doc "The share of tests that were skipped, as a percentage with one decimal."
@@ -176,9 +201,17 @@ defmodule Tuist.Tests.Selections do
 
   @doc """
   An impact run's skip rate: its skipped tests, those in the modules hashing
-  skipped included, out of its requested ones.
+  skipped included, out of its requested ones; 0 for a fallback that ran
+  every test, and the share of modules hashing skipped for a run that stored
+  no test counts.
   """
-  def skip_rate(%Run{} = run), do: skip_rate(run.selected_count, run.skipped_count)
+  def skip_rate(%Run{} = run) do
+    cond do
+      run_all?(run) -> 0.0
+      counted_by_module?(run) -> module_skip_rate(run)
+      true -> skip_rate(run.selected_count, run.skipped_count)
+    end
+  end
 
   @doc "The tests coverage skipped in the modules hashing left: the `unaffected` rule's skips."
   def unaffected_count(%Run{rule_trace: trace}) do

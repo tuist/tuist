@@ -367,6 +367,8 @@ defmodule Tuist.Tests.SelectionsTest do
       refute Selections.counted_by_module?(%{run | reason: "no_baseline"})
       assert Selections.module_counts(run) == %{ran: 3, total: 4}
       assert Selections.module_skip_rate(run) == 25.0
+      assert Selections.skip_rate(run) == 25.0
+      assert Selections.skip_rate(%{run | reason: "no_baseline"}) == 0.0
     end
   end
 
@@ -384,7 +386,9 @@ defmodule Tuist.Tests.SelectionsTest do
       assert analytics.totals.fallbacks == 1
       assert analytics.totals.selected == 2
       assert analytics.totals.skipped == 6
-      assert analytics.totals.skip_rate == 75.0
+      # The mean of the runs' skip rates: 75% and the fallback's 0%, since it ran every test.
+      assert analytics.totals.skip_rate == 37.5
+      assert Enum.max(analytics.skip_rates) == 37.5
       assert Enum.sum(analytics.selected) == 2
       assert length(analytics.dates) == 8
     end

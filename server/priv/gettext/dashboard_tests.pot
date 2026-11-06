@@ -3288,11 +3288,6 @@ msgstr ""
 msgid "Tests the period's selection runs skipped: those in modules selective testing found not changed, and those the changes since the baseline don't reach."
 msgstr ""
 
-#: lib/tuist_web/live/test_selections_live.html.heex:108
-#, elixir-autogen, elixir-format
-msgid "The share of requested tests that were skipped, in skipped modules or not affected."
-msgstr ""
-
 #: lib/tuist_web/live/test_selection/components.ex:56
 #, elixir-autogen, elixir-format
 msgid "Uncovered file changed"
@@ -3311,4 +3306,9 @@ msgstr ""
 #: lib/tuist_web/live/test_run_live.html.heex:503
 #, elixir-autogen, elixir-format
 msgid "Run all: %{reason}"
+msgstr ""
+
+#: lib/tuist_web/live/test_selections_live.html.heex:108
+#, elixir-autogen, elixir-format
+msgid "The average of the period's runs' skip rates. A run that ran every test counts as 0%."
 msgstr ""
