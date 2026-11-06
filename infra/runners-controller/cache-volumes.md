@@ -459,7 +459,7 @@ node (a few nodes per repository; dispatch leaves its young jobs to them). The
 agent restores the ones it lacks one at a time, separately from the job
 prefetch, with a ten-minute deadline each, through `LocalImages.PrefetchSpare`:
 only into free space above the reserve and a checkout volume's 60 GB capacity
-(a checkout never evicts for its room), never evicting, and as a speculative
+(a checkout evicts only idle masters for its room), never evicting, and as a speculative
 master that pressure eviction takes first until a job clones it.
 `tuist_runner_cache_volume_prefetched_bytes_total{reason}` counts the saved
 heads' used bytes it installed (`job`, `prewarm`, `recent`). Checkout HEADs in the list (`kind: "checkout"`)
@@ -534,8 +534,10 @@ populator as on macOS
 Everything a job writes under its workspace lands in its clone, on the cache
 filesystem rather than the pod's work volume. A clone is therefore admitted only
 while free space covers the whole checkout image (60 GB), as the reserve covers
-one custom volume. It never evicts anything for that room: without it the job
-checks out as usual.
+one custom volume. Attach eviction keeps only the reserve free, so a clone evicts
+idle custom masters for the rest of its room, but never one a job holds or is
+attaching, and never other checkout masters: without the room the job checks
+out as usual.
 
 ## Docker cache volumes
 
