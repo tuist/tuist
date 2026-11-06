@@ -822,6 +822,12 @@ server:
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Organization Pulse queries. Enable only after this item exists in the
+    # environment's vault; non-secret connection settings use server.extraEnv.
+    pulse:
+      enabled: false
+      item: PULSE_TOKEN
+      field: password
     # Public OAuth client ID for linking ChatGPT subscriptions
     # (TUIST_CHATGPT_CLIENT_ID). Without it the ChatGPT option stays hidden.
     # Enable only after the item exists in the environment's vault: a missing

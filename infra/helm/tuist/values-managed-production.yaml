@@ -104,6 +104,10 @@ server:
   appUrl: https://tuist.dev
 
   config:
+    # PULSE_TOKEN/password already backs the production Pulse tenant in the
+    # observability namespace. ESO supplies it without copying a cluster Secret.
+    pulse:
+      enabled: true
     # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
     kuraVolumeRootKeys:
       enabled: true
@@ -235,6 +239,14 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
+    # Stable account ID, not organization ID (which is 1). Membership and the
+    # default-off account feature flag are still required on every surface.
+    - name: TUIST_PULSE_ACCOUNT_ID
+      value: "3"
+    - name: TUIST_PULSE_URL
+      value: http://pulse.observability.svc.cluster.local:4000
+    - name: TUIST_PULSE_TENANT
+      value: tuist
     # Registered production plugin; its private signing key stays in ESO.
     - name: TUIST_ENTIRE_PLUGIN_SLUG
       value: tuist

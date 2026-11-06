@@ -79,6 +79,28 @@ disabled by default for self-hosted installs. Those installs can supply both
 runtime variables through `kuraController.sharedSecrets.data` or an externally
 managed shared Secret, using the same signing key as their server.
 
+## Organization Pulse dashboard
+
+Production connects the organization dashboard to the private
+`pulse.observability.svc.cluster.local:4000` Service, tenant `tuist`, with stable
+account ID `3` (not organization ID `1`). `server.config.pulse.enabled` syncs
+the existing `PULSE_TOKEN/password` field from the environment's 1Password
+vault through the server-config ExternalSecret. Verify that source exists and
+its Pulse ExternalSecret is Ready before enabling this mapping: a missing
+field fails the shared server-config sync. No token is stored in chart values.
+The connection is disabled by default and in staging/canary.
+
+After the normal server deployment cascade, verify the server-config
+ExternalSecret is Ready and every web replica has the three non-secret
+`TUIST_PULSE_*` connection settings. Enable only the `pulse` actor gate for
+account `3` through the audited feature-flag operator API, then verify the four
+dashboard pages and MCP tools as a current Tuist member. The flag and current
+membership are required even when the connection is configured. Do not enable
+the flag globally. Rotate the vault token through the existing Pulse credential
+procedure, wait for ESO reconciliation, and roll the server replicas to reload
+their environment token. Disable the account gate to withdraw access without
+removing the shared Pulse service or affecting telemetry collection.
+
 ## Local validation
 
 Render manifests:
