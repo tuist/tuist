@@ -21,16 +21,20 @@ Deploy all of the following before enabling an account:
    change. An older image can halt when it finds no CI dispatch token. The chart
    uses the configured, versioned Xcode 26.6 runner image by default;
    `sandboxes.macos.image` can pin an explicit compatible digest.
-4. Wait for the `tuist-macos-sandboxd` control Pod to become Ready, its host to
-   appear in sandbox node presence with the `macos` template, and a fresh
-   `tuist.dev/macos-sandbox-grant` Node annotation. Preparation compiles the
+4. Wait for each host to appear in sandbox node presence with the `macos`
+   template and a fresh `tuist.dev/macos-sandbox-grant` Node annotation. The
+   control Pod turns Ready as soon as tart-kubelet accepts its configuration,
+   before preparation, so a chart rollout that waits on the DaemonSet never
+   waits on an image pull or for disk room; readiness does not mean the host
+   can place sandboxes. Only a host that has prepared its template connects to
+   the server, so placement never reaches an unprepared host. Preparation compiles the
    isolated runtime once and downloads the base image at background priority.
    Cold template preparation has a one-hour deadline: staging's first Xcode
    image pull exceeded the normal twenty-minute CI deadline. Removal or
    replacement of the control Pod cancels preparation within one polling
    interval plus the bounded API probe. Transient API failures are retried
    without discarding a healthy download; a fresh control identity check is
-   required after the pull before readiness. Ownership recovery and eviction keep
+   required after the pull before the host connects. Ownership recovery and eviction keep
    running independently. Prewarm the image before enabling an account;
    this one-time transfer is not part of resident resume latency.
 5. Run the acceptance checks below on staging, then enable `sandboxes`
