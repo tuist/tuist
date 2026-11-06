@@ -159,7 +159,9 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   rootfs and workspace ceiling in `Capacity.reserved_disk_bytes/1`, and the
   save itself is admitted under the node's lock
   (`Capacity.reserve_disk_snapshot/3`). A newer save replaces older copies
-  of the same id. Node reports reconcile them like sandboxes: copies no row
+  of the same id, and of the id the saving Orb was spawned from
+  (`sandboxes.amp_base_snapshot_id`), since Amp refreshes a project snapshot
+  under a new id. Node reports reconcile them like sandboxes: copies no row
   knows are deleted from the node, rows whose copy the node no longer lists
   are dropped after a two-minute grace. A daemon that reports no
   `disk_snapshots` key is left alone.

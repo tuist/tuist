@@ -446,6 +446,35 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
       assert [%DiskSnapshot{node_name: "node-a"}] = Repo.all(DiskSnapshot)
     end
 
+    test "a save under a new ID replaces the snapshot the Orb was spawned from", %{account: account} do
+      base = disk_snapshot_fixture(account: account, amp_snapshot_id: "proj-1", node_name: "node-a")
+      other_project = disk_snapshot_fixture(account: account, amp_snapshot_id: "other-1", node_name: "node-a")
+      other_account = disk_snapshot_fixture(account: account_fixture(), amp_snapshot_id: "proj-1", node_name: "node-a")
+
+      expect(Capacity, :place_on_node, fn _sandbox, "node-a" -> {:ok, "node-a"} end)
+      expect(Nodes, :call, fn "node-a", "create", %{from_disk_snapshot: _}, _opts -> {:ok, %{}} end)
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      assert {:ok, _} = AmpOrbs.dispatch(account, "amp-new", Map.put(spawn_params(), :snapshot_id, "proj-1"))
+
+      stub(Nodes, :connected_nodes, fn -> [sandbox_node("node-a")] end)
+      expect_setup_read()
+      expect(Nodes, :call, fn "node-a", "pause", _args, _opts -> {:ok, %{"disks_synced" => true}} end)
+      expect(Nodes, :call, fn "node-a", "save_disks", _args, _opts -> {:ok, %{}} end)
+
+      expect(Nodes, :call, fn "node-a", "delete_disks", %{snapshot_id: id}, _opts ->
+        assert id == base.id
+        {:ok, %{}}
+      end)
+
+      assert {:ok, _} = AmpOrbs.dispatch(account, "amp-new", %{operation: "pause", snapshot_id: "proj-2"})
+
+      refute Repo.get(DiskSnapshot, base.id)
+      assert Repo.get(DiskSnapshot, other_project.id)
+      assert Repo.get(DiskSnapshot, other_account.id)
+      assert Repo.get_by(DiskSnapshot, account_id: account.id, amp_snapshot_id: "proj-2", state: :ready)
+    end
+
     test "a failed save still pauses the Orb and keeps no snapshot", %{account: account} do
       sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
       stub(Nodes, :connected_nodes, fn -> [sandbox_node("node-a")] end)

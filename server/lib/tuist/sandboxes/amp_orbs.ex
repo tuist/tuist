@@ -216,6 +216,7 @@ defmodule Tuist.Sandboxes.AmpOrbs do
       params
       |> Map.take([:platform, :template, :vcpus, :memory_mb, :workspace_gb, :amp_integration_id])
       |> Map.put(:amp_orb_id, orb_id)
+      |> Map.put(:amp_base_snapshot_id, snapshot_id(params))
 
     Sandboxes.create_sandbox(account, attrs, from_disk_snapshot: disk_snapshot(account, attrs, params))
   end
