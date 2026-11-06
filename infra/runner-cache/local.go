@@ -59,15 +59,18 @@ type LocalImages struct {
 	SizeGB       int
 	MinFreeBytes uint64
 	// MaxVolumeBytes bounds guest usage reports; zero is DefaultMaxVolumeBytes.
-	MaxVolumeBytes   int64
-	Transfer         ImageTransfer
-	Clone            func(context.Context, string, string) error
-	Observe          Observer
-	Log              *slog.Logger // eviction lines; nil is slog.Default
-	Run              func(context.Context, string, ...string) ([]byte, error)
-	Mount            func(string, string) error
-	Unmount          func(string, string) error
-	Check            func(string, string) error
+	MaxVolumeBytes int64
+	Transfer       ImageTransfer
+	Clone          func(context.Context, string, string) error
+	Observe        Observer
+	Log            *slog.Logger // eviction lines; nil is slog.Default
+	Run            func(context.Context, string, ...string) ([]byte, error)
+	Mount          func(string, string) error
+	Unmount        func(string, string) error
+	Check          func(string, string) error
+	// Trim returns the free blocks of a mounted branch to the host filesystem
+	// (TrimFS) before it is verified and published. Nil skips trimming.
+	Trim             func(string) error
 	MeasureFS        func(string) (int64, int64, error)
 	FreeBytes        func(string) (uint64, error)
 	FreeBytesContext func(context.Context, string) (uint64, error)
@@ -354,7 +357,7 @@ func (b *LocalImages) reserveSpare(ctx context.Context, minimum uint64) error {
 		return err
 	}
 	if free < minimum {
-		return ErrCapacity
+		return fmt.Errorf("%w: needs %d bytes free, has %d", ErrCapacity, minimum, free)
 	}
 	return nil
 }
@@ -585,6 +588,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 	defer func() {
 		observed := slot
 		observed.MountedGeneration = b.MountedGeneration(slot)
+		observed.ColdReason = b.ColdReason(slot)
 		b.Observe.For(observed).Report("attach", source, start, err)
 	}()
 	ctx = WithSubject(ctx, SubjectOf(slot))
@@ -622,7 +626,7 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 				// A job never waits for a download: it starts empty, the HEAD is fetched
 				// in the background, and this branch is withheld from publication unless
 				// the server lets it replace the saved version.
-				source, cold, err = "cold", true, os.WriteFile(image+".cold", nil, 0600)
+				source, cold, err = "cold", true, os.WriteFile(image+".cold", []byte(b.coldReason(slot)), 0600)
 			} else if err == nil {
 				b.growClone(slot, tmp)
 			}
@@ -834,6 +838,22 @@ func (b *LocalImages) Seal(slot Slot, path string) (err error) {
 	}
 	return b.publish(slot)
 }
+
+// trim hands the blocks a job freed back to the host filesystem while the
+// branch is still mounted. Branches are mounted without discard, so without it
+// an image keeps every block it ever wrote, and its master, its archive and
+// every clone carry the job's deleted data. verify calls it right after the
+// write-back check: that syncfs committed the frees TrimFS needs, and TrimFS
+// must not consume a write-back error before the check sees it. The loop
+// driver punches holes in the branch file only; a reflinked master keeps its
+// shared extents. A failed trim publishes the branch untrimmed.
+func (b *LocalImages) trim(slot Slot, path string) {
+	if b.Trim == nil {
+		return
+	}
+	_ = b.operation(slot, "trim", "none", func() error { return b.Trim(path) })
+}
+
 func (b *LocalImages) publish(slot Slot) error {
 	archive := b.image(slot) + ".zst"
 	defer os.Remove(archive)
@@ -955,6 +975,7 @@ func (b *LocalImages) verify(slot Slot, path string) error {
 	if err := check(device, path); err != nil {
 		return errors.Join(ErrPoisoned, err)
 	}
+	b.trim(slot, path)
 	if err := b.detach(slot, path); errors.Is(err, ErrReleasePending) {
 		if err := durableRename(image+".checking", image+".detaching"); err != nil {
 			return err
@@ -1111,8 +1132,32 @@ func (b *LocalImages) evictMaster(path, reason string, fields ...any) error {
 	if err := removeMaster(path); err != nil {
 		return err
 	}
+	// Remembered beside the lineage's masters so a job that later finds no copy
+	// here can say why it started empty (coldReason).
+	_ = os.WriteFile(filepath.Join(filepath.Dir(path), evictedFile), []byte(reason), 0600)
 	b.logEviction(path, bytes, reason, fields...)
 	return nil
+}
+
+// evictedFile, in a lineage's masters directory, holds the reason its most
+// recent master was evicted. It is not an image, so no master glob matches it.
+const evictedFile = "evicted"
+
+// coldReason is why the slot's lineage has no copy on this host: a download of
+// it is in flight, the host evicted its last master, or neither is known.
+func (b *LocalImages) coldReason(slot Slot) string {
+	downloading := false
+	b.fetching.Range(func(key, _ any) bool {
+		downloading = strings.HasPrefix(filepath.Base(key.(string)), slot.Scope+"-")
+		return !downloading
+	})
+	if downloading {
+		return ColdDownloading
+	}
+	if data, err := os.ReadFile(filepath.Join(b.Root, "masters", slot.Scope, evictedFile)); err == nil && evictionReasons[string(data)] {
+		return ColdEvicted + string(data)
+	}
+	return ColdNotOnHost
 }
 
 // logEviction names the evicted master by scope and generation only.
@@ -1202,6 +1247,19 @@ func (b *LocalImages) Cold(slot Slot) bool {
 	}
 	_, err := os.Stat(b.image(slot) + ".cold")
 	return err == nil
+}
+
+// ColdReason is why a cold branch started empty, as its marker recorded it, or
+// "" when it is not cold or an older agent left the marker empty.
+func (b *LocalImages) ColdReason(slot Slot) string {
+	if !b.Cold(slot) {
+		return ""
+	}
+	data, err := os.ReadFile(b.image(slot) + ".cold")
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 // HasMaster reports whether the immutable master a warm identity clones from is

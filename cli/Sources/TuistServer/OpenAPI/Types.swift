@@ -46,6 +46,8 @@ public protocol APIProtocol: Sendable {
     func createCoverageUpload(_ input: Operations.createCoverageUpload.Input) async throws -> Operations.createCoverageUpload.Output
     /// List the account's sandboxes.
     ///
+    /// Newest first by default. Deleted sandboxes are not listed.
+    ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/get(listSandboxes)`.
     func listSandboxes(_ input: Operations.listSandboxes.Input) async throws -> Operations.listSandboxes.Output
@@ -69,6 +71,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/get(getRunnerJob)`.
     func getRunnerJob(_ input: Operations.getRunnerJob.Input) async throws -> Operations.getRunnerJob.Output
+    /// Disconnects one of the signed-in user's AI subscriptions
+    ///
+    /// Deletes the provider's saved credentials and any pending sign-in. It does not revoke the authorization at the provider.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/ai-subscriptions/{provider}`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)`.
+    func disconnectAISubscription(_ input: Operations.disconnectAISubscription.Input) async throws -> Operations.disconnectAISubscription.Output
     /// Downloads an artifact from the cache.
     ///
     /// This endpoint returns a signed URL that can be used to download an artifact from the cache.
@@ -115,6 +124,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)`.
     func deletePreview(_ input: Operations.deletePreview.Input) async throws -> Operations.deletePreview.Output
+    /// Connects the signed-in user's Claude subscription
+    ///
+    /// Saves the subscription token `claude setup-token` prints, replacing any saved one. Tuist validates its format only, not that the subscription can serve requests. The token is never returned.
+    ///
+    /// - Remark: HTTP `PUT /api/me/ai-subscriptions/claude`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)`.
+    func connectClaudeSubscription(_ input: Operations.connectClaudeSubscription.Input) async throws -> Operations.connectClaudeSubscription.Output
     /// Get a test case by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
@@ -127,10 +143,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PATCH /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/patch(updateTestCase)`.
     func updateTestCase(_ input: Operations.updateTestCase.Input) async throws -> Operations.updateTestCase.Output
-    /// Clear saved volume contents. Running jobs retain their copies but cannot save them.
+    /// Deprecated: use deleteRunnerVolume.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/runners/volumes/{volume_id}/clear`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/post(clearRunnerVolume)`.
+    @available(*, deprecated)
     func clearRunnerVolume(_ input: Operations.clearRunnerVolume.Input) async throws -> Operations.clearRunnerVolume.Output
     /// Get the artifact tree for a bundle.
     ///
@@ -329,6 +346,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/volumes/{volume_id}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/get(getRunnerVolume)`.
     func getRunnerVolume(_ input: Operations.getRunnerVolume.Input) async throws -> Operations.getRunnerVolume.Output
+    /// Delete a runner volume. Running jobs retain their copies but cannot save them; later jobs with its key start empty.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/runners/volumes/{volume_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/delete(deleteRunnerVolume)`.
+    func deleteRunnerVolume(_ input: Operations.deleteRunnerVolume.Input) async throws -> Operations.deleteRunnerVolume.Output
     /// Get one recorded Xcode build step and its log.
     ///
     /// Logs retain up to 64 KiB per step, with log_truncated indicating omitted output. Steps and logs expire after 90 days. An empty log means no output was recorded.
@@ -506,6 +528,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/jobs/{workflow_job_id}/volumes/get(listRunnerJobVolumes)`.
     func listRunnerJobVolumes(_ input: Operations.listRunnerJobVolumes.Input) async throws -> Operations.listRunnerJobVolumes.Output
+    /// Starts connecting the signed-in user's ChatGPT subscription
+    ///
+    /// Starts an OpenAI device sign-in. Show the user the verification URL and code, then poll with the login ID no faster than `interval` seconds until it connects or `expires_at` passes. Saved credentials stay until the sign-in succeeds.
+    ///
+    /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)`.
+    func startChatGPTSubscriptionLogin(_ input: Operations.startChatGPTSubscriptionLogin.Input) async throws -> Operations.startChatGPTSubscriptionLogin.Output
+    /// Cancels a pending ChatGPT sign-in
+    ///
+    /// Discards the pending sign-in. A ChatGPT subscription that is already connected stays connected.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/ai-subscriptions/chatgpt/login`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)`.
+    func cancelChatGPTSubscriptionLogin(_ input: Operations.cancelChatGPTSubscriptionLogin.Input) async throws -> Operations.cancelChatGPTSubscriptionLogin.Output
     /// Cleans cache for a given project
     ///
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}/cache/clean`.
@@ -732,6 +768,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
     func generatePreviewsMultipartUploadURL(_ input: Operations.generatePreviewsMultipartUploadURL.Input) async throws -> Operations.generatePreviewsMultipartUploadURL.Output
+    /// Resolve the baseline for coverage-based test selection.
+    ///
+    /// Returns the nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)`.
+    func resolveTestImpactBaseline(_ input: Operations.resolveTestImpactBaseline.Input) async throws -> Operations.resolveTestImpactBaseline.Output
     /// Get one recorded Gradle build step.
     ///
     /// Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
@@ -839,6 +882,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/git-history/listings`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/git-history/listings/post(uploadCommitListing)`.
     func uploadCommitListing(_ input: Operations.uploadCommitListing.Input) async throws -> Operations.uploadCommitListing.Output
+    /// Start a device sign-in.
+    ///
+    /// Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/auth/device_codes`.
+    /// - Remark: Generated from `#/paths//api/auth/device_codes/post(createDeviceCode)`.
+    func createDeviceCode(_ input: Operations.createDeviceCode.Input) async throws -> Operations.createDeviceCode.Output
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -916,6 +967,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/crash-reports`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)`.
     func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
+    /// Lists the signed-in user's AI subscriptions
+    ///
+    /// Returns connection metadata for every supported provider. Credentials are never returned.
+    ///
+    /// - Remark: HTTP `GET /api/me/ai-subscriptions`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)`.
+    func listAISubscriptions(_ input: Operations.listAISubscriptions.Input) async throws -> Operations.listAISubscriptions.Output
     /// List Cargo crates across builds.
     ///
     /// Observed Rust crates identified by exact recorded crate root, name and kind. Paths are not normalized and build configurations are not distinguished. History contains measured rustc invocations, not per-source-file timing or cache hits. Missing observations do not establish removals or a complete workspace inventory.
@@ -971,6 +1029,13 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/once/runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/once/runs/get(listOnceRuns)`.
     func listOnceRuns(_ input: Operations.listOnceRuns.Input) async throws -> Operations.listOnceRuns.Output
+    /// Create an impact run for coverage-based test selection.
+    ///
+    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. On `fallback` the client runs every test in scope or default selective testing, depending on the reason, and default selective testing on an error or when the request times out.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)`.
+    func createTestImpactRun(_ input: Operations.createTestImpactRun.Input) async throws -> Operations.createTestImpactRun.Output
     /// Complete the multipart upload and trigger per-shard xctestrun creation.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete`.
@@ -1233,6 +1298,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/get(getGradleBuild)`.
     func getGradleBuild(_ input: Operations.getGradleBuild.Input) async throws -> Operations.getGradleBuild.Output
+    /// Polls a pending ChatGPT sign-in
+    ///
+    /// Returns `pending` until the user approves the code, then `connected`. Polls sooner than the sign-in's interval return `pending` without asking OpenAI.
+    ///
+    /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login/poll`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)`.
+    func pollChatGPTSubscriptionLogin(_ input: Operations.pollChatGPTSubscriptionLogin.Input) async throws -> Operations.pollChatGPTSubscriptionLogin.Output
+    /// Lists the feature flags enabled for the signed-in user
+    ///
+    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or the signed-in Tuist app can read them.
+    ///
+    /// - Remark: HTTP `GET /api/me/feature-flags`.
+    /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)`.
+    func listFeatureFlags(_ input: Operations.listFeatureFlags.Input) async throws -> Operations.listFeatureFlags.Output
     /// Get a Bazel invocation by its Bazel invocation identifier.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}`.
@@ -1432,6 +1511,20 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/token`.
     /// - Remark: Generated from `#/paths//api/cache/token/post(getCacheToken)`.
     func getCacheToken(_ input: Operations.getCacheToken.Input) async throws -> Operations.getCacheToken.Output
+    /// Get the account's sandbox analytics for a time range.
+    ///
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
+    func getSandboxAnalytics(_ input: Operations.getSandboxAnalytics.Input) async throws -> Operations.getSandboxAnalytics.Output
+    /// Archive a paused sandbox.
+    ///
+    /// Queues moving the paused sandbox's disks to object storage, which frees them on its node. The sandbox stays `paused` until the upload completes and then becomes `archived`; resuming restores it.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)`.
+    func archiveSandbox(_ input: Operations.archiveSandbox.Input) async throws -> Operations.archiveSandbox.Output
 }
 
 /// Convenience overloads for operation inputs.
@@ -1521,14 +1614,18 @@ extension APIProtocol {
     }
     /// List the account's sandboxes.
     ///
+    /// Newest first by default. Deleted sandboxes are not listed.
+    ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/get(listSandboxes)`.
     public func listSandboxes(
         path: Operations.listSandboxes.Input.Path,
+        query: Operations.listSandboxes.Input.Query = .init(),
         headers: Operations.listSandboxes.Input.Headers = .init()
     ) async throws -> Operations.listSandboxes.Output {
         try await listSandboxes(Operations.listSandboxes.Input(
             path: path,
+            query: query,
             headers: headers
         ))
     }
@@ -1574,6 +1671,21 @@ extension APIProtocol {
         headers: Operations.getRunnerJob.Input.Headers = .init()
     ) async throws -> Operations.getRunnerJob.Output {
         try await getRunnerJob(Operations.getRunnerJob.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Disconnects one of the signed-in user's AI subscriptions
+    ///
+    /// Deletes the provider's saved credentials and any pending sign-in. It does not revoke the authorization at the provider.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/ai-subscriptions/{provider}`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)`.
+    public func disconnectAISubscription(
+        path: Operations.disconnectAISubscription.Input.Path,
+        headers: Operations.disconnectAISubscription.Input.Headers = .init()
+    ) async throws -> Operations.disconnectAISubscription.Output {
+        try await disconnectAISubscription(Operations.disconnectAISubscription.Input(
             path: path,
             headers: headers
         ))
@@ -1676,6 +1788,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Connects the signed-in user's Claude subscription
+    ///
+    /// Saves the subscription token `claude setup-token` prints, replacing any saved one. Tuist validates its format only, not that the subscription can serve requests. The token is never returned.
+    ///
+    /// - Remark: HTTP `PUT /api/me/ai-subscriptions/claude`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)`.
+    public func connectClaudeSubscription(
+        headers: Operations.connectClaudeSubscription.Input.Headers = .init(),
+        body: Operations.connectClaudeSubscription.Input.Body
+    ) async throws -> Operations.connectClaudeSubscription.Output {
+        try await connectClaudeSubscription(Operations.connectClaudeSubscription.Input(
+            headers: headers,
+            body: body
+        ))
+    }
     /// Get a test case by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
@@ -1706,10 +1833,11 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// Clear saved volume contents. Running jobs retain their copies but cannot save them.
+    /// Deprecated: use deleteRunnerVolume.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/runners/volumes/{volume_id}/clear`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/post(clearRunnerVolume)`.
+    @available(*, deprecated)
     public func clearRunnerVolume(
         path: Operations.clearRunnerVolume.Input.Path,
         headers: Operations.clearRunnerVolume.Input.Headers = .init()
@@ -2210,6 +2338,19 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Delete a runner volume. Running jobs retain their copies but cannot save them; later jobs with its key start empty.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/runners/volumes/{volume_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/delete(deleteRunnerVolume)`.
+    public func deleteRunnerVolume(
+        path: Operations.deleteRunnerVolume.Input.Path,
+        headers: Operations.deleteRunnerVolume.Input.Headers = .init()
+    ) async throws -> Operations.deleteRunnerVolume.Output {
+        try await deleteRunnerVolume(Operations.deleteRunnerVolume.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Get one recorded Xcode build step and its log.
     ///
     /// Logs retain up to 64 KiB per step, with log_truncated indicating omitted output. Steps and logs expire after 90 days. An empty log means no output was recorded.
@@ -2644,6 +2785,30 @@ extension APIProtocol {
     ) async throws -> Operations.listRunnerJobVolumes.Output {
         try await listRunnerJobVolumes(Operations.listRunnerJobVolumes.Input(
             path: path,
+            headers: headers
+        ))
+    }
+    /// Starts connecting the signed-in user's ChatGPT subscription
+    ///
+    /// Starts an OpenAI device sign-in. Show the user the verification URL and code, then poll with the login ID no faster than `interval` seconds until it connects or `expires_at` passes. Saved credentials stay until the sign-in succeeds.
+    ///
+    /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)`.
+    public func startChatGPTSubscriptionLogin(headers: Operations.startChatGPTSubscriptionLogin.Input.Headers = .init()) async throws -> Operations.startChatGPTSubscriptionLogin.Output {
+        try await startChatGPTSubscriptionLogin(Operations.startChatGPTSubscriptionLogin.Input(headers: headers))
+    }
+    /// Cancels a pending ChatGPT sign-in
+    ///
+    /// Discards the pending sign-in. A ChatGPT subscription that is already connected stays connected.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/ai-subscriptions/chatgpt/login`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)`.
+    public func cancelChatGPTSubscriptionLogin(
+        query: Operations.cancelChatGPTSubscriptionLogin.Input.Query,
+        headers: Operations.cancelChatGPTSubscriptionLogin.Input.Headers = .init()
+    ) async throws -> Operations.cancelChatGPTSubscriptionLogin.Output {
+        try await cancelChatGPTSubscriptionLogin(Operations.cancelChatGPTSubscriptionLogin.Input(
+            query: query,
             headers: headers
         ))
     }
@@ -3225,6 +3390,23 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Resolve the baseline for coverage-based test selection.
+    ///
+    /// Returns the nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)`.
+    public func resolveTestImpactBaseline(
+        path: Operations.resolveTestImpactBaseline.Input.Path,
+        headers: Operations.resolveTestImpactBaseline.Input.Headers = .init(),
+        body: Operations.resolveTestImpactBaseline.Input.Body? = nil
+    ) async throws -> Operations.resolveTestImpactBaseline.Output {
+        try await resolveTestImpactBaseline(Operations.resolveTestImpactBaseline.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Get one recorded Gradle build step.
     ///
     /// Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
@@ -3482,6 +3664,16 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Start a device sign-in.
+    ///
+    /// Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/auth/device_codes`.
+    /// - Remark: Generated from `#/paths//api/auth/device_codes/post(createDeviceCode)`.
+    public func createDeviceCode(headers: Operations.createDeviceCode.Input.Headers = .init()) async throws -> Operations.createDeviceCode.Output {
+        try await createDeviceCode(Operations.createDeviceCode.Input(headers: headers))
+    }
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -3675,6 +3867,15 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Lists the signed-in user's AI subscriptions
+    ///
+    /// Returns connection metadata for every supported provider. Credentials are never returned.
+    ///
+    /// - Remark: HTTP `GET /api/me/ai-subscriptions`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)`.
+    public func listAISubscriptions(headers: Operations.listAISubscriptions.Input.Headers = .init()) async throws -> Operations.listAISubscriptions.Output {
+        try await listAISubscriptions(Operations.listAISubscriptions.Input(headers: headers))
+    }
     /// List Cargo crates across builds.
     ///
     /// Observed Rust crates identified by exact recorded crate root, name and kind. Paths are not normalized and build configurations are not distinguished. History contains measured rustc invocations, not per-source-file timing or cache hits. Missing observations do not establish removals or a complete workspace inventory.
@@ -3814,6 +4015,23 @@ extension APIProtocol {
             path: path,
             query: query,
             headers: headers
+        ))
+    }
+    /// Create an impact run for coverage-based test selection.
+    ///
+    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. On `fallback` the client runs every test in scope or default selective testing, depending on the reason, and default selective testing on an error or when the request times out.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)`.
+    public func createTestImpactRun(
+        path: Operations.createTestImpactRun.Input.Path,
+        headers: Operations.createTestImpactRun.Input.Headers = .init(),
+        body: Operations.createTestImpactRun.Input.Body? = nil
+    ) async throws -> Operations.createTestImpactRun.Output {
+        try await createTestImpactRun(Operations.createTestImpactRun.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Complete the multipart upload and trigger per-shard xctestrun creation.
@@ -4458,6 +4676,30 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Polls a pending ChatGPT sign-in
+    ///
+    /// Returns `pending` until the user approves the code, then `connected`. Polls sooner than the sign-in's interval return `pending` without asking OpenAI.
+    ///
+    /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login/poll`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)`.
+    public func pollChatGPTSubscriptionLogin(
+        headers: Operations.pollChatGPTSubscriptionLogin.Input.Headers = .init(),
+        body: Operations.pollChatGPTSubscriptionLogin.Input.Body
+    ) async throws -> Operations.pollChatGPTSubscriptionLogin.Output {
+        try await pollChatGPTSubscriptionLogin(Operations.pollChatGPTSubscriptionLogin.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Lists the feature flags enabled for the signed-in user
+    ///
+    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or the signed-in Tuist app can read them.
+    ///
+    /// - Remark: HTTP `GET /api/me/feature-flags`.
+    /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)`.
+    public func listFeatureFlags(headers: Operations.listFeatureFlags.Input.Headers = .init()) async throws -> Operations.listFeatureFlags.Output {
+        try await listFeatureFlags(Operations.listFeatureFlags.Input(headers: headers))
+    }
     /// Get a Bazel invocation by its Bazel invocation identifier.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}`.
@@ -4941,6 +5183,38 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// Get the account's sandbox analytics for a time range.
+    ///
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
+    public func getSandboxAnalytics(
+        path: Operations.getSandboxAnalytics.Input.Path,
+        query: Operations.getSandboxAnalytics.Input.Query = .init(),
+        headers: Operations.getSandboxAnalytics.Input.Headers = .init()
+    ) async throws -> Operations.getSandboxAnalytics.Output {
+        try await getSandboxAnalytics(Operations.getSandboxAnalytics.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Archive a paused sandbox.
+    ///
+    /// Queues moving the paused sandbox's disks to object storage, which frees them on its node. The sandbox stays `paused` until the upload completes and then becomes `archived`; resuming restores it.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)`.
+    public func archiveSandbox(
+        path: Operations.archiveSandbox.Input.Path,
+        headers: Operations.archiveSandbox.Input.Headers = .init()
+    ) async throws -> Operations.archiveSandbox.Output {
+        try await archiveSandbox(Operations.archiveSandbox.Input(
+            path: path,
+            headers: headers
+        ))
+    }
 }
 
 /// Server URLs defined in the OpenAPI document.
@@ -4950,6 +5224,57 @@ public enum Servers {}
 public enum Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
+        /// - Remark: Generated from `#/components/schemas/DeviceAuthorization`.
+        public struct DeviceAuthorization: Codable, Hashable, Sendable {
+            /// The secret code to poll for tokens with.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/device_code`.
+            public var device_code: Swift.String
+            /// Seconds until the codes expire.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/expires_in`.
+            public var expires_in: Swift.Int
+            /// Seconds to wait between polls.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/interval`.
+            public var interval: Swift.Int
+            /// The short code the person enters in the browser.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/user_code`.
+            public var user_code: Swift.String
+            /// The page where the person enters the code.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceAuthorization/verification_uri`.
+            public var verification_uri: Swift.String
+            /// Creates a new `DeviceAuthorization`.
+            ///
+            /// - Parameters:
+            ///   - device_code: The secret code to poll for tokens with.
+            ///   - expires_in: Seconds until the codes expire.
+            ///   - interval: Seconds to wait between polls.
+            ///   - user_code: The short code the person enters in the browser.
+            ///   - verification_uri: The page where the person enters the code.
+            public init(
+                device_code: Swift.String,
+                expires_in: Swift.Int,
+                interval: Swift.Int,
+                user_code: Swift.String,
+                verification_uri: Swift.String
+            ) {
+                self.device_code = device_code
+                self.expires_in = expires_in
+                self.interval = interval
+                self.user_code = user_code
+                self.verification_uri = verification_uri
+            }
+            public enum CodingKeys: String, CodingKey {
+                case device_code
+                case expires_in
+                case interval
+                case user_code
+                case verification_uri
+            }
+        }
         /// A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
         ///
         /// - Remark: Generated from `#/components/schemas/AuthenticationTokens`.
@@ -5444,6 +5769,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/duration`.
             public var duration: Swift.Int
+            /// The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/test_impact_run_id`.
+            public var test_impact_run_id: Swift.String?
             /// The version of Xcode used during the run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/xcode_version`.
@@ -6047,6 +6376,7 @@ public enum Components {
             ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
             ///   - contract_version: Version of the client-server analytics contract the caller was built against (e.g. "0.1"). Older clients may omit it; the server accepts unknown values.
             ///   - duration: Duration of the run in milliseconds.
+            ///   - test_impact_run_id: The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not.
             ///   - xcode_version: The version of Xcode used during the run.
             ///   - build_system: The build system used by the test run.
             ///   - git_commit_sha: The commit SHA.
@@ -6096,6 +6426,7 @@ public enum Components {
                 shard_plan_id: Swift.String? = nil,
                 contract_version: Swift.String? = nil,
                 duration: Swift.Int,
+                test_impact_run_id: Swift.String? = nil,
                 xcode_version: Swift.String? = nil,
                 build_system: Components.Schemas.TestParams.build_systemPayload? = nil,
                 git_commit_sha: Swift.String? = nil,
@@ -6145,6 +6476,7 @@ public enum Components {
                 self.shard_plan_id = shard_plan_id
                 self.contract_version = contract_version
                 self.duration = duration
+                self.test_impact_run_id = test_impact_run_id
                 self.xcode_version = xcode_version
                 self.build_system = build_system
                 self.git_commit_sha = git_commit_sha
@@ -6195,6 +6527,7 @@ public enum Components {
                 case shard_plan_id
                 case contract_version
                 case duration
+                case test_impact_run_id
                 case xcode_version
                 case build_system
                 case git_commit_sha
@@ -6206,6 +6539,49 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/MixBuildsIndexPage`.
         public typealias MixBuildsIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/AISubscription`.
+        public struct AISubscription: Codable, Hashable, Sendable {
+            /// Whether credentials are saved for the provider.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AISubscription/connected`.
+            public var connected: Swift.Bool
+            /// Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AISubscription/login_available`.
+            public var login_available: Swift.Bool
+            /// The provider. Known values: `claude`, `chatgpt`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AISubscription/provider`.
+            public var provider: Swift.String
+            /// When the connection last changed, or null if it was never connected.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AISubscription/updated_at`.
+            public var updated_at: Foundation.Date?
+            /// Creates a new `AISubscription`.
+            ///
+            /// - Parameters:
+            ///   - connected: Whether credentials are saved for the provider.
+            ///   - login_available: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+            ///   - provider: The provider. Known values: `claude`, `chatgpt`.
+            ///   - updated_at: When the connection last changed, or null if it was never connected.
+            public init(
+                connected: Swift.Bool,
+                login_available: Swift.Bool,
+                provider: Swift.String,
+                updated_at: Foundation.Date? = nil
+            ) {
+                self.connected = connected
+                self.login_available = login_available
+                self.provider = provider
+                self.updated_at = updated_at
+            }
+            public enum CodingKeys: String, CodingKey {
+                case connected
+                case login_available
+                case provider
+                case updated_at
+            }
+        }
         /// It represents an artifact that's associated with a command event (e.g. result bundles)
         ///
         /// - Remark: Generated from `#/components/schemas/CommandEventArtifact`.
@@ -10244,6 +10620,43 @@ public enum Components {
                 case window_days
             }
         }
+        /// A test not to run, named the same way for every build system; each client turns it into its own filters. An entry with only `module` skips the whole module, which happens only when none of its tests is selected. Entries are never collapsed into a suite.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SkippedTest`.
+        public struct SkippedTest: Codable, Hashable, Sendable {
+            /// The test module (target, Gradle module, Mix app, or crate).
+            ///
+            /// - Remark: Generated from `#/components/schemas/SkippedTest/module`.
+            public var module: Swift.String
+            /// The name of the test. Absent when the whole module is skipped.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SkippedTest/name`.
+            public var name: Swift.String?
+            /// The suite (class) of the test. Absent when the whole module is skipped.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SkippedTest/suite`.
+            public var suite: Swift.String?
+            /// Creates a new `SkippedTest`.
+            ///
+            /// - Parameters:
+            ///   - module: The test module (target, Gradle module, Mix app, or crate).
+            ///   - name: The name of the test. Absent when the whole module is skipped.
+            ///   - suite: The suite (class) of the test. Absent when the whole module is skipped.
+            public init(
+                module: Swift.String,
+                name: Swift.String? = nil,
+                suite: Swift.String? = nil
+            ) {
+                self.module = module
+                self.name = name
+                self.suite = suite
+            }
+            public enum CodingKeys: String, CodingKey {
+                case module
+                case name
+                case suite
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/BazelBuildAction`.
         public struct BazelBuildAction: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/BazelBuildAction/first_seen_at`.
@@ -10583,6 +10996,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/skipped_test_suites`.
             public var skipped_test_suites: [Swift.String]?
+            /// The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/test_impact_run_id`.
+            public var test_impact_run_id: Swift.String?
             /// Test suite names (for suite-level granularity).
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/test_suites`.
@@ -10603,6 +11020,7 @@ public enum Components {
             ///   - shard_min: Minimum number of shards.
             ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
             ///   - skipped_test_suites: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
+            ///   - test_impact_run_id: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
             ///   - test_suites: Test suite names (for suite-level granularity).
             public init(
                 build_run_id: Swift.String? = nil,
@@ -10618,6 +11036,7 @@ public enum Components {
                 shard_min: Swift.Int? = nil,
                 shard_total: Swift.Int? = nil,
                 skipped_test_suites: [Swift.String]? = nil,
+                test_impact_run_id: Swift.String? = nil,
                 test_suites: [Swift.String]? = nil
             ) {
                 self.build_run_id = build_run_id
@@ -10633,6 +11052,7 @@ public enum Components {
                 self.shard_min = shard_min
                 self.shard_total = shard_total
                 self.skipped_test_suites = skipped_test_suites
+                self.test_impact_run_id = test_impact_run_id
                 self.test_suites = test_suites
             }
             public enum CodingKeys: String, CodingKey {
@@ -10649,6 +11069,7 @@ public enum Components {
                 case shard_min
                 case shard_total
                 case skipped_test_suites
+                case test_impact_run_id
                 case test_suites
             }
         }
@@ -10693,6 +11114,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/skip`.
             public var skip: [Swift.String]?
+            /// For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Shard/skipped_tests`.
+            public var skipped_tests: [Components.Schemas.SkippedTest]?
             /// The test suites assigned to this shard, grouped by module name.
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/suites`.
@@ -10725,6 +11150,7 @@ public enum Components {
             ///   - modules: The test modules assigned to this shard.
             ///   - shard_plan_id: The UUID of the shard plan.
             ///   - skip: Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards.
+            ///   - skipped_tests: For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans.
             ///   - suites: The test suites assigned to this shard, grouped by module name.
             public init(
                 download_url: Swift.String? = nil,
@@ -10732,6 +11158,7 @@ public enum Components {
                 modules: [Swift.String],
                 shard_plan_id: Swift.String,
                 skip: [Swift.String]? = nil,
+                skipped_tests: [Components.Schemas.SkippedTest]? = nil,
                 suites: Components.Schemas.Shard.suitesPayload
             ) {
                 self.download_url = download_url
@@ -10739,6 +11166,7 @@ public enum Components {
                 self.modules = modules
                 self.shard_plan_id = shard_plan_id
                 self.skip = skip
+                self.skipped_tests = skipped_tests
                 self.suites = suites
             }
             public enum CodingKeys: String, CodingKey {
@@ -10747,6 +11175,7 @@ public enum Components {
                 case modules
                 case shard_plan_id
                 case skip
+                case skipped_tests
                 case suites
             }
         }
@@ -11197,6 +11626,23 @@ public enum Components {
                 case started_at
                 case status
                 case tuist_version
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLoginStatus`.
+        public struct ChatGPTSubscriptionLoginStatus: Codable, Hashable, Sendable {
+            /// Known values: `pending`, `connected`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLoginStatus/status`.
+            public var status: Swift.String
+            /// Creates a new `ChatGPTSubscriptionLoginStatus`.
+            ///
+            /// - Parameters:
+            ///   - status: Known values: `pending`, `connected`.
+            public init(status: Swift.String) {
+                self.status = status
+            }
+            public enum CodingKeys: String, CodingKey {
+                case status
             }
         }
         /// What the stress gate for newly added tests did during this run: the mode it ran in, whether it found a flaky candidate or why it ran nothing, and every test case it examined.
@@ -15382,6 +15828,13 @@ public enum Components {
             public var name: Swift.String?
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/pause_grace_seconds`.
             public var pause_grace_seconds: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/platform`.
+            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case linux = "linux"
+                case darwin = "darwin"
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/platform`.
+            public var platform: Components.Schemas.SandboxAgentEnvironment.platformPayload
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/template`.
             public var template: Swift.String
             /// - Remark: Generated from `#/components/schemas/SandboxAgentEnvironment/updated_at`.
@@ -15405,6 +15858,7 @@ public enum Components {
             ///   - memory_mb:
             ///   - name:
             ///   - pause_grace_seconds:
+            ///   - platform:
             ///   - template:
             ///   - updated_at:
             ///   - vcpus:
@@ -15422,6 +15876,7 @@ public enum Components {
                 memory_mb: Swift.Int,
                 name: Swift.String? = nil,
                 pause_grace_seconds: Swift.Int,
+                platform: Components.Schemas.SandboxAgentEnvironment.platformPayload,
                 template: Swift.String,
                 updated_at: Foundation.Date,
                 vcpus: Swift.Int,
@@ -15439,6 +15894,7 @@ public enum Components {
                 self.memory_mb = memory_mb
                 self.name = name
                 self.pause_grace_seconds = pause_grace_seconds
+                self.platform = platform
                 self.template = template
                 self.updated_at = updated_at
                 self.vcpus = vcpus
@@ -15457,6 +15913,7 @@ public enum Components {
                 case memory_mb
                 case name
                 case pause_grace_seconds
+                case platform
                 case template
                 case updated_at
                 case vcpus
@@ -15920,6 +16377,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Coverage/partial`.
             public var partial: Swift.Bool
+            /// The platform the tests ran on, from the destination the client resolved, such as `ios` or `macos`. Coverage-based test selection only picks a baseline whose runs tested the same platform. Absent where the build system has none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Coverage/platform`.
+            public var platform: Swift.String?
             /// The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; sent instead of `files` when the coverage is too large to send inline.
             ///
             /// - Remark: Generated from `#/components/schemas/Coverage/storage_key`.
@@ -15937,18 +16398,21 @@ public enum Components {
             /// - Parameters:
             ///   - files:
             ///   - partial: Whether the run left tests out on purpose (filters, selective testing), so its coverage describes only the tests that ran.
+            ///   - platform: The platform the tests ran on, from the destination the client resolved, such as `ios` or `macos`. Coverage-based test selection only picks a baseline whose runs tested the same platform. Absent where the build system has none.
             ///   - storage_key: The storage key `createCoverageUpload` returned for this run's id, once the client PUT the compressed coverage there; sent instead of `files` when the coverage is too large to send inline.
             ///   - tool: The tool that measured the coverage, such as `cover` for Mix or `llvm-cov` (`xccov` from older clients) for Xcode.
             ///   - tool_version: The version of the tool, or of the runtime that provides it, so only like figures are compared.
             public init(
                 files: Components.Schemas.Coverage.filesPayload? = nil,
                 partial: Swift.Bool,
+                platform: Swift.String? = nil,
                 storage_key: Swift.String? = nil,
                 tool: Swift.String,
                 tool_version: Swift.String? = nil
             ) {
                 self.files = files
                 self.partial = partial
+                self.platform = platform
                 self.storage_key = storage_key
                 self.tool = tool
                 self.tool_version = tool_version
@@ -15956,6 +16420,7 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case files
                 case partial
+                case platform
                 case storage_key
                 case tool
                 case tool_version
@@ -16591,6 +17056,7 @@ public enum Components {
                 case _4096 = 4096
                 case _8192 = 8192
                 case _16384 = 16384
+                case _24576 = 24576
             }
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/memory_mb`.
             public var memory_mb: Components.Schemas.CreateSandboxAgentEnvironment.memory_mbPayload?
@@ -16598,11 +17064,18 @@ public enum Components {
             public var name: Swift.String?
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/pause_grace_seconds`.
             public var pause_grace_seconds: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/platform`.
+            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case linux = "linux"
+                case darwin = "darwin"
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/platform`.
+            public var platform: Components.Schemas.CreateSandboxAgentEnvironment.platformPayload?
             /// Sandbox template name.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/template`.
             public var template: Swift.String?
-            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/vcpus`.
             @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -16610,7 +17083,7 @@ public enum Components {
                 case _4 = 4
                 case _8 = 8
             }
-            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandboxAgentEnvironment/vcpus`.
             public var vcpus: Components.Schemas.CreateSandboxAgentEnvironment.vcpusPayload?
@@ -16628,8 +17101,9 @@ public enum Components {
             ///   - memory_mb:
             ///   - name:
             ///   - pause_grace_seconds:
+            ///   - platform:
             ///   - template: Sandbox template name.
-            ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
             public init(
                 agent_model: Swift.String? = nil,
@@ -16641,6 +17115,7 @@ public enum Components {
                 memory_mb: Components.Schemas.CreateSandboxAgentEnvironment.memory_mbPayload? = nil,
                 name: Swift.String? = nil,
                 pause_grace_seconds: Swift.Int? = nil,
+                platform: Components.Schemas.CreateSandboxAgentEnvironment.platformPayload? = nil,
                 template: Swift.String? = nil,
                 vcpus: Components.Schemas.CreateSandboxAgentEnvironment.vcpusPayload? = nil,
                 workspace_gb: Swift.Int? = nil
@@ -16654,6 +17129,7 @@ public enum Components {
                 self.memory_mb = memory_mb
                 self.name = name
                 self.pause_grace_seconds = pause_grace_seconds
+                self.platform = platform
                 self.template = template
                 self.vcpus = vcpus
                 self.workspace_gb = workspace_gb
@@ -16668,6 +17144,7 @@ public enum Components {
                 case memory_mb
                 case name
                 case pause_grace_seconds
+                case platform
                 case template
                 case vcpus
                 case workspace_gb
@@ -18756,6 +19233,66 @@ public enum Components {
                 case projects
             }
         }
+        /// - Remark: Generated from `#/components/schemas/AISubscriptions`.
+        public struct AISubscriptions: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptionsPayload`.
+            public struct subscriptionsPayloadPayload: Codable, Hashable, Sendable {
+                /// Whether credentials are saved for the provider.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptionsPayload/connected`.
+                public var connected: Swift.Bool
+                /// Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptionsPayload/login_available`.
+                public var login_available: Swift.Bool
+                /// The provider. Known values: `claude`, `chatgpt`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptionsPayload/provider`.
+                public var provider: Swift.String
+                /// When the connection last changed, or null if it was never connected.
+                ///
+                /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptionsPayload/updated_at`.
+                public var updated_at: Foundation.Date?
+                /// Creates a new `subscriptionsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - connected: Whether credentials are saved for the provider.
+                ///   - login_available: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                ///   - provider: The provider. Known values: `claude`, `chatgpt`.
+                ///   - updated_at: When the connection last changed, or null if it was never connected.
+                public init(
+                    connected: Swift.Bool,
+                    login_available: Swift.Bool,
+                    provider: Swift.String,
+                    updated_at: Foundation.Date? = nil
+                ) {
+                    self.connected = connected
+                    self.login_available = login_available
+                    self.provider = provider
+                    self.updated_at = updated_at
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case connected
+                    case login_available
+                    case provider
+                    case updated_at
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptions`.
+            public typealias subscriptionsPayload = [Components.Schemas.AISubscriptions.subscriptionsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/AISubscriptions/subscriptions`.
+            public var subscriptions: Components.Schemas.AISubscriptions.subscriptionsPayload
+            /// Creates a new `AISubscriptions`.
+            ///
+            /// - Parameters:
+            ///   - subscriptions:
+            public init(subscriptions: Components.Schemas.AISubscriptions.subscriptionsPayload) {
+                self.subscriptions = subscriptions
+            }
+            public enum CodingKeys: String, CodingKey {
+                case subscriptions
+            }
+        }
         /// The page number to return.
         ///
         /// - Remark: Generated from `#/components/schemas/GradleBuildsIndexPage`.
@@ -18971,6 +19508,43 @@ public enum Components {
                 case test_case_run_attachment_id
                 case test_case_run_id
                 case triggered_thread_frames
+            }
+        }
+        /// The nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, or the reason there's none.
+        ///
+        /// - Remark: Generated from `#/components/schemas/TestImpactBaseline`.
+        public struct TestImpactBaseline: Codable, Hashable, Sendable {
+            /// The baseline commit. Null when there's none, and `reason` says why.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactBaseline/baseline_sha`.
+            public var baseline_sha: Swift.String?
+            /// Whether the diff between the checked-out commit and the baseline is already stored. When true and the checkout is clean, the client skips deepening and diffing and sends no `changed_files`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactBaseline/diff_cached`.
+            public var diff_cached: Swift.Bool?
+            /// Why there's no baseline: `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. `history_unknown` means the server's history has none of the checked-out commit, the parents and the ancestors sent: the client deepens its checkout once by 100 commits and repeats the request with `ancestor_shas`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactBaseline/reason`.
+            public var reason: Swift.String?
+            /// Creates a new `TestImpactBaseline`.
+            ///
+            /// - Parameters:
+            ///   - baseline_sha: The baseline commit. Null when there's none, and `reason` says why.
+            ///   - diff_cached: Whether the diff between the checked-out commit and the baseline is already stored. When true and the checkout is clean, the client skips deepening and diffing and sends no `changed_files`.
+            ///   - reason: Why there's no baseline: `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. `history_unknown` means the server's history has none of the checked-out commit, the parents and the ancestors sent: the client deepens its checkout once by 100 commits and repeats the request with `ancestor_shas`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`.
+            public init(
+                baseline_sha: Swift.String? = nil,
+                diff_cached: Swift.Bool? = nil,
+                reason: Swift.String? = nil
+            ) {
+                self.baseline_sha = baseline_sha
+                self.diff_cached = diff_cached
+                self.reason = reason
+            }
+            public enum CodingKeys: String, CodingKey {
+                case baseline_sha
+                case diff_cached
+                case reason
             }
         }
         /// - Remark: Generated from `#/components/schemas/CargoCrate`.
@@ -19388,6 +19962,102 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/BuildsIndexPage`.
         public typealias BuildsIndexPage = Swift.Int
+        /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams`.
+        public struct ResolveTestImpactBaselineParams: Codable, Hashable, Sendable {
+            /// The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/ancestor_shas`.
+            public var ancestor_shas: [Swift.String]?
+            /// The build system, `xcode` first. A plain string so new build systems don't need a new client.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/build_system`.
+            public var build_system: Swift.String
+            /// The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/commit_sha`.
+            public var commit_sha: Swift.String
+            /// The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/parent_shas`.
+            public var parent_shas: [Swift.String]?
+            /// The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/platform`.
+            public var platform: Swift.String?
+            /// Xcode only: the scope the invocation tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/xcode`.
+            public struct xcodePayload: Codable, Hashable, Sendable {
+                /// The destination the tests run on.
+                ///
+                /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/xcode/destination`.
+                public var destination: Swift.String?
+                /// The scheme being tested.
+                ///
+                /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/xcode/scheme`.
+                public var scheme: Swift.String?
+                /// The test plan being run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/xcode/test_plan`.
+                public var test_plan: Swift.String?
+                /// Creates a new `xcodePayload`.
+                ///
+                /// - Parameters:
+                ///   - destination: The destination the tests run on.
+                ///   - scheme: The scheme being tested.
+                ///   - test_plan: The test plan being run.
+                public init(
+                    destination: Swift.String? = nil,
+                    scheme: Swift.String? = nil,
+                    test_plan: Swift.String? = nil
+                ) {
+                    self.destination = destination
+                    self.scheme = scheme
+                    self.test_plan = test_plan
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case destination
+                    case scheme
+                    case test_plan
+                }
+            }
+            /// Xcode only: the scope the invocation tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ResolveTestImpactBaselineParams/xcode`.
+            public var xcode: Components.Schemas.ResolveTestImpactBaselineParams.xcodePayload?
+            /// Creates a new `ResolveTestImpactBaselineParams`.
+            ///
+            /// - Parameters:
+            ///   - ancestor_shas: The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges.
+            ///   - build_system: The build system, `xcode` first. A plain string so new build systems don't need a new client.
+            ///   - commit_sha: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+            ///   - parent_shas: The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
+            ///   - platform: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+            ///   - xcode: Xcode only: the scope the invocation tests.
+            public init(
+                ancestor_shas: [Swift.String]? = nil,
+                build_system: Swift.String,
+                commit_sha: Swift.String,
+                parent_shas: [Swift.String]? = nil,
+                platform: Swift.String? = nil,
+                xcode: Components.Schemas.ResolveTestImpactBaselineParams.xcodePayload? = nil
+            ) {
+                self.ancestor_shas = ancestor_shas
+                self.build_system = build_system
+                self.commit_sha = commit_sha
+                self.parent_shas = parent_shas
+                self.platform = platform
+                self.xcode = xcode
+            }
+            public enum CodingKeys: String, CodingKey {
+                case ancestor_shas
+                case build_system
+                case commit_sha
+                case parent_shas
+                case platform
+                case xcode
+            }
+        }
         /// The page number to return.
         ///
         /// - Remark: Generated from `#/components/schemas/OnceRunsIndexPage`.
@@ -19687,6 +20357,57 @@ public enum Components {
                 case started_at
                 case status
                 case tests
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLogin`.
+        public struct ChatGPTSubscriptionLogin: Codable, Hashable, Sendable {
+            /// When the sign-in expires.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLogin/expires_at`.
+            public var expires_at: Foundation.Date
+            /// The minimum number of seconds between polls.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLogin/interval`.
+            public var interval: Swift.Int
+            /// The opaque ID to poll and cancel the sign-in with.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLogin/login_id`.
+            public var login_id: Swift.String
+            /// The code the user enters on the verification page.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLogin/user_code`.
+            public var user_code: Swift.String
+            /// The OpenAI page where the user enters the code.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ChatGPTSubscriptionLogin/verification_url`.
+            public var verification_url: Swift.String
+            /// Creates a new `ChatGPTSubscriptionLogin`.
+            ///
+            /// - Parameters:
+            ///   - expires_at: When the sign-in expires.
+            ///   - interval: The minimum number of seconds between polls.
+            ///   - login_id: The opaque ID to poll and cancel the sign-in with.
+            ///   - user_code: The code the user enters on the verification page.
+            ///   - verification_url: The OpenAI page where the user enters the code.
+            public init(
+                expires_at: Foundation.Date,
+                interval: Swift.Int,
+                login_id: Swift.String,
+                user_code: Swift.String,
+                verification_url: Swift.String
+            ) {
+                self.expires_at = expires_at
+                self.interval = interval
+                self.login_id = login_id
+                self.user_code = user_code
+                self.verification_url = verification_url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case expires_at
+                case interval
+                case login_id
+                case user_code
+                case verification_url
             }
         }
         /// Response schema for bundle
@@ -20774,14 +21495,22 @@ public enum Components {
                 case _4096 = 4096
                 case _8192 = 8192
                 case _16384 = 16384
+                case _24576 = 24576
             }
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/memory_mb`.
             public var memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload?
+            /// - Remark: Generated from `#/components/schemas/CreateSandbox/platform`.
+            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case linux = "linux"
+                case darwin = "darwin"
+            }
+            /// - Remark: Generated from `#/components/schemas/CreateSandbox/platform`.
+            public var platform: Components.Schemas.CreateSandbox.platformPayload?
             /// Sandbox template name.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/template`.
             public var template: Swift.String?
-            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/vcpus`.
             @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -20789,7 +21518,7 @@ public enum Components {
                 case _4 = 4
                 case _8 = 8
             }
-            /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateSandbox/vcpus`.
             public var vcpus: Components.Schemas.CreateSandbox.vcpusPayload?
@@ -20799,22 +21528,26 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - memory_mb:
+            ///   - platform:
             ///   - template: Sandbox template name.
-            ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+            ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
             ///   - workspace_gb:
             public init(
                 memory_mb: Components.Schemas.CreateSandbox.memory_mbPayload? = nil,
+                platform: Components.Schemas.CreateSandbox.platformPayload? = nil,
                 template: Swift.String? = nil,
                 vcpus: Components.Schemas.CreateSandbox.vcpusPayload? = nil,
                 workspace_gb: Swift.Int? = nil
             ) {
                 self.memory_mb = memory_mb
+                self.platform = platform
                 self.template = template
                 self.vcpus = vcpus
                 self.workspace_gb = workspace_gb
             }
             public enum CodingKeys: String, CodingKey {
                 case memory_mb
+                case platform
                 case template
                 case vcpus
                 case workspace_gb
@@ -20865,6 +21598,44 @@ public enum Components {
                 case expires_in
                 case token
                 case writable
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/RunnerVolumeDeleted`.
+        public struct RunnerVolumeDeleted: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeDeleted/deleted`.
+            public var deleted: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/RunnerVolumeDeleted/id`.
+            public var id: Swift.String
+            /// Creates a new `RunnerVolumeDeleted`.
+            ///
+            /// - Parameters:
+            ///   - deleted:
+            ///   - id:
+            public init(
+                deleted: Swift.Bool,
+                id: Swift.String
+            ) {
+                self.deleted = deleted
+                self.id = id
+            }
+            public enum CodingKeys: String, CodingKey {
+                case deleted
+                case id
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.deleted = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .deleted
+                )
+                self.id = try container.decode(
+                    Swift.String.self,
+                    forKey: .id
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "deleted",
+                    "id"
+                ])
             }
         }
         /// - Remark: Generated from `#/components/schemas/CASOutputType`.
@@ -21839,6 +22610,104 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/GradleTasksIndexPageSize`.
         public typealias GradleTasksIndexPageSize = Swift.Int
+        /// The impact run: whether coverage selected tests or the invocation fell back.
+        ///
+        /// - Remark: Generated from `#/components/schemas/TestImpactRun`.
+        public struct TestImpactRun: Codable, Hashable, Sendable {
+            /// Test counts for the client's output. Present when the outcome is `selected`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/counts`.
+            public struct countsPayload: Codable, Hashable, Sendable {
+                /// The tests in scope, the ones in modules skipped because their hash matched included.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestImpactRun/counts/requested`.
+                public var requested: Swift.Int?
+                /// The tests that will run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestImpactRun/counts/selected`.
+                public var selected: Swift.Int?
+                /// The tests not to run: those coverage skipped plus those in modules skipped by hash.
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestImpactRun/counts/skipped`.
+                public var skipped: Swift.Int?
+                /// Creates a new `countsPayload`.
+                ///
+                /// - Parameters:
+                ///   - requested: The tests in scope, the ones in modules skipped because their hash matched included.
+                ///   - selected: The tests that will run.
+                ///   - skipped: The tests not to run: those coverage skipped plus those in modules skipped by hash.
+                public init(
+                    requested: Swift.Int? = nil,
+                    selected: Swift.Int? = nil,
+                    skipped: Swift.Int? = nil
+                ) {
+                    self.requested = requested
+                    self.selected = selected
+                    self.skipped = skipped
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case requested
+                    case selected
+                    case skipped
+                }
+            }
+            /// Test counts for the client's output. Present when the outcome is `selected`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/counts`.
+            public var counts: Components.Schemas.TestImpactRun.countsPayload?
+            /// The impact run. Sent as `test_impact_run_id` when planning shards (on `selected`) and when uploading the test run (always).
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/id`.
+            public var id: Swift.String
+            /// The file that caused the fallback, such as the tracked file that changed.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/matched_path`.
+            public var matched_path: Swift.String?
+            /// `selected` or `fallback`. On `fallback` the client runs every test in scope or default selective testing, depending on `reason`. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/outcome`.
+            public var outcome: Swift.String
+            /// Why the run fell back, such as `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/reason`.
+            public var reason: Swift.String?
+            /// The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestImpactRun/skipped_tests`.
+            public var skipped_tests: [Components.Schemas.SkippedTest]?
+            /// Creates a new `TestImpactRun`.
+            ///
+            /// - Parameters:
+            ///   - counts: Test counts for the client's output. Present when the outcome is `selected`.
+            ///   - id: The impact run. Sent as `test_impact_run_id` when planning shards (on `selected`) and when uploading the test run (always).
+            ///   - matched_path: The file that caused the fallback, such as the tracked file that changed.
+            ///   - outcome: `selected` or `fallback`. On `fallback` the client runs every test in scope or default selective testing, depending on `reason`. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`.
+            ///   - reason: Why the run fell back, such as `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
+            ///   - skipped_tests: The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs.
+            public init(
+                counts: Components.Schemas.TestImpactRun.countsPayload? = nil,
+                id: Swift.String,
+                matched_path: Swift.String? = nil,
+                outcome: Swift.String,
+                reason: Swift.String? = nil,
+                skipped_tests: [Components.Schemas.SkippedTest]? = nil
+            ) {
+                self.counts = counts
+                self.id = id
+                self.matched_path = matched_path
+                self.outcome = outcome
+                self.reason = reason
+                self.skipped_tests = skipped_tests
+            }
+            public enum CodingKeys: String, CodingKey {
+                case counts
+                case id
+                case matched_path
+                case outcome
+                case reason
+                case skipped_tests
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/TestSuiteRunStatus`.
         @frozen public enum TestSuiteRunStatus: String, Codable, Hashable, Sendable, CaseIterable {
             case success = "success"
@@ -22436,7 +23305,7 @@ public enum Components {
                 ])
             }
         }
-        /// A Firecracker sandbox VM.
+        /// A persistent Linux or macOS sandbox VM.
         ///
         /// - Remark: Generated from `#/components/schemas/Sandbox`.
         public struct Sandbox: Codable, Hashable, Sendable {
@@ -22470,8 +23339,19 @@ public enum Components {
             public var node_name: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Sandbox/paused_at`.
             public var paused_at: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/Sandbox/platform`.
+            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case linux = "linux"
+                case darwin = "darwin"
+            }
+            /// - Remark: Generated from `#/components/schemas/Sandbox/platform`.
+            public var platform: Components.Schemas.Sandbox.platformPayload?
             /// - Remark: Generated from `#/components/schemas/Sandbox/residency_work_id`.
             public var residency_work_id: Swift.String?
+            /// Whether a macOS sandbox retains its process and capacity.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Sandbox/resident`.
+            public var resident: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/Sandbox/state`.
             @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case creating = "creating"
@@ -22484,6 +23364,10 @@ public enum Components {
             }
             /// - Remark: Generated from `#/components/schemas/Sandbox/state`.
             public var state: Components.Schemas.Sandbox.statePayload
+            /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Sandbox/status`.
+            public var status: Swift.String?
             /// - Remark: Generated from `#/components/schemas/Sandbox/template`.
             public var template: Swift.String
             /// - Remark: Generated from `#/components/schemas/Sandbox/template_tag`.
@@ -22510,8 +23394,11 @@ public enum Components {
             ///   - memory_mb:
             ///   - node_name:
             ///   - paused_at:
+            ///   - platform:
             ///   - residency_work_id:
+            ///   - resident: Whether a macOS sandbox retains its process and capacity.
             ///   - state:
+            ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
             ///   - template:
             ///   - template_tag:
             ///   - updated_at:
@@ -22531,8 +23418,11 @@ public enum Components {
                 memory_mb: Swift.Int,
                 node_name: Swift.String? = nil,
                 paused_at: Foundation.Date? = nil,
+                platform: Components.Schemas.Sandbox.platformPayload? = nil,
                 residency_work_id: Swift.String? = nil,
+                resident: Swift.Bool? = nil,
                 state: Components.Schemas.Sandbox.statePayload,
+                status: Swift.String? = nil,
                 template: Swift.String,
                 template_tag: Swift.String? = nil,
                 updated_at: Foundation.Date,
@@ -22552,8 +23442,11 @@ public enum Components {
                 self.memory_mb = memory_mb
                 self.node_name = node_name
                 self.paused_at = paused_at
+                self.platform = platform
                 self.residency_work_id = residency_work_id
+                self.resident = resident
                 self.state = state
+                self.status = status
                 self.template = template
                 self.template_tag = template_tag
                 self.updated_at = updated_at
@@ -22574,8 +23467,11 @@ public enum Components {
                 case memory_mb
                 case node_name
                 case paused_at
+                case platform
                 case residency_work_id
+                case resident
                 case state
+                case status
                 case template
                 case template_tag
                 case updated_at
@@ -22684,6 +23580,23 @@ public enum Components {
         @frozen public enum BuildStatus: String, Codable, Hashable, Sendable, CaseIterable {
             case success = "success"
             case failure = "failure"
+        }
+        /// - Remark: Generated from `#/components/schemas/FeatureFlags`.
+        public struct FeatureFlags: Codable, Hashable, Sendable {
+            /// The names of the enabled flags. Known values: `ai`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/FeatureFlags/enabled`.
+            public var enabled: [Swift.String]
+            /// Creates a new `FeatureFlags`.
+            ///
+            /// - Parameters:
+            ///   - enabled: The names of the enabled flags. Known values: `ai`.
+            public init(enabled: [Swift.String]) {
+                self.enabled = enabled
+            }
+            public enum CodingKeys: String, CodingKey {
+                case enabled
+            }
         }
         /// The page number to return.
         ///
@@ -25212,6 +26125,244 @@ public enum Components {
                 case url
             }
         }
+        /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams`.
+        public struct CreateTestImpactRunParams: Codable, Hashable, Sendable {
+            /// The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/ancestor_shas`.
+            public var ancestor_shas: [Swift.String]?
+            /// The baseline the baseline request returned. When absent, `fallback_reason` says why.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/baseline_sha`.
+            public var baseline_sha: Swift.String?
+            /// The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/build_system`.
+            public var build_system: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload`.
+            public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
+                /// The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload/affected_modules`.
+                public var affected_modules: [Swift.String]?
+                /// The file's blob in the checkout. Required except for deleted files.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload/blob`.
+                public var blob: Swift.String?
+                /// The repository-relative path.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload/path`.
+                public var path: Swift.String
+                /// The change, as `git diff --raw` reports it.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_filesPayload/status`.
+                public var status: Swift.String
+                /// Creates a new `changed_filesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - affected_modules: The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
+                ///   - blob: The file's blob in the checkout. Required except for deleted files.
+                ///   - path: The repository-relative path.
+                ///   - status: The change, as `git diff --raw` reports it.
+                public init(
+                    affected_modules: [Swift.String]? = nil,
+                    blob: Swift.String? = nil,
+                    path: Swift.String,
+                    status: Swift.String
+                ) {
+                    self.affected_modules = affected_modules
+                    self.blob = blob
+                    self.path = path
+                    self.status = status
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case affected_modules
+                    case blob
+                    case path
+                    case status
+                }
+            }
+            /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_files`.
+            public typealias changed_filesPayload = [Components.Schemas.CreateTestImpactRunParams.changed_filesPayloadPayload]
+            /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_files`.
+            public var changed_files: Components.Schemas.CreateTestImpactRunParams.changed_filesPayload?
+            /// Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/changed_files_count`.
+            public var changed_files_count: Swift.Int?
+            /// The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/commit_sha`.
+            public var commit_sha: Swift.String?
+            /// Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/dirty`.
+            public var dirty: Swift.Bool?
+            /// The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/fallback_reason`.
+            public var fallback_reason: Swift.String?
+            /// The git branch, shown on the overview.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/git_branch`.
+            public var git_branch: Swift.String?
+            /// The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/head_sha`.
+            public var head_sha: Swift.String
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/modulesPayload`.
+            public struct modulesPayloadPayload: Codable, Hashable, Sendable {
+                /// The test module.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/modulesPayload/name`.
+                public var name: Swift.String
+                /// Whether the client skipped the module because its hash matched. Defaults to false.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/modulesPayload/skipped`.
+                public var skipped: Swift.Bool?
+                /// Creates a new `modulesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - name: The test module.
+                ///   - skipped: Whether the client skipped the module because its hash matched. Defaults to false.
+                public init(
+                    name: Swift.String,
+                    skipped: Swift.Bool? = nil
+                ) {
+                    self.name = name
+                    self.skipped = skipped
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case name
+                    case skipped
+                }
+            }
+            /// Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/modules`.
+            public typealias modulesPayload = [Components.Schemas.CreateTestImpactRunParams.modulesPayloadPayload]
+            /// Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/modules`.
+            public var modules: Components.Schemas.CreateTestImpactRunParams.modulesPayload
+            /// The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/parent_shas`.
+            public var parent_shas: [Swift.String]?
+            /// The platform the tests run on. Absent where the build system has none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/platform`.
+            public var platform: Swift.String?
+            /// Xcode only: the scope the invocation tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/xcode`.
+            public struct xcodePayload: Codable, Hashable, Sendable {
+                /// The destination the tests run on.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/xcode/destination`.
+                public var destination: Swift.String?
+                /// The scheme being tested.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/xcode/scheme`.
+                public var scheme: Swift.String?
+                /// The test plan being run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/xcode/test_plan`.
+                public var test_plan: Swift.String?
+                /// Creates a new `xcodePayload`.
+                ///
+                /// - Parameters:
+                ///   - destination: The destination the tests run on.
+                ///   - scheme: The scheme being tested.
+                ///   - test_plan: The test plan being run.
+                public init(
+                    destination: Swift.String? = nil,
+                    scheme: Swift.String? = nil,
+                    test_plan: Swift.String? = nil
+                ) {
+                    self.destination = destination
+                    self.scheme = scheme
+                    self.test_plan = test_plan
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case destination
+                    case scheme
+                    case test_plan
+                }
+            }
+            /// Xcode only: the scope the invocation tests.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CreateTestImpactRunParams/xcode`.
+            public var xcode: Components.Schemas.CreateTestImpactRunParams.xcodePayload?
+            /// Creates a new `CreateTestImpactRunParams`.
+            ///
+            /// - Parameters:
+            ///   - ancestor_shas: The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
+            ///   - baseline_sha: The baseline the baseline request returned. When absent, `fallback_reason` says why.
+            ///   - build_system: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
+            ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+            ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
+            ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+            ///   - dirty: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+            ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+            ///   - git_branch: The git branch, shown on the overview.
+            ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+            ///   - modules: Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules.
+            ///   - parent_shas: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
+            ///   - platform: The platform the tests run on. Absent where the build system has none.
+            ///   - xcode: Xcode only: the scope the invocation tests.
+            public init(
+                ancestor_shas: [Swift.String]? = nil,
+                baseline_sha: Swift.String? = nil,
+                build_system: Swift.String,
+                changed_files: Components.Schemas.CreateTestImpactRunParams.changed_filesPayload? = nil,
+                changed_files_count: Swift.Int? = nil,
+                commit_sha: Swift.String? = nil,
+                dirty: Swift.Bool? = nil,
+                fallback_reason: Swift.String? = nil,
+                git_branch: Swift.String? = nil,
+                head_sha: Swift.String,
+                modules: Components.Schemas.CreateTestImpactRunParams.modulesPayload,
+                parent_shas: [Swift.String]? = nil,
+                platform: Swift.String? = nil,
+                xcode: Components.Schemas.CreateTestImpactRunParams.xcodePayload? = nil
+            ) {
+                self.ancestor_shas = ancestor_shas
+                self.baseline_sha = baseline_sha
+                self.build_system = build_system
+                self.changed_files = changed_files
+                self.changed_files_count = changed_files_count
+                self.commit_sha = commit_sha
+                self.dirty = dirty
+                self.fallback_reason = fallback_reason
+                self.git_branch = git_branch
+                self.head_sha = head_sha
+                self.modules = modules
+                self.parent_shas = parent_shas
+                self.platform = platform
+                self.xcode = xcode
+            }
+            public enum CodingKeys: String, CodingKey {
+                case ancestor_shas
+                case baseline_sha
+                case build_system
+                case changed_files
+                case changed_files_count
+                case commit_sha
+                case dirty
+                case fallback_reason
+                case git_branch
+                case head_sha
+                case modules
+                case parent_shas
+                case platform
+                case xcode
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/ValidationError`.
         public struct ValidationError: Codable, Hashable, Sendable {
             /// Field-specific validation errors
@@ -27214,6 +28365,2837 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case token
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency`.
+        public struct SandboxAnalyticsConcurrency: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use`.
+            public struct in_usePayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/disk_gb`.
+                public var disk_gb: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/memory_gb`.
+                public var memory_gb: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use/vcpus`.
+                public var vcpus: Swift.Int
+                /// Creates a new `in_usePayload`.
+                ///
+                /// - Parameters:
+                ///   - disk_gb:
+                ///   - memory_gb:
+                ///   - vcpus:
+                public init(
+                    disk_gb: Swift.Double,
+                    memory_gb: Swift.Double,
+                    vcpus: Swift.Int
+                ) {
+                    self.disk_gb = disk_gb
+                    self.memory_gb = memory_gb
+                    self.vcpus = vcpus
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case disk_gb
+                    case memory_gb
+                    case vcpus
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.disk_gb = try container.decode(
+                        Swift.Double.self,
+                        forKey: .disk_gb
+                    )
+                    self.memory_gb = try container.decode(
+                        Swift.Double.self,
+                        forKey: .memory_gb
+                    )
+                    self.vcpus = try container.decode(
+                        Swift.Int.self,
+                        forKey: .vcpus
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "disk_gb",
+                        "memory_gb",
+                        "vcpus"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/in_use`.
+            public var in_use: Components.Schemas.SandboxAnalyticsConcurrency.in_usePayload
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits`.
+            public struct limitsPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/disk_gb`.
+                public var disk_gb: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/memory_gb`.
+                public var memory_gb: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits/vcpus`.
+                public var vcpus: Swift.Int
+                /// Creates a new `limitsPayload`.
+                ///
+                /// - Parameters:
+                ///   - disk_gb:
+                ///   - memory_gb:
+                ///   - vcpus:
+                public init(
+                    disk_gb: Swift.Double,
+                    memory_gb: Swift.Double,
+                    vcpus: Swift.Int
+                ) {
+                    self.disk_gb = disk_gb
+                    self.memory_gb = memory_gb
+                    self.vcpus = vcpus
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case disk_gb
+                    case memory_gb
+                    case vcpus
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.disk_gb = try container.decode(
+                        Swift.Double.self,
+                        forKey: .disk_gb
+                    )
+                    self.memory_gb = try container.decode(
+                        Swift.Double.self,
+                        forKey: .memory_gb
+                    )
+                    self.vcpus = try container.decode(
+                        Swift.Int.self,
+                        forKey: .vcpus
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "disk_gb",
+                        "memory_gb",
+                        "vcpus"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/limits`.
+            public var limits: Components.Schemas.SandboxAnalyticsConcurrency.limitsPayload
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload`.
+            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/at`.
+                public var at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/disk_gb`.
+                public var disk_gb: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/memory_gb`.
+                public var memory_gb: Swift.Double
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/pointsPayload/vcpus`.
+                public var vcpus: Swift.Int
+                /// Creates a new `pointsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - at:
+                ///   - disk_gb:
+                ///   - memory_gb:
+                ///   - vcpus:
+                public init(
+                    at: Foundation.Date,
+                    disk_gb: Swift.Double,
+                    memory_gb: Swift.Double,
+                    vcpus: Swift.Int
+                ) {
+                    self.at = at
+                    self.disk_gb = disk_gb
+                    self.memory_gb = memory_gb
+                    self.vcpus = vcpus
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case at
+                    case disk_gb
+                    case memory_gb
+                    case vcpus
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.at = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .at
+                    )
+                    self.disk_gb = try container.decode(
+                        Swift.Double.self,
+                        forKey: .disk_gb
+                    )
+                    self.memory_gb = try container.decode(
+                        Swift.Double.self,
+                        forKey: .memory_gb
+                    )
+                    self.vcpus = try container.decode(
+                        Swift.Int.self,
+                        forKey: .vcpus
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "at",
+                        "disk_gb",
+                        "memory_gb",
+                        "vcpus"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/points`.
+            public typealias pointsPayload = [Components.Schemas.SandboxAnalyticsConcurrency.pointsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrency/points`.
+            public var points: Components.Schemas.SandboxAnalyticsConcurrency.pointsPayload
+            /// Creates a new `SandboxAnalyticsConcurrency`.
+            ///
+            /// - Parameters:
+            ///   - in_use:
+            ///   - limits:
+            ///   - points:
+            public init(
+                in_use: Components.Schemas.SandboxAnalyticsConcurrency.in_usePayload,
+                limits: Components.Schemas.SandboxAnalyticsConcurrency.limitsPayload,
+                points: Components.Schemas.SandboxAnalyticsConcurrency.pointsPayload
+            ) {
+                self.in_use = in_use
+                self.limits = limits
+                self.points = points
+            }
+            public enum CodingKeys: String, CodingKey {
+                case in_use
+                case limits
+                case points
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.in_use = try container.decode(
+                    Components.Schemas.SandboxAnalyticsConcurrency.in_usePayload.self,
+                    forKey: .in_use
+                )
+                self.limits = try container.decode(
+                    Components.Schemas.SandboxAnalyticsConcurrency.limitsPayload.self,
+                    forKey: .limits
+                )
+                self.points = try container.decode(
+                    Components.Schemas.SandboxAnalyticsConcurrency.pointsPayload.self,
+                    forKey: .points
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "in_use",
+                    "limits",
+                    "points"
+                ])
+            }
+        }
+        /// Run sessions that ended in the range. Points without any have null figures.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration`.
+        public struct SandboxAnalyticsSessionDuration: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/avg_ms`.
+            public var avg_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/count`.
+            public var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/p50_ms`.
+            public var p50_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/p90_ms`.
+            public var p90_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/p99_ms`.
+            public var p99_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/pointsPayload`.
+            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/pointsPayload/at`.
+                public var at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/pointsPayload/avg_ms`.
+                public var avg_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/pointsPayload/p50_ms`.
+                public var p50_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/pointsPayload/p90_ms`.
+                public var p90_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/pointsPayload/p99_ms`.
+                public var p99_ms: Swift.Int?
+                /// Creates a new `pointsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - at:
+                ///   - avg_ms:
+                ///   - p50_ms:
+                ///   - p90_ms:
+                ///   - p99_ms:
+                public init(
+                    at: Foundation.Date,
+                    avg_ms: Swift.Int? = nil,
+                    p50_ms: Swift.Int? = nil,
+                    p90_ms: Swift.Int? = nil,
+                    p99_ms: Swift.Int? = nil
+                ) {
+                    self.at = at
+                    self.avg_ms = avg_ms
+                    self.p50_ms = p50_ms
+                    self.p90_ms = p90_ms
+                    self.p99_ms = p99_ms
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case at
+                    case avg_ms
+                    case p50_ms
+                    case p90_ms
+                    case p99_ms
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.at = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .at
+                    )
+                    self.avg_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .avg_ms
+                    )
+                    self.p50_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p50_ms
+                    )
+                    self.p90_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p90_ms
+                    )
+                    self.p99_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p99_ms
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "at",
+                        "avg_ms",
+                        "p50_ms",
+                        "p90_ms",
+                        "p99_ms"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/points`.
+            public typealias pointsPayload = [Components.Schemas.SandboxAnalyticsSessionDuration.pointsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/points`.
+            public var points: Components.Schemas.SandboxAnalyticsSessionDuration.pointsPayload
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/trend_avg`.
+            public var trend_avg: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/trend_p50`.
+            public var trend_p50: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/trend_p90`.
+            public var trend_p90: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDuration/trend_p99`.
+            public var trend_p99: Swift.Double
+            /// Creates a new `SandboxAnalyticsSessionDuration`.
+            ///
+            /// - Parameters:
+            ///   - avg_ms:
+            ///   - count:
+            ///   - p50_ms:
+            ///   - p90_ms:
+            ///   - p99_ms:
+            ///   - points:
+            ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+            public init(
+                avg_ms: Swift.Int,
+                count: Swift.Int,
+                p50_ms: Swift.Int,
+                p90_ms: Swift.Int,
+                p99_ms: Swift.Int,
+                points: Components.Schemas.SandboxAnalyticsSessionDuration.pointsPayload,
+                trend_avg: Swift.Double,
+                trend_p50: Swift.Double,
+                trend_p90: Swift.Double,
+                trend_p99: Swift.Double
+            ) {
+                self.avg_ms = avg_ms
+                self.count = count
+                self.p50_ms = p50_ms
+                self.p90_ms = p90_ms
+                self.p99_ms = p99_ms
+                self.points = points
+                self.trend_avg = trend_avg
+                self.trend_p50 = trend_p50
+                self.trend_p90 = trend_p90
+                self.trend_p99 = trend_p99
+            }
+            public enum CodingKeys: String, CodingKey {
+                case avg_ms
+                case count
+                case p50_ms
+                case p90_ms
+                case p99_ms
+                case points
+                case trend_avg
+                case trend_p50
+                case trend_p90
+                case trend_p99
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.avg_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .avg_ms
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.p50_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p50_ms
+                )
+                self.p90_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p90_ms
+                )
+                self.p99_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p99_ms
+                )
+                self.points = try container.decode(
+                    Components.Schemas.SandboxAnalyticsSessionDuration.pointsPayload.self,
+                    forKey: .points
+                )
+                self.trend_avg = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_avg
+                )
+                self.trend_p50 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p50
+                )
+                self.trend_p90 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p90
+                )
+                self.trend_p99 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p99
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "avg_ms",
+                    "count",
+                    "p50_ms",
+                    "p90_ms",
+                    "p99_ms",
+                    "points",
+                    "trend_avg",
+                    "trend_p50",
+                    "trend_p90",
+                    "trend_p99"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDurationPoint`.
+        public struct SandboxAnalyticsSessionDurationPoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDurationPoint/at`.
+            public var at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDurationPoint/avg_ms`.
+            public var avg_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDurationPoint/p50_ms`.
+            public var p50_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDurationPoint/p90_ms`.
+            public var p90_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSessionDurationPoint/p99_ms`.
+            public var p99_ms: Swift.Int?
+            /// Creates a new `SandboxAnalyticsSessionDurationPoint`.
+            ///
+            /// - Parameters:
+            ///   - at:
+            ///   - avg_ms:
+            ///   - p50_ms:
+            ///   - p90_ms:
+            ///   - p99_ms:
+            public init(
+                at: Foundation.Date,
+                avg_ms: Swift.Int? = nil,
+                p50_ms: Swift.Int? = nil,
+                p90_ms: Swift.Int? = nil,
+                p99_ms: Swift.Int? = nil
+            ) {
+                self.at = at
+                self.avg_ms = avg_ms
+                self.p50_ms = p50_ms
+                self.p90_ms = p90_ms
+                self.p99_ms = p99_ms
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case avg_ms
+                case p50_ms
+                case p90_ms
+                case p99_ms
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                self.avg_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .avg_ms
+                )
+                self.p50_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p50_ms
+                )
+                self.p90_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p90_ms
+                )
+                self.p99_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p99_ms
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "at",
+                    "avg_ms",
+                    "p50_ms",
+                    "p90_ms",
+                    "p99_ms"
+                ])
+            }
+        }
+        /// How long sandboxes took to boot (create or restore). Points without any have null figures.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart`.
+        public struct SandboxAnalyticsTimeToStart: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/avg_ms`.
+            public var avg_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/count`.
+            public var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/p50_ms`.
+            public var p50_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/p90_ms`.
+            public var p90_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/p99_ms`.
+            public var p99_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/pointsPayload`.
+            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/pointsPayload/at`.
+                public var at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/pointsPayload/avg_ms`.
+                public var avg_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/pointsPayload/p50_ms`.
+                public var p50_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/pointsPayload/p90_ms`.
+                public var p90_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/pointsPayload/p99_ms`.
+                public var p99_ms: Swift.Int?
+                /// Creates a new `pointsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - at:
+                ///   - avg_ms:
+                ///   - p50_ms:
+                ///   - p90_ms:
+                ///   - p99_ms:
+                public init(
+                    at: Foundation.Date,
+                    avg_ms: Swift.Int? = nil,
+                    p50_ms: Swift.Int? = nil,
+                    p90_ms: Swift.Int? = nil,
+                    p99_ms: Swift.Int? = nil
+                ) {
+                    self.at = at
+                    self.avg_ms = avg_ms
+                    self.p50_ms = p50_ms
+                    self.p90_ms = p90_ms
+                    self.p99_ms = p99_ms
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case at
+                    case avg_ms
+                    case p50_ms
+                    case p90_ms
+                    case p99_ms
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.at = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .at
+                    )
+                    self.avg_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .avg_ms
+                    )
+                    self.p50_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p50_ms
+                    )
+                    self.p90_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p90_ms
+                    )
+                    self.p99_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p99_ms
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "at",
+                        "avg_ms",
+                        "p50_ms",
+                        "p90_ms",
+                        "p99_ms"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/points`.
+            public typealias pointsPayload = [Components.Schemas.SandboxAnalyticsTimeToStart.pointsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/points`.
+            public var points: Components.Schemas.SandboxAnalyticsTimeToStart.pointsPayload
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/trend_avg`.
+            public var trend_avg: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/trend_p50`.
+            public var trend_p50: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/trend_p90`.
+            public var trend_p90: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStart/trend_p99`.
+            public var trend_p99: Swift.Double
+            /// Creates a new `SandboxAnalyticsTimeToStart`.
+            ///
+            /// - Parameters:
+            ///   - avg_ms:
+            ///   - count:
+            ///   - p50_ms:
+            ///   - p90_ms:
+            ///   - p99_ms:
+            ///   - points:
+            ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+            public init(
+                avg_ms: Swift.Int,
+                count: Swift.Int,
+                p50_ms: Swift.Int,
+                p90_ms: Swift.Int,
+                p99_ms: Swift.Int,
+                points: Components.Schemas.SandboxAnalyticsTimeToStart.pointsPayload,
+                trend_avg: Swift.Double,
+                trend_p50: Swift.Double,
+                trend_p90: Swift.Double,
+                trend_p99: Swift.Double
+            ) {
+                self.avg_ms = avg_ms
+                self.count = count
+                self.p50_ms = p50_ms
+                self.p90_ms = p90_ms
+                self.p99_ms = p99_ms
+                self.points = points
+                self.trend_avg = trend_avg
+                self.trend_p50 = trend_p50
+                self.trend_p90 = trend_p90
+                self.trend_p99 = trend_p99
+            }
+            public enum CodingKeys: String, CodingKey {
+                case avg_ms
+                case count
+                case p50_ms
+                case p90_ms
+                case p99_ms
+                case points
+                case trend_avg
+                case trend_p50
+                case trend_p90
+                case trend_p99
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.avg_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .avg_ms
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.p50_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p50_ms
+                )
+                self.p90_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p90_ms
+                )
+                self.p99_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p99_ms
+                )
+                self.points = try container.decode(
+                    Components.Schemas.SandboxAnalyticsTimeToStart.pointsPayload.self,
+                    forKey: .points
+                )
+                self.trend_avg = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_avg
+                )
+                self.trend_p50 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p50
+                )
+                self.trend_p90 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p90
+                )
+                self.trend_p99 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p99
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "avg_ms",
+                    "count",
+                    "p50_ms",
+                    "p90_ms",
+                    "p99_ms",
+                    "points",
+                    "trend_avg",
+                    "trend_p50",
+                    "trend_p90",
+                    "trend_p99"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsPeriod`.
+        public struct SandboxAnalyticsPeriod: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsPeriod/end`.
+            public var end: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsPeriod/start`.
+            public var start: Foundation.Date
+            /// Creates a new `SandboxAnalyticsPeriod`.
+            ///
+            /// - Parameters:
+            ///   - end:
+            ///   - start:
+            public init(
+                end: Foundation.Date,
+                start: Foundation.Date
+            ) {
+                self.end = end
+                self.start = start
+            }
+            public enum CodingKeys: String, CodingKey {
+                case end
+                case start
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.end = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .end
+                )
+                self.start = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .start
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "end",
+                    "start"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint`.
+        public struct SandboxAnalyticsConcurrencyPoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/at`.
+            public var at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/disk_gb`.
+            public var disk_gb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/memory_gb`.
+            public var memory_gb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsConcurrencyPoint/vcpus`.
+            public var vcpus: Swift.Int
+            /// Creates a new `SandboxAnalyticsConcurrencyPoint`.
+            ///
+            /// - Parameters:
+            ///   - at:
+            ///   - disk_gb:
+            ///   - memory_gb:
+            ///   - vcpus:
+            public init(
+                at: Foundation.Date,
+                disk_gb: Swift.Double,
+                memory_gb: Swift.Double,
+                vcpus: Swift.Int
+            ) {
+                self.at = at
+                self.disk_gb = disk_gb
+                self.memory_gb = memory_gb
+                self.vcpus = vcpus
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case disk_gb
+                case memory_gb
+                case vcpus
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                self.disk_gb = try container.decode(
+                    Swift.Double.self,
+                    forKey: .disk_gb
+                )
+                self.memory_gb = try container.decode(
+                    Swift.Double.self,
+                    forKey: .memory_gb
+                )
+                self.vcpus = try container.decode(
+                    Swift.Int.self,
+                    forKey: .vcpus
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "at",
+                    "disk_gb",
+                    "memory_gb",
+                    "vcpus"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount`.
+        public struct SandboxAnalyticsCount: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/count`.
+            public var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/pointsPayload`.
+            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/pointsPayload/at`.
+                public var at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/pointsPayload/value`.
+                public var value: Swift.Int
+                /// Creates a new `pointsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - at:
+                ///   - value:
+                public init(
+                    at: Foundation.Date,
+                    value: Swift.Int
+                ) {
+                    self.at = at
+                    self.value = value
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case at
+                    case value
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.at = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .at
+                    )
+                    self.value = try container.decode(
+                        Swift.Int.self,
+                        forKey: .value
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "at",
+                        "value"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/points`.
+            public typealias pointsPayload = [Components.Schemas.SandboxAnalyticsCount.pointsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/points`.
+            public var points: Components.Schemas.SandboxAnalyticsCount.pointsPayload
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCount/trend`.
+            public var trend: Swift.Double
+            /// Creates a new `SandboxAnalyticsCount`.
+            ///
+            /// - Parameters:
+            ///   - count:
+            ///   - points:
+            ///   - trend: Percent change against the range of the same length before it; 0 when either is 0.
+            public init(
+                count: Swift.Int,
+                points: Components.Schemas.SandboxAnalyticsCount.pointsPayload,
+                trend: Swift.Double
+            ) {
+                self.count = count
+                self.points = points
+                self.trend = trend
+            }
+            public enum CodingKeys: String, CodingKey {
+                case count
+                case points
+                case trend
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.points = try container.decode(
+                    Components.Schemas.SandboxAnalyticsCount.pointsPayload.self,
+                    forKey: .points
+                )
+                self.trend = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "count",
+                    "points",
+                    "trend"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxPagination`.
+        public struct SandboxPagination: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxPagination/current_page`.
+            public var current_page: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxPagination/has_next_page`.
+            public var has_next_page: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/SandboxPagination/has_previous_page`.
+            public var has_previous_page: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/SandboxPagination/page_size`.
+            public var page_size: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxPagination/total_count`.
+            public var total_count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxPagination/total_pages`.
+            public var total_pages: Swift.Int
+            /// Creates a new `SandboxPagination`.
+            ///
+            /// - Parameters:
+            ///   - current_page:
+            ///   - has_next_page:
+            ///   - has_previous_page:
+            ///   - page_size:
+            ///   - total_count:
+            ///   - total_pages:
+            public init(
+                current_page: Swift.Int,
+                has_next_page: Swift.Bool,
+                has_previous_page: Swift.Bool,
+                page_size: Swift.Int,
+                total_count: Swift.Int,
+                total_pages: Swift.Int
+            ) {
+                self.current_page = current_page
+                self.has_next_page = has_next_page
+                self.has_previous_page = has_previous_page
+                self.page_size = page_size
+                self.total_count = total_count
+                self.total_pages = total_pages
+            }
+            public enum CodingKeys: String, CodingKey {
+                case current_page
+                case has_next_page
+                case has_previous_page
+                case page_size
+                case total_count
+                case total_pages
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.current_page = try container.decode(
+                    Swift.Int.self,
+                    forKey: .current_page
+                )
+                self.has_next_page = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .has_next_page
+                )
+                self.has_previous_page = try container.decode(
+                    Swift.Bool.self,
+                    forKey: .has_previous_page
+                )
+                self.page_size = try container.decode(
+                    Swift.Int.self,
+                    forKey: .page_size
+                )
+                self.total_count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .total_count
+                )
+                self.total_pages = try container.decode(
+                    Swift.Int.self,
+                    forKey: .total_pages
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "current_page",
+                    "has_next_page",
+                    "has_previous_page",
+                    "page_size",
+                    "total_count",
+                    "total_pages"
+                ])
+            }
+        }
+        /// How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+        ///
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup`.
+        public struct SandboxAnalyticsSetup: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/avg_ms`.
+            public var avg_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/count`.
+            public var count: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/p50_ms`.
+            public var p50_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/p90_ms`.
+            public var p90_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/p99_ms`.
+            public var p99_ms: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/pointsPayload`.
+            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/pointsPayload/at`.
+                public var at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/pointsPayload/avg_ms`.
+                public var avg_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/pointsPayload/p50_ms`.
+                public var p50_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/pointsPayload/p90_ms`.
+                public var p90_ms: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/pointsPayload/p99_ms`.
+                public var p99_ms: Swift.Int?
+                /// Creates a new `pointsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - at:
+                ///   - avg_ms:
+                ///   - p50_ms:
+                ///   - p90_ms:
+                ///   - p99_ms:
+                public init(
+                    at: Foundation.Date,
+                    avg_ms: Swift.Int? = nil,
+                    p50_ms: Swift.Int? = nil,
+                    p90_ms: Swift.Int? = nil,
+                    p99_ms: Swift.Int? = nil
+                ) {
+                    self.at = at
+                    self.avg_ms = avg_ms
+                    self.p50_ms = p50_ms
+                    self.p90_ms = p90_ms
+                    self.p99_ms = p99_ms
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case at
+                    case avg_ms
+                    case p50_ms
+                    case p90_ms
+                    case p99_ms
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.at = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .at
+                    )
+                    self.avg_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .avg_ms
+                    )
+                    self.p50_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p50_ms
+                    )
+                    self.p90_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p90_ms
+                    )
+                    self.p99_ms = try container.decodeIfPresent(
+                        Swift.Int.self,
+                        forKey: .p99_ms
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "at",
+                        "avg_ms",
+                        "p50_ms",
+                        "p90_ms",
+                        "p99_ms"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/points`.
+            public typealias pointsPayload = [Components.Schemas.SandboxAnalyticsSetup.pointsPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/points`.
+            public var points: Components.Schemas.SandboxAnalyticsSetup.pointsPayload
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/trend_avg`.
+            public var trend_avg: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/trend_p50`.
+            public var trend_p50: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/trend_p90`.
+            public var trend_p90: Swift.Double
+            /// Percent change against the range of the same length before it; 0 when either is 0.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetup/trend_p99`.
+            public var trend_p99: Swift.Double
+            /// Creates a new `SandboxAnalyticsSetup`.
+            ///
+            /// - Parameters:
+            ///   - avg_ms:
+            ///   - count:
+            ///   - p50_ms:
+            ///   - p90_ms:
+            ///   - p99_ms:
+            ///   - points:
+            ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+            ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+            public init(
+                avg_ms: Swift.Int,
+                count: Swift.Int,
+                p50_ms: Swift.Int,
+                p90_ms: Swift.Int,
+                p99_ms: Swift.Int,
+                points: Components.Schemas.SandboxAnalyticsSetup.pointsPayload,
+                trend_avg: Swift.Double,
+                trend_p50: Swift.Double,
+                trend_p90: Swift.Double,
+                trend_p99: Swift.Double
+            ) {
+                self.avg_ms = avg_ms
+                self.count = count
+                self.p50_ms = p50_ms
+                self.p90_ms = p90_ms
+                self.p99_ms = p99_ms
+                self.points = points
+                self.trend_avg = trend_avg
+                self.trend_p50 = trend_p50
+                self.trend_p90 = trend_p90
+                self.trend_p99 = trend_p99
+            }
+            public enum CodingKeys: String, CodingKey {
+                case avg_ms
+                case count
+                case p50_ms
+                case p90_ms
+                case p99_ms
+                case points
+                case trend_avg
+                case trend_p50
+                case trend_p90
+                case trend_p99
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.avg_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .avg_ms
+                )
+                self.count = try container.decode(
+                    Swift.Int.self,
+                    forKey: .count
+                )
+                self.p50_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p50_ms
+                )
+                self.p90_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p90_ms
+                )
+                self.p99_ms = try container.decode(
+                    Swift.Int.self,
+                    forKey: .p99_ms
+                )
+                self.points = try container.decode(
+                    Components.Schemas.SandboxAnalyticsSetup.pointsPayload.self,
+                    forKey: .points
+                )
+                self.trend_avg = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_avg
+                )
+                self.trend_p50 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p50
+                )
+                self.trend_p90 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p90
+                )
+                self.trend_p99 = try container.decode(
+                    Swift.Double.self,
+                    forKey: .trend_p99
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "avg_ms",
+                    "count",
+                    "p50_ms",
+                    "p90_ms",
+                    "p99_ms",
+                    "points",
+                    "trend_avg",
+                    "trend_p50",
+                    "trend_p90",
+                    "trend_p99"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStartPoint`.
+        public struct SandboxAnalyticsTimeToStartPoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStartPoint/at`.
+            public var at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStartPoint/avg_ms`.
+            public var avg_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStartPoint/p50_ms`.
+            public var p50_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStartPoint/p90_ms`.
+            public var p90_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsTimeToStartPoint/p99_ms`.
+            public var p99_ms: Swift.Int?
+            /// Creates a new `SandboxAnalyticsTimeToStartPoint`.
+            ///
+            /// - Parameters:
+            ///   - at:
+            ///   - avg_ms:
+            ///   - p50_ms:
+            ///   - p90_ms:
+            ///   - p99_ms:
+            public init(
+                at: Foundation.Date,
+                avg_ms: Swift.Int? = nil,
+                p50_ms: Swift.Int? = nil,
+                p90_ms: Swift.Int? = nil,
+                p99_ms: Swift.Int? = nil
+            ) {
+                self.at = at
+                self.avg_ms = avg_ms
+                self.p50_ms = p50_ms
+                self.p90_ms = p90_ms
+                self.p99_ms = p99_ms
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case avg_ms
+                case p50_ms
+                case p90_ms
+                case p99_ms
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                self.avg_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .avg_ms
+                )
+                self.p50_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p50_ms
+                )
+                self.p90_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p90_ms
+                )
+                self.p99_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p99_ms
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "at",
+                    "avg_ms",
+                    "p50_ms",
+                    "p90_ms",
+                    "p99_ms"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCountPoint`.
+        public struct SandboxAnalyticsCountPoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCountPoint/at`.
+            public var at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsCountPoint/value`.
+            public var value: Swift.Int
+            /// Creates a new `SandboxAnalyticsCountPoint`.
+            ///
+            /// - Parameters:
+            ///   - at:
+            ///   - value:
+            public init(
+                at: Foundation.Date,
+                value: Swift.Int
+            ) {
+                self.at = at
+                self.value = value
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case value
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                self.value = try container.decode(
+                    Swift.Int.self,
+                    forKey: .value
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "at",
+                    "value"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetupPoint`.
+        public struct SandboxAnalyticsSetupPoint: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetupPoint/at`.
+            public var at: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetupPoint/avg_ms`.
+            public var avg_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetupPoint/p50_ms`.
+            public var p50_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetupPoint/p90_ms`.
+            public var p90_ms: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalyticsSetupPoint/p99_ms`.
+            public var p99_ms: Swift.Int?
+            /// Creates a new `SandboxAnalyticsSetupPoint`.
+            ///
+            /// - Parameters:
+            ///   - at:
+            ///   - avg_ms:
+            ///   - p50_ms:
+            ///   - p90_ms:
+            ///   - p99_ms:
+            public init(
+                at: Foundation.Date,
+                avg_ms: Swift.Int? = nil,
+                p50_ms: Swift.Int? = nil,
+                p90_ms: Swift.Int? = nil,
+                p99_ms: Swift.Int? = nil
+            ) {
+                self.at = at
+                self.avg_ms = avg_ms
+                self.p50_ms = p50_ms
+                self.p90_ms = p90_ms
+                self.p99_ms = p99_ms
+            }
+            public enum CodingKeys: String, CodingKey {
+                case at
+                case avg_ms
+                case p50_ms
+                case p90_ms
+                case p99_ms
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.at = try container.decode(
+                    Foundation.Date.self,
+                    forKey: .at
+                )
+                self.avg_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .avg_ms
+                )
+                self.p50_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p50_ms
+                )
+                self.p90_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p90_ms
+                )
+                self.p99_ms = try container.decodeIfPresent(
+                    Swift.Int.self,
+                    forKey: .p99_ms
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "at",
+                    "avg_ms",
+                    "p50_ms",
+                    "p90_ms",
+                    "p99_ms"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/Sandboxes`.
+        public struct Sandboxes: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata`.
+            public struct pagination_metadataPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata/current_page`.
+                public var current_page: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata/has_next_page`.
+                public var has_next_page: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata/has_previous_page`.
+                public var has_previous_page: Swift.Bool
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata/page_size`.
+                public var page_size: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata/total_count`.
+                public var total_count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata/total_pages`.
+                public var total_pages: Swift.Int
+                /// Creates a new `pagination_metadataPayload`.
+                ///
+                /// - Parameters:
+                ///   - current_page:
+                ///   - has_next_page:
+                ///   - has_previous_page:
+                ///   - page_size:
+                ///   - total_count:
+                ///   - total_pages:
+                public init(
+                    current_page: Swift.Int,
+                    has_next_page: Swift.Bool,
+                    has_previous_page: Swift.Bool,
+                    page_size: Swift.Int,
+                    total_count: Swift.Int,
+                    total_pages: Swift.Int
+                ) {
+                    self.current_page = current_page
+                    self.has_next_page = has_next_page
+                    self.has_previous_page = has_previous_page
+                    self.page_size = page_size
+                    self.total_count = total_count
+                    self.total_pages = total_pages
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case current_page
+                    case has_next_page
+                    case has_previous_page
+                    case page_size
+                    case total_count
+                    case total_pages
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.current_page = try container.decode(
+                        Swift.Int.self,
+                        forKey: .current_page
+                    )
+                    self.has_next_page = try container.decode(
+                        Swift.Bool.self,
+                        forKey: .has_next_page
+                    )
+                    self.has_previous_page = try container.decode(
+                        Swift.Bool.self,
+                        forKey: .has_previous_page
+                    )
+                    self.page_size = try container.decode(
+                        Swift.Int.self,
+                        forKey: .page_size
+                    )
+                    self.total_count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .total_count
+                    )
+                    self.total_pages = try container.decode(
+                        Swift.Int.self,
+                        forKey: .total_pages
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "current_page",
+                        "has_next_page",
+                        "has_previous_page",
+                        "page_size",
+                        "total_count",
+                        "total_pages"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/Sandboxes/pagination_metadata`.
+            public var pagination_metadata: Components.Schemas.Sandboxes.pagination_metadataPayload
+            /// A persistent Linux or macOS sandbox VM.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload`.
+            public struct sandboxesPayloadPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/agent_environment_id`.
+                public var agent_environment_id: Swift.Int?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/amp_orb_id`.
+                public var amp_orb_id: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/anthropic_session_id`.
+                public var anthropic_session_id: Swift.String?
+                /// Size of the stored archive in bytes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/archive_bytes`.
+                public var archive_bytes: Swift.Int?
+                /// When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/archived_at`.
+                public var archived_at: Foundation.Date?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/error_message`.
+                public var error_message: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/hostname`.
+                public var hostname: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/id`.
+                public var id: Swift.String
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/inserted_at`.
+                public var inserted_at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/last_active_at`.
+                public var last_active_at: Foundation.Date?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/memory_mb`.
+                public var memory_mb: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/node_name`.
+                public var node_name: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/paused_at`.
+                public var paused_at: Foundation.Date?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/platform`.
+                @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case linux = "linux"
+                    case darwin = "darwin"
+                }
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/platform`.
+                public var platform: Components.Schemas.Sandboxes.sandboxesPayloadPayload.platformPayload?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/residency_work_id`.
+                public var residency_work_id: Swift.String?
+                /// Whether a macOS sandbox retains its process and capacity.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/resident`.
+                public var resident: Swift.Bool?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/state`.
+                @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case creating = "creating"
+                    case running = "running"
+                    case resuming = "resuming"
+                    case paused = "paused"
+                    case archived = "archived"
+                    case error = "error"
+                    case deleted = "deleted"
+                }
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/state`.
+                public var state: Components.Schemas.Sandboxes.sandboxesPayloadPayload.statePayload
+                /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                ///
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/status`.
+                public var status: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/template`.
+                public var template: Swift.String
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/template_tag`.
+                public var template_tag: Swift.String?
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/updated_at`.
+                public var updated_at: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/vcpus`.
+                public var vcpus: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxesPayload/workspace_gb`.
+                public var workspace_gb: Swift.Int
+                /// Creates a new `sandboxesPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - agent_environment_id:
+                ///   - amp_orb_id:
+                ///   - anthropic_session_id:
+                ///   - archive_bytes: Size of the stored archive in bytes.
+                ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                ///   - error_message:
+                ///   - hostname:
+                ///   - id:
+                ///   - inserted_at:
+                ///   - last_active_at:
+                ///   - memory_mb:
+                ///   - node_name:
+                ///   - paused_at:
+                ///   - platform:
+                ///   - residency_work_id:
+                ///   - resident: Whether a macOS sandbox retains its process and capacity.
+                ///   - state:
+                ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                ///   - template:
+                ///   - template_tag:
+                ///   - updated_at:
+                ///   - vcpus:
+                ///   - workspace_gb:
+                public init(
+                    agent_environment_id: Swift.Int? = nil,
+                    amp_orb_id: Swift.String? = nil,
+                    anthropic_session_id: Swift.String? = nil,
+                    archive_bytes: Swift.Int? = nil,
+                    archived_at: Foundation.Date? = nil,
+                    error_message: Swift.String? = nil,
+                    hostname: Swift.String? = nil,
+                    id: Swift.String,
+                    inserted_at: Foundation.Date,
+                    last_active_at: Foundation.Date? = nil,
+                    memory_mb: Swift.Int,
+                    node_name: Swift.String? = nil,
+                    paused_at: Foundation.Date? = nil,
+                    platform: Components.Schemas.Sandboxes.sandboxesPayloadPayload.platformPayload? = nil,
+                    residency_work_id: Swift.String? = nil,
+                    resident: Swift.Bool? = nil,
+                    state: Components.Schemas.Sandboxes.sandboxesPayloadPayload.statePayload,
+                    status: Swift.String? = nil,
+                    template: Swift.String,
+                    template_tag: Swift.String? = nil,
+                    updated_at: Foundation.Date,
+                    vcpus: Swift.Int,
+                    workspace_gb: Swift.Int
+                ) {
+                    self.agent_environment_id = agent_environment_id
+                    self.amp_orb_id = amp_orb_id
+                    self.anthropic_session_id = anthropic_session_id
+                    self.archive_bytes = archive_bytes
+                    self.archived_at = archived_at
+                    self.error_message = error_message
+                    self.hostname = hostname
+                    self.id = id
+                    self.inserted_at = inserted_at
+                    self.last_active_at = last_active_at
+                    self.memory_mb = memory_mb
+                    self.node_name = node_name
+                    self.paused_at = paused_at
+                    self.platform = platform
+                    self.residency_work_id = residency_work_id
+                    self.resident = resident
+                    self.state = state
+                    self.status = status
+                    self.template = template
+                    self.template_tag = template_tag
+                    self.updated_at = updated_at
+                    self.vcpus = vcpus
+                    self.workspace_gb = workspace_gb
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case agent_environment_id
+                    case amp_orb_id
+                    case anthropic_session_id
+                    case archive_bytes
+                    case archived_at
+                    case error_message
+                    case hostname
+                    case id
+                    case inserted_at
+                    case last_active_at
+                    case memory_mb
+                    case node_name
+                    case paused_at
+                    case platform
+                    case residency_work_id
+                    case resident
+                    case state
+                    case status
+                    case template
+                    case template_tag
+                    case updated_at
+                    case vcpus
+                    case workspace_gb
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxes`.
+            public typealias sandboxesPayload = [Components.Schemas.Sandboxes.sandboxesPayloadPayload]
+            /// - Remark: Generated from `#/components/schemas/Sandboxes/sandboxes`.
+            public var sandboxes: Components.Schemas.Sandboxes.sandboxesPayload
+            /// Creates a new `Sandboxes`.
+            ///
+            /// - Parameters:
+            ///   - pagination_metadata:
+            ///   - sandboxes:
+            public init(
+                pagination_metadata: Components.Schemas.Sandboxes.pagination_metadataPayload,
+                sandboxes: Components.Schemas.Sandboxes.sandboxesPayload
+            ) {
+                self.pagination_metadata = pagination_metadata
+                self.sandboxes = sandboxes
+            }
+            public enum CodingKeys: String, CodingKey {
+                case pagination_metadata
+                case sandboxes
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.pagination_metadata = try container.decode(
+                    Components.Schemas.Sandboxes.pagination_metadataPayload.self,
+                    forKey: .pagination_metadata
+                )
+                self.sandboxes = try container.decode(
+                    Components.Schemas.Sandboxes.sandboxesPayload.self,
+                    forKey: .sandboxes
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "pagination_metadata",
+                    "sandboxes"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxAnalytics`.
+        public struct SandboxAnalytics: Codable, Hashable, Sendable {
+            /// `hour` for ranges of up to 36 hours, otherwise `day`: the span of each point.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/bucket`.
+            public var bucket: Swift.String
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency`.
+            public struct concurrencyPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use`.
+                public struct in_usePayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/disk_gb`.
+                    public var disk_gb: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/memory_gb`.
+                    public var memory_gb: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use/vcpus`.
+                    public var vcpus: Swift.Int
+                    /// Creates a new `in_usePayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - disk_gb:
+                    ///   - memory_gb:
+                    ///   - vcpus:
+                    public init(
+                        disk_gb: Swift.Double,
+                        memory_gb: Swift.Double,
+                        vcpus: Swift.Int
+                    ) {
+                        self.disk_gb = disk_gb
+                        self.memory_gb = memory_gb
+                        self.vcpus = vcpus
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case disk_gb
+                        case memory_gb
+                        case vcpus
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.disk_gb = try container.decode(
+                            Swift.Double.self,
+                            forKey: .disk_gb
+                        )
+                        self.memory_gb = try container.decode(
+                            Swift.Double.self,
+                            forKey: .memory_gb
+                        )
+                        self.vcpus = try container.decode(
+                            Swift.Int.self,
+                            forKey: .vcpus
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "disk_gb",
+                            "memory_gb",
+                            "vcpus"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/in_use`.
+                public var in_use: Components.Schemas.SandboxAnalytics.concurrencyPayload.in_usePayload
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits`.
+                public struct limitsPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/disk_gb`.
+                    public var disk_gb: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/memory_gb`.
+                    public var memory_gb: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits/vcpus`.
+                    public var vcpus: Swift.Int
+                    /// Creates a new `limitsPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - disk_gb:
+                    ///   - memory_gb:
+                    ///   - vcpus:
+                    public init(
+                        disk_gb: Swift.Double,
+                        memory_gb: Swift.Double,
+                        vcpus: Swift.Int
+                    ) {
+                        self.disk_gb = disk_gb
+                        self.memory_gb = memory_gb
+                        self.vcpus = vcpus
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case disk_gb
+                        case memory_gb
+                        case vcpus
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.disk_gb = try container.decode(
+                            Swift.Double.self,
+                            forKey: .disk_gb
+                        )
+                        self.memory_gb = try container.decode(
+                            Swift.Double.self,
+                            forKey: .memory_gb
+                        )
+                        self.vcpus = try container.decode(
+                            Swift.Int.self,
+                            forKey: .vcpus
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "disk_gb",
+                            "memory_gb",
+                            "vcpus"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/limits`.
+                public var limits: Components.Schemas.SandboxAnalytics.concurrencyPayload.limitsPayload
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload`.
+                public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/at`.
+                    public var at: Foundation.Date
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/disk_gb`.
+                    public var disk_gb: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/memory_gb`.
+                    public var memory_gb: Swift.Double
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/pointsPayload/vcpus`.
+                    public var vcpus: Swift.Int
+                    /// Creates a new `pointsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - at:
+                    ///   - disk_gb:
+                    ///   - memory_gb:
+                    ///   - vcpus:
+                    public init(
+                        at: Foundation.Date,
+                        disk_gb: Swift.Double,
+                        memory_gb: Swift.Double,
+                        vcpus: Swift.Int
+                    ) {
+                        self.at = at
+                        self.disk_gb = disk_gb
+                        self.memory_gb = memory_gb
+                        self.vcpus = vcpus
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case at
+                        case disk_gb
+                        case memory_gb
+                        case vcpus
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.at = try container.decode(
+                            Foundation.Date.self,
+                            forKey: .at
+                        )
+                        self.disk_gb = try container.decode(
+                            Swift.Double.self,
+                            forKey: .disk_gb
+                        )
+                        self.memory_gb = try container.decode(
+                            Swift.Double.self,
+                            forKey: .memory_gb
+                        )
+                        self.vcpus = try container.decode(
+                            Swift.Int.self,
+                            forKey: .vcpus
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "at",
+                            "disk_gb",
+                            "memory_gb",
+                            "vcpus"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/points`.
+                public typealias pointsPayload = [Components.Schemas.SandboxAnalytics.concurrencyPayload.pointsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency/points`.
+                public var points: Components.Schemas.SandboxAnalytics.concurrencyPayload.pointsPayload
+                /// Creates a new `concurrencyPayload`.
+                ///
+                /// - Parameters:
+                ///   - in_use:
+                ///   - limits:
+                ///   - points:
+                public init(
+                    in_use: Components.Schemas.SandboxAnalytics.concurrencyPayload.in_usePayload,
+                    limits: Components.Schemas.SandboxAnalytics.concurrencyPayload.limitsPayload,
+                    points: Components.Schemas.SandboxAnalytics.concurrencyPayload.pointsPayload
+                ) {
+                    self.in_use = in_use
+                    self.limits = limits
+                    self.points = points
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case in_use
+                    case limits
+                    case points
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.in_use = try container.decode(
+                        Components.Schemas.SandboxAnalytics.concurrencyPayload.in_usePayload.self,
+                        forKey: .in_use
+                    )
+                    self.limits = try container.decode(
+                        Components.Schemas.SandboxAnalytics.concurrencyPayload.limitsPayload.self,
+                        forKey: .limits
+                    )
+                    self.points = try container.decode(
+                        Components.Schemas.SandboxAnalytics.concurrencyPayload.pointsPayload.self,
+                        forKey: .points
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "in_use",
+                        "limits",
+                        "points"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/concurrency`.
+            public var concurrency: Components.Schemas.SandboxAnalytics.concurrencyPayload
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created`.
+            public struct createdPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/count`.
+                public var count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/pointsPayload`.
+                public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/pointsPayload/at`.
+                    public var at: Foundation.Date
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/pointsPayload/value`.
+                    public var value: Swift.Int
+                    /// Creates a new `pointsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - at:
+                    ///   - value:
+                    public init(
+                        at: Foundation.Date,
+                        value: Swift.Int
+                    ) {
+                        self.at = at
+                        self.value = value
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case at
+                        case value
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.at = try container.decode(
+                            Foundation.Date.self,
+                            forKey: .at
+                        )
+                        self.value = try container.decode(
+                            Swift.Int.self,
+                            forKey: .value
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "at",
+                            "value"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/points`.
+                public typealias pointsPayload = [Components.Schemas.SandboxAnalytics.createdPayload.pointsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/points`.
+                public var points: Components.Schemas.SandboxAnalytics.createdPayload.pointsPayload
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created/trend`.
+                public var trend: Swift.Double
+                /// Creates a new `createdPayload`.
+                ///
+                /// - Parameters:
+                ///   - count:
+                ///   - points:
+                ///   - trend: Percent change against the range of the same length before it; 0 when either is 0.
+                public init(
+                    count: Swift.Int,
+                    points: Components.Schemas.SandboxAnalytics.createdPayload.pointsPayload,
+                    trend: Swift.Double
+                ) {
+                    self.count = count
+                    self.points = points
+                    self.trend = trend
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case count
+                    case points
+                    case trend
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .count
+                    )
+                    self.points = try container.decode(
+                        Components.Schemas.SandboxAnalytics.createdPayload.pointsPayload.self,
+                        forKey: .points
+                    )
+                    self.trend = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "count",
+                        "points",
+                        "trend"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/created`.
+            public var created: Components.Schemas.SandboxAnalytics.createdPayload
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/period`.
+            public struct periodPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/period/end`.
+                public var end: Foundation.Date
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/period/start`.
+                public var start: Foundation.Date
+                /// Creates a new `periodPayload`.
+                ///
+                /// - Parameters:
+                ///   - end:
+                ///   - start:
+                public init(
+                    end: Foundation.Date,
+                    start: Foundation.Date
+                ) {
+                    self.end = end
+                    self.start = start
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case end
+                    case start
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.end = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .end
+                    )
+                    self.start = try container.decode(
+                        Foundation.Date.self,
+                        forKey: .start
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "end",
+                        "start"
+                    ])
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/period`.
+            public var period: Components.Schemas.SandboxAnalytics.periodPayload
+            /// Run sessions that ended in the range. Points without any have null figures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration`.
+            public struct session_durationPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/avg_ms`.
+                public var avg_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/count`.
+                public var count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/p50_ms`.
+                public var p50_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/p90_ms`.
+                public var p90_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/p99_ms`.
+                public var p99_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/pointsPayload`.
+                public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/pointsPayload/at`.
+                    public var at: Foundation.Date
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/pointsPayload/avg_ms`.
+                    public var avg_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/pointsPayload/p50_ms`.
+                    public var p50_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/pointsPayload/p90_ms`.
+                    public var p90_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/pointsPayload/p99_ms`.
+                    public var p99_ms: Swift.Int?
+                    /// Creates a new `pointsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - at:
+                    ///   - avg_ms:
+                    ///   - p50_ms:
+                    ///   - p90_ms:
+                    ///   - p99_ms:
+                    public init(
+                        at: Foundation.Date,
+                        avg_ms: Swift.Int? = nil,
+                        p50_ms: Swift.Int? = nil,
+                        p90_ms: Swift.Int? = nil,
+                        p99_ms: Swift.Int? = nil
+                    ) {
+                        self.at = at
+                        self.avg_ms = avg_ms
+                        self.p50_ms = p50_ms
+                        self.p90_ms = p90_ms
+                        self.p99_ms = p99_ms
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case at
+                        case avg_ms
+                        case p50_ms
+                        case p90_ms
+                        case p99_ms
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.at = try container.decode(
+                            Foundation.Date.self,
+                            forKey: .at
+                        )
+                        self.avg_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .avg_ms
+                        )
+                        self.p50_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p50_ms
+                        )
+                        self.p90_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p90_ms
+                        )
+                        self.p99_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p99_ms
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "at",
+                            "avg_ms",
+                            "p50_ms",
+                            "p90_ms",
+                            "p99_ms"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/points`.
+                public typealias pointsPayload = [Components.Schemas.SandboxAnalytics.session_durationPayload.pointsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/points`.
+                public var points: Components.Schemas.SandboxAnalytics.session_durationPayload.pointsPayload
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/trend_avg`.
+                public var trend_avg: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/trend_p50`.
+                public var trend_p50: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/trend_p90`.
+                public var trend_p90: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration/trend_p99`.
+                public var trend_p99: Swift.Double
+                /// Creates a new `session_durationPayload`.
+                ///
+                /// - Parameters:
+                ///   - avg_ms:
+                ///   - count:
+                ///   - p50_ms:
+                ///   - p90_ms:
+                ///   - p99_ms:
+                ///   - points:
+                ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+                public init(
+                    avg_ms: Swift.Int,
+                    count: Swift.Int,
+                    p50_ms: Swift.Int,
+                    p90_ms: Swift.Int,
+                    p99_ms: Swift.Int,
+                    points: Components.Schemas.SandboxAnalytics.session_durationPayload.pointsPayload,
+                    trend_avg: Swift.Double,
+                    trend_p50: Swift.Double,
+                    trend_p90: Swift.Double,
+                    trend_p99: Swift.Double
+                ) {
+                    self.avg_ms = avg_ms
+                    self.count = count
+                    self.p50_ms = p50_ms
+                    self.p90_ms = p90_ms
+                    self.p99_ms = p99_ms
+                    self.points = points
+                    self.trend_avg = trend_avg
+                    self.trend_p50 = trend_p50
+                    self.trend_p90 = trend_p90
+                    self.trend_p99 = trend_p99
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case avg_ms
+                    case count
+                    case p50_ms
+                    case p90_ms
+                    case p99_ms
+                    case points
+                    case trend_avg
+                    case trend_p50
+                    case trend_p90
+                    case trend_p99
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.avg_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .avg_ms
+                    )
+                    self.count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .count
+                    )
+                    self.p50_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p50_ms
+                    )
+                    self.p90_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p90_ms
+                    )
+                    self.p99_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p99_ms
+                    )
+                    self.points = try container.decode(
+                        Components.Schemas.SandboxAnalytics.session_durationPayload.pointsPayload.self,
+                        forKey: .points
+                    )
+                    self.trend_avg = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_avg
+                    )
+                    self.trend_p50 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p50
+                    )
+                    self.trend_p90 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p90
+                    )
+                    self.trend_p99 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p99
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "avg_ms",
+                        "count",
+                        "p50_ms",
+                        "p90_ms",
+                        "p99_ms",
+                        "points",
+                        "trend_avg",
+                        "trend_p50",
+                        "trend_p90",
+                        "trend_p99"
+                    ])
+                }
+            }
+            /// Run sessions that ended in the range. Points without any have null figures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/session_duration`.
+            public var session_duration: Components.Schemas.SandboxAnalytics.session_durationPayload
+            /// How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup`.
+            public struct setupPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/avg_ms`.
+                public var avg_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/count`.
+                public var count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/p50_ms`.
+                public var p50_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/p90_ms`.
+                public var p90_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/p99_ms`.
+                public var p99_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/pointsPayload`.
+                public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/pointsPayload/at`.
+                    public var at: Foundation.Date
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/pointsPayload/avg_ms`.
+                    public var avg_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/pointsPayload/p50_ms`.
+                    public var p50_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/pointsPayload/p90_ms`.
+                    public var p90_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/pointsPayload/p99_ms`.
+                    public var p99_ms: Swift.Int?
+                    /// Creates a new `pointsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - at:
+                    ///   - avg_ms:
+                    ///   - p50_ms:
+                    ///   - p90_ms:
+                    ///   - p99_ms:
+                    public init(
+                        at: Foundation.Date,
+                        avg_ms: Swift.Int? = nil,
+                        p50_ms: Swift.Int? = nil,
+                        p90_ms: Swift.Int? = nil,
+                        p99_ms: Swift.Int? = nil
+                    ) {
+                        self.at = at
+                        self.avg_ms = avg_ms
+                        self.p50_ms = p50_ms
+                        self.p90_ms = p90_ms
+                        self.p99_ms = p99_ms
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case at
+                        case avg_ms
+                        case p50_ms
+                        case p90_ms
+                        case p99_ms
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.at = try container.decode(
+                            Foundation.Date.self,
+                            forKey: .at
+                        )
+                        self.avg_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .avg_ms
+                        )
+                        self.p50_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p50_ms
+                        )
+                        self.p90_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p90_ms
+                        )
+                        self.p99_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p99_ms
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "at",
+                            "avg_ms",
+                            "p50_ms",
+                            "p90_ms",
+                            "p99_ms"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/points`.
+                public typealias pointsPayload = [Components.Schemas.SandboxAnalytics.setupPayload.pointsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/points`.
+                public var points: Components.Schemas.SandboxAnalytics.setupPayload.pointsPayload
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/trend_avg`.
+                public var trend_avg: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/trend_p50`.
+                public var trend_p50: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/trend_p90`.
+                public var trend_p90: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup/trend_p99`.
+                public var trend_p99: Swift.Double
+                /// Creates a new `setupPayload`.
+                ///
+                /// - Parameters:
+                ///   - avg_ms:
+                ///   - count:
+                ///   - p50_ms:
+                ///   - p90_ms:
+                ///   - p99_ms:
+                ///   - points:
+                ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+                public init(
+                    avg_ms: Swift.Int,
+                    count: Swift.Int,
+                    p50_ms: Swift.Int,
+                    p90_ms: Swift.Int,
+                    p99_ms: Swift.Int,
+                    points: Components.Schemas.SandboxAnalytics.setupPayload.pointsPayload,
+                    trend_avg: Swift.Double,
+                    trend_p50: Swift.Double,
+                    trend_p90: Swift.Double,
+                    trend_p99: Swift.Double
+                ) {
+                    self.avg_ms = avg_ms
+                    self.count = count
+                    self.p50_ms = p50_ms
+                    self.p90_ms = p90_ms
+                    self.p99_ms = p99_ms
+                    self.points = points
+                    self.trend_avg = trend_avg
+                    self.trend_p50 = trend_p50
+                    self.trend_p90 = trend_p90
+                    self.trend_p99 = trend_p99
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case avg_ms
+                    case count
+                    case p50_ms
+                    case p90_ms
+                    case p99_ms
+                    case points
+                    case trend_avg
+                    case trend_p50
+                    case trend_p90
+                    case trend_p99
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.avg_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .avg_ms
+                    )
+                    self.count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .count
+                    )
+                    self.p50_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p50_ms
+                    )
+                    self.p90_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p90_ms
+                    )
+                    self.p99_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p99_ms
+                    )
+                    self.points = try container.decode(
+                        Components.Schemas.SandboxAnalytics.setupPayload.pointsPayload.self,
+                        forKey: .points
+                    )
+                    self.trend_avg = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_avg
+                    )
+                    self.trend_p50 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p50
+                    )
+                    self.trend_p90 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p90
+                    )
+                    self.trend_p99 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p99
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "avg_ms",
+                        "count",
+                        "p50_ms",
+                        "p90_ms",
+                        "p99_ms",
+                        "points",
+                        "trend_avg",
+                        "trend_p50",
+                        "trend_p90",
+                        "trend_p99"
+                    ])
+                }
+            }
+            /// How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/setup`.
+            public var setup: Components.Schemas.SandboxAnalytics.setupPayload
+            /// How long sandboxes took to boot (create or restore). Points without any have null figures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start`.
+            public struct time_to_startPayload: Codable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/avg_ms`.
+                public var avg_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/count`.
+                public var count: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/p50_ms`.
+                public var p50_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/p90_ms`.
+                public var p90_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/p99_ms`.
+                public var p99_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/pointsPayload`.
+                public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/pointsPayload/at`.
+                    public var at: Foundation.Date
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/pointsPayload/avg_ms`.
+                    public var avg_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/pointsPayload/p50_ms`.
+                    public var p50_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/pointsPayload/p90_ms`.
+                    public var p90_ms: Swift.Int?
+                    /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/pointsPayload/p99_ms`.
+                    public var p99_ms: Swift.Int?
+                    /// Creates a new `pointsPayloadPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - at:
+                    ///   - avg_ms:
+                    ///   - p50_ms:
+                    ///   - p90_ms:
+                    ///   - p99_ms:
+                    public init(
+                        at: Foundation.Date,
+                        avg_ms: Swift.Int? = nil,
+                        p50_ms: Swift.Int? = nil,
+                        p90_ms: Swift.Int? = nil,
+                        p99_ms: Swift.Int? = nil
+                    ) {
+                        self.at = at
+                        self.avg_ms = avg_ms
+                        self.p50_ms = p50_ms
+                        self.p90_ms = p90_ms
+                        self.p99_ms = p99_ms
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case at
+                        case avg_ms
+                        case p50_ms
+                        case p90_ms
+                        case p99_ms
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.at = try container.decode(
+                            Foundation.Date.self,
+                            forKey: .at
+                        )
+                        self.avg_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .avg_ms
+                        )
+                        self.p50_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p50_ms
+                        )
+                        self.p90_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p90_ms
+                        )
+                        self.p99_ms = try container.decodeIfPresent(
+                            Swift.Int.self,
+                            forKey: .p99_ms
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "at",
+                            "avg_ms",
+                            "p50_ms",
+                            "p90_ms",
+                            "p99_ms"
+                        ])
+                    }
+                }
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/points`.
+                public typealias pointsPayload = [Components.Schemas.SandboxAnalytics.time_to_startPayload.pointsPayloadPayload]
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/points`.
+                public var points: Components.Schemas.SandboxAnalytics.time_to_startPayload.pointsPayload
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/trend_avg`.
+                public var trend_avg: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/trend_p50`.
+                public var trend_p50: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/trend_p90`.
+                public var trend_p90: Swift.Double
+                /// Percent change against the range of the same length before it; 0 when either is 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start/trend_p99`.
+                public var trend_p99: Swift.Double
+                /// Creates a new `time_to_startPayload`.
+                ///
+                /// - Parameters:
+                ///   - avg_ms:
+                ///   - count:
+                ///   - p50_ms:
+                ///   - p90_ms:
+                ///   - p99_ms:
+                ///   - points:
+                ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+                ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+                public init(
+                    avg_ms: Swift.Int,
+                    count: Swift.Int,
+                    p50_ms: Swift.Int,
+                    p90_ms: Swift.Int,
+                    p99_ms: Swift.Int,
+                    points: Components.Schemas.SandboxAnalytics.time_to_startPayload.pointsPayload,
+                    trend_avg: Swift.Double,
+                    trend_p50: Swift.Double,
+                    trend_p90: Swift.Double,
+                    trend_p99: Swift.Double
+                ) {
+                    self.avg_ms = avg_ms
+                    self.count = count
+                    self.p50_ms = p50_ms
+                    self.p90_ms = p90_ms
+                    self.p99_ms = p99_ms
+                    self.points = points
+                    self.trend_avg = trend_avg
+                    self.trend_p50 = trend_p50
+                    self.trend_p90 = trend_p90
+                    self.trend_p99 = trend_p99
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case avg_ms
+                    case count
+                    case p50_ms
+                    case p90_ms
+                    case p99_ms
+                    case points
+                    case trend_avg
+                    case trend_p50
+                    case trend_p90
+                    case trend_p99
+                }
+                public init(from decoder: any Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    self.avg_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .avg_ms
+                    )
+                    self.count = try container.decode(
+                        Swift.Int.self,
+                        forKey: .count
+                    )
+                    self.p50_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p50_ms
+                    )
+                    self.p90_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p90_ms
+                    )
+                    self.p99_ms = try container.decode(
+                        Swift.Int.self,
+                        forKey: .p99_ms
+                    )
+                    self.points = try container.decode(
+                        Components.Schemas.SandboxAnalytics.time_to_startPayload.pointsPayload.self,
+                        forKey: .points
+                    )
+                    self.trend_avg = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_avg
+                    )
+                    self.trend_p50 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p50
+                    )
+                    self.trend_p90 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p90
+                    )
+                    self.trend_p99 = try container.decode(
+                        Swift.Double.self,
+                        forKey: .trend_p99
+                    )
+                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                        "avg_ms",
+                        "count",
+                        "p50_ms",
+                        "p90_ms",
+                        "p99_ms",
+                        "points",
+                        "trend_avg",
+                        "trend_p50",
+                        "trend_p90",
+                        "trend_p99"
+                    ])
+                }
+            }
+            /// How long sandboxes took to boot (create or restore). Points without any have null figures.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/time_to_start`.
+            public var time_to_start: Components.Schemas.SandboxAnalytics.time_to_startPayload
+            /// vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.
+            ///
+            /// - Remark: Generated from `#/components/schemas/SandboxAnalytics/vcpu_hours`.
+            public var vcpu_hours: Swift.Double
+            /// Creates a new `SandboxAnalytics`.
+            ///
+            /// - Parameters:
+            ///   - bucket: `hour` for ranges of up to 36 hours, otherwise `day`: the span of each point.
+            ///   - concurrency:
+            ///   - created:
+            ///   - period:
+            ///   - session_duration: Run sessions that ended in the range. Points without any have null figures.
+            ///   - setup: How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+            ///   - time_to_start: How long sandboxes took to boot (create or restore). Points without any have null figures.
+            ///   - vcpu_hours: vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.
+            public init(
+                bucket: Swift.String,
+                concurrency: Components.Schemas.SandboxAnalytics.concurrencyPayload,
+                created: Components.Schemas.SandboxAnalytics.createdPayload,
+                period: Components.Schemas.SandboxAnalytics.periodPayload,
+                session_duration: Components.Schemas.SandboxAnalytics.session_durationPayload,
+                setup: Components.Schemas.SandboxAnalytics.setupPayload,
+                time_to_start: Components.Schemas.SandboxAnalytics.time_to_startPayload,
+                vcpu_hours: Swift.Double
+            ) {
+                self.bucket = bucket
+                self.concurrency = concurrency
+                self.created = created
+                self.period = period
+                self.session_duration = session_duration
+                self.setup = setup
+                self.time_to_start = time_to_start
+                self.vcpu_hours = vcpu_hours
+            }
+            public enum CodingKeys: String, CodingKey {
+                case bucket
+                case concurrency
+                case created
+                case period
+                case session_duration
+                case setup
+                case time_to_start
+                case vcpu_hours
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.bucket = try container.decode(
+                    Swift.String.self,
+                    forKey: .bucket
+                )
+                self.concurrency = try container.decode(
+                    Components.Schemas.SandboxAnalytics.concurrencyPayload.self,
+                    forKey: .concurrency
+                )
+                self.created = try container.decode(
+                    Components.Schemas.SandboxAnalytics.createdPayload.self,
+                    forKey: .created
+                )
+                self.period = try container.decode(
+                    Components.Schemas.SandboxAnalytics.periodPayload.self,
+                    forKey: .period
+                )
+                self.session_duration = try container.decode(
+                    Components.Schemas.SandboxAnalytics.session_durationPayload.self,
+                    forKey: .session_duration
+                )
+                self.setup = try container.decode(
+                    Components.Schemas.SandboxAnalytics.setupPayload.self,
+                    forKey: .setup
+                )
+                self.time_to_start = try container.decode(
+                    Components.Schemas.SandboxAnalytics.time_to_startPayload.self,
+                    forKey: .time_to_start
+                )
+                self.vcpu_hours = try container.decode(
+                    Swift.Double.self,
+                    forKey: .vcpu_hours
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "bucket",
+                    "concurrency",
+                    "created",
+                    "period",
+                    "session_duration",
+                    "setup",
+                    "time_to_start",
+                    "vcpu_hours"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse`.
+        public struct SandboxResourcesInUse: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/disk_gb`.
+            public var disk_gb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/memory_gb`.
+            public var memory_gb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/SandboxResourcesInUse/vcpus`.
+            public var vcpus: Swift.Int
+            /// Creates a new `SandboxResourcesInUse`.
+            ///
+            /// - Parameters:
+            ///   - disk_gb:
+            ///   - memory_gb:
+            ///   - vcpus:
+            public init(
+                disk_gb: Swift.Double,
+                memory_gb: Swift.Double,
+                vcpus: Swift.Int
+            ) {
+                self.disk_gb = disk_gb
+                self.memory_gb = memory_gb
+                self.vcpus = vcpus
+            }
+            public enum CodingKeys: String, CodingKey {
+                case disk_gb
+                case memory_gb
+                case vcpus
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.disk_gb = try container.decode(
+                    Swift.Double.self,
+                    forKey: .disk_gb
+                )
+                self.memory_gb = try container.decode(
+                    Swift.Double.self,
+                    forKey: .memory_gb
+                )
+                self.vcpus = try container.decode(
+                    Swift.Int.self,
+                    forKey: .vcpus
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "disk_gb",
+                    "memory_gb",
+                    "vcpus"
+                ])
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits`.
+        public struct SandboxResourceLimits: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/disk_gb`.
+            public var disk_gb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/memory_gb`.
+            public var memory_gb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/SandboxResourceLimits/vcpus`.
+            public var vcpus: Swift.Int
+            /// Creates a new `SandboxResourceLimits`.
+            ///
+            /// - Parameters:
+            ///   - disk_gb:
+            ///   - memory_gb:
+            ///   - vcpus:
+            public init(
+                disk_gb: Swift.Double,
+                memory_gb: Swift.Double,
+                vcpus: Swift.Int
+            ) {
+                self.disk_gb = disk_gb
+                self.memory_gb = memory_gb
+                self.vcpus = vcpus
+            }
+            public enum CodingKeys: String, CodingKey {
+                case disk_gb
+                case memory_gb
+                case vcpus
+            }
+            public init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.disk_gb = try container.decode(
+                    Swift.Double.self,
+                    forKey: .disk_gb
+                )
+                self.memory_gb = try container.decode(
+                    Swift.Double.self,
+                    forKey: .memory_gb
+                )
+                self.vcpus = try container.decode(
+                    Swift.Int.self,
+                    forKey: .vcpus
+                )
+                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                    "disk_gb",
+                    "memory_gb",
+                    "vcpus"
+                ])
             }
         }
     }
@@ -29924,6 +33906,8 @@ public enum Operations {
     }
     /// List the account's sandboxes.
     ///
+    /// Newest first by default. Deleted sandboxes are not listed.
+    ///
     /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/get(listSandboxes)`.
     public enum listSandboxes {
@@ -29931,19 +33915,99 @@ public enum Operations {
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/path`.
             public struct Path: Sendable, Hashable {
-                /// The account handle.
+                ///
                 ///
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/path/account_handle`.
                 public var account_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - account_handle: The account handle.
+                ///   - account_handle:
                 public init(account_handle: Swift.String) {
                     self.account_handle = account_handle
                 }
             }
             public var path: Operations.listSandboxes.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query`.
+            public struct Query: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/page`.
+                public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/search`.
+                public var search: Swift.String?
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/sort_by`.
+                @frozen public enum sort_byPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case created = "created"
+                    case last_active = "last_active"
+                    case identifier = "identifier"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/sort_by`.
+                public var sort_by: Operations.listSandboxes.Input.Query.sort_byPayload?
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/sort_order`.
+                @frozen public enum sort_orderPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case asc = "asc"
+                    case desc = "desc"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/sort_order`.
+                public var sort_order: Operations.listSandboxes.Input.Query.sort_orderPayload?
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case active = "active"
+                    case idle = "idle"
+                    case starting = "starting"
+                    case resuming = "resuming"
+                    case paused = "paused"
+                    case archived = "archived"
+                    case failed = "failed"
+                }
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/status`.
+                public var status: Operations.listSandboxes.Input.Query.statusPayload?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/query/vcpus`.
+                public var vcpus: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - page:
+                ///   - page_size:
+                ///   - search:
+                ///   - sort_by:
+                ///   - sort_order:
+                ///   - status:
+                ///   - vcpus:
+                public init(
+                    page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil,
+                    search: Swift.String? = nil,
+                    sort_by: Operations.listSandboxes.Input.Query.sort_byPayload? = nil,
+                    sort_order: Operations.listSandboxes.Input.Query.sort_orderPayload? = nil,
+                    status: Operations.listSandboxes.Input.Query.statusPayload? = nil,
+                    vcpus: Swift.Int? = nil
+                ) {
+                    self.page = page
+                    self.page_size = page_size
+                    self.search = search
+                    self.sort_by = sort_by
+                    self.sort_order = sort_order
+                    self.status = status
+                    self.vcpus = vcpus
+                }
+            }
+            public var query: Operations.listSandboxes.Input.Query
             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/header`.
             public struct Headers: Sendable, Hashable {
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listSandboxes.AcceptableContentType>]
@@ -29960,12 +34024,15 @@ public enum Operations {
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
             public init(
                 path: Operations.listSandboxes.Input.Path,
+                query: Operations.listSandboxes.Input.Query = .init(),
                 headers: Operations.listSandboxes.Input.Headers = .init()
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
             }
         }
@@ -29975,7 +34042,91 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// A Firecracker sandbox VM.
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata`.
+                        public struct pagination_metadataPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata/current_page`.
+                            public var current_page: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata/has_next_page`.
+                            public var has_next_page: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata/has_previous_page`.
+                            public var has_previous_page: Swift.Bool
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata/page_size`.
+                            public var page_size: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata/total_count`.
+                            public var total_count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata/total_pages`.
+                            public var total_pages: Swift.Int
+                            /// Creates a new `pagination_metadataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - current_page:
+                            ///   - has_next_page:
+                            ///   - has_previous_page:
+                            ///   - page_size:
+                            ///   - total_count:
+                            ///   - total_pages:
+                            public init(
+                                current_page: Swift.Int,
+                                has_next_page: Swift.Bool,
+                                has_previous_page: Swift.Bool,
+                                page_size: Swift.Int,
+                                total_count: Swift.Int,
+                                total_pages: Swift.Int
+                            ) {
+                                self.current_page = current_page
+                                self.has_next_page = has_next_page
+                                self.has_previous_page = has_previous_page
+                                self.page_size = page_size
+                                self.total_count = total_count
+                                self.total_pages = total_pages
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case current_page
+                                case has_next_page
+                                case has_previous_page
+                                case page_size
+                                case total_count
+                                case total_pages
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.current_page = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .current_page
+                                )
+                                self.has_next_page = try container.decode(
+                                    Swift.Bool.self,
+                                    forKey: .has_next_page
+                                )
+                                self.has_previous_page = try container.decode(
+                                    Swift.Bool.self,
+                                    forKey: .has_previous_page
+                                )
+                                self.page_size = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .page_size
+                                )
+                                self.total_count = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .total_count
+                                )
+                                self.total_pages = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .total_pages
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "current_page",
+                                    "has_next_page",
+                                    "has_previous_page",
+                                    "page_size",
+                                    "total_count",
+                                    "total_pages"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Operations.listSandboxes.Output.Ok.Body.jsonPayload.pagination_metadataPayload
+                        /// A persistent Linux or macOS sandbox VM.
                         ///
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload`.
                         public struct sandboxesPayloadPayload: Codable, Hashable, Sendable {
@@ -30009,8 +34160,19 @@ public enum Operations {
                             public var node_name: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/paused_at`.
                             public var paused_at: Foundation.Date?
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/platform`.
+                            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case linux = "linux"
+                                case darwin = "darwin"
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/platform`.
+                            public var platform: Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayloadPayload.platformPayload?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/residency_work_id`.
                             public var residency_work_id: Swift.String?
+                            /// Whether a macOS sandbox retains its process and capacity.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/resident`.
+                            public var resident: Swift.Bool?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/state`.
                             @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case creating = "creating"
@@ -30023,6 +34185,10 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/state`.
                             public var state: Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayloadPayload.statePayload
+                            /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/status`.
+                            public var status: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/template`.
                             public var template: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/json/sandboxesPayload/template_tag`.
@@ -30049,8 +34215,11 @@ public enum Operations {
                             ///   - memory_mb:
                             ///   - node_name:
                             ///   - paused_at:
+                            ///   - platform:
                             ///   - residency_work_id:
+                            ///   - resident: Whether a macOS sandbox retains its process and capacity.
                             ///   - state:
+                            ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                             ///   - template:
                             ///   - template_tag:
                             ///   - updated_at:
@@ -30070,8 +34239,11 @@ public enum Operations {
                                 memory_mb: Swift.Int,
                                 node_name: Swift.String? = nil,
                                 paused_at: Foundation.Date? = nil,
+                                platform: Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayloadPayload.platformPayload? = nil,
                                 residency_work_id: Swift.String? = nil,
+                                resident: Swift.Bool? = nil,
                                 state: Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayloadPayload.statePayload,
+                                status: Swift.String? = nil,
                                 template: Swift.String,
                                 template_tag: Swift.String? = nil,
                                 updated_at: Foundation.Date,
@@ -30091,8 +34263,11 @@ public enum Operations {
                                 self.memory_mb = memory_mb
                                 self.node_name = node_name
                                 self.paused_at = paused_at
+                                self.platform = platform
                                 self.residency_work_id = residency_work_id
+                                self.resident = resident
                                 self.state = state
+                                self.status = status
                                 self.template = template
                                 self.template_tag = template_tag
                                 self.updated_at = updated_at
@@ -30113,8 +34288,11 @@ public enum Operations {
                                 case memory_mb
                                 case node_name
                                 case paused_at
+                                case platform
                                 case residency_work_id
+                                case resident
                                 case state
+                                case status
                                 case template
                                 case template_tag
                                 case updated_at
@@ -30129,12 +34307,33 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - pagination_metadata:
                         ///   - sandboxes:
-                        public init(sandboxes: Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayload) {
+                        public init(
+                            pagination_metadata: Operations.listSandboxes.Output.Ok.Body.jsonPayload.pagination_metadataPayload,
+                            sandboxes: Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayload
+                        ) {
+                            self.pagination_metadata = pagination_metadata
                             self.sandboxes = sandboxes
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case pagination_metadata
                             case sandboxes
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.pagination_metadata = try container.decode(
+                                Operations.listSandboxes.Output.Ok.Body.jsonPayload.pagination_metadataPayload.self,
+                                forKey: .pagination_metadata
+                            )
+                            self.sandboxes = try container.decode(
+                                Operations.listSandboxes.Output.Ok.Body.jsonPayload.sandboxesPayload.self,
+                                forKey: .sandboxes
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "pagination_metadata",
+                                "sandboxes"
+                            ])
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/200/content/application\/json`.
@@ -30180,6 +34379,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listSandboxes.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listSandboxes.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/get(listSandboxes)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listSandboxes.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listSandboxes.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -30393,14 +34643,22 @@ public enum Operations {
                         case _4096 = 4096
                         case _8192 = 8192
                         case _16384 = 16384
+                        case _24576 = 24576
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/memory_mb`.
                     public var memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload?
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/platform`.
+                    @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case linux = "linux"
+                        case darwin = "darwin"
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/platform`.
+                    public var platform: Operations.createSandbox.Input.Body.jsonPayload.platformPayload?
                     /// Sandbox template name.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/template`.
                     public var template: Swift.String?
-                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/vcpus`.
                     @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -30408,7 +34666,7 @@ public enum Operations {
                         case _4 = 4
                         case _8 = 8
                     }
-                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/requestBody/json/vcpus`.
                     public var vcpus: Operations.createSandbox.Input.Body.jsonPayload.vcpusPayload?
@@ -30418,22 +34676,26 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - memory_mb:
+                    ///   - platform:
                     ///   - template: Sandbox template name.
-                    ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
                     public init(
                         memory_mb: Operations.createSandbox.Input.Body.jsonPayload.memory_mbPayload? = nil,
+                        platform: Operations.createSandbox.Input.Body.jsonPayload.platformPayload? = nil,
                         template: Swift.String? = nil,
                         vcpus: Operations.createSandbox.Input.Body.jsonPayload.vcpusPayload? = nil,
                         workspace_gb: Swift.Int? = nil
                     ) {
                         self.memory_mb = memory_mb
+                        self.platform = platform
                         self.template = template
                         self.vcpus = vcpus
                         self.workspace_gb = workspace_gb
                     }
                     public enum CodingKeys: String, CodingKey {
                         case memory_mb
+                        case platform
                         case template
                         case vcpus
                         case workspace_gb
@@ -30463,7 +34725,7 @@ public enum Operations {
             public struct Created: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// A Firecracker sandbox VM.
+                    /// A persistent Linux or macOS sandbox VM.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
@@ -30497,8 +34759,19 @@ public enum Operations {
                         public var node_name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/paused_at`.
                         public var paused_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/platform`.
+                        public var platform: Operations.createSandbox.Output.Created.Body.jsonPayload.platformPayload?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/residency_work_id`.
                         public var residency_work_id: Swift.String?
+                        /// Whether a macOS sandbox retains its process and capacity.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/resident`.
+                        public var resident: Swift.Bool?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/state`.
                         @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case creating = "creating"
@@ -30511,6 +34784,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/state`.
                         public var state: Operations.createSandbox.Output.Created.Body.jsonPayload.statePayload
+                        /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/status`.
+                        public var status: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/POST/responses/201/content/json/template_tag`.
@@ -30537,8 +34814,11 @@ public enum Operations {
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
+                        ///   - platform:
                         ///   - residency_work_id:
+                        ///   - resident: Whether a macOS sandbox retains its process and capacity.
                         ///   - state:
+                        ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                         ///   - template:
                         ///   - template_tag:
                         ///   - updated_at:
@@ -30558,8 +34838,11 @@ public enum Operations {
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
+                            platform: Operations.createSandbox.Output.Created.Body.jsonPayload.platformPayload? = nil,
                             residency_work_id: Swift.String? = nil,
+                            resident: Swift.Bool? = nil,
                             state: Operations.createSandbox.Output.Created.Body.jsonPayload.statePayload,
+                            status: Swift.String? = nil,
                             template: Swift.String,
                             template_tag: Swift.String? = nil,
                             updated_at: Foundation.Date,
@@ -30579,8 +34862,11 @@ public enum Operations {
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
+                            self.platform = platform
                             self.residency_work_id = residency_work_id
+                            self.resident = resident
                             self.state = state
+                            self.status = status
                             self.template = template
                             self.template_tag = template_tag
                             self.updated_at = updated_at
@@ -30601,8 +34887,11 @@ public enum Operations {
                             case memory_mb
                             case node_name
                             case paused_at
+                            case platform
                             case residency_work_id
+                            case resident
                             case state
+                            case status
                             case template
                             case template_tag
                             case updated_at
@@ -31724,6 +36013,356 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Disconnects one of the signed-in user's AI subscriptions
+    ///
+    /// Deletes the provider's saved credentials and any pending sign-in. It does not revoke the authorization at the provider.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/ai-subscriptions/{provider}`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)`.
+    public enum disconnectAISubscription {
+        public static let id: Swift.String = "disconnectAISubscription"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/path/provider`.
+                @frozen public enum providerPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case chatgpt = "chatgpt"
+                    case claude = "claude"
+                }
+                /// The provider to disconnect.
+                ///
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/path/provider`.
+                public var provider: Operations.disconnectAISubscription.Input.Path.providerPayload
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - provider: The provider to disconnect.
+                public init(provider: Operations.disconnectAISubscription.Input.Path.providerPayload) {
+                    self.provider = provider
+                }
+            }
+            public var path: Operations.disconnectAISubscription.Input.Path
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.disconnectAISubscription.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.disconnectAISubscription.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.disconnectAISubscription.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.disconnectAISubscription.Input.Path,
+                headers: Operations.disconnectAISubscription.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptionsPayload`.
+                        public struct subscriptionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Whether credentials are saved for the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptionsPayload/connected`.
+                            public var connected: Swift.Bool
+                            /// Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptionsPayload/login_available`.
+                            public var login_available: Swift.Bool
+                            /// The provider. Known values: `claude`, `chatgpt`.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptionsPayload/provider`.
+                            public var provider: Swift.String
+                            /// When the connection last changed, or null if it was never connected.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptionsPayload/updated_at`.
+                            public var updated_at: Foundation.Date?
+                            /// Creates a new `subscriptionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - connected: Whether credentials are saved for the provider.
+                            ///   - login_available: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                            ///   - provider: The provider. Known values: `claude`, `chatgpt`.
+                            ///   - updated_at: When the connection last changed, or null if it was never connected.
+                            public init(
+                                connected: Swift.Bool,
+                                login_available: Swift.Bool,
+                                provider: Swift.String,
+                                updated_at: Foundation.Date? = nil
+                            ) {
+                                self.connected = connected
+                                self.login_available = login_available
+                                self.provider = provider
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case connected
+                                case login_available
+                                case provider
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptions`.
+                        public typealias subscriptionsPayload = [Operations.disconnectAISubscription.Output.Ok.Body.jsonPayload.subscriptionsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/json/subscriptions`.
+                        public var subscriptions: Operations.disconnectAISubscription.Output.Ok.Body.jsonPayload.subscriptionsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - subscriptions:
+                        public init(subscriptions: Operations.disconnectAISubscription.Output.Ok.Body.jsonPayload.subscriptionsPayload) {
+                            self.subscriptions = subscriptions
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case subscriptions
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/200/content/application\/json`.
+                    case json(Operations.disconnectAISubscription.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.disconnectAISubscription.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.disconnectAISubscription.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.disconnectAISubscription.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The user's AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.disconnectAISubscription.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.disconnectAISubscription.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.disconnectAISubscription.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.disconnectAISubscription.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.disconnectAISubscription.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.disconnectAISubscription.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.disconnectAISubscription.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.disconnectAISubscription.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can manage AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.disconnectAISubscription.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.disconnectAISubscription.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/{provider}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.disconnectAISubscription.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.disconnectAISubscription.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// AI subscriptions are not available to this user
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/{provider}/delete(disconnectAISubscription)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.disconnectAISubscription.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.disconnectAISubscription.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -34498,6 +39137,461 @@ public enum Operations {
             }
         }
     }
+    /// Connects the signed-in user's Claude subscription
+    ///
+    /// Saves the subscription token `claude setup-token` prints, replacing any saved one. Tuist validates its format only, not that the subscription can serve requests. The token is never returned.
+    ///
+    /// - Remark: HTTP `PUT /api/me/ai-subscriptions/claude`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)`.
+    public enum connectClaudeSubscription {
+        public static let id: Swift.String = "connectClaudeSubscription"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.connectClaudeSubscription.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.connectClaudeSubscription.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.connectClaudeSubscription.Input.Headers
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The token `claude setup-token` prints. Not an Anthropic API key.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/requestBody/json/token`.
+                    public var token: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - token: The token `claude setup-token` prints. Not an Anthropic API key.
+                    public init(token: Swift.String) {
+                        self.token = token
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case token
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/requestBody/content/application\/json`.
+                case json(Operations.connectClaudeSubscription.Input.Body.jsonPayload)
+            }
+            public var body: Operations.connectClaudeSubscription.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.connectClaudeSubscription.Input.Headers = .init(),
+                body: Operations.connectClaudeSubscription.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptionsPayload`.
+                        public struct subscriptionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Whether credentials are saved for the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptionsPayload/connected`.
+                            public var connected: Swift.Bool
+                            /// Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptionsPayload/login_available`.
+                            public var login_available: Swift.Bool
+                            /// The provider. Known values: `claude`, `chatgpt`.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptionsPayload/provider`.
+                            public var provider: Swift.String
+                            /// When the connection last changed, or null if it was never connected.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptionsPayload/updated_at`.
+                            public var updated_at: Foundation.Date?
+                            /// Creates a new `subscriptionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - connected: Whether credentials are saved for the provider.
+                            ///   - login_available: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                            ///   - provider: The provider. Known values: `claude`, `chatgpt`.
+                            ///   - updated_at: When the connection last changed, or null if it was never connected.
+                            public init(
+                                connected: Swift.Bool,
+                                login_available: Swift.Bool,
+                                provider: Swift.String,
+                                updated_at: Foundation.Date? = nil
+                            ) {
+                                self.connected = connected
+                                self.login_available = login_available
+                                self.provider = provider
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case connected
+                                case login_available
+                                case provider
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptions`.
+                        public typealias subscriptionsPayload = [Operations.connectClaudeSubscription.Output.Ok.Body.jsonPayload.subscriptionsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/json/subscriptions`.
+                        public var subscriptions: Operations.connectClaudeSubscription.Output.Ok.Body.jsonPayload.subscriptionsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - subscriptions:
+                        public init(subscriptions: Operations.connectClaudeSubscription.Output.Ok.Body.jsonPayload.subscriptionsPayload) {
+                            self.subscriptions = subscriptions
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case subscriptions
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/200/content/application\/json`.
+                    case json(Operations.connectClaudeSubscription.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.connectClaudeSubscription.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectClaudeSubscription.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectClaudeSubscription.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The user's AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.connectClaudeSubscription.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.connectClaudeSubscription.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectClaudeSubscription.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectClaudeSubscription.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.connectClaudeSubscription.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.connectClaudeSubscription.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectClaudeSubscription.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectClaudeSubscription.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can manage AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.connectClaudeSubscription.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.connectClaudeSubscription.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectClaudeSubscription.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectClaudeSubscription.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// AI subscriptions are not available to this user
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.connectClaudeSubscription.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.connectClaudeSubscription.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct UnprocessableContent: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/422/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/422/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectClaudeSubscription.Output.UnprocessableContent.Body
+                /// Creates a new `UnprocessableContent`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectClaudeSubscription.Output.UnprocessableContent.Body) {
+                    self.body = body
+                }
+            }
+            /// The token is not a Claude subscription token
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Operations.connectClaudeSubscription.Output.UnprocessableContent)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Operations.connectClaudeSubscription.Output.UnprocessableContent {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/claude/PUT/responses/503/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.connectClaudeSubscription.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.connectClaudeSubscription.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// The token could not be saved
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/claude/put(connectClaudeSubscription)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.connectClaudeSubscription.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.connectClaudeSubscription.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get a test case by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
@@ -35569,7 +40663,7 @@ public enum Operations {
             }
         }
     }
-    /// Clear saved volume contents. Running jobs retain their copies but cannot save them.
+    /// Deprecated: use deleteRunnerVolume.
     ///
     /// - Remark: HTTP `POST /api/accounts/{account_handle}/runners/volumes/{volume_id}/clear`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/clear/post(clearRunnerVolume)`.
@@ -39116,6 +44210,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/duration`.
                     public var duration: Swift.Int
+                    /// The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_impact_run_id`.
+                    public var test_impact_run_id: Swift.String?
                     /// The version of Xcode used during the run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/xcode_version`.
@@ -39719,6 +44817,7 @@ public enum Operations {
                     ///   - shard_plan_id: The shard plan ID if this test run is part of a sharded execution.
                     ///   - contract_version: Version of the client-server analytics contract the caller was built against (e.g. "0.1"). Older clients may omit it; the server accepts unknown values.
                     ///   - duration: Duration of the run in milliseconds.
+                    ///   - test_impact_run_id: The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not.
                     ///   - xcode_version: The version of Xcode used during the run.
                     ///   - build_system: The build system used by the test run.
                     ///   - git_commit_sha: The commit SHA.
@@ -39768,6 +44867,7 @@ public enum Operations {
                         shard_plan_id: Swift.String? = nil,
                         contract_version: Swift.String? = nil,
                         duration: Swift.Int,
+                        test_impact_run_id: Swift.String? = nil,
                         xcode_version: Swift.String? = nil,
                         build_system: Operations.createTest.Input.Body.jsonPayload.build_systemPayload? = nil,
                         git_commit_sha: Swift.String? = nil,
@@ -39817,6 +44917,7 @@ public enum Operations {
                         self.shard_plan_id = shard_plan_id
                         self.contract_version = contract_version
                         self.duration = duration
+                        self.test_impact_run_id = test_impact_run_id
                         self.xcode_version = xcode_version
                         self.build_system = build_system
                         self.git_commit_sha = git_commit_sha
@@ -39867,6 +44968,7 @@ public enum Operations {
                         case shard_plan_id
                         case contract_version
                         case duration
+                        case test_impact_run_id
                         case xcode_version
                         case build_system
                         case git_commit_sha
@@ -43975,7 +49077,7 @@ public enum Operations {
             public struct Ok: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// A Firecracker sandbox VM.
+                    /// A persistent Linux or macOS sandbox VM.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
@@ -44009,8 +49111,19 @@ public enum Operations {
                         public var node_name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/paused_at`.
                         public var paused_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/platform`.
+                        public var platform: Operations.getSandbox.Output.Ok.Body.jsonPayload.platformPayload?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/residency_work_id`.
                         public var residency_work_id: Swift.String?
+                        /// Whether a macOS sandbox retains its process and capacity.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/resident`.
+                        public var resident: Swift.Bool?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/state`.
                         @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case creating = "creating"
@@ -44023,6 +49136,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/state`.
                         public var state: Operations.getSandbox.Output.Ok.Body.jsonPayload.statePayload
+                        /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/status`.
+                        public var status: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/GET/responses/200/content/json/template_tag`.
@@ -44049,8 +49166,11 @@ public enum Operations {
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
+                        ///   - platform:
                         ///   - residency_work_id:
+                        ///   - resident: Whether a macOS sandbox retains its process and capacity.
                         ///   - state:
+                        ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                         ///   - template:
                         ///   - template_tag:
                         ///   - updated_at:
@@ -44070,8 +49190,11 @@ public enum Operations {
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
+                            platform: Operations.getSandbox.Output.Ok.Body.jsonPayload.platformPayload? = nil,
                             residency_work_id: Swift.String? = nil,
+                            resident: Swift.Bool? = nil,
                             state: Operations.getSandbox.Output.Ok.Body.jsonPayload.statePayload,
+                            status: Swift.String? = nil,
                             template: Swift.String,
                             template_tag: Swift.String? = nil,
                             updated_at: Foundation.Date,
@@ -44091,8 +49214,11 @@ public enum Operations {
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
+                            self.platform = platform
                             self.residency_work_id = residency_work_id
+                            self.resident = resident
                             self.state = state
+                            self.status = status
                             self.template = template
                             self.template_tag = template_tag
                             self.updated_at = updated_at
@@ -44113,8 +49239,11 @@ public enum Operations {
                             case memory_mb
                             case node_name
                             case paused_at
+                            case platform
                             case residency_work_id
+                            case resident
                             case state
+                            case status
                             case template
                             case template_tag
                             case updated_at
@@ -52107,6 +57236,417 @@ public enum Operations {
             }
         }
     }
+    /// Delete a runner volume. Running jobs retain their copies but cannot save them; later jobs with its key start empty.
+    ///
+    /// - Remark: HTTP `DELETE /api/accounts/{account_handle}/runners/volumes/{volume_id}`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/delete(deleteRunnerVolume)`.
+    public enum deleteRunnerVolume {
+        public static let id: Swift.String = "deleteRunnerVolume"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/path`.
+            public struct Path: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/path/account_handle`.
+                public var account_handle: Swift.String
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/path/volume_id`.
+                public var volume_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                ///   - volume_id:
+                public init(
+                    account_handle: Swift.String,
+                    volume_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.volume_id = volume_id
+                }
+            }
+            public var path: Operations.deleteRunnerVolume.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteRunnerVolume.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteRunnerVolume.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.deleteRunnerVolume.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.deleteRunnerVolume.Input.Path,
+                headers: Operations.deleteRunnerVolume.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/200/content/json/deleted`.
+                        public var deleted: Swift.Bool
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - deleted:
+                        ///   - id:
+                        public init(
+                            deleted: Swift.Bool,
+                            id: Swift.String
+                        ) {
+                            self.deleted = deleted
+                            self.id = id
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case deleted
+                            case id
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.deleted = try container.decode(
+                                Swift.Bool.self,
+                                forKey: .deleted
+                            )
+                            self.id = try container.decode(
+                                Swift.String.self,
+                                forKey: .id
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "deleted",
+                                "id"
+                            ])
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/200/content/application\/json`.
+                    case json(Operations.deleteRunnerVolume.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.deleteRunnerVolume.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteRunnerVolume.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteRunnerVolume.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Runner volume data
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/delete(deleteRunnerVolume)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.deleteRunnerVolume.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.deleteRunnerVolume.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteRunnerVolume.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteRunnerVolume.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/delete(deleteRunnerVolume)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.deleteRunnerVolume.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.deleteRunnerVolume.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteRunnerVolume.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteRunnerVolume.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/delete(deleteRunnerVolume)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.deleteRunnerVolume.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.deleteRunnerVolume.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteRunnerVolume.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.deleteRunnerVolume.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Volume or job not found, or runners disabled
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/delete(deleteRunnerVolume)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.deleteRunnerVolume.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.deleteRunnerVolume.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteRunnerVolume.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/runners/volumes/{volume_id}/DELETE/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteRunnerVolume.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteRunnerVolume.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.deleteRunnerVolume.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/runners/volumes/{volume_id}/delete(deleteRunnerVolume)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.deleteRunnerVolume.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.deleteRunnerVolume.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get one recorded Xcode build step and its log.
     ///
     /// Logs retain up to 64 KiB per step, with log_truncated indicating omitted output. Steps and logs expire after 90 days. An empty log means no output was recorded.
@@ -59256,7 +64796,7 @@ public enum Operations {
             public struct Ok: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// A Firecracker sandbox VM.
+                    /// A persistent Linux or macOS sandbox VM.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
@@ -59290,8 +64830,19 @@ public enum Operations {
                         public var node_name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/paused_at`.
                         public var paused_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/platform`.
+                        public var platform: Operations.resumeSandbox.Output.Ok.Body.jsonPayload.platformPayload?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/residency_work_id`.
                         public var residency_work_id: Swift.String?
+                        /// Whether a macOS sandbox retains its process and capacity.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/resident`.
+                        public var resident: Swift.Bool?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/state`.
                         @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case creating = "creating"
@@ -59304,6 +64855,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/state`.
                         public var state: Operations.resumeSandbox.Output.Ok.Body.jsonPayload.statePayload
+                        /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/status`.
+                        public var status: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/resume/POST/responses/200/content/json/template_tag`.
@@ -59330,8 +64885,11 @@ public enum Operations {
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
+                        ///   - platform:
                         ///   - residency_work_id:
+                        ///   - resident: Whether a macOS sandbox retains its process and capacity.
                         ///   - state:
+                        ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                         ///   - template:
                         ///   - template_tag:
                         ///   - updated_at:
@@ -59351,8 +64909,11 @@ public enum Operations {
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
+                            platform: Operations.resumeSandbox.Output.Ok.Body.jsonPayload.platformPayload? = nil,
                             residency_work_id: Swift.String? = nil,
+                            resident: Swift.Bool? = nil,
                             state: Operations.resumeSandbox.Output.Ok.Body.jsonPayload.statePayload,
+                            status: Swift.String? = nil,
                             template: Swift.String,
                             template_tag: Swift.String? = nil,
                             updated_at: Foundation.Date,
@@ -59372,8 +64933,11 @@ public enum Operations {
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
+                            self.platform = platform
                             self.residency_work_id = residency_work_id
+                            self.resident = resident
                             self.state = state
+                            self.status = status
                             self.template = template
                             self.template_tag = template_tag
                             self.updated_at = updated_at
@@ -59394,8 +64958,11 @@ public enum Operations {
                             case memory_mb
                             case node_name
                             case paused_at
+                            case platform
                             case residency_work_id
+                            case resident
                             case state
+                            case status
                             case template
                             case template_tag
                             case updated_at
@@ -67671,6 +73238,744 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Starts connecting the signed-in user's ChatGPT subscription
+    ///
+    /// Starts an OpenAI device sign-in. Show the user the verification URL and code, then poll with the login ID no faster than `interval` seconds until it connects or `expires_at` passes. Saved credentials stay until the sign-in succeeds.
+    ///
+    /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)`.
+    public enum startChatGPTSubscriptionLogin {
+        public static let id: Swift.String = "startChatGPTSubscriptionLogin"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startChatGPTSubscriptionLogin.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.startChatGPTSubscriptionLogin.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.startChatGPTSubscriptionLogin.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.startChatGPTSubscriptionLogin.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// When the sign-in expires.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/json/expires_at`.
+                        public var expires_at: Foundation.Date
+                        /// The minimum number of seconds between polls.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/json/interval`.
+                        public var interval: Swift.Int
+                        /// The opaque ID to poll and cancel the sign-in with.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/json/login_id`.
+                        public var login_id: Swift.String
+                        /// The code the user enters on the verification page.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/json/user_code`.
+                        public var user_code: Swift.String
+                        /// The OpenAI page where the user enters the code.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/json/verification_url`.
+                        public var verification_url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - expires_at: When the sign-in expires.
+                        ///   - interval: The minimum number of seconds between polls.
+                        ///   - login_id: The opaque ID to poll and cancel the sign-in with.
+                        ///   - user_code: The code the user enters on the verification page.
+                        ///   - verification_url: The OpenAI page where the user enters the code.
+                        public init(
+                            expires_at: Foundation.Date,
+                            interval: Swift.Int,
+                            login_id: Swift.String,
+                            user_code: Swift.String,
+                            verification_url: Swift.String
+                        ) {
+                            self.expires_at = expires_at
+                            self.interval = interval
+                            self.login_id = login_id
+                            self.user_code = user_code
+                            self.verification_url = verification_url
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case expires_at
+                            case interval
+                            case login_id
+                            case user_code
+                            case verification_url
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/200/content/application\/json`.
+                    case json(Operations.startChatGPTSubscriptionLogin.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.startChatGPTSubscriptionLogin.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The pending sign-in
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.startChatGPTSubscriptionLogin.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.startChatGPTSubscriptionLogin.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.startChatGPTSubscriptionLogin.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.startChatGPTSubscriptionLogin.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can manage AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.startChatGPTSubscriptionLogin.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.startChatGPTSubscriptionLogin.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// AI subscriptions are not available to this user
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.startChatGPTSubscriptionLogin.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.startChatGPTSubscriptionLogin.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.TooManyRequests.Body) {
+                    self.body = body
+                }
+            }
+            /// Too many sign-in attempts. Try again in a few minutes.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.startChatGPTSubscriptionLogin.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.startChatGPTSubscriptionLogin.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadGateway: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/502/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/502/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.BadGateway.Body
+                /// Creates a new `BadGateway`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.BadGateway.Body) {
+                    self.body = body
+                }
+            }
+            /// OpenAI could not start the sign-in
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/502`.
+            ///
+            /// HTTP response code: `502 badGateway`.
+            case badGateway(Operations.startChatGPTSubscriptionLogin.Output.BadGateway)
+            /// The associated value of the enum case if `self` is `.badGateway`.
+            ///
+            /// - Throws: An error if `self` is not `.badGateway`.
+            /// - SeeAlso: `.badGateway`.
+            public var badGateway: Operations.startChatGPTSubscriptionLogin.Output.BadGateway {
+                get throws {
+                    switch self {
+                    case let .badGateway(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badGateway",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/POST/responses/503/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startChatGPTSubscriptionLogin.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startChatGPTSubscriptionLogin.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// ChatGPT sign-in is not configured on this server
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/post(startChatGPTSubscriptionLogin)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.startChatGPTSubscriptionLogin.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.startChatGPTSubscriptionLogin.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Cancels a pending ChatGPT sign-in
+    ///
+    /// Discards the pending sign-in. A ChatGPT subscription that is already connected stays connected.
+    ///
+    /// - Remark: HTTP `DELETE /api/me/ai-subscriptions/chatgpt/login`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)`.
+    public enum cancelChatGPTSubscriptionLogin {
+        public static let id: Swift.String = "cancelChatGPTSubscriptionLogin"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/query`.
+            public struct Query: Sendable, Hashable {
+                /// The opaque sign-in ID that `startChatGPTSubscriptionLogin` returned.
+                ///
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/query/login_id`.
+                public var login_id: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - login_id: The opaque sign-in ID that `startChatGPTSubscriptionLogin` returned.
+                public init(login_id: Swift.String) {
+                    self.login_id = login_id
+                }
+            }
+            public var query: Operations.cancelChatGPTSubscriptionLogin.Input.Query
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cancelChatGPTSubscriptionLogin.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cancelChatGPTSubscriptionLogin.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.cancelChatGPTSubscriptionLogin.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.cancelChatGPTSubscriptionLogin.Input.Query,
+                headers: Operations.cancelChatGPTSubscriptionLogin.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// The sign-in was cancelled
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.cancelChatGPTSubscriptionLogin.Output.NoContent)
+            /// The sign-in was cancelled
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.cancelChatGPTSubscriptionLogin.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.cancelChatGPTSubscriptionLogin.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.cancelChatGPTSubscriptionLogin.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.cancelChatGPTSubscriptionLogin.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.cancelChatGPTSubscriptionLogin.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.cancelChatGPTSubscriptionLogin.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.cancelChatGPTSubscriptionLogin.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can manage AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.cancelChatGPTSubscriptionLogin.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.cancelChatGPTSubscriptionLogin.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/DELETE/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.cancelChatGPTSubscriptionLogin.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.cancelChatGPTSubscriptionLogin.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// No pending sign-in has that ID, or AI subscriptions are not available
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/delete(cancelChatGPTSubscriptionLogin)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.cancelChatGPTSubscriptionLogin.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.cancelChatGPTSubscriptionLogin.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -82336,6 +88641,13 @@ public enum Operations {
                             public var name: Swift.String?
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/pause_grace_seconds`.
                             public var pause_grace_seconds: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/platform`.
+                            @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case linux = "linux"
+                                case darwin = "darwin"
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/platform`.
+                            public var platform: Operations.listSandboxAgentEnvironments.Output.Ok.Body.jsonPayload.agent_environmentsPayloadPayload.platformPayload
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/template`.
                             public var template: Swift.String
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/GET/responses/200/content/json/agent_environmentsPayload/updated_at`.
@@ -82359,6 +88671,7 @@ public enum Operations {
                             ///   - memory_mb:
                             ///   - name:
                             ///   - pause_grace_seconds:
+                            ///   - platform:
                             ///   - template:
                             ///   - updated_at:
                             ///   - vcpus:
@@ -82376,6 +88689,7 @@ public enum Operations {
                                 memory_mb: Swift.Int,
                                 name: Swift.String? = nil,
                                 pause_grace_seconds: Swift.Int,
+                                platform: Operations.listSandboxAgentEnvironments.Output.Ok.Body.jsonPayload.agent_environmentsPayloadPayload.platformPayload,
                                 template: Swift.String,
                                 updated_at: Foundation.Date,
                                 vcpus: Swift.Int,
@@ -82393,6 +88707,7 @@ public enum Operations {
                                 self.memory_mb = memory_mb
                                 self.name = name
                                 self.pause_grace_seconds = pause_grace_seconds
+                                self.platform = platform
                                 self.template = template
                                 self.updated_at = updated_at
                                 self.vcpus = vcpus
@@ -82411,6 +88726,7 @@ public enum Operations {
                                 case memory_mb
                                 case name
                                 case pause_grace_seconds
+                                case platform
                                 case template
                                 case updated_at
                                 case vcpus
@@ -82710,6 +89026,7 @@ public enum Operations {
                         case _4096 = 4096
                         case _8192 = 8192
                         case _16384 = 16384
+                        case _24576 = 24576
                     }
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/memory_mb`.
                     public var memory_mb: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.memory_mbPayload?
@@ -82717,11 +89034,18 @@ public enum Operations {
                     public var name: Swift.String?
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/pause_grace_seconds`.
                     public var pause_grace_seconds: Swift.Int?
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/platform`.
+                    @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case linux = "linux"
+                        case darwin = "darwin"
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/platform`.
+                    public var platform: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.platformPayload?
                     /// Sandbox template name.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/template`.
                     public var template: Swift.String?
-                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/vcpus`.
                     @frozen public enum vcpusPayload: Int, Codable, Hashable, Sendable, CaseIterable {
@@ -82729,7 +89053,7 @@ public enum Operations {
                         case _4 = 4
                         case _8 = 8
                     }
-                    /// With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    /// Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/requestBody/json/vcpus`.
                     public var vcpus: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.vcpusPayload?
@@ -82747,8 +89071,9 @@ public enum Operations {
                     ///   - memory_mb:
                     ///   - name:
                     ///   - pause_grace_seconds:
+                    ///   - platform:
                     ///   - template: Sandbox template name.
-                    ///   - vcpus: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                    ///   - vcpus: Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.
                     ///   - workspace_gb:
                     public init(
                         agent_model: Swift.String? = nil,
@@ -82760,6 +89085,7 @@ public enum Operations {
                         memory_mb: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.memory_mbPayload? = nil,
                         name: Swift.String? = nil,
                         pause_grace_seconds: Swift.Int? = nil,
+                        platform: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.platformPayload? = nil,
                         template: Swift.String? = nil,
                         vcpus: Operations.createSandboxAgentEnvironment.Input.Body.jsonPayload.vcpusPayload? = nil,
                         workspace_gb: Swift.Int? = nil
@@ -82773,6 +89099,7 @@ public enum Operations {
                         self.memory_mb = memory_mb
                         self.name = name
                         self.pause_grace_seconds = pause_grace_seconds
+                        self.platform = platform
                         self.template = template
                         self.vcpus = vcpus
                         self.workspace_gb = workspace_gb
@@ -82787,6 +89114,7 @@ public enum Operations {
                         case memory_mb
                         case name
                         case pause_grace_seconds
+                        case platform
                         case template
                         case vcpus
                         case workspace_gb
@@ -82848,6 +89176,13 @@ public enum Operations {
                         public var name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/pause_grace_seconds`.
                         public var pause_grace_seconds: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/platform`.
+                        public var platform: Operations.createSandboxAgentEnvironment.Output.Created.Body.jsonPayload.platformPayload
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/POST/responses/201/content/json/updated_at`.
@@ -82871,6 +89206,7 @@ public enum Operations {
                         ///   - memory_mb:
                         ///   - name:
                         ///   - pause_grace_seconds:
+                        ///   - platform:
                         ///   - template:
                         ///   - updated_at:
                         ///   - vcpus:
@@ -82888,6 +89224,7 @@ public enum Operations {
                             memory_mb: Swift.Int,
                             name: Swift.String? = nil,
                             pause_grace_seconds: Swift.Int,
+                            platform: Operations.createSandboxAgentEnvironment.Output.Created.Body.jsonPayload.platformPayload,
                             template: Swift.String,
                             updated_at: Foundation.Date,
                             vcpus: Swift.Int,
@@ -82905,6 +89242,7 @@ public enum Operations {
                             self.memory_mb = memory_mb
                             self.name = name
                             self.pause_grace_seconds = pause_grace_seconds
+                            self.platform = platform
                             self.template = template
                             self.updated_at = updated_at
                             self.vcpus = vcpus
@@ -82923,6 +89261,7 @@ public enum Operations {
                             case memory_mb
                             case name
                             case pause_grace_seconds
+                            case platform
                             case template
                             case updated_at
                             case vcpus
@@ -87395,6 +93734,537 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
             public var tooManyRequests: Operations.generatePreviewsMultipartUploadURL.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Resolve the baseline for coverage-based test selection.
+    ///
+    /// Returns the nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)`.
+    public enum resolveTestImpactBaseline {
+        public static let id: Swift.String = "resolveTestImpactBaseline"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.resolveTestImpactBaseline.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.resolveTestImpactBaseline.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.resolveTestImpactBaseline.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.resolveTestImpactBaseline.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/ancestor_shas`.
+                    public var ancestor_shas: [Swift.String]?
+                    /// The build system, `xcode` first. A plain string so new build systems don't need a new client.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/build_system`.
+                    public var build_system: Swift.String
+                    /// The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/commit_sha`.
+                    public var commit_sha: Swift.String
+                    /// The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/parent_shas`.
+                    public var parent_shas: [Swift.String]?
+                    /// The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/platform`.
+                    public var platform: Swift.String?
+                    /// Xcode only: the scope the invocation tests.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/xcode`.
+                    public struct xcodePayload: Codable, Hashable, Sendable {
+                        /// The destination the tests run on.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/xcode/destination`.
+                        public var destination: Swift.String?
+                        /// The scheme being tested.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/xcode/scheme`.
+                        public var scheme: Swift.String?
+                        /// The test plan being run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/xcode/test_plan`.
+                        public var test_plan: Swift.String?
+                        /// Creates a new `xcodePayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - destination: The destination the tests run on.
+                        ///   - scheme: The scheme being tested.
+                        ///   - test_plan: The test plan being run.
+                        public init(
+                            destination: Swift.String? = nil,
+                            scheme: Swift.String? = nil,
+                            test_plan: Swift.String? = nil
+                        ) {
+                            self.destination = destination
+                            self.scheme = scheme
+                            self.test_plan = test_plan
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case destination
+                            case scheme
+                            case test_plan
+                        }
+                    }
+                    /// Xcode only: the scope the invocation tests.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/json/xcode`.
+                    public var xcode: Operations.resolveTestImpactBaseline.Input.Body.jsonPayload.xcodePayload?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - ancestor_shas: The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges.
+                    ///   - build_system: The build system, `xcode` first. A plain string so new build systems don't need a new client.
+                    ///   - commit_sha: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+                    ///   - parent_shas: The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both.
+                    ///   - platform: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+                    ///   - xcode: Xcode only: the scope the invocation tests.
+                    public init(
+                        ancestor_shas: [Swift.String]? = nil,
+                        build_system: Swift.String,
+                        commit_sha: Swift.String,
+                        parent_shas: [Swift.String]? = nil,
+                        platform: Swift.String? = nil,
+                        xcode: Operations.resolveTestImpactBaseline.Input.Body.jsonPayload.xcodePayload? = nil
+                    ) {
+                        self.ancestor_shas = ancestor_shas
+                        self.build_system = build_system
+                        self.commit_sha = commit_sha
+                        self.parent_shas = parent_shas
+                        self.platform = platform
+                        self.xcode = xcode
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case ancestor_shas
+                        case build_system
+                        case commit_sha
+                        case parent_shas
+                        case platform
+                        case xcode
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/requestBody/content/application\/json`.
+                case json(Operations.resolveTestImpactBaseline.Input.Body.jsonPayload)
+            }
+            public var body: Operations.resolveTestImpactBaseline.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.resolveTestImpactBaseline.Input.Path,
+                headers: Operations.resolveTestImpactBaseline.Input.Headers = .init(),
+                body: Operations.resolveTestImpactBaseline.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.TestImpactBaseline)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.TestImpactBaseline {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.resolveTestImpactBaseline.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.resolveTestImpactBaseline.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The baseline, or why there's none
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.resolveTestImpactBaseline.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.resolveTestImpactBaseline.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.resolveTestImpactBaseline.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.resolveTestImpactBaseline.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request parameters are invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.resolveTestImpactBaseline.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.resolveTestImpactBaseline.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.resolveTestImpactBaseline.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.resolveTestImpactBaseline.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.resolveTestImpactBaseline.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.resolveTestImpactBaseline.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.resolveTestImpactBaseline.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.resolveTestImpactBaseline.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.resolveTestImpactBaseline.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.resolveTestImpactBaseline.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.resolveTestImpactBaseline.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.resolveTestImpactBaseline.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.resolveTestImpactBaseline.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.resolveTestImpactBaseline.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.resolveTestImpactBaseline.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.resolveTestImpactBaseline.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.resolveTestImpactBaseline.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.resolveTestImpactBaseline.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline/post(resolveTestImpactBaseline)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.resolveTestImpactBaseline.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.resolveTestImpactBaseline.Output.TooManyRequests {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):
@@ -95423,6 +102293,170 @@ public enum Operations {
             }
         }
     }
+    /// Start a device sign-in.
+    ///
+    /// Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+    ///
+    ///
+    /// - Remark: HTTP `POST /api/auth/device_codes`.
+    /// - Remark: Generated from `#/paths//api/auth/device_codes/post(createDeviceCode)`.
+    public enum createDeviceCode {
+        public static let id: Swift.String = "createDeviceCode"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createDeviceCode.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createDeviceCode.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createDeviceCode.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.createDeviceCode.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The secret code to poll for tokens with.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/device_code`.
+                        public var device_code: Swift.String
+                        /// Seconds until the codes expire.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/expires_in`.
+                        public var expires_in: Swift.Int
+                        /// Seconds to wait between polls.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/interval`.
+                        public var interval: Swift.Int
+                        /// The short code the person enters in the browser.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/user_code`.
+                        public var user_code: Swift.String
+                        /// The page where the person enters the code.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/json/verification_uri`.
+                        public var verification_uri: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - device_code: The secret code to poll for tokens with.
+                        ///   - expires_in: Seconds until the codes expire.
+                        ///   - interval: Seconds to wait between polls.
+                        ///   - user_code: The short code the person enters in the browser.
+                        ///   - verification_uri: The page where the person enters the code.
+                        public init(
+                            device_code: Swift.String,
+                            expires_in: Swift.Int,
+                            interval: Swift.Int,
+                            user_code: Swift.String,
+                            verification_uri: Swift.String
+                        ) {
+                            self.device_code = device_code
+                            self.expires_in = expires_in
+                            self.interval = interval
+                            self.user_code = user_code
+                            self.verification_uri = verification_uri
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case device_code
+                            case expires_in
+                            case interval
+                            case user_code
+                            case verification_uri
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/auth/device_codes/POST/responses/200/content/application\/json`.
+                    case json(Operations.createDeviceCode.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createDeviceCode.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createDeviceCode.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createDeviceCode.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The device sign-in was started
+            ///
+            /// - Remark: Generated from `#/paths//api/auth/device_codes/post(createDeviceCode)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createDeviceCode.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createDeviceCode.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -96220,7 +103254,7 @@ public enum Operations {
             public struct Ok: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
-                    /// A Firecracker sandbox VM.
+                    /// A persistent Linux or macOS sandbox VM.
                     ///
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
@@ -96254,8 +103288,19 @@ public enum Operations {
                         public var node_name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/paused_at`.
                         public var paused_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/platform`.
+                        public var platform: Operations.pauseSandbox.Output.Ok.Body.jsonPayload.platformPayload?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/residency_work_id`.
                         public var residency_work_id: Swift.String?
+                        /// Whether a macOS sandbox retains its process and capacity.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/resident`.
+                        public var resident: Swift.Bool?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/state`.
                         @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case creating = "creating"
@@ -96268,6 +103313,10 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/state`.
                         public var state: Operations.pauseSandbox.Output.Ok.Body.jsonPayload.statePayload
+                        /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/status`.
+                        public var status: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/pause/POST/responses/200/content/json/template_tag`.
@@ -96294,8 +103343,11 @@ public enum Operations {
                         ///   - memory_mb:
                         ///   - node_name:
                         ///   - paused_at:
+                        ///   - platform:
                         ///   - residency_work_id:
+                        ///   - resident: Whether a macOS sandbox retains its process and capacity.
                         ///   - state:
+                        ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
                         ///   - template:
                         ///   - template_tag:
                         ///   - updated_at:
@@ -96315,8 +103367,11 @@ public enum Operations {
                             memory_mb: Swift.Int,
                             node_name: Swift.String? = nil,
                             paused_at: Foundation.Date? = nil,
+                            platform: Operations.pauseSandbox.Output.Ok.Body.jsonPayload.platformPayload? = nil,
                             residency_work_id: Swift.String? = nil,
+                            resident: Swift.Bool? = nil,
                             state: Operations.pauseSandbox.Output.Ok.Body.jsonPayload.statePayload,
+                            status: Swift.String? = nil,
                             template: Swift.String,
                             template_tag: Swift.String? = nil,
                             updated_at: Foundation.Date,
@@ -96336,8 +103391,11 @@ public enum Operations {
                             self.memory_mb = memory_mb
                             self.node_name = node_name
                             self.paused_at = paused_at
+                            self.platform = platform
                             self.residency_work_id = residency_work_id
+                            self.resident = resident
                             self.state = state
+                            self.status = status
                             self.template = template
                             self.template_tag = template_tag
                             self.updated_at = updated_at
@@ -96358,8 +103416,11 @@ public enum Operations {
                             case memory_mb
                             case node_name
                             case paused_at
+                            case platform
                             case residency_work_id
+                            case resident
                             case state
+                            case status
                             case template
                             case template_tag
                             case updated_at
@@ -96971,6 +104032,13 @@ public enum Operations {
                         public var name: Swift.String?
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/pause_grace_seconds`.
                         public var pause_grace_seconds: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/platform`.
+                        public var platform: Operations.updateSandboxAgentEnvironment.Output.Ok.Body.jsonPayload.platformPayload
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/template`.
                         public var template: Swift.String
                         /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/agent-environments/{agent_environment_id}/PATCH/responses/200/content/json/updated_at`.
@@ -96994,6 +104062,7 @@ public enum Operations {
                         ///   - memory_mb:
                         ///   - name:
                         ///   - pause_grace_seconds:
+                        ///   - platform:
                         ///   - template:
                         ///   - updated_at:
                         ///   - vcpus:
@@ -97011,6 +104080,7 @@ public enum Operations {
                             memory_mb: Swift.Int,
                             name: Swift.String? = nil,
                             pause_grace_seconds: Swift.Int,
+                            platform: Operations.updateSandboxAgentEnvironment.Output.Ok.Body.jsonPayload.platformPayload,
                             template: Swift.String,
                             updated_at: Foundation.Date,
                             vcpus: Swift.Int,
@@ -97028,6 +104098,7 @@ public enum Operations {
                             self.memory_mb = memory_mb
                             self.name = name
                             self.pause_grace_seconds = pause_grace_seconds
+                            self.platform = platform
                             self.template = template
                             self.updated_at = updated_at
                             self.vcpus = vcpus
@@ -97046,6 +104117,7 @@ public enum Operations {
                             case memory_mb
                             case name
                             case pause_grace_seconds
+                            case platform
                             case template
                             case updated_at
                             case vcpus
@@ -100955,6 +108027,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/skipped_test_suites`.
                     public var skipped_test_suites: [Swift.String]?
+                    /// The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/test_impact_run_id`.
+                    public var test_impact_run_id: Swift.String?
                     /// Test suite names (for suite-level granularity).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/test_suites`.
@@ -100975,6 +108051,7 @@ public enum Operations {
                     ///   - shard_min: Minimum number of shards.
                     ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
                     ///   - skipped_test_suites: Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history.
+                    ///   - test_impact_run_id: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
                     ///   - test_suites: Test suite names (for suite-level granularity).
                     public init(
                         build_run_id: Swift.String? = nil,
@@ -100990,6 +108067,7 @@ public enum Operations {
                         shard_min: Swift.Int? = nil,
                         shard_total: Swift.Int? = nil,
                         skipped_test_suites: [Swift.String]? = nil,
+                        test_impact_run_id: Swift.String? = nil,
                         test_suites: [Swift.String]? = nil
                     ) {
                         self.build_run_id = build_run_id
@@ -101005,6 +108083,7 @@ public enum Operations {
                         self.shard_min = shard_min
                         self.shard_total = shard_total
                         self.skipped_test_suites = skipped_test_suites
+                        self.test_impact_run_id = test_impact_run_id
                         self.test_suites = test_suites
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -101021,6 +108100,7 @@ public enum Operations {
                         case shard_min
                         case shard_total
                         case skipped_test_suites
+                        case test_impact_run_id
                         case test_suites
                     }
                 }
@@ -101870,6 +108950,331 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Lists the signed-in user's AI subscriptions
+    ///
+    /// Returns connection metadata for every supported provider. Credentials are never returned.
+    ///
+    /// - Remark: HTTP `GET /api/me/ai-subscriptions`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)`.
+    public enum listAISubscriptions {
+        public static let id: Swift.String = "listAISubscriptions"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listAISubscriptions.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listAISubscriptions.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listAISubscriptions.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.listAISubscriptions.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptionsPayload`.
+                        public struct subscriptionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Whether credentials are saved for the provider.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptionsPayload/connected`.
+                            public var connected: Swift.Bool
+                            /// Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptionsPayload/login_available`.
+                            public var login_available: Swift.Bool
+                            /// The provider. Known values: `claude`, `chatgpt`.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptionsPayload/provider`.
+                            public var provider: Swift.String
+                            /// When the connection last changed, or null if it was never connected.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptionsPayload/updated_at`.
+                            public var updated_at: Foundation.Date?
+                            /// Creates a new `subscriptionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - connected: Whether credentials are saved for the provider.
+                            ///   - login_available: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                            ///   - provider: The provider. Known values: `claude`, `chatgpt`.
+                            ///   - updated_at: When the connection last changed, or null if it was never connected.
+                            public init(
+                                connected: Swift.Bool,
+                                login_available: Swift.Bool,
+                                provider: Swift.String,
+                                updated_at: Foundation.Date? = nil
+                            ) {
+                                self.connected = connected
+                                self.login_available = login_available
+                                self.provider = provider
+                                self.updated_at = updated_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case connected
+                                case login_available
+                                case provider
+                                case updated_at
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptions`.
+                        public typealias subscriptionsPayload = [Operations.listAISubscriptions.Output.Ok.Body.jsonPayload.subscriptionsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/json/subscriptions`.
+                        public var subscriptions: Operations.listAISubscriptions.Output.Ok.Body.jsonPayload.subscriptionsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - subscriptions:
+                        public init(subscriptions: Operations.listAISubscriptions.Output.Ok.Body.jsonPayload.subscriptionsPayload) {
+                            self.subscriptions = subscriptions
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case subscriptions
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/200/content/application\/json`.
+                    case json(Operations.listAISubscriptions.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listAISubscriptions.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAISubscriptions.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAISubscriptions.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The user's AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listAISubscriptions.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listAISubscriptions.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAISubscriptions.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAISubscriptions.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listAISubscriptions.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.listAISubscriptions.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAISubscriptions.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAISubscriptions.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can manage AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listAISubscriptions.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listAISubscriptions.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listAISubscriptions.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listAISubscriptions.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// AI subscriptions are not available to this user
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/get(listAISubscriptions)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.listAISubscriptions.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.listAISubscriptions.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -107542,6 +114947,679 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.tooManyRequests`.
             /// - SeeAlso: `.tooManyRequests`.
             public var tooManyRequests: Operations.listOnceRuns.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create an impact run for coverage-based test selection.
+    ///
+    /// Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. On `fallback` the client runs every test in scope or default selective testing, depending on the reason, and default selective testing on an error or when the request times out.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)`.
+    public enum createTestImpactRun {
+        public static let id: Swift.String = "createTestImpactRun"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createTestImpactRun.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createTestImpactRun.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createTestImpactRun.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createTestImpactRun.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/ancestor_shas`.
+                    public var ancestor_shas: [Swift.String]?
+                    /// The baseline the baseline request returned. When absent, `fallback_reason` says why.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/baseline_sha`.
+                    public var baseline_sha: Swift.String?
+                    /// The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/build_system`.
+                    public var build_system: Swift.String
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload`.
+                    public struct changed_filesPayloadPayload: Codable, Hashable, Sendable {
+                        /// The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload/affected_modules`.
+                        public var affected_modules: [Swift.String]?
+                        /// The file's blob in the checkout. Required except for deleted files.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload/blob`.
+                        public var blob: Swift.String?
+                        /// The repository-relative path.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload/path`.
+                        public var path: Swift.String
+                        /// The change, as `git diff --raw` reports it.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_filesPayload/status`.
+                        public var status: Swift.String
+                        /// Creates a new `changed_filesPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - affected_modules: The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it.
+                        ///   - blob: The file's blob in the checkout. Required except for deleted files.
+                        ///   - path: The repository-relative path.
+                        ///   - status: The change, as `git diff --raw` reports it.
+                        public init(
+                            affected_modules: [Swift.String]? = nil,
+                            blob: Swift.String? = nil,
+                            path: Swift.String,
+                            status: Swift.String
+                        ) {
+                            self.affected_modules = affected_modules
+                            self.blob = blob
+                            self.path = path
+                            self.status = status
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case affected_modules
+                            case blob
+                            case path
+                            case status
+                        }
+                    }
+                    /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_files`.
+                    public typealias changed_filesPayload = [Operations.createTestImpactRun.Input.Body.jsonPayload.changed_filesPayloadPayload]
+                    /// The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_files`.
+                    public var changed_files: Operations.createTestImpactRun.Input.Body.jsonPayload.changed_filesPayload?
+                    /// Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/changed_files_count`.
+                    public var changed_files_count: Swift.Int?
+                    /// The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/commit_sha`.
+                    public var commit_sha: Swift.String?
+                    /// Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/dirty`.
+                    public var dirty: Swift.Bool?
+                    /// The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/fallback_reason`.
+                    public var fallback_reason: Swift.String?
+                    /// The git branch, shown on the overview.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/git_branch`.
+                    public var git_branch: Swift.String?
+                    /// The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/head_sha`.
+                    public var head_sha: Swift.String
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/modulesPayload`.
+                    public struct modulesPayloadPayload: Codable, Hashable, Sendable {
+                        /// The test module.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/modulesPayload/name`.
+                        public var name: Swift.String
+                        /// Whether the client skipped the module because its hash matched. Defaults to false.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/modulesPayload/skipped`.
+                        public var skipped: Swift.Bool?
+                        /// Creates a new `modulesPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - name: The test module.
+                        ///   - skipped: Whether the client skipped the module because its hash matched. Defaults to false.
+                        public init(
+                            name: Swift.String,
+                            skipped: Swift.Bool? = nil
+                        ) {
+                            self.name = name
+                            self.skipped = skipped
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case name
+                            case skipped
+                        }
+                    }
+                    /// Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/modules`.
+                    public typealias modulesPayload = [Operations.createTestImpactRun.Input.Body.jsonPayload.modulesPayloadPayload]
+                    /// Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/modules`.
+                    public var modules: Operations.createTestImpactRun.Input.Body.jsonPayload.modulesPayload
+                    /// The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/parent_shas`.
+                    public var parent_shas: [Swift.String]?
+                    /// The platform the tests run on. Absent where the build system has none.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/platform`.
+                    public var platform: Swift.String?
+                    /// Xcode only: the scope the invocation tests.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/xcode`.
+                    public struct xcodePayload: Codable, Hashable, Sendable {
+                        /// The destination the tests run on.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/xcode/destination`.
+                        public var destination: Swift.String?
+                        /// The scheme being tested.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/xcode/scheme`.
+                        public var scheme: Swift.String?
+                        /// The test plan being run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/xcode/test_plan`.
+                        public var test_plan: Swift.String?
+                        /// Creates a new `xcodePayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - destination: The destination the tests run on.
+                        ///   - scheme: The scheme being tested.
+                        ///   - test_plan: The test plan being run.
+                        public init(
+                            destination: Swift.String? = nil,
+                            scheme: Swift.String? = nil,
+                            test_plan: Swift.String? = nil
+                        ) {
+                            self.destination = destination
+                            self.scheme = scheme
+                            self.test_plan = test_plan
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case destination
+                            case scheme
+                            case test_plan
+                        }
+                    }
+                    /// Xcode only: the scope the invocation tests.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/json/xcode`.
+                    public var xcode: Operations.createTestImpactRun.Input.Body.jsonPayload.xcodePayload?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - ancestor_shas: The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
+                    ///   - baseline_sha: The baseline the baseline request returned. When absent, `fallback_reason` says why.
+                    ///   - build_system: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
+                    ///   - changed_files: The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`.
+                    ///   - changed_files_count: Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.
+                    ///   - commit_sha: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+                    ///   - dirty: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+                    ///   - fallback_reason: The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules.
+                    ///   - git_branch: The git branch, shown on the overview.
+                    ///   - head_sha: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+                    ///   - modules: Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules.
+                    ///   - parent_shas: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
+                    ///   - platform: The platform the tests run on. Absent where the build system has none.
+                    ///   - xcode: Xcode only: the scope the invocation tests.
+                    public init(
+                        ancestor_shas: [Swift.String]? = nil,
+                        baseline_sha: Swift.String? = nil,
+                        build_system: Swift.String,
+                        changed_files: Operations.createTestImpactRun.Input.Body.jsonPayload.changed_filesPayload? = nil,
+                        changed_files_count: Swift.Int? = nil,
+                        commit_sha: Swift.String? = nil,
+                        dirty: Swift.Bool? = nil,
+                        fallback_reason: Swift.String? = nil,
+                        git_branch: Swift.String? = nil,
+                        head_sha: Swift.String,
+                        modules: Operations.createTestImpactRun.Input.Body.jsonPayload.modulesPayload,
+                        parent_shas: [Swift.String]? = nil,
+                        platform: Swift.String? = nil,
+                        xcode: Operations.createTestImpactRun.Input.Body.jsonPayload.xcodePayload? = nil
+                    ) {
+                        self.ancestor_shas = ancestor_shas
+                        self.baseline_sha = baseline_sha
+                        self.build_system = build_system
+                        self.changed_files = changed_files
+                        self.changed_files_count = changed_files_count
+                        self.commit_sha = commit_sha
+                        self.dirty = dirty
+                        self.fallback_reason = fallback_reason
+                        self.git_branch = git_branch
+                        self.head_sha = head_sha
+                        self.modules = modules
+                        self.parent_shas = parent_shas
+                        self.platform = platform
+                        self.xcode = xcode
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case ancestor_shas
+                        case baseline_sha
+                        case build_system
+                        case changed_files
+                        case changed_files_count
+                        case commit_sha
+                        case dirty
+                        case fallback_reason
+                        case git_branch
+                        case head_sha
+                        case modules
+                        case parent_shas
+                        case platform
+                        case xcode
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/requestBody/content/application\/json`.
+                case json(Operations.createTestImpactRun.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createTestImpactRun.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createTestImpactRun.Input.Path,
+                headers: Operations.createTestImpactRun.Input.Headers = .init(),
+                body: Operations.createTestImpactRun.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/200/content/application\/json`.
+                    case json(Components.Schemas.TestImpactRun)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.TestImpactRun {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestImpactRun.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestImpactRun.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The impact run
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createTestImpactRun.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createTestImpactRun.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestImpactRun.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestImpactRun.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request parameters are invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createTestImpactRun.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createTestImpactRun.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestImpactRun.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestImpactRun.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createTestImpactRun.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createTestImpactRun.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestImpactRun.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestImpactRun.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createTestImpactRun.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createTestImpactRun.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestImpactRun.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestImpactRun.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist or test impact analysis isn't enabled for it
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createTestImpactRun.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createTestImpactRun.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createTestImpactRun.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestImpactRun.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createTestImpactRun.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.createTestImpactRun.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs/post(createTestImpactRun)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.createTestImpactRun.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.createTestImpactRun.Output.TooManyRequests {
                 get throws {
                     switch self {
                     case let .tooManyRequests(response):
@@ -127572,6 +135650,649 @@ public enum Operations {
             }
         }
     }
+    /// Polls a pending ChatGPT sign-in
+    ///
+    /// Returns `pending` until the user approves the code, then `connected`. Polls sooner than the sign-in's interval return `pending` without asking OpenAI.
+    ///
+    /// - Remark: HTTP `POST /api/me/ai-subscriptions/chatgpt/login/poll`.
+    /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)`.
+    public enum pollChatGPTSubscriptionLogin {
+        public static let id: Swift.String = "pollChatGPTSubscriptionLogin"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.pollChatGPTSubscriptionLogin.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.pollChatGPTSubscriptionLogin.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.pollChatGPTSubscriptionLogin.Input.Headers
+            /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The opaque sign-in ID that `startChatGPTSubscriptionLogin` returned.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/requestBody/json/login_id`.
+                    public var login_id: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - login_id: The opaque sign-in ID that `startChatGPTSubscriptionLogin` returned.
+                    public init(login_id: Swift.String) {
+                        self.login_id = login_id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case login_id
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/requestBody/content/application\/json`.
+                case json(Operations.pollChatGPTSubscriptionLogin.Input.Body.jsonPayload)
+            }
+            public var body: Operations.pollChatGPTSubscriptionLogin.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.pollChatGPTSubscriptionLogin.Input.Headers = .init(),
+                body: Operations.pollChatGPTSubscriptionLogin.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Known values: `pending`, `connected`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/200/content/json/status`.
+                        public var status: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - status: Known values: `pending`, `connected`.
+                        public init(status: Swift.String) {
+                            self.status = status
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case status
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/200/content/application\/json`.
+                    case json(Operations.pollChatGPTSubscriptionLogin.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.pollChatGPTSubscriptionLogin.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.pollChatGPTSubscriptionLogin.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.pollChatGPTSubscriptionLogin.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The sign-in status
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.pollChatGPTSubscriptionLogin.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.pollChatGPTSubscriptionLogin.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.pollChatGPTSubscriptionLogin.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.pollChatGPTSubscriptionLogin.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.pollChatGPTSubscriptionLogin.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.pollChatGPTSubscriptionLogin.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.pollChatGPTSubscriptionLogin.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.pollChatGPTSubscriptionLogin.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can manage AI subscriptions
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.pollChatGPTSubscriptionLogin.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.pollChatGPTSubscriptionLogin.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.pollChatGPTSubscriptionLogin.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.pollChatGPTSubscriptionLogin.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// No pending sign-in has that ID, or AI subscriptions are not available
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.pollChatGPTSubscriptionLogin.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.pollChatGPTSubscriptionLogin.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Gone: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/410/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/410/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.pollChatGPTSubscriptionLogin.Output.Gone.Body
+                /// Creates a new `Gone`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.pollChatGPTSubscriptionLogin.Output.Gone.Body) {
+                    self.body = body
+                }
+            }
+            /// The sign-in expired. Start a new one.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)/responses/410`.
+            ///
+            /// HTTP response code: `410 gone`.
+            case gone(Operations.pollChatGPTSubscriptionLogin.Output.Gone)
+            /// The associated value of the enum case if `self` is `.gone`.
+            ///
+            /// - Throws: An error if `self` is not `.gone`.
+            /// - SeeAlso: `.gone`.
+            public var gone: Operations.pollChatGPTSubscriptionLogin.Output.Gone {
+                get throws {
+                    switch self {
+                    case let .gone(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "gone",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadGateway: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/502/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/ai-subscriptions/chatgpt/login/poll/POST/responses/502/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.pollChatGPTSubscriptionLogin.Output.BadGateway.Body
+                /// Creates a new `BadGateway`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.pollChatGPTSubscriptionLogin.Output.BadGateway.Body) {
+                    self.body = body
+                }
+            }
+            /// OpenAI rejected the sign-in. Start a new one.
+            ///
+            /// - Remark: Generated from `#/paths//api/me/ai-subscriptions/chatgpt/login/poll/post(pollChatGPTSubscriptionLogin)/responses/502`.
+            ///
+            /// HTTP response code: `502 badGateway`.
+            case badGateway(Operations.pollChatGPTSubscriptionLogin.Output.BadGateway)
+            /// The associated value of the enum case if `self` is `.badGateway`.
+            ///
+            /// - Throws: An error if `self` is not `.badGateway`.
+            /// - SeeAlso: `.badGateway`.
+            public var badGateway: Operations.pollChatGPTSubscriptionLogin.Output.BadGateway {
+                get throws {
+                    switch self {
+                    case let .badGateway(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badGateway",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Lists the feature flags enabled for the signed-in user
+    ///
+    /// Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or the signed-in Tuist app can read them.
+    ///
+    /// - Remark: HTTP `GET /api/me/feature-flags`.
+    /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)`.
+    public enum listFeatureFlags {
+        public static let id: Swift.String = "listFeatureFlags"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listFeatureFlags.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listFeatureFlags.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listFeatureFlags.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.listFeatureFlags.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The names of the enabled flags. Known values: `ai`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content/json/enabled`.
+                        public var enabled: [Swift.String]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - enabled: The names of the enabled flags. Known values: `ai`.
+                        public init(enabled: [Swift.String]) {
+                            self.enabled = enabled
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case enabled
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/200/content/application\/json`.
+                    case json(Operations.listFeatureFlags.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listFeatureFlags.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listFeatureFlags.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listFeatureFlags.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The enabled feature flags
+            ///
+            /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listFeatureFlags.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listFeatureFlags.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listFeatureFlags.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listFeatureFlags.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.listFeatureFlags.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.listFeatureFlags.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/me/feature-flags/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listFeatureFlags.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listFeatureFlags.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Only a signed-in user can read feature flags
+            ///
+            /// - Remark: Generated from `#/paths//api/me/feature-flags/get(listFeatureFlags)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listFeatureFlags.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listFeatureFlags.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get a Bazel invocation by its Bazel invocation identifier.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}`.
@@ -142689,6 +151410,2129 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "code402",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get the account's sandbox analytics for a time range.
+    ///
+    /// vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+    ///
+    /// - Remark: HTTP `GET /api/accounts/{account_handle}/sandboxes/analytics`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)`.
+    public enum getSandboxAnalytics {
+        public static let id: Swift.String = "getSandboxAnalytics"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/path`.
+            public struct Path: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle:
+                public init(account_handle: Swift.String) {
+                    self.account_handle = account_handle
+                }
+            }
+            public var path: Operations.getSandboxAnalytics.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/query`.
+            public struct Query: Sendable, Hashable {
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/query/end`.
+                public var end: Foundation.Date?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/query/start`.
+                public var start: Foundation.Date?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - end:
+                ///   - start:
+                public init(
+                    end: Foundation.Date? = nil,
+                    start: Foundation.Date? = nil
+                ) {
+                    self.end = end
+                    self.start = start
+                }
+            }
+            public var query: Operations.getSandboxAnalytics.Input.Query
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSandboxAnalytics.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getSandboxAnalytics.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getSandboxAnalytics.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.getSandboxAnalytics.Input.Path,
+                query: Operations.getSandboxAnalytics.Input.Query = .init(),
+                headers: Operations.getSandboxAnalytics.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// `hour` for ranges of up to 36 hours, otherwise `day`: the span of each point.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/bucket`.
+                        public var bucket: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency`.
+                        public struct concurrencyPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use`.
+                            public struct in_usePayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/disk_gb`.
+                                public var disk_gb: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/memory_gb`.
+                                public var memory_gb: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use/vcpus`.
+                                public var vcpus: Swift.Int
+                                /// Creates a new `in_usePayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - disk_gb:
+                                ///   - memory_gb:
+                                ///   - vcpus:
+                                public init(
+                                    disk_gb: Swift.Double,
+                                    memory_gb: Swift.Double,
+                                    vcpus: Swift.Int
+                                ) {
+                                    self.disk_gb = disk_gb
+                                    self.memory_gb = memory_gb
+                                    self.vcpus = vcpus
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case disk_gb
+                                    case memory_gb
+                                    case vcpus
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.disk_gb = try container.decode(
+                                        Swift.Double.self,
+                                        forKey: .disk_gb
+                                    )
+                                    self.memory_gb = try container.decode(
+                                        Swift.Double.self,
+                                        forKey: .memory_gb
+                                    )
+                                    self.vcpus = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .vcpus
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "disk_gb",
+                                        "memory_gb",
+                                        "vcpus"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/in_use`.
+                            public var in_use: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.in_usePayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits`.
+                            public struct limitsPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/disk_gb`.
+                                public var disk_gb: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/memory_gb`.
+                                public var memory_gb: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits/vcpus`.
+                                public var vcpus: Swift.Int
+                                /// Creates a new `limitsPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - disk_gb:
+                                ///   - memory_gb:
+                                ///   - vcpus:
+                                public init(
+                                    disk_gb: Swift.Double,
+                                    memory_gb: Swift.Double,
+                                    vcpus: Swift.Int
+                                ) {
+                                    self.disk_gb = disk_gb
+                                    self.memory_gb = memory_gb
+                                    self.vcpus = vcpus
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case disk_gb
+                                    case memory_gb
+                                    case vcpus
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.disk_gb = try container.decode(
+                                        Swift.Double.self,
+                                        forKey: .disk_gb
+                                    )
+                                    self.memory_gb = try container.decode(
+                                        Swift.Double.self,
+                                        forKey: .memory_gb
+                                    )
+                                    self.vcpus = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .vcpus
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "disk_gb",
+                                        "memory_gb",
+                                        "vcpus"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/limits`.
+                            public var limits: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.limitsPayload
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload`.
+                            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/at`.
+                                public var at: Foundation.Date
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/disk_gb`.
+                                public var disk_gb: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/memory_gb`.
+                                public var memory_gb: Swift.Double
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/pointsPayload/vcpus`.
+                                public var vcpus: Swift.Int
+                                /// Creates a new `pointsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - at:
+                                ///   - disk_gb:
+                                ///   - memory_gb:
+                                ///   - vcpus:
+                                public init(
+                                    at: Foundation.Date,
+                                    disk_gb: Swift.Double,
+                                    memory_gb: Swift.Double,
+                                    vcpus: Swift.Int
+                                ) {
+                                    self.at = at
+                                    self.disk_gb = disk_gb
+                                    self.memory_gb = memory_gb
+                                    self.vcpus = vcpus
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case at
+                                    case disk_gb
+                                    case memory_gb
+                                    case vcpus
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.at = try container.decode(
+                                        Foundation.Date.self,
+                                        forKey: .at
+                                    )
+                                    self.disk_gb = try container.decode(
+                                        Swift.Double.self,
+                                        forKey: .disk_gb
+                                    )
+                                    self.memory_gb = try container.decode(
+                                        Swift.Double.self,
+                                        forKey: .memory_gb
+                                    )
+                                    self.vcpus = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .vcpus
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "at",
+                                        "disk_gb",
+                                        "memory_gb",
+                                        "vcpus"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/points`.
+                            public typealias pointsPayload = [Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.pointsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency/points`.
+                            public var points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.pointsPayload
+                            /// Creates a new `concurrencyPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - in_use:
+                            ///   - limits:
+                            ///   - points:
+                            public init(
+                                in_use: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.in_usePayload,
+                                limits: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.limitsPayload,
+                                points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.pointsPayload
+                            ) {
+                                self.in_use = in_use
+                                self.limits = limits
+                                self.points = points
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case in_use
+                                case limits
+                                case points
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.in_use = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.in_usePayload.self,
+                                    forKey: .in_use
+                                )
+                                self.limits = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.limitsPayload.self,
+                                    forKey: .limits
+                                )
+                                self.points = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.pointsPayload.self,
+                                    forKey: .points
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "in_use",
+                                    "limits",
+                                    "points"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/concurrency`.
+                        public var concurrency: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created`.
+                        public struct createdPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/count`.
+                            public var count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/pointsPayload`.
+                            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/pointsPayload/at`.
+                                public var at: Foundation.Date
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/pointsPayload/value`.
+                                public var value: Swift.Int
+                                /// Creates a new `pointsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - at:
+                                ///   - value:
+                                public init(
+                                    at: Foundation.Date,
+                                    value: Swift.Int
+                                ) {
+                                    self.at = at
+                                    self.value = value
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case at
+                                    case value
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.at = try container.decode(
+                                        Foundation.Date.self,
+                                        forKey: .at
+                                    )
+                                    self.value = try container.decode(
+                                        Swift.Int.self,
+                                        forKey: .value
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "at",
+                                        "value"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/points`.
+                            public typealias pointsPayload = [Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload.pointsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/points`.
+                            public var points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload.pointsPayload
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created/trend`.
+                            public var trend: Swift.Double
+                            /// Creates a new `createdPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - count:
+                            ///   - points:
+                            ///   - trend: Percent change against the range of the same length before it; 0 when either is 0.
+                            public init(
+                                count: Swift.Int,
+                                points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload.pointsPayload,
+                                trend: Swift.Double
+                            ) {
+                                self.count = count
+                                self.points = points
+                                self.trend = trend
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case count
+                                case points
+                                case trend
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.count = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .count
+                                )
+                                self.points = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload.pointsPayload.self,
+                                    forKey: .points
+                                )
+                                self.trend = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "count",
+                                    "points",
+                                    "trend"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/created`.
+                        public var created: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/period`.
+                        public struct periodPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/period/end`.
+                            public var end: Foundation.Date
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/period/start`.
+                            public var start: Foundation.Date
+                            /// Creates a new `periodPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - end:
+                            ///   - start:
+                            public init(
+                                end: Foundation.Date,
+                                start: Foundation.Date
+                            ) {
+                                self.end = end
+                                self.start = start
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case end
+                                case start
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.end = try container.decode(
+                                    Foundation.Date.self,
+                                    forKey: .end
+                                )
+                                self.start = try container.decode(
+                                    Foundation.Date.self,
+                                    forKey: .start
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "end",
+                                    "start"
+                                ])
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/period`.
+                        public var period: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.periodPayload
+                        /// Run sessions that ended in the range. Points without any have null figures.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration`.
+                        public struct session_durationPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/avg_ms`.
+                            public var avg_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/count`.
+                            public var count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/p50_ms`.
+                            public var p50_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/p90_ms`.
+                            public var p90_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/p99_ms`.
+                            public var p99_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/pointsPayload`.
+                            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/pointsPayload/at`.
+                                public var at: Foundation.Date
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/pointsPayload/avg_ms`.
+                                public var avg_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/pointsPayload/p50_ms`.
+                                public var p50_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/pointsPayload/p90_ms`.
+                                public var p90_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/pointsPayload/p99_ms`.
+                                public var p99_ms: Swift.Int?
+                                /// Creates a new `pointsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - at:
+                                ///   - avg_ms:
+                                ///   - p50_ms:
+                                ///   - p90_ms:
+                                ///   - p99_ms:
+                                public init(
+                                    at: Foundation.Date,
+                                    avg_ms: Swift.Int? = nil,
+                                    p50_ms: Swift.Int? = nil,
+                                    p90_ms: Swift.Int? = nil,
+                                    p99_ms: Swift.Int? = nil
+                                ) {
+                                    self.at = at
+                                    self.avg_ms = avg_ms
+                                    self.p50_ms = p50_ms
+                                    self.p90_ms = p90_ms
+                                    self.p99_ms = p99_ms
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case at
+                                    case avg_ms
+                                    case p50_ms
+                                    case p90_ms
+                                    case p99_ms
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.at = try container.decode(
+                                        Foundation.Date.self,
+                                        forKey: .at
+                                    )
+                                    self.avg_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .avg_ms
+                                    )
+                                    self.p50_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p50_ms
+                                    )
+                                    self.p90_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p90_ms
+                                    )
+                                    self.p99_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p99_ms
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "at",
+                                        "avg_ms",
+                                        "p50_ms",
+                                        "p90_ms",
+                                        "p99_ms"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/points`.
+                            public typealias pointsPayload = [Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload.pointsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/points`.
+                            public var points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload.pointsPayload
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/trend_avg`.
+                            public var trend_avg: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/trend_p50`.
+                            public var trend_p50: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/trend_p90`.
+                            public var trend_p90: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration/trend_p99`.
+                            public var trend_p99: Swift.Double
+                            /// Creates a new `session_durationPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - avg_ms:
+                            ///   - count:
+                            ///   - p50_ms:
+                            ///   - p90_ms:
+                            ///   - p99_ms:
+                            ///   - points:
+                            ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+                            public init(
+                                avg_ms: Swift.Int,
+                                count: Swift.Int,
+                                p50_ms: Swift.Int,
+                                p90_ms: Swift.Int,
+                                p99_ms: Swift.Int,
+                                points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload.pointsPayload,
+                                trend_avg: Swift.Double,
+                                trend_p50: Swift.Double,
+                                trend_p90: Swift.Double,
+                                trend_p99: Swift.Double
+                            ) {
+                                self.avg_ms = avg_ms
+                                self.count = count
+                                self.p50_ms = p50_ms
+                                self.p90_ms = p90_ms
+                                self.p99_ms = p99_ms
+                                self.points = points
+                                self.trend_avg = trend_avg
+                                self.trend_p50 = trend_p50
+                                self.trend_p90 = trend_p90
+                                self.trend_p99 = trend_p99
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case avg_ms
+                                case count
+                                case p50_ms
+                                case p90_ms
+                                case p99_ms
+                                case points
+                                case trend_avg
+                                case trend_p50
+                                case trend_p90
+                                case trend_p99
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.avg_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .avg_ms
+                                )
+                                self.count = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .count
+                                )
+                                self.p50_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p50_ms
+                                )
+                                self.p90_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p90_ms
+                                )
+                                self.p99_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p99_ms
+                                )
+                                self.points = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload.pointsPayload.self,
+                                    forKey: .points
+                                )
+                                self.trend_avg = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_avg
+                                )
+                                self.trend_p50 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p50
+                                )
+                                self.trend_p90 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p90
+                                )
+                                self.trend_p99 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p99
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "avg_ms",
+                                    "count",
+                                    "p50_ms",
+                                    "p90_ms",
+                                    "p99_ms",
+                                    "points",
+                                    "trend_avg",
+                                    "trend_p50",
+                                    "trend_p90",
+                                    "trend_p99"
+                                ])
+                            }
+                        }
+                        /// Run sessions that ended in the range. Points without any have null figures.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/session_duration`.
+                        public var session_duration: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload
+                        /// How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup`.
+                        public struct setupPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/avg_ms`.
+                            public var avg_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/count`.
+                            public var count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/p50_ms`.
+                            public var p50_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/p90_ms`.
+                            public var p90_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/p99_ms`.
+                            public var p99_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/pointsPayload`.
+                            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/pointsPayload/at`.
+                                public var at: Foundation.Date
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/pointsPayload/avg_ms`.
+                                public var avg_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/pointsPayload/p50_ms`.
+                                public var p50_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/pointsPayload/p90_ms`.
+                                public var p90_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/pointsPayload/p99_ms`.
+                                public var p99_ms: Swift.Int?
+                                /// Creates a new `pointsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - at:
+                                ///   - avg_ms:
+                                ///   - p50_ms:
+                                ///   - p90_ms:
+                                ///   - p99_ms:
+                                public init(
+                                    at: Foundation.Date,
+                                    avg_ms: Swift.Int? = nil,
+                                    p50_ms: Swift.Int? = nil,
+                                    p90_ms: Swift.Int? = nil,
+                                    p99_ms: Swift.Int? = nil
+                                ) {
+                                    self.at = at
+                                    self.avg_ms = avg_ms
+                                    self.p50_ms = p50_ms
+                                    self.p90_ms = p90_ms
+                                    self.p99_ms = p99_ms
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case at
+                                    case avg_ms
+                                    case p50_ms
+                                    case p90_ms
+                                    case p99_ms
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.at = try container.decode(
+                                        Foundation.Date.self,
+                                        forKey: .at
+                                    )
+                                    self.avg_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .avg_ms
+                                    )
+                                    self.p50_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p50_ms
+                                    )
+                                    self.p90_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p90_ms
+                                    )
+                                    self.p99_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p99_ms
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "at",
+                                        "avg_ms",
+                                        "p50_ms",
+                                        "p90_ms",
+                                        "p99_ms"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/points`.
+                            public typealias pointsPayload = [Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload.pointsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/points`.
+                            public var points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload.pointsPayload
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/trend_avg`.
+                            public var trend_avg: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/trend_p50`.
+                            public var trend_p50: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/trend_p90`.
+                            public var trend_p90: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup/trend_p99`.
+                            public var trend_p99: Swift.Double
+                            /// Creates a new `setupPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - avg_ms:
+                            ///   - count:
+                            ///   - p50_ms:
+                            ///   - p90_ms:
+                            ///   - p99_ms:
+                            ///   - points:
+                            ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+                            public init(
+                                avg_ms: Swift.Int,
+                                count: Swift.Int,
+                                p50_ms: Swift.Int,
+                                p90_ms: Swift.Int,
+                                p99_ms: Swift.Int,
+                                points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload.pointsPayload,
+                                trend_avg: Swift.Double,
+                                trend_p50: Swift.Double,
+                                trend_p90: Swift.Double,
+                                trend_p99: Swift.Double
+                            ) {
+                                self.avg_ms = avg_ms
+                                self.count = count
+                                self.p50_ms = p50_ms
+                                self.p90_ms = p90_ms
+                                self.p99_ms = p99_ms
+                                self.points = points
+                                self.trend_avg = trend_avg
+                                self.trend_p50 = trend_p50
+                                self.trend_p90 = trend_p90
+                                self.trend_p99 = trend_p99
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case avg_ms
+                                case count
+                                case p50_ms
+                                case p90_ms
+                                case p99_ms
+                                case points
+                                case trend_avg
+                                case trend_p50
+                                case trend_p90
+                                case trend_p99
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.avg_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .avg_ms
+                                )
+                                self.count = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .count
+                                )
+                                self.p50_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p50_ms
+                                )
+                                self.p90_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p90_ms
+                                )
+                                self.p99_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p99_ms
+                                )
+                                self.points = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload.pointsPayload.self,
+                                    forKey: .points
+                                )
+                                self.trend_avg = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_avg
+                                )
+                                self.trend_p50 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p50
+                                )
+                                self.trend_p90 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p90
+                                )
+                                self.trend_p99 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p99
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "avg_ms",
+                                    "count",
+                                    "p50_ms",
+                                    "p90_ms",
+                                    "p99_ms",
+                                    "points",
+                                    "trend_avg",
+                                    "trend_p50",
+                                    "trend_p90",
+                                    "trend_p99"
+                                ])
+                            }
+                        }
+                        /// How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/setup`.
+                        public var setup: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload
+                        /// How long sandboxes took to boot (create or restore). Points without any have null figures.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start`.
+                        public struct time_to_startPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/avg_ms`.
+                            public var avg_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/count`.
+                            public var count: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/p50_ms`.
+                            public var p50_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/p90_ms`.
+                            public var p90_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/p99_ms`.
+                            public var p99_ms: Swift.Int
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/pointsPayload`.
+                            public struct pointsPayloadPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/pointsPayload/at`.
+                                public var at: Foundation.Date
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/pointsPayload/avg_ms`.
+                                public var avg_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/pointsPayload/p50_ms`.
+                                public var p50_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/pointsPayload/p90_ms`.
+                                public var p90_ms: Swift.Int?
+                                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/pointsPayload/p99_ms`.
+                                public var p99_ms: Swift.Int?
+                                /// Creates a new `pointsPayloadPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - at:
+                                ///   - avg_ms:
+                                ///   - p50_ms:
+                                ///   - p90_ms:
+                                ///   - p99_ms:
+                                public init(
+                                    at: Foundation.Date,
+                                    avg_ms: Swift.Int? = nil,
+                                    p50_ms: Swift.Int? = nil,
+                                    p90_ms: Swift.Int? = nil,
+                                    p99_ms: Swift.Int? = nil
+                                ) {
+                                    self.at = at
+                                    self.avg_ms = avg_ms
+                                    self.p50_ms = p50_ms
+                                    self.p90_ms = p90_ms
+                                    self.p99_ms = p99_ms
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case at
+                                    case avg_ms
+                                    case p50_ms
+                                    case p90_ms
+                                    case p99_ms
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                                    self.at = try container.decode(
+                                        Foundation.Date.self,
+                                        forKey: .at
+                                    )
+                                    self.avg_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .avg_ms
+                                    )
+                                    self.p50_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p50_ms
+                                    )
+                                    self.p90_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p90_ms
+                                    )
+                                    self.p99_ms = try container.decodeIfPresent(
+                                        Swift.Int.self,
+                                        forKey: .p99_ms
+                                    )
+                                    try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                        "at",
+                                        "avg_ms",
+                                        "p50_ms",
+                                        "p90_ms",
+                                        "p99_ms"
+                                    ])
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/points`.
+                            public typealias pointsPayload = [Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload.pointsPayloadPayload]
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/points`.
+                            public var points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload.pointsPayload
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/trend_avg`.
+                            public var trend_avg: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/trend_p50`.
+                            public var trend_p50: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/trend_p90`.
+                            public var trend_p90: Swift.Double
+                            /// Percent change against the range of the same length before it; 0 when either is 0.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start/trend_p99`.
+                            public var trend_p99: Swift.Double
+                            /// Creates a new `time_to_startPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - avg_ms:
+                            ///   - count:
+                            ///   - p50_ms:
+                            ///   - p90_ms:
+                            ///   - p99_ms:
+                            ///   - points:
+                            ///   - trend_avg: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p50: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p90: Percent change against the range of the same length before it; 0 when either is 0.
+                            ///   - trend_p99: Percent change against the range of the same length before it; 0 when either is 0.
+                            public init(
+                                avg_ms: Swift.Int,
+                                count: Swift.Int,
+                                p50_ms: Swift.Int,
+                                p90_ms: Swift.Int,
+                                p99_ms: Swift.Int,
+                                points: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload.pointsPayload,
+                                trend_avg: Swift.Double,
+                                trend_p50: Swift.Double,
+                                trend_p90: Swift.Double,
+                                trend_p99: Swift.Double
+                            ) {
+                                self.avg_ms = avg_ms
+                                self.count = count
+                                self.p50_ms = p50_ms
+                                self.p90_ms = p90_ms
+                                self.p99_ms = p99_ms
+                                self.points = points
+                                self.trend_avg = trend_avg
+                                self.trend_p50 = trend_p50
+                                self.trend_p90 = trend_p90
+                                self.trend_p99 = trend_p99
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case avg_ms
+                                case count
+                                case p50_ms
+                                case p90_ms
+                                case p99_ms
+                                case points
+                                case trend_avg
+                                case trend_p50
+                                case trend_p90
+                                case trend_p99
+                            }
+                            public init(from decoder: any Decoder) throws {
+                                let container = try decoder.container(keyedBy: CodingKeys.self)
+                                self.avg_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .avg_ms
+                                )
+                                self.count = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .count
+                                )
+                                self.p50_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p50_ms
+                                )
+                                self.p90_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p90_ms
+                                )
+                                self.p99_ms = try container.decode(
+                                    Swift.Int.self,
+                                    forKey: .p99_ms
+                                )
+                                self.points = try container.decode(
+                                    Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload.pointsPayload.self,
+                                    forKey: .points
+                                )
+                                self.trend_avg = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_avg
+                                )
+                                self.trend_p50 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p50
+                                )
+                                self.trend_p90 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p90
+                                )
+                                self.trend_p99 = try container.decode(
+                                    Swift.Double.self,
+                                    forKey: .trend_p99
+                                )
+                                try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                    "avg_ms",
+                                    "count",
+                                    "p50_ms",
+                                    "p90_ms",
+                                    "p99_ms",
+                                    "points",
+                                    "trend_avg",
+                                    "trend_p50",
+                                    "trend_p90",
+                                    "trend_p99"
+                                ])
+                            }
+                        }
+                        /// How long sandboxes took to boot (create or restore). Points without any have null figures.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/time_to_start`.
+                        public var time_to_start: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload
+                        /// vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/json/vcpu_hours`.
+                        public var vcpu_hours: Swift.Double
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - bucket: `hour` for ranges of up to 36 hours, otherwise `day`: the span of each point.
+                        ///   - concurrency:
+                        ///   - created:
+                        ///   - period:
+                        ///   - session_duration: Run sessions that ended in the range. Points without any have null figures.
+                        ///   - setup: How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+                        ///   - time_to_start: How long sandboxes took to boot (create or restore). Points without any have null figures.
+                        ///   - vcpu_hours: vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.
+                        public init(
+                            bucket: Swift.String,
+                            concurrency: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload,
+                            created: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload,
+                            period: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.periodPayload,
+                            session_duration: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload,
+                            setup: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload,
+                            time_to_start: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload,
+                            vcpu_hours: Swift.Double
+                        ) {
+                            self.bucket = bucket
+                            self.concurrency = concurrency
+                            self.created = created
+                            self.period = period
+                            self.session_duration = session_duration
+                            self.setup = setup
+                            self.time_to_start = time_to_start
+                            self.vcpu_hours = vcpu_hours
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case bucket
+                            case concurrency
+                            case created
+                            case period
+                            case session_duration
+                            case setup
+                            case time_to_start
+                            case vcpu_hours
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            let container = try decoder.container(keyedBy: CodingKeys.self)
+                            self.bucket = try container.decode(
+                                Swift.String.self,
+                                forKey: .bucket
+                            )
+                            self.concurrency = try container.decode(
+                                Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.concurrencyPayload.self,
+                                forKey: .concurrency
+                            )
+                            self.created = try container.decode(
+                                Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.createdPayload.self,
+                                forKey: .created
+                            )
+                            self.period = try container.decode(
+                                Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.periodPayload.self,
+                                forKey: .period
+                            )
+                            self.session_duration = try container.decode(
+                                Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.session_durationPayload.self,
+                                forKey: .session_duration
+                            )
+                            self.setup = try container.decode(
+                                Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.setupPayload.self,
+                                forKey: .setup
+                            )
+                            self.time_to_start = try container.decode(
+                                Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload.time_to_startPayload.self,
+                                forKey: .time_to_start
+                            )
+                            self.vcpu_hours = try container.decode(
+                                Swift.Double.self,
+                                forKey: .vcpu_hours
+                            )
+                            try decoder.ensureNoAdditionalProperties(knownKeys: [
+                                "bucket",
+                                "concurrency",
+                                "created",
+                                "period",
+                                "session_duration",
+                                "setup",
+                                "time_to_start",
+                                "vcpu_hours"
+                            ])
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/200/content/application\/json`.
+                    case json(Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getSandboxAnalytics.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSandboxAnalytics.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSandboxAnalytics.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Sandbox analytics
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getSandboxAnalytics.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getSandboxAnalytics.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSandboxAnalytics.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSandboxAnalytics.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.getSandboxAnalytics.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.getSandboxAnalytics.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSandboxAnalytics.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getSandboxAnalytics.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getSandboxAnalytics.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getSandboxAnalytics.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getSandboxAnalytics.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/analytics/GET/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getSandboxAnalytics.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getSandboxAnalytics.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.getSandboxAnalytics.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/analytics/get(getSandboxAnalytics)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.getSandboxAnalytics.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.getSandboxAnalytics.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Archive a paused sandbox.
+    ///
+    /// Queues moving the paused sandbox's disks to object storage, which frees them on its node. The sandbox stays `paused` until the upload completes and then becomes `archived`; resuming restores it.
+    ///
+    /// - Remark: HTTP `POST /api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive`.
+    /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)`.
+    public enum archiveSandbox {
+        public static let id: Swift.String = "archiveSandbox"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The account handle.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The sandbox identifier.
+                ///
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/path/sandbox_id`.
+                public var sandbox_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The account handle.
+                ///   - sandbox_id: The sandbox identifier.
+                public init(
+                    account_handle: Swift.String,
+                    sandbox_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.sandbox_id = sandbox_id
+                }
+            }
+            public var path: Operations.archiveSandbox.Input.Path
+            /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.archiveSandbox.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.archiveSandbox.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.archiveSandbox.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.archiveSandbox.Input.Path,
+                headers: Operations.archiveSandbox.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Accepted: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// A persistent Linux or macOS sandbox VM.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/agent_environment_id`.
+                        public var agent_environment_id: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/amp_orb_id`.
+                        public var amp_orb_id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/anthropic_session_id`.
+                        public var anthropic_session_id: Swift.String?
+                        /// Size of the stored archive in bytes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/archive_bytes`.
+                        public var archive_bytes: Swift.Int?
+                        /// When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/archived_at`.
+                        public var archived_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/error_message`.
+                        public var error_message: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/hostname`.
+                        public var hostname: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/id`.
+                        public var id: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/inserted_at`.
+                        public var inserted_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/last_active_at`.
+                        public var last_active_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/memory_mb`.
+                        public var memory_mb: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/node_name`.
+                        public var node_name: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/paused_at`.
+                        public var paused_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/platform`.
+                        @frozen public enum platformPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case linux = "linux"
+                            case darwin = "darwin"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/platform`.
+                        public var platform: Operations.archiveSandbox.Output.Accepted.Body.jsonPayload.platformPayload?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/residency_work_id`.
+                        public var residency_work_id: Swift.String?
+                        /// Whether a macOS sandbox retains its process and capacity.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/resident`.
+                        public var resident: Swift.Bool?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/state`.
+                        @frozen public enum statePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case creating = "creating"
+                            case running = "running"
+                            case resuming = "resuming"
+                            case paused = "paused"
+                            case archived = "archived"
+                            case error = "error"
+                            case deleted = "deleted"
+                        }
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/state`.
+                        public var state: Operations.archiveSandbox.Output.Accepted.Body.jsonPayload.statePayload
+                        /// The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/status`.
+                        public var status: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/template`.
+                        public var template: Swift.String
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/template_tag`.
+                        public var template_tag: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/updated_at`.
+                        public var updated_at: Foundation.Date
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/vcpus`.
+                        public var vcpus: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/json/workspace_gb`.
+                        public var workspace_gb: Swift.Int
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - agent_environment_id:
+                        ///   - amp_orb_id:
+                        ///   - anthropic_session_id:
+                        ///   - archive_bytes: Size of the stored archive in bytes.
+                        ///   - archived_at: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                        ///   - error_message:
+                        ///   - hostname:
+                        ///   - id:
+                        ///   - inserted_at:
+                        ///   - last_active_at:
+                        ///   - memory_mb:
+                        ///   - node_name:
+                        ///   - paused_at:
+                        ///   - platform:
+                        ///   - residency_work_id:
+                        ///   - resident: Whether a macOS sandbox retains its process and capacity.
+                        ///   - state:
+                        ///   - status: The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.
+                        ///   - template:
+                        ///   - template_tag:
+                        ///   - updated_at:
+                        ///   - vcpus:
+                        ///   - workspace_gb:
+                        public init(
+                            agent_environment_id: Swift.Int? = nil,
+                            amp_orb_id: Swift.String? = nil,
+                            anthropic_session_id: Swift.String? = nil,
+                            archive_bytes: Swift.Int? = nil,
+                            archived_at: Foundation.Date? = nil,
+                            error_message: Swift.String? = nil,
+                            hostname: Swift.String? = nil,
+                            id: Swift.String,
+                            inserted_at: Foundation.Date,
+                            last_active_at: Foundation.Date? = nil,
+                            memory_mb: Swift.Int,
+                            node_name: Swift.String? = nil,
+                            paused_at: Foundation.Date? = nil,
+                            platform: Operations.archiveSandbox.Output.Accepted.Body.jsonPayload.platformPayload? = nil,
+                            residency_work_id: Swift.String? = nil,
+                            resident: Swift.Bool? = nil,
+                            state: Operations.archiveSandbox.Output.Accepted.Body.jsonPayload.statePayload,
+                            status: Swift.String? = nil,
+                            template: Swift.String,
+                            template_tag: Swift.String? = nil,
+                            updated_at: Foundation.Date,
+                            vcpus: Swift.Int,
+                            workspace_gb: Swift.Int
+                        ) {
+                            self.agent_environment_id = agent_environment_id
+                            self.amp_orb_id = amp_orb_id
+                            self.anthropic_session_id = anthropic_session_id
+                            self.archive_bytes = archive_bytes
+                            self.archived_at = archived_at
+                            self.error_message = error_message
+                            self.hostname = hostname
+                            self.id = id
+                            self.inserted_at = inserted_at
+                            self.last_active_at = last_active_at
+                            self.memory_mb = memory_mb
+                            self.node_name = node_name
+                            self.paused_at = paused_at
+                            self.platform = platform
+                            self.residency_work_id = residency_work_id
+                            self.resident = resident
+                            self.state = state
+                            self.status = status
+                            self.template = template
+                            self.template_tag = template_tag
+                            self.updated_at = updated_at
+                            self.vcpus = vcpus
+                            self.workspace_gb = workspace_gb
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case agent_environment_id
+                            case amp_orb_id
+                            case anthropic_session_id
+                            case archive_bytes
+                            case archived_at
+                            case error_message
+                            case hostname
+                            case id
+                            case inserted_at
+                            case last_active_at
+                            case memory_mb
+                            case node_name
+                            case paused_at
+                            case platform
+                            case residency_work_id
+                            case resident
+                            case state
+                            case status
+                            case template
+                            case template_tag
+                            case updated_at
+                            case vcpus
+                            case workspace_gb
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/202/content/application\/json`.
+                    case json(Operations.archiveSandbox.Output.Accepted.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.archiveSandbox.Output.Accepted.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.Accepted.Body
+                /// Creates a new `Accepted`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.Accepted.Body) {
+                    self.body = body
+                }
+            }
+            /// Sandbox
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/202`.
+            ///
+            /// HTTP response code: `202 accepted`.
+            case accepted(Operations.archiveSandbox.Output.Accepted)
+            /// The associated value of the enum case if `self` is `.accepted`.
+            ///
+            /// - Throws: An error if `self` is not `.accepted`.
+            /// - SeeAlso: `.accepted`.
+            public var accepted: Operations.archiveSandbox.Output.Accepted {
+                get throws {
+                    switch self {
+                    case let .accepted(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "accepted",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.archiveSandbox.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.archiveSandbox.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.archiveSandbox.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.archiveSandbox.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/409/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox is not in a state that allows the operation
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.archiveSandbox.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.archiveSandbox.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct TooManyRequests: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/429/headers`.
+                public struct Headers: Sendable, Hashable {
+                    /// Whole seconds to wait before retrying.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/429/headers/retry-after`.
+                    public var retry_hyphen_after: Swift.String?
+                    /// Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/429/headers/x-tuist-throttle-reason`.
+                    public var x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String?
+                    /// Creates a new `Headers`.
+                    ///
+                    /// - Parameters:
+                    ///   - retry_hyphen_after: Whole seconds to wait before retrying.
+                    ///   - x_hyphen_tuist_hyphen_throttle_hyphen_reason: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+                    public init(
+                        retry_hyphen_after: Swift.String? = nil,
+                        x_hyphen_tuist_hyphen_throttle_hyphen_reason: Swift.String? = nil
+                    ) {
+                        self.retry_hyphen_after = retry_hyphen_after
+                        self.x_hyphen_tuist_hyphen_throttle_hyphen_reason = x_hyphen_tuist_hyphen_throttle_hyphen_reason
+                    }
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.archiveSandbox.Output.TooManyRequests.Headers
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/429/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/429/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.TooManyRequests.Body
+                /// Creates a new `TooManyRequests`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.archiveSandbox.Output.TooManyRequests.Headers = .init(),
+                    body: Operations.archiveSandbox.Output.TooManyRequests.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You've made too many unauthorized requests.
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Operations.archiveSandbox.Output.TooManyRequests)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Operations.archiveSandbox.Output.TooManyRequests {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadGateway: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/502/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/502/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.BadGateway.Body
+                /// Creates a new `BadGateway`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.BadGateway.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox node rejected the operation
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/502`.
+            ///
+            /// HTTP response code: `502 badGateway`.
+            case badGateway(Operations.archiveSandbox.Output.BadGateway)
+            /// The associated value of the enum case if `self` is `.badGateway`.
+            ///
+            /// - Throws: An error if `self` is not `.badGateway`.
+            /// - SeeAlso: `.badGateway`.
+            public var badGateway: Operations.archiveSandbox.Output.BadGateway {
+                get throws {
+                    switch self {
+                    case let .badGateway(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badGateway",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/503/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// No sandbox node is available
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.archiveSandbox.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.archiveSandbox.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct GatewayTimeout: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/504/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/POST/responses/504/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.archiveSandbox.Output.GatewayTimeout.Body
+                /// Creates a new `GatewayTimeout`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.archiveSandbox.Output.GatewayTimeout.Body) {
+                    self.body = body
+                }
+            }
+            /// The sandbox node did not answer in time
+            ///
+            /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive/post(archiveSandbox)/responses/504`.
+            ///
+            /// HTTP response code: `504 gatewayTimeout`.
+            case gatewayTimeout(Operations.archiveSandbox.Output.GatewayTimeout)
+            /// The associated value of the enum case if `self` is `.gatewayTimeout`.
+            ///
+            /// - Throws: An error if `self` is not `.gatewayTimeout`.
+            /// - SeeAlso: `.gatewayTimeout`.
+            public var gatewayTimeout: Operations.archiveSandbox.Output.GatewayTimeout {
+                get throws {
+                    switch self {
+                    case let .gatewayTimeout(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "gatewayTimeout",
                             response: self
                         )
                     }

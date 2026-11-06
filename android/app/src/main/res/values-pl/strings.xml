@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">"Tuist"</string>
     <string name="login_title">"Witamy w Tuist"</string>
-    <string name="login_subtitle">"Zaloguj się, aby uzyskać dostęp do swoich projektów i\nwspółpracować z zespołem"</string>
+    <string name="login_subtitle">"Zaloguj się, aby uzyskać dostęp do swoich projektów i współpracować z zespołem"</string>
     <string name="sign_in_tuist">"Zaloguj się przez Tuist"</string>
     <string name="sign_in_apple">"Zaloguj się przez Apple"</string>
     <string name="sign_in_google">"Zaloguj się przez Google"</string>
@@ -11,7 +11,7 @@
     <string name="projects_title">"Projekty"</string>
     <string name="previews_title">"Podglądy"</string>
     <string name="sign_out">"Wyloguj się"</string>
-    <string name="retry">"Ponów próbę"</string>
+    <string name="retry">"Ponów"</string>
     <string name="refresh">"Odśwież"</string>
     <string name="no_projects">"Nie znaleziono projektów"</string>
     <string name="no_previews">"Nie znaleziono podglądów"</string>
@@ -20,11 +20,6 @@
     <string name="load_previews_failed">"Nie udało się załadować podglądów"</string>
     <string name="load_more_previews_failed">"Nie udało się załadować kolejnych podglądów"</string>
     <string name="refresh_previews_failed">"Nie udało się odświeżyć podglądów"</string>
-    <string name="relative_time_just_now">"Przed chwilą"</string>
-    <string name="relative_time_minutes">"%1$d min temu"</string>
-    <string name="relative_time_hours">"%1$d godz. temu"</string>
-    <string name="relative_time_days">"%1$d dni temu"</string>
-    <string name="relative_time_months">"%1$dmo temu"</string>
     <string name="profile_title">"Profil"</string>
     <string name="profile_email">"E-mail"</string>
     <string name="profile_terms">"Warunki korzystania z usługi"</string>
@@ -36,14 +31,14 @@
     <string name="delete_account_message">"Czy na pewno chcesz usunąć swoje konto? Tej operacji nie można cofnąć."</string>
     <string name="delete_account_confirm">"Usuń"</string>
     <string name="cancel">"Anuluj"</string>
-    <string name="back">"Wstecz"</string>
+    <string name="back">"Wróć"</string>
     <string name="share">"Udostępnij"</string>
     <string name="preview_default_app_name">"Aplikacja"</string>
     <string name="preview_default_name">"Podgląd"</string>
     <string name="preview_supported_platforms">"Obsługiwane platformy"</string>
     <string name="preview_details">"Szczegóły"</string>
     <string name="preview_created_by">"Utworzone przez"</string>
-    <string name="preview_created_at">"Data utworzenia"</string>
+    <string name="preview_created_at">"Utworzono o"</string>
     <string name="preview_bundle_id">"Identyfikator pakietu"</string>
     <string name="preview_branch">"Gałąź"</string>
     <string name="preview_commit_sha">"SHA commitu"</string>

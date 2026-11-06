@@ -1,0 +1,42 @@
+# topk() selects – it does not aggregate.
+clear
+load
+  {app="foo", pod="a"} "xbar"  @ 10s [repeat every 10s for 18]
+  {app="foo", pod="a"} "noise" @ 15s [repeat every 10s for 18]
+  {app="foo", pod="b"} "xbar"  @ 5s  [repeat every 5s  for 36]
+  {app="foo", pod="b"} "noise" @ 7s  [repeat every 5s  for 36]
+  {app="bar", pod="a"} "xbar"  @ 4s  [repeat every 4s  for 45]
+  {app="bar", pod="a"} "noise" @ 2s  [repeat every 4s  for 45]
+  {app="bar", pod="b"} "xbar"  @ 2s  [repeat every 2s  for 90]
+  {app="bar", pod="b"} "noise" @ 1s  [repeat every 2s  for 90]
+
+eval instant at 60s topk(2, count_over_time({app=~"foo|bar"} |~".+bar" [1m]))
+  {app="bar", pod="b"} 30
+  {app="bar", pod="a"} 15
+eval range from 20s to 60s step 20s topk(2, count_over_time({app=~"foo|bar"} |~".+bar" [1m]))
+  {app="bar", pod="b"} 10 20 30
+  {app="bar", pod="a"} 5 10 15
+eval instant at 60s topk(1, count_over_time({app=~"foo|bar"} |~".+bar" [1m]))
+  {app="bar", pod="b"} 30
+# topk() by()
+eval instant at 60s topk(1, count_over_time({app=~"foo|bar"} |~".+bar" [1m])) by (app)
+  {app="foo", pod="b"} 12
+  {app="bar", pod="b"} 30
+# topk() without() with a single grouping label
+eval instant at 60s topk(1, count_over_time({app=~"foo|bar"} |~".+bar" [1m])) without (app)
+  {app="bar", pod="a"} 15
+  {app="bar", pod="b"} 30
+# topk() without() with multiple grouping labels leaves one group, so it selects globally.
+eval instant at 60s topk(1, count_over_time({app=~"foo|bar"} |~".+bar" [1m])) without (app, pod)
+  {app="bar", pod="b"} 30
+# topk() without() with no grouping labels keeps every label.
+eval instant at 60s topk(1, count_over_time({app=~"foo|bar"} |~".+bar" [1m])) without ()
+  {app="foo", pod="a"} 6
+  {app="foo", pod="b"} 12
+  {app="bar", pod="a"} 15
+  {app="bar", pod="b"} 30
+# topk() with an invalid or missing parameter.
+eval instant at 60s topk(1.5, count_over_time({app=~"foo|bar"} |~".+bar" [1m]))
+  expect fail msg: invalid parameter
+eval instant at 60s topk(count_over_time({app=~"foo|bar"} |~".+bar" [1m]))
+  expect fail msg: parameter required

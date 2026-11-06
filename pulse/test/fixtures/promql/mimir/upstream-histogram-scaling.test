@@ -1,0 +1,111 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/native_histograms.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Apply multiplication and division operator to histogram.
+load 10m
+    histogram_mul_div {{schema:0 count:30 sum:33 z_bucket:3 z_bucket_w:0.001 buckets:[3 3 3] n_buckets:[6 6 6]}}x1
+    float_series_3 3+0x1
+    float_series_0 0+0x1
+
+eval instant at 10m histogram_mul_div*3
+    expect no_info
+    {} {{schema:0 count:90 sum:99 z_bucket:9 z_bucket_w:0.001 buckets:[9 9 9] n_buckets:[18 18 18]}}
+
+eval instant at 10m histogram_mul_div*-1
+    expect no_info
+    {} {{schema:0 count:-30 sum:-33 z_bucket:-3 z_bucket_w:0.001 buckets:[-3 -3 -3] n_buckets:[-6 -6 -6]}}
+
+eval instant at 10m -histogram_mul_div
+    expect no_info
+    {} {{schema:0 count:-30 sum:-33 z_bucket:-3 z_bucket_w:0.001 buckets:[-3 -3 -3] n_buckets:[-6 -6 -6]}}
+
+eval instant at 10m histogram_mul_div*-3
+    expect no_info
+    {} {{schema:0 count:-90 sum:-99 z_bucket:-9 z_bucket_w:0.001 buckets:[-9 -9 -9] n_buckets:[-18 -18 -18]}}
+
+eval instant at 10m 3*histogram_mul_div
+    expect no_info
+    {} {{schema:0 count:90 sum:99 z_bucket:9 z_bucket_w:0.001 buckets:[9 9 9] n_buckets:[18 18 18]}}
+
+eval instant at 10m histogram_mul_div*float_series_3
+    expect no_info
+    {} {{schema:0 count:90 sum:99 z_bucket:9 z_bucket_w:0.001 buckets:[9 9 9] n_buckets:[18 18 18]}}
+
+eval instant at 10m float_series_3*histogram_mul_div
+    expect no_info
+    {} {{schema:0 count:90 sum:99 z_bucket:9 z_bucket_w:0.001 buckets:[9 9 9] n_buckets:[18 18 18]}}
+
+eval instant at 10m histogram_mul_div/3
+    expect no_info
+    {} {{schema:0 count:10 sum:11 z_bucket:1 z_bucket_w:0.001 buckets:[1 1 1] n_buckets:[2 2 2]}}
+
+eval instant at 10m histogram_mul_div/-3
+    expect no_info
+    {} {{schema:0 count:-10 sum:-11 z_bucket:-1 z_bucket_w:0.001 buckets:[-1 -1 -1] n_buckets:[-2 -2 -2]}}
+
+eval instant at 10m histogram_mul_div/float_series_3
+    expect no_info
+    {} {{schema:0 count:10 sum:11 z_bucket:1 z_bucket_w:0.001 buckets:[1 1 1] n_buckets:[2 2 2]}}
+
+eval instant at 10m histogram_mul_div*0
+    expect no_info
+    {} {{schema:0 count:0 sum:0 z_bucket:0 z_bucket_w:0.001 buckets:[0 0 0] n_buckets:[0 0 0]}}
+
+eval instant at 10m 0*histogram_mul_div
+    expect no_info
+    {} {{schema:0 count:0 sum:0 z_bucket:0 z_bucket_w:0.001 buckets:[0 0 0] n_buckets:[0 0 0]}}
+
+eval instant at 10m histogram_mul_div*float_series_0
+    expect no_info
+    {} {{schema:0 count:0 sum:0 z_bucket:0 z_bucket_w:0.001 buckets:[0 0 0] n_buckets:[0 0 0]}}
+
+eval instant at 10m float_series_0*histogram_mul_div
+    expect no_info
+    {} {{schema:0 count:0 sum:0 z_bucket:0 z_bucket_w:0.001 buckets:[0 0 0] n_buckets:[0 0 0]}}
+
+eval instant at 10m histogram_mul_div/0
+    expect no_info
+    {} {{schema:0 count:Inf sum:Inf z_bucket_w:0.001 z_bucket:Inf}}
+
+eval instant at 10m histogram_mul_div/float_series_0
+    expect no_info
+    {} {{schema:0 count:Inf sum:Inf z_bucket_w:0.001 z_bucket:Inf}}
+
+eval instant at 10m histogram_mul_div*0/0
+    expect no_info
+    {} {{schema:0 count:NaN sum:NaN z_bucket_w:0.001 z_bucket:NaN}}
+
+eval instant at 10m histogram_mul_div*histogram_mul_div
+  expect info
+
+eval instant at 10m histogram_mul_div/histogram_mul_div
+  expect info
+
+eval instant at 10m float_series_3/histogram_mul_div
+  expect info
+
+eval instant at 10m 0/histogram_mul_div
+    expect info
+
+clear
+
+# Apply binary operators to mixed histogram and float samples.
+# TODO:(NeerajGartia21) move these tests to their respective locations when tests from engine_test.go are be moved here.
+
+load 10m
+    histogram_sample {{schema:0 count:24 sum:100 z_bucket:4 z_bucket_w:0.001 buckets:[2 3 0 1 4] n_buckets:[2 3 0 1 4]}}x1
+    float_sample 0x1
+
+eval instant at 10m float_sample+histogram_sample
+  expect info
+
+eval instant at 10m histogram_sample+float_sample
+  expect info
+
+eval instant at 10m float_sample-histogram_sample
+  expect info
+
+eval instant at 10m histogram_sample-float_sample
+     expect info

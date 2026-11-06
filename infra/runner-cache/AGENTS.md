@@ -129,6 +129,18 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   `Slot.PublishCold` for that one seal; the full, unchanged, identical and
   generation checks still apply. Linux checks `.cold` before its unchanged and
   full checks.
+- `.cold` holds why the host had no copy (`ColdReason`, reported as
+  `cold_reason`): `downloading` (a fetch of the lineage was in flight),
+  `evicted_<reason>` (the reason `evictMaster` wrote to the lineage's
+  `masters/<scope>/evicted` file when it removed its latest master) or
+  `not_on_host`. An empty marker (older agents) reports no reason.
+- Linux `verify` trims a branch (`LocalImages.Trim`, `TrimFS`: `FITRIM` through
+  the no-follow descriptor) right after the write-back check and before detach.
+  Branches mount without discard, so otherwise every block a job ever wrote stays
+  in the image, its master, archive and clones. The check's syncfs must come
+  first: it commits the frees FITRIM needs, and TrimFS must never consume the
+  one-shot write-back error the check reads. On a reflinked clone the loop
+  driver punches only the branch's own extents. A failed trim publishes untrimmed.
 - APFS `Seal` also withholds a branch whose guest `.usage` says `changed: false`
   (`ErrUnchanged`) or that is at least 99% full (`ErrFull`, the server's
   out-of-space rule). A missing `changed` field means changed. `Measure` reads a

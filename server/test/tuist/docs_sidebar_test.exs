@@ -55,7 +55,8 @@ defmodule Tuist.Docs.SidebarTest do
              {"Gradle project", "/en/guides/get-started/gradle-project"},
              {"Elixir project", "/en/guides/get-started/elixir-project"},
              {"Rust project", "/en/guides/get-started/rust-project"},
-             {"Bazel project", "/en/guides/get-started/bazel-project"}
+             {"Bazel project", "/en/guides/get-started/bazel-project"},
+             {"Once project", "/en/guides/get-started/once-project"}
            ]
 
     assert Enum.find(chooser.items, &(&1.label == "Rust project")).icon == "brand_rust"
@@ -76,7 +77,8 @@ defmodule Tuist.Docs.SidebarTest do
     assert Enum.map(build.items, &{&1.label, &1.slug, &1.icon}) == [
              {"Xcode", "/en/guides/features/previews/xcode", "brand_apple"},
              {"Gradle", "/en/guides/features/previews/gradle", "brand_gradle"},
-             {"Bazel", "/en/guides/features/previews/bazel", "brand_bazel"}
+             {"Bazel", "/en/guides/features/previews/bazel", "brand_bazel"},
+             {"Once", "/en/guides/features/previews/once", "brand_once"}
            ]
 
     assert Enum.map(run.items, &{&1.label, &1.slug}) == [

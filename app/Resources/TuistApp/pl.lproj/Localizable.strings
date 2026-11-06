@@ -53,7 +53,7 @@
 "Check for updates" = "Sprawdź aktualizacje";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Commit SHA" = "SHA commitu";
+"Commit SHA" = "SHA commita";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Connected" = "Połączono";
@@ -65,16 +65,16 @@
 "Copy name" = "Skopiuj nazwę";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find APK file in the downloaded archive" = "Nie udało się znaleźć pliku APK w pobranym archiwum";
+"Could not find APK file in the downloaded archive" = "Nie można znaleźć pliku APK w pobranym archiwum";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find app bundle in the downloaded archive" = "Nie udało się znaleźć pakietu aplikacji w pobranym archiwum";
+"Could not find app bundle in the downloaded archive" = "Nie można znaleźć pakietu aplikacji w pobranym archiwum";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "Nie udało się zainstalować aplikacji dla %@, ponieważ nie zawiera ona żadnych prawidłowych kompilacji.";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "Nie udało się zainstalować aplikacji dla %@, ponieważ nie zawiera ona żadnych prawidłowych kompilacji aplikacji.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "Nie udało się zainstalować aplikacji dla %@. Platforma %@ to %@, a aplikacja obsługuje tylko następujące platformy: %@";
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "Nie udało się zainstalować aplikacji dla %@. Platforma dla %@ to %@, a aplikacja obsługuje tylko następujące platformy: %@";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Created at" = "Utworzono";
@@ -104,13 +104,13 @@
 "Devices" = "Urządzenia";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
-"Disconnected" = "Odłączono";
+"Disconnected" = "Rozłączono";
 
 /* TuistProfile/ProfileView.swift */
 "Email" = "E-mail";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "Wprowadź poprawny adres URL serwera HTTPS bez danych logowania, zapytania ani fragmentu.";
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "Wprowadź prawidłowy adres URL serwera HTTPS bez danych logowania, zapytania ani fragmentu.";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "Błąd";
@@ -122,7 +122,7 @@
 "Get help" = "Uzyskaj pomoc";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"Install latest previews with one click." = "Zainstaluj najnowsze podglądy jednym kliknięciem.";
+"Install latest previews with one click." = "Zainstaluj najnowsze wersje podglądowe jednym kliknięciem.";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "Installation failed" = "Instalacja nie powiodła się";
@@ -134,7 +134,7 @@
 "Installed %@@%@" = "Zainstalowano %@@%@";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installing preview" = "Instalowanie podglądu";
+"Installing preview" = "Instalowanie wersji podglądowej";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Invalid callback URL received" = "Otrzymano nieprawidłowy adres URL wywołania zwrotnego";
@@ -155,7 +155,7 @@
 "Logged out" = "Wylogowano";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Missing Apple credentials from authorization" = "Brak poświadczeń Apple w autoryzacji";
+"Missing Apple credentials from authorization" = "Brak danych uwierzytelniających Apple w autoryzacji";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
 "No Previews" = "Brak podglądów";
@@ -266,7 +266,7 @@
 "The preview deeplink %@ is invalid." = "Link bezpośredni do podglądu %@ jest nieprawidłowy.";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The server returned a preview page that did not advance. Update your server or try again." = "Serwer zwrócił stronę podglądu, która nie postępowała. Zaktualizuj swój serwer lub spróbuj ponownie.";
+"The server returned a preview page that did not advance. Update your server or try again." = "Serwer zwrócił stronę podglądu, która nie uległa aktualizacji. Zaktualizuj swój serwer lub spróbuj ponownie.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
 "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "Ten serwer nie obsługuje filtrowania podglądów według ścieżki. Zaktualizuj swój samodzielnie hostowany serwer Tuist lub wybierz Wszystkie ścieżki.";

@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "abd508d0bef132a9f58b0609bed5622b70eb78d08669bb2bb931f0a06e6bcfa3",
+  "hash": "97fabc2b33409f1f1ac65d63a461cd733a81a5906c25dc1c68b42e5b96281048",
   "hash_tree": {
     "root": {
       "children": [
@@ -94,7 +94,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -113,7 +113,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -142,11 +142,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -216,21 +216,21 @@
             }
           ],
           "details": {},
-          "hash": "ac7e0145fb8e6eef520874b5b1a8e0b33d3d71ab4b55869d8dc86f4684a52322",
+          "hash": "aa7222d6ece2832f61190b26e81508ee6757b9f16338396a0f8eeeacbaff6784",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "abd508d0bef132a9f58b0609bed5622b70eb78d08669bb2bb931f0a06e6bcfa3",
+      "hash": "97fabc2b33409f1f1ac65d63a461cd733a81a5906c25dc1c68b42e5b96281048",
       "kind": "translation_input",
       "label": "server/priv/docs/en/contributors/code/handbook.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "28828ab28f41397290ff80430a8a8d841769752a9f327f6e442fde45c9b3131a",
+  "output_hash": "31834abb3fd55cc9bdf04e11621460e8d7edab5ae2e880126356cbf78b102f6f",
   "output_path": "server/priv/docs/zh_Hans/contributors/code/handbook.md",
   "protection_state": "recorded",
   "provider": "",
@@ -248,8 +248,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "6015683fe02afd165cfac93aaea4a0a2e6b13251",
+  "source_commit_sha": "6c347061fea76d5caffe166a674f5ca4aaf2c8d4",
   "source_path": "server/priv/docs/en/contributors/code/handbook.md",
-  "translated_at": "2026-10-30T13:06:14.760860Z",
-  "translation_session_id": "01a18ce1-c02e-7bc6-a18d-aa70ecc3e653"
+  "translated_at": "2026-11-04T17:45:58.816101Z",
+  "translation_session_id": "01a1a7a8-f0b3-71a2-89a5-e7cf7ef2a4b6"
 }

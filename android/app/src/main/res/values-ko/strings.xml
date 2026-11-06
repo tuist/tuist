@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">"Tuist"</string>
     <string name="login_title">"Tuist에 오신 것을 환영합니다"</string>
-    <string name="login_subtitle">"프로젝트에 접근하고 팀과 협업하려면\n로그인하세요"</string>
+    <string name="login_subtitle">"프로젝트에 액세스하고 팀과 협업하려면 로그인하세요"</string>
     <string name="sign_in_tuist">"Tuist로 로그인"</string>
     <string name="sign_in_apple">"Apple로 로그인"</string>
     <string name="sign_in_google">"Google로 로그인"</string>
@@ -15,25 +15,20 @@
     <string name="refresh">"새로 고침"</string>
     <string name="no_projects">"프로젝트를 찾을 수 없습니다"</string>
     <string name="no_previews">"프리뷰를 찾을 수 없습니다"</string>
-    <string name="apps_in">"앱 목록"</string>
+    <string name="apps_in">"앱 위치"</string>
     <string name="load_projects_failed">"프로젝트를 불러오지 못했습니다"</string>
     <string name="load_previews_failed">"프리뷰를 불러오지 못했습니다"</string>
     <string name="load_more_previews_failed">"추가 프리뷰를 불러오지 못했습니다"</string>
     <string name="refresh_previews_failed">"프리뷰를 새로고침하지 못했습니다"</string>
-    <string name="relative_time_just_now">"방금 전"</string>
-    <string name="relative_time_minutes">"%1$dm 전"</string>
-    <string name="relative_time_hours">"%1$dh 전"</string>
-    <string name="relative_time_days">"%1$dd 전"</string>
-    <string name="relative_time_months">"%1$dmo 전"</string>
     <string name="profile_title">"프로필"</string>
     <string name="profile_email">"이메일"</string>
     <string name="profile_terms">"서비스 약관"</string>
-    <string name="profile_privacy">"개인정보처리방침"</string>
+    <string name="profile_privacy">"개인정보 처리방침"</string>
     <string name="profile_get_help">"도움말 받기"</string>
     <string name="profile_app_version">"앱 버전"</string>
     <string name="profile_delete_account">"계정 삭제"</string>
     <string name="delete_account_title">"계정 삭제"</string>
-    <string name="delete_account_message">"계정을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다."</string>
+    <string name="delete_account_message">"정말로 계정을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다."</string>
     <string name="delete_account_confirm">"삭제"</string>
     <string name="cancel">"취소"</string>
     <string name="back">"뒤로"</string>
@@ -43,7 +38,7 @@
     <string name="preview_supported_platforms">"지원 플랫폼"</string>
     <string name="preview_details">"세부 정보"</string>
     <string name="preview_created_by">"작성자"</string>
-    <string name="preview_created_at">"생성일"</string>
+    <string name="preview_created_at">"작성일"</string>
     <string name="preview_bundle_id">"번들 식별자"</string>
     <string name="preview_branch">"브랜치"</string>
     <string name="preview_commit_sha">"커밋 SHA"</string>

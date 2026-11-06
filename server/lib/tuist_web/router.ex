@@ -38,6 +38,10 @@ defmodule TuistWeb.Router do
     plug :rate_limit, limit: 300
   end
 
+  pipeline :device_authorization_rate_limit do
+    plug :rate_limit, limit: 30
+  end
+
   pipeline :open_graph_image do
     plug :put_request_kind, "open_graph_image"
     plug :rate_limit, limit: 60
@@ -725,6 +729,8 @@ defmodule TuistWeb.Router do
     delete "/installation", IntegrationInstallationController, :delete
     get "/origin/start", OriginAppSetupController, :start
     get "/origin/setup", OriginAppSetupController, :setup
+    # The query carries the authorization code and state; keep them out of request logs.
+    get "/mcp/callback", MCPServerOAuthController, :callback, log: false
   end
 
   scope "/integrations", TuistWeb do
@@ -834,7 +840,9 @@ defmodule TuistWeb.Router do
 
       scope "/runners" do
         get "/jobs", RunnersController, :index_jobs
+        post "/jobs", RunnersController, :create_job
         get "/jobs/:workflow_job_id", RunnersController, :show_job
+        post "/jobs/:workflow_job_id/cancel", RunnersController, :cancel_job
         get "/jobs/:workflow_job_id/steps", RunnersController, :index_job_steps
         get "/jobs/:workflow_job_id/metrics", RunnersController, :index_job_metrics
         get "/jobs/:workflow_job_id/logs", RunnersController, :index_job_logs
@@ -848,6 +856,7 @@ defmodule TuistWeb.Router do
         get "/volumes/analytics", RunnerVolumesController, :analytics
         get "/volumes/:volume_id", RunnerVolumesController, :show
         get "/volumes/:volume_id/jobs", RunnerVolumesController, :jobs
+        delete "/volumes/:volume_id", RunnerVolumesController, :delete
         post "/volumes/:volume_id/clear", RunnerVolumesController, :clear
         get "/jobs/:workflow_job_id/volumes", RunnerVolumesController, :job_volumes
       end
@@ -862,8 +871,8 @@ defmodule TuistWeb.Router do
             :show_delivery_attempt
       end
 
-      # The literal agent-environments and agent-sessions routes must
-      # precede `/:sandbox_id`.
+      # The literal analytics, agent-environments and agent-sessions routes
+      # must precede `/:sandbox_id`.
       scope "/sandboxes" do
         post "/amp-orbs/:orb_id", SandboxesController, :dispatch_amp_orb
         post "/agent-environments", SandboxesController, :create_agent_environment
@@ -876,12 +885,14 @@ defmodule TuistWeb.Router do
         post "/agent-sessions/:agent_session_id/messages", AgentSessionsController, :create_message
         get "/agent-sessions/:agent_session_id/events", AgentSessionsController, :index_events
         post "/agent-sessions/:agent_session_id/archive", AgentSessionsController, :archive
+        get "/analytics", SandboxesController, :analytics
         get "/", SandboxesController, :index
         post "/", SandboxesController, :create
         get "/:sandbox_id", SandboxesController, :show
         post "/:sandbox_id/exec", SandboxesController, :exec
         post "/:sandbox_id/pause", SandboxesController, :pause
         post "/:sandbox_id/resume", SandboxesController, :resume
+        post "/:sandbox_id/archive", SandboxesController, :archive
         delete "/:sandbox_id", SandboxesController, :delete
       end
     end
@@ -974,6 +985,11 @@ defmodule TuistWeb.Router do
             get "/commits/:git_commit_sha/file", CoverageController, :show_file
             post "/uploads", CoverageController, :create_upload
             post "/commits/:git_commit_sha/complete", CoverageController, :complete_commit
+          end
+
+          scope "/selective-testing/coverage" do
+            post "/baseline", SelectiveTestingCoverageController, :baseline
+            post "/runs", SelectiveTestingCoverageController, :create_run
           end
 
           get "/:test_run_id/modules", TestModuleRunsController, :index
@@ -1190,6 +1206,14 @@ defmodule TuistWeb.Router do
     put "/me/notification-preferences/:kind/projects/:account_handle/:project_handle",
         NotificationPreferencesController,
         :update_project
+
+    get "/me/feature-flags", FeatureFlagsController, :index
+    get "/me/ai-subscriptions", AISubscriptionsController, :index
+    put "/me/ai-subscriptions/claude", AISubscriptionsController, :connect_claude
+    post "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :start_chatgpt_login
+    post "/me/ai-subscriptions/chatgpt/login/poll", AISubscriptionsController, :poll_chatgpt_login
+    delete "/me/ai-subscriptions/chatgpt/login", AISubscriptionsController, :cancel_chatgpt_login
+    delete "/me/ai-subscriptions/:provider", AISubscriptionsController, :delete
   end
 
   scope "/api" do
@@ -1213,6 +1237,21 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :non_authenticated_api, :oidc_exchange_rate_limit]
 
     post "/auth/oidc/token", OIDCController, :exchange_token
+  end
+
+  scope "/api", TuistWeb.API do
+    pipe_through [:open_api, :non_authenticated_api, :device_authorization_rate_limit]
+
+    post "/auth/device_codes", AuthController, :create_device_code
+  end
+
+  scope "/api/remote-execution", TuistWeb do
+    pipe_through [:non_authenticated_api]
+
+    get "/:account/:project/capabilities", RemoteExecutionController, :capabilities
+    post "/:account/:project/operations", RemoteExecutionController, :create
+    post "/:account/:project/leases", RemoteExecutionController, :lease
+    get "/:account/:project/operations/:id", RemoteExecutionController, :show
   end
 
   # Runner Pod dispatch + autoscaler signals endpoints.
@@ -1324,6 +1363,7 @@ defmodule TuistWeb.Router do
 
   # Ops Routes
   pipeline :ops do
+    plug :require_authenticated_user
     plug TuistWeb.Authorization, [:current_user, :read, :ops]
     plug :assign_current_path
     plug :skip_csrf_for_fun_with_flags_assets
@@ -1417,6 +1457,7 @@ defmodule TuistWeb.Router do
     end
 
     post "/users/log_in", UserSessionController, :create
+    post "/users/reset_password/:token", UserResetPasswordController, :update
     post "/users/log_in/passkey/options", UserPasskeyController, :authentication_options
     post "/users/log_in/passkey", UserPasskeyController, :authenticate
   end
@@ -1429,8 +1470,13 @@ defmodule TuistWeb.Router do
     post "/users/settings/mfa/confirm", UserMFAController, :confirm
     post "/users/settings/mfa/cancel", UserMFAController, :cancel
     post "/users/settings/mfa/disable", UserMFAController, :disable
+    post "/users/settings/mfa/recovery", UserMFAController, :regenerate
+    get "/users/settings/passkeys", UserPasskeyController, :show
+    get "/users/settings/passkeys/new", UserPasskeyController, :new
     post "/users/settings/passkeys/options", UserPasskeyController, :registration_options
     post "/users/settings/passkeys", UserPasskeyController, :create
+    get "/users/settings/passkeys/:id/delete", UserPasskeyController, :confirm_delete
+    post "/users/settings/passkeys/:id/rename", UserPasskeyController, :rename
     post "/users/settings/passkeys/:id/delete", UserPasskeyController, :delete
 
     live_session :require_authenticated_user,
@@ -1498,6 +1544,7 @@ defmodule TuistWeb.Router do
     live_session :auth,
       on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
       live "/device_codes/:device_code/success", DeviceCodesSuccessLive, :new
+      live "/device/success", DeviceCodesSuccessLive, :new
       live "/invitations/:token", AcceptInvitationLive, :new
     end
 
@@ -1512,6 +1559,16 @@ defmodule TuistWeb.Router do
     # This route is deprecated and will be removed in future versions.
     get "/cli/:device_code", AuthController, :authenticate_cli_deprecated
     get "/device_codes/:device_code", AuthController, :authenticate_device_code
+    post "/device_codes/:device_code", AuthController, :confirm_device_code
+
+    # The standard device flow (RFC 8628): the person types the code their
+    # terminal shows, and the confirmation POST approves it.
+    live_session :device_authorization,
+      on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
+      live "/device", DeviceAuthorizationLive, :new
+    end
+
+    post "/device", AuthController, :confirm_user_code
   end
 
   # Anonymous Turnstile challenge shown before public-project and
@@ -1701,6 +1758,9 @@ defmodule TuistWeb.Router do
       live "/runners/profiles", RunnerProfilesLive
       live "/runners/volumes", RunnerVolumesLive
       live "/runners/volumes/:id", RunnerVolumesLive
+      live "/sandboxes", SandboxesLive
+      live "/sandboxes/instances", SandboxInstancesLive
+      live "/sandboxes/:sandbox_id", SandboxLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
@@ -1708,11 +1768,14 @@ defmodule TuistWeb.Router do
       live "/cache", CacheLive
       live "/billing", BillingLive
       live "/settings", AccountSettingsLive
+      live "/settings/passkeys", UserSecuritySettingsLive, :passkeys
+      live "/settings/two-factor-authentication", UserSecuritySettingsLive, :mfa
       live "/settings/tokens", AccountTokensLive
       live "/settings/tokens/:token_id", AccountTokenLive
       live "/settings/integrations", IntegrationsLive
       live "/settings/authentication", AuthenticationSettingsLive
       live "/settings/authentication/workload-identities", AuthenticationSettingsLive, :workload_identities
+      live "/settings/ai", AISubscriptionsSettingsLive
     end
   end
 
@@ -1747,6 +1810,7 @@ defmodule TuistWeb.Router do
       live "/tests/coverage/branches/*branch", CoverageDetailLive, :branch
       live "/tests/coverage/commits/:git_commit_sha", CoverageDetailLive, :commit
       live "/tests/coverage/files/*path", CoverageFileLive, :show
+      live "/tests/test-selection", TestSelectionsLive
       live "/tests/test-runs/:test_run_id", TestRunLive, metadata: @public_project_route_metadata
       live "/tests/test-cases", TestCasesLive, metadata: @public_project_route_metadata
       live "/tests/test-cases/:test_case_id", TestCaseLive, metadata: @public_project_route_metadata

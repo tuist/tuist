@@ -46,6 +46,7 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.MCP.Events.Publisher
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.Runners.APIJobs
   alias Tuist.Runners.Bitrise.Build, as: BitriseBuild
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.GitLab.Job, as: GitLabJob
@@ -456,13 +457,19 @@ defmodule Tuist.Runners.Jobs do
   `{:error, :not_found}` when none does (delivery race where
   `completed` arrives before `queued`).
 
+  With `account_id:`, a row owned by another account is left untouched
+  and `{:error, :account_mismatch}` is returned.
+
   Per-step data lives in `runner_job_steps`; the caller writes it
   via `Tuist.Runners.JobSteps.record/1` before invoking this.
   """
-  def complete(workflow_job_id, conclusion) when is_integer(workflow_job_id) and is_binary(conclusion) do
+  def complete(workflow_job_id, conclusion, opts \\ []) when is_integer(workflow_job_id) and is_binary(conclusion) do
+    account_id = Keyword.get(opts, :account_id)
+
     with_workflow_job_ordering_lock(workflow_job_id, fn ->
       case Repo.get(WorkflowJob, workflow_job_id) do
         nil -> {:error, :not_found}
+        %WorkflowJob{account_id: owner} when not is_nil(account_id) and owner != account_id -> {:error, :account_mismatch}
         %WorkflowJob{} = row -> complete_locked(row, conclusion)
       end
     end)
@@ -1466,7 +1473,12 @@ defmodule Tuist.Runners.Jobs do
       )
     end
 
-    {:ok, %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}}
+    completed = %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}
+
+    # Only the first completion notifies; the terminal guard makes the rest no-ops.
+    if row.status not in ["completed", "cancelled"], do: APIJobs.dispatch_event(completed, "runner_job.completed")
+
+    {:ok, completed}
   end
 
   defp record_completed_locked(attrs, conclusion) do

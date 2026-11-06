@@ -3,10 +3,12 @@ defmodule AtlasWeb.MCPOAuthController do
 
   alias Atlas.MCP
   alias Atlas.MCP.OAuth
+  alias Atlas.MCP.Proxy
   alias Atlas.MCP.Proxy.Server
 
   def authorize(conn, %{"server_name" => server_name} = params) do
     with {:ok, %Server{} = server} <- MCP.get_server(server_name),
+         true <- Proxy.user_allowed?(server, conn.assigns.current_user),
          {:ok, url} <-
            OAuth.authorization_url(
              server,

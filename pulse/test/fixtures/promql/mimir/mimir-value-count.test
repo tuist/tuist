@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+clear
+
+# Test count_values.
+load 6m
+  series{idx="0", case="Inf"}   Inf  Inf  Inf
+  series{idx="0", case="-Inf"}  -Inf -Inf _
+  series{idx="0", case="NaN"}   NaN  NaN  NaN
+  series{idx="0", case="1"}     1    1    _
+  series{idx="1", case="Inf"}   Inf  _    _
+  series{idx="1", case="-Inf"}  -Inf _    _
+  series{idx="1", case="NaN"}   NaN  _    NaN
+  series{idx="1", case="1"}     1    _    _
+
+eval range from 0 to 12m step 6m count_values("value", series)
+  {value="+Inf"} 2 1 1
+  {value="-Inf"} 2 1 _
+  {value="NaN"}  2 1 2
+  {value="1"}    2 1 _
+
+eval range from 0 to 12m step 6m count_values by (case) ("value", series)
+  {case="Inf", value="+Inf"}  2 1 1
+  {case="-Inf", value="-Inf"} 2 1 _
+  {case="NaN", value="NaN"}   2 1 2
+  {case="1", value="1"}       2 1 _
+
+eval range from 0 to 12m step 6m count_values by (idx) ("value", series)
+  {idx="0", value="+Inf"} 1 1 1
+  {idx="0", value="-Inf"} 1 1 _
+  {idx="0", value="NaN"}  1 1 1
+  {idx="0", value="1"}    1 1 _
+  {idx="1", value="+Inf"} 1 _ _
+  {idx="1", value="-Inf"} 1 _ _
+  {idx="1", value="NaN"}  1 _ 1
+  {idx="1", value="1"}    1 _ _
+
+# Overwrite grouping label with value.
+eval range from 0 to 12m step 6m count_values by (idx) ("idx", series)
+  {idx="+Inf"} 2 1 1
+  {idx="-Inf"} 2 1 _
+  {idx="NaN"}  2 1 2
+  {idx="1"}    2 1 _

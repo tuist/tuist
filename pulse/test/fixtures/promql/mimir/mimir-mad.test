@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Additional tests for mad_over_time.
+load 10s
+  metric_missing _ 0.6 1.7 _ 11.8 14 _
+  metric_single _ 5 _ _ _ _ _
+  metric_none _ _ _ _ _ _ _
+  metric_nan NaN NaN NaN NaN NaN NaN NaN
+  metric_zeros 0 0 0 0 0 0 0
+  metric_mix 0 -10 -6.3 7.8 0 -806.34 2
+  metric_mix_nan 0 NaN -6.3 -50 NaN -806.34 2
+  metric_histogram{type="mix"} 1 1 1 {{schema:1 sum:2 count:3}} {{schema:1 sum:2 count:3}}
+
+eval instant at 70s mad_over_time(metric_missing[80s])
+  expect no_info
+  {} 5.6
+
+eval instant at 70s mad_over_time(metric_nan[80s])
+  expect no_info
+  {} NaN
+
+eval instant at 70s mad_over_time(metric_single[80s])
+  expect no_info
+  {} 0
+
+eval instant at 70s mad_over_time(metric_zeros[80s])
+  expect no_info
+  {} 0
+
+eval instant at 70s mad_over_time(metric_mix[80s])
+  expect no_info
+  {} 6.3
+
+eval instant at 70s mad_over_time(metric_mix_nan[80s])
+  expect no_info
+  {} NaN
+
+eval instant at 70s mad_over_time(metric_none[80s])
+  expect no_info
+  #empty
+
+eval instant at 70s mad_over_time(metric_histogram{type="mix"}[70s])
+  expect info regex: ignored histograms in a range containing both floats and histograms for metric name
+  {type="mix"} 0
+
+clear
+

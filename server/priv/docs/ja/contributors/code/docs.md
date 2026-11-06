@@ -2,7 +2,7 @@
 {
   "title": "ドキュメント",
   "titleTemplate": ":title · コード · コントリビューター · Tuist",
-  "description": "Tuist のドキュメントサイトへの貢献方法。"
+  "description": "Tuist ドキュメントサイトへの貢献方法。"
 }
 ---
 # ドキュメント {#docs}
@@ -25,7 +25,7 @@ mise run dev
 
 ### オプションの生成データ {#optional-generated-data}
 
-ドキュメントには一部の生成データが埋め込まれています。
+ドキュメントには一部の生成データを埋め込んでいます:
 
 - CLIリファレンスデータ: `mise run generate-cli-docs`
 

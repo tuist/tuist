@@ -217,6 +217,7 @@ defmodule Tuist.Tests.Coverage do
       partial: value(coverage, :partial, false),
       tool: value(coverage, :tool, ""),
       tool_version: value(coverage, :tool_version, ""),
+      platform: value(coverage, :platform, ""),
       files: files
     }
   end
@@ -286,6 +287,7 @@ defmodule Tuist.Tests.Coverage do
         partial: value(coverage, :partial, false) || false,
         tool: value(coverage, :tool, ""),
         tool_version: value(coverage, :tool_version, ""),
+        platform: value(coverage, :platform, ""),
         shard_index: shard_index,
         expected_shards: expected_shards
       }
@@ -386,6 +388,7 @@ defmodule Tuist.Tests.Coverage do
         coverage_tool_version: coverage.tool_version,
         git_object_format: folded.object_format,
         scheme: test.scheme || "",
+        platform: Map.get(coverage, :platform) || "",
         git_commit_sha: test.git_commit_sha || "",
         covered_lines: covered,
         executable_lines: executable,
@@ -539,9 +542,11 @@ defmodule Tuist.Tests.Coverage do
       "coverage_files",
       "git_commit_files",
       "coverage_target_sources",
-      "coverage_test_sources"
+      "coverage_test_sources",
+      "test_impact_diffs",
+      "test_impact_run_tests"
     ],
-    runs: ["coverage_runs"]
+    runs: ["coverage_runs", "test_impact_runs"]
   }
 
   @commit_retention_tables ["coverage_file_deltas", "coverage_commit_targets"]

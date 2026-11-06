@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
-	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vm"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
 )

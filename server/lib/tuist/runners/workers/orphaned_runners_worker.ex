@@ -205,6 +205,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   alias Tuist.Environment
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.APIJobs
   alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Claims
@@ -405,6 +406,15 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   # `stage` is `:confirmation` when this run is the scheduled re-check of
   # a `queued` GitHub answer, and `:first_sighting` otherwise.
   defp recover_one(orphan, evidence, stage \\ :first_sighting)
+
+  defp recover_one(%{provider: "api", account_id: account_id} = orphan, evidence, _stage) do
+    with {:ok, account} <- Accounts.get_account_by_id(account_id),
+         {:ok, {status, conclusion}} <- APIJobs.orphan_status(orphan, evidence) do
+      handle_gh_status(status, conclusion, orphan, account, evidence, :confirmation)
+    else
+      _ -> false
+    end
+  end
 
   defp recover_one(%{provider: "gitlab", account_id: account_id} = orphan, evidence, _stage) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),

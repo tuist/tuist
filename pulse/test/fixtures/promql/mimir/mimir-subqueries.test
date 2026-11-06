@@ -1,0 +1,150 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Most cases for functions are covered already in the upstream test cases.
+# These test cases cover scenarios not covered by the upstream test cases, such as range queries, or edge cases that are uniquely likely to cause issues in the streaming engine.
+
+load 1m
+  metric{type="floats"} 0 4 3 6 -1 10
+  metric{type="histograms"} {{count:0}} {{count:4}} {{count:3}} {{count:6}} {{count:1}} {{count:10}}
+  metric{type="mixed"} 0 4 3 6 {{count:1}} {{count:10}}
+
+# Test that the time range selected is left-open and right-closed.
+eval instant at 4m59s count_over_time(metric[4m1s:30s])
+  {type="floats"} 8
+  {type="histograms"} 8
+  {type="mixed"} 8
+
+eval instant at 5m count_over_time(metric[4m1s:30s])
+  {type="floats"} 9
+  {type="histograms"} 9
+  {type="mixed"} 9
+
+eval instant at 5m count_over_time(metric[4m:30s])
+  {type="floats"} 8
+  {type="histograms"} 8
+  {type="mixed"} 8
+
+eval range from 4m59s to 5m step 1s count_over_time(metric[4m1s:30s])
+  {type="floats"} 8 9
+  {type="histograms"} 8 9
+  {type="mixed"} 8 9
+
+eval range from 5m to 5m1s step 1s count_over_time(metric[4m:30s])
+  {type="floats"} 8 8
+  {type="histograms"} 8 8
+  {type="mixed"} 8 8
+
+# Evaluation step should be aligned to T=0, not the query evaluation time.
+eval instant at 5m last_over_time(metric[4m:3m])
+  metric{type="floats"} 6
+  metric{type="histograms"} {{count:6}}
+  metric{type="mixed"} 6
+
+eval range from 0 to 14m step 1m last_over_time(metric[4m:3m])
+  metric{type="floats"} 0 0 0 6 6 6 10 10 10 10 10 10 10 _ _
+  metric{type="histograms"} {{count:0}} {{count:0}} {{count:0}} {{count:6}} {{count:6}} {{count:6}} {{count:10}} {{count:10}} {{count:10}} {{count:10}} {{count:10}} {{count:10}} {{count:10}} _ _
+  metric{type="mixed"} 0 0 0 6 6 6 {{count:10}} {{count:10}} {{count:10}} {{count:10}} {{count:10}} {{count:10}} {{count:10}} _ _
+
+# Subquery with @
+eval instant at 5m last_over_time(metric[2m:1m] @ 1m)
+  metric{type="floats"} 4
+  metric{type="histograms"} {{count:4}}
+  metric{type="mixed"} 4
+
+eval range from 0 to 5m step 1m last_over_time(metric[2m:1m] @ 1m)
+  metric{type="floats"} 4 4 4 4 4 4
+  metric{type="histograms"} {{count:4}} {{count:4}} {{count:4}} {{count:4}} {{count:4}} {{count:4}}
+  metric{type="mixed"} 4 4 4 4 4 4
+
+# Instant queries with @ start() and @ end() are exercised in TestSubqueries, as the range mode of 'eval instant'
+# alters the start timestamp, making testing this here impossible.
+eval range from 0 to 5m step 1m last_over_time(metric[2m:1m] @ start())
+  metric{type="floats"} 0 0 0 0 0 0
+  metric{type="histograms"} {{count:0}} {{count:0}} {{count:0}} {{count:0}} {{count:0}} {{count:0}}
+  metric{type="mixed"} 0 0 0 0 0 0
+
+eval range from 0 to 5m step 1m last_over_time(metric[2m:1m] @ end())
+  metric{type="floats"} 10 10 10 10 10 10
+  metric{type="histograms"} {{count:10}} {{count:10}} {{count:10}} {{count:10}} {{count:10}} {{count:10}}
+  metric{type="mixed"} {{count:10}} {{count:10}} {{count:10}} {{count:10}} {{count:10}} {{count:10}}
+
+# Subquery with 'offset'
+# Start with query without offset to show non-offset results
+eval range from 0 to 5m step 1m last_over_time(metric[2m:1m])
+  metric{type="floats"} 0 4 3 6 -1 10
+  metric{type="histograms"} {{count:0}} {{count:4}} {{count:3}} {{count:6}} {{count:1}} {{count:10}}
+  metric{type="mixed"} 0 4 3 6 {{count:1}} {{count:10}}
+
+eval instant at 5m last_over_time(metric[2m:1m] offset 1m)
+  metric{type="floats"} -1
+  metric{type="histograms"} {{count:1}}
+  metric{type="mixed"} {{count:1}}
+
+eval range from 0 to 5m step 1m last_over_time(metric[2m:1m] offset 1m)
+  metric{type="floats"} _ 0 4 3 6 -1
+  metric{type="histograms"} _ {{count:0}} {{count:4}} {{count:3}} {{count:6}} {{count:1}}
+  metric{type="mixed"} _ 0 4 3 6 {{count:1}}
+
+# Subquery range smaller than subquery step
+eval instant at 5m last_over_time(metric[1m1s:2m])
+  metric{type="floats"} -1
+  metric{type="histograms"} {{count:1}}
+  metric{type="mixed"} {{count:1}}
+
+eval range from 0 to 5m step 1m last_over_time(metric[1m1s:2m])
+  metric{type="floats"} 0 0 3 3 -1 -1
+  metric{type="histograms"} {{count:0}} {{count:0}} {{count:3}} {{count:3}} {{count:1}} {{count:1}}
+  metric{type="mixed"} 0 0 3 3 {{count:1}} {{count:1}}
+
+# Nesting
+#
+# last_over_time[2m:1m] produces these results:
+# T=0m     T=1m     T=2m     T=3m     T=4m     T=5m
+# 0        4        3        6        -1       10
+
+eval instant at 5m sum_over_time(last_over_time(metric[2m:1m])[5m:90s])
+  expect no_info
+  expect warn
+  {type="floats"} 9
+  {type="histograms"} {{count:11}}
+  # No results for {type="mixed"} due to mixture of floats and histograms
+
+eval range from 0 to 5m step 1m sum_over_time(last_over_time(metric[2m:1m])[5m:90s])
+  expect no_info
+  expect warn
+  {type="floats"} 0 0 4 10 10 9
+  {type="histograms"} {{count:0}} {{count:0}} {{count:4}} {{count:10}} {{count:10}} {{count:11}}
+  {type="mixed"} 0 0 4 10 10 _
+  # Last sample for {type="mixed"} dropped due to mixture of floats and histograms
+
+clear
+
+# Test deeply nested subquery with changing step.
+load 1m
+  metric 0 1 2 3 4
+
+eval range from 0 to 4m step 15s sum_over_time(metric[2m1s:30s])
+  {} 0 0 0 0 1 1 2 2 4 4 6 6 9 8 11 10 14
+
+eval range from 0 to 4m step 20s sum_over_time(sum_over_time(metric[2m1s:30s])[3m1s:15s])
+  {} 0 0 0 1 2 4 10 14 20 35 43 54 78
+
+eval range from 0 to 4m step 3m sum_over_time(sum_over_time(sum_over_time(metric[2m1s:30s])[3m1s:15s])[4m1s:20s])
+  {} 0 86
+
+eval range from 0 to 4m step 15s last_over_time((metric > Inf)[20s:10s])
+  # Should produce no results.
+
+eval instant at 3m last_over_time((metric > Inf)[20s:10s])
+  # Should produce no results.
+
+clear
+
+load 1m
+  metric 0+1x7200
+
+eval instant at 1h8m count_over_time(metric[7m:1h])
+  # Should produce no results: there are no steps within the 7m range.
+
+eval instant at 1h8m count_over_time((sum_over_time(metric[5m:2m]))[7m:1h])
+  # Should produce no results: there are no steps within the 7m range.

@@ -5,6 +5,17 @@ Server control plane for the Firecracker sandboxes run by `sandboxd`
 sandbox is one persistent microVM per coding-agent session; the first
 consumer is Claude Managed Agents `self_hosted` environments.
 
+Linux REAPI actions use a separate `Tuist.RemoteExecution` lifecycle and
+`sandboxes.purpose = remote_execution`. Keep them out of agent listing, quotas,
+idle retention and node-report reconciliation: their scheduler and lease own
+them. Reserved executor nodes must not admit agent sessions; execution rows and
+resource reservations survive errors until acknowledged VM deletion. An executor
+on a shared runner host connects as `<node>.remote-execution` with its own
+carve-out: execution placement uses memory its Pod holds without a grant and may
+grow past the grant's bytes, but never past a revoked or expired grant. Agent
+admission keeps requiring the grant.
+See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-execution.md).
+
 ## Pieces
 
 - `Tuist.Sandboxes`: context over `sandboxes`,
@@ -299,10 +310,52 @@ socket, the poller and the caller share a replica:
   `/api/accounts/:account_handle/sandboxes` (agent environments,
   including `PATCH agent-environments/:id` for the API key, model and
   system prompt; sandboxes, exec/pause/resume/delete).
+- Dashboard: `TuistWeb.SandboxesLive` (`/:account_handle/sandboxes`),
+  `SandboxInstancesLive` (`/sandboxes/instances`) and `SandboxLive`
+  (`/sandboxes/:sandbox_id`) raise `NotFoundError` unless the flag is on and
+  `:sandboxes_read` allows the user; the sidebar entry uses the same gate.
+  Pause, resume, archive and delete require `:sandboxes_update` (admins), are
+  rechecked per event and run in `start_async`, since node commands block.
+  Pause goes through `pause_idle/2`, so it never interrupts an agent turn,
+  and Amp Orbs are not resumed or restored from the dashboard (Amp does it).
+  Archive (`Sandboxes.archive/1`) only queues `ArchiveSandboxesWorker` for
+  one paused sandbox of any source, under the account's archive storage cap,
+  because the upload outlives a page. The app layout renders no flashes, so
+  these pages render theirs with `SandboxesLive.flash_alerts/1`.
+  The overview charts come from `Analytics` over ClickHouse
+  `sandbox_events`, which `Events` writes on every state change: through
+  `update_sandbox/3`, and explicitly where a state is written another way
+  (create, delete, `mark_error`, `Archives`). A new state write must record
+  its event too, or sessions and concurrency drift. Peak disk follows
+  `Concurrency`'s disk charge: a sandbox holds its workspace and memory image
+  from `created` (or a restore's `started`) until `archived`, `failed` or
+  `deleted`, paused or not. `boot/2` times each
+  boot (create or restore) and tags its `started` event with what it booted
+  from. Before every Amp pause, `AmpOrbs` reads the birth and modification
+  times of Amp's `setup.log` in the guest (`Sandboxes.exec_running/3`, which
+  neither resumes nor counts as activity) and records a `setup` event dated
+  when setup finished; a log older than the row came with a disk snapshot
+  and is ignored. The Setup and Time to start widgets chart those
+  durations; vCPU-hours (`Analytics.compute/2`) are on the Usage page,
+  priced by `Sandboxes.Pricing` at one rate per vCPU-hour, memory and disk
+  included. There is no Stripe meter yet: early access covers the whole
+  charge and Billed stays $0 until one exists.
 - `TuistWeb.API.AgentSessionsController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes/agent-sessions` (create,
   list, show with live status and usage, `messages`,
   `events?after=<cursor>`, `archive`).
+- `Sandboxes.Query` is the public boundary the sandbox API
+  (`TuistWeb.API.SandboxesController`: list, show, analytics, pause,
+  resume, archive, delete), the MCP sandbox tools and `tuist sandbox` share,
+  with contracts in `Sandboxes.Schemas`; keep both exported from `Tuist`.
+  It account-scopes every lookup, serializes the dashboard status, and maps
+  errors to one HTTP status and message (`Query.error/1`). The API sends
+  every 503 with a `retry-after` longer than the CLI's retry budget: the
+  server has already waited for the node, so replays only repeat the wait.
+  Every caller
+  requires an account administrator and the sandboxes flag, read-only
+  calls included, because sandboxes run arbitrary commands. MCP does not
+  expose `exec` or create.
 
 ## Related Context
 

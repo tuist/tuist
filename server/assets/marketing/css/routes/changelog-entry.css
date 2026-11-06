@@ -119,7 +119,7 @@
            post's hero. */
         & img,
         & video {
-          margin-left: calc((650px - 780px) / 2);
+          margin-inline-start: calc((650px - 780px) / 2);
           width: 780px;
           max-width: 780px;
         }

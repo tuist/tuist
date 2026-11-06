@@ -161,7 +161,12 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     @describetag :locale
 
     test "deep links select their language regardless of browser or session preferences", %{conn: conn} do
-      for {path, language} <- [{"/about", "en"}, {"/zh_Hans", "zh-Hans"}, {"/ja", "ja"}] do
+      for {path, language, direction} <- [
+            {"/about", "en", "ltr"},
+            {"/zh_Hans", "zh-Hans", "ltr"},
+            {"/ja", "ja", "ltr"},
+            {"/ar", "ar", "rtl"}
+          ] do
         document =
           conn
           |> init_test_session(%{locale: "ko"})
@@ -172,6 +177,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
           |> Floki.parse_document!()
 
         assert Floki.attribute(document, "html", "lang") == [language]
+        assert Floki.attribute(document, "html", "dir") == [direction]
 
         assert Floki.attribute(document, "link[rel='canonical']", "href") ==
                  [Tuist.Environment.app_url(path: path)]
@@ -260,12 +266,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
     test "translated pages share query-free alternates and an English fallback", %{conn: conn} do
       languages = [
+        {"ar", "/ar"},
         {"en", ""},
         {"es", "/es"},
         {"ja", "/ja"},
         {"ka", "/ka"},
         {"ko", "/ko"},
         {"ru", "/ru"},
+        {"tr", "/tr"},
         {"yue-Hant", "/yue_Hant"},
         {"zh-Hans", "/zh_Hans"},
         {"zh-Hant", "/zh_Hant"}
@@ -490,7 +498,13 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "shows Tuist Runners pricing", %{conn: conn} do
       html = conn |> get("/pricing") |> html_response(200)
 
-      assert html =~ "Tuist Runners pricing"
+      assert html =~ ~r/id="pricing-runners-title">\s*Tuist Runners\s*</
+      assert html =~ "2 GB / vCPU"
+      assert html =~ "4 GB / vCPU"
+      # Every rate, as written, in the screen-reader list.
+      assert html =~ "All Tuist Runners machines and rates"
+      assert html =~ "1 vCPU · 2 GB: $0.001/min"
+      assert html =~ "16 vCPU · 48 GB: $0.10/min"
       assert html =~ "8 vCPU · 24 GB"
       assert html =~ "16 vCPU · 48 GB"
       assert html =~ "See every machine and rate"

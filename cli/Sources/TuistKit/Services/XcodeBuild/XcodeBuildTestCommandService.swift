@@ -17,6 +17,7 @@ import TuistUniqueIDGenerator
 import TuistXCActivityLog
 import TuistXcodeBuildProducts
 import TuistXCResultService
+import XcodeGraph
 import XCResultParser
 
 struct XcodeBuildTestCommandService {
@@ -661,9 +662,11 @@ extension XcodeBuildTestCommandService {
         derivedDataPath: AbsolutePath?,
         config: Tuist
     ) async throws {
+        let destination = passedValue(for: "-destination", arguments: arguments)
+        await RunMetadataStorage.current
+            .update(testPlatform: destination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:)))
         let session = await testCoverageEvidenceService.prepare(
-            platform: passedValue(for: "-destination", arguments: arguments)
-                .flatMap(TestCoverageEvidencePlatform.init(destination:)),
+            platform: destination.flatMap(TestCoverageEvidencePlatform.init(destination:)),
             config: config
         )
         let runStartedAt = Date()

@@ -445,6 +445,9 @@ struct BinaryCacheStorageTests {
         }
         #expect(try await local.blob(firstDigest) != nil)
         #expect(try await local.blob(secondDigest) == nil)
+        try await FileSystem().setFileTimes(
+            of: local.blobPath(firstDigest), lastAccessDate: nil, lastModificationDate: Date(timeIntervalSince1970: 0)
+        )
         try await local.storeBlob(secondDigest, from: source, preserving: [])
         #expect(try await local.blob(firstDigest) == nil)
         #expect(try await local.blob(secondDigest) != nil)
@@ -492,6 +495,11 @@ struct BinaryCacheStorageTests {
         #expect(remaining == 90000 - payload.count - resultSize)
         #expect(await admission.admit(remaining))
         #expect(await admission.admit(1) == false)
+        try await FileSystem().setFileTimes(
+            of: binaries.appending(component: "action-\(digest.hash)"),
+            lastAccessDate: nil,
+            lastModificationDate: Date(timeIntervalSince1970: 0)
+        )
         try await pruner.clean(maxBytes: payload.count, minimumEntries: 0, preserving: [local.blobEntry(digest)])
         #expect(try await local.action(digest) == nil)
         #expect(try await local.blob(digest) != nil)

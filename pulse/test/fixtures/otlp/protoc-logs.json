@@ -1,0 +1,141 @@
+{
+  "resourceLogs": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "example-api"
+            }
+          },
+          {
+            "key": "deployment.environment",
+            "value": {
+              "stringValue": "production"
+            }
+          },
+          {
+            "key": "deployment.environment.name",
+            "value": {
+              "stringValue": "production"
+            }
+          },
+          {
+            "key": "resource.integer",
+            "value": {
+              "intValue": "9223372036854775807"
+            }
+          }
+        ],
+        "droppedAttributesCount": 1
+      },
+      "scopeLogs": [
+        {
+          "scope": {
+            "name": "fixture.logger",
+            "version": "1.2.3",
+            "attributes": [
+              {
+                "key": "enabled",
+                "value": {
+                  "boolValue": false
+                }
+              }
+            ],
+            "droppedAttributesCount": 2
+          },
+          "logRecords": [
+            {
+              "timeUnixNano": "1700000000123456789",
+              "severityNumber": 9,
+              "severityText": "INFO",
+              "body": {
+                "kvlistValue": {
+                  "values": [
+                    {
+                      "key": "message",
+                      "value": {
+                        "stringValue": "hello 🌍\n\t"
+                      }
+                    },
+                    {
+                      "key": "binary",
+                      "value": {
+                        "bytesValue": "AP8="
+                      }
+                    },
+                    {
+                      "key": "numbers",
+                      "value": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "intValue": "9223372036854775807"
+                            },
+                            {
+                              "intValue": "-9223372036854775808"
+                            },
+                            {
+                              "doubleValue": -0.0
+                            },
+                            {
+                              "doubleValue": "NaN"
+                            },
+                            {
+                              "doubleValue": "Infinity"
+                            },
+                            {
+                              "doubleValue": "-Infinity"
+                            },
+                            {}
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "attributes": [
+                {
+                  "key": "bytes",
+                  "value": {
+                    "bytesValue": "AP8="
+                  }
+                },
+                {
+                  "key": "string",
+                  "value": {
+                    "stringValue": "AP8="
+                  }
+                },
+                {
+                  "key": "signed",
+                  "value": {
+                    "doubleValue": -0.0
+                  }
+                }
+              ],
+              "droppedAttributesCount": 3,
+              "flags": 4294967295,
+              "traceId": "30313233343536373839616263646566",
+              "spanId": "6465616462656566",
+              "observedTimeUnixNano": "1700000000123456790",
+              "eventName": "example.login"
+            },
+            {
+              "timeUnixNano": "1700000000123456791",
+              "severityNumber": 13,
+              "severityText": "WARN",
+              "body": {
+                "bytesValue": "aGVsbG8="
+              }
+            }
+          ],
+          "schemaUrl": "https://example.com/log-schema/1"
+        }
+      ],
+      "schemaUrl": "https://opentelemetry.io/schemas/1.27.0"
+    }
+  ]
+}

@@ -24,7 +24,7 @@ defmodule TuistWeb.DocsLiveTest do
     test "overview separates artifact types, publication workflows, and running previews", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews")
 
-      for {system, name} <- [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}] do
+      for {system, name} <- [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}, {"once", "Once"}] do
         assert has_element?(
                  view,
                  ~s(a[data-part="feature-card"][href="/en/docs/guides/features/previews/#{system}"]),
@@ -45,14 +45,9 @@ defmodule TuistWeb.DocsLiveTest do
                  label
                )
       end
-
-      refute has_element?(
-               view,
-               ~s(a[data-part="feature-card"][href="/en/docs/guides/features/previews/once"])
-             )
     end
 
-    test "keeps the unlisted Once guide accessible through Bazel", %{conn: conn} do
+    test "keeps the Once guide accessible through Bazel", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews/bazel")
 
       assert has_element?(view, "#publish-from-once")
@@ -94,7 +89,7 @@ defmodule TuistWeb.DocsLiveTest do
             {"xcode", "Xcode previews", "tuist share App"},
             {"gradle", "Gradle previews", "./gradlew :app:tuistShareDebug"},
             {"bazel", "Bazel previews", "--publish --project acme/app"},
-            {"once", "Once artifact publication", "--allow-on-build"},
+            {"once", "Once previews", "--allow-on-build"},
             {"types", "Supported preview types", "--executable bin/my-tool"},
             {"run/cli", "Run previews with the CLI", "tuist run {url} -- --help"},
             {"run/macos", "Run previews with the macOS app", "brew install --cask tuist/tuist/tuist"},
@@ -134,6 +129,26 @@ defmodule TuistWeb.DocsLiveTest do
                  view,
                  ~s(a[href="/en/docs/guides/get-started/rust-project"] svg[fill="currentColor"])
                )
+      end
+    end
+  end
+
+  describe "Once documentation" do
+    test "feature overviews link to served Once guides", %{conn: conn} do
+      for {path, heading} <- [
+            {"cache", "Once cache"},
+            {"build-insights", "Once build insights"},
+            {"test-insights", "Once test insights"},
+            {"test-insights/flaky-tests", "Once flaky tests"},
+            {"test-sharding", "Once test sharding"}
+          ] do
+        {:ok, overview, _html} = live(conn, "/en/docs/guides/features/" <> path)
+        href = "/en/docs/guides/features/#{path}/once"
+        assert has_element?(overview, ~s(a[data-part="feature-card"][href="#{href}"]), "Once")
+
+        {:ok, view, _html} = live(conn, href)
+        assert has_element?(view, "h1", heading)
+        assert has_element?(view, ~s(a[href="/en/docs/guides/get-started/once-project"] svg))
       end
     end
   end
@@ -191,19 +206,26 @@ defmodule TuistWeb.DocsLiveTest do
         end)
 
       assert supported_systems == %{
-               "/en/docs/guides/features/cache" => ~w(apple gradle bazel elixir rust),
-               "/en/docs/guides/features/build-insights" => ~w(apple gradle bazel elixir rust),
+               "/en/docs/guides/features/cache" => ~w(apple gradle bazel elixir rust once),
+               "/en/docs/guides/features/build-insights" => ~w(apple gradle bazel elixir rust once),
                "/en/docs/guides/features/selective-testing" => ~w(apple),
-               "/en/docs/guides/features/test-insights/flaky-tests" => ~w(apple gradle bazel elixir rust),
-               "/en/docs/guides/features/test-insights" => ~w(apple gradle bazel elixir rust),
-               "/en/docs/guides/features/previews" => ~w(apple android),
-               "/en/docs/guides/features/runners" => ~w(apple gradle bazel elixir rust)
+               "/en/docs/guides/features/test-insights/flaky-tests" => ~w(apple gradle bazel elixir rust once),
+               "/en/docs/guides/features/test-insights" => ~w(apple gradle bazel elixir rust once),
+               "/en/docs/guides/features/previews" => ~w(apple android once),
+               "/en/docs/guides/features/runners" => ~w(apple gradle bazel elixir rust once)
              }
 
       assert length(Floki.find(document, ~s([data-part="supported-icon"][title="elixir"] svg))) ==
                5
 
       assert length(Floki.find(document, ~s([data-part="supported-icon"][title="rust"] svg))) == 5
+
+      once_logo = Floki.parse_fragment!(render_component(&Noora.Icon.brand_once/1, %{}))
+      once_logos = Floki.find(document, ~s([data-part="supported-icon"][title="once"] svg))
+
+      assert Enum.map(once_logos, &Floki.attribute(&1, "path", "d")) ==
+               List.duplicate(Floki.attribute(once_logo, "path", "d"), 6)
+
       assert has_element?(lv, "#docs-cache-card", "Rust caching is experimental.")
       assert document |> Floki.find("#docs-page-markdown") |> Floki.text() =~ "Rust caching is experimental."
     end
@@ -228,14 +250,14 @@ defmodule TuistWeb.DocsLiveTest do
       assert markdown =~ "cache infrastructure colocated next to compute for the best results"
     end
 
-    test "positions Tuist as build infrastructure including Elixir and Rust", %{conn: conn} do
+    test "positions Tuist as build infrastructure including Elixir, Rust, and Once", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/en/docs")
 
       assert has_element?(lv, "h1", "One platform for faster build toolchains")
       assert has_element?(lv, "#learn-more", "Explore Tuist's capabilities")
-      assert render(lv) =~ "Xcode, Gradle, Bazel, Elixir, and Rust projects"
+      assert render(lv) =~ "Xcode, Gradle, Bazel, Elixir, Rust, and Once projects"
       {:ok, document} = Floki.parse_document(render(lv))
-      assert document |> Floki.find("#docs-page-markdown") |> Floki.text() =~ "Elixir, and Rust projects"
+      assert document |> Floki.find("#docs-page-markdown") |> Floki.text() =~ "Elixir, Rust, and Once projects"
     end
 
     test "shows a Log in button with return_to when the user is not authenticated", %{
@@ -324,10 +346,10 @@ defmodule TuistWeb.DocsLiveTest do
       markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()
       assert markdown =~ "tuist cargo build --release"
       assert markdown =~ "cargo clean"
-      assert markdown =~ "registry leaf libraries"
+      assert markdown =~ "build-script runs"
       assert markdown =~ "Kura through the Remote Execution API (REAPI)"
       assert markdown =~ "server-issued cache credentials"
-      assert markdown =~ "absolute paths"
+      assert markdown =~ "a checkout at another path reuses the same entries"
       refute markdown =~ "Mr. Boxington"
       refute markdown =~ "protected GitHub"
       assert has_element?(view, ~s(a[href="/en/docs/guides/get-started/rust-project"]))
@@ -546,7 +568,7 @@ defmodule TuistWeb.DocsLiveTest do
           conn |> get("/#{locale}/docs?utm_source=google") |> html_response(200) |> Floki.parse_document!()
 
         assert Floki.attribute(document, "html", "lang") == [language]
-        assert length(Floki.find(document, "link[hreflang]")) == 10
+        assert length(Floki.find(document, "link[hreflang]")) == 12
 
         for picker <- ["docs-language-selector", "docs-mobile-nav-language-selector"],
             {target_locale, target_language} <- [{"en", "en"}, {"zh_Hans", "zh-Hans"}, {"yue_Hant", "yue-Hant"}] do
@@ -555,7 +577,7 @@ defmodule TuistWeb.DocsLiveTest do
           assert Floki.attribute(document, selector, "href") == ["/#{target_locale}/docs"]
         end
 
-        assert length(Floki.find(document, "a[data-glossia-language]")) == 18
+        assert length(Floki.find(document, "a[data-glossia-language]")) == 22
 
         assert Floki.attribute(document, "link[hreflang='zh-Hans']", "href") ==
                  [Tuist.Environment.app_url(path: "/zh_Hans/docs")]

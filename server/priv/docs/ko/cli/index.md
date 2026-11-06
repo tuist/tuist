@@ -2,7 +2,7 @@
 {
   "title": "CLI",
   "titleTemplate": ":title · Tuist",
-  "description": "Tuist CLI, 명령어 및 워크플로우에 맞는 구성 방법입니다."
+  "description": "Tuist CLI, 해당 명령어 및 워크플로에 맞춘 구성 방법입니다."
 }
 ---
 # CLI {#cli}
@@ -13,7 +13,7 @@ Tuist CLI는 Tuist와 상호작용하는 인터페이스 중 하나이며, <.loc
 
 Tuist를 아직 설치하지 않았다면, <.localized_link href="/guides/install-tuist">설치 가이드</.localized_link>를 따라 시작하세요.
 
-설치가 완료되면 터미널에서 `tuist`을 실행하여 사용 가능한 명령어 목록을 확인할 수 있습니다:
+설치가 완료되면 터미널에서 `tuist`를 실행하여 사용 가능한 명령어 목록을 확인할 수 있습니다:
 
 ```bash
 tuist --help
@@ -25,4 +25,4 @@ CLI 동작은 `tuist.toml` 파일을 통해 구성할 수 있습니다. 사용 �
 
 ## 문제 해결 {#troubleshooting}
 
-문제가 발생하면 세션 로그 및 네트워크 기록을 포함한 문제 진단 도구는 <.localized_link href="/cli/debugging">디버깅 가이드</.localized_link>에서 확인하세요.
+문제가 발생하면 세션 로그 및 네트워크 기록을 포함한 문제 진단 도구를 제공하는 <.localized_link href="/cli/debugging">디버깅 가이드</.localized_link>를 확인하세요.

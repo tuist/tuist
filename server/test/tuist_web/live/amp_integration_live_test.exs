@@ -86,7 +86,8 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
 
       conn = put_session(conn, :user_token, session_token)
       {:ok, _} = AmpIntegrations.connect(account.id, user, "aop_live_guard_control")
-      {:ok, view, _} = live(conn, "/#{account.name}/settings/integrations")
+      path = "/#{account.name}/settings/integrations"
+      {:ok, view, _} = live(conn, path)
 
       view
       |> with_target("#amp-integration")
@@ -99,14 +100,14 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
           session = Repo.get_by!(UserToken, token: session_token, context: "session")
 
           session
-          |> Ecto.Changeset.change(last_active_at: DateTime.add(DateTime.utc_now(:second), -901))
+          |> Ecto.Changeset.change(last_active_at: DateTime.add(DateTime.utc_now(:second), -604_801))
           |> Repo.update!()
 
         :absolute ->
           session = Repo.get_by!(UserToken, token: session_token, context: "session")
 
           session
-          |> Ecto.Changeset.change(inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(:second), -28_801))
+          |> Ecto.Changeset.change(inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(:second), -2_592_001))
           |> Repo.update!()
 
         :revoked ->
@@ -120,7 +121,13 @@ defmodule TuistWeb.AmpIntegrationLiveTest do
       integration = AmpIntegrations.get(account.id)
       assert integration.enabled
       assert integration.provider_token == "aop_live_allowed_target"
-      assert_redirect(view, if(unquote(invalidation) == :sso_policy, do: "/users/auth/google", else: "/users/log_in"))
+      assert_redirect(view, path)
+      challenged = get(conn, path)
+
+      assert redirected_to(challenged) ==
+               if(unquote(invalidation) == :sso_policy, do: "/users/auth/google", else: "/users/log_in")
+
+      assert get_session(challenged, :user_return_to) == path
     end
   end
 

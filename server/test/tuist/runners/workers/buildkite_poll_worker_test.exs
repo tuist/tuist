@@ -27,8 +27,14 @@ defmodule Tuist.Runners.Workers.BuildkitePollWorkerTest do
     test "enqueues nothing when no account has connected Buildkite" do
       stub(Buildkite, :list_pollable_installations, fn -> [] end)
 
+      %{"connection_id" => 1}
+      |> Tuist.Runners.Workers.GitLabPollWorker.new()
+      |> Oban.insert!()
+
+      jobs_before = all_enqueued()
+
       assert :ok = BuildkitePollWorker.perform(%Oban.Job{args: %{}})
-      assert Tuist.Repo.aggregate(Oban.Job, :count) == 0
+      assert all_enqueued() == jobs_before
     end
   end
 

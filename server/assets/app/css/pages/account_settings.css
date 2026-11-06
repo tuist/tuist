@@ -12,6 +12,7 @@
   & > [data-part="rename-card-section"],
   & > [data-part="delete-organization-card-section"],
   & > [data-part="delete-user-card-section"],
+  & > [data-part="security-card-section"],
   & > [data-part="region-card-section"],
   & > [data-part="dashboard-language-card-section"] {
     display: flex;
@@ -38,6 +39,22 @@
 
     & > [data-part="content"] {
       padding: var(--noora-spacing-8);
+    }
+
+    &[data-part="security-card-section"] {
+      & [data-part="status"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-body-small);
+      }
+
+      @media (max-width: 768px) {
+        flex-direction: column;
+        align-items: stretch;
+
+        & > [data-part="content"] {
+          padding-top: 0;
+        }
+      }
     }
   }
 

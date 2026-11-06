@@ -29,13 +29,20 @@ jobs:
     needs: publication-window
     runs-on: tuist-canary-linux
     timeout-minutes: 10
+    # The job-started hook mints a tuist-runner-cache OIDC token so the server
+    # binds this pod to its job before the Docker attach. Without it, binding
+    # waits on GitHub's webhook or API, which can miss the agent's 25 s wait
+    # and leave the cache unmounted ("timeout").
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
           sparse-checkout: |
             .github/actions/setup-docker-builder
-            .github/scripts/docker-build-cache-benchmark.sh
+            .github/scripts
       - name: Require candidate runner and mounted cache
         env:
           EXPECTED_LINUX_IMAGE: ${{ inputs.expected_linux_image }}

@@ -158,6 +158,29 @@ A demoted, armed handoff has no reset or abort shortcut. Preserve the destinatio
 and donor and complete or explicitly recover the handoff; clearing the bridge would reintroduce
 the successful-PUT/missing-GET race.
 
+### Accepting cache loss
+
+The retained walk cannot pass on two full replicas. Each evicts on its own, so
+the source keeps records its destination already dropped and the destination
+answers `/_internal/migration/verify` with 409 mid-walk on every attempt
+(production, Tuist eu-west, 2026-11-05: 79,648 and then 104,000 records). When
+the account owner accepts cache misses, an operator can waive the proof for that
+one instance:
+
+1. Clear the source node's selection and wait for the controller to abort the
+   undemoted handoff, which removes the source's
+   `kura.tuist.dev/lvm-write-target`. The waiver never applies to a source that
+   is still bound to a destination.
+2. `kubectl annotate kurainstance <name> kura.tuist.dev/lvm-accept-cache-loss=true`.
+   The server's re-apply keeps this annotation.
+3. Select the source node again.
+
+The move then runs like a legacy storage move. One replica moves at a time. The
+endpoint is handed off and old connections are retired. The moved replica is
+rebuilt and backfills from its sibling. There is no write bridge, so a write
+acknowledged by the donor during the move can be missing afterwards. Remove the
+annotation once the instance has moved.
+
 ### Abort before demotion
 
 `POST /_internal/migration/abort` (internal peer mTLS only) takes the same

@@ -26,10 +26,43 @@ defmodule TuistWeb.UserResetPasswordLiveTest do
   end
 
   describe "Reset password page" do
-    test "renders reset password with valid token", %{conn: conn, token: token} do
+    test "renders password-manager semantics and a POST fallback", %{conn: conn, token: token, user: user} do
       {:ok, _lv, html} = live(conn, ~p"/users/reset_password/#{token}")
 
       assert html =~ "New password"
+      document = Floki.parse_document!(html)
+      assert Floki.attribute(document, "#reset_password_form", "method") == ["post"]
+      assert Floki.attribute(document, "#reset_password_form", "action") == [~p"/users/reset_password/#{token}"]
+      assert Floki.attribute(document, "input[autocomplete='username']", "value") == [user.email]
+      assert length(Floki.find(document, "input[autocomplete='new-password']")) == 2
+    end
+
+    test "POST fallback consumes the token without signing in or trusting the supplied username", %{
+      conn: conn,
+      token: token,
+      user: user
+    } do
+      old_session = Accounts.generate_user_session_token(user)
+
+      params = %{
+        "user" => %{
+          "email" => "someone-else@example.com",
+          "password" => "new valid password",
+          "password_confirmation" => "new valid password"
+        }
+      }
+
+      reset = post(conn, ~p"/users/reset_password/#{token}", params)
+      assert redirected_to(reset) == ~p"/users/log_in"
+      refute get_session(reset, :user_token)
+      refute Accounts.get_user_by_session_token(old_session)
+      assert {:ok, updated} = Accounts.get_user_by_email_and_password(user.email, "new valid password")
+      assert updated.id == user.id
+
+      assert reset |> recycle() |> post(~p"/users/reset_password/#{token}", params) |> redirected_to() ==
+               ~p"/users/log_in"
+
+      refute Accounts.get_user_by_reset_password_token(token)
     end
 
     test "reset links last fifteen minutes, not one day", %{conn: conn, token: token, user: user} do
@@ -106,6 +139,51 @@ defmodule TuistWeb.UserResetPasswordLiveTest do
         assert_receive %Phoenix.Socket.Broadcast{event: "disconnect", topic: ^live_socket_id}
       end)
     end
+  end
+
+  describe "API credentials" do
+    setup do
+      stub(TuistWeb.RateLimit.Auth, :hit, fn _ -> {:allow, 1} end)
+      :ok
+    end
+
+    test "resetting the password revokes the user's refresh tokens and legacy token", %{token: token, user: user} do
+      %{"access_token" => access_token, "refresh_token" => refresh_token} =
+        build_conn()
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth", %{email: user.email, password: valid_user_password()})
+        |> json_response(:ok)
+
+      assert Tuist.Authentication.authenticated_subject(user.token).id == user.id
+
+      # Account tokens share `guardian_tokens`, with `sub` holding an account
+      # ID that can equal the user's ID. They are not the user's credentials.
+      account = user_fixture().account
+
+      {:ok, account_refresh_token, %{"jti" => account_jti}} =
+        Tuist.Guardian.encode_and_sign(account, %{"type" => "account", "scopes" => ["ci"]}, token_type: "refresh")
+
+      Repo.update_all(from(t in "guardian_tokens", where: t.jti == ^account_jti), set: [sub: to_string(user.id)])
+
+      other = user_fixture()
+      {:ok, other_refresh_token, _} = Tuist.Authentication.encode_and_sign(other, %{}, token_type: :refresh)
+
+      {:ok, lv, _} = live(build_conn(), ~p"/users/reset_password/#{token}")
+      submit_password(lv, "new valid password")
+
+      assert api_refresh(refresh_token).status == 401
+      refute Tuist.Authentication.authenticated_subject(access_token)
+      refute Tuist.Authentication.authenticated_subject(user.token)
+      assert {:ok, _, _} = Tuist.Guardian.resource_from_token(account_refresh_token, %{"typ" => "refresh"})
+      assert api_refresh(other_refresh_token).status == 200
+      assert Tuist.Authentication.authenticated_subject(other.token).id == other.id
+    end
+  end
+
+  defp api_refresh(refresh_token) do
+    build_conn()
+    |> put_req_header("content-type", "application/json")
+    |> post("/api/auth/refresh_token", %{refresh_token: refresh_token})
   end
 
   defp active_session_tokens(user) do

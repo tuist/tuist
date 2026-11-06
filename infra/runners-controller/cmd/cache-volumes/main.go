@@ -270,7 +270,7 @@ func main() {
 	client := cachevolumes.NewServerClient(6 * time.Minute)
 	metrics := newVolumeMetrics(slog.New(slog.NewJSONHandler(os.Stderr, nil)), uint64(*minFreeGB)*1_000_000_000)
 	transfer := &imageTransfer{URL: strings.TrimSuffix(*url, "/authorize") + "/image", Node: *node, TokenPath: *tokenPath, Client: client, MaxBytes: maxBytes, Log: metrics.logger}
-	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Log: metrics.logger, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
+	backend := &cachevolumes.LocalImages{Observe: metrics.observe, Log: metrics.logger, Root: *root, SizeGB: *sizeGB, MinFreeBytes: uint64(*minFreeGB) * 1_000_000_000, Transfer: transfer, Mount: cachevolumes.Mount, Unmount: cachevolumes.Unmount, Trim: cachevolumes.TrimFS, MeasureFS: cachevolumes.MeasureFS, FreeBytes: cachevolumes.FreeBytes}
 	// A master another host superseded is refreshed in the background when it was
 	// used within the last day, so this host's next job attaches locally.
 	backend.RefreshWithin = 24 * time.Hour
@@ -363,7 +363,7 @@ func dedicatedFilesystem(root string, references ...string) error {
 
 func (a *agent) report(slot cachevolumes.Slot, gone bool) (string, error) {
 	state := slot.State
-	fields := map[string]any{"id": slot.ID, "node_name": a.node, "state": state, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": slot.AttachMS, "mounted_generation": mountedGeneration(slot)}
+	fields := map[string]any{"id": slot.ID, "node_name": a.node, "state": state, "gone": gone, "warm": slot.Warm, "size_bytes": slot.SizeBytes, "capacity_bytes": slot.CapacityBytes, "attach_ms": slot.AttachMS, "mounted_generation": mountedGeneration(slot), "cold_reason": coldReason(slot)}
 	// A finished data root's inventory, for the dashboard; it decides nothing.
 	if slot.Kind == cachevolumes.KindDocker && gone && state == "active" {
 		if inventory := a.dockerInventory(slot); inventory != nil {
@@ -409,6 +409,13 @@ func mountedGeneration(slot cachevolumes.Slot) any {
 		return nil
 	}
 	return slot.MountedGeneration
+}
+
+func coldReason(slot cachevolumes.Slot) any {
+	if slot.ColdReason == "" {
+		return nil
+	}
+	return slot.ColdReason
 }
 
 // runnerPod reports whether the request comes from the live runner pod it names

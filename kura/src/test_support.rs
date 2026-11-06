@@ -73,6 +73,7 @@ where
         file_descriptor_acquire_timeout_ms: 5_000,
         drain_completion_timeout_ms: 240_000,
         relaxed_durability_sync_interval_ms: None,
+        reapi_splice_verification_concurrency: 4,
         segment_handle_cache_size: 8,
         memory_limit_bytes: 512 * 1024 * 1024,
         memory_soft_limit_bytes: 128 * 1024 * 1024,

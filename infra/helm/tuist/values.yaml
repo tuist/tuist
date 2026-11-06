@@ -822,6 +822,14 @@ server:
     # this stays off everywhere else and the client then has no key to use.
     atlasEmail:
       enabled: false
+    # Public OAuth client ID for linking ChatGPT subscriptions
+    # (TUIST_CHATGPT_CLIENT_ID). Without it the ChatGPT option stays hidden.
+    # Enable only after the item exists in the environment's vault: a missing
+    # item fails the pre-upgrade ExternalSecret and blocks the deploy.
+    chatgptClient:
+      enabled: false
+      item: CHATGPT_OAUTH
+      field: client_id
     # Origin app identity. Enable only after the registered App ID and its
     # signing key exist together in the environment's vault.
     originAppKey:
@@ -829,6 +837,17 @@ server:
       item: ORIGIN_APP
       appIdField: app_id
       field: private_key
+    # Apple Push Notification service token-auth key for the Tuist iOS app
+    # (the APNS item: key_id, team_id, topic, private-key.p8). Enable only
+    # after the item exists in the environment's vault, since a missing field
+    # fails the whole sync.
+    apns:
+      enabled: false
+    # Firebase Cloud Messaging service account for the Tuist Android app (the
+    # FCM item's service-account.json). Same rule as apns: enable only after
+    # the item exists in the environment's vault.
+    fcm:
+      enabled: false
     # Private half of the keypair cache tokens are signed with, so that a cache
     # node given the public half reads them without calling back here. Off until
     # a pair exists in the environment's vault: cache tokens are then signed by
@@ -877,12 +896,11 @@ server:
   # secret store (server.config / 1Password STRIPE item).
   stripe:
     prices: {}
-  # Mailing identity (Mailgun sending domain + from/reply-to addresses). Not
-  # secrets — just the sender identity, shared across envs — so they live here,
-  # wired to TUIST_MAILING_* env vars. The Mailgun API key stays in the secret
-  # store (server.config / 1Password MAILGUN item). Empty by default; managed
-  # values set them.
+  # Mailing provider and sender identity. Credentials stay in server.config;
+  # managed SES reads SES/{access_key_id,secret_access_key} from each env's vault.
   mailing:
+    provider: mailgun
+    sesRegion: ""
     domain: ""
     fromAddress: ""
     replyToAddress: ""
@@ -2652,6 +2670,20 @@ macosFleet:
 # separate substrate on the same nodes. See infra/sandboxd/AGENTS.md.
 sandboxes:
   enabled: false
+  macos:
+    enabled: false
+    templateName: macos
+    xcodeVersion: "26.6"
+    # Empty follows the same released, digest-pinned image as the CI pool.
+    image: ""
+    # Pre-booted 8 vCPU / 8 GiB sandbox VMs that a create claims instead of
+    # cold-booting. They are a RunnerPool on `fleetSelector` (default: the
+    # macOS runner fleet) and share its warm-pool budget with CI. The pool
+    # keeps no always-on floor yet: the template renders `minWarmPoolFloor: 0`.
+    warm:
+      enabled: false
+      fleetSelector: ""
+      maxReplicas: 1
   namespace: tuist-sandboxes
   # Immutable tags from sandboxd-image.yml and sandbox-image.yml. Managed
   # server deploys publish and select both; environment values pin only the
@@ -3114,7 +3146,7 @@ runnersFleetLinux:
     maxSlots: 100
     minFreeGB: 40 # Includes room for a private image and its publication archive.
     volumeGB: 20
-    maxVolumeGB: 32 # Largest volume this host accepts; the server never allocates more.
+    maxVolumeGB: 100 # Largest volume this host accepts, as for Docker volumes and macOS; the server never allocates more.
     provisioning:
       enabled: false
       sizeGB: 200
@@ -3234,6 +3266,22 @@ runnersFleetLinux:
   # desired image prepares in the background. Recomputed on every deploy;
   # empty in source values so holds do not become permanent image pins.
   imageHolds: {}
+  # Ubuntu releases a Linux Runner Profile can pick (`os_version` on the
+  # profile). Every shape renders one pool per entry that has an image;
+  # the server is told the same list (TUIST_RUNNER_LINUX_OS_VERSIONS), so
+  # it offers only an OS with pools. Exactly one entry is `default: true`:
+  # it runs `shapeRunnerImage` under the shape-only pool names, and new
+  # profiles get it. Other entries take `runnerImage`, or the
+  # deploy-resolved `osRunnerImages.<tag>` (tag = osVersion with dots as
+  # dashes), and their pools start at a warm floor of 0 unless their
+  # `autoscaling` block says otherwise. See
+  # infra/linux-runner-image/image-rollout.md for retiring an entry.
+  osVersions:
+    - osVersion: ubuntu-24.04
+      default: true
+  # Deployment-resolved digest per non-default OS tag, e.g.
+  # `ubuntu-22-04: ghcr.io/tuist/tuist-linux-runner@sha256:...`.
+  osRunnerImages: {}
   shapeRuntimeClass: "kata-qemu"
   shapeAutoscaling:
     enabled: true

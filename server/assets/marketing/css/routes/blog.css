@@ -164,7 +164,7 @@
       align-items: center;
       gap: var(--noora-spacing-4);
       /* Keeps the buttons at the right edge next to the narrow dropdown. */
-      margin-left: auto;
+      margin-inline-start: auto;
 
       & form {
         /* Tablets have room for the field beside the dropdown, so only phones
@@ -230,7 +230,7 @@
            spans the full width instead of hugging the right edge. */
         & > [data-part="actions"] {
           flex: 1;
-          margin-left: 0;
+          margin-inline-start: 0;
         }
 
         & > [data-part="actions"] > form {
@@ -284,7 +284,7 @@
         }
 
         &:not(:nth-child(2n + 1)) {
-          border-left: 1px solid var(--marketing-stroke-default);
+          border-inline-start: 1px solid var(--marketing-stroke-default);
         }
       }
 
@@ -294,7 +294,7 @@
         }
 
         &:not(:nth-child(3n + 1)) {
-          border-left: 1px solid var(--marketing-stroke-default);
+          border-inline-start: 1px solid var(--marketing-stroke-default);
         }
       }
     }
@@ -418,6 +418,12 @@
             opacity 0.2s ease,
             transform 0.2s var(--ease-out-cubic);
           color: var(--noora-surface-label-primary);
+
+          /* Travels from the inline start: mirrored in RTL. :where() keeps the
+             specificity so the card's hover/focus rule still wins. */
+          :where([dir="rtl"]) & {
+            transform: translateX(4px);
+          }
         }
       }
     }

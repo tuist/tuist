@@ -143,6 +143,7 @@ private struct ActivationCapabilities: Build_Bazel_Remote_Execution_V2_Capabilit
         #expect(request.message.instanceName == "project")
         #expect(Array(request.metadata[stringValues: "authorization"]) == state.expectedToken.map { ["Bearer \($0)"] } ?? [])
         #expect(Array(request.metadata[stringValues: "x-tuist-account-handle"]) == ["account"])
+        #expect(request.metadata[stringValues: "user-agent"].map { $0.hasPrefix("tuist/") } == [true])
         try await state.probe()
         return ServerResponse(message: .with { $0.cacheCapabilities.digestFunctions = [.sha256] }, metadata: [:])
     }

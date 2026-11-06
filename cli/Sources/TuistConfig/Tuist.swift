@@ -43,10 +43,25 @@ public struct Tuist: Equatable, Hashable, Sendable {
             }
         }
 
-        public let coverage: Coverage
+        public struct SelectiveTesting: Equatable, Hashable, Sendable {
+            public enum Strategy: Equatable, Hashable, Sendable {
+                case coverage
+            }
 
-        public init(coverage: Coverage = Coverage()) {
+            /// nil for the default selective testing, which skips only test targets whose hash already passed.
+            public let strategy: Strategy?
+
+            public init(strategy: Strategy? = nil) {
+                self.strategy = strategy
+            }
+        }
+
+        public let coverage: Coverage
+        public let selectiveTesting: SelectiveTesting?
+
+        public init(coverage: Coverage = Coverage(), selectiveTesting: SelectiveTesting? = nil) {
             self.coverage = coverage
+            self.selectiveTesting = selectiveTesting
         }
     }
 

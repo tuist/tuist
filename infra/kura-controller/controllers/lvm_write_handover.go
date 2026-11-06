@@ -15,6 +15,21 @@ import (
 
 const lvmWriteTargetAnnotation = "kura.tuist.dev/lvm-write-target"
 
+// An operator sets this on a KuraInstance whose owner accepts cache misses to
+// move a full cache: two full replicas evict independently, so the source
+// always retains records its destination dropped and the content proof can
+// never pass. A waived handoff moves like a legacy one (endpoint handoff,
+// connection retirement, rebuild and backfill) without a write bridge, so a
+// write acknowledged by the donor during the move may be missing afterwards.
+const lvmAcceptCacheLossAnnotation = "kura.tuist.dev/lvm-accept-cache-loss"
+
+// A source already bound to a destination keeps its bridge: clearing it could
+// move routing past writes the bridge is still proving. Unselect the source
+// node first so the controller aborts the undemoted handoff.
+func lvmProofWaived(instance *kurav1.KuraInstance, source *corev1.Pod) bool {
+	return instance.Annotations[lvmAcceptCacheLossAnnotation] == "true" && source.Annotations[lvmWriteTargetAnnotation] == ""
+}
+
 type lvmWriteTarget struct {
 	Pod               string          `json:"pod"`
 	UID               string          `json:"uid"`
@@ -26,7 +41,7 @@ type lvmWriteTarget struct {
 // invalidates the attempt; controller restarts cannot silently choose a new peer.
 // Only a destination content receipt permits the later endpoint change.
 func (r *KuraInstanceReconciler) lvmWritesPrepared(ctx context.Context, instance *kurav1.KuraInstance, source *corev1.Pod) (bool, error) {
-	if instance.Spec.StorageClassName != thinLocalStorageClass {
+	if instance.Spec.StorageClassName != thinLocalStorageClass || lvmProofWaived(instance, source) {
 		return true, nil
 	}
 	status, err := r.runtimeStatusClient(instance).Status(ctx, *source)
@@ -109,7 +124,7 @@ func (r *KuraInstanceReconciler) lvmWritesPrepared(ctx context.Context, instance
 }
 
 func (r *KuraInstanceReconciler) lvmDestinationServing(ctx context.Context, instance *kurav1.KuraInstance, source *corev1.Pod) (bool, error) {
-	if instance.Spec.StorageClassName != thinLocalStorageClass {
+	if instance.Spec.StorageClassName != thinLocalStorageClass || lvmProofWaived(instance, source) {
 		return r.servedByAnotherPod(ctx, instance, source.Name)
 	}
 	var intent lvmWriteTarget

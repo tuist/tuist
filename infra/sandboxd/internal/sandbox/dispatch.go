@@ -2,13 +2,17 @@ package sandbox
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/hostinfo"
-	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
 )
 
@@ -117,6 +121,9 @@ func Dispatch(ctx context.Context, ops Operations, cmd protocol.Command, stream 
 		if err := decode(&args); err != nil {
 			return protocol.ErrorResult(cmd.ID, err)
 		}
+		if args.Claim != nil {
+			return claimedExec(ctx, ops, cmd.ID, args)
+		}
 		// The server keeps at most a megabyte of output per exec; anything
 		// past maxExecStreamBytes is dropped here instead of crossing the
 		// WebSocket. The command itself runs to completion.
@@ -209,4 +216,43 @@ func Dispatch(ctx context.Context, ops Operations, cmd protocol.Command, stream 
 	default:
 		return protocol.ErrorResult(cmd.ID, fmt.Errorf("unknown op %q", cmd.Op))
 	}
+}
+
+const maxClaimTimeout = time.Minute
+
+// claimedExec waits for the exec's claim and runs it with the claimed
+// value. Its output goes only to the claimer; the server learns the exit
+// code, or that the claim expired with the VM untouched.
+func claimedExec(ctx context.Context, ops Operations, id string, args protocol.ExecArgs) protocol.Result {
+	provider, ok := ops.(interface{ Claims() *Claims })
+	if !ok {
+		return protocol.ErrorResult(id, errors.New("exec: claims are not supported"))
+	}
+	digest, err := hex.DecodeString(args.Claim.NonceSHA256)
+	timeout := time.Duration(args.Claim.TimeoutMs) * time.Millisecond
+	if err != nil || len(digest) != sha256.Size || args.Claim.Env == "" || timeout <= 0 || timeout > maxClaimTimeout {
+		return protocol.ErrorResult(id, errors.New("exec: invalid claim"))
+	}
+	offer, claimed, err := provider.Claims().wait(ctx, args.SandboxID, [sha256.Size]byte(digest), timeout)
+	if err != nil {
+		return protocol.ErrorResult(id, err)
+	}
+	if !claimed {
+		return protocol.OKResult(id, protocol.ExecResult{Unclaimed: true})
+	}
+	env := make(map[string]string, len(args.Env)+1)
+	maps.Copy(env, args.Env)
+	env[args.Claim.Env] = offer.value
+	args.Env = env
+	var stdout []byte
+	res, err := ops.Exec(ctx, args, func(name string, data []byte) {
+		if name == "stdout" && len(stdout) < maxExecStreamBytes {
+			stdout = append(stdout, data[:min(len(data), maxExecStreamBytes-len(stdout))]...)
+		}
+	})
+	offer.outcome <- ClaimOutcome{ExitCode: res.ExitCode, Stdout: stdout, Err: err}
+	if err != nil {
+		return protocol.ErrorResult(id, err)
+	}
+	return protocol.OKResult(id, res)
 }

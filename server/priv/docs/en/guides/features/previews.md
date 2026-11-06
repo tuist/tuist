@@ -37,6 +37,11 @@ Choose your build system for setup and publication commands:
     details="Share Android apps, Apple apps, and command-line tools with companion Bazel rules."
     link="/guides/features/previews/bazel"
   />
+  <.home_card
+    title="Once"
+    details="Publish eligible Android, Apple simulator, and macOS applications with Once's native artifact provider."
+    link="/guides/features/previews/once"
+  />
 </.home_cards>
 
 If you already have a supported build, use <.localized_link href="/cli/share">`tuist share`</.localized_link> to publish it without a build-system integration. Packaging and signing requirements still apply.

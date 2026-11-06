@@ -58,6 +58,20 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   defp sso_claims(_token, _user), do: %{}
 
+  # Tokens exchanged for a code or refreshed keep the time of the sign-in that
+  # authorized the grant, which `Tuist.Accounts.credentials_revoked?/2` checks.
+  defp auth_time_claim(%Token{previous_token: previous}) when is_binary(previous), do: inherited_auth_time(previous)
+  defp auth_time_claim(%Token{previous_code: previous}) when is_binary(previous), do: inherited_auth_time(previous)
+  defp auth_time_claim(_token), do: %{}
+
+  defp inherited_auth_time(previous) do
+    case previous_claims(previous) do
+      %{"auth_time" => auth_time} -> %{"auth_time" => auth_time}
+      %{"iat" => iat} -> %{"auth_time" => iat}
+      _ -> %{}
+    end
+  end
+
   defp previous_claims(previous) do
     case Tuist.Guardian.peek(previous) do
       %{claims: claims} when is_map(claims) -> claims
@@ -118,6 +132,7 @@ defmodule Tuist.OAuth.TokenGenerator do
 
       claims =
         claims
+        |> Map.merge(auth_time_claim(token))
         |> Map.merge(sso_claims(token, user))
         |> Map.merge(Cache.embedded_cache_claims(cache_subject, recent: 5))
 

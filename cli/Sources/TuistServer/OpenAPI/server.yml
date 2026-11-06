@@ -2,6 +2,43 @@
 components:
   responses: {}
   schemas:
+    DeviceAuthorization:
+      properties:
+        device_code:
+          description: The secret code to poll for tokens with.
+          type: string
+          x-struct:
+          x-validate:
+        expires_in:
+          description: Seconds until the codes expire.
+          type: integer
+          x-struct:
+          x-validate:
+        interval:
+          description: Seconds to wait between polls.
+          type: integer
+          x-struct:
+          x-validate:
+        user_code:
+          description: The short code the person enters in the browser.
+          type: string
+          x-struct:
+          x-validate:
+        verification_uri:
+          description: The page where the person enters the code.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - device_code
+        - user_code
+        - verification_uri
+        - expires_in
+        - interval
+      title: DeviceAuthorization
+      type: object
+      x-struct:
+      x-validate:
     AuthenticationTokens:
       description: A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
       properties:
@@ -443,6 +480,12 @@ components:
           type: integer
           x-struct:
           x-validate:
+        test_impact_run_id:
+          description: The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         xcode_version:
           description: The version of Xcode used during the run.
           type: string
@@ -799,6 +842,39 @@ components:
       minimum: 1
       title: MixBuildsIndexPage
       type: integer
+      x-struct:
+      x-validate:
+    AISubscription:
+      properties:
+        connected:
+          description: Whether credentials are saved for the provider.
+          type: boolean
+          x-struct:
+          x-validate:
+        login_available:
+          description: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+          type: boolean
+          x-struct:
+          x-validate:
+        provider:
+          description: 'The provider. Known values: `claude`, `chatgpt`.'
+          type: string
+          x-struct:
+          x-validate:
+        updated_at:
+          description: When the connection last changed, or null if it was never connected.
+          format: date-time
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - provider
+        - connected
+        - updated_at
+        - login_available
+      title: AISubscription
+      type: object
       x-struct:
       x-validate:
     CommandEventArtifact:
@@ -3722,6 +3798,30 @@ components:
       type: object
       x-struct:
       x-validate:
+    SkippedTest:
+      description: A test not to run, named the same way for every build system; each client turns it into its own filters. An entry with only `module` skips the whole module, which happens only when none of its tests is selected. Entries are never collapsed into a suite.
+      properties:
+        module:
+          description: The test module (target, Gradle module, Mix app, or crate).
+          type: string
+          x-struct:
+          x-validate:
+        name:
+          description: The name of the test. Absent when the whole module is skipped.
+          type: string
+          x-struct:
+          x-validate:
+        suite:
+          description: The suite (class) of the test. Absent when the whole module is skipped.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - module
+      title: SkippedTest
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestImpact.SkippedTest
+      x-validate:
     BazelBuildAction:
       properties:
         first_seen_at:
@@ -3974,6 +4074,12 @@ components:
           type: array
           x-struct:
           x-validate:
+        test_impact_run_id:
+          description: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         test_suites:
           description: Test suite names (for suite-level granularity).
           items:
@@ -4040,6 +4146,13 @@ components:
             type: string
             x-struct:
             x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        skipped_tests:
+          description: "For plans created with a `test_impact_run_id`: the tests in this shard's suites that coverage-based test selection skipped. The final catch-all shard's list also has the other shards' suites and everything selection skipped outside them. Absent for other plans."
+          items:
+            $ref: '#/components/schemas/SkippedTest'
           type: array
           x-struct:
           x-validate:
@@ -4409,6 +4522,19 @@ components:
         - started_at
         - inserted_at
       title: MixBuildDetail
+      type: object
+      x-struct:
+      x-validate:
+    ChatGPTSubscriptionLoginStatus:
+      properties:
+        status:
+          description: 'Known values: `pending`, `connected`.'
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - status
+      title: ChatGPTSubscriptionLoginStatus
       type: object
       x-struct:
       x-validate:
@@ -7154,6 +7280,14 @@ components:
           type: integer
           x-struct:
           x-validate:
+        platform:
+          default: linux
+          enum:
+            - linux
+            - darwin
+          type: string
+          x-struct:
+          x-validate:
         template:
           type: string
           x-struct:
@@ -7174,6 +7308,7 @@ components:
       required:
         - id
         - anthropic_environment_id
+        - platform
         - template
         - vcpus
         - memory_mb
@@ -7535,6 +7670,11 @@ components:
         partial:
           description: Whether the run left tests out on purpose (filters, selective testing), so its coverage describes only the tests that ran.
           type: boolean
+          x-struct:
+          x-validate:
+        platform:
+          description: The platform the tests ran on, from the destination the client resolved, such as `ios` or `macos`. Coverage-based test selection only picks a baseline whose runs tested the same platform. Absent where the build system has none.
+          type: string
           x-struct:
           x-validate:
         storage_key:
@@ -8041,6 +8181,7 @@ components:
             - 4096
             - 8192
             - 16384
+            - 24576
           type: integer
           x-struct:
           x-validate:
@@ -8056,6 +8197,14 @@ components:
           type: integer
           x-struct:
           x-validate:
+        platform:
+          default: linux
+          enum:
+            - linux
+            - darwin
+          type: string
+          x-struct:
+          x-validate:
         template:
           description: Sandbox template name.
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -8063,7 +8212,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+          description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
           enum:
             - 2
             - 4
@@ -9569,6 +9718,51 @@ components:
       type: object
       x-struct:
       x-validate:
+    AISubscriptions:
+      properties:
+        subscriptions:
+          items:
+            properties:
+              connected:
+                description: Whether credentials are saved for the provider.
+                type: boolean
+                x-struct:
+                x-validate:
+              login_available:
+                description: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                type: boolean
+                x-struct:
+                x-validate:
+              provider:
+                description: 'The provider. Known values: `claude`, `chatgpt`.'
+                type: string
+                x-struct:
+                x-validate:
+              updated_at:
+                description: When the connection last changed, or null if it was never connected.
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - provider
+              - connected
+              - updated_at
+              - login_available
+            title: AISubscription
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - subscriptions
+      title: AISubscriptions
+      type: object
+      x-struct:
+      x-validate:
     GradleBuildsIndexPage:
       default: 1
       description: The page number to return.
@@ -9724,6 +9918,29 @@ components:
       title: CrashReportParams
       type: object
       x-struct:
+      x-validate:
+    TestImpactBaseline:
+      description: The nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, or the reason there's none.
+      properties:
+        baseline_sha:
+          description: The baseline commit. Null when there's none, and `reason` says why.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        diff_cached:
+          description: Whether the diff between the checked-out commit and the baseline is already stored. When true and the checkout is clean, the client skips deepening and diffing and sends no `changed_files`.
+          type: boolean
+          x-struct:
+          x-validate:
+        reason:
+          description: "Why there's no baseline: `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, or `not_enabled`. `history_unknown` means the server's history has none of the checked-out commit, the parents and the ancestors sent: the client deepens its checkout once by 100 commits and repeats the request with `ancestor_shas`. After `not_enabled` the client runs default selective testing and makes no further selection call; after any other reason it still creates the impact run, with the reason as `fallback_reason`. A plain string so new reasons don't break older clients, which treat an unknown reason like `not_enabled`."
+          type: string
+          x-struct:
+          x-validate:
+      title: TestImpactBaseline
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestImpact.Baseline
       x-validate:
     CargoCrate:
       properties:
@@ -10034,6 +10251,69 @@ components:
       type: integer
       x-struct:
       x-validate:
+    ResolveTestImpactBaselineParams:
+      properties:
+        ancestor_shas:
+          description: "The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges."
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        build_system:
+          description: The build system, `xcode` first. A plain string so new build systems don't need a new client.
+          type: string
+          x-struct:
+          x-validate:
+        commit_sha:
+          description: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+          type: string
+          x-struct:
+          x-validate:
+        parent_shas:
+          description: "The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both."
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        platform:
+          description: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+          type: string
+          x-struct:
+          x-validate:
+        xcode:
+          description: 'Xcode only: the scope the invocation tests.'
+          properties:
+            destination:
+              description: The destination the tests run on.
+              type: string
+              x-struct:
+              x-validate:
+            scheme:
+              description: The scheme being tested.
+              type: string
+              x-struct:
+              x-validate:
+            test_plan:
+              description: The test plan being run.
+              type: string
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - build_system
+        - commit_sha
+      title: ResolveTestImpactBaselineParams
+      type: object
+      x-struct:
+      x-validate:
     OnceRunsIndexPage:
       default: 1
       description: The page number to return.
@@ -10268,6 +10548,44 @@ components:
         - actions
         - tests
       title: OnceRunDetail
+      type: object
+      x-struct:
+      x-validate:
+    ChatGPTSubscriptionLogin:
+      properties:
+        expires_at:
+          description: When the sign-in expires.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        interval:
+          description: The minimum number of seconds between polls.
+          type: integer
+          x-struct:
+          x-validate:
+        login_id:
+          description: The opaque ID to poll and cancel the sign-in with.
+          type: string
+          x-struct:
+          x-validate:
+        user_code:
+          description: The code the user enters on the verification page.
+          type: string
+          x-struct:
+          x-validate:
+        verification_url:
+          description: The OpenAI page where the user enters the code.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - login_id
+        - user_code
+        - verification_url
+        - interval
+        - expires_at
+      title: ChatGPTSubscriptionLogin
       type: object
       x-struct:
       x-validate:
@@ -11037,7 +11355,16 @@ components:
             - 4096
             - 8192
             - 16384
+            - 24576
           type: integer
+          x-struct:
+          x-validate:
+        platform:
+          default: linux
+          enum:
+            - linux
+            - darwin
+          type: string
           x-struct:
           x-validate:
         template:
@@ -11047,7 +11374,7 @@ components:
           x-struct:
           x-validate:
         vcpus:
-          description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+          description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
           enum:
             - 2
             - 4
@@ -11102,6 +11429,25 @@ components:
         - token
         - expires_in
       title: CacheToken
+      type: object
+      x-struct:
+      x-validate:
+    RunnerVolumeDeleted:
+      additionalProperties: false
+      properties:
+        deleted:
+          type: boolean
+          x-struct:
+          x-validate:
+        id:
+          nullable: false
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - deleted
+        - id
+      title: RunnerVolumeDeleted
       type: object
       x-struct:
       x-validate:
@@ -11904,6 +12250,65 @@ components:
       type: integer
       x-struct:
       x-validate:
+    TestImpactRun:
+      description: 'The impact run: whether coverage selected tests or the invocation fell back.'
+      properties:
+        counts:
+          description: Test counts for the client's output. Present when the outcome is `selected`.
+          properties:
+            requested:
+              description: The tests in scope, the ones in modules skipped because their hash matched included.
+              type: integer
+              x-struct:
+              x-validate:
+            selected:
+              description: The tests that will run.
+              type: integer
+              x-struct:
+              x-validate:
+            skipped:
+              description: 'The tests not to run: those coverage skipped plus those in modules skipped by hash.'
+              type: integer
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
+        id:
+          description: The impact run. Sent as `test_impact_run_id` when planning shards (on `selected`) and when uploading the test run (always).
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        matched_path:
+          description: The file that caused the fallback, such as the tracked file that changed.
+          type: string
+          x-struct:
+          x-validate:
+        outcome:
+          description: "`selected` or `fallback`. On `fallback` the client runs every test in scope or default selective testing, depending on `reason`. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`."
+          type: string
+          x-struct:
+          x-validate:
+        reason:
+          description: Why the run fell back, such as `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`.
+          type: string
+          x-struct:
+          x-validate:
+        skipped_tests:
+          description: "The tests not to run, present when the outcome is `selected`. Sharded runs ignore it and read each shard's list from the shard instead. A test the server doesn't know, such as one added in this change, is never on it and runs."
+          items:
+            $ref: '#/components/schemas/SkippedTest'
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - outcome
+      title: TestImpactRun
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestImpact.Run
+      x-validate:
     TestSuiteRunStatus:
       enum:
         - success
@@ -12386,7 +12791,7 @@ components:
       x-struct:
       x-validate:
     Sandbox:
-      description: A Firecracker sandbox VM.
+      description: A persistent Linux or macOS sandbox VM.
       properties:
         agent_environment_id:
           nullable: true
@@ -12457,9 +12862,22 @@ components:
           type: string
           x-struct:
           x-validate:
+        platform:
+          default: linux
+          enum:
+            - linux
+            - darwin
+          type: string
+          x-struct:
+          x-validate:
         residency_work_id:
           nullable: true
           type: string
+          x-struct:
+          x-validate:
+        resident:
+          description: Whether a macOS sandbox retains its process and capacity.
+          type: boolean
           x-struct:
           x-validate:
         state:
@@ -12471,6 +12889,11 @@ components:
             - archived
             - error
             - deleted
+          type: string
+          x-struct:
+          x-validate:
+        status:
+          description: 'The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.'
           type: string
           x-struct:
           x-validate:
@@ -12587,6 +13010,23 @@ components:
         - failure
       title: BuildStatus
       type: string
+      x-struct:
+      x-validate:
+    FeatureFlags:
+      properties:
+        enabled:
+          description: 'The names of the enabled flags. Known values: `ai`.'
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - enabled
+      title: FeatureFlags
+      type: object
       x-struct:
       x-validate:
     BuildIssuesIndexPage:
@@ -14615,6 +15055,160 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.AppBuild
       x-validate:
+    CreateTestImpactRunParams:
+      properties:
+        ancestor_shas:
+          description: The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        baseline_sha:
+          description: The baseline the baseline request returned. When absent, `fallback_reason` says why.
+          type: string
+          x-struct:
+          x-validate:
+        build_system:
+          description: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
+          type: string
+          x-struct:
+          x-validate:
+        changed_files:
+          description: "The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`."
+          items:
+            properties:
+              affected_modules:
+                description: "The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it."
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              blob:
+                description: The file's blob in the checkout. Required except for deleted files.
+                type: string
+                x-struct:
+                x-validate:
+              path:
+                description: The repository-relative path.
+                type: string
+                x-struct:
+                x-validate:
+              status:
+                description: The change, as `git diff --raw` reports it.
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - path
+              - status
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        changed_files_count:
+          description: 'Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.'
+          type: integer
+          x-struct:
+          x-validate:
+        commit_sha:
+          description: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+          type: string
+          x-struct:
+          x-validate:
+        dirty:
+          default: false
+          description: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+          type: boolean
+          x-struct:
+          x-validate:
+        fallback_reason:
+          description: "The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
+          type: string
+          x-struct:
+          x-validate:
+        git_branch:
+          description: The git branch, shown on the overview.
+          type: string
+          x-struct:
+          x-validate:
+        head_sha:
+          description: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+          type: string
+          x-struct:
+          x-validate:
+        modules:
+          description: "Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules."
+          items:
+            properties:
+              name:
+                description: The test module.
+                type: string
+                x-struct:
+                x-validate:
+              skipped:
+                description: Whether the client skipped the module because its hash matched. Defaults to false.
+                type: boolean
+                x-struct:
+                x-validate:
+            required:
+              - name
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        parent_shas:
+          description: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        platform:
+          description: The platform the tests run on. Absent where the build system has none.
+          type: string
+          x-struct:
+          x-validate:
+        xcode:
+          description: 'Xcode only: the scope the invocation tests.'
+          properties:
+            destination:
+              description: The destination the tests run on.
+              type: string
+              x-struct:
+              x-validate:
+            scheme:
+              description: The scheme being tested.
+              type: string
+              x-struct:
+              x-validate:
+            test_plan:
+              description: The test plan being run.
+              type: string
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - build_system
+        - head_sha
+        - modules
+      title: CreateTestImpactRunParams
+      type: object
+      x-struct:
+      x-validate:
     ValidationError:
       properties:
         fields:
@@ -15899,6 +16493,1384 @@ components:
       type: object
       x-struct:
       x-validate:
+    SandboxAnalyticsConcurrency:
+      additionalProperties: false
+      properties:
+        in_use:
+          additionalProperties: false
+          properties:
+            disk_gb:
+              type: number
+              x-struct:
+              x-validate:
+            memory_gb:
+              type: number
+              x-struct:
+              x-validate:
+            vcpus:
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - disk_gb
+            - memory_gb
+            - vcpus
+          title: SandboxResourcesInUse
+          type: object
+          x-struct:
+          x-validate:
+        limits:
+          additionalProperties: false
+          properties:
+            disk_gb:
+              type: number
+              x-struct:
+              x-validate:
+            memory_gb:
+              type: number
+              x-struct:
+              x-validate:
+            vcpus:
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - disk_gb
+            - memory_gb
+            - vcpus
+          title: SandboxResourceLimits
+          type: object
+          x-struct:
+          x-validate:
+        points:
+          items:
+            additionalProperties: false
+            properties:
+              at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              disk_gb:
+                type: number
+                x-struct:
+                x-validate:
+              memory_gb:
+                type: number
+                x-struct:
+                x-validate:
+              vcpus:
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - at
+              - disk_gb
+              - memory_gb
+              - vcpus
+            title: SandboxAnalyticsConcurrencyPoint
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - in_use
+        - limits
+        - points
+      title: SandboxAnalyticsConcurrency
+      type: object
+      x-struct:
+      x-validate:
+    SandboxAnalyticsSessionDuration:
+      additionalProperties: false
+      description: Run sessions that ended in the range. Points without any have null figures.
+      properties:
+        avg_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        count:
+          type: integer
+          x-struct:
+          x-validate:
+        p50_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        p90_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        p99_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        points:
+          items:
+            additionalProperties: false
+            properties:
+              at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              avg_ms:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              p50_ms:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              p90_ms:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              p99_ms:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - at
+              - avg_ms
+              - p50_ms
+              - p90_ms
+              - p99_ms
+            title: SandboxAnalyticsSessionDurationPoint
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        trend_avg:
+          description: Percent change against the range of the same length before it; 0 when either is 0.
+          type: number
+          x-struct:
+          x-validate:
+        trend_p50:
+          description: Percent change against the range of the same length before it; 0 when either is 0.
+          type: number
+          x-struct:
+          x-validate:
+        trend_p90:
+          description: Percent change against the range of the same length before it; 0 when either is 0.
+          type: number
+          x-struct:
+          x-validate:
+        trend_p99:
+          description: Percent change against the range of the same length before it; 0 when either is 0.
+          type: number
+          x-struct:
+          x-validate:
+      required:
+        - avg_ms
+        - count
+        - p50_ms
+        - p90_ms
+        - p99_ms
+        - points
+        - trend_avg
+        - trend_p50
+        - trend_p90
+        - trend_p99
+      title: SandboxAnalyticsSessionDuration
+      type: object
+      x-struct:
+      x-validate:
+    SandboxAnalyticsSessionDurationPoint:
+      additionalProperties: false
+      properties:
+        at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        avg_ms:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        p50_ms:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        p90_ms:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        p99_ms:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - at
+        - avg_ms
+        - p50_ms
+        - p90_ms
+        - p99_ms
+      title: SandboxAnalyticsSessionDurationPoint
+      type: object
+      x-struct:
+      x-validate:
+    SandboxAnalyticsTimeToStart:
+      additionalProperties: false
+      description: How long sandboxes took to boot (create or restore). Points without any have null figures.
+      properties:
+        avg_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        count:
+          type: integer
+          x-struct:
+          x-validate:
+        p50_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        p90_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        p99_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        points:
+          items:
+            additionalProperties: false
+            properties:
+              at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              avg_ms:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              p50_ms:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              p90_ms:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              p99_ms:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - at
+              - avg_ms
+              - p50_ms
+              - p90_ms
+              - p99_ms
+            title: SandboxAnalyticsTimeToStartPoint
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        trend_avg:
+          description: Percent change against the range of the same length before it; 0 when either is 0.
+          type: number
+          x-struct:
+          x-validate:
+        trend_p50:
+          description: Percent change against the range of the same length before it; 0 when either is 0.
+          type: number
+          x-struct:
+          x-validate:
+        trend_p90:
+          description: Percent change against the range of the same length before it; 0 when either is 0.
+          type: number
+          x-struct:
+          x-validate:
+        trend_p99:
+          description: Percent change against the range of the same length before it; 0 when either is 0.
+          type: number
+          x-struct:
+          x-validate:
+      required:
+        - avg_ms
+        - count
+        - p50_ms
+        - p90_ms
+        - p99_ms
+        - points
+        - trend_avg
+        - trend_p50
+        - trend_p90
+        - trend_p99
+      title: SandboxAnalyticsTimeToStart
+      type: object
+      x-struct:
+      x-validate:
+    SandboxAnalyticsPeriod:
+      additionalProperties: false
+      properties:
+        end:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        start:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - end
+        - start
+      title: SandboxAnalyticsPeriod
+      type: object
+      x-struct:
+      x-validate:
+    SandboxAnalyticsConcurrencyPoint:
+      additionalProperties: false
+      properties:
+        at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        disk_gb:
+          type: number
+          x-struct:
+          x-validate:
+        memory_gb:
+          type: number
+          x-struct:
+          x-validate:
+        vcpus:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - at
+        - disk_gb
+        - memory_gb
+        - vcpus
+      title: SandboxAnalyticsConcurrencyPoint
+      type: object
+      x-struct:
+      x-validate:
+    SandboxAnalyticsCount:
+      additionalProperties: false
+      properties:
+        count:
+          type: integer
+          x-struct:
+          x-validate:
+        points:
+          items:
+            additionalProperties: false
+            properties:
+              at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              value:
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - at
+              - value
+            title: SandboxAnalyticsCountPoint
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        trend:
+          description: Percent change against the range of the same length before it; 0 when either is 0.
+          type: number
+          x-struct:
+          x-validate:
+      required:
+        - count
+        - points
+        - trend
+      title: SandboxAnalyticsCount
+      type: object
+      x-struct:
+      x-validate:
+    SandboxPagination:
+      additionalProperties: false
+      properties:
+        current_page:
+          type: integer
+          x-struct:
+          x-validate:
+        has_next_page:
+          type: boolean
+          x-struct:
+          x-validate:
+        has_previous_page:
+          type: boolean
+          x-struct:
+          x-validate:
+        page_size:
+          type: integer
+          x-struct:
+          x-validate:
+        total_count:
+          type: integer
+          x-struct:
+          x-validate:
+        total_pages:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - current_page
+        - has_next_page
+        - has_previous_page
+        - page_size
+        - total_count
+        - total_pages
+      title: SandboxPagination
+      type: object
+      x-struct:
+      x-validate:
+    SandboxAnalyticsSetup:
+      additionalProperties: false
+      description: How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+      properties:
+        avg_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        count:
+          type: integer
+          x-struct:
+          x-validate:
+        p50_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        p90_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        p99_ms:
+          type: integer
+          x-struct:
+          x-validate:
+        points:
+          items:
+            additionalProperties: false
+            properties:
+              at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              avg_ms:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              p50_ms:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              p90_ms:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              p99_ms:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - at
+              - avg_ms
+              - p50_ms
+              - p90_ms
+              - p99_ms
+            title: SandboxAnalyticsSetupPoint
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        trend_avg:
+          description: Percent change against the range of the same length before it; 0 when either is 0.
+          type: number
+          x-struct:
+          x-validate:
+        trend_p50:
+          description: Percent change against the range of the same length before it; 0 when either is 0.
+          type: number
+          x-struct:
+          x-validate:
+        trend_p90:
+          description: Percent change against the range of the same length before it; 0 when either is 0.
+          type: number
+          x-struct:
+          x-validate:
+        trend_p99:
+          description: Percent change against the range of the same length before it; 0 when either is 0.
+          type: number
+          x-struct:
+          x-validate:
+      required:
+        - avg_ms
+        - count
+        - p50_ms
+        - p90_ms
+        - p99_ms
+        - points
+        - trend_avg
+        - trend_p50
+        - trend_p90
+        - trend_p99
+      title: SandboxAnalyticsSetup
+      type: object
+      x-struct:
+      x-validate:
+    SandboxAnalyticsTimeToStartPoint:
+      additionalProperties: false
+      properties:
+        at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        avg_ms:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        p50_ms:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        p90_ms:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        p99_ms:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - at
+        - avg_ms
+        - p50_ms
+        - p90_ms
+        - p99_ms
+      title: SandboxAnalyticsTimeToStartPoint
+      type: object
+      x-struct:
+      x-validate:
+    SandboxAnalyticsCountPoint:
+      additionalProperties: false
+      properties:
+        at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        value:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - at
+        - value
+      title: SandboxAnalyticsCountPoint
+      type: object
+      x-struct:
+      x-validate:
+    SandboxAnalyticsSetupPoint:
+      additionalProperties: false
+      properties:
+        at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        avg_ms:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        p50_ms:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        p90_ms:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+        p99_ms:
+          nullable: true
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - at
+        - avg_ms
+        - p50_ms
+        - p90_ms
+        - p99_ms
+      title: SandboxAnalyticsSetupPoint
+      type: object
+      x-struct:
+      x-validate:
+    Sandboxes:
+      additionalProperties: false
+      properties:
+        pagination_metadata:
+          additionalProperties: false
+          properties:
+            current_page:
+              type: integer
+              x-struct:
+              x-validate:
+            has_next_page:
+              type: boolean
+              x-struct:
+              x-validate:
+            has_previous_page:
+              type: boolean
+              x-struct:
+              x-validate:
+            page_size:
+              type: integer
+              x-struct:
+              x-validate:
+            total_count:
+              type: integer
+              x-struct:
+              x-validate:
+            total_pages:
+              type: integer
+              x-struct:
+              x-validate:
+          required:
+            - current_page
+            - has_next_page
+            - has_previous_page
+            - page_size
+            - total_count
+            - total_pages
+          title: SandboxPagination
+          type: object
+          x-struct:
+          x-validate:
+        sandboxes:
+          items:
+            description: A persistent Linux or macOS sandbox VM.
+            properties:
+              agent_environment_id:
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              amp_orb_id:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              anthropic_session_id:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              archive_bytes:
+                description: Size of the stored archive in bytes.
+                nullable: true
+                type: integer
+                x-struct:
+                x-validate:
+              archived_at:
+                description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              error_message:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              hostname:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              id:
+                format: uuid
+                type: string
+                x-struct:
+                x-validate:
+              inserted_at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              last_active_at:
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              memory_mb:
+                type: integer
+                x-struct:
+                x-validate:
+              node_name:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              paused_at:
+                format: date-time
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              platform:
+                default: linux
+                enum:
+                  - linux
+                  - darwin
+                type: string
+                x-struct:
+                x-validate:
+              residency_work_id:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              resident:
+                description: Whether a macOS sandbox retains its process and capacity.
+                type: boolean
+                x-struct:
+                x-validate:
+              state:
+                enum:
+                  - creating
+                  - running
+                  - resuming
+                  - paused
+                  - archived
+                  - error
+                  - deleted
+                type: string
+                x-struct:
+                x-validate:
+              status:
+                description: 'The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.'
+                type: string
+                x-struct:
+                x-validate:
+              template:
+                type: string
+                x-struct:
+                x-validate:
+              template_tag:
+                nullable: true
+                type: string
+                x-struct:
+                x-validate:
+              updated_at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              vcpus:
+                type: integer
+                x-struct:
+                x-validate:
+              workspace_gb:
+                type: integer
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - state
+              - template
+              - vcpus
+              - memory_mb
+              - workspace_gb
+              - inserted_at
+              - updated_at
+            title: Sandbox
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - pagination_metadata
+        - sandboxes
+      title: Sandboxes
+      type: object
+      x-struct:
+      x-validate:
+    SandboxAnalytics:
+      additionalProperties: false
+      properties:
+        bucket:
+          description: '`hour` for ranges of up to 36 hours, otherwise `day`: the span of each point.'
+          type: string
+          x-struct:
+          x-validate:
+        concurrency:
+          additionalProperties: false
+          properties:
+            in_use:
+              additionalProperties: false
+              properties:
+                disk_gb:
+                  type: number
+                  x-struct:
+                  x-validate:
+                memory_gb:
+                  type: number
+                  x-struct:
+                  x-validate:
+                vcpus:
+                  type: integer
+                  x-struct:
+                  x-validate:
+              required:
+                - disk_gb
+                - memory_gb
+                - vcpus
+              title: SandboxResourcesInUse
+              type: object
+              x-struct:
+              x-validate:
+            limits:
+              additionalProperties: false
+              properties:
+                disk_gb:
+                  type: number
+                  x-struct:
+                  x-validate:
+                memory_gb:
+                  type: number
+                  x-struct:
+                  x-validate:
+                vcpus:
+                  type: integer
+                  x-struct:
+                  x-validate:
+              required:
+                - disk_gb
+                - memory_gb
+                - vcpus
+              title: SandboxResourceLimits
+              type: object
+              x-struct:
+              x-validate:
+            points:
+              items:
+                additionalProperties: false
+                properties:
+                  at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  disk_gb:
+                    type: number
+                    x-struct:
+                    x-validate:
+                  memory_gb:
+                    type: number
+                    x-struct:
+                    x-validate:
+                  vcpus:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - at
+                  - disk_gb
+                  - memory_gb
+                  - vcpus
+                title: SandboxAnalyticsConcurrencyPoint
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+          required:
+            - in_use
+            - limits
+            - points
+          title: SandboxAnalyticsConcurrency
+          type: object
+          x-struct:
+          x-validate:
+        created:
+          additionalProperties: false
+          properties:
+            count:
+              type: integer
+              x-struct:
+              x-validate:
+            points:
+              items:
+                additionalProperties: false
+                properties:
+                  at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  value:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - at
+                  - value
+                title: SandboxAnalyticsCountPoint
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            trend:
+              description: Percent change against the range of the same length before it; 0 when either is 0.
+              type: number
+              x-struct:
+              x-validate:
+          required:
+            - count
+            - points
+            - trend
+          title: SandboxAnalyticsCount
+          type: object
+          x-struct:
+          x-validate:
+        period:
+          additionalProperties: false
+          properties:
+            end:
+              format: date-time
+              type: string
+              x-struct:
+              x-validate:
+            start:
+              format: date-time
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - end
+            - start
+          title: SandboxAnalyticsPeriod
+          type: object
+          x-struct:
+          x-validate:
+        session_duration:
+          additionalProperties: false
+          description: Run sessions that ended in the range. Points without any have null figures.
+          properties:
+            avg_ms:
+              type: integer
+              x-struct:
+              x-validate:
+            count:
+              type: integer
+              x-struct:
+              x-validate:
+            p50_ms:
+              type: integer
+              x-struct:
+              x-validate:
+            p90_ms:
+              type: integer
+              x-struct:
+              x-validate:
+            p99_ms:
+              type: integer
+              x-struct:
+              x-validate:
+            points:
+              items:
+                additionalProperties: false
+                properties:
+                  at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  avg_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  p50_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  p90_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  p99_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - at
+                  - avg_ms
+                  - p50_ms
+                  - p90_ms
+                  - p99_ms
+                title: SandboxAnalyticsSessionDurationPoint
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            trend_avg:
+              description: Percent change against the range of the same length before it; 0 when either is 0.
+              type: number
+              x-struct:
+              x-validate:
+            trend_p50:
+              description: Percent change against the range of the same length before it; 0 when either is 0.
+              type: number
+              x-struct:
+              x-validate:
+            trend_p90:
+              description: Percent change against the range of the same length before it; 0 when either is 0.
+              type: number
+              x-struct:
+              x-validate:
+            trend_p99:
+              description: Percent change against the range of the same length before it; 0 when either is 0.
+              type: number
+              x-struct:
+              x-validate:
+          required:
+            - avg_ms
+            - count
+            - p50_ms
+            - p90_ms
+            - p99_ms
+            - points
+            - trend_avg
+            - trend_p50
+            - trend_p90
+            - trend_p99
+          title: SandboxAnalyticsSessionDuration
+          type: object
+          x-struct:
+          x-validate:
+        setup:
+          additionalProperties: false
+          description: How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+          properties:
+            avg_ms:
+              type: integer
+              x-struct:
+              x-validate:
+            count:
+              type: integer
+              x-struct:
+              x-validate:
+            p50_ms:
+              type: integer
+              x-struct:
+              x-validate:
+            p90_ms:
+              type: integer
+              x-struct:
+              x-validate:
+            p99_ms:
+              type: integer
+              x-struct:
+              x-validate:
+            points:
+              items:
+                additionalProperties: false
+                properties:
+                  at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  avg_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  p50_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  p90_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  p99_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - at
+                  - avg_ms
+                  - p50_ms
+                  - p90_ms
+                  - p99_ms
+                title: SandboxAnalyticsSetupPoint
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            trend_avg:
+              description: Percent change against the range of the same length before it; 0 when either is 0.
+              type: number
+              x-struct:
+              x-validate:
+            trend_p50:
+              description: Percent change against the range of the same length before it; 0 when either is 0.
+              type: number
+              x-struct:
+              x-validate:
+            trend_p90:
+              description: Percent change against the range of the same length before it; 0 when either is 0.
+              type: number
+              x-struct:
+              x-validate:
+            trend_p99:
+              description: Percent change against the range of the same length before it; 0 when either is 0.
+              type: number
+              x-struct:
+              x-validate:
+          required:
+            - avg_ms
+            - count
+            - p50_ms
+            - p90_ms
+            - p99_ms
+            - points
+            - trend_avg
+            - trend_p50
+            - trend_p90
+            - trend_p99
+          title: SandboxAnalyticsSetup
+          type: object
+          x-struct:
+          x-validate:
+        time_to_start:
+          additionalProperties: false
+          description: How long sandboxes took to boot (create or restore). Points without any have null figures.
+          properties:
+            avg_ms:
+              type: integer
+              x-struct:
+              x-validate:
+            count:
+              type: integer
+              x-struct:
+              x-validate:
+            p50_ms:
+              type: integer
+              x-struct:
+              x-validate:
+            p90_ms:
+              type: integer
+              x-struct:
+              x-validate:
+            p99_ms:
+              type: integer
+              x-struct:
+              x-validate:
+            points:
+              items:
+                additionalProperties: false
+                properties:
+                  at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  avg_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  p50_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  p90_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  p99_ms:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - at
+                  - avg_ms
+                  - p50_ms
+                  - p90_ms
+                  - p99_ms
+                title: SandboxAnalyticsTimeToStartPoint
+                type: object
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+            trend_avg:
+              description: Percent change against the range of the same length before it; 0 when either is 0.
+              type: number
+              x-struct:
+              x-validate:
+            trend_p50:
+              description: Percent change against the range of the same length before it; 0 when either is 0.
+              type: number
+              x-struct:
+              x-validate:
+            trend_p90:
+              description: Percent change against the range of the same length before it; 0 when either is 0.
+              type: number
+              x-struct:
+              x-validate:
+            trend_p99:
+              description: Percent change against the range of the same length before it; 0 when either is 0.
+              type: number
+              x-struct:
+              x-validate:
+          required:
+            - avg_ms
+            - count
+            - p50_ms
+            - p90_ms
+            - p99_ms
+            - points
+            - trend_avg
+            - trend_p50
+            - trend_p90
+            - trend_p99
+          title: SandboxAnalyticsTimeToStart
+          type: object
+          x-struct:
+          x-validate:
+        vcpu_hours:
+          description: 'vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.'
+          type: number
+          x-struct:
+          x-validate:
+      required:
+        - bucket
+        - concurrency
+        - created
+        - period
+        - session_duration
+        - setup
+        - time_to_start
+        - vcpu_hours
+      title: SandboxAnalytics
+      type: object
+      x-struct:
+      x-validate:
+    SandboxResourcesInUse:
+      additionalProperties: false
+      properties:
+        disk_gb:
+          type: number
+          x-struct:
+          x-validate:
+        memory_gb:
+          type: number
+          x-struct:
+          x-validate:
+        vcpus:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - disk_gb
+        - memory_gb
+        - vcpus
+      title: SandboxResourcesInUse
+      type: object
+      x-struct:
+      x-validate:
+    SandboxResourceLimits:
+      additionalProperties: false
+      properties:
+        disk_gb:
+          type: number
+          x-struct:
+          x-validate:
+        memory_gb:
+          type: number
+          x-struct:
+          x-validate:
+        vcpus:
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - disk_gb
+        - memory_gb
+        - vcpus
+      title: SandboxResourceLimits
+      type: object
+      x-struct:
+      x-validate:
   securitySchemes:
     authorization:
       scheme: bearer
@@ -16801,14 +18773,95 @@ paths:
   /api/accounts/{account_handle}/sandboxes:
     get:
       callbacks: {}
+      description: Newest first by default. Deleted sandboxes are not listed.
       operationId: listSandboxes
       parameters:
-        - description: The account handle.
+        - description: ''
           in: path
           name: account_handle
           required: true
           schema:
+            minLength: 1
             type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            maximum: 100000
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: search
+          required: false
+          schema:
+            description: Text the sandbox ID, Amp Orb ID or Anthropic session ID contains.
+            maxLength: 200
+            minLength: 1
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: sort_by
+          required: false
+          schema:
+            enum:
+              - created
+              - last_active
+              - identifier
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: sort_order
+          required: false
+          schema:
+            enum:
+              - asc
+              - desc
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - active
+              - idle
+              - starting
+              - resuming
+              - paused
+              - archived
+              - failed
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: vcpus
+          required: false
+          schema:
+            minimum: 1
+            type: integer
             x-struct:
             x-validate:
       responses:
@@ -16816,10 +18869,49 @@ paths:
           content:
             application/json:
               schema:
+                additionalProperties: false
                 properties:
+                  pagination_metadata:
+                    additionalProperties: false
+                    properties:
+                      current_page:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      has_next_page:
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      has_previous_page:
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      page_size:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      total_pages:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - current_page
+                      - has_next_page
+                      - has_previous_page
+                      - page_size
+                      - total_count
+                      - total_pages
+                    title: SandboxPagination
+                    type: object
+                    x-struct:
+                    x-validate:
                   sandboxes:
                     items:
-                      description: A Firecracker sandbox VM.
+                      description: A persistent Linux or macOS sandbox VM.
                       properties:
                         agent_environment_id:
                           nullable: true
@@ -16890,9 +18982,22 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        platform:
+                          default: linux
+                          enum:
+                            - linux
+                            - darwin
+                          type: string
+                          x-struct:
+                          x-validate:
                         residency_work_id:
                           nullable: true
                           type: string
+                          x-struct:
+                          x-validate:
+                        resident:
+                          description: Whether a macOS sandbox retains its process and capacity.
+                          type: boolean
                           x-struct:
                           x-validate:
                         state:
@@ -16904,6 +19009,11 @@ paths:
                             - archived
                             - error
                             - deleted
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: 'The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.'
                           type: string
                           x-struct:
                           x-validate:
@@ -16946,11 +19056,19 @@ paths:
                     x-struct:
                     x-validate:
                 required:
+                  - pagination_metadata
                   - sandboxes
+                title: Sandboxes
                 type: object
                 x-struct:
                 x-validate:
           description: Sandboxes
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
         '403':
           content:
             application/json:
@@ -17004,7 +19122,16 @@ paths:
                     - 4096
                     - 8192
                     - 16384
+                    - 24576
                   type: integer
+                  x-struct:
+                  x-validate:
+                platform:
+                  default: linux
+                  enum:
+                    - linux
+                    - darwin
+                  type: string
                   x-struct:
                   x-validate:
                 template:
@@ -17014,7 +19141,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                  description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
                   enum:
                     - 2
                     - 4
@@ -17039,7 +19166,7 @@ paths:
           content:
             application/json:
               schema:
-                description: A Firecracker sandbox VM.
+                description: A persistent Linux or macOS sandbox VM.
                 properties:
                   agent_environment_id:
                     nullable: true
@@ -17110,9 +19237,22 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   residency_work_id:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
                     x-struct:
                     x-validate:
                   state:
@@ -17124,6 +19264,11 @@ paths:
                       - archived
                       - error
                       - deleted
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: 'The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.'
                     type: string
                     x-struct:
                     x-validate:
@@ -17457,6 +19602,94 @@ paths:
       summary: Get a runner job.
       tags:
         - Runners
+  /api/me/ai-subscriptions/{provider}:
+    delete:
+      callbacks: {}
+      description: Deletes the provider's saved credentials and any pending sign-in. It does not revoke the authorization at the provider.
+      operationId: disconnectAISubscription
+      parameters:
+        - description: The provider to disconnect.
+          in: path
+          name: provider
+          required: true
+          schema:
+            enum:
+              - chatgpt
+              - claude
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  subscriptions:
+                    items:
+                      properties:
+                        connected:
+                          description: Whether credentials are saved for the provider.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        login_available:
+                          description: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        provider:
+                          description: 'The provider. Known values: `claude`, `chatgpt`.'
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          description: When the connection last changed, or null if it was never connected.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - provider
+                        - connected
+                        - updated_at
+                        - login_available
+                      title: AISubscription
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - subscriptions
+                title: AISubscriptions
+                type: object
+                x-struct:
+                x-validate:
+          description: The user's AI subscriptions
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can manage AI subscriptions
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: AI subscriptions are not available to this user
+      summary: Disconnects one of the signed-in user's AI subscriptions
+      tags:
+        - AI subscriptions
   /api/cache:
     get:
       callbacks: {}
@@ -18084,6 +20317,112 @@ paths:
       summary: Returns a preview with a given id.
       tags:
         - Previews
+  /api/me/ai-subscriptions/claude:
+    put:
+      callbacks: {}
+      description: Saves the subscription token `claude setup-token` prints, replacing any saved one. Tuist validates its format only, not that the subscription can serve requests. The token is never returned.
+      operationId: connectClaudeSubscription
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                token:
+                  description: The token `claude setup-token` prints. Not an Anthropic API key.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - token
+              type: object
+              x-struct:
+              x-validate:
+        description: Claude subscription token
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  subscriptions:
+                    items:
+                      properties:
+                        connected:
+                          description: Whether credentials are saved for the provider.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        login_available:
+                          description: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        provider:
+                          description: 'The provider. Known values: `claude`, `chatgpt`.'
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          description: When the connection last changed, or null if it was never connected.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - provider
+                        - connected
+                        - updated_at
+                        - login_available
+                      title: AISubscription
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - subscriptions
+                title: AISubscriptions
+                type: object
+                x-struct:
+                x-validate:
+          description: The user's AI subscriptions
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can manage AI subscriptions
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: AI subscriptions are not available to this user
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The token is not a Claude subscription token
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The token could not be saved
+      summary: Connects the signed-in user's Claude subscription
+      tags:
+        - AI subscriptions
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}:
     get:
       callbacks: {}
@@ -18471,6 +20810,7 @@ paths:
   /api/accounts/{account_handle}/runners/volumes/{volume_id}/clear:
     post:
       callbacks: {}
+      deprecated: true
       operationId: clearRunnerVolume
       parameters:
         - description: ''
@@ -18554,7 +20894,7 @@ paths:
                 x-struct:
                 x-validate:
               style: simple
-      summary: Clear saved volume contents. Running jobs retain their copies but cannot save them.
+      summary: 'Deprecated: use deleteRunnerVolume.'
       tags:
         - Runners
   /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/artifacts:
@@ -19825,6 +22165,12 @@ paths:
                 duration:
                   description: Duration of the run in milliseconds.
                   type: integer
+                  x-struct:
+                  x-validate:
+                test_impact_run_id:
+                  description: The impact run coverage-based test selection created for this invocation, sent on fallbacks too, sharded or not.
+                  format: uuid
+                  type: string
                   x-struct:
                   x-validate:
                 xcode_version:
@@ -21590,7 +23936,7 @@ paths:
           content:
             application/json:
               schema:
-                description: A Firecracker sandbox VM.
+                description: A persistent Linux or macOS sandbox VM.
                 properties:
                   agent_environment_id:
                     nullable: true
@@ -21661,9 +24007,22 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   residency_work_id:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
                     x-struct:
                     x-validate:
                   state:
@@ -21675,6 +24034,11 @@ paths:
                       - archived
                       - error
                       - deleted
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: 'The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.'
                     type: string
                     x-struct:
                     x-validate:
@@ -23691,6 +26055,94 @@ paths:
       tags:
         - Organizations
   /api/accounts/{account_handle}/runners/volumes/{volume_id}:
+    delete:
+      callbacks: {}
+      operationId: deleteRunnerVolume
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            minLength: 1
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: volume_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  deleted:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  id:
+                    nullable: false
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - deleted
+                  - id
+                title: RunnerVolumeDeleted
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner volume data
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Volume or job not found, or runners disabled
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Delete a runner volume. Running jobs retain their copies but cannot save them; later jobs with its key start empty.
+      tags:
+        - Runners
     get:
       callbacks: {}
       operationId: getRunnerVolume
@@ -26404,7 +28856,7 @@ paths:
           content:
             application/json:
               schema:
-                description: A Firecracker sandbox VM.
+                description: A persistent Linux or macOS sandbox VM.
                 properties:
                   agent_environment_id:
                     nullable: true
@@ -26475,9 +28927,22 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   residency_work_id:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
                     x-struct:
                     x-validate:
                   state:
@@ -26489,6 +28954,11 @@ paths:
                       - archived
                       - error
                       - deleted
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: 'The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.'
                     type: string
                     x-struct:
                     x-validate:
@@ -29666,6 +32136,131 @@ paths:
       summary: List the volumes mounted by a runner job.
       tags:
         - Runners
+  /api/me/ai-subscriptions/chatgpt/login:
+    delete:
+      callbacks: {}
+      description: Discards the pending sign-in. A ChatGPT subscription that is already connected stays connected.
+      operationId: cancelChatGPTSubscriptionLogin
+      parameters:
+        - description: The opaque sign-in ID that `startChatGPTSubscriptionLogin` returned.
+          in: query
+          name: login_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The sign-in was cancelled
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can manage AI subscriptions
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No pending sign-in has that ID, or AI subscriptions are not available
+      summary: Cancels a pending ChatGPT sign-in
+      tags:
+        - AI subscriptions
+    post:
+      callbacks: {}
+      description: Starts an OpenAI device sign-in. Show the user the verification URL and code, then poll with the login ID no faster than `interval` seconds until it connects or `expires_at` passes. Saved credentials stay until the sign-in succeeds.
+      operationId: startChatGPTSubscriptionLogin
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  expires_at:
+                    description: When the sign-in expires.
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  interval:
+                    description: The minimum number of seconds between polls.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  login_id:
+                    description: The opaque ID to poll and cancel the sign-in with.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  user_code:
+                    description: The code the user enters on the verification page.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  verification_url:
+                    description: The OpenAI page where the user enters the code.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - login_id
+                  - user_code
+                  - verification_url
+                  - interval
+                  - expires_at
+                title: ChatGPTSubscriptionLogin
+                type: object
+                x-struct:
+                x-validate:
+          description: The pending sign-in
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can manage AI subscriptions
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: AI subscriptions are not available to this user
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many sign-in attempts. Try again in a few minutes.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: OpenAI could not start the sign-in
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: ChatGPT sign-in is not configured on this server
+      summary: Starts connecting the signed-in user's ChatGPT subscription
+      tags:
+        - AI subscriptions
   /api/projects/{account_handle}/{project_handle}/cache/clean:
     put:
       callbacks: {}
@@ -35161,6 +37756,14 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        platform:
+                          default: linux
+                          enum:
+                            - linux
+                            - darwin
+                          type: string
+                          x-struct:
+                          x-validate:
                         template:
                           type: string
                           x-struct:
@@ -35181,6 +37784,7 @@ paths:
                       required:
                         - id
                         - anthropic_environment_id
+                        - platform
                         - template
                         - vcpus
                         - memory_mb
@@ -35295,6 +37899,7 @@ paths:
                     - 4096
                     - 8192
                     - 16384
+                    - 24576
                   type: integer
                   x-struct:
                   x-validate:
@@ -35310,6 +37915,14 @@ paths:
                   type: integer
                   x-struct:
                   x-validate:
+                platform:
+                  default: linux
+                  enum:
+                    - linux
+                    - darwin
+                  type: string
+                  x-struct:
+                  x-validate:
                 template:
                   description: Sandbox template name.
                   pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -35317,7 +37930,7 @@ paths:
                   x-struct:
                   x-validate:
                 vcpus:
-                  description: With memory_mb, one of 2x4096, 4x8192 or 8x16384.
+                  description: 'Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576.'
                   enum:
                     - 2
                     - 4
@@ -35401,6 +38014,14 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   template:
                     type: string
                     x-struct:
@@ -35421,6 +38042,7 @@ paths:
                 required:
                   - id
                   - anthropic_environment_id
+                  - platform
                   - template
                   - vcpus
                   - memory_mb
@@ -36969,6 +39591,151 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/baseline:
+    post:
+      callbacks: {}
+      description: "Returns the nearest ancestor of the checked-out commit with a full run on the same platform, within 20 commits with coverage, and whether the diff between the two is already stored. Returns a reason instead when there's none, including `not_enabled` when test impact analysis isn't enabled for the project, after which the client runs default selective testing."
+      operationId: resolveTestImpactBaseline
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                ancestor_shas:
+                  description: "The checked-out commit's ancestors the client has locally, nearest first, at most 200 (the rest are ignored). Sent on the retry after `history_unknown`, once the client deepened its checkout by 100 commits. The walk also starts from every one of them the server's history has. A known ancestor's distance from the checkout is its position in the list: exact for linear history, approximate across merges."
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                build_system:
+                  description: The build system, `xcode` first. A plain string so new build systems don't need a new client.
+                  type: string
+                  x-struct:
+                  x-validate:
+                commit_sha:
+                  description: The checked-out commit, such as GitHub's synthetic merge commit on `pull_request` runs. It keys the stored diff.
+                  type: string
+                  x-struct:
+                  x-validate:
+                parent_shas:
+                  description: "The parents of the checked-out commit (the pull request head and the base-branch tip) when it's a merge commit the server's history doesn't have. The walk then starts from both."
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                platform:
+                  description: The platform the tests run on. Only a baseline on the same platform is picked. Absent where the build system has none.
+                  type: string
+                  x-struct:
+                  x-validate:
+                xcode:
+                  description: 'Xcode only: the scope the invocation tests.'
+                  properties:
+                    destination:
+                      description: The destination the tests run on.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    scheme:
+                      description: The scheme being tested.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    test_plan:
+                      description: The test plan being run.
+                      type: string
+                      x-struct:
+                      x-validate:
+                  type: object
+                  x-struct:
+                  x-validate:
+              required:
+                - build_system
+                - commit_sha
+              title: ResolveTestImpactBaselineParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Baseline params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestImpactBaseline'
+          description: The baseline, or why there's none
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request parameters are invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Resolve the baseline for coverage-based test selection.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}:
     get:
       callbacks: {}
@@ -39634,6 +42401,58 @@ paths:
       summary: Upload a commit's file listing.
       tags:
         - Tests
+  /api/auth/device_codes:
+    post:
+      callbacks: {}
+      description: |
+        Starts the device authorization flow (RFC 8628). Show `user_code` to the person signing in and ask them to open `verification_uri` and enter it. Then poll `getDeviceCode` with `device_code`, which is a secret, every `interval` seconds until it returns tokens, for at most `expires_in` seconds.
+      operationId: createDeviceCode
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  device_code:
+                    description: The secret code to poll for tokens with.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  expires_in:
+                    description: Seconds until the codes expire.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  interval:
+                    description: Seconds to wait between polls.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  user_code:
+                    description: The short code the person enters in the browser.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  verification_uri:
+                    description: The page where the person enters the code.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - device_code
+                  - user_code
+                  - verification_uri
+                  - expires_in
+                  - interval
+                title: DeviceAuthorization
+                type: object
+                x-struct:
+                x-validate:
+          description: The device sign-in was started
+      summary: Start a device sign-in.
+      tags:
+        - Authentication
   /api/auth/device_code/{device_code}:
     get:
       callbacks: {}
@@ -39842,7 +42661,7 @@ paths:
           content:
             application/json:
               schema:
-                description: A Firecracker sandbox VM.
+                description: A persistent Linux or macOS sandbox VM.
                 properties:
                   agent_environment_id:
                     nullable: true
@@ -39913,9 +42732,22 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   residency_work_id:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
                     x-struct:
                     x-validate:
                   state:
@@ -39927,6 +42759,11 @@ paths:
                       - archived
                       - error
                       - deleted
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: 'The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.'
                     type: string
                     x-struct:
                     x-validate:
@@ -40198,6 +43035,14 @@ paths:
                     type: integer
                     x-struct:
                     x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
                   template:
                     type: string
                     x-struct:
@@ -40218,6 +43063,7 @@ paths:
                 required:
                   - id
                   - anthropic_environment_id
+                  - platform
                   - template
                   - vcpus
                   - memory_mb
@@ -41620,6 +44466,12 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
+                test_impact_run_id:
+                  description: The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 test_suites:
                   description: Test suite names (for suite-level granularity).
                   items:
@@ -41811,6 +44663,83 @@ paths:
       summary: Upload a crash report for a test case run.
       tags:
         - Tests
+  /api/me/ai-subscriptions:
+    get:
+      callbacks: {}
+      description: Returns connection metadata for every supported provider. Credentials are never returned.
+      operationId: listAISubscriptions
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  subscriptions:
+                    items:
+                      properties:
+                        connected:
+                          description: Whether credentials are saved for the provider.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        login_available:
+                          description: Whether the server can connect the provider. ChatGPT needs an OAuth client the operator configures.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        provider:
+                          description: 'The provider. Known values: `claude`, `chatgpt`.'
+                          type: string
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          description: When the connection last changed, or null if it was never connected.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - provider
+                        - connected
+                        - updated_at
+                        - login_available
+                      title: AISubscription
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - subscriptions
+                title: AISubscriptions
+                type: object
+                x-struct:
+                x-validate:
+          description: The user's AI subscriptions
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can manage AI subscriptions
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: AI subscriptions are not available to this user
+      summary: Lists the signed-in user's AI subscriptions
+      tags:
+        - AI subscriptions
   /api/projects/{account_handle}/{project_handle}/cargo/crates:
     get:
       callbacks: {}
@@ -44145,6 +47074,242 @@ paths:
       summary: List Once runs for a project, newest first.
       tags:
         - Once
+  /api/projects/{account_handle}/{project_handle}/tests/selective-testing/coverage/runs:
+    post:
+      callbacks: {}
+      description: Decides which tests one `tuist test` invocation runs. With a baseline, the server stores or reuses the diff, applies the impact analysis rules, and returns the tests not to run. Without one, it records a fallback with the client's reason. On `fallback` the client runs every test in scope or default selective testing, depending on the reason, and default selective testing on an error or when the request times out.
+      operationId: createTestImpactRun
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                ancestor_shas:
+                  description: The checked-out commit's ancestors, as sent to the baseline request, so the server can resolve the same baseline again.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                baseline_sha:
+                  description: The baseline the baseline request returned. When absent, `fallback_reason` says why.
+                  type: string
+                  x-struct:
+                  x-validate:
+                build_system:
+                  description: The build system, `xcode` first, then `gradle`, `mix` and `cargo`. Recorded on the impact run.
+                  type: string
+                  x-struct:
+                  x-validate:
+                changed_files:
+                  description: "The files that differ between the baseline and the checked-out commit, plus dirty and untracked files. Sent when the baseline request said the diff isn't cached, or when the checkout is dirty. At most 5,000 entries: past that, the first 5,000 in path order, with the total in `changed_files_count`."
+                  items:
+                    properties:
+                      affected_modules:
+                        description: "The test modules the file can affect, from the client's project graph. An empty list means no target owns the file; absent means the client couldn't classify it."
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      blob:
+                        description: The file's blob in the checkout. Required except for deleted files.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      path:
+                        description: The repository-relative path.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      status:
+                        description: The change, as `git diff --raw` reports it.
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - path
+                      - status
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                changed_files_count:
+                  description: 'Sent with `changed_files`: the total number of changed files, larger than the list when it was capped.'
+                  type: integer
+                  x-struct:
+                  x-validate:
+                commit_sha:
+                  description: The checked-out commit the diff ran against, such as the synthetic merge commit. Defaults to `head_sha`. Keys the diff.
+                  type: string
+                  x-struct:
+                  x-validate:
+                dirty:
+                  default: false
+                  description: Whether the checkout had dirty or untracked files. When true, the diff isn't stored or reused.
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                fallback_reason:
+                  description: "The baseline request's reason, or `history_unavailable` when deepening didn't reach the baseline within its budget. The server records a fallback without running the rules."
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_branch:
+                  description: The git branch, shown on the overview.
+                  type: string
+                  x-struct:
+                  x-validate:
+                head_sha:
+                  description: The pull request head, or the checked-out commit outside pull requests. Used for display and branch history.
+                  type: string
+                  x-struct:
+                  x-validate:
+                modules:
+                  description: "Every test module in scope: what the invocation asked for, each marked `skipped` when the client skipped it because its hash matched. The rules decide the tests of the modules not skipped. The baseline's tests in skipped modules count as requested and skipped, and are never run. When every module is skipped, the server records a selection of nothing, without a diff or the rules."
+                  items:
+                    properties:
+                      name:
+                        description: The test module.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      skipped:
+                        description: Whether the client skipped the module because its hash matched. Defaults to false.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                    required:
+                      - name
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                parent_shas:
+                  description: The parents of the checked-out commit, as sent to the baseline request, so the server can resolve the same baseline again.
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                platform:
+                  description: The platform the tests run on. Absent where the build system has none.
+                  type: string
+                  x-struct:
+                  x-validate:
+                xcode:
+                  description: 'Xcode only: the scope the invocation tests.'
+                  properties:
+                    destination:
+                      description: The destination the tests run on.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    scheme:
+                      description: The scheme being tested.
+                      type: string
+                      x-struct:
+                      x-validate:
+                    test_plan:
+                      description: The test plan being run.
+                      type: string
+                      x-struct:
+                      x-validate:
+                  type: object
+                  x-struct:
+                  x-validate:
+              required:
+                - build_system
+                - head_sha
+                - modules
+              title: CreateTestImpactRunParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Impact run params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestImpactRun'
+          description: The impact run
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request parameters are invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "The project doesn't exist or test impact analysis isn't enabled for it"
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Create an impact run for coverage-based test selection.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete:
     post:
       callbacks: {}
@@ -50988,6 +54153,123 @@ paths:
       summary: Get a Gradle build by ID.
       tags:
         - Gradle
+  /api/me/ai-subscriptions/chatgpt/login/poll:
+    post:
+      callbacks: {}
+      description: Returns `pending` until the user approves the code, then `connected`. Polls sooner than the sign-in's interval return `pending` without asking OpenAI.
+      operationId: pollChatGPTSubscriptionLogin
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                login_id:
+                  description: The opaque sign-in ID that `startChatGPTSubscriptionLogin` returned.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - login_id
+              type: object
+              x-struct:
+              x-validate:
+        description: Sign-in
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  status:
+                    description: 'Known values: `pending`, `connected`.'
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - status
+                title: ChatGPTSubscriptionLoginStatus
+                type: object
+                x-struct:
+                x-validate:
+          description: The sign-in status
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can manage AI subscriptions
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No pending sign-in has that ID, or AI subscriptions are not available
+        '410':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sign-in expired. Start a new one.
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: OpenAI rejected the sign-in. Start a new one.
+      summary: Polls a pending ChatGPT sign-in
+      tags:
+        - AI subscriptions
+  /api/me/feature-flags:
+    get:
+      callbacks: {}
+      description: Returns the flags the Tuist app uses to show or hide features. Flags missing from the list are off, including flags this server doesn't know about. Only a user session or the signed-in Tuist app can read them.
+      operationId: listFeatureFlags
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  enabled:
+                    description: 'The names of the enabled flags. Known values: `ai`.'
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - enabled
+                title: FeatureFlags
+                type: object
+                x-struct:
+                x-validate:
+          description: The enabled feature flags
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only a signed-in user can read feature flags
+      summary: Lists the feature flags enabled for the signed-in user
+      tags:
+        - Feature flags
   /api/projects/{account_handle}/{project_handle}/bazel/invocations/{invocation_id}:
     get:
       callbacks: {}
@@ -56602,6 +59884,791 @@ paths:
       summary: Exchange the current credential for a cache token.
       tags:
         - Cache
+  /api/accounts/{account_handle}/sandboxes/analytics:
+    get:
+      callbacks: {}
+      description: vCPU-hours, sandboxes created, session, setup and time-to-start durations, and peak vCPUs, memory and disk against the account's limits, each with its trend against the range of the same length before it. Defaults to the last 30 days; the maximum range is 90 days.
+      operationId: getSandboxAnalytics
+      parameters:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            minLength: 1
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: end
+          required: false
+          schema:
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: start
+          required: false
+          schema:
+            format: date-time
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                additionalProperties: false
+                properties:
+                  bucket:
+                    description: '`hour` for ranges of up to 36 hours, otherwise `day`: the span of each point.'
+                    type: string
+                    x-struct:
+                    x-validate:
+                  concurrency:
+                    additionalProperties: false
+                    properties:
+                      in_use:
+                        additionalProperties: false
+                        properties:
+                          disk_gb:
+                            type: number
+                            x-struct:
+                            x-validate:
+                          memory_gb:
+                            type: number
+                            x-struct:
+                            x-validate:
+                          vcpus:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                        required:
+                          - disk_gb
+                          - memory_gb
+                          - vcpus
+                        title: SandboxResourcesInUse
+                        type: object
+                        x-struct:
+                        x-validate:
+                      limits:
+                        additionalProperties: false
+                        properties:
+                          disk_gb:
+                            type: number
+                            x-struct:
+                            x-validate:
+                          memory_gb:
+                            type: number
+                            x-struct:
+                            x-validate:
+                          vcpus:
+                            type: integer
+                            x-struct:
+                            x-validate:
+                        required:
+                          - disk_gb
+                          - memory_gb
+                          - vcpus
+                        title: SandboxResourceLimits
+                        type: object
+                        x-struct:
+                        x-validate:
+                      points:
+                        items:
+                          additionalProperties: false
+                          properties:
+                            at:
+                              format: date-time
+                              type: string
+                              x-struct:
+                              x-validate:
+                            disk_gb:
+                              type: number
+                              x-struct:
+                              x-validate:
+                            memory_gb:
+                              type: number
+                              x-struct:
+                              x-validate:
+                            vcpus:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - at
+                            - disk_gb
+                            - memory_gb
+                            - vcpus
+                          title: SandboxAnalyticsConcurrencyPoint
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                    required:
+                      - in_use
+                      - limits
+                      - points
+                    title: SandboxAnalyticsConcurrency
+                    type: object
+                    x-struct:
+                    x-validate:
+                  created:
+                    additionalProperties: false
+                    properties:
+                      count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      points:
+                        items:
+                          additionalProperties: false
+                          properties:
+                            at:
+                              format: date-time
+                              type: string
+                              x-struct:
+                              x-validate:
+                            value:
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - at
+                            - value
+                          title: SandboxAnalyticsCountPoint
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      trend:
+                        description: Percent change against the range of the same length before it; 0 when either is 0.
+                        type: number
+                        x-struct:
+                        x-validate:
+                    required:
+                      - count
+                      - points
+                      - trend
+                    title: SandboxAnalyticsCount
+                    type: object
+                    x-struct:
+                    x-validate:
+                  period:
+                    additionalProperties: false
+                    properties:
+                      end:
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                      start:
+                        format: date-time
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - end
+                      - start
+                    title: SandboxAnalyticsPeriod
+                    type: object
+                    x-struct:
+                    x-validate:
+                  session_duration:
+                    additionalProperties: false
+                    description: Run sessions that ended in the range. Points without any have null figures.
+                    properties:
+                      avg_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      p50_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      p90_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      p99_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      points:
+                        items:
+                          additionalProperties: false
+                          properties:
+                            at:
+                              format: date-time
+                              type: string
+                              x-struct:
+                              x-validate:
+                            avg_ms:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            p50_ms:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            p90_ms:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            p99_ms:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - at
+                            - avg_ms
+                            - p50_ms
+                            - p90_ms
+                            - p99_ms
+                          title: SandboxAnalyticsSessionDurationPoint
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      trend_avg:
+                        description: Percent change against the range of the same length before it; 0 when either is 0.
+                        type: number
+                        x-struct:
+                        x-validate:
+                      trend_p50:
+                        description: Percent change against the range of the same length before it; 0 when either is 0.
+                        type: number
+                        x-struct:
+                        x-validate:
+                      trend_p90:
+                        description: Percent change against the range of the same length before it; 0 when either is 0.
+                        type: number
+                        x-struct:
+                        x-validate:
+                      trend_p99:
+                        description: Percent change against the range of the same length before it; 0 when either is 0.
+                        type: number
+                        x-struct:
+                        x-validate:
+                    required:
+                      - avg_ms
+                      - count
+                      - p50_ms
+                      - p90_ms
+                      - p99_ms
+                      - points
+                      - trend_avg
+                      - trend_p50
+                      - trend_p90
+                      - trend_p99
+                    title: SandboxAnalyticsSessionDuration
+                    type: object
+                    x-struct:
+                    x-validate:
+                  setup:
+                    additionalProperties: false
+                    description: How long Amp Orbs' `.agents/setup` ran. Points without any have null figures.
+                    properties:
+                      avg_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      p50_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      p90_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      p99_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      points:
+                        items:
+                          additionalProperties: false
+                          properties:
+                            at:
+                              format: date-time
+                              type: string
+                              x-struct:
+                              x-validate:
+                            avg_ms:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            p50_ms:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            p90_ms:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            p99_ms:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - at
+                            - avg_ms
+                            - p50_ms
+                            - p90_ms
+                            - p99_ms
+                          title: SandboxAnalyticsSetupPoint
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      trend_avg:
+                        description: Percent change against the range of the same length before it; 0 when either is 0.
+                        type: number
+                        x-struct:
+                        x-validate:
+                      trend_p50:
+                        description: Percent change against the range of the same length before it; 0 when either is 0.
+                        type: number
+                        x-struct:
+                        x-validate:
+                      trend_p90:
+                        description: Percent change against the range of the same length before it; 0 when either is 0.
+                        type: number
+                        x-struct:
+                        x-validate:
+                      trend_p99:
+                        description: Percent change against the range of the same length before it; 0 when either is 0.
+                        type: number
+                        x-struct:
+                        x-validate:
+                    required:
+                      - avg_ms
+                      - count
+                      - p50_ms
+                      - p90_ms
+                      - p99_ms
+                      - points
+                      - trend_avg
+                      - trend_p50
+                      - trend_p90
+                      - trend_p99
+                    title: SandboxAnalyticsSetup
+                    type: object
+                    x-struct:
+                    x-validate:
+                  time_to_start:
+                    additionalProperties: false
+                    description: How long sandboxes took to boot (create or restore). Points without any have null figures.
+                    properties:
+                      avg_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      count:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      p50_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      p90_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      p99_ms:
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      points:
+                        items:
+                          additionalProperties: false
+                          properties:
+                            at:
+                              format: date-time
+                              type: string
+                              x-struct:
+                              x-validate:
+                            avg_ms:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            p50_ms:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            p90_ms:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                            p99_ms:
+                              nullable: true
+                              type: integer
+                              x-struct:
+                              x-validate:
+                          required:
+                            - at
+                            - avg_ms
+                            - p50_ms
+                            - p90_ms
+                            - p99_ms
+                          title: SandboxAnalyticsTimeToStartPoint
+                          type: object
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      trend_avg:
+                        description: Percent change against the range of the same length before it; 0 when either is 0.
+                        type: number
+                        x-struct:
+                        x-validate:
+                      trend_p50:
+                        description: Percent change against the range of the same length before it; 0 when either is 0.
+                        type: number
+                        x-struct:
+                        x-validate:
+                      trend_p90:
+                        description: Percent change against the range of the same length before it; 0 when either is 0.
+                        type: number
+                        x-struct:
+                        x-validate:
+                      trend_p99:
+                        description: Percent change against the range of the same length before it; 0 when either is 0.
+                        type: number
+                        x-struct:
+                        x-validate:
+                    required:
+                      - avg_ms
+                      - count
+                      - p50_ms
+                      - p90_ms
+                      - p99_ms
+                      - points
+                      - trend_avg
+                      - trend_p50
+                      - trend_p90
+                      - trend_p99
+                    title: SandboxAnalyticsTimeToStart
+                    type: object
+                    x-struct:
+                    x-validate:
+                  vcpu_hours:
+                    description: 'vCPU-hours sandboxes ran in the range: each running hour of a sandbox counts its vCPUs.'
+                    type: number
+                    x-struct:
+                    x-validate:
+                required:
+                  - bucket
+                  - concurrency
+                  - created
+                  - period
+                  - session_duration
+                  - setup
+                  - time_to_start
+                  - vcpu_hours
+                title: SandboxAnalytics
+                type: object
+                x-struct:
+                x-validate:
+          description: Sandbox analytics
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Get the account's sandbox analytics for a time range.
+      tags:
+        - Sandboxes
+  /api/accounts/{account_handle}/sandboxes/{sandbox_id}/archive:
+    post:
+      callbacks: {}
+      description: Queues moving the paused sandbox's disks to object storage, which frees them on its node. The sandbox stays `paused` until the upload completes and then becomes `archived`; resuming restores it.
+      operationId: archiveSandbox
+      parameters:
+        - description: The account handle.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The sandbox identifier.
+          in: path
+          name: sandbox_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                description: A persistent Linux or macOS sandbox VM.
+                properties:
+                  agent_environment_id:
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  amp_orb_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  anthropic_session_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  archive_bytes:
+                    description: Size of the stored archive in bytes.
+                    nullable: true
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  archived_at:
+                    description: When the paused sandbox's disks were moved to object storage. Set while `state` is `archived`.
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  error_message:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  hostname:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  last_active_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  memory_mb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  node_name:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  paused_at:
+                    format: date-time
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  platform:
+                    default: linux
+                    enum:
+                      - linux
+                      - darwin
+                    type: string
+                    x-struct:
+                    x-validate:
+                  residency_work_id:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  resident:
+                    description: Whether a macOS sandbox retains its process and capacity.
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  state:
+                    enum:
+                      - creating
+                      - running
+                      - resuming
+                      - paused
+                      - archived
+                      - error
+                      - deleted
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: 'The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added.'
+                    type: string
+                    x-struct:
+                    x-validate:
+                  template:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  template_tag:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  vcpus:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  workspace_gb:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - state
+                  - template
+                  - vcpus
+                  - memory_mb
+                  - workspace_gb
+                  - inserted_at
+                  - updated_at
+                title: Sandbox
+                type: object
+                x-struct:
+                x-validate:
+          description: Sandbox
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox was not found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox is not in a state that allows the operation
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You've made too many unauthorized requests.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+            x-tuist-throttle-reason:
+              description: Set to `authorization` when the throttling is a response to the volume of unauthorized requests. Waiting out `retry-after` reaches the same denial.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node rejected the operation
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No sandbox node is available
+        '504':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The sandbox node did not answer in time
+      summary: Archive a paused sandbox.
+      tags:
+        - Sandboxes
 security:
   - authorization: []
   - cookie: []

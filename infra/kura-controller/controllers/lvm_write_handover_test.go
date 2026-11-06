@@ -207,3 +207,68 @@ func TestThinHandoffAbortsOnlyAnUndemotedSourceWhoseNodeWasUnselected(t *testing
 		})
 	}
 }
+
+func TestThinHandoffWaiverSkipsTheProofOnlyBeforeABridgeIsBound(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		waived, bound bool
+	}{
+		{name: "waived moves without preparation", waived: true},
+		{name: "waiver keeps an already bound bridge", waived: true, bound: true},
+		{name: "without waiver the proof gates routing"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			f := newResizeHoldFixture(600)
+			f.instance.Spec.StorageClassName = thinLocalStorageClass
+			if tc.waived {
+				f.instance.Annotations = map[string]string{lvmAcceptCacheLossAnnotation: "true"}
+			}
+			source, target := f.servingPod(0, "600m"), f.servingPod(1, "600m")
+			source.UID, target.UID = "source-uid", "target-uid"
+			source.Status.PodIP, target.Status.PodIP = "10.0.0.1", "10.0.0.2"
+			if tc.bound {
+				raw, _ := json.Marshal(lvmWriteTarget{Pod: target.Name, UID: string(target.UID), SourceIncarnation: "current-boot", Target: migrationTarget{URL: renderPodNodeURL(f.instance, target.Name, f.instance.Namespace), Incarnation: "target-boot"}})
+				source.Annotations = map[string]string{lvmWriteTargetAnnotation: string(raw)}
+			}
+			var rebinds []migrationTarget
+			var prepares []string
+			statuses := map[string]runtimeStatus{source.Name: {Ready: true, ConnectionIncarnation: "current-boot", BackfillInitialCycle: backfillCycleComplete}, target.Name: {Ready: true, ConnectionIncarnation: "target-boot", BackfillInitialCycle: backfillCycleComplete}}
+			c := fake.NewClientBuilder().WithScheme(meshTestScheme(t)).WithObjects(source, target, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(f.instance), Namespace: f.instance.Namespace}}).Build()
+			// The destination never proves content, as with two full replicas.
+			r := &KuraInstanceReconciler{Client: c, RuntimeStatusClient: fakeRuntimeStatusClient{statuses: statuses}, PublicConnectionRetirer: stubConnectionRetirer{ready: false, rebinds: &rebinds, prepares: &prepares}}
+			if ready, err := r.lvmHandoverReady(ctx, f.instance, 0); err != nil || ready {
+				t.Fatalf("first pass: ready=%v err=%v", ready, err)
+			}
+			if !tc.waived {
+				if _, err := r.lvmHandoverReady(ctx, f.instance, 0); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := c.Get(ctx, client.ObjectKeyFromObject(source), source); err != nil {
+				t.Fatal(err)
+			}
+			skipped := tc.waived && !tc.bound
+			if skipped != (len(prepares) == 0) {
+				t.Fatalf("prepares = %v, want proof skipped=%v", prepares, skipped)
+			}
+			if (source.Annotations[lvmRebuildAnnotation] != "") != skipped {
+				t.Fatalf("demoted = %q, want %v", source.Annotations[lvmRebuildAnnotation], skipped)
+			}
+			if skipped && source.Annotations[lvmWriteTargetAnnotation] != "" {
+				t.Fatal("waived handoff bound a write bridge")
+			}
+			if !skipped {
+				return
+			}
+			if err := c.Create(ctx, &corev1.Endpoints{ObjectMeta: metav1.ObjectMeta{Name: f.instance.Name, Namespace: f.instance.Namespace}, Subsets: []corev1.EndpointSubset{{Addresses: []corev1.EndpointAddress{{IP: "10.0.0.2", TargetRef: &corev1.ObjectReference{Name: target.Name, UID: target.UID}}}}}}); err != nil {
+				t.Fatal(err)
+			}
+			// Connection retirement still applies; the stub's preparation stays unproven.
+			r.PublicConnectionRetirer = stubConnectionRetirer{ready: true, rebinds: &rebinds, prepares: &prepares}
+			if ready, err := r.lvmHandoverReady(ctx, f.instance, 0); err != nil || !ready || len(prepares) != 0 {
+				t.Fatalf("waived handoff after endpoint moved: ready=%v err=%v prepares=%v", ready, err, prepares)
+			}
+		})
+	}
+}

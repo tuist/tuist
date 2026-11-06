@@ -10,6 +10,7 @@ defmodule Tuist.Sandboxes.AgentSessions do
 
   alias Tuist.Accounts.Account
   alias Tuist.Repo
+  alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
   alias Tuist.Sandboxes.AgentSession
   alias Tuist.Sandboxes.Anthropic.ControlPlane
@@ -237,7 +238,9 @@ defmodule Tuist.Sandboxes.AgentSessions do
     attrs = %{
       name: "tuist-" <> account.name,
       model: model,
-      system: agent_environment.agent_system_prompt || @default_system_prompt
+      system:
+        agent_environment.agent_system_prompt ||
+          String.replace(@default_system_prompt, "/workspace", Sandboxes.workspace(agent_environment))
     }
 
     case ControlPlane.create_agent(api_key, attrs) do

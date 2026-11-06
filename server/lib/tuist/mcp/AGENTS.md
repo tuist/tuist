@@ -69,6 +69,14 @@
   `Tool.json_schema/1`. They require test-read, then
   `FeatureFlags.coverage_enabled?/3` for the project (open to Mix projects, behind the account's early access flag for the others).
 
+- AI subscription tools share `Accounts.AISubscriptions` with the dashboard and
+  `/api/me/ai-subscriptions`. They act only for `current_user`, require
+  `FeatureFlags.ai_enabled?/1`, and under a WebMCP scope only answer on the
+  user's personal account; only the read-only list is offered over WebMCP.
+  Outputs are metadata only. The Claude `token` argument is a secret the user
+  must explicitly provide; Phoenix's `"arguments"` parameter filter keeps MCP
+  tool arguments out of request logs, so do not log or report them elsewhere.
+
 - Organization invitation tools reuse `Accounts.invite_user_to_organization/3`
   and the `:invitation` policies, matching the dashboard and REST API. They
   never return invitation tokens or links; `email_sent` tells the agent when

@@ -35,7 +35,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       :head_description,
       dgettext(
         "marketing",
-        "Let us be your virtual companion that continuously optimizes and observes your setup, so you can focus on shipping"
+        "Tuist connects to your existing build tools and CI to speed up builds, optimize testing, and scale compute, so you can focus on shipping software."
       )
     )
     |> assign(

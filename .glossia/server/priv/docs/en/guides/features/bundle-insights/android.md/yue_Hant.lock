@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "ea5c0668389e1d4f6dcba85fd5a55e54fd7f52414567cade6bf2abb626774636",
+  "hash": "0c23738cc9bc27941ae5add8e0b079e2887919435ed139dd99befa2934b6540b",
   "hash_tree": {
     "root": {
       "children": [
@@ -85,7 +85,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -104,7 +104,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -133,11 +133,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -214,21 +214,21 @@
             }
           ],
           "details": {},
-          "hash": "6e8d735033da15c6be6f8dee85419e5fca0be9ddad6ede7065915161eb139cdb",
+          "hash": "5eff9e76c7215323aebf7533bc5419e1ef605b6b70758aaa1fe9f3fa83b84f57",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "ea5c0668389e1d4f6dcba85fd5a55e54fd7f52414567cade6bf2abb626774636",
+      "hash": "0c23738cc9bc27941ae5add8e0b079e2887919435ed139dd99befa2934b6540b",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/bundle-insights/android.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "395cdf48d6c89f70ecca8344904dc2a45c0d9a78080953d01e57cc5ea784e4fa",
+  "output_hash": "08efd02e57d916ef701a422056c7c4924ca8fa6ffec1c1aaac99f2826d0b30db",
   "output_path": "server/priv/docs/yue_Hant/guides/features/bundle-insights/android.md",
   "protection_state": "recorded",
   "provider": "",
@@ -248,8 +248,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "fcd9fc91d24711de14b6fc01ac0714760da9256e",
+  "source_commit_sha": "5e9d7c17d002aff6035ec604c8e944aa411b79fa",
   "source_path": "server/priv/docs/en/guides/features/bundle-insights/android.md",
-  "translated_at": "2026-10-30T14:08:59.970613Z",
-  "translation_session_id": "01a18d22-b04d-7570-990d-070f52539940"
+  "translated_at": "2026-11-04T18:46:07.934811Z",
+  "translation_session_id": "01a1a7d6-1524-7d6d-85ce-7d4c649e29cb"
 }

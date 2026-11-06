@@ -2,11 +2,11 @@
 <resources>
     <string name="app_name">"Tuist"</string>
     <string name="login_title">"مرحباً بك في Tuist"</string>
-    <string name="login_subtitle">"سجّل الدخول للوصول إلى مشاريعك\nوالتعاون مع فريقك"</string>
-    <string name="sign_in_tuist">"تسجيل الدخول عبر Tuist"</string>
-    <string name="sign_in_apple">"تسجيل الدخول عبر Apple"</string>
-    <string name="sign_in_google">"تسجيل الدخول عبر Google"</string>
-    <string name="sign_in_github">"تسجيل الدخول عبر GitHub"</string>
+    <string name="login_subtitle">"سجّل الدخول للوصول إلى مشاريعك والتعاون مع فريقك"</string>
+    <string name="sign_in_tuist">"تسجيل الدخول باستخدام Tuist"</string>
+    <string name="sign_in_apple">"تسجيل الدخول باستخدام Apple"</string>
+    <string name="sign_in_google">"تسجيل الدخول باستخدام Google"</string>
+    <string name="sign_in_github">"تسجيل الدخول باستخدام GitHub"</string>
     <string name="session_expired">"انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى."</string>
     <string name="projects_title">"المشاريع"</string>
     <string name="previews_title">"المعاينات"</string>
@@ -20,16 +20,11 @@
     <string name="load_previews_failed">"فشل تحميل المعاينات"</string>
     <string name="load_more_previews_failed">"فشل تحميل المزيد من المعاينات"</string>
     <string name="refresh_previews_failed">"فشل تحديث المعاينات"</string>
-    <string name="relative_time_just_now">"الآن"</string>
-    <string name="relative_time_minutes">"منذ %1$dm"</string>
-    <string name="relative_time_hours">"منذ %1$dh"</string>
-    <string name="relative_time_days">"منذ %1$dd"</string>
-    <string name="relative_time_months">"منذ %1$d شهر"</string>
     <string name="profile_title">"الملف الشخصي"</string>
     <string name="profile_email">"البريد الإلكتروني"</string>
     <string name="profile_terms">"شروط الخدمة"</string>
     <string name="profile_privacy">"سياسة الخصوصية"</string>
-    <string name="profile_get_help">"الحصول على مساعدة"</string>
+    <string name="profile_get_help">"احصل على المساعدة"</string>
     <string name="profile_app_version">"إصدار التطبيق"</string>
     <string name="profile_delete_account">"حذف الحساب"</string>
     <string name="delete_account_title">"حذف الحساب"</string>
@@ -46,7 +41,7 @@
     <string name="preview_created_at">"تاريخ الإنشاء"</string>
     <string name="preview_bundle_id">"معرف الحزمة"</string>
     <string name="preview_branch">"الفرع"</string>
-    <string name="preview_commit_sha">"هاش الالتزام"</string>
+    <string name="preview_commit_sha">"SHA الالتزام"</string>
     <string name="preview_unknown">"غير معروف"</string>
     <string name="preview_run">"تشغيل"</string>
     <string name="preview_delete">"حذف المعاينة"</string>

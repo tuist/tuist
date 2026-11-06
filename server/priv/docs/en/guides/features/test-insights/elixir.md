@@ -9,7 +9,9 @@
 
 Tuist's Hex package uploads the test results of your Elixir project after each test run, giving you visibility into test performance and flaky tests directly in the Tuist dashboard.
 
-> [!IMPORTANT] REQUIREMENTS
+> [!IMPORTANT]
+> **Requirements**
+>
 > - Complete <.localized_link href="/guides/get-started/elixir-project">Get started with Elixir</.localized_link>
 
 ## Report your test runs {#report-your-test-runs}

@@ -187,7 +187,7 @@ defmodule TuistWeb.Marketing.Components.Posts.NativeEdges.EdgeGraphLab do
         width: min(780px, calc(100vw - var(--noora-spacing-12)));
 
         @media (min-width: 1024px) {
-          margin-left: calc((650px - 780px) / 2);
+          margin-inline-start: calc((650px - 780px) / 2);
         }
       }
 

@@ -13,7 +13,7 @@ defmodule Tuist.Sandboxes.Workers.PauseSandboxWorkerTest do
     sandbox = sandbox_fixture(state: :running, node_name: "node-a", residency_epoch: 3)
     sandbox_id = sandbox.id
 
-    expect(Nodes, :call, fn "node-a", "pause", %{sandbox_id: ^sandbox_id}, _opts -> {:ok, %{}} end)
+    expect(Nodes, :call, fn "node-a", "pause", %{sandbox_id: ^sandbox_id, sync_disks: true}, _opts -> {:ok, %{}} end)
 
     assert :ok = perform_job(PauseSandboxWorker, %{sandbox_id: sandbox.id, residency_epoch: 3})
     assert %Sandbox{state: :paused} = Repo.reload!(sandbox)

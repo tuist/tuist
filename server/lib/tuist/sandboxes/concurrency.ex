@@ -9,7 +9,8 @@ defmodule Tuist.Sandboxes.Concurrency do
   disk on the node, so every sandbox on a node (creating, resuming, running or
   paused) charges the disk limit with its workspace and memory image. A sandbox
   that joins a node (a create or an archive restore) is checked against it; a
-  resume of a paused sandbox already holds its disk and is not.
+  resume of a paused sandbox already holds its disk and is not. Execution VMs
+  count against the account's execution concurrency instead.
   """
   import Ecto.Changeset
   import Ecto.Query
@@ -39,7 +40,7 @@ defmodule Tuist.Sandboxes.Concurrency do
   def usage(account_id) do
     Repo.one(
       from s in Sandbox,
-        where: s.account_id == ^account_id and s.state in [:creating, :resuming, :running],
+        where: s.account_id == ^account_id and s.purpose == :agent and s.state in [:creating, :resuming, :running],
         select: %{vcpus: coalesce(sum(s.vcpus), 0), memory_mb: coalesce(sum(s.memory_mb), 0)}
     )
   end
@@ -51,7 +52,7 @@ defmodule Tuist.Sandboxes.Concurrency do
   def disk_usage_mb(account_id) do
     Repo.one(
       from s in Sandbox,
-        where: s.account_id == ^account_id and s.state in ^@on_node_states,
+        where: s.account_id == ^account_id and s.purpose == :agent and s.state in ^@on_node_states,
         select: type(coalesce(sum(s.workspace_gb * 1024 + s.memory_mb), 0), :integer)
     )
   end

@@ -19,6 +19,7 @@ defmodule TuistWeb.Authentication do
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias Tuist.Push
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
 
@@ -26,7 +27,14 @@ defmodule TuistWeb.Authentication do
   @current_project_key :current_project
   @remember_me_cookie "_tuist_web_user_remember_me"
   @reconnect_recovery_ms 5_000
-  @remember_me_options [sign: true, max_age: UserToken.session_absolute_seconds(), same_site: "Lax"]
+  # The origin serves plain HTTP behind Cloudflare, so Plug would not add
+  # Secure on its own; follow the session cookie's setting instead.
+  @remember_me_options [
+    sign: true,
+    max_age: UserToken.session_absolute_seconds(),
+    same_site: "Lax",
+    secure: Application.compile_env(:tuist, :session_cookie_secure, false)
+  ]
 
   def authenticated?(%Plug.Conn{} = conn), do: authenticated?(conn.assigns)
 
@@ -110,6 +118,31 @@ defmodule TuistWeb.Authentication do
     end
   end
 
+  @doc """
+  Returns the signed-in user for a user session or the signed-in Tuist app, or `nil`.
+
+  The app's OAuth access tokens authenticate as the user's account with the user as
+  issuer. Other OAuth clients have the same token shape, so the app's grant is checked
+  (`Tuist.Push.oauth_session/2`). Account and project tokens return `nil`.
+  """
+  def app_user(conn) do
+    case authenticated_subject(conn) do
+      %User{} = user ->
+        user
+
+      %AuthenticatedAccount{issued_by: %User{} = user} ->
+        with ["Bearer " <> bearer] <- get_req_header(conn, "authorization"),
+             {:ok, _session} <- Push.oauth_session(bearer, user) do
+          user
+        else
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
   def put_current_user(%Plug.Conn{} = conn, user) do
     assign(conn, @current_user_key, user)
   end
@@ -183,7 +216,7 @@ defmodule TuistWeb.Authentication do
       |> delete_session(:user_token)
       |> delete_session(:live_socket_id)
       |> delete_session(:auth_method)
-      |> delete_resp_cookie(@remember_me_cookie)
+      |> delete_remember_me_cookie()
       |> put_session(:pending_mfa, challenge)
       |> put_session(:pending_mfa_remember, params["remember_me"] == "true")
       |> maybe_put_post_invitation_context(params[:post_invitation_return_to], user.id, params[:post_invitation_token])
@@ -202,7 +235,7 @@ defmodule TuistWeb.Authentication do
   end
 
   defp complete_user_login(conn, user, token, params) do
-    user_return_to = get_session(conn, :user_return_to)
+    user_return_to = local_return_to(get_session(conn, :user_return_to))
     auth_method = Map.get(params, :auth_method, :password)
 
     {post_invitation_return_to, post_invitation_token} =
@@ -256,6 +289,13 @@ defmodule TuistWeb.Authentication do
     conn
   end
 
+  @doc """
+  Clears the remember-me cookie with the attributes it was written with.
+  """
+  def delete_remember_me_cookie(conn) do
+    delete_resp_cookie(conn, @remember_me_cookie, @remember_me_options)
+  end
+
   # This function renews the session ID and erases the whole
   # session to avoid fixation attacks. If there is any data
   # in the session you may want to preserve after log in/log out,
@@ -291,19 +331,23 @@ defmodule TuistWeb.Authentication do
       TuistWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
     end
 
-    return_to =
-      case Keyword.get(opts, :return_to) do
-        "//" <> _ -> ~p"/"
-        "/" <> _ = path -> path
-        _ -> ~p"/"
-      end
+    return_to = local_return_to(Keyword.get(opts, :return_to)) || ~p"/"
 
     conn
     |> renew_session()
-    |> delete_resp_cookie(@remember_me_cookie)
+    |> delete_remember_me_cookie()
     |> redirect(to: return_to)
     |> halt()
   end
+
+  # Use the same browser-aware validation as Phoenix's redirect functions,
+  # including backslashes and control characters, before storing or consuming
+  # navigation state. A return destination is never authentication proof.
+  def local_return_to(path) when is_binary(path) do
+    if Phoenix.URL.classify_local_path(path) == :ok and not Regex.match?(~r/[\x00-\x1f\x7f]/, path), do: path
+  end
+
+  def local_return_to(_path), do: nil
 
   @doc """
   Authenticates the user by looking into the session
@@ -323,7 +367,7 @@ defmodule TuistWeb.Authentication do
         |> delete_session(:user_token)
         |> delete_session(:live_socket_id)
         |> delete_session(:auth_method)
-        |> delete_resp_cookie(@remember_me_cookie)
+        |> delete_remember_me_cookie()
       else
         conn
       end
@@ -380,21 +424,20 @@ defmodule TuistWeb.Authentication do
         live "/profile", ProfileLive, :index
       end
   """
-  def on_mount(:mount_current_user, _params, session, socket) do
-    {:cont, mount_current_user(socket, session)}
+  def on_mount(:mount_current_user, params, session, socket) do
+    {:cont, socket |> assign_browser_session_path(params) |> mount_current_user(session)}
   end
 
-  def on_mount(:ensure_authenticated, _params, session, socket) do
-    socket = mount_current_user(socket, session)
+  def on_mount(:ensure_authenticated, params, session, socket) do
+    socket = socket |> assign_browser_session_path(params) |> mount_current_user(session)
 
     if socket.assigns.current_user do
-      # Pages that always need a user return to login when the session ends.
-      {:cont, Phoenix.Component.assign(socket, :browser_session_login_required?, true)}
+      {:cont, socket}
     else
       socket =
         socket
         |> LiveView.put_flash(:error, "You must log in to access this page.")
-        |> LiveView.redirect(to: ~p"/users/log_in")
+        |> LiveView.redirect(to: socket.assigns[:browser_session_path] || ~p"/users/log_in")
 
       {:halt, socket}
     end
@@ -436,6 +479,29 @@ defmodule TuistWeb.Authentication do
   # See require_member_sso_authentication/2.
   def on_mount(:require_member_sso_authentication, params, session, socket) do
     on_mount(:require_sso_authentication, params, session, Phoenix.Component.assign(socket, :sso_members_only?, true))
+  end
+
+  defp assign_browser_session_path(socket, params) do
+    # The client supplies navigation state, never identity or authorization.
+    # Match it to this view/action and its actual route scope before using it.
+    path =
+      if socket.router && LiveView.connected?(socket) && is_map(params) do
+        with path when is_binary(path) <- local_return_to(LiveView.get_connect_params(socket)["tuist_return_to"]),
+             uri = URI.parse(path),
+             segments = for(segment <- String.split(uri.path, "/", trim: true), do: URI.decode(segment)),
+             %{phoenix_live_view: {view, action, _, _}, path_params: path_params} <-
+               Phoenix.Router.route_info(socket.router, "GET", segments, socket.host_uri.host),
+             true <- view == socket.view and action == socket.assigns.live_action,
+             true <- Map.take(params, Map.keys(path_params)) == path_params do
+          path
+        else
+          _ -> nil
+        end
+      end
+
+    Phoenix.Component.assign(socket, :browser_session_path, path)
+  rescue
+    ArgumentError -> Phoenix.Component.assign(socket, :browser_session_path, nil)
   end
 
   def mount_current_user(socket, session) do
@@ -480,7 +546,7 @@ defmodule TuistWeb.Authentication do
       socket
       |> Phoenix.Component.assign(
         sso_route_params: params,
-        browser_session_path: if(!socket.assigns[:browser_session_login_required?], do: request_path(url))
+        browser_session_path: local_return_to(request_path(url))
       )
       |> check_live_session(token, touch: not automatic_request?(socket.assigns))
     end)
@@ -537,8 +603,15 @@ defmodule TuistWeb.Authentication do
     account_handle = get_in(socket.assigns, [:sso_route_params, "account_handle"])
 
     case required_sso_organization(socket, account_handle, socket.assigns[:current_user_session]) do
-      nil -> {:cont, socket}
-      organization -> {:halt, LiveView.redirect(socket, to: sso_provider_path(organization))}
+      nil ->
+        {:cont, socket}
+
+      _organization ->
+        # A socket cannot update the session cookie. Go through HTTP first,
+        # so redirect_to_sso_sign_in records this page, not an old return URL.
+        # Old clients without a valid path use this organization's entry page.
+        return_to = socket.assigns[:browser_session_path] || ~p"/#{account_handle}/projects"
+        {:halt, LiveView.redirect(socket, to: return_to)}
     end
   end
 
@@ -723,7 +796,7 @@ defmodule TuistWeb.Authentication do
 
   defp redirect_to_sso_sign_in(conn, organization) do
     conn
-    |> put_session(:oauth_return_to, current_path(conn))
+    |> put_session(:user_return_to, current_path(conn))
     |> redirect(to: sso_provider_path(organization))
     |> halt()
   end

@@ -20,9 +20,16 @@ defmodule Tuist.MCP.AuthorizationTest do
 
   setup do
     project = ProjectsFixtures.project_fixture(preload: [:account])
-    operator = AccountsFixtures.user_fixture(email: "operator@tuist.dev", preload: [:account])
+
+    operator =
+      AccountsFixtures.user_fixture(
+        email: "operator@tuist.dev",
+        email_verified_at: ~U[2026-11-01 00:00:00Z],
+        preload: [:account]
+      )
 
     stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+    stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
 
     {:ok, project: project, operator: operator}
   end

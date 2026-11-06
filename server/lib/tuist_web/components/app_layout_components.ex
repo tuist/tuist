@@ -150,6 +150,18 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={TuistWeb.TestSelectionsLive.enabled?(@selected_account, @selected_project)}
+          label={dgettext("dashboard", "Test Selection")}
+          icon="filter"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"
+            )
+          }
+        />
+        <.sidebar_item
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -475,6 +487,8 @@ defmodule TuistWeb.AppLayoutComponents do
       <% runner_workflows_path = ~p"/#{@selected_account.name}/runners/workflows" %>
       <% runner_jobs_path = ~p"/#{@selected_account.name}/runners/jobs" %>
       <% runner_profiles_path = ~p"/#{@selected_account.name}/runners/profiles" %>
+      <% sandboxes_path = ~p"/#{@selected_account.name}/sandboxes" %>
+      <% sandbox_instances_path = ~p"/#{@selected_account.name}/sandboxes/instances" %>
       <.sidebar_item
         label={dgettext("dashboard", "Projects")}
         icon="folders"
@@ -520,6 +534,26 @@ defmodule TuistWeb.AppLayoutComponents do
           icon="category"
           navigate={runner_profiles_path}
           selected={String.starts_with?(@current_path, runner_profiles_path)}
+        />
+      </.sidebar_group>
+      <.sidebar_group
+        :if={
+          FeatureFlags.sandboxes_enabled?(@selected_account) and
+            Authorization.authorize(:sandboxes_read, @current_user, @selected_account) == :ok
+        }
+        id="sidebar-sandboxes"
+        label={dgettext("dashboard_sandboxes", "Sandboxes")}
+        icon="box_model_2"
+        navigate={sandboxes_path}
+        selected={@current_path == sandboxes_path}
+        default_open={String.starts_with?(@current_path, sandboxes_path)}
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={dgettext("dashboard_sandboxes", "Instances")}
+          icon="stack_2"
+          navigate={sandbox_instances_path}
+          selected={String.starts_with?(@current_path, sandboxes_path <> "/")}
         />
       </.sidebar_group>
       <.sidebar_item
@@ -581,6 +615,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% tokens_path = ~p"/#{@selected_account.name}/settings/tokens" %>
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
+      <% ai_path = ~p"/#{@selected_account.name}/settings/ai" %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
@@ -603,6 +638,15 @@ defmodule TuistWeb.AppLayoutComponents do
         label={dgettext("dashboard", "Authentication")}
         selected={String.starts_with?(@current_path, authentication_path)}
         navigate={authentication_path}
+      />
+      <.tab_menu_horizontal_item
+        :if={
+          @selected_account.user_id == @current_user.id and
+            FeatureFlags.ai_enabled?(@current_user)
+        }
+        label={dgettext("dashboard", "AI")}
+        selected={String.starts_with?(@current_path, ai_path)}
+        navigate={ai_path}
       />
     </.tab_menu_horizontal>
     """

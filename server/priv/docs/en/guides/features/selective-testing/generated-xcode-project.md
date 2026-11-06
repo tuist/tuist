@@ -7,9 +7,7 @@
 ---
 # Generated Xcode project {#generated-xcode-project}
 
-As your project grows, so does the amount of your tests. For a long time, running all tests on every PR or push to `main` takes tens of seconds. But this solution does not scale to thousands of tests your team might have.
-
-On every test run on the CI, you most likely re-run all the tests, regardless of the changes. Tuist's selective testing helps you to drastically speed up running the tests themselves by running only the tests that have changed since the last successful test run based on our <.localized_link href="/guides/features/projects/hashing">hashing algorithm</.localized_link>.
+As a project grows, running every test on every push stops scaling. Tuist's selective testing runs only the tests whose targets changed since the last successful test run, based on Tuist's <.localized_link href="/guides/features/projects/hashing">hashing algorithm</.localized_link>.
 
 To run tests selectively with your <.localized_link href="/guides/features/projects">generated project</.localized_link>, use the `tuist test` command. The command <.localized_link href="/guides/features/projects/hashing">hashes</.localized_link> your project the same way it does for the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link>, and on success, it persists the hashes to determine what has changed in future runs. In future runs, `tuist test` transparently uses the hashes to filter down the tests and run only the ones that have changed since the last successful test run.
 
@@ -48,40 +46,73 @@ tuist test MyScheme \
 # Build job — writes the graph as a sibling of each xctestrun in derived data.
 tuist test MyScheme \
   --build-only \
-  --derived-data-path artifacts/derived-data
+  -- \
+  -derivedDataPath artifacts/derived-data
 
 # Test job — points --without-building at any of those xctestrun files.
 tuist test MyScheme \
   --without-building \
-  --derived-data-path artifacts/derived-data \
   -- \
+  -derivedDataPath artifacts/derived-data \
   -destination 'platform=iOS Simulator,id=SIMULATOR_IDENTIFIER' \
   -xctestrun artifacts/derived-data/Build/Products/MyScheme_iphonesimulator.xctestrun
 ```
 
 When Tuist can't find that graph next to the input (for example, when the build job used plain `xcodebuild build-for-testing` instead of `tuist test --build-only`), it falls back to regenerating the project so it can still compute the affected targets. That fallback needs Swift Package dependencies to be resolved on the test job, so run `tuist install` first or cache `Tuist/.build` between jobs.
 
-The graph reflects the source tree as it was at build time. Run the test job against the same commit as the build job — if the source drifts between the two, the hashes travel out of date and selective testing can skip tests that would actually fail against the newer source.
+The graph reflects the source tree as it was at build time. Run the test job against the same commit as the build job — if the source drifts between the two, the hashes no longer match the source and selective testing can skip tests that would actually fail against the newer source.
 
 ### Which flag should I use? {#which-flag-should-i-use}
 
 `.xctestrun` and `.xctestproducts` are two different Xcode output formats, and they trade off portability against pipeline convenience:
 
-- **`-testProductsPath` (`.xctestproducts`) — recommended for new pipelines.** It's a self-contained directory: the built `.xctest` binaries and their `.xctestrun` files live inside it with paths made relative to the bundle root, so it stays valid wherever it ends up. It's also the format that has had the selective-testing fast path the longest, so it's the most-exercised path.
+- **`-testProductsPath` (`.xctestproducts`) — recommended for new pipelines.** It's a self-contained directory: the built `.xctest` binaries and their `.xctestrun` files live inside it with paths made relative to the bundle root, so it stays valid wherever it ends up.
 - **`-xctestrun` (raw `.xctestrun`) — use it if you already have a pipeline built around derived data.** `xcodebuild build-for-testing` writes an `.xctestrun` at the top of `<derivedData>/Build/Products/` by default and points it at test bundles that live elsewhere in that tree. Reusing it in another job means keeping the paths in `Build/Products/` intact.
 
-If you're starting fresh, prefer `-testProductsPath`. If you're wiring Tuist into an existing pipeline that already caches derived data, `-xctestrun` will now get the same fast path as long as the build job runs through `tuist test --build-only`.
+If you're starting fresh, prefer `-testProductsPath`. If you're wiring Tuist into an existing pipeline that already caches derived data, `-xctestrun` gets the same fast path as long as the build job runs through `tuist test --build-only`.
 
 Either input mode is mutually exclusive with `-workspace`/`-project`/`-scheme`, so Tuist skips those flags when the passthrough arguments include `-xctestrun` or `-testProductsPath`, and forwards the selected targets through `-only-testing`.
 
 > [!WARNING]
-> **Module Vs File-level Granularity**
+> **Module vs file-level granularity**
 >
-> Due to the impossibility of detecting the in-code dependencies between tests and sources, the maximum granularity of selective testing is at the target level. Therefore, we recommend keeping your targets small and focused to maximize the benefits of selective testing.
+> Due to the impossibility of detecting the in-code dependencies between tests and sources, the maximum granularity of the default selective testing is at the target level. The [coverage strategy](#coverage-based-test-selection) narrows it down to single XCTest tests. Therefore, we recommend keeping your targets small and focused to maximize the benefits of selective testing.
 
+
+## Coverage-based test selection {#coverage-based-test-selection}
 
 > [!NOTE]
-> **Test Coverage**
+> **Early access**
+>
+> Coverage-based test selection is in early access. Contact us to enable it for your account. Until it's enabled, the strategy behaves like the default selective testing.
+
+By default, selective testing skips whole test targets whose hash already passed. The `.coverage()` strategy goes further: in the test targets left, it also skips the XCTest and XCUITest tests whose code coverage on an earlier run includes none of the files your change touched. Enable it in `Tuist.swift`:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    fullHandle: "{account-handle}/{project-handle}",
+    testInsights: .testInsights(
+        coverage: .coverage(upload: true),
+        selectiveTesting: .selectiveTesting(strategy: .coverage())
+    ),
+    project: .tuist()
+)
+```
+
+The strategy requires:
+
+- **Coverage uploads.** Tuist selects tests by the coverage that earlier runs uploaded, so `tuist test` fails to load a manifest that sets `.coverage()` with `upload: false`.
+- **[TestCoverageAttribution](https://github.com/tuist/TestCoverageAttribution) 0.3.0 or later** linked by your test targets. It records which files each test executes and skips the tests Tuist didn't select. A target without it is only ever skipped whole, as with the default.
+- **Test runs on your default branch without selection.** Run `tuist test --no-selective-testing` there, and on any other branch where tests shouldn't be skipped. Those runs execute every test and become the baselines later runs compare against.
+
+With the strategy on, `tuist test` skips the targets whose hash already passed, then asks Tuist which tests of the remaining targets your change can affect. Targets with no affected test aren't built. New tests, tests that failed last time, tests in a changed test file, and tests without recorded coverage always run. Swift Testing tests run whenever their target runs.
+
+When coverage can't decide, the output says why. Without a recent baseline on the same platform, or when the change touches more than 5,000 files, every test runs so that the commit can become a baseline. When a file that can affect any test changed, such as `Package.resolved`, `Project.swift`, or an `.xcconfig`, the run uses the default selective testing. To run every test, pass `--no-selective-testing`.
+
+> [!NOTE]
+> **Test coverage**
 >
 > Coverage tools that read a single run's report, Xcode's included, assume the whole test suite ran, so a selective run's report leaves out the tests it skipped. Tuist's <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">code coverage</.localized_link> carries the coverage of skipped test targets forward from an earlier run instead, using the <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project#target-level-coverage">target-level coverage</.localized_link> it records on every run.
 
@@ -89,7 +120,7 @@ Either input mode is mutually exclusive with `-workspace`/`-project`/`-scheme`, 
 ## Pull/merge request comments {#pullmerge-request-comments}
 
 > [!WARNING]
-> **Integration With Git Platform Required**
+> **Git forge integration required**
 >
 > To get automatic pull/merge request comments, integrate your <.localized_link href="/guides/server/accounts-and-projects">Tuist project</.localized_link> with a <.localized_link href="/guides/server/authentication">Git platform</.localized_link>.
 

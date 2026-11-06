@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/native_histograms.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+
+load 6m
+  nhcb_metric {{schema:-53 sum:1 count:1 custom_values:[5] buckets:[1]}} {{schema:-53 sum:1 count:1 custom_values:[5] buckets:[1]}} {{schema:-53 sum:1 count:1 custom_values:[5 10] buckets:[1]}} {{schema:-53 sum:1 count:1 custom_values:[5 10] buckets:[1]}}
+
+# If evaluating at 12m, the first two NHCBs have the same custom values
+# while the 3rd one has different ones.
+
+eval instant at 12m sum_over_time(nhcb_metric[13m])
+  expect no_warn
+  expect info msg: PromQL info: mismatched custom buckets were reconciled during aggregation (1:15)
+  {} {{schema:-53 count:3 sum:3 custom_values:[5] buckets:[3]}}
+
+eval instant at 12m avg_over_time(nhcb_metric[13m])
+  expect no_warn
+  expect info msg: PromQL info: mismatched custom buckets were reconciled during aggregation (1:15)
+  {} {{schema:-53 count:1 sum:1 custom_values:[5] buckets:[1]}}
+
+eval instant at 12m last_over_time(nhcb_metric[13m])
+  expect no_warn
+  nhcb_metric{} {{schema:-53 sum:1 count:1 custom_values:[5 10] buckets:[1]}}
+
+eval instant at 12m count_over_time(nhcb_metric[13m])
+  expect no_warn
+  {} 3
+
+eval instant at 12m present_over_time(nhcb_metric[13m])
+  expect no_warn
+  {} 1
+
+eval instant at 12m changes(nhcb_metric[13m])
+  expect no_warn
+  {} 1
+
+eval instant at 12m delta(nhcb_metric[13m])
+  expect warn msg: PromQL warning: this native histogram metric is not a gauge: "nhcb_metric" (1:7)
+  {} {{schema:-53 custom_values:[5]}}
+
+eval instant at 12m increase(nhcb_metric[13m])
+  expect no_warn
+  {} {{schema:-53 custom_values:[5]}}
+
+eval instant at 12m rate(nhcb_metric[13m])
+  expect no_warn
+  {} {{schema:-53 custom_values:[5] }}
+
+eval instant at 12m resets(nhcb_metric[13m])
+  expect no_warn
+  {} 0
+
+# Now doing the same again, but at 18m, where the first NHCB has
+# different custom_values compared to the other two.
+
+eval instant at 18m sum_over_time(nhcb_metric[13m])
+  expect no_warn
+  {} {{schema:-53 count:3 sum:3 custom_values:[5] buckets:[3]}}
+
+eval instant at 18m avg_over_time(nhcb_metric[13m])
+  expect no_warn
+  {} {{schema:-53 count:1 sum:1 custom_values:[5] buckets:[1]}}
+
+eval instant at 18m last_over_time(nhcb_metric[13m])
+  expect no_warn
+  nhcb_metric{} {{schema:-53 sum:1 count:1 custom_values:[5 10] buckets:[1]}}
+
+eval instant at 18m count_over_time(nhcb_metric[13m])
+  expect no_warn
+  {} 3
+
+eval instant at 18m present_over_time(nhcb_metric[13m])
+  expect no_warn
+  {} 1
+
+eval instant at 18m changes(nhcb_metric[13m])
+  expect no_warn
+  {} 1
+
+eval instant at 18m delta(nhcb_metric[13m])
+  expect warn msg: PromQL warning: this native histogram metric is not a gauge: "nhcb_metric" (1:7)
+  expect info msg: PromQL info: mismatched custom buckets were reconciled during subtraction (1:7)
+  {} {{schema:-53 custom_values:[5]}}
+
+eval instant at 18m increase(nhcb_metric[13m])
+  expect no_warn
+  {} {{schema:-53 custom_values:[5]}}
+
+eval instant at 18m rate(nhcb_metric[13m])
+  expect no_warn
+  {} {{schema:-53 custom_values:[5]}}
+
+eval instant at 18m resets(nhcb_metric[13m])
+  expect no_warn
+  {} 0
+
+clear

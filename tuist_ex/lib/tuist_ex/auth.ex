@@ -185,44 +185,75 @@ defmodule TuistEx.Auth do
     end
   end
 
+  # Servers that support the standard device authorization flow (RFC 8628)
+  # issue a short user code to type in the browser. Older servers answer 404
+  # or 405, and the login falls back to opening a link with a client-chosen code.
   defp browser_login(server_url, options) do
+    sleep = Keyword.get(options, :sleep, &Process.sleep/1)
+
+    case HTTP.request(:post, server_url <> "/api/auth/device_codes", %{}) do
+      {:ok, 200,
+       %{"device_code" => code, "user_code" => user_code, "verification_uri" => uri} = body} ->
+        Mix.shell().info(
+          "Your sign-in code is #{user_code}. Enter it in the browser to approve this device."
+        )
+
+        open_verification_url(uri, options)
+        interval = positive_integer(body["interval"], 1)
+        attempts = max(div(positive_integer(body["expires_in"], 300), interval), 1)
+        poll_device_code(server_url, code, sleep, interval * 1_000, attempts)
+
+      {:ok, status, _} when status in [404, 405] ->
+        link_login(server_url, sleep, options)
+
+      response ->
+        request_error!("Browser authentication", response)
+    end
+  end
+
+  defp link_login(server_url, sleep, options) do
     code =
       Keyword.get(options, :device_code, fn ->
         Base.url_encode64(:crypto.strong_rand_bytes(24), padding: false)
       end).()
 
-    browser_url = server_url <> "/auth/device_codes/#{code}?type=cli"
-    Mix.shell().info("Opening #{browser_url} to start authentication")
+    open_verification_url(server_url <> "/auth/device_codes/#{code}?type=cli", options)
+    poll_device_code(server_url, code, sleep, 1_000, 300)
+  end
 
-    case Keyword.get(options, :open_browser, &open_browser/1).(browser_url) do
+  defp open_verification_url(url, options) do
+    Mix.shell().info("Opening #{url} to start authentication")
+
+    case Keyword.get(options, :open_browser, &open_browser/1).(url) do
       :ok -> :ok
       {:error, reason} -> Mix.shell().info("Open the address above in a browser: #{reason}")
     end
 
     Mix.shell().info("Press Control-C to cancel.")
-    sleep = Keyword.get(options, :sleep, &Process.sleep/1)
-    poll_device_code(server_url, code, sleep, 300)
   end
 
-  defp poll_device_code(_server_url, _code, _sleep, 0),
+  defp positive_integer(value, _default) when is_integer(value) and value > 0, do: value
+  defp positive_integer(_value, default), do: default
+
+  defp poll_device_code(_server_url, _code, _sleep, _interval, 0),
     do: Mix.raise("Tuist authentication timed out")
 
-  defp poll_device_code(server_url, code, sleep, attempts) do
+  defp poll_device_code(server_url, code, sleep, interval, attempts) do
     case HTTP.request(:get, server_url <> "/api/auth/device_code/#{code}") do
       {:ok, 200, %{"access_token" => access, "refresh_token" => refresh}} ->
         %{"accessToken" => access, "refreshToken" => refresh}
 
       {:ok, 202, _} ->
-        sleep.(1_000)
-        poll_device_code(server_url, code, sleep, attempts - 1)
+        sleep.(interval)
+        poll_device_code(server_url, code, sleep, interval, attempts - 1)
 
       {:ok, status, _} when status >= 500 ->
-        sleep.(1_000)
-        poll_device_code(server_url, code, sleep, attempts - 1)
+        sleep.(interval)
+        poll_device_code(server_url, code, sleep, interval, attempts - 1)
 
       {:error, _} ->
-        sleep.(1_000)
-        poll_device_code(server_url, code, sleep, attempts - 1)
+        sleep.(interval)
+        poll_device_code(server_url, code, sleep, interval, attempts - 1)
 
       response ->
         request_error!("Browser authentication", response)

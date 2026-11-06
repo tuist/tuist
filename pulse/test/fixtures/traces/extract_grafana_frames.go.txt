@@ -1,0 +1,4 @@
+// Optional one-off extraction: actual public source bodies are not rewritten.
+package main
+import("go/ast";"go/parser";"go/token";"os";"strings")
+func main(){raw,_:=os.ReadFile("search.go");fs:=token.NewFileSet();root,err:=parser.ParseFile(fs,"search.go",raw,0);if err!=nil{panic(err)};out:="package tempo\nimport(\"encoding/json\";\"sort\";\"time\";\"github.com/grafana/grafana-plugin-sdk-go/backend\";\"github.com/grafana/grafana-plugin-sdk-go/data\";\"github.com/grafana/tempo/pkg/tempopb\";v1 \"github.com/grafana/tempo/pkg/tempopb/common/v1\")\n";for _,d:=range root.Decls{keep:=false;switch v:=d.(type){case *ast.FuncDecl:keep=strings.HasPrefix(v.Name.Name,"transform")||v.Name.Name=="getTypeForAttribute";case *ast.GenDecl:if v.Tok==token.TYPE{keep=true}};if keep{out+=string(raw[fs.Position(d.Pos()).Offset:fs.Position(d.End()).Offset])+"\n"}};if err:=os.WriteFile("search_transform.go",[]byte(out),0644);err!=nil{panic(err)}}

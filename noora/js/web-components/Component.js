@@ -1,11 +1,24 @@
-import { LitElement } from "lit";
+import { LitElement, css } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import { contractProperties, initializeContractDefaults } from "./Contract.js";
 import iconMarkup from "./icons.json";
 
+// Directional icons from `icons.json` carry `data-rtl-mirror`. Light-DOM ancestors' `dir`
+// attributes are not visible to selectors inside shadow roots, so match the element's
+// inherited directionality instead. Mirrors `css/icon.css`.
+const rtlMirroredIconStyles = css`
+  [data-rtl-mirror]:dir(rtl) {
+    scale: -1 1;
+  }
+`;
+
 export class NooraElement extends LitElement {
   static contract;
   static properties = {};
+
+  static finalizeStyles(styles) {
+    return [...super.finalizeStyles(styles), rtlMirroredIconStyles];
+  }
 
   #handleConfigurationChange = (event) => {
     if (event.target !== this) {

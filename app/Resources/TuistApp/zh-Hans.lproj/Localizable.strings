@@ -35,7 +35,7 @@
 "Are you sure you want to delete this preview? This action cannot be undone." = "确定要删除此预览吗？此操作无法撤销。";
 
 /* TuistProfile/ProfileView.swift */
-"Are you sure you want to delete your account? This action cannot be undone." = "确定要删除您的账户吗？此操作无法撤销。";
+"Are you sure you want to delete your account? This action cannot be undone." = "确定要删除你的账户吗？此操作无法撤销。";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Authorization code not found" = "未找到授权码";
@@ -95,7 +95,7 @@
 "Delete account" = "删除账户";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Delete preview" = "删除预览版";
+"Delete preview" = "删除预览";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Details" = "详情";
@@ -110,7 +110,7 @@
 "Email" = "电子邮件";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "请输入有效的 HTTPS 服务器 URL，不得包含凭据、查询参数或片段。";
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "请输入有效的 HTTPS 服务器 URL，不要包含凭据、查询参数或片段。";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "错误";
@@ -140,7 +140,7 @@
 "Invalid callback URL received" = "收到无效的回调 URL";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Invalid response format" = "响应格式无效";
+"Invalid response format" = "无效的响应格式";
 
 /* TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Launch" = "启动";
@@ -176,7 +176,7 @@
 "Other devices" = "其他设备";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
-"Pin" = "置顶";
+"Pin" = "固定";
 
 /* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
 "Previews" = "预览";
@@ -269,13 +269,13 @@
 "The server returned a preview page that did not advance. Update your server or try again." = "服务器返回的预览页面未更新。请更新你的服务器或重试。";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "此服务器不支持按轨道筛选预览。请更新你自托管的 Tuist 服务器，或选择“所有”轨道。";
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "此服务器不支持按轨道筛选预览。请更新你的自托管 Tuist 服务器，或选择“所有”轨道。";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "此服务器不支持搜索预览。请更新你自托管的 Tuist 服务器，或清除搜索内容。";
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "此服务器不支持搜索预览。请更新你的自托管 Tuist 服务器，或清除搜索内容。";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "此服务器不支持从 Tuist 应用登录。请联系管理员进行更新。";
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "此服务器不支持从 Tuist App 登录。请联系管理员进行更新。";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "To run a preview, you must have a simulator selected." = "要运行预览，你必须选择一个模拟器。";
@@ -287,10 +287,10 @@
 "Track" = "轨道";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Tracks" = "频道";
+"Tracks" = "轨道";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Try a different search or select another track." = "尝试其他搜索内容或选择另一个频道。";
+"Try a different search or select another track." = "尝试不同的搜索或选择其他轨道。";
 
 /* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
 "Unknown" = "未知";
@@ -299,7 +299,7 @@
 "Unpin" = "取消固定";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Update your self-hosted Tuist server to select a track." = "请更新您自托管的 Tuist 服务器以选择频道。";
+"Update your self-hosted Tuist server to select a track." = "更新您的自托管 Tuist 服务器以选择轨道。";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
 "Use the root address of your Tuist server" = "使用您的 Tuist 服务器的根地址";

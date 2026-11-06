@@ -303,6 +303,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SendTestPushNotification
   alias Atlas.MCP.Tools.SetFinancingAccountingTreatment
   alias Atlas.MCP.Tools.SetFinancingLines
+  alias Atlas.MCP.Tools.SetOVHServerDisplayName
   alias Atlas.MCP.Tools.SetPOCContext
   alias Atlas.MCP.Tools.StartChatGPTProviderLogin
   alias Atlas.MCP.Tools.SuggestMoodboardResource
@@ -578,6 +579,7 @@ defmodule Atlas.MCP.Server do
     SearchMyGmail,
     GetMyGmailMessage,
     SearchMySlack,
+    SetOVHServerDisplayName,
     ListCodingRepositories,
     UpdateCodingRepositorySettings,
     ListLLMProviderConnections,
@@ -1065,6 +1067,8 @@ defmodule Atlas.MCP.Server do
     do: "observability"
 
   defp tool_group(GetErrorEventContexts), do: "observability"
+  # Same group as the proxied OVH tools it sits beside.
+  defp tool_group(SetOVHServerDisplayName), do: "observability"
   defp tool_group(_tool_module), do: "default"
 
   defp error_context_tool_allowed?(conn, GetErrorEventContexts),

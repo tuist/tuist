@@ -72,6 +72,10 @@ server:
       enabled: true
     originAppKey:
       enabled: true
+    apns:
+      enabled: true
+    fcm:
+      enabled: true
     externalSecrets:
       fields:
         sentryDsn: dsn_atlas

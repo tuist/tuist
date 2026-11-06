@@ -11,6 +11,7 @@ defmodule Tuist.Accounts.User do
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Accounts.Oauth2Identity
   alias Tuist.Accounts.Organization
+  alias Tuist.Accounts.User
   alias Tuist.Accounts.UserRole
   alias Tuist.Projects.Project
 
@@ -22,10 +23,13 @@ defmodule Tuist.Accounts.User do
     field :password, :string, virtual: true
     field :encrypted_password, :string, default: ""
     field :confirmed_at, :naive_datetime
+    field :email_verified_at, :utc_datetime
     field :last_sign_in_at, :naive_datetime
     field :preferred_locale, :string
     field :active, :boolean, default: true
     field :disabled_at, :utc_datetime
+    # See `Tuist.Accounts.revoke_user_api_credentials/1`.
+    field :credentials_revoked_at, :utc_datetime
     # Operator access grant claims (verified, from ops.tuist.dev),
     # attached per-request by TuistWeb.OperatorGrant. Never persisted
     # or cast; nil = no grant = fail closed.
@@ -56,7 +60,8 @@ defmodule Tuist.Accounts.User do
       :encrypted_password,
       :confirmed_at,
       :created_at,
-      :provisioned_by_organization_id
+      :provisioned_by_organization_id,
+      :email_verified_at
     ])
     |> update_change(:email, &String.downcase/1)
     |> validate_required([:token, :email])
@@ -88,7 +93,7 @@ defmodule Tuist.Accounts.User do
   If there is no user or the user doesn't have a password, we call
   `Bcrypt.no_user_verify/0` to avoid timing attacks.
   """
-  def valid_password?(%Tuist.Accounts.User{encrypted_password: encrypted_password}, password)
+  def valid_password?(%User{encrypted_password: encrypted_password}, password)
       when is_binary(encrypted_password) and byte_size(password) > 0 do
     Bcrypt.verify_pass(
       password <> Tuist.Environment.secret_key_password(),
@@ -100,6 +105,18 @@ defmodule Tuist.Accounts.User do
     Bcrypt.no_user_verify()
     false
   end
+
+  @doc """
+  Whether someone set a password for the user. Accounts created without one,
+  for example through SCIM or an identity provider, store the hash of the
+  empty password.
+  """
+  def password_set?(%User{encrypted_password: encrypted_password})
+      when is_binary(encrypted_password) and encrypted_password != "" do
+    not Bcrypt.verify_pass(Tuist.Environment.secret_key_password(), encrypted_password)
+  end
+
+  def password_set?(_user), do: false
 
   @doc """
   A user changeset for changing the password.
@@ -145,7 +162,7 @@ defmodule Tuist.Accounts.User do
   """
   def confirm_changeset(user) do
     now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-    change(user, confirmed_at: now)
+    change(user, confirmed_at: now, email_verified_at: DateTime.truncate(DateTime.utc_now(), :second))
   end
 
   def active_changeset(user, active) when is_boolean(active) do

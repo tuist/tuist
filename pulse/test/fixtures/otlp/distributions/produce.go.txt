@@ -1,0 +1,77 @@
+// Optional preparation only. No telemetry export, SDK, or Pulse dependency.
+package main
+
+import (
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	metrics "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"math"
+	"os"
+	"strconv"
+)
+
+func main() {
+	input, err := os.ReadFile(os.Args[1])
+	must(err)
+	var request metrics.ExportMetricsServiceRequest
+	must(proto.Unmarshal(input, &request))
+	body, err := (protojson.MarshalOptions{UseEnumNumbers: true}).Marshal(&request)
+	must(err)
+	must(os.WriteFile(os.Args[2]+".google", body, 0600))
+	// OTLP/JSON differs from generic ProtoJSON: enum numbers (above), and hex
+	// trace/span IDs rather than base64. Preserve the unadapted input separately.
+	var object any
+	must(json.Unmarshal(body, &object))
+	ids(object)
+	body, err = json.Marshal(object)
+	must(err)
+	must(os.WriteFile(os.Args[2], body, 0600))
+	// Actual Go fixed shortest-roundtrip spelling, including boundaries/subnormals.
+	bits := []uint64{0, 1, 0x8000000000000000, 0x0010000000000000, 0x7fefffffffffffff,
+		0x3ff0000000000000, 0x3fb999999999999a, 0x44b52d02c7e14af6}
+	state := uint64(0x123456789abcdef)
+	for i := 0; i < 2048; i++ {
+		state ^= state << 13
+		state ^= state >> 7
+		state ^= state << 17
+		bits = append(bits, state)
+	}
+	cases := []map[string]string{}
+	for _, b := range bits {
+		f := math.Float64frombits(b)
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			continue
+		}
+		cases = append(cases, map[string]string{"bits": fmt.Sprintf("%016x", b), "label": strconv.FormatFloat(f, 'f', -1, 64)})
+	}
+	body, err = json.Marshal(cases)
+	must(err)
+	must(os.WriteFile(os.Args[3], body, 0600))
+}
+func ids(value any) {
+	switch v := value.(type) {
+	case map[string]any:
+		for k, item := range v {
+			if k == "traceId" || k == "spanId" {
+				raw, err := base64.StdEncoding.DecodeString(item.(string))
+				must(err)
+				v[k] = hex.EncodeToString(raw)
+			} else {
+				ids(item)
+			}
+		}
+	case []any:
+		for _, item := range v {
+			ids(item)
+		}
+	}
+}
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}

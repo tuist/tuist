@@ -44,6 +44,12 @@ if [ -s "${CACHE_ENDPOINT_PATH}" ]; then
   fi
 fi
 
+if [ -s "${JIT_PATH}.api-job.json" ]; then
+  [ -x /usr/local/bin/vitals.sh ] && /usr/local/bin/vitals.sh &
+  exec /usr/local/bin/tuist-job-runner --job-file "${JIT_PATH}.api-job.json" \
+    --builds-dir "${TUIST_RUNNER_SHELL_WORKDIR:-/home/runner/work}"
+fi
+
 if [ -s "${JIT_PATH}.gitlab.json" ]; then
   [ -x /usr/local/bin/vitals.sh ] && /usr/local/bin/vitals.sh &
   exec /usr/local/bin/tuist-gitlab-runner --job-file "${JIT_PATH}.gitlab.json" \

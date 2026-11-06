@@ -46,24 +46,33 @@ defmodule Tuist.Guardian do
       {:ok, account} ->
         user = load_user_from_claims(claims)
 
-        {:ok,
-         %AuthenticatedAccount{
-           account: account,
-           scopes: claims["scopes"],
-           all_projects: Map.get(claims, "all_projects", false),
-           project_ids: extract_project_ids(claims),
-           issued_by: user,
-           agent_registration_id: claims["agent_registration_id"]
-         }}
+        if user && Accounts.credentials_revoked?(user, claims) do
+          {:error, :credentials_revoked}
+        else
+          {:ok,
+           %AuthenticatedAccount{
+             account: account,
+             scopes: claims["scopes"],
+             all_projects: Map.get(claims, "all_projects", false),
+             project_ids: extract_project_ids(claims),
+             issued_by: user,
+             agent_registration_id: claims["agent_registration_id"]
+           }}
+        end
 
       {:error, :not_found} ->
         {:error, :resource_not_found}
     end
   end
 
-  def resource_from_claims(%{"sub" => id}) do
-    resource = Accounts.get_user_by_id(id)
-    {:ok, resource}
+  def resource_from_claims(%{"sub" => id} = claims) do
+    case Accounts.get_user_by_id(id) do
+      %User{} = user ->
+        if Accounts.credentials_revoked?(user, claims), do: {:error, :credentials_revoked}, else: {:ok, user}
+
+      nil ->
+        {:ok, nil}
+    end
   end
 
   defp load_user_from_claims(%{"user_id" => user_id}) when not is_nil(user_id) do
@@ -76,13 +85,22 @@ defmodule Tuist.Guardian do
   defp extract_project_ids(%{"project_id" => project_id}) when not is_nil(project_id), do: [project_id]
   defp extract_project_ids(_), do: nil
 
-  def after_encode_and_sign(resource, claims, token, _options) do
+  # A user's tokens are issued only while the account still has the password
+  # it was authenticated with, so they can't outlive a revocation that lands
+  # meanwhile. See `Accounts.issue_user_credential/2`.
+  def after_encode_and_sign(%User{} = user, claims, token, options) do
+    Accounts.issue_user_credential(user, fn -> store_token(user, claims, token, options) end)
+  end
+
+  def after_encode_and_sign(resource, claims, token, options), do: store_token(resource, claims, token, options)
+
+  defp store_token(resource, claims, token, _options) do
     with {:ok, _} <-
            Guardian.DB.after_encode_and_sign(
              resource,
              claims["typ"],
              claims,
-             Bcrypt.hash_pwd_salt(token <> Tuist.Environment.secret_key_password())
+             stored_token_hash(token, claims)
            ) do
       {:ok, token}
     end
@@ -98,7 +116,7 @@ defmodule Tuist.Guardian do
     with {:ok, _, _} <-
            Guardian.DB.on_refresh(
              {old_token, old_claims},
-             {Bcrypt.hash_pwd_salt(new_token <> Tuist.Environment.secret_key_password()), new_claims}
+             {stored_token_hash(new_token, new_claims), new_claims}
            ) do
       {:ok, {old_token, old_claims}, {new_token, new_claims}}
     end
@@ -107,6 +125,16 @@ defmodule Tuist.Guardian do
   def on_revoke(claims, token, _options \\ []) do
     with {:ok, _} <- Guardian.DB.on_revoke(claims, token) do
       {:ok, claims}
+    end
+  end
+
+  defp stored_token_hash(token, claims) do
+    types = :guardian |> Application.fetch_env!(Guardian.DB) |> Keyword.get(:token_types, [])
+
+    # Guardian.DB discards unconfigured types, so stateless cache credentials
+    # are never stored. An empty list means every type is stored.
+    if types == [] or claims["typ"] in types do
+      Bcrypt.hash_pwd_salt(token <> Tuist.Environment.secret_key_password())
     end
   end
 end

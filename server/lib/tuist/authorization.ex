@@ -129,8 +129,16 @@ defmodule Tuist.Authorization do
       desc("Allows the admin of an account to create entries in the account cache.")
       allow([:authenticated_as_user, :cache_write_policy_permits_subject, user_role: :admin])
 
-      desc("Allows an account token with account:cache:write scope to create account cache entries.")
-      allow([:authenticated_as_account, :cache_write_policy_permits_subject, scopes_permit: "account:cache:write"])
+      desc(
+        "Allows an account token with account:cache:write scope to create entries in its own account's cache, or, for a user-issued token, in an account its issuer can write to."
+      )
+
+      allow([
+        :authenticated_as_account,
+        :accounts_match,
+        :cache_write_policy_permits_subject,
+        scopes_permit: "account:cache:write"
+      ])
     end
 
     action :cache_read do
@@ -529,13 +537,19 @@ defmodule Tuist.Authorization do
     end
 
     action :update do
-      desc("Allows the admin of an account to manage its runner profiles and clear its runner volumes.")
+      desc(
+        "Allows the admin of an account to manage its runner profiles, run and cancel API jobs, and clear its runner volumes."
+      )
+
       allow([:authenticated_as_user, user_role: :admin])
 
       desc("Allows users with ops write access to manage any account's runner profiles and runner volumes.")
       allow([:authenticated_as_user, :ops_write_access])
 
-      desc("Allows an account token with account:runners:write scope to manage runner profiles and clear runner volumes.")
+      desc(
+        "Allows an account token with account:runners:write scope to manage runner profiles, run and cancel API jobs, and clear runner volumes."
+      )
+
       allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:runners:write"])
     end
 
@@ -549,6 +563,30 @@ defmodule Tuist.Authorization do
 
       desc("Allows the admin of an account to attach an interactive shell or VNC session to its runners.")
       allow([:authenticated_as_user, user_role: :admin])
+    end
+  end
+
+  object :sandboxes do
+    action :read do
+      desc("Allows users of an account to see its sandboxes and their project snapshots.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to see its sandboxes and their project snapshots.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows read-only viewers of an account to see its sandboxes and their project snapshots.")
+      allow([:authenticated_as_user, user_role: :viewer])
+
+      desc("Allows users with ops access to see any account's sandboxes.")
+      allow([:authenticated_as_user, :ops_access])
+    end
+
+    action :update do
+      desc("Allows the admin of an account to pause, resume and delete its sandboxes and project snapshots.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops write access to pause, resume and delete any account's sandboxes.")
+      allow([:authenticated_as_user, :ops_write_access])
     end
   end
 
