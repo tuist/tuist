@@ -2043,14 +2043,13 @@ rackFleet:
     # this fleet's guests so memory binds guest count where CPU does. A guest
     # smaller than its shape fails the render.
     guestShapes: {}
-    #   6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
-    #   12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
+    #   8vcpu-24gb: { vcpus: 10, memoryGb: 30 }
     # Non-default catalog shapes this fleet runs, keyed `<vcpus>vcpu-<gb>gb`,
     # each with its `autoscaling` (and optional `rollout`). A shape not named
     # here gets no pool on this fleet. Its `maxReplicas` is the hosts that fit
     # one, as on the rented fleet.
     shapes: {}
-    #   12vcpu-28gb:
+    #   16vcpu-48gb:
     #     autoscaling:
     #       enabled: true
     #       minWarmPoolFloor: 0
@@ -2952,8 +2951,8 @@ runnersFleet:
   # `TUIST_RUNNER_MACOS_SHAPES` (JSON).
   #
   # A shape is what a CUSTOMER gets, and is deliberately independent of
-  # which SKU the fleet buys: a 6 vCPU / 14 GB guest is the same guest
-  # on an M2-L that fits one and an M4-XL that fits two. Adding a SKU
+  # which SKU the fleet buys: an 8 vCPU / 24 GB guest is the same guest
+  # on every host that fits it, however many it fits. Adding a SKU
   # to `machineGroups` therefore changes capacity, not the catalog —
   # and `memoryGb` here is the divisor the autoscaler uses to turn a
   # host's advertised memory into guest slots.
@@ -2978,9 +2977,9 @@ runnersFleet:
   #      advertises forces `hostMemoryMB` up, at which point CPU binds
   #      instead and the budget over-counts every SMALLER shape's slots,
   #      producing Pods the allocator keeps asking for and the scheduler
-  #      never places. At the M2-L's 6 vCPU / 14 GB that ratio is
-  #      2389 MB per vCPU, which is what makes 12 vCPU / 28 GB the
-  #      consistent way to sell an M4-XL's cores.
+  #      never places. At 8 vCPU / 24 GB that ratio is 3072 MB per
+  #      vCPU, the BER1 rack hosts' 16 CPU / 48 GB, which is what makes
+  #      16 vCPU / 48 GB the consistent larger shape.
   #   2. A shape larger than the smallest host in the fleet is
   #      over-promised by that same fleet-wide sum, since it counts
   #      memory on hosts too small to place it. The runners-controller
@@ -2995,8 +2994,8 @@ runnersFleet:
   # catalog can offer, so managed envs override this list per env rather
   # than sharing one. See `values-managed-common.yaml`.
   shapes:
-    - vcpus: 6
-      memoryGb: 14
+    - vcpus: 8
+      memoryGb: 24
       default: true
     # A non-default entry may carry its own `autoscaling` block, which
     # scales every Xcode's pool of the shape. An Xcode's
@@ -3004,8 +3003,8 @@ runnersFleet:
     # replaces it for that Xcode's pool. Without either the pool renders
     # static at replicas 0.
     #
-    # - vcpus: 12
-    #   memoryGb: 28
+    # - vcpus: 16
+    #   memoryGb: 48
     #   autoscaling:
     #     enabled: true
     #     minWarmPoolFloor: 0

@@ -1722,7 +1722,7 @@ defmodule Tuist.Runners do
   # Customers read the runner name in GitHub's runner list and in a job's
   # "Set up job" step, so a catalog macOS runner is named after what the
   # job runs on: the guest's macOS version, the pool's Xcode version and
-  # the shape, e.g. `tuist-macos-26.6-xcode-27.0-6vcpu-14gb-<hex>`. The
+  # the shape, e.g. `tuist-macos-26.6-xcode-27.0-8vcpu-24gb-<hex>`. The
   # Pod name carries the Xcode version alone, as `27-0`, which reads as a
   # macOS version. The macOS version is the one the guest reports, so an
   # image on a newer macOS names itself; a guest that reports none gets

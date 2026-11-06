@@ -146,7 +146,7 @@ server:
   stripe:
     prices:
       # macOS is billable. 6000000 compute-unit milliseconds (100 minutes
-      # on the 6 vCPU / 14 GB baseline) are free, and beyond that each
+      # on the 8 vCPU / 24 GB baseline) are free, and beyond that each
       # millisecond costs 0.000083333333 cents, which is $0.05 per baseline
       # machine-minute. That is 1/12,000 of a cent, which repeats, so the
       # amount is cut at the 12 decimals Stripe accepts: a cent less per 50
@@ -1623,18 +1623,14 @@ rackFleet:
     # capacity, so a job that writes more lands in that gap. Keep the budget well
     # below the quota (infra/tart-kubelet/custom-cache-volumes.md).
     runnerCacheVolumeGiB: 512
-  # The catalog on the rack: one pool per Xcode on the 6 vCPU shape, and the
-  # 12 vCPU shape, for accounts on the `runner_site` flag. Every catalog image
-  # is a macOS 26 guest, which fits the hosts' macOS 27.
-  #
-  # On the rack those shapes run bigger guests (`guestShapes`): 8 vCPU / 24 GB
-  # for the 6 vCPU shape and 16 vCPU / 48 GB for the 12 vCPU shape. Jobs are
-  # still recorded, billed and counted against concurrency limits at the shape
-  # the profile names. Production rents no macOS hosts, so a job waits for a
-  # rack slot rather than spilling over.
+  # The catalog on the rack: one pool per Xcode on the 8 vCPU / 24 GB shape,
+  # and the 16 vCPU / 48 GB shape, for accounts on the `runner_site` flag.
+  # Every catalog image is a macOS 26 guest, which fits the hosts' macOS 27.
+  # Production rents no macOS hosts, so a job waits for a rack slot rather
+  # than spilling over.
   #
   # The budget is the rack's 32 guest slots (16 hosts x 2), which these pools
-  # and the `ber1` smoke pool share through the fleet allocator. A 12 vCPU
+  # and the `ber1` smoke pool share through the fleet allocator. A 16 vCPU
   # profile's guest takes a whole host, so that shape's ceiling is the host
   # count.
   #
@@ -1644,7 +1640,7 @@ rackFleet:
   # burst its jobs arrive in and keeps it while the pool has had a job in the
   # last day (`Tuist.Runners.LearnedWarmFloors`). What is set here is only
   # the cap on that floor, which is what it costs: up to three idle guests
-  # per image, one host for the 12 vCPU shape. The floor yields to every
+  # per image, one host for the 16 vCPU shape. The floor yields to every
   # pool's queued jobs (infra/runners-controller/AGENTS.md), so the cap is
   # the most a pool keeps idle while the rack has room.
   #
@@ -1662,9 +1658,6 @@ rackFleet:
     # images beyond them are the ones with the least recent demand, and their
     # first Pod on a host pulls.
     goldenBudget: 7
-    guestShapes:
-      6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
-      12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
     autoscaling:
       enabled: true
       minWarmPoolFloor: 0
@@ -1677,22 +1670,22 @@ rackFleet:
           minWarmPoolFloor: 1
           maxLearnedWarmPoolFloor: 3
           maxReplicas: 32
-      # 27.0's 12 vCPU pool keeps one warm guest, a whole host, whatever its
+      # 27.0's 16 vCPU pool keeps one warm guest, a whole host, whatever its
       # history, and learns up to three for its fan-outs. Its demand is
-      # starting from no history, and a cold 12 vCPU job has to wait for a
+      # starting from no history, and a cold 16 vCPU job has to wait for a
       # whole host to free up before it boots (p50 41 s, up to 110 s, in the
-      # week to 2026-10-29 on 27.1's pool). The other Xcodes' 12 vCPU pools
+      # week to 2026-10-29 on 27.1's pool). The other Xcodes' 16 vCPU pools
       # keep the shape's scaling below.
       "27.0":
         shapes:
-          12vcpu-28gb:
+          16vcpu-48gb:
             autoscaling:
               enabled: true
               minWarmPoolFloor: 1
               maxLearnedWarmPoolFloor: 3
               maxReplicas: 16
     shapes:
-      12vcpu-28gb:
+      16vcpu-48gb:
         autoscaling:
           enabled: true
           minWarmPoolFloor: 0
@@ -2113,70 +2106,34 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  # Shape catalog. Overrides the common baseline because production is
-  # the only managed env with an M4-XL group, and 12 vCPU only fits
-  # there. Helm replaces lists rather than merging, so the 6 vCPU
-  # baseline is restated here.
+  # Shape catalog. Overrides the common baseline to add the 16 vCPU shape.
+  # Helm replaces lists rather than merging, so the default shape is
+  # restated here.
   #
-  # 12 vCPU / 28 GB is the M4-XL sold whole: 12 of its 14 cores, and
-  # memory in the SAME 2389 MB-per-vCPU proportion the 6 vCPU shape
-  # uses. That proportion is the point. `hostMemoryMB: 28672` below
-  # stays as it is, so memory keeps binding guest count on every host
-  # for BOTH shapes (M4: 1 of these or 2 of those; M2-L: 0 or 1), which
-  # is the invariant `macosFleetAllocatableMemory` divides against. A 56
-  # GB variant would force `hostMemoryMB` to 57344, and the 6 vCPU pools,
-  # which carry all of today's traffic, would then be handed a 17-slot
-  # budget against 13 placeable ones.
+  # Both shapes are the guests the BER1 rack actually runs: a rack host
+  # (16 CPU / 48 GB advertised, `rackFleet.machine`) seats two 8 vCPU /
+  # 24 GB guests or one 16 vCPU / 48 GB guest. Both keep the hosts' 3072 MB
+  # per vCPU, so memory and CPU bind guest count at the same number.
   #
-  # It is also exactly 2x the baseline shape in both dimensions, so
-  # `Catalog.billing_multiplier/3` meters it at precisely 2.0000 compute
-  # units with no rounding.
-  #
-  # Memory is not what this shape sells and the numbers say so: over
-  # 3,251 macOS jobs in the 7 days to 2026-08-25 peak RSS was p50 7.6 /
-  # p90 8.8 / p99 10.0 GiB, max ever 10.2, with ZERO jobs above 85% of
-  # the 14 GiB ceiling, while peak CPU was p50 100% and 78% of jobs
-  # pegged all 6 vCPUs. Cores are the constraint; 28 GB is already 2.7x
-  # the largest working set ever measured.
-  #
-  # Priced at 2x the baseline, which is exactly what that multiplier
-  # already produces: $0.10 per machine-minute on demand, against $0.05
-  # for the 6 vCPU shape. No Stripe work is needed for it. Usage is
-  # reported gross into the single macOS meter weighted by
-  # `Catalog.billing_multiplier/3`, and prepaid is a money-denominated
-  # credit grant rather than a minutes ledger, so a new shape prices
-  # itself and prepaid pool terms are untouched (see
+  # The 16 vCPU shape is exactly 2x the baseline in both dimensions, so
+  # `Catalog.billing_multiplier/3` meters it at 2.0000 compute units:
+  # $0.10 per machine-minute on demand against $0.05 for the baseline,
+  # with no Stripe work (usage is reported gross into the single macOS
+  # meter, and prepaid is a money-denominated credit grant, see
   # `Tuist.Runners.Prepaid`).
   #
-  # Cost tracks it: a 12 vCPU guest takes the whole M4-XL, EUR 0.49/h
-  # against EUR 0.245 for a 6 vCPU slot on the same host. Revenue and
-  # cost both double, so the margin matches the baseline shape's on
-  # this SKU.
+  # Neither shape fits the rented Scaleway SKUs as sized below (an M2-L
+  # advertises 14 GB, an M4-XL 12 CPU / 28 GB and seats one 8 vCPU guest),
+  # which is fine while `hostCount` is 0 and those hosts are only a
+  # fallback until the rack's second site is up.
   shapes:
-    - vcpus: 6
-      memoryGb: 14
+    - vcpus: 8
+      memoryGb: 24
       default: true
-    - vcpus: 12
-      memoryGb: 28
-      # maxReplicas is a PER-POOL ceiling and is NOT what keeps the
-      # fleet honest: this shape renders one pool per Xcode version, and
-      # five pools each allowed 2 compose to 10. The fleet-wide bound
-      # comes from the runners-controller, which counts each node's own
-      # min(cpu, memory) quotient for a shape and caps every pool sharing
-      # it at that sum (3 today, all on M4-XL). It has to be derived
-      # there rather than written here because the byte budget cannot see
-      # it: 229376 / 28672 reads as 8, pooling memory from M2-L hosts
-      # that cannot seat one of these Pods at all.
-      #
-      # Set it to the M4-XL host count regardless, as the per-pool bound
-      # it is: no single Xcode version should be able to take the whole
-      # shape. It moves with `machineGroups[m4].hostCount`, not with the
-      # 16-slot totals the `xcodeOverrides` below use.
-      #
-      # Cold: no warm floor. A 12 vCPU Pod parks a whole M4-XL, and idle
-      # it would halve the fleet's dual-guest capacity to keep one
-      # speculative runner warm. Jobs pay cold start until demand
-      # justifies otherwise.
+    - vcpus: 16
+      memoryGb: 48
+      # Scaling for this shape's rented pools only; the rack's pools take
+      # theirs from `rackFleet.runners.shapes`.
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -2205,7 +2162,7 @@ runnersFleet:
   # Only a warm runner claims a job in under 10 s. 27.0 keeps two: in the
   # week to 2026-10-22 it had a job in 46 of the 60 weekday working hours
   # (07:00 to 18:00 UTC) and claimed only 55% of its 1,112 jobs within 10 s
-  # without a floor. Images with jobs in fewer hours (27.1 in 9, the 12 vCPU
+  # without a floor. Images with jobs in fewer hours (27.1 in 9, the 16 vCPU
   # pools, older Xcodes) sit cold so an unused runner doesn't tie up a host.
   #
   # The default (26.6) keeps one although it had a job in only 3 of those
@@ -2307,8 +2264,8 @@ runnersFleet:
         # Smoke runs are dispatched by hand, so the last hour's peak does not
         # predict the next one.
         holdRecentPeak: false
-      # The rack's guest size for the 6 vCPU shape (`rackFleet.runners
-      # .guestShapes`), so every guest on the fleet has the same memory per vCPU.
+      # The catalog's default shape, so every guest on the fleet has the same
+      # memory per vCPU.
       pod:
         cpuMilli: 8000
         memoryMB: 24576

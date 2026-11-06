@@ -55,7 +55,7 @@ macOS profiles also pin an **Xcode version**. The version selects a runner image
 > [!NOTE]
 > The catalog evolves as we add hardware and Xcode releases. The **New profile** form in the dashboard and `tuist runner profile catalog` always show the shapes, Xcode versions and Ubuntu releases currently available to your account, so treat them as the source of truth.
 
-A macOS runner's name shows the macOS version it runs, the profile's Xcode version, and its shape, for example `tuist-macos-26.6-xcode-27.0-6vcpu-14gb-1a2b3c4d5e6f`. The name appears in the job's **Set up job** step on GitHub and in the job's details in the Tuist dashboard.
+A macOS runner's name shows the macOS version it runs, the profile's Xcode version, and its shape, for example `tuist-macos-26.6-xcode-27.0-8vcpu-24gb-1a2b3c4d5e6f`. The name appears in the job's **Set up job** step on GitHub and in the job's details in the Tuist dashboard.
 
 ## Creating a profile {#creating-a-profile}
 
