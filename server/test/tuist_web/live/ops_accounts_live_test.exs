@@ -24,7 +24,9 @@ defmodule TuistWeb.OpsAccountsLiveTest do
     {:ok, view, _} = live(conn, path)
     conn |> get_session(:user_token) |> Accounts.delete_user_session_token()
     send(view.pid, :check_browser_session)
-    assert_redirect(view, path)
+    # The check runs asynchronously in the LiveView process and reads the
+    # session from the database, which can exceed the default 100ms in CI.
+    assert_redirect(view, path, 5_000)
 
     challenged = conn |> recycle() |> get(path)
     assert redirected_to(challenged) == ~p"/users/log_in"
