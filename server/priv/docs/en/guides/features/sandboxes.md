@@ -20,7 +20,7 @@ You can use sandboxes from:
 
 - **<.localized_link href="/guides/features/sandboxes/amp">Amp</.localized_link>**: run your Amp workspace's orbs on Tuist.
 - **<.localized_link href="/guides/features/sandboxes/claude">Claude</.localized_link>**: run Claude Managed Agents sessions and Claude Code cloud sessions (claude.ai, the desktop and mobile apps, and `claude --cloud`) on Tuist.
-- **[The API](#api)**: create sandboxes and run commands in them yourself.
+- **[The Tuist CLI](#cli)**: create sandboxes and run commands in them from your terminal, or from your own tools through the API.
 
 ## Linux and macOS {#platforms}
 
@@ -50,45 +50,47 @@ A sandbox is in one of these states:
 - **Paused**: the agent has been idle, so the sandbox was stopped with its disk kept. It resumes automatically when the agent's next turn arrives, with its files intact.
 - **Archived**: a paused Linux sandbox was moved to object storage, either because you archived it or, for Amp orbs, because it stayed paused for a long time. It resumes like a paused one, after a slower restore.
 
-A sandbox that stays paused, or in an error state, for 14 days is deleted. A session that comes back after that gets a fresh sandbox with its repository checked out again. <.localized_link href="/guides/features/sandboxes/amp">Amp orbs</.localized_link> follow Amp's own lifecycle instead. You can always pause, resume or delete a sandbox yourself from the dashboard or the API.
+A sandbox that stays paused, or in an error state, for 14 days is deleted. A session that comes back after that gets a fresh sandbox with its repository checked out again. <.localized_link href="/guides/features/sandboxes/amp">Amp orbs</.localized_link> follow Amp's own lifecycle instead. You can always pause, resume or delete a sandbox yourself with the [CLI](#cli).
 
-## Dashboard {#dashboard}
+## Get started with the CLI {#cli}
 
-Open **Sandboxes** in your account's dashboard to see:
+Create a sandbox and run commands in it from your terminal with `tuist sandbox`.
 
-- The integrations connected to the account, and the controls to connect <.localized_link href="/guides/features/sandboxes/amp">Amp</.localized_link>.
-- Usage: vCPU-hours, sandboxes created, session and start-up durations, and peak usage against your account's limits.
-- Every sandbox with its status, platform, shape and the session it serves, with actions to pause, resume, archive or delete it.
+### 1. Log in {#cli-log-in}
 
-Only account administrators can see and manage sandboxes, because a sandbox runs arbitrary commands.
-
-## API {#api}
-
-The sandboxes API is part of the [Tuist API](https://tuist.dev/api/docs) under `/api/accounts/{account_handle}/sandboxes`. It requires an account administrator. Authenticate with `tuist auth login` and pass the token that `tuist auth token` prints:
+Managing sandboxes requires an account administrator:
 
 ```bash
-export TUIST_TOKEN=$(tuist auth token)
-
-# Create a macOS sandbox (omit "platform" for Linux).
-curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes" \
-  -H "Authorization: Bearer $TUIST_TOKEN" -H "Content-Type: application/json" \
-  -d '{"platform": "darwin"}'
-
-# Run a command in it. A paused sandbox resumes first.
-curl -X POST "https://tuist.dev/api/accounts/my-org/sandboxes/$SANDBOX_ID/exec" \
-  -H "Authorization: Bearer $TUIST_TOKEN" -H "Content-Type: application/json" \
-  -d '{"command": "xcodebuild -version", "timeout_ms": 60000}'
+tuist auth login
 ```
 
-- `POST /sandboxes`: Boots a sandbox. Optional `platform` (`linux` or `darwin`), `vcpus`, `memory_mb` and `workspace_gb`.
-- `GET /sandboxes`, `GET /sandboxes/{id}`: Lists sandboxes, or gets one.
-- `POST /sandboxes/{id}/exec`: Runs a command with `bash -lc` and returns its exit code, stdout and stderr (up to 1 MiB each). Times out after `timeout_ms`, 60 seconds by default and 10 minutes at most.
-- `POST /sandboxes/{id}/pause`, `/resume`: Pauses or resumes the sandbox.
-- `POST /sandboxes/{id}/archive`: Moves a paused Linux sandbox to object storage.
-- `DELETE /sandboxes/{id}`: Deletes the sandbox and its files.
-- `GET /sandboxes/analytics`: Usage for a time range.
+### 2. Create a sandbox {#cli-create}
 
-Most of these operations are also available to agents as <.localized_link href="/guides/features/agentic-coding/mcp">MCP</.localized_link> tools.
+```bash
+tuist sandbox create --platform macos
+```
+
+Omit `--platform` for Linux. Pass `--vcpus` with `--memory-gb` for a larger [shape](#platforms), and `--workspace-gb` for a larger disk. The command returns once the sandbox is running and prints its details, including its ID. It uses the account of the Tuist project in the current directory; pass `--account` to choose another.
+
+### 3. Run commands {#cli-exec}
+
+```bash
+tuist sandbox exec <sandbox-id> -- xcodebuild -version
+```
+
+The command runs with `bash -lc` in the sandbox, which resumes first if it's paused, and `tuist` exits with the command's status.
+
+### Common tasks {#cli-tasks}
+
+| Task | Command |
+| --- | --- |
+| List sandboxes | `tuist sandbox list` |
+| Show one | `tuist sandbox show <id>` |
+| Pause or resume | `tuist sandbox pause <id>`, `tuist sandbox resume <id>` |
+| Delete | `tuist sandbox delete <id> --yes` |
+| See usage | `tuist sandbox analytics` |
+
+Add `--json` for machine-readable output. See the <.localized_link href="/cli/sandbox">CLI reference</.localized_link> for every option. To drive sandboxes from code instead, use the same operations through the [Tuist API](https://tuist.dev/api/docs) under `/api/accounts/{account_handle}/sandboxes`, or let an agent use them through <.localized_link href="/guides/features/agentic-coding/mcp">MCP</.localized_link>.
 
 ## Security {#security}
 
