@@ -342,6 +342,66 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert core =~ "–"
     end
 
+    test "shows only module hashing's table for a run that counted no tests", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      %{test_run: test_run} =
+        selection(project,
+          requested_modules: [],
+          skipped_modules: %{"AuthTests" => 0, "CoreTests" => 0},
+          baseline_sha: nil,
+          selected: [],
+          rule_trace: [],
+          requested_count: 0
+        )
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(project_id: project.id, test_run_id: test_run.id, name: "test")
+
+      graph = XcodeFixtures.xcode_graph_fixture(command_event_id: command_event.id)
+      xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: graph.id)
+
+      for name <- ["AuthTests", "CoreTests"] do
+        XcodeFixtures.xcode_target_fixture(
+          xcode_project_id: xcode_project.id,
+          name: name,
+          selective_testing_hash: "#{name}-hash",
+          selective_testing_hit: :local
+        )
+      end
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+
+      {:ok, lv, _html} = live(conn, path <> "?tab=test-optimizations")
+
+      assert has_element?(lv, "[data-part='selective-testing'] #selective-testing-table")
+      refute has_element?(lv, "[data-part='coverage-selection']")
+    end
+
+    test "keeps the selection for a run that counted no tests and has no module hashes", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      %{test_run: test_run} =
+        selection(project,
+          requested_modules: [],
+          skipped_modules: %{"AuthTests" => 0},
+          baseline_sha: nil,
+          selected: [],
+          rule_trace: [],
+          requested_count: 0
+        )
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+
+      {:ok, lv, _html} = live(conn, path <> "?tab=test-optimizations")
+
+      assert has_element?(lv, "[data-part='coverage-selection']")
+    end
+
     test "shows a fallback that found its baseline as a selection", %{
       conn: conn,
       organization: organization,

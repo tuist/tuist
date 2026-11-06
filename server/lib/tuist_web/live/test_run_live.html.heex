@@ -1839,7 +1839,7 @@
   >
     <RunTab.expired_selection :if={@selection_expired?} />
     <RunTab.coverage_selection
-      :if={@selection_run}
+      :if={@selection_run && !hash_only_selection?(@selection_run, @has_selective_testing_data)}
       selection_run={@selection_run}
       summary={@selection_summary}
       diff={@selection_diff}
@@ -1882,7 +1882,8 @@
     <.selective_testing_tab
       :if={
         @has_selective_testing_data &&
-          (!@selection_run || !Tuist.Tests.Selections.selection?(@selection_run))
+          (!@selection_run || !Tuist.Tests.Selections.selection?(@selection_run) ||
+             hash_only_selection?(@selection_run, @has_selective_testing_data))
       }
       project={@selected_project}
       selective_testing_analytics={@selective_testing_analytics}
