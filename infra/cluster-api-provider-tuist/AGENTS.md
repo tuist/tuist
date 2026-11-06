@@ -3529,6 +3529,12 @@ populated filesystems and a populated unmounted `/data` directory are refused.
 `prjquota`; the remaining extents back CSI volumes. It journals the source
 before wiping, resumes interrupted PV/VG/LV creation, and refuses a populated
 filesystem or an already-joined legacy host. Existing nodes require a reinstall.
+Before any destructive step it also installs `thin-provisioning-tools` (LVM
+needs `thin_check` to activate thin pools after reboot), persists `dm_thin_pool`
+in `/etc/modules-load.d/kura-thin-pool.conf`, loads it, and fails unless
+`dmsetup targets` lists `thin-pool`
+([thin contract](../kura-volumes-csi/thin/interface.md)). Rack curtin layouts
+do not run this script.
 The Vultr conversion uses the same function for its detached non-ESP RAID leg;
 the root still loses its mirror, and conversion gates require the VG. Existing
 successful Vultr conversion records are not invalidated by this change.

@@ -6,7 +6,8 @@ Staging ran this branch's server (`sha-fd5dca456951`) with the
 `KURA_VOLUME_TRANSPORT_KEYS` item and pinned public key, the CSI digest
 `sha256:b47cc008cd8dbb10b5863f757452de31fc30ed316f54625c5b8970e249d19772`,
 controller `sha-3ac7fcc8bd9d` and runtime `sha-6baa9ccacd17`. A 32 GiB thin pool
-was prepared on the Paris node with `prepare_pool.rb`; the source was a legacy
+was prepared on the Paris node with `prepare_pool.rb` (since replaced by the
+driver's `prepare-pool` subcommand); the source was a legacy
 `scw-local-nvme` fixture on the Canada node, a different host. The fixture had
 authorization and usage reporting off and an archived `Kura.Server` row so the
 key service could resolve its account. The in-cluster rollout probe ran an

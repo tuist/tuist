@@ -43,6 +43,17 @@ spec:
         app.kubernetes.io/name: {{ $name }}
         app.kubernetes.io/instance: {{ $instance }}
         app.kubernetes.io/component: kura-volumes-csi
+        {{- if $rack }}
+        # The cluster cannot reach a rack pod's address; alloy-rack on the
+        # node scrapes it instead (infra/helm/k8s-monitoring/values.yaml).
+        tuist.dev/node-local-network: "true"
+        {{- end }}
+      # Thin pool gauges (kura_volumes_thin_pool_*), empty on nodes without a
+      # thin pool. See infra/kura-volumes-csi/AGENTS.md.
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9809"
+        prometheus.io/port-name: metrics
     spec:
       serviceAccountName: kura-volumes-csi-node
       priorityClassName: system-node-critical
@@ -89,7 +100,14 @@ spec:
             - --thin-max-volumes={{ .maxVolumes }}
             {{- end }}
             {{- end }}
+          ports:
+            - name: metrics
+              containerPort: 9809
           env:
+            # An environment variable rather than a flag: a pinned image that
+            # predates the listener ignores it instead of refusing to start.
+            - name: METRICS_ADDRESS
+              value: ":9809"
             - name: NODE_NAME
               valueFrom:
                 fieldRef:

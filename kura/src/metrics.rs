@@ -132,8 +132,6 @@ pub struct MetricsInner {
     migration_bridge_armed: Gauge,
     migration_bridge_ready: Gauge,
     migration_bridge_last_proof_age_seconds: Gauge,
-    migration_preparation_walk_records: Gauge,
-    migration_preparation_records_verified: Counter,
     migration_reproof_failures: Counter,
     region_sync_last_cycle_duration_seconds: Family<SyncRegionLabels, Gauge>,
     peer_clock_skew_seconds: Family<SyncPeerLabels, Gauge>,
@@ -736,8 +734,6 @@ impl Metrics {
         let migration_bridge_armed = Gauge::default();
         let migration_bridge_ready = Gauge::default();
         let migration_bridge_last_proof_age_seconds = Gauge::default();
-        let migration_preparation_walk_records = Gauge::default();
-        let migration_preparation_records_verified = Counter::default();
         let migration_reproof_failures = Counter::default();
         let region_sync_last_cycle_duration_seconds = Family::<SyncRegionLabels, Gauge>::default();
         let peer_clock_skew_seconds = Family::<SyncPeerLabels, Gauge>::default();
@@ -1375,23 +1371,13 @@ impl Metrics {
         );
         registry.register(
             "kura_migration_bridge_ready",
-            "Whether the storage-migration bridge has proven every retained record on its current destination process",
+            "Whether the storage-migration bridge has proven every write since its feed pin on its current destination process",
             migration_bridge_ready.clone(),
         );
         registry.register(
             "kura_migration_bridge_last_proof_age_seconds",
             "Seconds since an armed storage-migration bridge last proved the feed on its destination; 0 while unarmed",
             migration_bridge_last_proof_age_seconds.clone(),
-        );
-        registry.register(
-            "kura_migration_preparation_walk_records",
-            "Retained records the current storage-migration walk has verified since it last started from the top",
-            migration_preparation_walk_records.clone(),
-        );
-        registry.register(
-            "kura_migration_preparation_records_verified_total",
-            "Retained records verified on a storage-migration destination by preparation and re-proof walks",
-            migration_preparation_records_verified.clone(),
         );
         registry.register(
             "kura_migration_reproof_failures_total",
@@ -2051,8 +2037,6 @@ impl Metrics {
                 migration_bridge_armed,
                 migration_bridge_ready,
                 migration_bridge_last_proof_age_seconds,
-                migration_preparation_walk_records,
-                migration_preparation_records_verified,
                 migration_reproof_failures,
                 region_sync_last_cycle_duration_seconds,
                 peer_clock_skew_seconds,
@@ -2893,23 +2877,11 @@ impl Metrics {
 
     // ---- Storage-migration bridge ----
 
-    pub fn update_migration_bridge(
-        &self,
-        armed: bool,
-        ready: bool,
-        last_proof_age: Duration,
-        walk_records: u64,
-    ) {
+    pub fn update_migration_bridge(&self, armed: bool, ready: bool, last_proof_age: Duration) {
         self.migration_bridge_armed.set(i64::from(armed));
         self.migration_bridge_ready.set(i64::from(ready));
         self.migration_bridge_last_proof_age_seconds
             .set(i64::try_from(last_proof_age.as_secs()).unwrap_or(i64::MAX));
-        self.migration_preparation_walk_records
-            .set(i64::try_from(walk_records).unwrap_or(i64::MAX));
-    }
-
-    pub fn record_migration_records_verified(&self, records: u64) {
-        self.migration_preparation_records_verified.inc_by(records);
     }
 
     pub fn record_migration_reproof_failure(&self) {
