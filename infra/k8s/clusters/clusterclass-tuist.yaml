@@ -467,6 +467,8 @@ spec:
     # Rollout switch for a kubeadm control-plane join failure observed with
     # ControlPlaneKubeletLocalMode on the Hetzner nodes. Keep this opt-in so
     # each environment can validate the compatibility fallback separately.
+    # Ignored from Kubernetes 1.36; see the DisableControlPlaneKubeletLocalMode
+    # patch.
     - name: disableControlPlaneKubeletLocalMode
       required: false
       schema:
@@ -773,8 +775,14 @@ spec:
     # the local etcd learner never starts and kubeadm aborts the join. This
     # opt-in patch restores the established load-balancer bootstrap path per
     # environment.
+    #
+    # Kubernetes 1.35 locked the gate on, and 1.36 removed it. kubeadm rejects
+    # unknown feature gates, so a 1.36 control plane must not render it. The
+    # version bound drops the patch in the same roll that moves a control
+    # plane to 1.36, and renders nothing different below it. Delete the
+    # variable once no Cluster runs below 1.36.
     - name: DisableControlPlaneKubeletLocalMode
-      enabledIf: "{{ if .disableControlPlaneKubeletLocalMode }}true{{end}}"
+      enabledIf: '{{ if and .disableControlPlaneKubeletLocalMode (semverCompare "<1.36.0-0" .builtin.controlPlane.version) }}true{{end}}'
       definitions:
         - selector:
             apiVersion: controlplane.cluster.x-k8s.io/v1beta2
