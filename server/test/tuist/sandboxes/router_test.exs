@@ -222,6 +222,60 @@ defmodule Tuist.Sandboxes.RouterTest do
       assert %AgentSession{sandbox_id: ^sandbox_id} = Repo.reload!(agent_session)
     end
 
+    test "a macOS environment's first turn clones under the macOS workspace and starts the worker even after CI closed the grant",
+         %{account: account} do
+      agent_environment =
+        agent_environment_fixture(
+          account: account,
+          anthropic_environment_id: "env_mac",
+          environment_key: "sk-ant-mac",
+          platform: :darwin,
+          template: "macos",
+          vcpus: 8,
+          memory_mb: 8192
+        )
+
+      agent_session_fixture(
+        account: account,
+        agent_environment: agent_environment,
+        anthropic_session_id: "session_mac",
+        repository_url: "https://gitlab.com/acme/app.git"
+      )
+
+      expect(Capacity, :place, fn %Sandbox{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192} ->
+        {:ok, "mac-a"}
+      end)
+
+      expect(Nodes, :call, fn "mac-a", "create", _args, _opts -> {:ok, %{"boot_ms" => 19_000}} end)
+      # CI closed the host's grant while the VM booted; the VM already holds its slot.
+      stub(Capacity, :admit_turn, fn _sandbox, _fun -> {:error, :no_capacity} end)
+
+      expect(Nodes, :call, fn "mac-a", "exec", args, _opts ->
+        assert args.cmd == [
+                 @git,
+                 "clone",
+                 "--filter=blob:none",
+                 "https://gitlab.com/acme/app.git",
+                 "/Users/runner/work/app"
+               ]
+
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      expect(Nodes, :call, fn "mac-a", "start_worker", %{env: env}, _opts ->
+        assert env["SBX_WORKDIR"] == "/Users/runner/work"
+        assert env["ANTHROPIC_SESSION_ID"] == "session_mac"
+        {:ok, %{}}
+      end)
+
+      reject(&Client.stop/4)
+
+      assert :ok = Router.dispatch(agent_environment, work_item("session_mac"))
+
+      assert %Sandbox{platform: :darwin, node_name: "mac-a", residency_work_id: "work_1"} =
+               Sandboxes.get_sandbox_for_session(agent_environment.id, "session_mac")
+    end
+
     test "clones private github.com repositories with a repository-scoped token passed only through git's environment",
          %{
            account: account,

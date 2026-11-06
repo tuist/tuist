@@ -109,10 +109,13 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   resumes it and records the residency in one step
   (`Sandboxes.prepare_residency/2`), then starts `sbx-worker` with the
   session credentials; force-stops the work item on any failure so
-  Anthropic re-queues it. The residency that creates the sandbox also
-  binds it to the `AgentSession` row (looked up by
-  `anthropic_session_id`) and clones the requested repository into
-  `/workspace/<name>` with `git clone --filter=blob:none` (branch via
+  Anthropic re-queues it. Like an Amp Orb's spawn, a turn that just
+  created a macOS sandbox records its residency without a fresh CI grant
+  (`created: true`): the VM already holds its slot. Inside the residency
+  that created the sandbox, the router binds it to the `AgentSession` row
+  (looked up by `anthropic_session_id`) and clones the requested
+  repository into `<workspace>/<name>` (`/workspace` on Linux,
+  `/Users/runner/work` on macOS) with `git clone --filter=blob:none` (branch via
   `--branch`, a commit sha via a follow-up `checkout`; 90s budget). A
   github.com repository named on the `AgentSession` row is cloned with a
   token minted for that one repository with `contents: read`

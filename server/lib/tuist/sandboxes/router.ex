@@ -7,7 +7,7 @@ defmodule Tuist.Sandboxes.Router do
   Anthropic re-queues it on the session's next event.
 
   The residency that creates a sandbox also stages the repository the
-  agent session asked for under `/workspace` and binds the sandbox to the
+  agent session asked for under the sandbox's workspace and binds the sandbox to the
   `Tuist.Sandboxes.AgentSession` row.
   """
 
@@ -31,8 +31,9 @@ defmodule Tuist.Sandboxes.Router do
 
   def dispatch(%AgentEnvironment{} = agent_environment, %{"id" => work_id, "data" => %{"id" => session_id}} = item)
       when is_binary(work_id) and is_binary(session_id) do
-    with {:ok, sandbox} <- find_or_create_sandbox(agent_environment, session_id, item),
-         {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id),
+    with {:ok, sandbox, created?} <- find_or_create_sandbox(agent_environment, session_id),
+         {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id, created: created?),
+         :ok <- if(created?, do: prepare_workspace(agent_environment, sandbox, session_id, item), else: :ok),
          {:ok, _data} <-
            start_worker(
              sandbox,
@@ -67,10 +68,10 @@ defmodule Tuist.Sandboxes.Router do
     {:error, :malformed_work_item}
   end
 
-  defp find_or_create_sandbox(agent_environment, session_id, item) do
+  defp find_or_create_sandbox(agent_environment, session_id) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
       %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating, :resuming] ->
-        {:ok, sandbox}
+        {:ok, sandbox, false}
 
       %Sandbox{platform: :darwin, state: :error} ->
         {:error, :sandbox_recovery_required}
@@ -79,15 +80,15 @@ defmodule Tuist.Sandboxes.Router do
       # resumed; drop what is left of it and start the session afresh.
       %Sandbox{} = sandbox ->
         with {:ok, _deleted} <- Sandboxes.delete(sandbox) do
-          create_sandbox(agent_environment, session_id, item)
+          create_sandbox(agent_environment, session_id)
         end
 
       nil ->
-        create_sandbox(agent_environment, session_id, item)
+        create_sandbox(agent_environment, session_id)
     end
   end
 
-  defp create_sandbox(agent_environment, session_id, item) do
+  defp create_sandbox(agent_environment, session_id) do
     with {:ok, account} <- Accounts.get_account_by_id(agent_environment.account_id),
          {:ok, sandbox} <-
            Sandboxes.create_sandbox(account, %{
@@ -99,15 +100,16 @@ defmodule Tuist.Sandboxes.Router do
              memory_mb: agent_environment.memory_mb,
              workspace_gb: agent_environment.workspace_gb
            }) do
-      prepare_workspace(account, sandbox, session_id, item)
-      {:ok, sandbox}
+      {:ok, sandbox, true}
     end
   end
 
-  # Runs once per sandbox, on the residency that created it. A failed
-  # clone is logged and the worker still starts, so the agent can retry
-  # from inside the VM.
-  defp prepare_workspace(account, sandbox, session_id, item) do
+  # Runs once per sandbox, inside the residency that created it, so the
+  # clone needs no admission of its own: on macOS a CI grant that closed
+  # while the VM booted would otherwise refuse it. A failed clone is logged
+  # and the worker still starts, so the agent can retry from inside the VM.
+  defp prepare_workspace(agent_environment, sandbox, session_id, item) do
+    {:ok, account} = Accounts.get_account_by_id(agent_environment.account_id)
     agent_session = AgentSessions.get_agent_session_by_anthropic_session_id(session_id)
 
     if agent_session do
