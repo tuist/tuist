@@ -840,7 +840,9 @@ defmodule TuistWeb.Router do
 
       scope "/runners" do
         get "/jobs", RunnersController, :index_jobs
+        post "/jobs", RunnersController, :create_job
         get "/jobs/:workflow_job_id", RunnersController, :show_job
+        post "/jobs/:workflow_job_id/cancel", RunnersController, :cancel_job
         get "/jobs/:workflow_job_id/steps", RunnersController, :index_job_steps
         get "/jobs/:workflow_job_id/metrics", RunnersController, :index_job_metrics
         get "/jobs/:workflow_job_id/logs", RunnersController, :index_job_logs

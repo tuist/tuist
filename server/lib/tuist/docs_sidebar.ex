@@ -410,7 +410,8 @@ defmodule Tuist.Docs.Sidebar do
                     label: "Bitrise",
                     slug: "/en/guides/features/runners/ci-providers/bitrise",
                     icon: "brand_bitrise"
-                  }
+                  },
+                  %Item{label: "API", slug: "/en/guides/features/runners/ci-providers/api"}
                 ]
               },
               %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"},

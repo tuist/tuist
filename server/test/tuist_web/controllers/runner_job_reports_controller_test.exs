@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerJobReportsControllerTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Repo
+  alias Tuist.Runners.APIJobs
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.Buildkite.Job
   alias Tuist.Runners.Buildkite.ReportToken
@@ -57,6 +58,45 @@ defmodule TuistWeb.RunnerJobReportsControllerTest do
       |> post("/api/internal/runners/jobs/logs", %{lines: ["section_start:1756900000:script\rRunning tests"]})
 
     assert response(conn, 204)
+  end
+
+  test "API job log posts parse timestamps and answer with the cancellation flag", %{conn: conn, account: account} do
+    {:ok, _} = Tuist.Runners.Profiles.create(account, %{name: "ci", platform: :linux, vcpus: 4, memory_gb: 16})
+    stub(Tuist.Runners.Allowance, :exhausted?, fn _ -> false end)
+
+    {:ok, job, :created} =
+      APIJobs.create_job(account, %{
+        profile: "ci",
+        repository_url: "https://git.example.com/acme/app.git",
+        commit_sha: String.duplicate("a", 40),
+        script: "true"
+      })
+
+    WorkflowJob |> Repo.get!(job.workflow_job_id) |> Ecto.Changeset.change(status: "running") |> Repo.update!()
+
+    token = JobReportToken.mint(job)
+
+    expect(JobLogs, :append, fn [line] ->
+      assert line.workflow_job_id == job.workflow_job_id
+      assert line.message == "Running tests"
+      assert DateTime.to_unix(line.ts, :millisecond) == 1_756_900_000_123
+      :ok
+    end)
+
+    assert %{"cancel_requested" => false} =
+             conn
+             |> authed(token)
+             |> post("/api/internal/runners/jobs/logs", %{lines: ["\e_bk;t=1756900000123\aRunning tests"]})
+             |> json_response(200)
+
+    assert {:ok, :cancel_requested} = APIJobs.cancel_job(account.id, job.workflow_job_id)
+    stub(JobLogs, :append, fn _ -> :ok end)
+
+    assert %{"cancel_requested" => true} =
+             build_conn()
+             |> authed(token)
+             |> post("/api/internal/runners/jobs/logs", %{lines: [], first_line_number: 2})
+             |> json_response(200)
   end
 
   test "GitLab outcomes route to its context with server-observed billing", %{conn: conn, account: account} do

@@ -9,6 +9,7 @@
     },
     "items": {
       "agentic-coding": { "text": "Agentic coding" },
+      "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel cache" },
       "bitrise": { "text": "Bitrise" },

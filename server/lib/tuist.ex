@@ -367,6 +367,8 @@ defmodule Tuist do
       Runners.Workers.FetchLogsWorker,
       Runners.Workers.PruneArchivedLogsWorker,
       Runners.Claims,
+      Runners.APIJobs,
+      Runners.APIJobs.Job,
       Runners.GitLab,
       Runners.GitLab.Cache,
       Runners.GitLab.Connection,

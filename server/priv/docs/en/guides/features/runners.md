@@ -119,6 +119,11 @@ SSH covers `git@` dependencies, SSH submodules, deploy keys, and `ssh` or `scp` 
     link="/guides/features/runners/ci-providers/bitrise"
 />
   <.home_card
+    title="API"
+    details="Run jobs from your own git forge or orchestrator with one request and follow them with webhooks."
+    link="/guides/features/runners/ci-providers/api"
+/>
+  <.home_card
     title="Profiles"
     details="Choose a platform, size, and Xcode version with named machine profiles you reference from your jobs."
     link="/guides/features/runners/profiles"
