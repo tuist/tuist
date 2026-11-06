@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "6a929d78bfe0da48ddb8b33021fc31aafaeddae010ace011062dfe44259fc786",
+  "hash": "cc96505dde02f82a201f9bf1fcd024d68b81568cf70183956d4837dd6957ce38",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,23 +11,23 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# A virtual platform team for developers who ship": {
-                  "content_hash": "27097b742ef99a952f51194549d1b115464d8e234a70d1aa7dfb5d01562d288e"
+                  "content_hash": "af08442e3463d6da3af7e3220037b25d3f5af08e5ba9d1e5cc86c156f8b3b3ae"
                 },
                 "## Trusted by teams shipping at scale": {
                   "content_hash": "d0858235af8c9f04c7ee6ff612492e23df54041c7e13f7843c8ac80bab1bebb6"
                 },
                 "Preamble": {
-                  "content_hash": "2f38cad2f75547c326d2728367d42a51d881ebacbdd18fbc39f892933252dad0"
+                  "content_hash": "b8b095b6bc970bf4ada2402bf10fa7f8d06676ec1d758e6ebb17498ed13ea4a0"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "32a5dc2753cba8bf6b1440c3b26a2967029915df7c87f5f49b2f80a6bc5556c0",
+          "hash": "30321278156be5bd381111bda9bb526c612bdbce0579ffe5fd0e89303c47f398",
           "kind": "source",
           "label": "server/priv/docs/en/index.md",
           "metadata": {
-            "content_hash": "9f9c9a7b2bf25f05739b71e1f096d6152c22a3ae455dfca5f9eab663ddc0bcfe"
+            "content_hash": "d752aa0f8e67560137bd2a10a29834ad8dcc26f371e4ffb8f67250b4547d6da1"
           }
         },
         {
@@ -88,7 +88,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -107,7 +107,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -136,11 +136,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -229,21 +229,21 @@
             }
           ],
           "details": {},
-          "hash": "2e1c1ba458290c2e1d17d97f96c354dd000bea7bc7c737f06bf888e819d090f2",
+          "hash": "7d337598e6b3fa6055d1b06cf5e2b33e7b97b2022109064149dfd6a4a8eded3f",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "6a929d78bfe0da48ddb8b33021fc31aafaeddae010ace011062dfe44259fc786",
+      "hash": "cc96505dde02f82a201f9bf1fcd024d68b81568cf70183956d4837dd6957ce38",
       "kind": "translation_input",
       "label": "server/priv/docs/en/index.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "15917ebe0a69a23beb173057921d1983c5b2dc78afaea1fb1814e1232653d60c",
+  "output_hash": "5bf679b2e6b51dd243fccc6d1611e864d0d76be88a3493fd4da9ae2836a84038",
   "output_path": "server/priv/docs/zh_Hant/index.md",
   "protection_state": "recorded",
   "provider": "",
@@ -265,8 +265,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "54c058a5d7e3a3b42582b13028c373f04370823e",
+  "source_commit_sha": "41ba0e88fec8ac183b1d8a3f76e6e45fff1b8c67",
   "source_path": "server/priv/docs/en/index.md",
-  "translated_at": "2026-11-02T18:44:30.753276Z",
-  "translation_session_id": "01a19d91-e5f0-7129-b49d-3ea55acb63fd"
+  "translated_at": "2026-11-06T23:25:30.734062Z",
+  "translation_session_id": "01a1b324-c8ce-7f86-ae73-4d228e3fe2f8"
 }
