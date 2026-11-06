@@ -520,8 +520,9 @@ defmodule Tuist.VCS do
     flush_interval_seconds = div(Environment.clickhouse_flush_interval_ms(), 1000)
     schedule_in = flush_interval_seconds + 1
 
-    Tuist.EntireTrails.enqueue(args[:project_id] || args["project_id"])
-
+    # Entire Trail reports are queued by the comment worker, not here: build
+    # and xcresult processors call this function, and their database role
+    # cannot read `entire_trail_connections`.
     args
     |> RemoteURL.strip_credentials_from_params()
     |> CommentWorker.new(schedule_in: schedule_in)
