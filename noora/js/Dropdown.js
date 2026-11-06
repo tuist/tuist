@@ -27,11 +27,28 @@ class Menu extends Component {
       "positioner:content",
     ];
     for (const part of parts) renderPart(this.el, part, this.api);
+    this.syncMenuDisabled();
     this.syncFixedPositionerSize();
     this.renderItemGroupLabels();
     this.renderItemGroups();
     this.renderItems();
     this.renderSeparators();
+  }
+
+  // Noora.Menu's root carries its disabled and empty states, which LiveView
+  // keeps current even though the root ignores updates to its children. A
+  // menu without items can't open; a split button's main action stays usable.
+  syncMenuDisabled() {
+    if (!this.el.classList.contains("noora-menu")) return;
+
+    const disabled = this.el.hasAttribute("data-disabled");
+    const empty = this.el.hasAttribute("data-empty");
+    const trigger = this.el.querySelector(getPartSelector("trigger"));
+    const mainButton = this.el.querySelector(getPartSelector("main-button"));
+
+    if (trigger) trigger.disabled = disabled || empty;
+    if (mainButton) mainButton.disabled = disabled;
+    if ((disabled || empty) && this.api.open) this.api.setOpen(false);
   }
 
   syncFixedPositionerSize() {
@@ -85,7 +102,23 @@ class Menu extends Component {
         continue;
       }
 
-      spreadProps(item, this.api.getItemProps({ value }));
+      const disabled = item.hasAttribute("data-disabled");
+      // Noora.Menu checkbox items announce their state and keep the menu
+      // open, so several can be toggled in a row. The LiveView owns
+      // `checked`. Dropdown checkbox items keep their own behavior.
+      const menuCheckbox =
+        item.classList.contains("noora-menu-item") &&
+        item.hasAttribute("data-checkbox");
+      const props = menuCheckbox
+        ? this.api.getOptionItemProps({
+            type: "checkbox",
+            value,
+            checked: item.dataset.checked === "true",
+            disabled,
+            closeOnSelect: false,
+          })
+        : this.api.getItemProps({ value, disabled });
+      spreadProps(item, props);
     }
   }
 
@@ -140,7 +173,12 @@ export default {
           const el = this.el;
           return {
             getAnchorRect: () => {
-              const anchorEl = el.querySelector(`[data-part="${anchorPart}"]`);
+              // "root" anchors to the whole component, such as both halves
+              // of a split button.
+              const anchorEl =
+                anchorPart === "root"
+                  ? el
+                  : el.querySelector(`[data-part="${anchorPart}"]`);
               return anchorEl ? anchorEl.getBoundingClientRect() : null;
             },
           };

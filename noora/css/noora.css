@@ -19,10 +19,13 @@
 @import "./icon.css";
 @import "./label.css";
 @import "./line_divider.css";
+@import "./menu.css";
+@import "./middle_truncate.css";
 @import "./modal.css";
 @import "./pagination_group.css";
 @import "./popover.css";
 @import "./progress_bar.css";
+@import "./scroll_fade.css";
 @import "./select.css";
 @import "./shortcut_key.css";
 @import "./sidebar.css";

@@ -30,6 +30,8 @@ const Hooks = {
   NooraDitherWave,
   NooraDropdown,
   NooraDropdownCheckbox,
+  // The shared menu hook; Noora.Menu uses this name.
+  NooraMenu: NooraDropdown,
   NooraIconTransition,
   NooraModal,
   NooraPopover,
