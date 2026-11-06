@@ -487,54 +487,35 @@
           patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
         />
       </:actions>
-      <.card_section data-part="test-details-section">
+      <.card_section
+        :if={Enum.any?(Map.values(@selection_figures))}
+        data-part="test-details-section"
+      >
         <div data-part="metadata-grid">
           <div data-part="metadata-row">
-            <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_tests", "Baseline")}</div>
-              <span :if={@selection_run.baseline_sha not in [nil, ""]} data-part="value">
-                {String.slice(@selection_run.baseline_sha, 0, 7)}
-              </span>
-              <.badge
-                :if={Tuist.Tests.Selections.fallback?(@selection_run)}
-                label={
-                  if Tuist.Tests.Selections.run_all?(@selection_run),
-                    do:
-                      dgettext("dashboard_tests", "Run all: %{reason}",
-                        reason:
-                          TuistWeb.TestSelection.Components.fallback_label(@selection_run.reason)
-                      ),
-                    else:
-                      dgettext("dashboard_tests", "Fell back: %{reason}",
-                        reason:
-                          TuistWeb.TestSelection.Components.fallback_label(@selection_run.reason)
-                      )
-                }
-                color="warning"
-                style="light-fill"
-                size="large"
-              />
+            <div
+              :if={@selection_figures.selected}
+              data-part="metadata"
+              data-test-selection="selected"
+            >
+              <div data-part="title">{dgettext("dashboard_tests", "Selected tests")}</div>
+              <span data-part="value">{@selection_figures.selected}</span>
             </div>
-            <div :if={@selection_run.requested_count > 0} data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_tests", "Ran")}</div>
-              <span data-part="value">
-                {dgettext("dashboard_tests", "%{selected} of %{requested} tests",
-                  selected: @selection_run.selected_count,
-                  requested: @selection_run.requested_count
-                )}
-              </span>
+            <div
+              :if={@selection_figures.skip_rate}
+              data-part="metadata"
+              data-test-selection="skip-rate"
+            >
+              <div data-part="title">{dgettext("dashboard_tests", "Skip rate")}</div>
+              <span data-part="value">{@selection_figures.skip_rate}</span>
             </div>
-            <div :if={@selection_run.requested_count > 0} data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_tests", "In skipped modules")}</div>
-              <span data-part="value">
-                {Tuist.Tests.Selections.module_skipped_count(@selection_run)}
-              </span>
-            </div>
-            <div :if={@selection_run.requested_count > 0} data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_tests", "Not affected")}</div>
-              <span data-part="value">
-                {Tuist.Tests.Selections.unaffected_count(@selection_run)}
-              </span>
+            <div
+              :if={@selection_figures.skipped_modules}
+              data-part="metadata"
+              data-test-selection="skipped-modules"
+            >
+              <div data-part="title">{dgettext("dashboard_tests", "Skipped modules")}</div>
+              <span data-part="value">{@selection_figures.skipped_modules}</span>
             </div>
           </div>
         </div>

@@ -1705,7 +1705,26 @@ defmodule TuistWeb.TestRunLive do
 
     socket
     |> assign(:selection_run, selection_run)
+    |> assign(:selection_figures, selection_figures(selection_run))
     |> assign(:selection_expired?, expired?)
+  end
+
+  # The overview card's figures, read as the Selective Testing tab's widgets
+  # read them; nil for each one the impact run didn't count, such as tests for
+  # a fallback that ended before its baseline.
+  defp selection_figures(nil), do: nil
+
+  defp selection_figures(run) do
+    %{total: modules} = Selections.module_counts(run)
+    run_all? = Selections.run_all?(run)
+    tests? = Selections.selection?(run) and run.requested_count > 0
+    modules? = not run_all? and modules > 0
+
+    %{
+      selected: if(tests?, do: "#{format_number(run.selected_count)} / #{format_number(run.requested_count)}"),
+      skip_rate: if(tests? or modules? or run_all?, do: "#{Selections.skip_rate(run)}%"),
+      skipped_modules: if(modules?, do: "#{format_number(map_size(run.skipped_modules))} / #{format_number(modules)}")
+    }
   end
 
   defp assign_shard_rows(socket, run) do

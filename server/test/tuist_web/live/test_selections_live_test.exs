@@ -15,6 +15,10 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
   @sha "a1b2c3d4e5f6a7b8"
 
+  defp text(lv, selector) do
+    lv |> element(selector) |> render() |> Floki.parse_fragment!() |> Floki.text() |> String.trim()
+  end
+
   defp selection(project, attrs \\ []) do
     load = UUIDv7.generate()
     refresh = UUIDv7.generate()
@@ -454,10 +458,82 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "a[href*='tab=test-optimizations']", "Selective Testing")
       assert has_element?(lv, "[data-part='test-selection-card']", "Selected by coverage")
       assert has_element?(lv, "[data-part='test-selection-card'] a[href*='tab=test-optimizations']")
-      assert has_element?(lv, "[data-part='test-selection-card']", "1 of 4 tests")
+      assert has_element?(lv, "[data-test-selection='selected']", "Selected tests")
+      assert has_element?(lv, "[data-test-selection='selected']", "1 / 4")
+      assert has_element?(lv, "[data-test-selection='skip-rate']", "75.0%")
+      assert has_element?(lv, "[data-test-selection='skipped-modules']", "1 / 3")
+      refute has_element?(lv, "[data-part='test-selection-card']", "Baseline")
+      refute has_element?(lv, "[data-part='test-selection-card']", "Not affected")
+      refute has_element?(lv, "[data-part='test-selection-card']", "In skipped modules")
     end
 
-    test "counts no test on the overview's card for a run that ran every test", %{
+    test "matches the overview's card to the Selective Testing tab's figures", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      %{test_run: test_run} = selection(project)
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+
+      {:ok, lv, _html} = live(conn, path)
+
+      card =
+        for part <- ~w(selected skip-rate skipped-modules),
+            do: text(lv, "[data-test-selection='#{part}'] [data-part='value']")
+
+      {:ok, lv, _html} = live(conn, path <> "?tab=test-optimizations")
+
+      tab =
+        for id <- ~w(selected skip-rate skipped-modules), do: text(lv, "#widget-selection-#{id} [data-part='value']")
+
+      assert card == tab
+    end
+
+    test "shows no fallback on the overview's card for a fallback that found its baseline", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      %{test_run: test_run} =
+        selection(project,
+          outcome: "fallback",
+          reason: "tracked_file_changed",
+          matched_path: "Package.resolved",
+          requested_count: 4,
+          selected_count: 2,
+          skipped_count: 2,
+          selected: []
+        )
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert has_element?(lv, "[data-test-selection='selected']", "2 / 4")
+      assert has_element?(lv, "[data-test-selection='skip-rate']", "50.0%")
+      refute has_element?(lv, "[data-part='test-selection-card']", "Fell back")
+      refute has_element?(lv, "[data-part='test-selection-card']", "Tracked file changed")
+    end
+
+    test "counts modules on the overview's card for a fallback that ended before its baseline", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      %{test_run: test_run} =
+        selection(project,
+          outcome: "fallback",
+          reason: "history_unavailable",
+          baseline_sha: nil,
+          selected: []
+        )
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      refute has_element?(lv, "[data-test-selection='selected']")
+      assert has_element?(lv, "[data-test-selection='skip-rate']", "33.3%")
+      assert has_element?(lv, "[data-test-selection='skipped-modules']", "1 / 3")
+    end
+
+    test "counts no test and no skip on the overview's card for a run that ran every test", %{
       conn: conn,
       organization: organization,
       project: project
@@ -466,9 +542,11 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
-      assert has_element?(lv, "[data-part='test-selection-card']", "Run all: No baseline")
-      refute has_element?(lv, "[data-part='test-selection-card']", "0 of 0 tests")
-      refute has_element?(lv, "[data-part='test-selection-card']", "In skipped modules")
+      assert has_element?(lv, "[data-part='test-selection-card']", "Selected by coverage")
+      assert has_element?(lv, "[data-test-selection='skip-rate']", "0.0%")
+      refute has_element?(lv, "[data-test-selection='selected']")
+      refute has_element?(lv, "[data-test-selection='skipped-modules']")
+      refute has_element?(lv, "[data-part='test-selection-card']", "Run all")
     end
   end
 
