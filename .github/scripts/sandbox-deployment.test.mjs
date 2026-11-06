@@ -224,6 +224,13 @@ function workflow(name) {
   return JSON.parse(result.stdout);
 }
 
+test('remote execution waits for the gateway without requiring OnDelete workers to update', () => {
+  const deploy = workflow('remote-execution-deployment.yml').jobs.deploy;
+  const upgrade = deploy.steps.find((s) => s.name === 'helm upgrade --install').run;
+  assert.match(upgrade, /--atomic\b/);
+  assert.match(upgrade, /--wait=legacy\b/);
+});
+
 test('all production legs require publication and promote the same template and daemon', () => {
   const jobs = workflow('server-production-deployment.yml').jobs;
   assert.equal(jobs['build-sandbox-template'].uses, './.github/workflows/sandbox-image.yml');
