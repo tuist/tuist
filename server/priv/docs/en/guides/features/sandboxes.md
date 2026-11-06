@@ -22,26 +22,6 @@ You can use sandboxes from:
 - **<.localized_link href="/guides/features/sandboxes/claude">Claude</.localized_link>**: run Claude Managed Agents sessions and Claude Code cloud sessions (claude.ai, the desktop and mobile apps, and `claude --cloud`) on Tuist.
 - **[The Tuist CLI](#cli)**: create sandboxes and run commands in them from your terminal, or from your own tools through the API.
 
-## Linux and macOS {#platforms}
-
-Every sandbox runs one platform for its whole life. Each integration lets you choose the platform per session.
-
-**Linux** sandboxes are Ubuntu 24.04 virtual machines with Git, the GitHub CLI, Node.js, [mise](https://mise.jdx.dev) and a headless browser installed. The workspace is `/workspace`.
-
-- 2 vCPU, 4 GiB RAM (default)
-- 4 vCPU, 8 GiB RAM
-- 8 vCPU, 16 GiB RAM
-
-**macOS** sandboxes are macOS virtual machines on Apple silicon with Xcode and the tooling of the Tuist macOS runner image. The workspace is `/Users/runner/work`.
-
-- 8 vCPU, 8 GiB RAM (default)
-- 8 vCPU, 16 GiB RAM
-- 8 vCPU, 24 GiB RAM
-
-The workspace disk is 10 GB by default and can grow up to 100 GB.
-
-macOS sandboxes share Apple silicon hosts with Tuist's macOS runners, and CI jobs come first. When the hosts are busy with CI, a new or resumed macOS sandbox waits until a host frees up, and it starts more slowly than a Linux one.
-
 ## Get started with the CLI {#cli}
 
 Create a sandbox and run commands in it from your terminal with `tuist sandbox`.
@@ -81,6 +61,26 @@ The command runs with `bash -lc` in the sandbox, which resumes first if it's pau
 | See usage | `tuist sandbox analytics` |
 
 Add `--json` for machine-readable output. See the <.localized_link href="/cli/sandbox">CLI reference</.localized_link> for every option. To drive sandboxes from code instead, use the same operations through the [Tuist API](https://tuist.dev/api/docs) under `/api/accounts/{account_handle}/sandboxes`, or let an agent use them through <.localized_link href="/guides/features/agentic-coding/mcp">MCP</.localized_link>.
+
+## Linux and macOS {#platforms}
+
+Every sandbox runs one platform for its whole life. Each integration lets you choose the platform per session.
+
+**Linux** sandboxes are Ubuntu 24.04 virtual machines with Git, the GitHub CLI, Node.js, [mise](https://mise.jdx.dev) and a headless browser installed. The workspace is `/workspace`.
+
+- 2 vCPU, 4 GiB RAM (default)
+- 4 vCPU, 8 GiB RAM
+- 8 vCPU, 16 GiB RAM
+
+**macOS** sandboxes are macOS virtual machines on Apple silicon with Xcode and the tooling of the Tuist macOS runner image. The workspace is `/Users/runner/work`.
+
+- 8 vCPU, 8 GiB RAM (default)
+- 8 vCPU, 16 GiB RAM
+- 8 vCPU, 24 GiB RAM
+
+The workspace disk is 10 GB by default and can grow up to 100 GB.
+
+macOS sandboxes share Apple silicon hosts with Tuist's macOS runners, and CI jobs come first. When the hosts are busy with CI, a new or resumed macOS sandbox waits until a host frees up, and it starts more slowly than a Linux one.
 
 ## Security {#security}
 
