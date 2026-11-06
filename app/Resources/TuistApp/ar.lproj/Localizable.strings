@@ -1,6 +1,9 @@
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "%@ simulator" = "محاكي %@";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"AI subscriptions" = "اشتراكات الذكاء الاصطناعي";
+
 /* TuistAuthentication/AuthenticationService.swift */
 "Access token or refresh token missing from response" = "رمز الوصول أو رمز التحديث مفقود من الاستجابة";
 
@@ -46,17 +49,32 @@
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Bundle identifier" = "معرف الحزمة";
 
-/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/AISubscriptionsSection.swift, TuistProfile/ProfileView.swift */
 "Cancel" = "إلغاء";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
-"Check for updates" = "التحقق من التحديثات";
+"Check for updates" = "التحقق من وجود تحديثات";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Commit SHA" = "SHA الالتزام";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect" = "ربط";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect ChatGPT" = "ربط ChatGPT";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect Claude" = "ربط Claude";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features." = "اربط اشتراكاتك الشخصية في Claude وChatGPT لاستخدامها مع ميزات الذكاء الاصطناعي في Tuist.";
+
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Connected" = "متصل";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Copy code" = "نسخ الرمز البرمجي";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Copy identifier" = "نسخ المعرّف";
@@ -65,19 +83,19 @@
 "Copy name" = "نسخ الاسم";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find APK file in the downloaded archive" = "تعذر العثور على ملف APK في الأرشيف الذي تم تنزيله";
+"Could not find APK file in the downloaded archive" = "لم يتم العثور على ملف APK في الأرشيف الذي تم تنزيله";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find app bundle in the downloaded archive" = "تعذر العثور على حزمة التطبيق في الأرشيف الذي تم تنزيله";
+"Could not find app bundle in the downloaded archive" = "لم يتم العثور على حزمة التطبيق في الأرشيف الذي تم تنزيله";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "لم يتمكّن من تثبيت التطبيق لـ %@ لأنه لا يتضمن أي إصدارات تطبيق صالحة.";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "تعذر تثبيت التطبيق لـ %@ لأنه لا يتضمن أي إصدارات تطبيق صالحة.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "لم يتمكّن من تثبيت التطبيق لـ %@. منصة %@ هي %@ والتطبيق يتضمن فقط المنصات التالية: %@";
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "تعذر تثبيت التطبيق لـ %@. منصة %@ هي %@ والتطبيق يتضمن فقط المنصات التالية: %@";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Created at" = "تاريخ الإنشاء";
+"Created at" = "تم الإنشاء في";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Created by" = "تم الإنشاء بواسطة";
@@ -103,6 +121,12 @@
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Devices" = "الأجهزة";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect" = "إلغاء الاتصال";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect subscription" = "إلغاء اشتراك الاشتراك";
+
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Disconnected" = "غير متصل";
 
@@ -110,19 +134,22 @@
 "Email" = "البريد الإلكتروني";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "أدخل عنوان URL صالحًا لخادم HTTPS دون بيانات اعتماد أو استعلام أو جزء.";
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "أدخل عنوان URL صالحًا لخادم HTTPS بدون بيانات اعتماد أو استعلام أو جزء.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Enter the code on the OpenAI sign-in page. This screen closes once you approve it." = "أدخل الرمز في صفحة تسجيل الدخول إلى OpenAI. سيتم إغلاق هذه الشاشة بمجرد الموافقة عليها.";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "خطأ";
 
 /* TuistMenuBar/StatusView.swift */
-"Finished" = "تم الانتهاء";
+"Finished" = "انتهى";
 
 /* TuistProfile/ProfileView.swift */
 "Get help" = "احصل على المساعدة";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"Install latest previews with one click." = "ثبّت أحدث النسخ التجريبية بنقرة واحدة.";
+"Install latest previews with one click." = "ثبّت أحدث المعاينات بنقرة واحدة.";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "Installation failed" = "فشل التثبيت";
@@ -134,10 +161,10 @@
 "Installed %@@%@" = "تم تثبيت %@@%@";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installing preview" = "جارٍ تثبيت النسخة التجريبية";
+"Installing preview" = "جارٍ تثبيت المعاينة";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Invalid callback URL received" = "تم استلام عنوان URL غير صالح لرد الاتصال";
+"Invalid callback URL received" = "تم استلام عنوان URL غير صالح للاستدعاء";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Invalid response format" = "تنسيق الاستجابة غير صالح";
@@ -167,10 +194,13 @@
 "No previews found" = "لم يتم العثور على معاينات";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews match your filters" = "لا تتطابق أي معاينات مع الفلاتر المحددة";
+"No previews match your filters" = "لا تتطابق أي معاينات مع عوامل التصفية الخاصة بك";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Ok" = "موافق";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Open the OpenAI sign-in page" = "افتح صفحة تسجيل الدخول إلى OpenAI";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Other devices" = "أجهزة أخرى";
@@ -191,10 +221,10 @@
 "Profile" = "الملف الشخصي";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your previews." = "اسحب لأسفل لتحديث المعاينات.";
+"Pull down to refresh your previews." = "اسحب للأسفل لتحديث المعاينات الخاصة بك.";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your projects." = "اسحب لأسفل لتحديث مشاريعك.";
+"Pull down to refresh your projects." = "اسحب للأسفل لتحديث مشاريعك.";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Quit Tuist" = "إنهاء Tuist";
@@ -207,6 +237,9 @@
 
 /* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
 "Run" = "تشغيل";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Run claude setup-token in a terminal and paste the token it prints." = "نفّذ الأمر claude setup-token في الطرفية والصق الرمز الذي يظهر.";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Search" = "بحث";
@@ -247,6 +280,9 @@
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Simulators" = "المحاكيات";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Subscription token" = "رمز الاشتراك";
+
 /* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
 "Supported platforms" = "المنصات المدعومة";
 
@@ -268,17 +304,20 @@
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
 "The server returned a preview page that did not advance. Update your server or try again." = "أعاد الخادم صفحة معاينة لم تتقدم. حدّث خادمك أو حاول مرة أخرى.";
 
-/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "لا يدعم هذا الخادم تصفية المعاينات حسب المسار. حدّث خادم Tuist المستضاف ذاتياً، أو اختر جميع المسارات.";
+/* TuistProfile/AISubscriptionsSection.swift */
+"The sign-in expired. Close this screen and connect again." = "انتهت صلاحية تسجيل الدخول. أغلق هذه الشاشة وأعد الاتصال.";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "لا يدعم هذا الخادم البحث في المعاينات. حدّث خادم Tuist المستضاف ذاتياً، أو امسح البحث.";
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "لا يدعم هذا الخادم تصفية المعاينات حسب المسار. حدّث خادم Tuist المستضاف ذاتياً، أو اختر كل المسارات.";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "لا يدعم هذا الخادم البحث عن المعاينات. حدّث خادم Tuist المستضاف ذاتياً، أو امسح نتائج البحث.";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
 "This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "لا يدعم هذا الخادم تسجيل الدخول من تطبيق Tuist. اطلب من المسؤول تحديثه.";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"To run a preview, you must have a simulator selected." = "لتشغيل معاينة، يجب أن يكون لديك محاكي محدّد.";
+"To run a preview, you must have a simulator selected." = "لتشغيل معاينة، يجب أن يكون لديك محاكي مُحدَّد.";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Token exchange failed with status code: %lld" = "فشل تبادل الرمز المميز برمز الحالة: %lld";
@@ -290,7 +329,13 @@
 "Tracks" = "المسارات";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Try a different search or select another track." = "جرّب بحثًا مختلفًا أو اختر مسارًا آخر.";
+"Try a different search or select another track." = "جرّب بحثاً مختلفاً أو اختر مساراً آخر.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Tuist will delete the saved %@ credentials." = "سيحذف Tuist بيانات اعتماد %@ المحفوظة.";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Unavailable" = "غير متوفر";
 
 /* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
 "Unknown" = "غير معروف";
@@ -299,7 +344,7 @@
 "Unpin" = "إلغاء التثبيت";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Update your self-hosted Tuist server to select a track." = "حدّث خادم Tuist المستضاف ذاتيًا لتحديد مسار.";
+"Update your self-hosted Tuist server to select a track." = "حدّث خادم Tuist المستضاف ذاتيًا لاختيار قناة.";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
 "Use the root address of your Tuist server" = "استخدم العنوان الجذري لخادم Tuist الخاص بك";
@@ -309,3 +354,134 @@
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "or" = "أو";
+
+/* TuistApp/AccountHomeView.swift, TuistApp/ThreadsPreview.swift, TuistApp/ThreadConversationView.swift */
+"Account" = "الحساب";
+"Accounts" = "الحسابات";
+"Active" = "نشط";
+"Archived" = "مؤرشف";
+"Archive thread" = "أرشفة المحادثة";
+"Archive this thread?" = "هل تريد أرشفة هذه المحادثة؟";
+"Ask Tuist a question or choose a repository to work on." = "اطرح سؤالاً على Tuist أو اختر مستودعاً للعمل عليه.";
+"Base branch" = "الفرع الأساسي";
+"Changes" = "التغييرات";
+"Close" = "إغلاق";
+"Close new thread" = "إغلاق سلسلة جديدة";
+"Conversation actions" = "إجراءات المحادثة";
+"Copy message" = "نسخ الرسالة";
+"Create preview thread" = "إنشاء سلسلة معاينة";
+"Design preview · Sample accounts" = "معاينة التصميم · حسابات نموذجية";
+"Design preview · Sample builds" = "معاينة التصميم · إصدارات نموذجية";
+"Design preview · Sample conversation" = "معاينة التصميم · محادثة نموذجية";
+"Design preview · Sample data" = "معاينة التصميم · بيانات نموذجية";
+"Design preview · Sample threads and people" = "معاينة التصميم · سلاسل محادثات وأشخاص نموذجية";
+"Design preview · Starting creates a sample thread, not a running environment." = "معاينة التصميم · يؤدي البدء إلى إنشاء سلسلة محادثات نموذجية، وليس بيئة تشغيل.";
+"Done" = "تم";
+"Each repository thread gets its own worktree and branch. The original checkout is not edited." = "تحصل كل سلسلة محادثات في المستودع على مساحة عمل وفرع خاصين بها. لا يتم تعديل النسخة الأصلية.";
+"Environment" = "البيئة";
+"Goal" = "الهدف";
+"Hide keyboard" = "إخفاء لوحة المفاتيح";
+"Illustrative diff · Not a live repository change" = "فرق توضيحي · ليس تغييرًا حيًا في المستودع";
+"In progress" = "قيد التنفيذ";
+"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "تتيح دعوة %@ مشاركة جميع الرسائل الحالية ونتائج الأدوات والردود المستقبلية. لا ترسل هذه المعاينة أي دعوات أو إشعارات.";
+"Latest builds" = "أحدث البنيات";
+"Latest message" = "آخر رسالة";
+"Layout preview" = "معاينة التخطيط";
+"Linux" = "لينكس";
+"Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only." = "اذكر شخصًا في رسالة لدعوته. تتيح الدعوة مشاركة السجل الحالي. يستخدم @Tuist لطلب تنفيذ الإجراء من الروبوت. الأشخاص المذكورون هنا للعرض فقط.";
+"Message…" = "رسالة…";
+"Message Tuist…" = "أرسل رسالة إلى Tuist…";
+"Message, or ask @Tuist…" = "أرسل رسالة، أو اذكر @Tuist…";
+"New thread" = "محادثة جديدة";
+"No account is signed in. These screens use sample data." = "لم يتم تسجيل الدخول إلى أي حساب. تعرض هذه الشاشات بيانات تجريبية.";
+"Only you" = "أنت فقط";
+"Original response" = "الرد الأصلي";
+"People" = "الأشخاص";
+"Previous builds" = "الإصدارات السابقة";
+"Private thread" = "محادثة خاصة";
+"Private · Design preview · No work runs" = "خاص · معاينة التصميم · لا توجد عمليات تشغيل";
+"Private · Saved to your account" = "خاص · تم الحفظ في حسابك";
+"Private · Threads are saved to your account" = "خاص · يتم حفظ المحادثات في حسابك";
+"Prompt" = "المطالبة";
+"Prompts" = "المطالبات";
+"Provider" = "المزوّد";
+"Recent" = "الأحدث";
+"Reconnect" = "إعادة الاتصال";
+"Repositories" = "المستودعات";
+"Repository" = "المستودع";
+"Resources" = "الموارد";
+"Restore thread" = "استعادة المحادثة";
+"Review changes" = "مراجعة التغييرات";
+"Repositories available to this account." = "المستودعات المتاحة لهذا الحساب.";
+"Sample repositories · Design preview" = "مستودعات نموذجية · معاينة التصميم";
+"Search projects" = "البحث في المشاريع";
+"Search repositories" = "البحث في المستودعات";
+"Select project" = "اختيار المشروع";
+"Send" = "إرسال";
+"Share preview and send" = "مشاركة المعاينة والإرسال";
+"Share the conversation history?" = "هل تريد مشاركة سجل المحادثة؟";
+"Shared conversation" = "المحادثة المشتركة";
+"Shared with 2 people" = "تمت المشاركة مع شخصين";
+"Sign out of Tuist?" = "هل تريد تسجيل الخروج من Tuist؟";
+"Signing out of this app does not stop running threads." = "لا يؤدي تسجيل الخروج من هذا التطبيق إلى إيقاف سلاسل العمليات قيد التشغيل.";
+"Start privately. Inviting someone would share the existing conversation with them." = "ابدأ بشكل خاص. ستؤدي دعوة شخص ما إلى مشاركة المحادثة الحالية معه.";
+"Start thread" = "بدء سلسلة محادثات";
+"Start with a goal" = "ابدأ بهدف";
+"Switch account" = "تبديل الحساب";
+"The conversation stays available in Archived." = "ستبقى المحادثة متاحة في الأرشيف.";
+"The server owns the thread; only tools run in the environment. Repository threads have their own worktrees." = "الخادم يملك سلسلة المحادثات؛ تعمل الأدوات فقط ضمن البيئة. تحتوي سلاسل محادثات المستودع على أشجار عمل خاصة بها.";
+"Thread details" = "تفاصيل سلسلة المحادثات";
+"Thread settings" = "إعدادات سلسلة المحادثات";
+"Threads" = "سلاسل المحادثات";
+"Tool actions" = "إجراءات الأداة";
+"Tool environment" = "بيئة الأداة";
+"Tool outcome unknown. Nothing will be retried automatically." = "نتيجة الأداة غير معروفة. لن تتم إعادة المحاولة تلقائيًا.";
+"Tool provider" = "موفر الأداة";
+"Tool result" = "نتيجة الأداة";
+"Try again" = "إعادة المحاولة";
+"Tuist is working…" = "Tuist يعمل الآن…";
+"What would you like Tuist to do?" = "ماذا تريد من Tuist أن يفعل؟";
+"Worktree branch" = "فرع مساحة العمل";
+"You" = "أنت";
+"macOS" = "macOS";
+"Adds this suggestion to your draft without sending." = "يضيف هذا الاقتراح إلى مسودتك دون إرساله.";
+"Connection lost. Reconnecting…" = "فُقد الاتصال. جارٍ إعادة الاتصال…";
+"Needs attention" = "تحتاج إلى انتباه";
+"Outcome unknown" = "النتيجة غير معروفة";
+"Preview" = "معاينة";
+"Queued" = "في قائمة الانتظار";
+"Ready to review" = "جاهزة للمراجعة";
+"Running" = "قيد التشغيل";
+"Load earlier messages" = "تحميل الرسائل السابقة";
+"Load more threads" = "تحميل المزيد من المناقشات";
+"No repository" = "لا يوجد مستودع";
+"Private threads only" = "المناقشات الخاصة فقط";
+"Ship" = "إصدار";
+"Approve and ship" = "الموافقة والإصدار";
+"Target branch" = "فرع الهدف";
+"Mode" = "الوضع";
+"Base" = "الأساس";
+"Head" = "الشحن";
+"Shipping follows repository policy. Approving queues this exact reviewed change." = "يتبع الشحن سياسة المستودع. تؤدي الموافقة إلى وضع هذا التغيير المُراجع بدقة في قائمة الانتظار.";
+"Shipping requires a separate review and explicit approval. Repository policy determines the target." = "يتطلب الشحن مراجعة منفصلة وموافقة صريحة. تحدد سياسة المستودع الهدف.";
+"Design preview · Ship requires a live account and repository policy." = "معاينة التصميم · يتطلب الشحن حساباً نشطاً وسياسة مستودع.";
+"Review again" = "إعادة المراجعة";
+"Organization" = "المؤسسة";
+"Model" = "النموذج";
+"Choose model" = "اختيار النموذج";
+"Loading models…" = "جارٍ تحميل النماذج…";
+"Couldn’t load models" = "تعذر تحميل النماذج";
+"Check your connection or try again in a moment." = "تحقق من اتصالك أو أعد المحاولة بعد لحظات.";
+"No models available" = "لا توجد نماذج متاحة";
+"Connect an AI subscription in your profile, then try again." = "اربط اشتراك الذكاء الاصطناعي في ملفك الشخصي، ثم أعد المحاولة.";
+"Models unavailable. Try again later." = "النماذج غير متاحة. أعد المحاولة لاحقًا.";
+"Refresh models" = "تحديث النماذج";
+"Models available through your profile’s AI subscriptions. The model cannot be changed after creation." = "النماذج متاحة عبر اشتراكات الذكاء الاصطناعي في ملفك الشخصي. لا يمكن تغيير النموذج بعد الإنشاء.";
+"Sample model catalog · Design preview · No subscription access implied" = "كتالوج النماذج التجريبي · معاينة التصميم · لا يتضمن الوصول إلى الاشتراك";
+"AI model" = "نموذج الذكاء الاصطناعي";
+"AI provider" = "مزود الذكاء الاصطناعي";
+"Not recorded" = "غير مسجل";
+"The provider and model are fixed for this thread. Start a new thread to choose another model." = "المزود والنموذج ثابتان لهذه المحادثة. ابدأ محادثة جديدة لاختيار نموذج آخر.";
+"This subscription is not supported for Threads." = "هذا الاشتراك غير مدعوم للمحادثات.";
+"ChatGPT" = "ChatGPT";
+"Claude" = "Claude";

@@ -1,6 +1,9 @@
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "%@ simulator" = "%@ 模拟器";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"AI subscriptions" = "AI 订阅";
+
 /* TuistAuthentication/AuthenticationService.swift */
 "Access token or refresh token missing from response" = "响应中缺少访问令牌或刷新令牌";
 
@@ -23,19 +26,19 @@
 "App" = "App";
 
 /* TuistProfile/ProfileView.swift */
-"App version" = "应用版本";
+"App version" = "App 版本";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Apple Sign In failed" = "Apple 登录失败";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Apps in" = "应用位于";
+"Apps in" = "中的 App";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Are you sure you want to delete this preview? This action cannot be undone." = "确定要删除此预览吗？此操作无法撤销。";
+"Are you sure you want to delete this preview? This action cannot be undone." = "确定要删除此预览版吗？此操作无法撤销。";
 
 /* TuistProfile/ProfileView.swift */
-"Are you sure you want to delete your account? This action cannot be undone." = "确定要删除你的账户吗？此操作无法撤销。";
+"Are you sure you want to delete your account? This action cannot be undone." = "确定要删除您的账户吗？此操作无法撤销。";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Authorization code not found" = "未找到授权码";
@@ -46,7 +49,7 @@
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Bundle identifier" = "Bundle ID";
 
-/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/AISubscriptionsSection.swift, TuistProfile/ProfileView.swift */
 "Cancel" = "取消";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
@@ -55,8 +58,23 @@
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Commit SHA" = "Commit SHA";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect" = "连接";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect ChatGPT" = "连接 ChatGPT";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect Claude" = "连接 Claude";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features." = "关联您个人的 Claude 和 ChatGPT 订阅，以便在 Tuist 的 AI 功能中使用。";
+
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Connected" = "已连接";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Copy code" = "复制代码";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Copy identifier" = "复制标识符";
@@ -68,10 +86,10 @@
 "Could not find APK file in the downloaded archive" = "在下载的归档文件中未找到 APK 文件";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find app bundle in the downloaded archive" = "在下载的归档文件中未找到应用包";
+"Could not find app bundle in the downloaded archive" = "在下载的归档文件中未找到 App Bundle";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "无法为 %@ 安装应用，因为它不包含任何有效的应用构建。";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "无法为 %@ 安装应用，因为它不包含任何有效的 App 构建版本。";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "无法为 %@ 安装应用。%@ 的平台是 %@，而该应用仅包含以下平台：%@";
@@ -95,7 +113,7 @@
 "Delete account" = "删除账户";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Delete preview" = "删除预览";
+"Delete preview" = "删除预览版";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Details" = "详情";
@@ -103,14 +121,23 @@
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Devices" = "设备";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect" = "断开连接";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect subscription" = "取消订阅";
+
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
-"Disconnected" = "已断开连接";
+"Disconnected" = "已断开";
 
 /* TuistProfile/ProfileView.swift */
 "Email" = "电子邮件";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "请输入有效的 HTTPS 服务器 URL，不要包含凭据、查询参数或片段。";
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "请输入有效的 HTTPS 服务器 URL，不得包含凭据、查询参数或片段。";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Enter the code on the OpenAI sign-in page. This screen closes once you approve it." = "在 OpenAI 登录页面上输入代码。批准后此屏幕将关闭。";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "错误";
@@ -131,7 +158,7 @@
 "Installed %@" = "已安装 %@";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installed %@@%@" = "已安装 %@@%@";
+"Installed %@@%@" = "%@ 已安装于 %@";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "Installing preview" = "正在安装预览版";
@@ -146,7 +173,7 @@
 "Launch" = "启动";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Launching preview" = "正在启动预览版";
+"Launching preview" = "正在启动预览";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Log out" = "退出登录";
@@ -158,19 +185,22 @@
 "Missing Apple credentials from authorization" = "授权中缺少 Apple 凭据";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"No Previews" = "无预览版";
+"No Previews" = "无预览";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "No Tuist projects found" = "未找到 Tuist 项目";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews found" = "未找到预览版";
+"No previews found" = "未找到预览";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "No previews match your filters" = "没有预览符合您的筛选条件";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Ok" = "确定";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Open the OpenAI sign-in page" = "打开 OpenAI 登录页面";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Other devices" = "其他设备";
@@ -191,10 +221,10 @@
 "Profile" = "个人资料";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your previews." = "下拉以刷新预览版。";
+"Pull down to refresh your previews." = "下拉刷新预览版。";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your projects." = "下拉以刷新项目。";
+"Pull down to refresh your projects." = "下拉刷新项目。";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
 "Quit Tuist" = "退出 Tuist";
@@ -207,6 +237,9 @@
 
 /* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
 "Run" = "运行";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Run claude setup-token in a terminal and paste the token it prints." = "在终端中运行 claude setup-token 并粘贴其输出的令牌。";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Search" = "搜索";
@@ -224,7 +257,7 @@
 "Sign in" = "登录";
 
 /* TuistOnboarding/LogInView.swift */
-"Sign in to access your projects and\ncollaborate with your team" = "登录以访问你的项目并\n与团队协作";
+"Sign in to access your projects and\ncollaborate with your team" = "登录以访问你的项目并与团队协作";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
 "Sign in to run previews" = "登录以运行预览版";
@@ -239,13 +272,16 @@
 "Sign in with Google" = "通过 Google 登录";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
-"Sign in with Tuist" = "使用 Tuist 登录";
+"Sign in with Tuist" = "通过 Tuist 登录";
 
 /* TuistProfile/ProfileView.swift */
 "Sign out" = "退出登录";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Simulators" = "模拟器";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Subscription token" = "订阅令牌";
 
 /* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
 "Supported platforms" = "支持的平台";
@@ -263,19 +299,22 @@
 "The preview %@ does not have a package name set." = "预览 %@ 未设置包名称。";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"The preview deeplink %@ is invalid." = "预览深度链接 %@ 无效。";
+"The preview deeplink %@ is invalid." = "预览深层链接 %@ 无效。";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The server returned a preview page that did not advance. Update your server or try again." = "服务器返回的预览页面未更新。请更新你的服务器或重试。";
+"The server returned a preview page that did not advance. Update your server or try again." = "服务器返回的预览页面未更新。请更新您的服务器或重试。";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"The sign-in expired. Close this screen and connect again." = "登录已过期。请关闭此屏幕并重新连接。";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "此服务器不支持按轨道筛选预览。请更新你的自托管 Tuist 服务器，或选择“所有”轨道。";
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "此服务器不支持按轨道筛选预览。请更新您的自托管 Tuist 服务器，或选择“所有轨道”。";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
 "This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "此服务器不支持搜索预览。请更新你的自托管 Tuist 服务器，或清除搜索内容。";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "此服务器不支持从 Tuist App 登录。请联系管理员进行更新。";
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "此服务器不支持从 Tuist 应用登录。请联系管理员进行更新。";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "To run a preview, you must have a simulator selected." = "要运行预览，你必须选择一个模拟器。";
@@ -290,7 +329,13 @@
 "Tracks" = "轨道";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Try a different search or select another track." = "尝试不同的搜索或选择其他轨道。";
+"Try a different search or select another track." = "尝试其他搜索或选择另一个轨道。";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Tuist will delete the saved %@ credentials." = "Tuist 将删除已保存的 %@ 凭据。";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Unavailable" = "不可用";
 
 /* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
 "Unknown" = "未知";
@@ -299,7 +344,7 @@
 "Unpin" = "取消固定";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Update your self-hosted Tuist server to select a track." = "更新您的自托管 Tuist 服务器以选择轨道。";
+"Update your self-hosted Tuist server to select a track." = "请更新您的自托管 Tuist 服务器以选择轨道。";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
 "Use the root address of your Tuist server" = "使用您的 Tuist 服务器的根地址";
@@ -309,3 +354,134 @@
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "or" = "或";
+
+/* TuistApp/AccountHomeView.swift, TuistApp/ThreadsPreview.swift, TuistApp/ThreadConversationView.swift */
+"Account" = "账户";
+"Accounts" = "账户";
+"Active" = "活跃";
+"Archived" = "已归档";
+"Archive thread" = "归档线程";
+"Archive this thread?" = "要归档此线程吗？";
+"Ask Tuist a question or choose a repository to work on." = "向 Tuist 提问或选择要处理的代码库。";
+"Base branch" = "基准分支";
+"Changes" = "更改";
+"Close" = "关闭";
+"Close new thread" = "关闭新线程";
+"Conversation actions" = "对话操作";
+"Copy message" = "复制消息";
+"Create preview thread" = "创建预览线程";
+"Design preview · Sample accounts" = "设计预览 · 示例账户";
+"Design preview · Sample builds" = "设计预览 · 示例构建";
+"Design preview · Sample conversation" = "设计预览 · 示例对话";
+"Design preview · Sample data" = "设计预览 · 示例数据";
+"Design preview · Sample threads and people" = "设计预览 · 示例线程和人员";
+"Design preview · Starting creates a sample thread, not a running environment." = "设计预览 · “开始”会创建一个示例线程，而非运行环境。";
+"Done" = "完成";
+"Each repository thread gets its own worktree and branch. The original checkout is not edited." = "每个仓库线程都有独立的工作树和分支。原始检出不会被修改。";
+"Environment" = "环境";
+"Goal" = "目标";
+"Hide keyboard" = "隐藏键盘";
+"Illustrative diff · Not a live repository change" = "示意性差异 · 并非实时仓库更改";
+"In progress" = "进行中";
+"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "邀请 %@ 将共享所有现有消息、工具结果和后续回复。此预览不会发送任何邀请或通知。";
+"Latest builds" = "最新构建";
+"Latest message" = "最新消息";
+"Layout preview" = "布局预览";
+"Linux" = "Linux";
+"Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only." = "在消息中提及某人以邀请其加入。邀请会共享现有历史记录。@Tuist 用于请求机器人执行操作。仅示例人员。";
+"Message…" = "消息…";
+"Message Tuist…" = "给 Tuist 发消息…";
+"Message, or ask @Tuist…" = "发送消息，或 @Tuist…";
+"New thread" = "新主题";
+"No account is signed in. These screens use sample data." = "未登录任何账户。这些屏幕使用示例数据。";
+"Only you" = "仅自己可见";
+"Original response" = "原始回复";
+"People" = "人员";
+"Previous builds" = "历史构建";
+"Private thread" = "私密线程";
+"Private · Design preview · No work runs" = "私密 · 设计预览 · 无工作运行";
+"Private · Saved to your account" = "私密 · 已保存至你的账户";
+"Private · Threads are saved to your account" = "私密 · 线程将保存至你的账户";
+"Prompt" = "提示词";
+"Prompts" = "提示词";
+"Provider" = "提供商";
+"Recent" = "最近";
+"Reconnect" = "重新连接";
+"Repositories" = "代码仓库";
+"Repository" = "代码仓库";
+"Resources" = "资源";
+"Restore thread" = "恢复线程";
+"Review changes" = "审查更改";
+"Repositories available to this account." = "此账户可用的代码仓库。";
+"Sample repositories · Design preview" = "示例仓库 · 设计预览";
+"Search projects" = "搜索项目";
+"Search repositories" = "搜索仓库";
+"Select project" = "选择项目";
+"Send" = "发送";
+"Share preview and send" = "分享预览并发送";
+"Share the conversation history?" = "是否分享对话历史？";
+"Shared conversation" = "已分享的对话";
+"Shared with 2 people" = "已与 2 人共享";
+"Sign out of Tuist?" = "退出 Tuist 账号？";
+"Signing out of this app does not stop running threads." = "退出此应用不会停止正在运行的线程。";
+"Start privately. Inviting someone would share the existing conversation with them." = "私密开始。邀请他人会将现有对话分享给他们。";
+"Start thread" = "开启话题";
+"Start with a goal" = "从目标开始";
+"Switch account" = "切换账号";
+"The conversation stays available in Archived." = "对话仍保留在“已归档”中。";
+"The server owns the thread; only tools run in the environment. Repository threads have their own worktrees." = "服务器拥有线程；仅工具在环境中运行。仓库线程拥有自己的工作树。";
+"Thread details" = "线程详情";
+"Thread settings" = "线程设置";
+"Threads" = "线程";
+"Tool actions" = "工具操作";
+"Tool environment" = "工具环境";
+"Tool outcome unknown. Nothing will be retried automatically." = "工具结果未知。不会自动重试。";
+"Tool provider" = "工具提供商";
+"Tool result" = "工具结果";
+"Try again" = "重试";
+"Tuist is working…" = "Tuist 正在处理…";
+"What would you like Tuist to do?" = "您希望 Tuist 执行什么操作？";
+"Worktree branch" = "Worktree 分支";
+"You" = "您";
+"macOS" = "macOS";
+"Adds this suggestion to your draft without sending." = "将此建议添加到草稿中而不发送。";
+"Connection lost. Reconnecting…" = "连接已断开。正在重新连接…";
+"Needs attention" = "需要关注";
+"Outcome unknown" = "结果未知";
+"Preview" = "预览";
+"Queued" = "已排队";
+"Ready to review" = "待审核";
+"Running" = "运行中";
+"Load earlier messages" = "加载更早的消息";
+"Load more threads" = "加载更多线程";
+"No repository" = "无仓库";
+"Private threads only" = "仅私密线程";
+"Ship" = "发布";
+"Approve and ship" = "批准并发布";
+"Target branch" = "目标分支";
+"Mode" = "模式";
+"Base" = "基准";
+"Head" = "标题";
+"Shipping follows repository policy. Approving queues this exact reviewed change." = "发布遵循仓库策略。批准会将此确切已审查的变更加入队列。";
+"Shipping requires a separate review and explicit approval. Repository policy determines the target." = "发布需要单独的审查和明确批准。目标由仓库策略决定。";
+"Design preview · Ship requires a live account and repository policy." = "设计预览 · 发布需要有效账户并遵循仓库策略。";
+"Review again" = "再次审查";
+"Organization" = "组织";
+"Model" = "模型";
+"Choose model" = "选择模型";
+"Loading models…" = "正在加载模型…";
+"Couldn’t load models" = "无法加载模型";
+"Check your connection or try again in a moment." = "请检查网络连接，或稍后重试。";
+"No models available" = "没有可用模型";
+"Connect an AI subscription in your profile, then try again." = "请在个人资料中关联 AI 订阅，然后重试。";
+"Models unavailable. Try again later." = "模型不可用。请稍后重试。";
+"Refresh models" = "刷新模型";
+"Models available through your profile’s AI subscriptions. The model cannot be changed after creation." = "模型可通过你个人资料中的 AI 订阅使用。创建后无法更改模型。";
+"Sample model catalog · Design preview · No subscription access implied" = "示例模型目录 · 设计预览 · 不包含订阅访问权限";
+"AI model" = "AI 模型";
+"AI provider" = "AI 提供商";
+"Not recorded" = "未记录";
+"The provider and model are fixed for this thread. Start a new thread to choose another model." = "此线程的提供商和模型已固定。如需选择其他模型，请开启新线程。";
+"This subscription is not supported for Threads." = "Threads 不支持此订阅。";
+"ChatGPT" = "ChatGPT";
+"Claude" = "Claude";

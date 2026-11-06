@@ -1,6 +1,9 @@
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
 "%@ simulator" = "%@ 模擬器";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"AI subscriptions" = "AI 訂閱";
+
 /* TuistAuthentication/AuthenticationService.swift */
 "Access token or refresh token missing from response" = "回應中缺少存取權杖或重新整理權杖";
 
@@ -8,7 +11,7 @@
 "All" = "全部";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"All tracks" = "所有追蹤渠道";
+"All tracks" = "所有軌道";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
 "Android Device" = "Android 裝置";
@@ -20,7 +23,7 @@
 "Android Emulators" = "Android 模擬器";
 
 /* TuistPreviews/PreviewView/PreviewViewHeader.swift, TuistPreviews/PreviewsView/PreviewRowView.swift */
-"App" = "App";
+"App" = "應用程式";
 
 /* TuistProfile/ProfileView.swift */
 "App version" = "應用程式版本";
@@ -29,7 +32,7 @@
 "Apple Sign In failed" = "Apple 登入失敗";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Apps in" = "位於的應用程式";
+"Apps in" = "位於";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Are you sure you want to delete this preview? This action cannot be undone." = "你確定要刪除此預覽嗎？此操作無法復原。";
@@ -44,9 +47,9 @@
 "Branch" = "分支";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Bundle identifier" = "Bundle ID";
+"Bundle identifier" = "Bundle 識別碼";
 
-/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/AISubscriptionsSection.swift, TuistProfile/ProfileView.swift */
 "Cancel" = "取消";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
@@ -55,8 +58,23 @@
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Commit SHA" = "Commit SHA";
 
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect" = "連接";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect ChatGPT" = "連接 ChatGPT";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect Claude" = "連接 Claude";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Connect your personal Claude and ChatGPT subscriptions to use them with Tuist's AI features." = "連接你的個人 Claude 和 ChatGPT 訂閱，以在 Tuist 的 AI 功能中使用。";
+
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Connected" = "已連接";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Copy code" = "複製程式碼";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Copy identifier" = "複製識別碼";
@@ -65,16 +83,16 @@
 "Copy name" = "複製名稱";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find APK file in the downloaded archive" = "無法在已下載的封存中找到 APK 檔案";
+"Could not find APK file in the downloaded archive" = "在已下載的封存檔案中找不到 APK 檔案";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Could not find app bundle in the downloaded archive" = "無法在已下載的封存中找到應用程式套件";
+"Could not find app bundle in the downloaded archive" = "在已下載的封存檔案中找不到應用程式套件";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@ as it doesn't include any valid app builds." = "無法為 %@ 安裝應用程式，因為它不包含任何有效的應用程式構建。";
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "無法為 %@ 安裝應用程式，因為它不包含任何有效的應用程式組建。";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "無法為 %@ 安裝應用程式。%@ 的平台是 %@，而該應用程式僅包含以下平台：%@";
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "無法為 %@ 安裝應用程式。%@ 的平台為 %@，而該應用程式僅包含以下平台：%@";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Created at" = "建立時間";
@@ -95,13 +113,19 @@
 "Delete account" = "刪除帳戶";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Delete preview" = "刪除預覽";
+"Delete preview" = "刪除預覽版";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Details" = "詳情";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Devices" = "裝置";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect" = "斷開連線";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Disconnect subscription" = "取消訂閱";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Disconnected" = "已斷線";
@@ -110,19 +134,22 @@
 "Email" = "電子郵件";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "請輸入有效的 HTTPS 伺服器 URL，不得包含憑證、查詢字串或片段。";
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "請輸入有效嘅 HTTPS 伺服器網址，唔好包含憑證、查詢參數或片段。";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Enter the code on the OpenAI sign-in page. This screen closes once you approve it." = "喺 OpenAI 登入頁面輸入代碼。批准後，此畫面會自動關閉。";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Error" = "錯誤";
 
 /* TuistMenuBar/StatusView.swift */
-"Finished" = "已完成";
+"Finished" = "完成";
 
 /* TuistProfile/ProfileView.swift */
-"Get help" = "取得幫助";
+"Get help" = "取得協助";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
-"Install latest previews with one click." = "一鍵安裝最新預覽版。";
+"Install latest previews with one click." = "一鍵安裝最新預覽。";
 
 /* TuistMenuBar/Services/DeviceService.swift */
 "Installation failed" = "安裝失敗";
@@ -134,13 +161,13 @@
 "Installed %@@%@" = "已安裝 %@@%@";
 
 /* TuistMenuBar/Services/DeviceService.swift */
-"Installing preview" = "正在安裝預覽版";
+"Installing preview" = "正在安裝預覽";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Invalid callback URL received" = "收到無效的回調 URL";
+"Invalid callback URL received" = "收到無效的回呼 URL";
 
 /* TuistAuthentication/AuthenticationService.swift */
-"Invalid response format" = "回應格式無效";
+"Invalid response format" = "無效的回應格式";
 
 /* TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
 "Launch" = "啟動";
@@ -164,19 +191,22 @@
 "No Tuist projects found" = "找不到 Tuist 專案";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews found" = "找不到預覽版本";
+"No previews found" = "找不到預覽";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"No previews match your filters" = "冇預覽符合你嘅篩選條件";
+"No previews match your filters" = "沒有符合篩選條件的預覽";
 
 /* TuistErrorHandling/ErrorHandling.swift */
 "Ok" = "確定";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Open the OpenAI sign-in page" = "開啟 OpenAI 登入頁面";
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Other devices" = "其他裝置";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
-"Pin" = "釘住";
+"Pin" = "釘選";
 
 /* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
 "Previews" = "預覽";
@@ -191,22 +221,25 @@
 "Profile" = "個人資料";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your previews." = "下拉以重新整理你的預覽版本。";
+"Pull down to refresh your previews." = "向下拉動以刷新預覽版。";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Pull down to refresh your projects." = "下拉以重新整理你的專案。";
+"Pull down to refresh your projects." = "向下拉動以刷新專案。";
 
 /* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
-"Quit Tuist" = "結束 Tuist";
+"Quit Tuist" = "退出 Tuist";
 
 /* TuistMenuBar/StatusView.swift */
 "Ready" = "就緒";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
-"Release notes" = "發行說明";
+"Release notes" = "版本說明";
 
 /* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
 "Run" = "執行";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Run claude setup-token in a terminal and paste the token it prints." = "在終端機中執行 claude setup-token，然後貼上它顯示的權杖。";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
 "Search" = "搜尋";
@@ -215,19 +248,19 @@
 "Self-hosted" = "自行託管";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
-"Self-hosted server" = "自託管伺服器";
+"Self-hosted server" = "自行託管伺服器";
 
 /* TuistErrorHandling/ErrorHandling.swift */
-"Share logs" = "分享日誌";
+"Share logs" = "分享記錄檔";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
 "Sign in" = "登入";
 
 /* TuistOnboarding/LogInView.swift */
-"Sign in to access your projects and\ncollaborate with your team" = "登入以存取你的項目並\n與團隊協作";
+"Sign in to access your projects and\ncollaborate with your team" = "登入以存取你的專案並與團隊協作";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift */
-"Sign in to run previews" = "登入以執行預覽";
+"Sign in to run previews" = "登入以執行預覽版本";
 
 /* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
 "Sign in with Apple" = "使用 Apple 登入";
@@ -246,6 +279,9 @@
 
 /* TuistMenuBar/Views/DevicesView/DevicesView.swift */
 "Simulators" = "模擬器";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Subscription token" = "訂閱權杖";
 
 /* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
 "Supported platforms" = "支援的平台";
@@ -266,19 +302,22 @@
 "The preview deeplink %@ is invalid." = "預覽深層連結 %@ 無效。";
 
 /* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
-"The server returned a preview page that did not advance. Update your server or try again." = "伺服器傳回的預覽頁面沒有更新。請更新你的伺服器或再試一次。";
+"The server returned a preview page that did not advance. Update your server or try again." = "伺服器傳回的預覽頁面沒有更新。請更新您的伺服器或再試一次。";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"The sign-in expired. Close this screen and connect again." = "登入已過期。請關閉此畫面並重新連線。";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
-"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "此伺服器不支援按軌道篩選預覽。請更新你自託管的 Tuist 伺服器，或選擇「所有」軌道。";
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "此伺服器不支援按軌道篩選預覽。請更新您的自託管 Tuist 伺服器，或選擇「所有」軌道。";
 
 /* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
 "This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "此伺服器不支援搜尋預覽。請更新你自託管的 Tuist 伺服器，或清除搜尋條件。";
 
 /* TuistAuthentication/AppServerEnvironmentService.swift */
-"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "此伺服器不支援從 Tuist 應用程式登入。請要求管理員進行更新。";
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "此伺服器不支援從 Tuist 應用程式登入。請聯絡管理員進行更新。";
 
 /* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
-"To run a preview, you must have a simulator selected." = "要執行預覽，你必須已選取模擬器。";
+"To run a preview, you must have a simulator selected." = "要執行預覽，你必須選取一個模擬器。";
 
 /* TuistAuthentication/AuthenticationService.swift */
 "Token exchange failed with status code: %lld" = "權杖交換失敗，狀態碼：%lld";
@@ -290,16 +329,22 @@
 "Tracks" = "軌道";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Try a different search or select another track." = "請嘗試其他搜尋條件或選擇另一個軌道。";
+"Try a different search or select another track." = "嘗試其他搜尋條件或選取另一個軌道。";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Tuist will delete the saved %@ credentials." = "Tuist 將刪除已儲存的 %@ 憑證。";
+
+/* TuistProfile/AISubscriptionsSection.swift */
+"Unavailable" = "無法使用";
 
 /* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
 "Unknown" = "未知";
 
 /* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
-"Unpin" = "取消釘選";
+"Unpin" = "取消固定";
 
 /* TuistPreviews/PreviewsView/PreviewsView.swift */
-"Update your self-hosted Tuist server to select a track." = "更新你自託管的 Tuist 伺服器以選擇軌道。";
+"Update your self-hosted Tuist server to select a track." = "更新你自行託管的 Tuist 伺服器以選擇追蹤版本。";
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
 "Use the root address of your Tuist server" = "使用你的 Tuist 伺服器的根位址";
@@ -309,3 +354,134 @@
 
 /* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
 "or" = "或";
+
+/* TuistApp/AccountHomeView.swift, TuistApp/ThreadsPreview.swift, TuistApp/ThreadConversationView.swift */
+"Account" = "帳戶";
+"Accounts" = "帳戶";
+"Active" = "活躍";
+"Archived" = "已封存";
+"Archive thread" = "封存討論串";
+"Archive this thread?" = "要封存此討論串嗎？";
+"Ask Tuist a question or choose a repository to work on." = "向 Tuist 提問或選擇一個要處理的儲存庫。";
+"Base branch" = "基礎分支";
+"Changes" = "變更";
+"Close" = "關閉";
+"Close new thread" = "關閉新討論串";
+"Conversation actions" = "對話操作";
+"Copy message" = "複製訊息";
+"Create preview thread" = "建立預覽討論串";
+"Design preview · Sample accounts" = "設計預覽 · 範例帳戶";
+"Design preview · Sample builds" = "設計預覽 · 範例構建";
+"Design preview · Sample conversation" = "設計預覽 · 範例對話";
+"Design preview · Sample data" = "設計預覽 · 範例資料";
+"Design preview · Sample threads and people" = "設計預覽 · 範例討論串與人員";
+"Design preview · Starting creates a sample thread, not a running environment." = "設計預覽 · 「開始」會建立一個範例討論串，而非執行環境。";
+"Done" = "完成";
+"Each repository thread gets its own worktree and branch. The original checkout is not edited." = "每個儲存庫討論串都有專屬的工作樹和分支。原始檢出內容不會被編輯。";
+"Environment" = "環境";
+"Goal" = "目標";
+"Hide keyboard" = "隱藏鍵盤";
+"Illustrative diff · Not a live repository change" = "示範差異 · 並非即時儲存庫變更";
+"In progress" = "進行中";
+"Inviting %@ shares all existing messages, tool results, and future replies. This preview sends no invitations or notifications." = "邀請 %@ 會分享所有現有訊息、工具結果及未來回覆。此預覽不會發送任何邀請或通知。";
+"Latest builds" = "最新建置";
+"Latest message" = "最新訊息";
+"Layout preview" = "版面配置預覽";
+"Linux" = "Linux";
+"Mention someone in a message to invite them. Inviting shares the existing history. @Tuist asks the bot to act. Sample people only." = "在訊息中提及某人以邀請他們。邀請會分享現有歷史記錄。@Tuist 會要求機器人執行動作。僅供範例人物使用。";
+"Message…" = "訊息…";
+"Message Tuist…" = "傳送訊息給 Tuist…";
+"Message, or ask @Tuist…" = "傳送訊息，或提及 @Tuist…";
+"New thread" = "新討論串";
+"No account is signed in. These screens use sample data." = "沒有帳戶登入。這些畫面使用範例資料。";
+"Only you" = "僅限你";
+"Original response" = "原始回應";
+"People" = "人員";
+"Previous builds" = "之前的構建";
+"Private thread" = "私有線程";
+"Private · Design preview · No work runs" = "私有 · 設計預覽 · 無工作運行";
+"Private · Saved to your account" = "私有 · 已保存到您的帳戶";
+"Private · Threads are saved to your account" = "私有 · 線程已保存到您的帳戶";
+"Prompt" = "提示";
+"Prompts" = "提示";
+"Provider" = "提供者";
+"Recent" = "最近";
+"Reconnect" = "重新連線";
+"Repositories" = "儲存庫";
+"Repository" = "儲存庫";
+"Resources" = "資源";
+"Restore thread" = "還原執行緒";
+"Review changes" = "檢視變更";
+"Repositories available to this account." = "此帳戶可用的儲存庫。";
+"Sample repositories · Design preview" = "範例儲存庫 · 設計預覽";
+"Search projects" = "搜尋專案";
+"Search repositories" = "搜尋儲存庫";
+"Select project" = "選擇專案";
+"Send" = "傳送";
+"Share preview and send" = "分享預覽並傳送";
+"Share the conversation history?" = "要分享對話記錄嗎？";
+"Shared conversation" = "已分享的對話";
+"Shared with 2 people" = "已與 2 人分享";
+"Sign out of Tuist?" = "要登出 Tuist 嗎？";
+"Signing out of this app does not stop running threads." = "從這個應用程式登出並不會停止執行中的執行緒。";
+"Start privately. Inviting someone would share the existing conversation with them." = "以私密方式開始。邀請某人會將現有的對話分享給對方。";
+"Start thread" = "開始討論串";
+"Start with a goal" = "以目標為起點";
+"Switch account" = "切換帳號";
+"The conversation stays available in Archived." = "對話內容仍會保留在「已封存」中。";
+"The server owns the thread; only tools run in the environment. Repository threads have their own worktrees." = "伺服器擁有執行緒；只有工具會在環境中執行。儲存庫執行緒有各自的工作樹。";
+"Thread details" = "執行緒詳細資料";
+"Thread settings" = "執行緒設定";
+"Threads" = "執行緒";
+"Tool actions" = "工具動作";
+"Tool environment" = "工具環境";
+"Tool outcome unknown. Nothing will be retried automatically." = "工具結果未知。不會自動重試。";
+"Tool provider" = "工具提供者";
+"Tool result" = "工具結果";
+"Try again" = "再試一次";
+"Tuist is working…" = "Tuist 正在處理中……";
+"What would you like Tuist to do?" = "你希望 Tuist 做什麼？";
+"Worktree branch" = "Worktree 分支";
+"You" = "你";
+"macOS" = "macOS";
+"Adds this suggestion to your draft without sending." = "將此建議加入你的草稿，但不會傳送。";
+"Connection lost. Reconnecting…" = "連線中斷。正在重新連線…";
+"Needs attention" = "需要處理";
+"Outcome unknown" = "結果未知";
+"Preview" = "預覽版本";
+"Queued" = "已排入佇列";
+"Ready to review" = "準備好供審核";
+"Running" = "執行中";
+"Load earlier messages" = "載入較早的訊息";
+"Load more threads" = "載入更多討論串";
+"No repository" = "沒有儲存庫";
+"Private threads only" = "僅限私人討論串";
+"Ship" = "部署";
+"Approve and ship" = "批准並部署";
+"Target branch" = "目標分支";
+"Mode" = "模式";
+"Base" = "基準";
+"Head" = "標題";
+"Shipping follows repository policy. Approving queues this exact reviewed change." = "發布遵循儲存庫政策。批准會將此確切已審查的變更加入佇列。";
+"Shipping requires a separate review and explicit approval. Repository policy determines the target." = "發布需要單獨審查和明確批准。目標由儲存庫政策決定。";
+"Design preview · Ship requires a live account and repository policy." = "設計預覽 · 發布需要有效帳戶和儲存庫政策。";
+"Review again" = "再次審查";
+"Organization" = "組織";
+"Model" = "模型";
+"Choose model" = "選擇模型";
+"Loading models…" = "正在載入模型…";
+"Couldn’t load models" = "無法載入模型";
+"Check your connection or try again in a moment." = "請檢查你的連線，或稍後再試。";
+"No models available" = "沒有可用的模型";
+"Connect an AI subscription in your profile, then try again." = "請在個人檔案中連接 AI 訂閱，然後再試一次。";
+"Models unavailable. Try again later." = "模型暫時無法使用。請稍後再試。";
+"Refresh models" = "重新整理模型";
+"Models available through your profile’s AI subscriptions. The model cannot be changed after creation." = "模型可透過你個人檔案中的 AI 訂閱取得。建立後無法變更模型。";
+"Sample model catalog · Design preview · No subscription access implied" = "示例模型目錄 · 設計預覽 · 不代表已訂閱";
+"AI model" = "AI 模型";
+"AI provider" = "AI 供應商";
+"Not recorded" = "未記錄";
+"The provider and model are fixed for this thread. Start a new thread to choose another model." = "此對話串已固定供應商和模型。如要選擇其他模型，請開始新的對話串。";
+"This subscription is not supported for Threads." = "Threads 不支援此訂閱方案。";
+"ChatGPT" = "ChatGPT";
+"Claude" = "Claude";
