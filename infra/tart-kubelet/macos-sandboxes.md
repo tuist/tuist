@@ -23,8 +23,13 @@ Deploy all of the following before enabling an account:
    Pods, preventing an older kubelet from booting a control Pod as a CI VM.
 3. A **new runner image containing the `TUIST_SANDBOX` boot guard** from this
    change. An older image can halt when it finds no CI dispatch token. The chart
-   uses the configured, versioned Xcode 26.6 runner image by default;
-   `sandboxes.macos.image` can pin an explicit compatible digest.
+   uses the configured, versioned Xcode 26.6 runner image by default, and on a
+   rack with `rackFleet.runners.stackedImages` the rack hosts boot its stacked
+   build, as their CI pools do. Releases carry an unchanged standalone build
+   forward, so it can predate the guard; the stacked build is rebuilt every
+   release. Each fleet gets its own control DaemonSet because the image comes
+   from the control Pod's config annotation. `sandboxes.macos.image` pins one
+   explicit compatible digest for every fleet.
 4. Wait for each host to appear in sandbox node presence with the `macos`
    template and a fresh `tuist.dev/macos-sandbox-grant` Node annotation. The
    control Pod turns Ready as soon as tart-kubelet accepts its configuration,
