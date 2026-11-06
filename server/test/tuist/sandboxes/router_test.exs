@@ -276,6 +276,59 @@ defmodule Tuist.Sandboxes.RouterTest do
                Sandboxes.get_sandbox_for_session(agent_environment.id, "session_mac")
     end
 
+    test "a Linux environment runs a session on macOS when its metadata asks for it", %{
+      agent_environment: agent_environment
+    } do
+      expect(Capacity, :place, fn %Sandbox{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192} ->
+        {:ok, "mac-a"}
+      end)
+
+      expect(Nodes, :call, fn "mac-a", "create", _args, _opts -> {:ok, %{}} end)
+
+      expect(Nodes, :call, fn "mac-a", "start_worker", %{env: env}, _opts ->
+        assert env["SBX_WORKDIR"] == "/Users/runner/work"
+        {:ok, %{}}
+      end)
+
+      item = put_in(work_item("session_meta_mac"), ["data", "metadata"], %{"tuist_platform" => "macos"})
+      assert :ok = Router.dispatch(agent_environment, item)
+
+      assert %Sandbox{platform: :darwin, node_name: "mac-a"} =
+               Sandboxes.get_sandbox_for_session(agent_environment.id, "session_meta_mac")
+    end
+
+    test "the platform on the agent session row wins over the session metadata", %{
+      account: account,
+      agent_environment: agent_environment
+    } do
+      agent_session_fixture(
+        account: account,
+        agent_environment: agent_environment,
+        anthropic_session_id: "session_row_mac",
+        platform: :darwin
+      )
+
+      item = put_in(work_item("session_row_mac"), ["data", "metadata"], %{"tuist_platform" => "linux"})
+
+      assert %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192, anthropic_environment_id: "env_router"} =
+               Router.session_environment(agent_environment, item)
+    end
+
+    test "a session keeps the platform of the sandbox it already has", %{
+      account: account,
+      agent_environment: agent_environment
+    } do
+      sandbox_fixture(
+        account: account,
+        agent_environment_id: agent_environment.id,
+        anthropic_session_id: "session_linux",
+        node_name: "node-a"
+      )
+
+      item = put_in(work_item("session_linux"), ["data", "metadata"], %{"tuist_platform" => "darwin"})
+      assert Router.session_environment(agent_environment, item) == agent_environment
+    end
+
     test "clones private github.com repositories with a repository-scoped token passed only through git's environment",
          %{
            account: account,

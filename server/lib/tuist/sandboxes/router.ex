@@ -31,6 +31,8 @@ defmodule Tuist.Sandboxes.Router do
 
   def dispatch(%AgentEnvironment{} = agent_environment, %{"id" => work_id, "data" => %{"id" => session_id}} = item)
       when is_binary(work_id) and is_binary(session_id) do
+    agent_environment = session_environment(agent_environment, item)
+
     with {:ok, sandbox, created?} <- find_or_create_sandbox(agent_environment, session_id),
          {:ok, sandbox} <- Sandboxes.prepare_residency(sandbox, work_id, created: created?),
          :ok <- if(created?, do: prepare_workspace(agent_environment, sandbox, session_id, item), else: :ok),
@@ -67,6 +69,41 @@ defmodule Tuist.Sandboxes.Router do
     release(agent_environment, work_id)
     {:error, :malformed_work_item}
   end
+
+  @doc """
+  The environment as the work item's session runs on it. A session keeps
+  the platform of the sandbox it already has. A new one runs the platform
+  named on its `AgentSession` row, else the `tuist_platform` key of the
+  session metadata (`linux`, `darwin` or `macos`), else the environment's.
+  A platform other than the environment's takes that platform's default
+  template and shape, so one environment serves both Linux and macOS.
+  """
+  def session_environment(%AgentEnvironment{} = agent_environment, %{"data" => %{"id" => session_id}} = item)
+      when is_binary(session_id) do
+    platform =
+      case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
+        %Sandbox{platform: platform} -> platform
+        nil -> requested_platform(AgentSessions.get_agent_session_by_anthropic_session_id(session_id), item)
+      end
+
+    if is_nil(platform) or platform == agent_environment.platform,
+      do: agent_environment,
+      else: struct(agent_environment, Sandboxes.platform_defaults(%{platform: platform}))
+  end
+
+  def session_environment(%AgentEnvironment{} = agent_environment, _item), do: agent_environment
+
+  defp requested_platform(%AgentSession{platform: platform}, _item) when not is_nil(platform), do: platform
+
+  defp requested_platform(_agent_session, item) do
+    case metadata(item)["tuist_platform"] do
+      "linux" -> :linux
+      platform when platform in ["darwin", "macos"] -> :darwin
+      _none -> nil
+    end
+  end
+
+  defp metadata(item), do: get_in(item, ["data", "metadata"]) || item["metadata"] || %{}
 
   defp find_or_create_sandbox(agent_environment, session_id) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
@@ -131,7 +168,7 @@ defmodule Tuist.Sandboxes.Router do
   end
 
   defp repository(_agent_session, item) do
-    metadata = get_in(item, ["data", "metadata"]) || item["metadata"] || %{}
+    metadata = metadata(item)
     {blank_to_nil(metadata["repository_url"]), blank_to_nil(metadata["repository_ref"]), :anonymous}
   end
 

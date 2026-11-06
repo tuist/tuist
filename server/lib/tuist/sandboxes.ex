@@ -79,7 +79,8 @@ defmodule Tuist.Sandboxes do
     |> Repo.insert()
   end
 
-  defp platform_defaults(attrs) do
+  @doc "Fills the shape and template `attrs` leave out with the defaults of their platform."
+  def platform_defaults(attrs) do
     defaults =
       if Map.get(attrs, :platform) in [:darwin, "darwin"] do
         %{vcpus: 8, memory_mb: 8192, workspace_gb: 10, template: "macos"}

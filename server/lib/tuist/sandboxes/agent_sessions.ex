@@ -33,7 +33,8 @@ defmodule Tuist.Sandboxes.AgentSessions do
 
   `attrs` may also carry `agent_environment_id` (defaults to the account's
   single enabled environment), `title`, `repository_url`, `repository_ref`,
-  `model` (defaults to the environment's), `budget_cents` and `agent_id`
+  `model` (defaults to the environment's), `budget_cents`, `platform`
+  (`:linux` or `:darwin`, defaults to the environment's) and `agent_id`
   (skips the cached agent). `opts` takes `:created_by_user_id`.
 
   The row id is generated before the Anthropic call so it can travel in
@@ -61,6 +62,7 @@ defmodule Tuist.Sandboxes.AgentSessions do
         repository_ref: params.repository_ref,
         model: model,
         budget_cents: params.budget_cents,
+        platform: params.platform,
         last_status: remote["status"],
         created_by_user_id: Keyword.get(opts, :created_by_user_id)
       })
@@ -269,9 +271,10 @@ defmodule Tuist.Sandboxes.AgentSessions do
         "tuist_account" => account.name,
         "tuist_agent_session_id" => id,
         "repository_url" => params.repository_url || "",
-        "repository_ref" => params.repository_ref || ""
+        "repository_ref" => params.repository_ref || "",
+        "tuist_platform" => if(params.platform, do: to_string(params.platform), else: "")
       },
-      initial_events: [first_message(params)]
+      initial_events: [first_message(params, params.platform || agent_environment.platform)]
     }
 
     case ControlPlane.create_session(api_key, attrs) do
@@ -454,18 +457,20 @@ defmodule Tuist.Sandboxes.AgentSessions do
   # The agent only knows the working directory from its system prompt, so
   # the first message names the exact clone path when a repository was
   # requested.
-  defp first_message(params) do
+  defp first_message(params, platform) do
     prompt = params.prompt
     url = Map.get(params, :repository_url)
 
     if is_binary(url) and url != "" do
-      ControlPlane.user_message("The repository #{url} is cloned at #{repository_directory(url)}.\n\n" <> prompt)
+      ControlPlane.user_message(
+        "The repository #{url} is cloned at #{repository_directory(url, platform)}.\n\n" <> prompt
+      )
     else
       ControlPlane.user_message(prompt)
     end
   end
 
-  defp repository_directory(url) do
+  defp repository_directory(url, platform) do
     name =
       url
       |> URI.parse()
@@ -474,6 +479,6 @@ defmodule Tuist.Sandboxes.AgentSessions do
       |> Path.basename()
       |> String.replace_suffix(".git", "")
 
-    "/workspace/" <> name
+    Sandboxes.workspace(%{platform: platform}) <> "/" <> name
   end
 end

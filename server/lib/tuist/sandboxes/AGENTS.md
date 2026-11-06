@@ -105,6 +105,12 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `{:global, {Poller, agent_environment_id}}`), kept in sync with the
   table by `Manager` every 30s. Started on web pods outside tests
   (`sandboxes_children/0` in `Tuist.Application`).
+- `Router.session_environment/2` decides the OS a session runs on, for
+  the poller's admission and the router alike: an existing sandbox keeps
+  its platform; a new one takes the `AgentSession` row's `platform`, else
+  the `tuist_platform` session metadata key (`linux`, `darwin`, `macos`),
+  else the environment's. A platform other than the environment's runs
+  that platform's default template and shape (`Sandboxes.platform_defaults/1`).
 - `Tuist.Sandboxes.Router`: finds or creates the session's sandbox,
   resumes it and records the residency in one step
   (`Sandboxes.prepare_residency/2`), then starts `sbx-worker` with the

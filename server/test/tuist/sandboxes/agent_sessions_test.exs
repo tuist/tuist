@@ -108,6 +108,27 @@ Fix the build."
                Sandboxes.start_agent_session(account, %{prompt: "Hello"})
     end
 
+    test "a macOS session on a Linux environment records its platform and names the macOS checkout" do
+      account = account_fixture()
+      agent_environment_fixture(account: account, anthropic_api_key: "sk-ant-api", anthropic_agent_id: "agent_cached")
+
+      expect(ControlPlane, :create_session, fn "sk-ant-api", %{metadata: metadata, initial_events: [event]} ->
+        assert metadata["tuist_platform"] == "darwin"
+
+        assert [%{text: "The repository https://github.com/tuist/tuist is cloned at /Users/runner/work/tuist." <> _}] =
+                 event.content
+
+        {:ok, %{"id" => "sesn_mac", "status" => "running"}}
+      end)
+
+      assert {:ok, %AgentSession{platform: :darwin}} =
+               Sandboxes.start_agent_session(account, %{
+                 prompt: "Build the app.",
+                 repository_url: "https://github.com/tuist/tuist",
+                 platform: "darwin"
+               })
+    end
+
     test "creates a one-off agent for a model override without caching it" do
       account = account_fixture()
 
