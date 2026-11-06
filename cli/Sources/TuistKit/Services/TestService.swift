@@ -563,7 +563,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         mapperEnvironment: mapperEnvironment,
                         schemes: [scheme],
                         testPlanConfiguration: testPlanConfiguration,
-                        action: action
+                        action: action,
+                        testTargets: testTargets,
+                        skipTestTargets: skipTestTargets
                     )
                     try await finishSkippedTests(
                         schemes: [scheme],
@@ -587,7 +589,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 mapperEnvironment: mapperEnvironment,
                 schemes: [scheme],
                 testPlanConfiguration: testPlanConfiguration,
-                action: action
+                action: action,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets
             )
 
             switch (
@@ -640,7 +644,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     buildGraphInspector.workspaceSchemes(graphTraverser: GraphTraverser(graph: $0))
                 } ?? schemes,
                 testPlanConfiguration: testPlanConfiguration,
-                action: action
+                action: action,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets
             )
         }
 
@@ -2214,14 +2220,21 @@ public struct TestService { // swiftlint:disable:this type_body_length
         mapperEnvironment: MapperEnvironment,
         schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?,
-        action: XcodeBuildTestAction
+        action: XcodeBuildTestAction,
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier]
     ) async {
+        // Targets the invocation filtered out never run, so reporting them would record them as misses.
+        let requestedTargetNames = Set(testTargets.map(\.target))
+        let skippedTargetNames = Set(skipTestTargets.filter { $0.class == nil }.map(\.target))
         let initialTestTargets = initialTestTargets(
             mapperEnvironment: mapperEnvironment,
             schemes: schemes,
             testPlanConfiguration: testPlanConfiguration,
             action: action
         )
+        .filter { requestedTargetNames.isEmpty || requestedTargetNames.contains($0.target.name) }
+        .filter { !skippedTargetNames.contains($0.target.name) }
 
         await RunMetadataStorage.current.update(
             selectiveTestingCacheItems: initialTestTargets.reduce(into: [:]) { result, element in
