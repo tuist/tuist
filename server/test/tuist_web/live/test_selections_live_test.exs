@@ -121,7 +121,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "#test-selection-runs-table", "Tracked file changed")
     end
 
-    test "shows a run that fell back to running every test as Run all", %{
+    test "shows a run that fell back to running every test as All, skipping none", %{
       conn: conn,
       organization: organization,
       project: project
@@ -131,8 +131,9 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection")
 
       assert has_element?(lv, "#test-selection-runs-table", "All")
-      assert has_element?(lv, "#test-selection-runs-table", "Run all")
-      assert has_element?(lv, "#test-selection-runs-table", "No baseline")
+      assert has_element?(lv, "#test-selection-runs-table", "0.0%")
+      refute has_element?(lv, "#test-selection-runs-table", "Run all")
+      refute has_element?(lv, "#test-selection-runs-table", "No baseline")
       refute has_element?(lv, "#test-selection-runs-table", "modules")
     end
 

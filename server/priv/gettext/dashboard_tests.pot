@@ -2966,7 +2966,7 @@ msgstr ""
 msgid "No selection runs in this period"
 msgstr ""
 
-#: lib/tuist_web/live/test_selections_live.html.heex:303
+#: lib/tuist_web/live/test_selections_live.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "No selection runs yet"
 msgstr ""
@@ -3049,7 +3049,7 @@ msgstr ""
 msgid "Selected"
 msgstr ""
 
-#: lib/tuist_web/live/test_selections_live.html.heex:289
+#: lib/tuist_web/live/test_selections_live.html.heex:284
 #, elixir-autogen, elixir-format
 msgid "Selected at"
 msgstr ""
@@ -3306,11 +3306,6 @@ msgstr ""
 #: lib/tuist_web/live/test_selection/run_tab.ex:213
 #, elixir-autogen, elixir-format
 msgid "Ran every test: %{reason}"
-msgstr ""
-
-#: lib/tuist_web/live/test_selections_live.html.heex:276
-#, elixir-autogen, elixir-format
-msgid "Run all"
 msgstr ""
 
 #: lib/tuist_web/live/test_run_live.html.heex:503

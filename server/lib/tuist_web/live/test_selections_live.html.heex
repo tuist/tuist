@@ -272,17 +272,12 @@
           </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Skip rate")}>
             <.text_and_description_cell
-              :if={Selections.run_all?(run)}
-              label={dgettext("dashboard_tests", "Run all")}
-              description={fallback_label(run.reason)}
-            />
-            <.text_and_description_cell
               :if={Selections.counted_by_module?(run)}
               label={"#{Selections.module_skip_rate(run)}%"}
               description={fallback_label(run.reason)}
             />
             <.text_cell
-              :if={!Selections.run_all?(run) and !Selections.counted_by_module?(run)}
+              :if={!Selections.counted_by_module?(run)}
               label={"#{Selections.skip_rate(run)}%"}
             />
           </:col>
