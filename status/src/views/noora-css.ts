@@ -891,8 +891,10 @@ export const NOORA_CSS = String.raw`
   --noora-icon-size-large: 1.25rem;
 
   /* Typography */
-  --noora-font-heading: "Inter Variable", "Noto Sans Georgian", sans-serif;
-  --noora-font-body: "Inter Variable", "Noto Sans Georgian", sans-serif;
+  --noora-font-heading:
+    "Inter Variable", "Noto Sans Georgian", "Noto Sans Arabic", sans-serif;
+  --noora-font-body:
+    "Inter Variable", "Noto Sans Georgian", "Noto Sans Arabic", sans-serif;
   --noora-font-code: "Geist Mono", monospace;
 
   --noora-font-weight-regular: 400;
@@ -1233,7 +1235,7 @@ export const NOORA_CSS = String.raw`
      length of the title and actions before it. */
   & [data-part="dismiss-icon"] {
     flex-shrink: 0;
-    margin-left: auto;
+    margin-inline-start: auto;
   }
 
   & [data-part="actions"] {
@@ -1426,12 +1428,12 @@ export const NOORA_CSS = String.raw`
   }
 
   &[data-icon] {
-    padding-left: var(--noora-spacing-2);
+    padding-inline-start: var(--noora-spacing-2);
   }
 
   &[data-dot] {
-    padding-right: var(--noora-spacing-3);
-    padding-left: var(--noora-spacing-0);
+    padding-inline-end: var(--noora-spacing-3);
+    padding-inline-start: var(--noora-spacing-0);
   }
 
   &[data-size="small"] {
@@ -1464,7 +1466,7 @@ export const NOORA_CSS = String.raw`
     }
 
     &[data-dot] {
-      padding-left: var(--noora-spacing-1);
+      padding-inline-start: var(--noora-spacing-1);
     }
 
     /* Icons and dots sit in a 14px box, between Noora's 12px and 16px
@@ -1492,8 +1494,8 @@ export const NOORA_CSS = String.raw`
     }
 
     &[data-dot] {
-      padding-right: var(--noora-spacing-4);
-      padding-left: var(--noora-spacing-1);
+      padding-inline-end: var(--noora-spacing-4);
+      padding-inline-start: var(--noora-spacing-1);
     }
 
     & [data-part="icon"] {
@@ -1650,8 +1652,8 @@ export const NOORA_CSS = String.raw`
   box-shadow: var(--noora-border-small-default);
   border-radius: var(--noora-radius-2);
   background: var(--noora-surface-background-primary);
-  padding: var(--noora-spacing-1) var(--noora-spacing-4) var(--noora-spacing-1)
-    var(--noora-spacing-2);
+  padding-block: var(--noora-spacing-1);
+  padding-inline: var(--noora-spacing-2) var(--noora-spacing-4);
 
   & [data-part="icon"] {
     display: inline-flex;
