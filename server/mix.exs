@@ -1,6 +1,10 @@
 defmodule Tuist.MixProject do
   use Mix.Project
 
+  # Threads uses Tuist's remote sandboxes, never Condukt's native backends.
+  System.put_env("CONDUKT_BASHKIT_DISABLE", "1")
+  System.put_env("CONDUKT_MICROSANDBOX_DISABLE", "1")
+
   def project do
     [
       app: :tuist,
@@ -65,7 +69,7 @@ defmodule Tuist.MixProject do
        github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
       {:bamboo, "~> 2.4"},
       {:bamboo_ses, "~> 0.5.0"},
-      {:finch, "~> 0.21.0"},
+      {:finch, "~> 0.24.0", override: true},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0", override: true},
@@ -110,6 +114,9 @@ defmodule Tuist.MixProject do
       {:ueberauth_google, "~> 0.12"},
       {:ueberauth_apple, "~> 0.6.2"},
       {:req, "~> 0.6.2"},
+      {:condukt, github: "tuist/condukt", tag: "1.14.0", override: true},
+      # Earlier ReqLLM releases use newer Finch APIs without declaring the dependency.
+      {:req_llm, "~> 1.26.0", override: true},
       {:telemetry_test, "~> 0.1.2"},
       {:saxy, "~> 1.6"},
       {:sweet_xml, "~> 0.7.4"},
