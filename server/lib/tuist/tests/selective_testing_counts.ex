@@ -17,6 +17,13 @@ defmodule Tuist.Tests.SelectiveTestingCounts do
   in `skipped_modules_without_history`, so a run with any reads as a lower
   bound.
 
+  A run coverage-based test selection decided (its impact run's outcome is
+  `selected`) takes the impact run's counts instead
+  (`Tuist.TestImpactAnalysis.Run`): they count the tests selection skipped as
+  well as the hash-skipped modules' tests, the latter from the selection's
+  baseline. A run whose selection fell back ran default selective testing and
+  is counted as above.
+
   Only runs whose command event hashed at least one test target are counted:
   without selective testing nothing could be skipped, and counting them would
   make the rate say less about selective testing than about how often it was
@@ -29,8 +36,10 @@ defmodule Tuist.Tests.SelectiveTestingCounts do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.TestImpactAnalysis.Run
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
+  alias Tuist.Tests.Selections
   alias Tuist.Tests.SelectiveTestingCount
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestModuleRun
@@ -67,12 +76,40 @@ defmodule Tuist.Tests.SelectiveTestingCounts do
   """
   def record(test_run_id) do
     with {:ok, %Test{status: status} = test} when status not in @unprocessed_statuses <- Tests.get_test(test_run_id),
-         [_ | _] = targets <- Coverage.Xcode.selective_testing_hashes(test.project_id, [test.id]) do
-      row = count(test, targets)
+         {:ok, counts} <- counts(test) do
+      row =
+        Map.merge(counts, %{
+          test_run_id: test.id,
+          project_id: test.project_id,
+          ran_at: test.ran_at,
+          is_ci: test.is_ci,
+          scheme: test.scheme || "",
+          inserted_at: NaiveDateTime.utc_now()
+        })
+
       IngestRepo.insert_all(SelectiveTestingCount, [row])
       {:ok, row}
     else
       _ -> :skipped
+    end
+  end
+
+  defp counts(test) do
+    case Selections.run_for_test_run(test.project_id, test) do
+      {:ok, %Run{outcome: "selected"} = run} ->
+        {:ok,
+         %{
+           requested_test_count: run.requested_count,
+           skipped_test_count: run.skipped_count,
+           skipped_module_count: map_size(run.skipped_modules),
+           skipped_modules_without_history: Enum.count(run.skipped_modules, fn {_module, count} -> count == 0 end)
+         }}
+
+      _ ->
+        case Coverage.Xcode.selective_testing_hashes(test.project_id, [test.id]) do
+          [] -> :none
+          targets -> {:ok, count(test, targets)}
+        end
     end
   end
 
@@ -87,16 +124,10 @@ defmodule Tuist.Tests.SelectiveTestingCounts do
     skipped = hits |> Enum.map(&Map.get(history, &1, 0)) |> Enum.sum()
 
     %{
-      test_run_id: test.id,
-      project_id: test.project_id,
-      ran_at: test.ran_at,
-      is_ci: test.is_ci,
-      scheme: test.scheme || "",
       requested_test_count: executed_test_count(test) + skipped,
       skipped_test_count: skipped,
       skipped_module_count: length(hits),
-      skipped_modules_without_history: Enum.count(hits, &(not Map.has_key?(history, &1))),
-      inserted_at: NaiveDateTime.utc_now()
+      skipped_modules_without_history: Enum.count(hits, &(not Map.has_key?(history, &1)))
     }
   end
 

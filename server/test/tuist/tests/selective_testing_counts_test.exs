@@ -4,6 +4,7 @@ defmodule Tuist.Tests.SelectiveTestingCountsTest do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.TestImpactAnalysis.Storage
   alias Tuist.Tests.SelectiveTestingCount
   alias Tuist.Tests.SelectiveTestingCounts
   alias Tuist.Tests.Workers.SelectiveTestingCountsWorker
@@ -133,6 +134,39 @@ defmodule Tuist.Tests.SelectiveTestingCountsTest do
       assert SelectiveTestingCounts.record(current.id) == :skipped
       assert stored(current.id) == []
     end
+
+    test "takes a coverage-selected run's counts from its impact run", %{project: project} do
+      # Given
+      run(project, ~N[2026-11-02 10:00:00], [module("A", 3)])
+      impact = impact_run(project, "selected", %{"A" => 5, "B" => 0}, requested: 40, selected: 15, skipped: 25)
+      current = run(project, ~N[2026-11-03 10:00:00], [module("C", 15)], test_impact_run_id: impact.id)
+      selective_testing(project, current, [{"A", :remote}, {"B", :local}, {"C", :miss}])
+
+      # When
+      {:ok, row} = SelectiveTestingCounts.record(current.id)
+
+      # Then
+      assert %{
+               requested_test_count: 40,
+               skipped_test_count: 25,
+               skipped_module_count: 2,
+               skipped_modules_without_history: 1
+             } = row
+    end
+
+    test "counts a run whose selection fell back like any selective run", %{project: project} do
+      # Given
+      run(project, ~N[2026-11-02 10:00:00], [module("A", 3)])
+      impact = impact_run(project, "fallback", %{"A" => 5}, requested: 9, selected: 4, skipped: 5)
+      current = run(project, ~N[2026-11-03 10:00:00], [module("C", 4)], test_impact_run_id: impact.id)
+      selective_testing(project, current, [{"A", :remote}, {"C", :miss}])
+
+      # When
+      {:ok, row} = SelectiveTestingCounts.record(current.id)
+
+      # Then
+      assert %{requested_test_count: 7, skipped_test_count: 3, skipped_modules_without_history: 0} = row
+    end
   end
 
   describe "count_after_command_event/2" do
@@ -164,6 +198,23 @@ defmodule Tuist.Tests.SelectiveTestingCountsTest do
       )
 
     test
+  end
+
+  defp impact_run(project, outcome, skipped_modules, counts) do
+    {:ok, run} =
+      Storage.create_run(%{
+        project_id: project.id,
+        head_sha: "head",
+        commit_sha: "head",
+        build_system: "xcode",
+        outcome: outcome,
+        skipped_modules: skipped_modules,
+        requested_count: counts[:requested],
+        selected_count: counts[:selected],
+        skipped_count: counts[:skipped]
+      })
+
+    run
   end
 
   defp module(name, test_count) do
