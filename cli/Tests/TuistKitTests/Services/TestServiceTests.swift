@@ -5818,6 +5818,237 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_testWithoutBuilding_shard_storesHashesOfTargetsWithoutTests_whenTheRunPasses() async throws {
+        // Given
+        let path = try temporaryPath()
+        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
+        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
+        givenShardWithTargetWithoutTests(testProductsPath: extractedTestProductsPath)
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                shardIndex: 0
+            )
+        }
+
+        // Then — EmptyTests reports no test cases but ran in a green shard; OtherTests is another shard's
+        verify(cacheStorage)
+            .store(
+                .value([
+                    CacheStorableItem(name: "AppTests", hash: "app-hash"): [],
+                    CacheStorableItem(name: "EmptyTests", hash: "empty-hash"): [],
+                ]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+    }
+
+    func test_run_testWithoutBuilding_shard_doesNotStoreHashesOfTargetsWithoutTests_whenTheRunFails() async throws {
+        // Given
+        let path = try temporaryPath()
+        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
+        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
+        givenShardWithTargetWithoutTests(testProductsPath: extractedTestProductsPath)
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willThrow(TestError("xcodebuild failed"))
+
+        // When
+        try? await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                shardIndex: 0
+            )
+        }
+
+        // Then — a failed run can't vouch for a target that reported nothing, e.g. one that crashed
+        verify(cacheStorage)
+            .store(
+                .value([CacheStorableItem(name: "AppTests", hash: "app-hash"): []]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+    }
+
+    func test_run_testWithoutBuilding_suiteCatchAllShard_storesHashesOfTargetsWithoutTests() async throws {
+        // Given — at suite granularity a target without suites lands in the catch-all, which skips
+        // every suite the other shards own
+        let path = try temporaryPath()
+        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
+        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+        given(shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: [],
+                    skipTestIdentifiers: ["OtherTests/OtherSuite"],
+                    modules: [],
+                    selectiveTestingGraph: SelectiveTestingGraph(
+                        testTargetHashes: ["AppTests": "app-hash", "EmptyTests": "empty-hash", "OtherTests": "other-hash"],
+                        builtTestTargetNames: ["AppTests", "EmptyTests", "OtherTests"]
+                    )
+                )
+            )
+        givenTestSummaryWithOnePassingTest(module: "AppTests")
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                shardIndex: 1
+            )
+        }
+
+        // Then — OtherTests is reached into by a skip, so this shard didn't run it in full
+        verify(cacheStorage)
+            .store(
+                .value([
+                    CacheStorableItem(name: "AppTests", hash: "app-hash"): [],
+                    CacheStorableItem(name: "EmptyTests", hash: "empty-hash"): [],
+                ]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+    }
+
+    func test_run_testWithoutBuilding_fromBundle_storesHashesOfTargetsWithoutTests_exceptSkippedOnes() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try JSONEncoder().encode(
+            SelectiveTestingGraph(
+                testTargetHashes: ["AppTests": "app-hash", "EmptyTests": "empty-hash", "SkippedTests": "skipped-hash"],
+                builtTestTargetNames: ["AppTests", "EmptyTests", "SkippedTests"]
+            )
+        )
+        .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+        givenTestSummaryWithOnePassingTest(module: "AppTests")
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: [
+                    "-testProductsPath", testProductsPath.pathString,
+                    "-skip-testing:SkippedTests",
+                ]
+            )
+        }
+
+        // Then
+        verify(cacheStorage)
+            .store(
+                .value([
+                    CacheStorableItem(name: "AppTests", hash: "app-hash"): [],
+                    CacheStorableItem(name: "EmptyTests", hash: "empty-hash"): [],
+                ]),
+                cacheCategory: .value(.selectiveTests)
+            )
+            .called(1)
+    }
+
+    private func givenShardWithTargetWithoutTests(testProductsPath: AbsolutePath) {
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+        given(shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: testProductsPath,
+                    testIdentifiers: ["AppTests", "EmptyTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppTests", "EmptyTests"],
+                    selectiveTestingGraph: SelectiveTestingGraph(
+                        testTargetHashes: ["AppTests": "app-hash", "EmptyTests": "empty-hash", "OtherTests": "other-hash"],
+                        builtTestTargetNames: ["AppTests", "EmptyTests", "OtherTests"]
+                    )
+                )
+            )
+        givenTestSummaryWithOnePassingTest(module: "AppTests")
+    }
+
+    private func givenTestSummaryWithOnePassingTest(module: String) {
+        xcResultService.reset()
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .passed,
+                    duration: nil,
+                    testModules: [
+                        TestModule(
+                            name: module,
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testExample",
+                                    testSuite: nil,
+                                    module: module,
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+            )
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
+    }
+
     func test_run_testWithoutBuilding_skipsRunMetadataRestore_whenMissing() async throws {
         // Given
         let path = try temporaryPath()

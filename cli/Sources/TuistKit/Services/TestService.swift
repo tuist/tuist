@@ -1144,6 +1144,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let requestedTestIdentifiers = ShardTestSelection.onlyTestIdentifiers(requestRestrictions)
             let passingNames = await passingTargetNames(
                 resultBundlePath: resultBundlePath,
+                runInFull: testError == nil
+                    ? testTargetNamesRunInFull(
+                        xcodebuildArguments: xcodebuildArguments,
+                        selectiveTestingGraph: selectiveTestingGraph
+                    )
+                    : [],
                 withholding: stressResult
             )
             try await storeSuccessfulTestHashesFromGraph(
@@ -1494,6 +1500,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         let passingNames = await passingTargetNames(
             resultBundlePath: resultBundlePath,
+            runInFull: testError == nil
+                ? testTargetNamesRunInFull(
+                    xcodebuildArguments: xcodebuildArguments,
+                    selectiveTestingGraph: selectiveTestingGraph
+                )
+                : [],
             withholding: stressResult
         )
         try await storeSuccessfulTestHashesFromGraph(
@@ -1877,11 +1889,43 @@ public struct TestService { // swiftlint:disable:this type_body_length
     /// with the warning gone after one run.
     private func passingTargetNames(
         resultBundlePath: AbsolutePath?,
+        runInFull: Set<String> = [],
         withholding stressResult: StressNewTestsResult?
     ) async -> Set<String> {
-        let passing = await passingTargetNames(resultBundlePath: resultBundlePath)
+        let passing = await passingTargetNames(resultBundlePath: resultBundlePath).union(runInFull)
         guard let stressResult else { return passing }
         return passing.subtracting(stressResult.withheldTargetNames)
+    }
+
+    /// The test targets a `test-without-building` invocation runs whole: the ones its `-only-testing`
+    /// names whole or, without any, every test target the products hold, minus any `-skip-testing`
+    /// reaches into. Once the run passes, these passed too, including targets without tests, which
+    /// report no test cases for the result bundle to vouch for them; leaving those out would make
+    /// them miss selective testing on every run and keep a run with nothing to test from ending early.
+    private func testTargetNamesRunInFull(
+        xcodebuildArguments: [String],
+        selectiveTestingGraph: SelectiveTestingGraph
+    ) -> Set<String> {
+        let onlyTestIdentifiers = XcodeBuildTestCommandService.testIdentifiers(
+            for: "-only-testing",
+            in: xcodebuildArguments
+        )
+        let skippedTargetNames = Set(
+            XcodeBuildTestCommandService.testIdentifiers(for: "-skip-testing", in: xcodebuildArguments)
+                .map(Self.testTargetName(of:))
+        )
+        let runTargetNames: Set<String>
+        if !onlyTestIdentifiers.isEmpty {
+            runTargetNames = Self.fullyRunTestTargetNames(onlyTestIdentifiers)
+        } else if let testPlan = passedValue(for: "-testPlan", arguments: xcodebuildArguments),
+                  selectiveTestingGraph.attemptedTestPlans != [testPlan]
+        {
+            // The products may hold the targets of other plans, which this one doesn't run.
+            runTargetNames = []
+        } else {
+            runTargetNames = Set(selectiveTestingGraph.builtTestTargetNames ?? [])
+        }
+        return runTargetNames.subtracting(skippedTargetNames)
     }
 
     private func passingTargetNames(resultBundlePath: AbsolutePath?) async -> Set<String> {
