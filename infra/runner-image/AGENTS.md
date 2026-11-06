@@ -377,11 +377,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   webhook, which can lag the job by minutes), 5xx or not at all are
   resent with the next batch, so a job's first sample is its start.
   Disk free is the APFS container's Avail.
-- The job VM's disk is `disk_size_gb` (200 GB), larger than the base's
+- The job VM's disk is `disk_size_gb` (300 GB), larger than the base's
   140 GB. The build's first provisioner grows the APFS container into it
   (`diskutil repairDisk` + `apfs resizeContainer`), because the plugin
   only resizes after deleting a recovery partition, and its last fails the
-  build below 100 GiB available. The live resize intermittently fails with
+  build below 200 GiB available. The live resize intermittently fails with
   -69606 and rolls itself back, so it is retried up to five times. Growing
   the disk again takes room from the rack's disk plan (`rackFleet.machine` in
   `values-managed-production.yaml`), which counts two guests at this size.
