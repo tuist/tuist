@@ -19,9 +19,12 @@ if findmnt --mountpoint "$root" >/dev/null; then
   }
 fi
 if [[ -f "$image" ]]; then
-  [[ "$(stat -c %s "$image")" == "$((size_gb * 1000000000))" ]] || {
-    echo 'Existing backing file size differs; automatic resizing is not supported.' >&2; exit 1;
-  }
+  # A new size reaches only images created after it: an existing one keeps its
+  # size and contents. Rebuilding a host's image is the operator procedure in
+  # cache-volumes.md ("Changing the cache size").
+  existing=$(stat -c %s "$image")
+  [[ "$existing" == "$((size_gb * 1000000000))" ]] ||
+    echo "Keeping the existing ${existing}-byte backing file; ${size_gb} GB applies to new images only." >&2
 fi
 if ! [[ -f "$image" ]]; then
   [[ ! -e "$image" && ! -L "$image" && ! -e "$image.new" ]] || { echo 'Existing storage requires inspection.' >&2; exit 1; }
