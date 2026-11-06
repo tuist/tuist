@@ -224,6 +224,8 @@ spec:
             #
             # Replace one box, update `nodeNames`, deploy, and wait for the
             # replica to report caught up before deleting the next Machine.
+            # Kubernetes minor upgrades skip all of that and run in place:
+            # "Upgrading the ClickHouse pool in place" in README.md.
             type: OnDelete
         deletion:
           # Finite, unlike the runner pool's unbounded drain. A ClickHouse

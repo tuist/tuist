@@ -154,6 +154,94 @@ a matching replica increase. That gives the MachineDeployment spare
 capacity to create and verify a current-revision node before an old node
 is drained.
 
+## Upgrading the ClickHouse pool in place
+
+The `stateful-worker` class (`md-clickhouse`) is `OnDelete`. A new
+`topology.version` moves the MachineDeployment's template and replaces no
+Machine. Replacing a box would reinstall it, wiping `/data` and with it that
+ClickHouse replica, and would change its node name, which
+`clickhouse.managed.persistence.localVolume.nodeNames` pins the replica to.
+Each Kubernetes minor is therefore applied to the boxes in place, one box at
+a time.
+
+CAPI's Cluster webhook refuses the next `topology.version` bump until every
+Machine's `spec.version` matches its MachineDeployment
+(`validateTopologyMachineDeploymentVersions`). It reads `spec.version` and
+never the kubelet, and `spec.version` is mutable. So the procedure ends by
+recording the new version on each Machine. The Machines stay owned by their
+old MachineSet and show as not up to date, which `OnDelete` leaves alone. A
+box that is reprovisioned later joins at the template's version anyway.
+
+Everything below the PR is a human operation:
+- On canary and production it needs an elevation covering cordon, drain
+  and `kubectl debug node`, or root SSH to the box.
+- The Machine patch needs write access to the management cluster.
+
+1. Merge the Cluster CR change: drop `topology.cluster.x-k8s.io/defer-upgrade`
+   from `md-clickhouse`, or bump `topology.version` with the pool following
+   it. Wait for Flux to apply it. The MachineDeployment's
+   `spec.template.spec.version` then reads the new version, and no Machine
+   is replaced.
+2. Check both replicas are healthy first. All `tuist-tuist-clickhouse-*` pods
+   must be Ready: Ready means `/replicas_status` reports the replica caught
+   up. The PodDisruptionBudget refuses the drain otherwise, and that refusal
+   is the point. Check that the last backup CronJob runs succeeded.
+3. For **one** box (`NODE=bm-...-md-clickhouse-...`):
+
+   ```bash
+   kubectl cordon "$NODE"
+   kubectl drain "$NODE" --ignore-daemonsets --delete-emptydir-data --timeout=15m
+   # ClickHouse stops; its local PV stays on disk.
+   kubectl debug node/"$NODE" -it --profile=sysadmin --image=ubuntu:24.04 \
+     -- nsenter --target 1 --mount --uts --ipc --net --pid -- bash
+   ```
+
+   On the host, with `V` the control plane's patch version (for example
+   `1.35.10`):
+
+   ```bash
+   V=1.35.10; MINOR=${V%.*}
+   cp -a /var/lib/kubelet/config.yaml /var/lib/kubelet/kubeadm-flags.env /root/
+   curl -fsSL "https://pkgs.k8s.io/core:/stable:/v$MINOR/deb/Release.key" \
+     | gpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+   echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v$MINOR/deb/ /" \
+     > /etc/apt/sources.list.d/kubernetes.list
+   apt-get update
+   apt-mark unhold kubelet kubeadm kubectl
+   apt-get install -y kubeadm="$V-*"
+   kubeadm upgrade node
+   apt-get install -y kubelet="$V-*" kubectl="$V-*"
+   apt-mark hold kubelet kubeadm kubectl
+   systemctl daemon-reload && systemctl restart kubelet
+   # The reservations and eviction thresholds are flags in kubeadm-flags.env;
+   # both files should come back unchanged apart from version-specific defaults.
+   diff /root/kubeadm-flags.env /var/lib/kubelet/kubeadm-flags.env
+   diff /root/config.yaml /var/lib/kubelet/config.yaml
+   ```
+
+   Exit the debug shell, delete the debug pod (`kubectl get pods | grep node-debugger`),
+   and then:
+
+   ```bash
+   kubectl get node "$NODE" -o jsonpath='{.status.nodeInfo.kubeletVersion}'  # v1.35.10
+   kubectl uncordon "$NODE"
+   ```
+
+   Wait for that ClickHouse pod to be Ready again. It restarts on its own
+   data and only catches up on the writes it missed.
+4. Repeat step 3 for the other box. Never start it before the first replica
+   is Ready.
+5. On the management cluster, record the version on both Machines:
+
+   ```bash
+   for m in $(kubectl -n org-tuist get machines \
+       -l cluster.x-k8s.io/cluster-name=<cluster>,topology.cluster.x-k8s.io/deployment-name=md-clickhouse -o name); do
+     kubectl -n org-tuist patch "$m" --type merge -p '{"spec":{"version":"v1.35.10"}}'
+   done
+   ```
+
+   The next `topology.version` bump is then accepted.
+
 ## Resizing the control plane
 
 `hcloudControlPlaneMachineType` is patched into the control-plane
