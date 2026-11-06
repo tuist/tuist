@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "531d2155f8b2cffdc370184439a2d089495c60e432c3382379339f7130d64979",
+  "hash": "057466ce4d76ccacdfb6fefbf0e05739e9b876629d0446c66d677a6b876a5f15",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Android {#bundle-insights-android}": {
-                  "content_hash": "bf996d1317144b25ba6f4a08bedfc982f9f3642c088d2e813f8d92eeb9cd5773"
+                  "content_hash": "b8a11fb4018ea75249244b0d71328fb5f56582077fd652bf41e90c2ca405d99c"
                 },
                 "Preamble": {
                   "content_hash": "76bd7f3a195103aee3172fb208ecaa04ec2ffb60c805215ca6947bd99e593efd"
@@ -20,11 +20,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "bb7bb571771117846cc5d5d9b0450ea60d86d3f16c71eb9501da16f653afa510",
+          "hash": "d88db468c46dfc709949fbdb3c63cdccaeacb097a86631ac68deba1a765d6d5c",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/bundle-insights/android.md",
           "metadata": {
-            "content_hash": "dd7e5c43a32d16ea7640e8171bc63b9b405d62f360c93d47dfa7ae119dad1ce2"
+            "content_hash": "f4ccfe5bb3deafcdefc40b8a7a9068242791c09faee346874d96471162d2718f"
           }
         },
         {
@@ -230,14 +230,14 @@
         }
       ],
       "details": {},
-      "hash": "531d2155f8b2cffdc370184439a2d089495c60e432c3382379339f7130d64979",
+      "hash": "057466ce4d76ccacdfb6fefbf0e05739e9b876629d0446c66d677a6b876a5f15",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/bundle-insights/android.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "821e47ed329b15d80daaa14bc64688280795c37eb8321f30023b6499d6f68de6",
+  "output_hash": "28395523f383e025c5e6f1ef22df8d972fe44cde0007a6b51e9d4d64346ec41f",
   "output_path": "server/priv/docs/es/guides/features/bundle-insights/android.md",
   "protection_state": "recorded",
   "provider": "",
@@ -258,8 +258,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "5e9d7c17d002aff6035ec604c8e944aa411b79fa",
+  "source_commit_sha": "53016b778c6ea90170ec1a300130302e3a28ce85",
   "source_path": "server/priv/docs/en/guides/features/bundle-insights/android.md",
-  "translated_at": "2026-11-04T18:45:25.308444Z",
-  "translation_session_id": "01a1a7d6-1524-7d6d-85ce-7d4c649e29cb"
+  "translated_at": "2026-11-06T16:45:40.760820Z",
+  "translation_session_id": "01a1b1ba-49a6-7cd8-9d52-e9f2321ea827"
 }

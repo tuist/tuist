@@ -97,8 +97,8 @@
     }
 
     & .noora-table table {
-      table-layout: fixed;
       min-width: 100%;
+      table-layout: fixed;
     }
 
     & [data-part="release-history-version"] {

@@ -214,6 +214,7 @@ defmodule TuistWeb.UserLoginLive do
             data-options-url={~p"/users/log_in/passkey/options"}
             data-action-url={~p"/users/log_in/passkey"}
           >
+            <.line_divider text="OR" />
             <.button
               type="button"
               variant="secondary"

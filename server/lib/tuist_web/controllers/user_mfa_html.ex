@@ -3,7 +3,7 @@ defmodule TuistWeb.UserMFAHTML do
   use TuistWeb, :html
   use Noora
 
-  import TuistWeb.SSOLinkHTML, only: [link_frame: 1, security_settings_frame: 1]
+  import TuistWeb.SSOLinkHTML, only: [link_frame: 1, security_settings_frame: 1, reauthentication_notice: 1]
 
   embed_templates "user_mfa_html/*"
 
