@@ -767,6 +767,37 @@ defmodule Tuist.Runners.CacheVolumesTest do
     refute CacheVolumes.older_copy?(current)
   end
 
+  test "records why a host had no copy of a warm use's volume, and only a known reason", %{job: job} do
+    {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+    complete(job)
+    assert {:ok, %{action: "keep"}} = publish_report("node", first.id)
+    {:ok, evicted} = CacheVolumes.allocate_for_job(job, identity(), attrs("evicted"))
+    {:ok, unknown} = CacheVolumes.allocate_for_job(job, identity(), attrs("unknown"))
+    {:ok, warm} = CacheVolumes.allocate_for_job(job, identity(), attrs("warm"))
+    assert evicted.base_generation == 1
+
+    assert {:ok, _} =
+             CacheVolumes.report("node", evicted.id, Map.put(report("active", false), "cold_reason", "evicted_idle"))
+
+    # A later report never replaces the reason the attach recorded.
+    assert {:ok, _} =
+             CacheVolumes.report("node", evicted.id, Map.put(report("active", false), "cold_reason", "not_on_host"))
+
+    assert %Usage{cold_reason: "evicted_idle"} = evicted = Repo.get!(Usage, evicted.id)
+    assert CacheVolumes.cold_reason_description(evicted) =~ "removed its copy to free disk space"
+
+    for reason <- ["evicted_", "evicted_anything", "", 1] do
+      assert {:ok, _} = CacheVolumes.report("node", unknown.id, Map.put(report("active", false), "cold_reason", reason))
+    end
+
+    assert %Usage{cold_reason: nil} = unknown = Repo.get!(Usage, unknown.id)
+    assert is_nil(CacheVolumes.cold_reason_description(unknown))
+
+    warm_report = "active" |> report(false) |> Map.put("warm", true) |> Map.put("cold_reason", "not_on_host")
+    assert {:ok, _} = CacheVolumes.report("node", warm.id, warm_report)
+    assert %Usage{cold_reason: nil} = Repo.get!(Usage, warm.id)
+  end
+
   test "a job's download keeps its own base after the head advances", %{job: job, account: account} do
     {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
     complete(job)
