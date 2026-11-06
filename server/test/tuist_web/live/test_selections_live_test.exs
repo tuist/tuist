@@ -360,6 +360,23 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "#selection-tests-table", "Project.swift")
     end
 
+    test "shows no Debug card for a fallback without a baseline", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      %{test_run: test_run} = selection(project, outcome: "fallback", reason: "no_baseline", baseline_sha: nil)
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
+        )
+
+      assert has_element?(lv, "#test-selection-fallback", "No baseline")
+      refute has_element?(lv, "[data-part='selection-debug-card']")
+    end
+
     test "explains a fallback", %{conn: conn, organization: organization, project: project} do
       %{test_run: test_run} =
         selection(project,

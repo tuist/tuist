@@ -17,7 +17,7 @@ defmodule TuistWeb.TestSelection.RunTab do
     and what ran.
   - Debug: the trace of the rules that decided it and the tracked files.
 
-  A fallback shows the outcome and the Debug tab only.
+  A fallback shows the outcome and, when it has a baseline, the Debug tab only.
 
   Its query parameters are prefixed with `selection-` so they don't clash
   with the test run page's own.
@@ -80,7 +80,7 @@ defmodule TuistWeb.TestSelection.RunTab do
       end
 
     tabs = tabs(selection_run, socket.assigns.selection_plan)
-    tab = if params["selection-tab"] in tabs, do: params["selection-tab"], else: hd(tabs)
+    tab = if params["selection-tab"] in tabs, do: params["selection-tab"], else: List.first(tabs)
 
     socket
     |> Phoenix.Component.assign(:selection_tab, tab)
@@ -155,13 +155,14 @@ defmodule TuistWeb.TestSelection.RunTab do
         Selections.run_shards(run, socket.assigns.selection_plan, test_run_id)
       )
 
-  defp assign_tab(socket, "debug", _run, _test_run_id, _params), do: socket
+  defp assign_tab(socket, _tab, _run, _test_run_id, _params), do: socket
 
   @doc "The query that searches the current tab for `search`."
   def search_query(uri, search), do: uri.query |> Query.put("selection-search", search) |> Query.drop("selection-page")
 
   defp tabs(run, plan) do
     cond do
+      !Selections.selection?(run) and !has_baseline?(run) -> []
       !Selections.selection?(run) -> ["debug"]
       is_nil(plan) -> List.delete(@tabs, "shards")
       true -> @tabs
@@ -354,6 +355,7 @@ defmodule TuistWeb.TestSelection.RunTab do
   defp tab_card(%{tab: "modules"} = assigns), do: modules_card(assigns)
   defp tab_card(%{tab: "shards"} = assigns), do: shards_card(assigns)
   defp tab_card(%{tab: "debug"} = assigns), do: debug_card(assigns)
+  defp tab_card(assigns), do: ~H""
 
   defp tests_card(assigns) do
     ~H"""
