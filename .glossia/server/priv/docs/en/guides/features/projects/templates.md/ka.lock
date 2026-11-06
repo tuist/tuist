@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "976f37c3e370be35897ba2ae472c04ebb015071dbef47697c588a6bd2c7aa9d7",
+  "hash": "4f5706940c69f18f403ddc9a5671bbfbfcba4a38cd33993afdd3dc058ab55f2e",
   "hash_tree": {
     "root": {
       "children": [
@@ -17,7 +17,7 @@
                   "content_hash": "9e94051288b527ead813632faa97198d9bdd19356c7cdedea4e583fd6eb7afa2"
                 },
                 "## Using a template {#using-a-template}": {
-                  "content_hash": "21ae3bf64fa6c6ce8197ba41b478e8a25bab4f9340b527118ca5309533efcfbd"
+                  "content_hash": "98d090a831b4ca3a149df2decc38d956951bd3d98ed7d0fbd0de7cad5bbb2268"
                 },
                 "Preamble": {
                   "content_hash": "02ab73d5c79912a831d23e7eb5e1bc75d56c149eb3d8e6c8fae7707f7eadc4b6"
@@ -26,11 +26,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "0ce04a535923d32405418e88d3dc3560777c2bf52387f8c09e0d5884a9218d27",
+          "hash": "f7ae9263d72fc296c7711775b50f7cd66b8ac31bf7e6ea2ee24b46c393e26379",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/projects/templates.md",
           "metadata": {
-            "content_hash": "0b24a0651e2f2d19fc95483a601df8e8be8470a55555e7ff4ac041cd4750fdcf"
+            "content_hash": "d68d651ce73ebaac87b203a7a7dfc423d6064ee8eb2088acfe02b09591eae3a6"
           }
         },
         {
@@ -91,7 +91,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -110,7 +110,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -139,11 +139,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -220,21 +220,21 @@
             }
           ],
           "details": {},
-          "hash": "c31d35cf124a89005d4f3d55a6de8b9fe2163a9df738dab3c0e6eb5cc9041748",
+          "hash": "dba52d665e1da4b14116ec8f680c5b59b29a4d223e9174430b3785ea92b51eb0",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "976f37c3e370be35897ba2ae472c04ebb015071dbef47697c588a6bd2c7aa9d7",
+      "hash": "4f5706940c69f18f403ddc9a5671bbfbfcba4a38cd33993afdd3dc058ab55f2e",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/projects/templates.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "6a9426c5bbc4bd5f4380d0cf039cf663299d8aedaac0916529f4d13a43e44a79",
+  "output_hash": "c73098adefb15154699c9d7b7c2804c4393c2379648d9f80b10a9fe3b62afb8e",
   "output_path": "server/priv/docs/ka/guides/features/projects/templates.md",
   "protection_state": "recorded",
   "provider": "",
@@ -254,8 +254,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "4a02c86e605053e66f2d53d848e4dc676960522d",
+  "source_commit_sha": "1a6312857737c48575464d2c6fcb764b880d1fa4",
   "source_path": "server/priv/docs/en/guides/features/projects/templates.md",
-  "translated_at": "2026-10-30T18:11:10.115296Z",
-  "translation_session_id": "01a18e00-a41b-799c-a557-85bc54978004"
+  "translated_at": "2026-11-06T18:59:11.454390Z",
+  "translation_session_id": "01a1b226-22a2-7545-903d-5fd0e84b7968"
 }

@@ -1,26 +1,26 @@
 ---
 {
-  "title": "範本",
+  "title": "模板",
   "titleTemplate": ":title · 專案 · 功能 · 指南 · Tuist",
-  "description": "學習如何在 Tuist 中建立和使用範本，以在專案中產生程式碼。"
+  "description": "學習如何在 Tuist 中建立和使用模板，以在專案中產生程式碼。"
 }
 ---
 # 範本 {#templates}
 
-在已有既定架構的項目中，開發人員可能希望建立與項目一致的新元件或功能。使用 `tuist scaffold` 你可以從範本產生檔案。你可以定義自己的範本，或使用 Tuist 內建的範本。以下係一些適合使用 scaffolding 的情況：
+喺已有既定架構嘅專案入面，開發人員可能想建立同專案一致嘅新元件或功能。用 `tuist scaffold` 就可以從範本生成檔案。你可以定義自己嘅範本，或者使用 Tuist 內置嘅範本。以下係一啲適合使用 scaffolding 嘅情況：
 
-- 建立符合指定架構的新功能：`tuist scaffold viper --name MyFeature`。
-- 建立新項目：`tuist scaffold feature-project --name Home`
+- 建立符合指定架構嘅新功能：`tuist scaffold viper --name MyFeature`。
+- 建立新專案：`tuist scaffold feature-project --name Home`
 
 > [!NOTE]
-> **非強制性**
+> **無強制規範**
 >
-> Tuist 不會對你範本的內容及用途施加限制。唯一要求係將它們放在指定目錄中。
+> Tuist 唔會對你範本嘅內容同用途施加任何規範。唯一要求係將佢哋放喺指定目錄。
 
 
 ## 定義範本 {#defining-a-template}
 
-要定義範本，你可以執行 <.localized_link href="/guides/features/projects/editing">`tuist edit`</.localized_link>，然後在 `Tuist/Templates` 底下建立一個名為 `name_of_template` 的目錄來代表你的範本。範本需要一個描述範本的清單檔案 `name_of_template.swift`。因此，如果你要建立一個名為 `framework` 的範本，你應該在 `Tuist/Templates` 建立一個新目錄 `framework`，並加入一個名為 `framework.swift` 的清單檔案，內容可能如下：
+要定義範本，你可以執行 <.localized_link href="/guides/features/projects/editing">`tuist edit`</.localized_link>，然後喺 `Tuist/Templates` 底下建立一個名為 `name_of_template` 嘅目錄嚟代表你嘅範本。範本需要一個清單檔案 `name_of_template.swift` 嚟描述範本。所以如果你要建立一個名為 `framework` 嘅範本，就應該喺 `Tuist/Templates` 建立一個新目錄 `framework`，並加入一個名為 `framework.swift` 嘅清單檔案，內容可以如下：
 
 
 ```swift
@@ -53,23 +53,23 @@ let template = Template(
 
 ## 使用範本 {#using-a-template}
 
-定義範本後，我們可以透過 `scaffold` 指令來使用它：
+定義好範本之後，就可以透過 `scaffold` 指令嚟使用：
 
 ```bash
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
 > [!NOTE]
-> 由於 platform 係可選參數，我們亦可以唔帶 `--platform macos` 參數來執行指令。
+> 由於 platform 係可選參數，我哋亦都可以唔加 `--platform macos` 參數嚟執行指令。
 
 
-如果 `.string` 同 `.files` 提供的彈性不足，你可以透過 `.file` 選項使用 [Stencil](https://stencil.fuller.li/en/latest/) 範本語言。此外，你亦可以使用此處定義的其他過濾器。
+如果 `.string` 同 `.files` 提供嘅彈性不足，你可以透過 `.file` 選項使用 [Stencil](https://stencil.fuller.li/en/latest/) 範本語言。除此之外，你亦都可以使用此處定義嘅額外過濾器。
 
-使用字串插值時，上面的 `\(nameAttribute)` 會解析為 `{{ name }}`。如果你想在範本定義中使用 Stencil 過濾器，可以手動使用該插值並加入任何你想要的過濾器。例如，你可以使用 `{ { name | lowercase } }` 代替 `\(nameAttribute)` 來取得 name 屬性的小寫值。
+使用字串插值時，上面嘅 `\(nameAttribute)` 會解析為 `{{ name }}`。如果你希望喺範本定義中使用 Stencil 過濾器，可以手動撰寫該插值並加入任意過濾器。例如，你可以用 `{ { name | lowercase } }` 取代 `\(nameAttribute)`，以取得 name 屬性嘅小寫值。
 
-你亦可以使用 `.directory`，它可以將整個資料夾複製到指定路徑。
+你亦都可以使用 `.directory`，從而將整個資料夾複製到指定路徑。
 
 > [!TIP]
-> **Project Description Helpers**
+> **專案描述輔助工具**
 >
-> 範本支援使用 <.localized_link href="/guides/features/projects/code-sharing">project description helpers</.localized_link>，以便在不同範本之間重複使用程式碼。
+> 範本支援使用 <.localized_link href="/guides/features/projects/code-sharing">專案描述輔助工具</.localized_link>，以便喺不同範本之間重用代碼。
