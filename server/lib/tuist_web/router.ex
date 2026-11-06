@@ -1363,6 +1363,7 @@ defmodule TuistWeb.Router do
 
   # Ops Routes
   pipeline :ops do
+    plug :require_authenticated_user
     plug TuistWeb.Authorization, [:current_user, :read, :ops]
     plug :assign_current_path
     plug :skip_csrf_for_fun_with_flags_assets

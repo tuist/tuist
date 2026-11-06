@@ -158,8 +158,12 @@ defmodule TuistWeb.UserMFAControllerTest do
 
   test "recovery codes work once across independent browser challenges", %{user: user, now: now} do
     {_confirmed, _secret, [first, second | _]} = enroll(user, now)
+    pending = login(user)
+    pending = init_test_session(recycle(pending), Map.put(get_session(pending), "user_return_to", "/\\evil.example"))
 
-    assert user |> login() |> recycle() |> post(~p"/users/mfa", %{"mfa_code" => first}) |> redirected_to() ==
+    assert pending
+           |> post(~p"/users/mfa", %{"mfa_code" => first})
+           |> redirected_to() ==
              ~p"/#{user.account.name}/projects"
 
     assert_enqueued(worker: SecurityNotificationWorker, args: %{user_id: user.id, event: "recovery_used"})

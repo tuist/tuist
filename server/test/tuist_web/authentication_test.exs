@@ -2,6 +2,7 @@ defmodule TuistWeb.AuthenticationTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.LiveCase
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
   import TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -155,8 +156,26 @@ defmodule TuistWeb.AuthenticationTest do
     end
 
     test "redirects to the configured path", %{conn: conn, user: user} do
-      conn = conn |> put_session(:user_return_to, "/hello") |> Authentication.log_in_user(user)
-      assert redirected_to(conn) == "/hello"
+      path = "/hello?next=https://example.com/a#section"
+      conn = conn |> put_session(:user_return_to, path) |> Authentication.log_in_user(user)
+      assert redirected_to(conn) == path
+    end
+
+    test "unsafe stored return destinations fall back without interrupting sign-in", %{conn: conn, user: user} do
+      for path <- [
+            "https://evil.example",
+            "//evil.example",
+            "/\\evil.example",
+            "/\t/evil.example",
+            "/%09/evil.example",
+            "/\n/evil.example",
+            %{"path" => "/hello"}
+          ] do
+        completed = conn |> put_session(:user_return_to, path) |> Authentication.log_in_user(user)
+        assert redirected_to(completed) == ~p"/#{user.account.name}/projects"
+        assert Accounts.get_user_by_session_token(get_session(completed, :user_token)).id == user.id
+        refute get_session(completed, :user_return_to)
+      end
     end
 
     test "stores auth_method as :password by default", %{conn: conn, user: user} do
@@ -948,7 +967,11 @@ defmodule TuistWeb.AuthenticationTest do
 
         {:ok, view, _} = live(conn, allowed_path)
 
-        assert {:error, {:redirect, %{to: "/users/auth/google"}}} = live_redirect(view, to: protected_path)
+        fallback = ~p"/#{organization.account.name}/projects"
+        assert {:error, {:redirect, %{to: ^fallback}}} = live_redirect(view, to: protected_path)
+        challenged = get(conn, fallback)
+        assert redirected_to(challenged) == ~p"/users/auth/google"
+        assert get_session(challenged, :user_return_to) == fallback
 
         sso_conn =
           put_session(
@@ -994,6 +1017,76 @@ defmodule TuistWeb.AuthenticationTest do
       assert {:ok, _, _} = live(build_conn(), public_path)
     end
 
+    for surface <- [:preview, :account, :project, :authenticated_account, :gradle_task] do
+      test "a #{surface} join records its current URL before SSO instead of returning to an older preview", %{
+        conn: conn,
+        user: user
+      } do
+        organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+        {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
+
+        oauth2_identity_fixture(
+          user: user,
+          provider: :google,
+          id_in_provider: "preview-member",
+          provider_organization_id: "example.com"
+        )
+
+        project = ProjectsFixtures.project_fixture(account: organization.account)
+        [older, current] = for _ <- 1..2, do: AppBuildsFixtures.preview_fixture(project: project)
+        older_path = ~p"/#{organization.account.name}/#{project.name}/previews/#{older.id}"
+        query = %{source: "shared + link", filter: %{branch: "feature/a"}}
+
+        current_path =
+          case unquote(surface) do
+            :preview -> ~p"/#{organization.account.name}/#{project.name}/previews/#{current.id}?#{query}"
+            :account -> ~p"/#{organization.account.name}/projects?#{query}"
+            :project -> ~p"/#{organization.account.name}/#{project.name}/settings?#{query}"
+            :authenticated_account -> ~p"/#{organization.account.name}/settings?#{query}"
+            :gradle_task -> ~p"/#{organization.account.name}/#{project.name}/builds/tasks/#{":app:compile"}?#{query}"
+          end
+
+        token =
+          Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+
+        rendered =
+          conn
+          |> put_session(:user_token, token)
+          |> put_session(:user_return_to, older_path)
+          |> put_session(:oauth_return_to, older_path)
+          |> get(current_path)
+
+        assert html_response(rendered, 200)
+
+        # An existing tab can reconnect after SSO enforcement changes or after
+        # legacy sessions lose their provider proof. Its cookie still has the
+        # return URL from an abandoned sign-in, not necessarily this preview.
+        Repo.update_all(from(t in UserToken, where: t.user_id == ^user.id),
+          set: [auth_provider: nil, auth_provider_organization_id: nil]
+        )
+
+        joined = put_connect_params(rendered, %{"tuist_return_to" => current_path})
+        assert {:error, {:redirect, %{to: ^current_path}}} = live(joined)
+        challenged = rendered |> recycle() |> get(current_path)
+        assert redirected_to(challenged) == ~p"/users/auth/google"
+
+        completed =
+          build_conn()
+          |> init_test_session(get_session(challenged))
+          |> assign(:ueberauth_auth, %Ueberauth.Auth{
+            provider: :google,
+            uid: "preview-member",
+            info: %Ueberauth.Auth.Info{email: user.email},
+            extra: %{raw_info: %{user: %{"hd" => "example.com"}}}
+          })
+          |> TuistWeb.AuthController.callback(%{})
+
+        assert redirected_to(completed) == current_path
+        returned = init_test_session(build_conn(), get_session(completed))
+        assert {:ok, _, _} = live(returned, current_path)
+      end
+    end
+
     @tag :sso_boundary
     test "a connected join rechecks proof after its initial HTTP render", %{conn: conn, user: user} do
       organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
@@ -1003,7 +1096,60 @@ defmodule TuistWeb.AuthenticationTest do
       rendered = conn |> put_session(:user_token, token) |> get(protected_path)
       assert html_response(rendered, 200)
       Repo.update_all(UserToken, set: [auth_provider: nil, auth_provider_organization_id: nil])
-      assert {:error, {:redirect, %{to: "/users/auth/google"}}} = live(rendered)
+      assert {:error, {:redirect, %{to: ^protected_path}}} = live(rendered)
+      challenged = rendered |> recycle() |> get(protected_path)
+      assert redirected_to(challenged) == ~p"/users/auth/google"
+      assert get_session(challenged, :user_return_to) == protected_path
+    end
+
+    test "missing, unsafe and wrong-scope mount hints cannot bypass SSO or retain a stale preview", %{
+      conn: conn,
+      user: user
+    } do
+      organization = organization_fixture(creator: user, sso_provider: :google, sso_organization_id: "example.com")
+      {:ok, _} = Accounts.update_organization(organization, %{sso_enforced: true})
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+      other_project = ProjectsFixtures.project_fixture(account: organization.account)
+      token = Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
+      path = ~p"/#{organization.account.name}/#{project.name}/settings"
+      fallback = ~p"/#{organization.account.name}/projects"
+
+      rendered = conn |> put_session(:user_token, token) |> put_session(:user_return_to, "/stale-preview") |> get(path)
+      assert html_response(rendered, 200)
+      Repo.update_all(from(t in UserToken, where: t.user_id == ^user.id), set: [auth_provider: nil])
+
+      for hint <- [
+            nil,
+            "https://evil.example",
+            "//evil.example",
+            "/\\evil.example",
+            "/users/log_in",
+            ~p"/#{organization.account.name}/#{other_project.name}/settings",
+            "/%"
+          ] do
+        joined = put_connect_params(rendered, %{"tuist_return_to" => hint})
+        assert {:error, {:redirect, %{to: ^fallback}}} = live(joined)
+      end
+
+      challenged = rendered |> recycle() |> get(fallback)
+      assert redirected_to(challenged) == ~p"/users/auth/google"
+      assert get_session(challenged, :user_return_to) == fallback
+    end
+
+    test "revocation before an authenticated mount reloads through HTTP and records its return path", %{
+      conn: conn,
+      user: user
+    } do
+      path = ~p"/#{user.account.name}/settings?#{%{source: "shared"}}"
+      rendered = conn |> log_in_user(user) |> get(path)
+      assert html_response(rendered, 200)
+      Accounts.delete_user_session_token(get_session(rendered, :user_token))
+      joined = put_connect_params(rendered, %{"tuist_return_to" => path})
+      assert {:error, {:redirect, %{to: ^path}}} = live(joined)
+
+      challenged = rendered |> recycle() |> get(path)
+      assert redirected_to(challenged) == ~p"/users/log_in"
+      assert get_session(challenged, :user_return_to) == path
     end
 
     @tag :sso_boundary
@@ -1018,7 +1164,8 @@ defmodule TuistWeb.AuthenticationTest do
       assert conn |> get(protected_path) |> redirected_to() == ~p"/users/auth/google"
 
       {:ok, view, _} = live(conn, ~p"/#{user.account.name}/projects")
-      assert {:error, {:redirect, %{to: "/users/auth/google"}}} = live_redirect(view, to: protected_path)
+      assert {:error, {:redirect, %{to: ^protected_path}}} = live_redirect(view, to: protected_path)
+      assert conn |> get(protected_path) |> redirected_to() == ~p"/users/auth/google"
     end
 
     @tag :sso_boundary
@@ -1034,11 +1181,13 @@ defmodule TuistWeb.AuthenticationTest do
           Accounts.generate_user_session_token(user, %{auth_method: :google, provider_organization_id: "example.com"})
         )
 
-      {:ok, view, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings")
+      path = ~p"/#{organization.account.name}/#{project.name}/settings"
+      {:ok, view, _} = live(conn, path)
       {:ok, _} = Accounts.update_organization(organization, %{sso_organization_id: "new.example.com"})
 
       render_hook(view, "rename_project", %{"project" => %{"name" => "must-not-change"}})
-      assert_redirect(view, ~p"/users/auth/google")
+      assert_redirect(view, path)
+      assert conn |> get(path) |> redirected_to() == ~p"/users/auth/google"
       assert Tuist.Projects.get_project_by_id(project.id).name == project.name
     end
   end

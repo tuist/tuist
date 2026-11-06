@@ -110,13 +110,7 @@ defmodule TuistWeb.SSOLinkController do
     end
   end
 
-  defp return_to(link, user), do: local_path(link.return_to) || Authentication.signed_in_path(user)
-
-  defp local_path("/" <> _ = path) do
-    if String.starts_with?(path, "//"), do: nil, else: path
-  end
-
-  defp local_path(_path), do: nil
+  defp return_to(link, user), do: Authentication.local_return_to(link.return_to) || Authentication.signed_in_path(user)
 
   defp render_expired(conn) do
     conn
