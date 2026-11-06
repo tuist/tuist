@@ -22,10 +22,10 @@ defmodule Tuist.TestImpactAnalysis.Baselines do
     it and every shard reported (`Tuist.Tests.CoverageRun`);
   - ran on the requested platform.
 
-  It needn't have uploaded test-scoped evidence: tests without any are
-  selected by the `no_evidence` rule, so a baseline whose tests recorded
-  none (Swift Testing, targets that don't link TestCoverageAttribution)
-  selects every test hashing left.
+  It needn't have uploaded test-scoped evidence: each test's evidence comes
+  from whichever run recorded it, and tests without any are selected by the
+  `no_evidence` rule, as Swift Testing tests and targets that don't link
+  TestCoverageAttribution always are.
 
   A commit's measured set is only written once its runs' coverage is folded,
   so a run still being processed isn't eligible yet.

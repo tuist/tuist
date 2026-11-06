@@ -18,7 +18,7 @@ Coverage is a second strategy for selective testing, chosen per project in the b
 - **Coverage runs on top of the default.** The client hashes and prunes test modules as today, and coverage decides the tests in the modules left. What coverage can't decide per test (tests without test-scoped evidence) keeps today's module-level behaviour. When every module's hash matched, nothing is left to decide: the client still records an impact run, with every module marked `skipped`, so its tests count as skipped, and the server records a selection of nothing without a diff or the rules.
 - **Hash decisions are reported as today.** Each build system already reports its module hashes and hits with the run, also when selective testing is off, and the run page and coverage carry read them. The runs request doesn't repeat them; it only sends the modules left.
 - **Turning it off** is the switch that already turns selective testing off for a run. There's no new flag or environment variable.
-- **Test-scoped evidence decides tests, not baselines.** A baseline needs none: its tests without test-scoped evidence are selected by `no_evidence`, so a scheme whose tests record none (Swift Testing, targets without TestCoverageAttribution) gets a regular selection that runs every test hashing left. Which tests record it is up to each build system.
+- **Test-scoped evidence decides tests, not baselines.** A baseline needs none: each test's evidence comes from whichever run recorded it, and tests without any are selected by `no_evidence`. A scheme whose tests never record it (Swift Testing, targets without TestCoverageAttribution) gets a regular selection that runs every test hashing left. Which tests record it is up to each build system.
 
 ### Enabling it
 
