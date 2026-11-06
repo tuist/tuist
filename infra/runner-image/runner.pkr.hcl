@@ -244,14 +244,20 @@ build {
   # plugin only does this after deleting a recovery partition, and the
   # base has none left to delete, so it never does here. The live resize
   # intermittently fails with -69606 while growing the APFS structures and
-  # undoes its changes, so it is retried. -69743 means the container already
-  # fills the disk, which leaves nothing to claim.
+  # undoes its changes, and a build has passed this step with the container
+  # still at the base's size, so each attempt is judged by the sizes
+  # afterwards rather than by its exit status: the container claimed the
+  # disk once at most 5 GB (the 524 MB ISC partition) is left outside it.
+  # A failed claim would leave the 60 GB `disk_size_gb` added outside it and
+  # fail the disk budget check at the end of the build.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
       "store=$(diskutil info / | awk -F': *' '/APFS Physical Store/ { print $2 }')",
-      "printf 'y\\n' | sudo diskutil repairDisk \"$${store%s*}\"",
-      "for attempt in 1 2 3 4 5; do out=$(sudo diskutil apfs resizeContainer \"$store\" 0 2>&1) && break; echo \"$out\" >&2; case \"$out\" in *-69743*) break ;; esac; [ \"$attempt\" -lt 5 ] || exit 1; echo \"resizeContainer attempt $attempt failed, retrying in 15 s\" >&2; sleep 15; done"
+      "disk=$${store%s*}",
+      "size() { diskutil info -plist \"$1\" | plutil -extract TotalSize raw -; }",
+      "printf 'y\\n' | sudo diskutil repairDisk \"$disk\"",
+      "for attempt in 1 2 3 4 5; do sudo diskutil apfs resizeContainer \"$store\" 0 2>&1 || true; unclaimed=$(( $(size \"$disk\") - $(size \"$store\") )); echo \"resizeContainer attempt $attempt: $(size \"$store\") of $(size \"$disk\") bytes in the container\"; [ \"$unclaimed\" -gt 5000000000 ] || break; [ \"$attempt\" -lt 5 ] || { echo \"the APFS container still leaves $unclaimed bytes of $disk unclaimed\" >&2; exit 1; }; echo \"retrying in 15 s\" >&2; sleep 15; done"
     ]
   }
 
