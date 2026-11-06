@@ -15,7 +15,8 @@ defmodule TuistWeb.TestSelection.RunTab do
     tracked and how many tests it selected.
   - Shards, for a run a shard plan distributed: per shard, what was planned
     and what ran.
-  - Debug: the trace of the rules that decided it and the tracked files.
+  - Debug, for Tuist operators only: the trace of the rules that decided it
+    and the tracked files.
 
   A fallback shows the outcome and, when it has a baseline, the Debug tab only.
 
@@ -28,6 +29,7 @@ defmodule TuistWeb.TestSelection.RunTab do
   import TuistWeb.Coverage.Components, only: [coverage_empty: 1, short_sha: 1, parent_dir: 1]
   import TuistWeb.TestSelection.Components
 
+  alias Tuist.Accounts
   alias Tuist.Tests.Selections
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
@@ -42,6 +44,7 @@ defmodule TuistWeb.TestSelection.RunTab do
       selection_diff: nil,
       selection_plan: nil,
       selection_baseline_coverage?: false,
+      selection_operator?: false,
       selection_tab: "tests",
       selection_filters: %{},
       selection_tests: [],
@@ -79,7 +82,9 @@ defmodule TuistWeb.TestSelection.RunTab do
         )
       end
 
-    tabs = tabs(selection_run, socket.assigns.selection_plan)
+    operator? = Accounts.tuist_operator?(socket.assigns[:current_user])
+    socket = Phoenix.Component.assign(socket, :selection_operator?, operator?)
+    tabs = tabs(selection_run, socket.assigns.selection_plan, operator?)
     tab = if params["selection-tab"] in tabs, do: params["selection-tab"], else: List.first(tabs)
 
     socket
@@ -160,13 +165,17 @@ defmodule TuistWeb.TestSelection.RunTab do
   @doc "The query that searches the current tab for `search`."
   def search_query(uri, search), do: uri.query |> Query.put("selection-search", search) |> Query.drop("selection-page")
 
-  defp tabs(run, plan) do
-    cond do
-      !Selections.selection?(run) and !has_baseline?(run) -> []
-      !Selections.selection?(run) -> ["debug"]
-      is_nil(plan) -> List.delete(@tabs, "shards")
-      true -> @tabs
-    end
+  # Debug is for Tuist operators only.
+  defp tabs(run, plan, operator?) do
+    tabs =
+      cond do
+        !Selections.selection?(run) and !has_baseline?(run) -> []
+        !Selections.selection?(run) -> ["debug"]
+        is_nil(plan) -> List.delete(@tabs, "shards")
+        true -> @tabs
+      end
+
+    if operator?, do: tabs, else: List.delete(tabs, "debug")
   end
 
   attr :selection_run, :map, required: true
@@ -186,6 +195,7 @@ defmodule TuistWeb.TestSelection.RunTab do
   attr :targets, :list, default: []
   attr :shards, :list, default: []
   attr :modules_count, :integer, default: nil
+  attr :operator?, :boolean, default: false, doc: "Whether the viewer is a Tuist operator, who also sees the Debug tab."
 
   slot :modules,
     doc: "Replaces the Modules tab's table, for a test run with module-level selective testing data."
@@ -314,7 +324,7 @@ defmodule TuistWeb.TestSelection.RunTab do
 
       <.tab_menu_horizontal :if={Selections.selection?(@selection_run)}>
         <.tab_menu_horizontal_item
-          :for={tab <- tabs(@selection_run, @plan)}
+          :for={tab <- tabs(@selection_run, @plan, @operator?)}
           selected={@tab == tab}
           label={tab_label(tab, assigns)}
           patch={"?#{@uri.query |> Query.put("selection-tab", tab) |> drop_tab_params()}"}

@@ -248,6 +248,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       organization: organization,
       project: project
     } do
+      stub(Tuist.Accounts, :tuist_operator?, fn _user -> true end)
       %{run: run, test_run: test_run} = selection(project)
       plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, granularity: "suite", test_impact_run_id: run.id)
 
@@ -391,7 +392,25 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "[data-part='selection-details-section']")
     end
 
+    test "hides the Debug tab from users who aren't Tuist operators", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      stub(Tuist.Accounts, :tuist_operator?, fn _user -> false end)
+      %{test_run: test_run} = selection(project)
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
+
+      {:ok, lv, _html} = live(conn, path)
+      refute render(lv) =~ ">Debug<"
+
+      {:ok, lv, _html} = live(conn, path <> "&selection-tab=debug")
+      refute has_element?(lv, "[data-part='selection-debug-card']")
+    end
+
     test "explains a fallback", %{conn: conn, organization: organization, project: project} do
+      stub(Tuist.Accounts, :tuist_operator?, fn _user -> true end)
+
       %{test_run: test_run} =
         selection(project,
           outcome: "fallback",
