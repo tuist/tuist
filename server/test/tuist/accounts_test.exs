@@ -2787,7 +2787,10 @@ defmodule Tuist.AccountsTest do
       stub(Tuist.Time, :utc_now, fn -> now end)
 
       Repo.update_all(UserToken,
-        set: [inserted_at: now |> DateTime.add(-2_591_999) |> DateTime.to_naive(), last_active_at: now]
+        set: [
+          inserted_at: now |> DateTime.add(-2_591_999) |> DateTime.to_naive(),
+          last_active_at: DateTime.add(now, -61)
+        ]
       )
 
       assert Accounts.get_user_session(token, touch: true)
