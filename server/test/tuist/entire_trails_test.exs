@@ -11,6 +11,7 @@ defmodule Tuist.EntireTrailsTest do
   alias Tuist.Environment
   alias Tuist.KeyValueStore
   alias Tuist.VCS
+  alias Tuist.VCS.Workers.CommentWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -162,10 +163,18 @@ defmodule Tuist.EntireTrailsTest do
   test "queues updates from serialized insight uploads and Trail events independently of CI", context do
     Repo.delete_all(Oban.Job)
 
-    for params <- [%{project_id: context.project.id}, %{"project_id" => context.project.id}] do
+    comment = %{git_commit_sha: nil, git_ref: nil, git_remote_url_origin: nil, project_id: context.project.id}
+
+    for params <- [comment, Map.new(comment, fn {key, value} -> {to_string(key), value} end)] do
       assert {:ok, _} = VCS.enqueue_vcs_pull_request_comment(params)
     end
 
+    # Processors enqueue the comment and cannot read Entire connections, so the
+    # report is queued by the comment worker, which runs on web nodes.
+    assert all_enqueued(worker: ReportWorker) == []
+    stub(VCS, :post_vcs_pull_request_comment, fn _ -> :ok end)
+    [comment_job] = all_enqueued(worker: CommentWorker)
+    assert :ok = perform_job(CommentWorker, comment_job.args)
     assert length(all_enqueued(worker: ReportWorker)) == 1
     Repo.delete_all(Oban.Job)
 
