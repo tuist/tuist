@@ -170,17 +170,34 @@ remain trusted; project quotas are not a boundary against either.
    Old file/thick volumes keep their existing behavior. The new immutable class
    is `kura-thin-encrypted-nvme`; its allowed topology excludes legacy nodes.
 2. Prepare landing capacity. The host must provide the `dm_thin_pool` kernel
-   module before pool creation and after reboot. Confirm `dmsetup targets`
-   lists `thin-pool`; arrange module loading through the host's normal bootstrap
-   configuration. The CSI container does not mount host kernel modules or load
-   them itself. `prepare_pool.rb` checks this prerequisite before any mutation.
-   On a node with sufficiently free VG extents, run
-   `prepare_pool.rb` with explicit VG, new pool name, data/metadata sizes, reserves,
-   maximum volume count and canonical existing state directory. It creates only
-   a new pool and writes private `thin-pool.json`. It never converts/shrinks an
-   existing LV or consumes 100%FREE. Leave VG repair/recovery headroom separately.
-   If a populated VG lacks free extents, use another prepared node and evacuate
-   before rebuilding; there is no in-place shared-pool conversion shortcut.
+   module before pool creation and after reboot; arrange module loading through
+   the host's normal bootstrap configuration. The CSI container does not mount
+   host kernel modules or load them itself. On a node with sufficiently free VG
+   extents, run the driver binary's `prepare-pool` step in that node's CSI pod
+   (`kura-volumes-csi-node-*`, or `kura-volumes-csi-rack-*` on rack storage):
+
+   ```bash
+   kubectl -n kura-volumes exec <csi-node-pod> -c driver -- \
+     /usr/local/bin/kura-volumes-csi prepare-pool \
+       --volume-group kura-volumes --pool kura-thin \
+       --data-size 600G --metadata-size 1G \
+       --data-reserve 1G --metadata-reserve 64M --max-volumes 128
+   ```
+
+   Sizes take whole `M`, `G` or `T` (binary) units and must be multiples of the
+   VG's extent size; `--state-dir` defaults to `/data/kura-volumes`. Before any
+   mutation it checks that `dmsetup targets` lists `thin-pool` and that
+   `thin_check` runs, validates the metadata profile below, and requires the
+   pool's data plus twice its metadata (LVM's spare) in free extents. It then
+   creates only a new pool (512 KiB chunks, zeroing, discard passdown,
+   error when full) and writes the private (0600) `thin-pool.json`, and prints
+   the result as JSON. It never converts, shrinks or extends an existing LV and
+   never consumes 100%FREE. Rerunning it with the same arguments changes
+   nothing; a pool or `thin-pool.json` that differs, a configuration whose pool
+   is gone, or a populated pool without configuration is refused for
+   inspection. Leave VG repair/recovery headroom separately. If a populated VG
+   lacks free extents, use another prepared node and evacuate before
+   rebuilding; there is no in-place shared-pool conversion shortcut.
 3. Restart only this node's CSI pod. It loads the config once, advertises thin
    topology and reports pool capacity. Read `/v1/node`, validate local quota,
    encryption, restart/reclaim behavior, then explicitly mark the node

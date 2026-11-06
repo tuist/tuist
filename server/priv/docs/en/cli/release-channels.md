@@ -34,7 +34,7 @@ Stable is the recommended channel and the one all documentation points to. A sta
 
 ## Choosing a version {#choosing-a-version}
 
-With [Mise](/en/guides/install-tuist) (recommended):
+With <.localized_link href="/guides/install-tuist">Mise</.localized_link> (recommended):
 
 ```bash
 mise use tuist@latest              # Latest stable (recommended)
@@ -64,4 +64,4 @@ Two stable lines are actively maintained at any time:
 
 Fixes land first on `main` (canary). Regressions and security fixes are backported to the current stable line, and the previous line receives critical and security fixes only. Other bug fixes are not backported; they ship with the next minor. When a new line is promoted to stable, the line that was current becomes "previous", and the line that was "previous" stops receiving backports.
 
-Independently of the channel, the Tuist server stays [compatible](/en/cli/compatibility) with any CLI released in the last 3 months, so pinning to a stable line never puts you outside the supported window as long as you upgrade within that period.
+Independently of the channel, the Tuist server stays <.localized_link href="/cli/compatibility">compatible</.localized_link> with any CLI released in the last 3 months, so pinning to a stable line never puts you outside the supported window as long as you upgrade within that period.

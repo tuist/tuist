@@ -5,19 +5,19 @@
   "description": "Tuist コマンドを自動補完するためのシェル設定方法を学びます。"
 }
 ---
-# シェルの補完機能
+# シェルの補完
 
 Tuistを**グローバルにインストール**している場合（例：Homebrew経由）、BashおよびZsh用のシェル補完をインストールして、コマンドやオプションの自動補完を有効にできます。
 
 > [!WARNING]
 > **グローバルインストールとは**
 >
-> グローバルインストールとは、シェルの`$PATH`環境変数で利用可能なインストールのことです。これにより、ターミナル内の任意のディレクトリから`tuist`を実行できます。これはHomebrewでのデフォルトのインストール方法です。
+> グローバルインストールとは、シェルの`$PATH`環境変数で利用可能なインストールのことです。これにより、ターミナル内の任意のディレクトリから`tuist`を実行できます。これはHomebrewのデフォルトのインストール方法です。
 
 
 #### Zsh {#zsh}
 
-[oh-my-zsh](https://ohmyz.sh/)がインストールされている場合、補完スクリプトを自動的に読み込むディレクトリ（`.oh-my-zsh/completions`）がすでに存在します。新しい補完スクリプトを、そのディレクトリ内の`_tuist`という名前の新しいファイルにコピーしてください。
+[oh-my-zsh](https://ohmyz.sh/)をインストールしている場合、補完スクリプトを自動的に読み込むディレクトリ（`.oh-my-zsh/completions`）がすでに存在します。新しい補完スクリプトをそのディレクトリ内の`_tuist`という名前のファイルにコピーしてください。
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
@@ -39,7 +39,7 @@ tuist --generate-completion-script > ~/.zsh/completion/_tuist
 
 #### Bash {#bash}
 
-[bash-completion](https://github.com/scop/bash-completion)がインストールされている場合は、新しい補完スクリプトをファイル`/usr/local/etc/bash_completion.d/_tuist`にコピーするだけです。
+[bash-completion](https://github.com/scop/bash-completion)をインストールしている場合は、新しい補完スクリプトをファイル`/usr/local/etc/bash_completion.d/_tuist`にコピーするだけで構いません。
 
 ```bash
 tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist

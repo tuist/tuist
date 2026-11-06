@@ -39,6 +39,12 @@ defmodule TuistWeb.API.AgentSessionsController do
       repository_ref: %Schema{type: :string, nullable: true},
       model: %Schema{type: :string, nullable: true},
       budget_cents: %Schema{type: :integer, nullable: true},
+      platform: %Schema{
+        type: :string,
+        enum: ["linux", "darwin"],
+        nullable: true,
+        description: "The OS the session runs on. Null runs the agent environment's platform."
+      },
       status: %Schema{
         type: :string,
         nullable: true,
@@ -178,6 +184,13 @@ defmodule TuistWeb.API.AgentSessionsController do
              nullable: true,
              description: "Hard list-cost ceiling for the session in USD cents."
            },
+           platform: %Schema{
+             type: :string,
+             enum: ["linux", "darwin"],
+             nullable: true,
+             description:
+               "The OS to run the session on. Defaults to the agent environment's platform; any other platform runs with that platform's default shape."
+           },
            agent_id: %Schema{
              type: :string,
              nullable: true,
@@ -205,6 +218,7 @@ defmodule TuistWeb.API.AgentSessionsController do
         :repository_ref,
         :model,
         :budget_cents,
+        :platform,
         :agent_id
       ])
 
@@ -438,6 +452,7 @@ defmodule TuistWeb.API.AgentSessionsController do
       :repository_ref,
       :model,
       :budget_cents,
+      :platform,
       :inserted_at,
       :updated_at
     ])

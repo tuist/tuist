@@ -28,7 +28,9 @@ struct BazelSetupCommandServiceTests {
         cacheURLStoreError: CacheURLStoreError? = nil,
         serverURL: URL? = nil,
         cacheToken: String = "scoped-cache-token",
-        cacheTokenError: GetCacheTokenServiceError? = nil
+        cacheTokenError: GetCacheTokenServiceError? = nil,
+        executionCapabilities: Result<RemoteExecutionCapabilities, GetRemoteExecutionCapabilitiesServiceError> =
+            .failure(.notEnabled)
     ) -> (
         subject: BazelSetupCommandService,
         serverAuthenticationController: MockServerAuthenticationControlling,
@@ -48,6 +50,14 @@ struct BazelSetupCommandServiceTests {
                 .willReturn(CacheToken(token: cacheToken, expiresIn: 1800))
         }
         let remoteCacheProbeService = MockRemoteCacheProbing()
+        let remoteExecutionCapabilitiesService = MockGetRemoteExecutionCapabilitiesServicing()
+        let capabilities = given(remoteExecutionCapabilitiesService).getCapabilities(
+            serverURL: .any, accountHandle: .value("my-account"), projectHandle: .value("my-project"), token: .value(cacheToken)
+        )
+        switch executionCapabilities {
+        case let .success(value): capabilities.willReturn(value)
+        case let .failure(error): capabilities.willThrow(error)
+        }
         let configLoader = MockConfigLoading()
 
         given(configLoader)
@@ -78,6 +88,7 @@ struct BazelSetupCommandServiceTests {
             cacheURLStore: cacheURLStore,
             getCacheTokenService: tokenService,
             remoteCacheProbeService: remoteCacheProbeService,
+            remoteExecutionCapabilitiesService: remoteExecutionCapabilitiesService,
             fullHandleService: FullHandleService(),
             configLoader: configLoader,
             fileSystem: fileSystem
@@ -127,6 +138,47 @@ struct BazelSetupCommandServiceTests {
         try await subject.run(directory: directory.pathString)
         verify(probe).probe(endpoint: .any, accountHandle: .any, instanceName: .any, token: .value("scoped-cache-token"))
             .called(1)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func remote_execution_uses_the_advertised_executor_and_image() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let image = "sha-0123456789ab"
+        let (subject, authentication, _, _) = makeSubject(
+            executionCapabilities: .success(.init(endpoint: "grpcs://execution.tuist.dev", image: image))
+        )
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
+        try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
+        try await subject.run(directory: directory.pathString, remoteExecution: true)
+        let contents = try await fileSystem.readTextFile(at: directory.appending(component: ".bazelrc.tuist"))
+        #expect(contents.contains("build --remote_executor=grpcs://execution.tuist.dev"))
+        #expect(contents.contains("build --remote_default_exec_properties=tuist-image=\(image)"))
+        #expect(contents.contains("build --credential_helper=execution.tuist.dev="))
+    }
+
+    @Test(
+        .withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory,
+        arguments: [
+            Result<RemoteExecutionCapabilities, GetRemoteExecutionCapabilitiesServiceError>.failure(.notEnabled),
+            .failure(.unavailable),
+            .success(.init(endpoint: "grpcs://execution.tuist.dev", image: "latest")),
+        ]
+    )
+    func remote_execution_falls_back_to_the_cache_when_the_server_declines(
+        capabilities: Result<RemoteExecutionCapabilities, GetRemoteExecutionCapabilitiesServiceError>
+    ) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, authentication, _, _) = makeSubject(executionCapabilities: capabilities)
+        given(authentication).authenticationToken(serverURL: .any).willReturn(.project("raw-token"))
+        try await fileSystem.touch(directory.appending(component: "MODULE.bazel"))
+        try await AlertController.$current.withValue(AlertController()) {
+            try await subject.run(directory: directory.pathString, remoteExecution: true)
+            let warnings = AlertController.current.warnings().map { $0.message.plain() }
+            #expect(warnings.contains { $0.contains("Remote execution is unavailable") })
+        }
+        let contents = try await fileSystem.readTextFile(at: directory.appending(component: ".bazelrc.tuist"))
+        #expect(contents.contains("build --remote_cache=grpcs://cache.tuist.dev"))
+        #expect(!contents.contains("--remote_executor"))
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)

@@ -171,6 +171,32 @@ defmodule TuistWeb.LayoutLiveTest do
     end
 
     @tag user_role: :user
+    test "sorts the project dropdown items alphabetically", %{
+      params: params,
+      session: session,
+      user: user,
+      organization: organization
+    } do
+      # Given
+      for name <- ["wikipedia", "mastodon", "cas"] do
+        ProjectsFixtures.project_fixture(name: name, account_id: organization.account.id)
+      end
+
+      # When
+      {:cont, socket} =
+        LayoutLive.on_mount(
+          :project,
+          params,
+          session,
+          connected_socket(current_user: user)
+        )
+
+      # Then
+      [_account_breadcrumb, project_breadcrumb] = socket.assigns.breadcrumbs
+      assert Enum.map(project_breadcrumb.items, & &1.label) == ["cas", "mastodon", "tuist", "wikipedia"]
+    end
+
+    @tag user_role: :user
     test "defers dropdown assigns when the socket is disconnected", %{
       params: params,
       session: session,

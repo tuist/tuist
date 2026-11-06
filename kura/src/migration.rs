@@ -29,57 +29,50 @@ pub struct Target {
     pub incarnation: String,
 }
 
-/// Where the retained walk continues on the current destination process. The
-/// walk is newest-first by index key; records written after it started sort
-/// before `after` and are covered by the feed from `Active::confirmed`.
-#[derive(Default)]
-struct Walk {
-    after: Option<Vec<u8>>,
-    complete: bool,
-}
-
 struct Active {
     target: Target,
     /// Identifies this migration across retries and rebinds; its bridge loop
     /// exits once the migration is aborted or replaced.
     id: u64,
-    /// Identifies the preparation, retry or rebind that owns the walk. A
+    /// Identifies the preparation, retry or rebind that owns the proof. A
     /// superseded worker can neither save progress nor report a result.
     attempt: u64,
     deadline: Instant,
+    /// Feed head when the proof started. Every write committed after it must
+    /// verify on the destination. Records retained from before it were copied
+    /// by ordinary replication and either replica may evict them on its own
+    /// schedule, so they are never part of the proof. Its feed history stays
+    /// pinned so a rebind can re-prove it on a restarted destination process.
+    pin: u64,
     confirmed: u64,
     /// Feed head through which a completed run verified every record and then
     /// the destination identity. Any write committed at or below it is proven.
     proven: u64,
-    walk: Walk,
-    /// Retained records verified since the walk last started from the top.
-    walked: u64,
-    /// Whether the current attempt moved the walk or the feed proof forward.
+    /// After a rebind, the feed range `(next, end]` from the pin to the cursor
+    /// the previous destination process confirmed, still to verify on the new
+    /// one. Writes after `end` are proven from `confirmed` as usual.
+    reproof: Option<(u64, u64)>,
+    /// Whether the current attempt moved the feed proof forward.
     advanced: bool,
     ready: bool,
     error: Option<String>,
 }
 
 impl Active {
-    fn new(target: Target, attempt: u64, deadline: Instant, confirmed: u64) -> Self {
+    fn new(target: Target, attempt: u64, deadline: Instant, pin: u64) -> Self {
         Self {
             target,
             id: attempt,
             attempt,
             deadline,
-            confirmed,
+            pin,
+            confirmed: pin,
             proven: 0,
-            walk: Walk::default(),
-            walked: 0,
+            reproof: None,
             advanced: false,
             ready: false,
             error: None,
         }
-    }
-
-    fn restart_walk(&mut self) {
-        self.walk = Walk::default();
-        self.walked = 0;
     }
 }
 
@@ -115,19 +108,19 @@ impl MigrationState {
 
     pub fn export_metrics(&self, metrics: &crate::metrics::Metrics) {
         let armed = self.armed.load(Ordering::Acquire);
-        let (ready, walked) = self
+        let ready = self
             .active
             .lock()
             .expect("migration lock")
             .as_ref()
-            .map_or((false, 0), |active| (active.ready, active.walked));
+            .is_some_and(|active| active.ready);
         let last_proof_age = self
             .last_proof
             .lock()
             .expect("migration proof lock")
             .filter(|_| armed)
             .map_or(Duration::ZERO, |proved| proved.elapsed());
-        metrics.update_migration_bridge(armed, ready, last_proof_age, walked);
+        metrics.update_migration_bridge(armed, ready, last_proof_age);
     }
 }
 
@@ -187,18 +180,19 @@ pub async fn prepare(
                 if !feed.enabled() {
                     return Err(conflict("replica feed is not active".into()));
                 }
-                // Writes since the saved feed position may be gone, so the
-                // walk behind it no longer covers everything.
-                if active.confirmed < feed.floor() {
-                    active.restart_walk();
-                    active.confirmed = feed.head();
+                // Writes since the pin may be gone from the feed. The bridge
+                // was never armed, so they were ordinary asynchronous writes:
+                // pin again at the head instead of proving them.
+                if active.pin < feed.floor() {
+                    active.pin = feed.head();
+                    active.confirmed = active.pin;
                     active.proven = 0;
                 }
                 active.attempt = migration.next_attempt();
                 active.deadline = Instant::now() + migration.preparation_deadline();
                 active.advanced = false;
                 active.error = None;
-                feed.note_consumer(&consumer(&state), active.confirmed);
+                feed.note_consumer_snapshot(&consumer(&state), active.pin);
                 start = Some((active.attempt, active.deadline));
             }
             Some(_) => {}
@@ -215,7 +209,7 @@ pub async fn prepare(
                 );
                 start = Some((created.attempt, created.deadline));
                 *active = Some(created);
-                feed.note_consumer(&consumer(&state), confirmed);
+                feed.note_consumer_snapshot(&consumer(&state), confirmed);
             }
         }
     }
@@ -238,9 +232,9 @@ pub async fn prepare(
                         migration.armed.store(false, Ordering::Release);
                         let feed = worker.store.sync_feed();
                         if active.advanced {
-                            // Keeps the feed position for a retry without
-                            // holding up a drain; trimming past it restarts.
-                            feed.note_consumer_snapshot(&consumer(&worker), active.confirmed);
+                            // Keeps the feed pin for a retry without holding
+                            // up a drain; trimming past it pins again.
+                            feed.note_consumer_snapshot(&consumer(&worker), active.pin);
                         } else {
                             feed.forget_consumer(&consumer(&worker));
                         }
@@ -404,9 +398,8 @@ pub struct RebindRequest {
 }
 
 /// Moves an armed bridge to a restarted process of the same destination. The
-/// bridge stays armed and reports ready only after re-proving every retained
-/// record and the pinned feed on that process: proof never carries across
-/// destination processes.
+/// bridge stays armed and reports ready only after re-proving the feed from
+/// its pin on that process: proof never carries across destination processes.
 pub async fn rebind(
     State(state): State<SharedState>,
     Json(request): Json<RebindRequest>,
@@ -445,7 +438,7 @@ pub async fn rebind(
         } else {
             active.target = request.replacement.clone();
             active.attempt = migration.next_attempt();
-            active.restart_walk();
+            active.reproof = Some((active.pin, active.confirmed));
             active.proven = 0;
             active.ready = false;
             active.error = None;
@@ -455,7 +448,7 @@ pub async fn rebind(
     if let Some(attempt) = start {
         tracing::warn!(
             event.name = "kura.migration.destination_rebound",
-            "Migration destination restarted; re-proving retained records on the new process"
+            "Migration destination restarted; re-proving writes since the pin on the new process"
         );
         reprove(std::sync::Arc::downgrade(&state), attempt);
     }
@@ -469,8 +462,8 @@ pub async fn rebind(
 }
 
 // A rebound bridge has no deadline: it keeps refusing unproven writes, so
-// retrying is never worse than giving up. Each retry continues the walk on the
-// same process. A later rebind supersedes this one.
+// retrying is never worse than giving up. Each retry continues the re-proof on
+// the same process. A later rebind supersedes this one.
 fn reprove(state: std::sync::Weak<crate::state::AppState>, attempt: u64) {
     tokio::spawn(async move {
         let mut previous_error = None;
@@ -499,7 +492,7 @@ fn reprove(state: std::sync::Weak<crate::state::AppState>, attempt: u64) {
                         state.metrics.record_migration_reproof_failure();
                         if previous_error.as_ref() != Some(&error) {
                             tracing::warn!(event.name="kura.migration.reproof_failed", %error,
-                                "Rebound migration destination is not ready until it holds every retained record");
+                                "Rebound migration destination is not ready until it holds every write since the pin");
                         }
                         previous_error = Some(error);
                     }
@@ -535,9 +528,11 @@ fn target(state: &SharedState) -> Result<Target, String> {
 }
 
 async fn prepare_inner(state: &SharedState, attempt: u64) -> Result<(), String> {
-    // Public writes continue during the bounded retained walk. Once armed,
-    // every successful mutation waits for verification, including requests that
-    // entered before arming. The feed then closes the walk's live-write window.
+    // Public writes continue while the feed from the pin is proven. Once
+    // armed, every successful mutation waits for verification, including
+    // requests that entered before arming. Records retained from before the
+    // pin are not checked: ordinary replication copied them and either replica
+    // may evict them, so a miss on one is an acceptable cache miss.
     prove(state, attempt).await?;
     {
         let active = state
@@ -559,40 +554,30 @@ async fn prepare_inner(state: &SharedState, attempt: u64) -> Result<(), String> 
 
 const SUPERSEDED: &str = "migration attempt was superseded";
 
-/// Verifies every retained record, then the pinned feed through its head, on
-/// the current destination process. The walk resumes from the position the
-/// last attempt on this process saved after each verified page.
+/// Verifies the feed from the pin through its head, then the identity of the
+/// current destination process. After a rebind it first re-proves, on the new
+/// process, the range the previous process had confirmed, resuming from where
+/// the last try on this process stopped.
 async fn prove(state: &SharedState, attempt: u64) -> Result<(), String> {
     loop {
-        let after = {
+        let range = {
             let active = state
                 .runtime
                 .migration
                 .active
                 .lock()
                 .expect("migration lock");
-            let active = active
+            active
                 .as_ref()
                 .filter(|active| active.attempt == attempt)
-                .ok_or(SUPERSEDED)?;
-            if active.walk.complete {
-                break;
-            }
-            active.walk.after.clone()
+                .ok_or(SUPERSEDED)?
+                .reproof
+        };
+        let Some((after, end)) = range.filter(|(after, end)| after < end) else {
+            break;
         };
         let target = target(state)?;
-        state.store.sync_feed().refresh_consumer(&consumer(state));
-        let page = state.store.backfill_index_page(after.as_deref(), PAGE)?;
-        let mut records = Vec::new();
-        for row in page.entries {
-            if let Some(descriptor) =
-                record(state, row.kind, &row.record_id, row.version_ms).await?
-            {
-                records.push(descriptor);
-            }
-        }
-        let verified = records.len() as u64;
-        verify_remote(state, &target, records).await?;
+        let next = verify_feed_page(state, &target, after, end).await?;
         let mut active = state
             .runtime
             .migration
@@ -603,15 +588,45 @@ async fn prove(state: &SharedState, attempt: u64) -> Result<(), String> {
             .as_mut()
             .filter(|active| active.attempt == attempt && active.target == target)
             .ok_or(SUPERSEDED)?;
-        active.walk = Walk {
-            complete: page.next_after.is_none(),
-            after: page.next_after,
-        };
-        active.walked += verified;
+        active.reproof = Some((next, end));
         active.advanced = true;
-        state.metrics.record_migration_records_verified(verified);
     }
     acknowledge_inner(state, true).await
+}
+
+/// Verifies on `target` the records of the feed rows after `after`, up to one
+/// page and at most `head`, and returns the cursor that page reached.
+async fn verify_feed_page(
+    state: &SharedState,
+    target: &Target,
+    after: u64,
+    head: u64,
+) -> Result<u64, String> {
+    let feed = state.store.sync_feed();
+    if !feed.enabled() || after < feed.floor() {
+        return Err("migration feed history was lost".into());
+    }
+    let rows = state.store.sync_feed_page_to(after, PAGE, head)?;
+    let next = if rows.len() < PAGE {
+        head
+    } else {
+        rows.last().expect("full page").seq
+    };
+    let mut records = Vec::new();
+    for row in rows {
+        if let SyncFeedKind::Record(kind) = row.kind
+            && let Some(descriptor) = record(state, kind, &row.record_id, row.version_ms).await?
+        {
+            records.push(descriptor);
+        }
+    }
+    verify_remote(state, target, records).await?;
+    // Trimming or a feed reset during I/O must not turn omitted rows into
+    // proof. Verification never changes cache admission or capacity policy.
+    if !feed.enabled() || after < feed.floor() {
+        return Err("migration feed history was lost".into());
+    }
+    Ok(next)
 }
 
 /// Also called for an already-running request: checking after its handler
@@ -651,11 +666,21 @@ async fn acknowledge_inner(state: &SharedState, force: bool) -> Result<(), Strin
     feed.settle().await;
     let head = feed.head();
     loop {
-        let confirmed = active_field(state, |active| active.confirmed)?;
+        let (pin, confirmed) = {
+            let active = state
+                .runtime
+                .migration
+                .active
+                .lock()
+                .expect("migration lock");
+            let active = active.as_ref().ok_or("no migration")?;
+            (active.pin, active.confirmed)
+        };
         if !feed.enabled() || confirmed < feed.floor() {
             return Err("migration feed history was lost".into());
         }
-        feed.note_consumer(&consumer(state), confirmed);
+        // Holds the history a rebind re-proves without holding up a drain.
+        feed.note_consumer_snapshot(&consumer(state), pin);
         if confirmed >= head {
             verify_remote(state, &target, Vec::new()).await?;
             let mut active = state
@@ -674,39 +699,16 @@ async fn acknowledge_inner(state: &SharedState, force: bool) -> Result<(), Strin
                 .expect("migration proof lock") = Some(Instant::now());
             return Ok(());
         }
-        let rows = state.store.sync_feed_page_to(confirmed, PAGE, head)?;
-        let next = if rows.len() < PAGE {
-            head
-        } else {
-            rows.last().expect("full page").seq
-        };
-        let mut records = Vec::new();
-        for row in rows {
-            if let SyncFeedKind::Record(kind) = row.kind
-                && let Some(descriptor) =
-                    record(state, kind, &row.record_id, row.version_ms).await?
-            {
-                records.push(descriptor);
-            }
-        }
-        verify_remote(state, &target, records).await?;
-        // Trimming or a feed reset during I/O must not turn omitted rows into
-        // proof. Verification never changes cache admission or capacity policy.
-        if !feed.enabled() || confirmed < feed.floor() {
-            return Err("migration feed history was lost".into());
-        }
-        {
-            let mut active = state
-                .runtime
-                .migration
-                .active
-                .lock()
-                .expect("migration lock");
-            let active = active.as_mut().ok_or("no migration")?;
-            active.confirmed = next;
-            active.advanced = true;
-        }
-        feed.note_consumer(&consumer(state), next);
+        let next = verify_feed_page(state, &target, confirmed, head).await?;
+        let mut active = state
+            .runtime
+            .migration
+            .active
+            .lock()
+            .expect("migration lock");
+        let active = active.as_mut().ok_or("no migration")?;
+        active.confirmed = next;
+        active.advanced = true;
     }
 }
 
@@ -1330,28 +1332,8 @@ mod tests {
         }
     }
 
-    async fn wait_failed(source: &SharedState) -> String {
-        tokio::time::timeout(Duration::from_secs(15), async {
-            loop {
-                let error = source
-                    .runtime
-                    .migration
-                    .active
-                    .lock()
-                    .unwrap()
-                    .as_ref()
-                    .and_then(|active| active.error.clone());
-                if let Some(error) = error {
-                    return error;
-                }
-                tokio::time::sleep(Duration::from_millis(10)).await;
-            }
-        })
-        .await
-        .unwrap()
-    }
-
-    // Three walk pages, newest first; `missing` is left off the destination.
+    // Records written before the pin; `missing` is left off the destination,
+    // as when either replica evicted them on its own LRU schedule.
     async fn seed(source: &SharedState, destination: &SharedState, missing: &[u64]) {
         for i in 0..40 {
             put(source, &format!("record-{i:02}"), 1000 + i).await;
@@ -1361,105 +1343,126 @@ mod tests {
         }
     }
 
+    /// A failed attempt that proved part of the feed, pinned at `pin`.
+    fn failed_attempt(source: &SharedState, target: &Target, pin: u64) {
+        source
+            .store
+            .sync_feed()
+            .note_consumer_snapshot(&consumer(source), pin);
+        *source.runtime.migration.active.lock().unwrap() = Some(Active {
+            error: Some("injected failure".into()),
+            advanced: true,
+            ..Active::new(target.clone(), 0, Instant::now() + DEADLINE, pin)
+        });
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn a_retried_preparation_resumes_after_its_deadline_and_proves_interrupted_writes() {
+    async fn records_retained_from_before_the_pin_never_block_readiness() {
         let source = test_context(|_| {}).await;
         let destination = test_context(|_| {}).await;
-        // Record 15 sits on the second page of the newest-first walk.
-        seed(&source.state, &destination.state, &[15]).await;
         let (url, server) = serve(destination.state.clone()).await;
         let target = activate(&source.state, url, &destination.state);
-        *source.state.runtime.migration.deadline.lock().unwrap() = Some(Duration::from_secs(2));
-        let records = &destination.state.runtime.migration.verified_records;
+        // The newest retained record and one further back are missing: a
+        // retained walk stopped at the first of them with 409 on every try.
+        seed(&source.state, &destination.state, &[39, 15]).await;
+        // Their feed rows predate the pin taken by the first prepare.
+        wait_ready(&source.state, &target).await;
+        assert_eq!(
+            destination
+                .state
+                .runtime
+                .migration
+                .verified_records
+                .load(Ordering::Relaxed),
+            0,
+            "no retained record was checked"
+        );
+        put(&source.state, "after-arming", 5000).await;
+        put(&destination.state, "after-arming", 5000).await;
+        acknowledge(&source.state).await.unwrap();
+        server.abort();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_write_after_the_pin_blocks_readiness_until_the_destination_holds_it() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        let (url, server) = serve(destination.state.clone()).await;
+        let target = activate(&source.state, url, &destination.state);
+        seed(&source.state, &destination.state, &[39, 15]).await;
+        failed_attempt(
+            &source.state,
+            &target,
+            source.state.store.sync_feed().head(),
+        );
+        // Acknowledged by the source after the pin, absent from the destination.
+        put(&source.state, "after-pin", 5000).await;
         let poll = || {
             prepare(
                 State(source.state.clone()),
                 Json(prepare_request(&source.state, &target)),
             )
         };
-
         assert_eq!(poll().await.unwrap()["ready"], false);
-        let interrupted = wait_failed(&source.state).await;
-        assert!(interrupted.contains("expired"), "{interrupted}");
-        assert_eq!(records.load(Ordering::Relaxed), 16, "one page verified");
-
-        // Written while no attempt runs, and newer than the saved position.
-        put(&source.state, "interrupted", 5000).await;
-        put(&destination.state, "record-15", 1015).await;
+        tokio::time::sleep(Duration::from_millis(300)).await;
         assert_eq!(
-            poll()
-                .await
-                .expect("a retry resumes a failed attempt that made progress")["ready"],
-            false
+            poll().await.unwrap()["ready"],
+            false,
+            "ready without a write acknowledged after the pin"
         );
-        let missing = wait_failed(&source.state).await;
-        assert!(missing.contains("expired"), "{missing}");
-        assert_eq!(
-            records.load(Ordering::Relaxed),
-            40,
-            "the retry continued after the first page instead of restarting"
-        );
+        assert!(!source.state.runtime.migration.armed.load(Ordering::Acquire));
 
-        put(&destination.state, "interrupted", 5000).await;
+        put(&destination.state, "after-pin", 5000).await;
         wait_ready(&source.state, &target).await;
         assert_eq!(
-            records.load(Ordering::Relaxed),
-            41,
-            "the interrupted write was proven through the pinned feed"
+            destination
+                .state
+                .runtime
+                .migration
+                .verified_records
+                .load(Ordering::Relaxed),
+            1,
+            "only the post-pin write was proven"
         );
         server.abort();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn a_retry_after_feed_history_loss_restarts_the_walk() {
+    async fn a_retry_after_feed_history_loss_pins_again_at_the_head() {
         let source = test_context(|_| {}).await;
         let destination = test_context(|_| {}).await;
-        seed(&source.state, &destination.state, &[15]).await;
         let (url, server) = serve(destination.state.clone()).await;
         let target = activate(&source.state, url, &destination.state);
-        *source.state.runtime.migration.deadline.lock().unwrap() = Some(Duration::from_secs(2));
-        let records = &destination.state.runtime.migration.verified_records;
-        let _ = prepare(
-            State(source.state.clone()),
-            Json(prepare_request(&source.state, &target)),
-        )
-        .await
-        .expect("prepare accepted");
-        wait_failed(&source.state).await;
-        assert_eq!(records.load(Ordering::Relaxed), 16);
-
-        // The write's feed row is trimmed before the retry, so the saved walk
-        // position no longer covers it.
-        put(&source.state, "interrupted", 5000).await;
-        put(&destination.state, "interrupted", 5000).await;
-        put(&destination.state, "record-15", 1015).await;
+        failed_attempt(
+            &source.state,
+            &target,
+            source.state.store.sync_feed().head(),
+        );
+        // Written while unarmed, so an ordinary asynchronous write; its feed
+        // row is trimmed before the retry.
+        put(&source.state, "unarmed", 5000).await;
         let feed = source.state.store.sync_feed();
         feed.raise_floor(feed.head());
         wait_ready(&source.state, &target).await;
-        assert_eq!(
-            records.load(Ordering::Relaxed),
-            16 + 41,
-            "the retry walked every retained record again"
-        );
+        let active = source.state.runtime.migration.active.lock().unwrap();
+        assert_eq!(active.as_ref().unwrap().pin, feed.head());
+        drop(active);
         server.abort();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn a_stuck_attempt_keeps_failing_and_a_new_destination_restarts_from_zero() {
+    async fn a_stuck_attempt_keeps_failing_and_a_new_destination_pins_afresh() {
         let source = test_context(|_| {}).await;
         let destination = test_context(|_| {}).await;
-        // The newest record opens the walk, so nothing can be verified.
-        seed(&source.state, &destination.state, &[39, 15]).await;
         let (url, server) = serve(destination.state.clone()).await;
         let target = activate(&source.state, url, &destination.state);
-        *source.state.runtime.migration.deadline.lock().unwrap() = Some(Duration::from_secs(1));
-        let _ = prepare(
-            State(source.state.clone()),
-            Json(prepare_request(&source.state, &target)),
-        )
-        .await
-        .expect("prepare accepted");
-        wait_failed(&source.state).await;
+        // A failed attempt that proved nothing, for example because the
+        // destination lacks the first write after the pin.
+        put(&source.state, "lost", 5000).await;
+        *source.state.runtime.migration.active.lock().unwrap() = Some(Active {
+            error: Some("migration preparation expired".into()),
+            ..Active::new(target.clone(), 0, Instant::now() + DEADLINE, 0)
+        });
         let calls = destination
             .state
             .runtime
@@ -1488,28 +1491,8 @@ mod tests {
             calls
         );
 
-        // Reset discards the attempt; the next one verifies the first page and
-        // stops at record 15, leaving resumable progress for this target.
-        let _ = reset(
-            State(source.state.clone()),
-            Json(prepare_request(&source.state, &target)),
-        )
-        .await
-        .expect("reset accepted");
-        put(&destination.state, "record-39", 1039).await;
+        // Another destination waits for a reset, then pins at the head.
         let other = test_context(|_| {}).await;
-        for i in 0..40 {
-            put(&other.state, &format!("record-{i:02}"), 1000 + i).await;
-        }
-        let _ = prepare(
-            State(source.state.clone()),
-            Json(prepare_request(&source.state, &target)),
-        )
-        .await
-        .expect("prepare accepted");
-        wait_failed(&source.state).await;
-
-        // Moving to another destination never carries that progress along.
         let (other_url, other_server) = serve(other.state.clone()).await;
         let replacement = Target {
             url: other_url.clone(),
@@ -1541,16 +1524,6 @@ mod tests {
         .await
         .expect("reset accepted");
         wait_ready(&source.state, &replacement).await;
-        assert_eq!(
-            other
-                .state
-                .runtime
-                .migration
-                .verified_records
-                .load(Ordering::Relaxed),
-            40,
-            "the new destination is walked from the first record"
-        );
         server.abort();
         other_server.abort();
     }
@@ -1581,6 +1554,8 @@ mod tests {
         );
 
         wait_ready(&source.state, &target).await;
+        put(&source.state, "acknowledged", 5000).await;
+        put(&destination.state, "acknowledged", 5000).await;
         acknowledge(&source.state).await.unwrap();
         source.state.sync_runtime_metrics().await;
         assert_eq!(
@@ -1591,17 +1566,6 @@ mod tests {
             metric(&source.state, "kura_migration_bridge_ready"),
             Some(1.0)
         );
-        assert_eq!(
-            metric(
-                &source.state,
-                "kura_migration_preparation_records_verified_total_total"
-            ),
-            Some(40.0)
-        );
-        assert_eq!(
-            metric(&source.state, "kura_migration_preparation_walk_records"),
-            Some(40.0)
-        );
         assert!(
             metric(
                 &source.state,
@@ -1610,7 +1574,7 @@ mod tests {
             .is_some_and(|age| age < 2.0)
         );
 
-        // The destination restarts without the records: the bridge stays armed
+        // The destination restarts without the post-pin write: the bridge stays armed
         // but unready, and each failed re-proof is counted.
         server.abort();
         let _ = server.await;
@@ -1796,28 +1760,32 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn abort_stops_a_running_preparation_and_the_next_one_starts_from_zero() {
+    async fn abort_stops_a_running_preparation_and_the_next_one_pins_afresh() {
         let source = test_context(|_| {}).await;
         let destination = test_context(|_| {}).await;
-        seed(&source.state, &destination.state, &[15]).await;
         let (url, server) = serve(destination.state.clone()).await;
         let target = activate(&source.state, url, &destination.state);
         let migration = &destination.state.runtime.migration;
+        failed_attempt(
+            &source.state,
+            &target,
+            source.state.store.sync_feed().head(),
+        );
+        put(&source.state, "unproven", 5000).await;
         let _ = prepare(
             State(source.state.clone()),
             Json(prepare_request(&source.state, &target)),
         )
         .await
         .expect("prepare accepted");
-        // The first page verifies, then the walk retries the missing record.
+        // The resumed attempt retries the missing post-pin write.
         tokio::time::timeout(Duration::from_secs(5), async {
-            while migration.verifications.load(Ordering::Relaxed) < 4 {
+            while migration.verifications.load(Ordering::Relaxed) < 3 {
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
         })
         .await
         .unwrap();
-        assert_eq!(migration.verified_records.load(Ordering::Relaxed), 16);
 
         let _ = abort(
             State(source.state.clone()),
@@ -1831,7 +1799,7 @@ mod tests {
         assert_eq!(
             migration.verifications.load(Ordering::Relaxed),
             calls,
-            "the aborted walk stopped"
+            "the aborted preparation stopped"
         );
         assert!(
             source
@@ -1844,13 +1812,10 @@ mod tests {
                 .is_none()
         );
 
-        put(&destination.state, "record-15", 1015).await;
+        // The write was acknowledged while unarmed; the next preparation pins
+        // after it and needs no proof of it.
         wait_ready(&source.state, &target).await;
-        assert_eq!(
-            migration.verified_records.load(Ordering::Relaxed),
-            16 + 40,
-            "the next preparation walked from the first record"
-        );
+        assert_eq!(migration.verified_records.load(Ordering::Relaxed), 0);
         server.abort();
     }
 

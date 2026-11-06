@@ -470,7 +470,7 @@
       <p>
         {dgettext(
           "dashboard",
-          "Sandbox CPU and memory limits are independent of CI. Creating, resuming and running sandboxes count toward these limits; paused sandboxes do not."
+          "Sandbox limits are independent of CI. Creating, resuming and running sandboxes count toward the CPU and memory limits. Every sandbox on a node, paused ones included, counts toward the disk limit with its workspace and memory image; archived sandboxes do not."
         )}
       </p>
       <.form
@@ -494,11 +494,59 @@
           required
           show_required
         />
+        <.text_input
+          field={@sandbox_concurrency_form[:sandbox_disk_gb_limit]}
+          input_type="number"
+          min={1}
+          label={dgettext("dashboard", "Disk limit (GB)")}
+          required
+          show_required
+        />
         <div data-part="actions">
           <.button
             type="submit"
             variant="primary"
             label={dgettext("dashboard", "Save sandbox limits")}
+          />
+        </div>
+      </.form>
+    </.card_section>
+  </.card>
+
+  <.card title={dgettext("dashboard", "Remote execution concurrency")} icon="server">
+    <.card_section>
+      <p>
+        {dgettext(
+          "dashboard",
+          "Remote execution limits are independent of CI and sandboxes. Every Bazel action runs in its own VM with 2 vCPUs and 4 GB of memory; idle, busy and starting VMs count toward both limits. The bazel_remote_execution flag decides whether the account executes at all."
+        )}
+      </p>
+      <.form
+        for={@remote_execution_concurrency_form}
+        id="remote-execution-concurrency-form"
+        phx-submit="update_remote_execution_concurrency_limits"
+      >
+        <.text_input
+          field={@remote_execution_concurrency_form[:remote_execution_vcpus_limit]}
+          input_type="number"
+          min={2}
+          label={dgettext("dashboard", "vCPU limit")}
+          required
+          show_required
+        />
+        <.text_input
+          field={@remote_execution_concurrency_form[:remote_execution_memory_gb_limit]}
+          input_type="number"
+          min={4}
+          label={dgettext("dashboard", "Memory limit (GB)")}
+          required
+          show_required
+        />
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Save remote execution limits")}
           />
         </div>
       </.form>

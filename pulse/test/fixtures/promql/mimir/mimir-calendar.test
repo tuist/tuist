@@ -1,0 +1,142 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+clear
+
+# Test time-related functions.
+load 5m
+  histogram_sample {{schema:0 sum:1 count:1}}
+
+eval range from 0 to 7m step 1m year()
+  {} 1970 1970 1970 1970 1970 1970 1970 1970
+
+eval range from 0 to 7m step 1m time()
+  {} 0 60 120 180 240 300 360 420
+
+# 2006-01-02 22:04:05
+eval range from 0 to 7m step 1m year(vector(1136239445))
+  {} 2006 2006 2006 2006 2006 2006 2006 2006
+
+eval range from 0 to 7m step 1m month()
+  {} 1 1 1 1 1 1 1 1
+
+# 2006-01-02 22:04:05
+eval range from 0 to 7m step 1m month(vector(1136239445))
+  {} 1 1 1 1 1 1 1 1
+
+eval range from 0 to 7m step 1m day_of_month()
+  {} 1 1 1 1 1 1 1 1
+
+# 2006-01-02 22:04:05
+eval range from 0 to 7m step 1m day_of_month(vector(1136239445))
+  {} 2 2 2 2 2 2 2 2
+
+eval range from 0 to 7m step 1m day_of_year()
+  {} 1 1 1 1 1 1 1 1
+
+# 2006-01-02 22:04:05
+eval range from 0 to 7m step 1m day_of_year(vector(1136239445))
+  {} 2 2 2 2 2 2 2 2
+
+# Thursday.
+eval range from 0 to 7m step 1m day_of_week()
+  {} 4 4 4 4 4 4 4 4
+
+# 2006-01-02 22:04:05
+eval range from 0 to 7m step 1m day_of_week(vector(1136239445))
+  {} 1 1 1 1 1 1 1 1
+
+eval range from 0 to 7m step 1m hour()
+  {} 0 0 0 0 0 0 0 0
+
+# 2006-01-02 22:04:05
+eval range from 0 to 7m step 1m hour(vector(1136239445))
+  {} 22 22 22 22 22 22 22 22
+
+eval range from 0 to 7m step 1m minute()
+  {} 0 1 2 3 4 5 6 7
+
+# 2006-01-02 22:04:05
+eval range from 0 to 7m step 1m minute(vector(1136239445))
+  {} 4 4 4 4 4 4 4 4
+
+# 2008-12-31 23:59:59 just before leap second.
+eval range from 0 to 7m step 1m year(vector(1230767999))
+  {} 2008 2008 2008 2008 2008 2008 2008 2008
+
+# 2009-01-01 00:00:00 just after leap second.
+eval range from 0 to 7m step 1m year(vector(1230768000))
+  {} 2009 2009 2009 2009 2009 2009 2009 2009
+
+# 2016-02-29 23:59:59 February 29th in leap year.
+eval range from 0 to 7m step 1m month(vector(1456790399)) + day_of_month(vector(1456790399)) / 100
+  {} 2.29 2.29 2.29 2.29 2.29 2.29 2.29 2.29
+
+# 2016-03-01 00:00:00 March 1st in leap year.
+eval range from 0 to 7m step 1m month(vector(1456790400)) + day_of_month(vector(1456790400)) / 100
+  {} 3.01 3.01 3.01 3.01 3.01 3.01 3.01 3.01
+
+# 2016-12-31 13:37:00 366th day in leap year.
+eval range from 0 to 7m step 1m day_of_year(vector(1483191420))
+  {} 366 366 366 366 366 366 366 366
+
+# 2022-12-31 13:37:00 365th day in non-leap year.
+eval range from 0 to 7m step 1m day_of_year(vector(1672493820))
+  {} 365 365 365 365 365 365 365 365
+
+# February 1st 2016 in leap year.
+eval range from 0 to 7m step 1m days_in_month(vector(1454284800))
+  {} 29 29 29 29 29 29 29 29
+
+# February 1st 2017 not in leap year.
+eval range from 0 to 7m step 1m days_in_month(vector(1485907200))
+  {} 28 28 28 28 28 28 28 28
+
+# Test for histograms.
+eval range from 0 to 7m step 1m day_of_month(histogram_sample)
+
+eval range from 0 to 7m step 1m day_of_week(histogram_sample)
+
+eval range from 0 to 7m step 1m day_of_year(histogram_sample)
+
+eval range from 0 to 7m step 1m days_in_month(histogram_sample)
+
+eval range from 0 to 7m step 1m hour(histogram_sample)
+
+eval range from 0 to 7m step 1m minute(histogram_sample)
+
+eval range from 0 to 7m step 1m month(histogram_sample)
+
+eval range from 0 to 7m step 1m year(histogram_sample)
+
+clear
+
+# Test time with custom metric
+# 1136239445: 2006-01-02 22:04:05
+# 1485907200: February 1st 2017 not in leap year.
+# 1672493820: 2022-12-31 13:37:00 365th day in non-leap year.
+load 1m
+  some_metric{case="series1"} 0+1136239445x7
+  another_metric{case="series1"} 0+536254375x7
+  some_metric{case="series2"} 0+1672493820x7
+  some_metric{case="gap1"} _ 1136239445 _ 1485907200 _ 1672493820
+  some_metric{case="gap2"} 1136239445 _ _ 1485907200 _ _ 1672493820
+  some_metric{case="histogram-gap"} _ {{count:5}} _ {{count:5}}
+  some_metric{case="histogram-float"} 1136239445 {{count:5}} 1485907200 {{count:5}}
+
+eval range from 0 to 7m step 1m year(some_metric)
+  {case="gap1"} _ 2006 2006 2017 2017 2022 2022 2022
+  {case="gap2"} 2006 2006 2006 2017 2017 2017 2022 2022
+  {case="histogram-float"} 2006 _ 2017
+  {case="series1"} 1970 2006 2042 2078 2114 2150 2186 2222
+  {case="series2"} 1970 2022 2075 2128 2181 2234 2287 2340
+
+eval range from 0 to 7m step 1m month(some_metric)
+  {case="gap1"} _ 1 1 2 2 12 12 12
+  {case="gap2"} 1 1 1 2 2 2 12 12
+  {case="histogram-float"} 1 _ 2
+  {case="series1"} 1 1 1 1 1 1 1 1
+  {case="series2"} 1 12 12 12 12 12 12 12
+
+eval range from 0 to 7m step 1m year(some_metric{case="series1"} + another_metric{case="series1"})
+  {case="series1"} 1970 2022 2075 2128 2181 2234 2287 2340
+

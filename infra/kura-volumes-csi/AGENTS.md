@@ -181,14 +181,13 @@ load test, not a production health probe.
 
 ## Key custody and admission
 
-[Security runbook and tests](security/AGENTS.md) cover OpenBao Transit wrapping, resumable
-rewrap and recovery gates. The main chart owns four retained fail-closed
+[Security runbook and tests](security/AGENTS.md) cover root-key custody, resumable
+rewrap and recovery. The main chart owns four retained fail-closed
 admission policies restricting the shared CSI identity to its token-bound node,
 immutable PV/PVC ownership, its own disk-capacity field and short-lived
 key-service tokens bound to its own pod. PVC writes/events
 are namespaced to `kura`. Cluster administrators and privileged host access
-remain trusted. Never claim hosted OpenBao custody before the live migration gates
-in `security/key-management.md` pass.
+remain trusted.
 
 Thin mappings additionally enable discard and `--perf-submit_from_crypt_cpus`;
 legacy mappings keep their existing settings. Fresh thin pools use 512 KiB
@@ -197,7 +196,15 @@ retain the physical allocation and safety gates in `thin/validation.md`.
 
 The runtime image must include `thin-provisioning-tools`; LVM otherwise warns
 and skips `thin_check` on activation. The Docker build verifies the installed
-checker and pool preparation refuses to mutate a VG without it. Do not treat VM
+checker and pool preparation refuses to mutate a VG without it.
+
+On thin nodes the plugin serves `kura_volumes_thin_pool_*` gauges (data and
+metadata used/size bytes, `read_only`, `out_of_data_space`, `healthy`,
+`last_observation_timestamp_seconds`) on `METRICS_ADDRESS` (`:9809` in the
+chart). They are recorded from the advertiser's pool observations, never by a
+scrape running LVM, and carry only `node`, `vg` and `pool`. A failed
+observation removes the usage series. Alerts are in
+`infra/helm/k8s-monitoring/kura-thin-pool-alert-rules.json`. Do not treat VM
 qualification with host-installed tooling as proof that the packaged image has
 those tools. Never run offline metadata checks against a live metadata device.
 

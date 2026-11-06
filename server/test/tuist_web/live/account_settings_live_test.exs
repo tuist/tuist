@@ -6,6 +6,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.UserMFA
   alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -34,6 +35,63 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert html =~ "Settings · #{account.name} · Tuist"
   end
 
+  test "personal settings expose independent passkey and authenticator management", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/#{user.account.name}/settings")
+
+    assert has_element?(view, "#passkeys-settings a[href='/users/settings/passkeys']", "Manage passkeys")
+    assert has_element?(view, "#passkeys-settings", "0 passkeys added")
+    assert has_element?(view, "#two-factor-settings a[href='/users/settings/mfa']", "Manage two-factor authentication")
+    assert has_element?(view, "#two-factor-settings", "Not enabled")
+    refute has_element?(view, "#two-factor-settings", "passkeys")
+
+    stub(Environment, :email_auth_enabled?, fn -> false end)
+    {:ok, view, _html} = live(conn, ~p"/#{user.account.name}/settings")
+    refute has_element?(view, "#passkeys-settings")
+    assert has_element?(view, "#two-factor-settings")
+  end
+
+  test "credential management uses the login layout and action-specific confirmation dialogs", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    conn = log_in_user(conn, user)
+
+    assert conn |> get(~p"/users/settings/passkeys") |> redirected_to() ==
+             ~p"/#{user.account.name}/settings/passkeys"
+
+    assert conn |> get(~p"/users/settings/mfa") |> redirected_to() ==
+             ~p"/#{user.account.name}/settings/two-factor-authentication"
+
+    {:ok, view, html} = live(conn, ~p"/#{user.account.name}/settings/passkeys")
+    assert has_element?(view, "#sso-link #user-security-settings")
+    assert has_element?(view, "a[href='/users/settings/passkeys/new']", "Add a passkey")
+    refute html =~ "passkey-registration"
+    refute html =~ "layout__content"
+
+    session = Accounts.get_user_session(get_session(conn, :user_token))
+    {:ok, factor} = UserMFA.begin_enrollment(user, session)
+
+    {:ok, result} =
+      UserMFA.confirm_enrollment(user, session, NimbleTOTP.verification_code(factor.secret))
+
+    conn = put_session(conn, :user_token, result.session.token)
+    {:ok, view, html} = live(conn, ~p"/#{user.account.name}/settings/two-factor-authentication")
+    assert has_element?(view, "#mfa-recovery-count", "10 recovery codes remaining")
+    document = Floki.parse_document!(html)
+
+    assert Floki.find(document, "#regenerate-recovery-modal-portal form[action='/users/settings/mfa/recovery']") != []
+    assert Floki.find(document, "#disable-mfa-modal-portal form[action='/users/settings/mfa/disable']") != []
+    refute html =~ "<summary>"
+    assert has_element?(view, "#sso-link #user-security-settings")
+    refute html =~ "layout__content"
+  end
+
+  test "credential settings cannot be opened for an organization", %{conn: conn, account: account} do
+    for path <- [~p"/#{account.name}/settings/passkeys", ~p"/#{account.name}/settings/two-factor-authentication"] do
+      assert_raise TuistWeb.Errors.NotFoundError, fn -> live(conn, path) end
+    end
+  end
+
   test "renders cache endpoints but no managed cache section", %{
     conn: conn,
     account: account
@@ -47,6 +105,8 @@ defmodule TuistWeb.AccountSettingsLiveTest do
 
     # Then
     assert html =~ "Cache endpoints"
+    refute html =~ "Manage passkeys"
+    refute html =~ "Manage two-factor authentication"
     # Where an account's cache runs is neither asked of it nor reported to it.
     refute html =~ "Managed cache"
     refute html =~ "Deploy Kura server"

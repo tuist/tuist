@@ -59,7 +59,7 @@ test('unrelated server changes reuse the published template version', (t) => {
 
 test('image, bootstrap and publisher changes each select a new template', (t) => {
   const dir = repository(t);
-  for (const path of ['infra/sandbox-image/Dockerfile', 'infra/sandbox-image/orb-bootstrap.sh', 'infra/amp-orbs/Dockerfile',
+  for (const path of ['infra/sandbox-image/Dockerfile', 'infra/sandbox-image/orb-bootstrap.sh', 'infra/amp-orbs/Dockerfile', 'infra/claude-code-runners/Dockerfile',
     '.github/workflows/sandbox-image.yml', '.github/scripts/sandbox-image-version.sh']) {
     const sha = commit(dir, path, path);
     assert.equal(version(dir), `sha-${sha.slice(0, 12)}`);
@@ -181,7 +181,7 @@ test('template- and daemon-only changes enter the same deployable-path gate as s
   const workflow = readFileSync(join(scripts, '../workflows/server-production-deployment.yml'), 'utf8');
   const filter = workflow.match(/deployable_paths=.*?grep -E '([^']+)'/s)?.[1];
   assert.ok(filter, 'production deployment path filter exists');
-  for (const path of ['infra/sandbox-image/Dockerfile', 'infra/sandbox-image/orb-bootstrap.sh', 'infra/amp-orbs/Dockerfile',
+  for (const path of ['infra/sandbox-image/Dockerfile', 'infra/sandbox-image/orb-bootstrap.sh', 'infra/amp-orbs/Dockerfile', 'infra/claude-code-runners/Dockerfile',
     '.github/workflows/sandbox-image.yml', '.github/scripts/sandbox-image-version.sh',
     '.github/scripts/sandbox-live-image-tag.sh', '.github/scripts/sandbox-image-exists.sh', 'server/app.ex',
     'infra/sandboxd/cmd/sandboxd/main.go', 'infra/sandboxd/Dockerfile', '.github/workflows/sandboxd-image.yml',
@@ -223,6 +223,13 @@ function workflow(name) {
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout);
 }
+
+test('remote execution waits for the gateway without requiring OnDelete workers to update', () => {
+  const deploy = workflow('remote-execution-deployment.yml').jobs.deploy;
+  const upgrade = deploy.steps.find((s) => s.name === 'helm upgrade --install').run;
+  assert.match(upgrade, /--atomic\b/);
+  assert.match(upgrade, /--wait=legacy\b/);
+});
 
 test('all production legs require publication and promote the same template and daemon', () => {
   const jobs = workflow('server-production-deployment.yml').jobs;

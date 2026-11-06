@@ -1,10 +1,16 @@
 defmodule Tuist.Sandboxes.AgentEnvironment do
   @moduledoc """
-  An Anthropic Managed Agents `self_hosted` environment connected to an
-  account. The server polls the environment's work queue with
-  `environment_key` (Cloak-encrypted at rest via `Tuist.Vault.Binary`)
-  and creates one sandbox per session from the template and shape stored
-  here.
+  An Anthropic self-hosted environment connected to an account, served
+  with one sandbox per session from the template and shape stored here.
+  `environment_key` is Cloak-encrypted at rest via `Tuist.Vault.Binary`.
+
+  `kind` says which product the environment belongs to. A `:managed_agents`
+  environment (`env_...`) is polled by the server with its environment key.
+  A `:claude_code` environment (`ccpool_...`, a Claude Code cloud
+  environment) stores its environment secret in `environment_key`; a
+  provider workload runs its on-demand orchestrator, and each session's
+  runner starts in the session's sandbox (`Tuist.Sandboxes.ClaudeCodeRunners`).
+  Its `max_idle_seconds` is how long an idle session keeps its runner.
 
   `anthropic_api_key` (also Cloak-encrypted) is the organization API key
   the server uses to start sessions on the environment. `anthropic_agent_id`
@@ -21,6 +27,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
 
   @derive {Inspect, except: [:environment_key, :anthropic_api_key]}
   schema "sandbox_agent_environments" do
+    field :kind, Ecto.Enum, values: [:managed_agents, :claude_code], default: :managed_agents
     field :anthropic_environment_id, :string
     field :environment_key, Binary, redact: true
     field :anthropic_api_key, Binary, redact: true
@@ -28,6 +35,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
     field :agent_model, :string, default: "claude-sonnet-5"
     field :agent_system_prompt, :string
     field :name, :string
+    field :platform, Ecto.Enum, values: [:linux, :darwin], default: :linux
     field :template, :string, default: "default"
     field :vcpus, :integer, default: 2
     field :memory_mb, :integer, default: 4096
@@ -44,6 +52,8 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
   def create_changeset(agent_environment, attrs) do
     agent_environment
     |> cast(attrs, [
+      :kind,
+      :platform,
       :account_id,
       :anthropic_environment_id,
       :environment_key,
@@ -61,6 +71,7 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
     ])
     |> validate_required([:account_id, :anthropic_environment_id, :environment_key, :template, :agent_model])
     |> validate_length(:anthropic_environment_id, min: 1, max: 255)
+    |> validate_environment_id()
     |> validate_length(:environment_key, min: 1)
     |> validate_agent_fields()
     |> validate_length(:name, max: 100)
@@ -81,6 +92,18 @@ defmodule Tuist.Sandboxes.AgentEnvironment do
 
   def cache_agent_changeset(agent_environment, anthropic_agent_id) do
     change(agent_environment, anthropic_agent_id: anthropic_agent_id)
+  end
+
+  # Claude Code names its environments `ccpool_...`, so one cannot be
+  # connected as the other kind.
+  defp validate_environment_id(changeset) do
+    claude_code? = get_field(changeset, :kind) == :claude_code
+
+    validate_change(changeset, :anthropic_environment_id, fn :anthropic_environment_id, id ->
+      if String.starts_with?(id, "ccpool_") == claude_code?,
+        do: [],
+        else: [anthropic_environment_id: "does not name a #{get_field(changeset, :kind)} environment"]
+    end)
   end
 
   defp validate_agent_fields(changeset) do

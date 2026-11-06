@@ -11,6 +11,10 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-cloudflare
 
+mailer:
+  provider: ses
+  sesRegion: eu-west-1
+
 runtimeSecrets:
   externalSecret:
     enabled: true

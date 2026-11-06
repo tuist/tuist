@@ -2,7 +2,7 @@
 {
   "title": "Caché",
   "titleTemplate": ":title · Funcionalidades · Guías · Tuist",
-  "description": "Optimiza los tiempos de compilación con la caché de Tuist, incluyendo la caché de módulos, la caché de Xcode, la caché de Gradle, la caché de Bazel, la caché de dependencias de Elixir y la caché experimental de compilación de Rust."
+  "description": "Optimiza los tiempos de compilación con la caché de Tuist, incluyendo la caché de módulos, la caché de Xcode, la caché de Gradle, la caché de Bazel, la caché de dependencias de Elixir y la caché experimental para la compilación de Rust."
 }
 ---
 # Caché {#cache}
@@ -24,12 +24,12 @@ Conoce el flujo de trabajo de caché que se adapta a tu proyecto o modelo de des
 />
   <.home_card
     title="Caché de Gradle"
-    details="Comparte artefactos de la caché de compilación de Gradle de forma remota. Incluye análisis de compilaciones para visibilidad del rendimiento."
+    details="Comparte de forma remota los artefactos de la caché de compilación de Gradle. Incluye análisis de compilaciones para visibilidad del rendimiento."
     link="/guides/features/cache/gradle-cache"
 />
   <.home_card
     title="Caché de Bazel"
-    details="Apunta Bazel a la caché de la API de ejecución remota de Tuist para compartir los resultados de las acciones entre tu equipo y la CI."
+    details="Configura Bazel para usar la caché de la API de Ejecución Remota de Tuist y compartir los resultados de las acciones entre tu equipo y la CI."
     link="/guides/features/cache/bazel-cache"
 />
   <.home_card
@@ -39,13 +39,13 @@ Conoce el flujo de trabajo de caché que se adapta a tu proyecto o modelo de des
 />
   <.home_card
     title="Caché de Rust (experimental)"
-    details="Reutiliza localmente y a través de Kura los resultados de las bibliotecas hoja del registro compatibles. Aprende cómo habilitar la caché e inspeccionar la actividad de la caché."
+    details="Reutiliza los resultados de compilación de Rust compatibles y las ejecuciones de scripts de compilación localmente y a través de Kura. Aprende cómo habilitar la caché e inspeccionar la actividad de caché."
     supported_for="rust"
     link="/guides/features/cache/rust"
 />
   <.home_card
     title="Autoalojamiento"
-    details="Ejecuta nodos de caché cerca de la CI, las oficinas o la computación regional y conéctalos a Tuist alojado o autoalojado."
+    details="Ejecuta nodos de caché cerca de la CI, oficinas o computación regional y conéctalos a Tuist alojado o autoalojado."
     link="/guides/features/cache/self-hosting"
 />
 </.home_cards>
@@ -53,11 +53,11 @@ Conoce el flujo de trabajo de caché que se adapta a tu proyecto o modelo de des
 > [!TIP]
 > **Más rápido en Tuist Runners**
 >
-> En <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>, la caché está ubicada en la red privada del runner y se comparte con la misma caché que usan tus máquinas de desarrollo, por lo que los trabajos de CI obtienen aciertos cálidos desde el primer momento, sin necesidad de calentar una caché de CI separada.
+> En <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>, la caché está ubicada en la red privada del runner y se comparte con la misma caché que usan tus máquinas de desarrollo, por lo que los trabajos de CI obtienen aciertos cálidos desde el inicio, sin necesidad de calentar una caché de CI separada.
 
 
-## Restringir las subidas a la CI {#restrict-uploads-to-ci}
+## Restringir subidas a la CI {#restrict-uploads-to-ci}
 
-Los administradores de la cuenta pueden configurar a los desarrolladores como solo lectura mientras permiten que la CI suba artefactos de caché. Abre la configuración de **Caché** de la cuenta en Tuist y establece **Acceso de subida a la caché** en **Solo tokens de CI y de cuenta**. Después de eso, los miembros autenticados con sesiones de inicio seguirán pudiendo descargar de la caché, pero las subidas requieren autenticación OIDC de CI o un token de cuenta con permisos de escritura en la caché, como `project:cache:write` o `ci`.
+Los administradores de cuenta pueden configurar a los desarrolladores como solo lectura mientras permiten que la CI suba artefactos de caché. Abre la configuración de **Caché** de la cuenta en Tuist y establece **Acceso de subida de caché** en **Solo tokens de CI y de cuenta**. Después de eso, los miembros autenticados con sesiones de inicio seguirán pudiendo descargar de la caché, pero las subidas requieren autenticación OIDC de CI o un token de cuenta con permisos de escritura en caché, como `project:cache:write` o `ci`.
 
-Usa esta opción cuando la CI sea el productor de caché de confianza y las máquinas locales deban solo consumir la caché. La configuración afecta únicamente a la autorización de subida a la caché.
+Usa esta opción cuando la CI sea el productor de caché de confianza y las máquinas locales solo deban consumir la caché. La configuración afecta únicamente a la autorización de subida de caché.

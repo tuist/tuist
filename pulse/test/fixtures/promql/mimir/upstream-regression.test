@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Tests for deriv() and predict_linear().
+load 5m
+	testcounter_reset_middle_total	0+10x4 0+10x5
+	http_requests_total{job="app-server", instance="1", group="canary"}		0+80x10
+	testcounter_reset_middle_mix	0+10x4 0+10x5 {{schema:0 sum:1 count:1}} {{schema:1 sum:2 count:2}}
+	http_requests_mix{job="app-server", instance="1", group="canary"}		0+80x10 {{schema:0 sum:1 count:1}}
+	http_requests_histogram{job="app-server", instance="1", group="canary"}		{{schema:0 sum:1 count:2}}x10
+	http_requests_inf{job="app-server", instance="1", group="canary"}	-Inf 0+80x10 Inf
+
+# deriv should return the same as rate in simple cases.
+eval instant at 50m rate(http_requests_total{group="canary", instance="1", job="app-server"}[50m])
+	expect no_info
+	{group="canary", instance="1", job="app-server"} 0.26666666666666666
+
+eval instant at 50m deriv(http_requests_total{group="canary", instance="1", job="app-server"}[50m])
+	expect no_info
+	{group="canary", instance="1", job="app-server"} 0.26666666666666666
+
+# deriv should return correct result.
+eval instant at 50m deriv(testcounter_reset_middle_total[100m])
+	expect no_info
+	{} 0.010606060606060607
+
+# deriv should ignore histograms in a mixed range of floats and histograms, flagged by an info annotation.
+eval instant at 110m deriv(http_requests_mix{group="canary", instance="1", job="app-server"}[110m])
+	expect info
+	{group="canary", instance="1", job="app-server"} 0.26666666666666666
+
+eval instant at 100m deriv(testcounter_reset_middle_mix[110m])
+	expect info
+	{} 0.010606060606060607
+
+# deriv should silently ignore ranges consisting only of histograms.
+eval instant at 50m deriv(http_requests_histogram[60m])
+	expect no_info
+	expect no_warn
+	#empty
+
+# deriv should return NaN in case of +Inf or -Inf found.
+eval instant at 100m deriv(http_requests_inf[100m])
+	expect no_info
+	{job="app-server", instance="1", group="canary"} NaN
+
+# predict_linear should return correct result.
+# X/s = [  0, 300, 600, 900,1200,1500,1800,2100,2400,2700,3000]
+# Y   = [  0,  10,  20,  30,  40,   0,  10,  20,  30,  40,  50]
+# sumX  = 16500
+# sumY  = 250
+# sumXY = 480000
+# sumX2 = 34650000
+# n     = 11
+# covXY = 105000
+# varX  = 9900000
+# slope = 0.010606060606060607
+# intercept at t=0: 6.818181818181818
+# intercept at t=3000: 38.63636363636364
+# intercept at t=3000+3600: 76.81818181818181
+eval instant at 50m predict_linear(testcounter_reset_middle_total[50m], 3600)
+	expect no_info
+	{} 70
+
+# predict_linear should ignore histograms in a mixed range of floats and histograms, flagged by an info annotation.
+eval instant at 60m predict_linear(testcounter_reset_middle_mix[60m], 3000)
+	expect info
+	{} 70
+
+# predict_linear should return NaN in case of +Inf or -Inf found.
+eval instant at 100m predict_linear(http_requests_inf[100m], 6000)
+	{job="app-server", instance="1", group="canary"} NaN
+
+# With http_requests_total, there is a sample value exactly at the end of
+# the range, and it has exactly the predicted value, so predict_linear
+# can be emulated with deriv.
+eval instant at 50m predict_linear(http_requests_total[50m], 3600) - (http_requests_total + deriv(http_requests_total[50m]) * 3600)
+	{group="canary", instance="1", job="app-server"} 0
+
+clear

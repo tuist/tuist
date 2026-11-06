@@ -50,7 +50,7 @@ and change no admission today, because every unit is fully backed either way.
 
 | Area | Current implementation | Consequence for the later sharing PR |
 | --- | --- | --- |
-| Key custody and transport | Versioned tenant shares, OpenBao provider, volume-bound derivation and sealed CSI delivery | Independent of allocation policy; no reason to replace this for sharing. Permanent hosted OpenBao custody is a separate uncompleted release gate. |
+| Key custody and transport | Versioned tenant shares wrapped by the Tuist-managed root (`tuist_root`), volume-bound derivation and sealed CSI delivery | Independent of allocation policy; no reason to replace this for sharing. |
 | Policy | `diskallocator.Targets` divides usable capacity by floor, demand and ceiling | Reusable policy, provided its input bytes have one defined meaning and every result is only a target. It cannot authorize physical allocations itself. |
 | Runtime | Expiring pod-bound budget files drive write refusal and bounded segment retirement | Reusable behavior. Preserve pod UID fencing across replacements; do not substitute stable PV identity for the runtime incarnation. |
 | Inventory | Sharing resolves hostPath/local PVs and rejects CSI PVs | Add a CSI inventory/backend path. Resolve the PVC UID and CSI volume ID, verify node ownership, and join it to CSI's LV/pool identities and pod UID. |
@@ -155,7 +155,7 @@ when a pool fills.
 
 ### Candidate to prototype: independently reclaimable encrypted volumes
 
-Keep thin LVM, per-volume LUKS keys derived through the tenant/OpenBao key path,
+Keep thin LVM, per-volume LUKS keys derived through the tenant key path,
 and XFS, but make the allocation unit smaller than an instance's lifetime
 ceiling. An instance has a stable base volume and separately created volumes
 for borrowed capacity. Each borrowed volume stores a group of cache segments.
@@ -242,7 +242,7 @@ borrowed-volume upload churn was 73.91–74.88 MiB/s versus 79.99–80.24 for on
 thin LUKS/XFS volume and 96.89–98.87 for shared XFS. This supports feasibility,
 not performance acceptance or a production layout decision. Publication used
 Docker mount propagation and fixture keys; real Kubernetes child authorization,
-OpenBao, reboot/fencing and metadata-scale qualification remain outstanding.
+reboot/fencing and metadata-scale qualification remain outstanding.
 The later production acceptance list below is not wholly covered by this test.
 
 Whole-unit backing/deletion also works with thick LUKS/XFS devices. Thin storage
@@ -258,17 +258,17 @@ units), a further 71-assertion interruption/recovery check, and 128-device cold
 pool recovery. Avoiding redundant activation reduced full observations below
 the explicit five-second test budget; this was separately requalified.
 
-An isolated Paris Kubernetes/OpenBao fixture now passes hot child publication,
-CSI pod restart, cold runtime-pod replacement, old-pod fencing, OpenBao quorum-loss
-refusal and recovery, Transit rotation/rewrap followed by cold reopen, and actual
-open-deleted-reader accounting. After final close, exactly one 6.5 GiB device's
-commitment was released; another synthetic tenant received a new independently
-keyed child and wrote/checksummed real cache objects. Neither base LV changed.
-This is stronger evidence than Docker propagation and fixture-derived keys, but
-it is not a node power-loss, production custody or migration/handoff rehearsal.
-The matched Paris comparison passed 30,400 requests without failures: thin-unit
-churn was 160.19–161.26 MiB/s against 163.25–163.70 on shared XFS, with about
-6.1 ms higher small-PUT p95 at sample midpoints. Thick-unit churn was
+An isolated Paris Kubernetes fixture, with an external Transit key-service
+fixture (that provider has since been removed), now passes hot child
+publication, CSI pod restart, cold runtime-pod replacement, old-pod fencing and
+actual open-deleted-reader accounting. After final close, exactly one 6.5 GiB
+device's commitment was released; another synthetic tenant received a new
+independently keyed child and wrote/checksummed real cache objects. Neither base
+LV changed. This is stronger evidence than Docker propagation and fixture-derived
+keys, but it is not a node power-loss, production custody or migration/handoff
+rehearsal. The matched Paris comparison passed 30,400 requests without failures:
+thin-unit churn was 160.19–161.26 MiB/s against 163.25–163.70 on shared XFS,
+with about 6.1 ms higher small-PUT p95 at sample midpoints. Thick-unit churn was
 158.69–160.47 MiB/s and its small-PUT latency overlapped shared XFS. There is
 no demonstrated throughput winner between unit backends in this workload;
 the earlier direct-I/O regressions remain separate evidence.
@@ -323,10 +323,10 @@ that is not a qualified arbitrary shrink-and-transfer path for this stack.
 | Scheduling | Reserve converted floors and all outstanding physical commitments consistently. CSI remains the final admission authority. Borrowed grants cannot consume backing promised to newly admitted floors; reconciliation must handle retained allocations absent from active pod inventory. |
 | Existing volumes | A large monolithic volume cannot silently become a small base plus units. Keeping it as a base strands its original full reservation. Releasing that reservation needs a one-time staged migration or a qualified in-place segmentation strategy; do not promise zero later migration. |
 
-OpenBao custody, tenant ownership, encryption transport and migration safeguards
-remain applicable. The policy can be reused, but runtime and CSI changes are
-substantial enough that this review does **not** clear the “only small changes
-after encryption” compatibility gate.
+Root-key custody, tenant ownership, encryption transport and migration
+safeguards remain applicable. The policy can be reused, but runtime and CSI
+changes are substantial enough that this review does **not** clear the “only
+small changes after encryption” compatibility gate.
 
 ### Alternatives and recommended next gate
 
@@ -369,7 +369,7 @@ configuration switch that provides both the current layout and safe shared grant
 
 See [validation.md](validation.md) for separate hosted application, hosted direct
 I/O and disposable-VM results. The fresh VM run is a mechanism regression check;
-it cannot replace hosted NVMe measurements or OpenBao deployment validation.
+it cannot replace hosted NVMe measurements.
 The prior encrypted staging candidate still has a random-read regression and
 about 6 ms higher small-PUT p95 against the shared-XFS baseline. No later
 plaintext sharing benchmark supersedes those measurements.
@@ -381,5 +381,5 @@ Preserve the source-node migration gate, replica catch-up, destination-bound
 write acknowledgments, endpoint handoff and retained-volume deletion checks.
 Existing thick storage still needs landing capacity and safe migration; it
 cannot be converted into a shared thin pool in place. Qualify the final layout
-and OpenBao path on staging, then rehearse the Tuist-first cohort before any
-production enrollment.
+on staging, then rehearse the Tuist-first cohort before any production
+enrollment.

@@ -244,13 +244,14 @@ build {
   # plugin only does this after deleting a recovery partition, and the
   # base has none left to delete, so it never does here. The live resize
   # intermittently fails with -69606 while growing the APFS structures and
-  # undoes its changes, so it is retried.
+  # undoes its changes, so it is retried. -69743 means the container already
+  # fills the disk, which leaves nothing to claim.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
       "store=$(diskutil info / | awk -F': *' '/APFS Physical Store/ { print $2 }')",
       "printf 'y\\n' | sudo diskutil repairDisk \"$${store%s*}\"",
-      "for attempt in 1 2 3 4 5; do sudo diskutil apfs resizeContainer \"$store\" 0 && break; [ \"$attempt\" -lt 5 ] || exit 1; echo \"resizeContainer attempt $attempt failed, retrying in 15 s\" >&2; sleep 15; done"
+      "for attempt in 1 2 3 4 5; do out=$(sudo diskutil apfs resizeContainer \"$store\" 0 2>&1) && break; echo \"$out\" >&2; case \"$out\" in *-69743*) break ;; esac; [ \"$attempt\" -lt 5 ] || exit 1; echo \"resizeContainer attempt $attempt failed, retrying in 15 s\" >&2; sleep 15; done"
     ]
   }
 
@@ -586,6 +587,11 @@ build {
   }
 
   provisioner "file" {
+    source      = "${path.root}/build/tuist-job-runner"
+    destination = "/tmp/tuist-job-runner"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/build/runner-shell-agent"
     destination = "/tmp/runner-shell-agent"
   }
@@ -618,6 +624,7 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cache-volume /usr/local/bin/tuist-cache-volume",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-runner-cache /usr/local/bin/tuist-runner-cache",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-gitlab-runner /opt/tuist/tuist-gitlab-runner",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-job-runner /opt/tuist/tuist-job-runner",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cas-proxy /opt/tuist/tuist-cas-proxy",
       "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.runner-shell-agent.plist /Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist",

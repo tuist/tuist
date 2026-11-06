@@ -1387,6 +1387,51 @@ struct ConfigGeneratorTests {
     @Test(
         .withMockedXcodeController,
         .inTemporaryDirectory
+    ) func generateTargetConfig_keepsTheNativeSetting_onlyForConfigurationsThatShadowTheToolchainFlags() async throws {
+        // Given
+        let macroPath = try AbsolutePath(validating: "/cache/MacroImplementation.macro")
+        let driverFlags: [String] = ["-load-plugin-executable", "\"\(macroPath.pathString)#MacroImplementation\""]
+        let app = Target.test(name: "app", platform: .iOS, product: .app, settings: Settings(
+            base: [
+                "OTHER_SWIFT_FLAGS": "-DAPP",
+                "SWIFT_TOOLCHAIN_FLAGS": .array(["$(inherited)"] + driverFlags),
+            ],
+            configurations: [
+                .debug: Configuration(settings: ["OTHER_SWIFT_FLAGS": "-DDEBUG_ONLY"]),
+                .release: Configuration(settings: ["SWIFT_TOOLCHAIN_FLAGS": "-custom"]),
+            ]
+        ))
+        let project = Project.test(targets: [app])
+        let graph = Graph.test(path: project.path, projects: [project.path: project], dependencies: [
+            .target(name: app.name, path: project.path): Set([.macro(path: macroPath)]),
+        ])
+
+        // When
+        try await subject.generateTargetConfig(
+            app,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: Settings.default,
+            fileElements: ProjectFileElements(),
+            graphTraverser: GraphTraverser(graph: graph),
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let configurations = try #require(pbxTarget.buildConfigurationList?.buildConfigurations)
+        let debug = try #require(configurations.first { $0.name == "Debug" }).buildSettings.toSettings()
+        let release = try #require(configurations.first { $0.name == "Release" }).buildSettings.toSettings()
+        #expect(debug["OTHER_SWIFT_FLAGS"] == "-DDEBUG_ONLY")
+        #expect(debug["SWIFT_TOOLCHAIN_FLAGS"] == .array(["$(inherited)"] + driverFlags))
+        #expect(debug["SWIFT_LOAD_BINARY_MACROS"] == nil)
+        #expect(release["SWIFT_TOOLCHAIN_FLAGS"] == "-custom")
+        #expect(release["SWIFT_LOAD_BINARY_MACROS"] == "\(macroPath.pathString)#MacroImplementation")
+    }
+
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
     ) func generateTargetConfig_doesntAddTheLoadPluginExecutableSwiftFlag_when_theTargetDependsOnAStaticFrameworkThatDoesntRepresentAMacro(
     ) async throws {
         // Given

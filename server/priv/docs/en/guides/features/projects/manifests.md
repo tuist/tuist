@@ -33,7 +33,7 @@ let project = Project(
 
 
 > [!WARNING]
-> **Root Variables**
+> **Root variables**
 >
 > The only variable that should be at the root of the manifest is `let project = Project(...)`. If you need to reuse code across various parts of the manifest, you can use Swift functions.
 
@@ -72,6 +72,6 @@ Tuist provides <.localized_link href="/contributors/principles#default-to-conven
 import ProjectDescription
 
 let tuist = Tuist(
-    project: .tuist(generationOptions: .options(enforceExplicitDependencies: true))
+    project: .tuist(generationOptions: .options(registryEnabled: true))
 )
 ```

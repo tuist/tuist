@@ -464,6 +464,60 @@ defmodule TuistWeb.BuildRunLiveTest do
            )
   end
 
+  test "escapes client-supplied issue fields when linking issues to GitHub", %{conn: conn, organization: organization} do
+    project =
+      ProjectsFixtures.project_fixture(
+        account_id: organization.account.id,
+        vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github]
+      )
+
+    issue = fn path, message ->
+      %{
+        type: :error,
+        target: "App",
+        project: "App",
+        title: "Compilation failed",
+        signature: "signature",
+        step_type: :swift_compilation,
+        path: path,
+        message: message,
+        starting_line: 7,
+        ending_line: 7,
+        starting_column: 1,
+        ending_column: 1
+      }
+    end
+
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        status: "failure",
+        git_commit_sha: ~s(abc"><img src=x class=pwn-sha>),
+        issues: [
+          issue.("<img src=x class=pwn-path>", "<img src=x class=pwn-message>"),
+          issue.("App/Sources/Safe.swift", "Cannot find 'foo' in scope"),
+          Map.merge(issue.("", "Deprecated"), %{type: :warning, step_type: :other, title: "Can't find a<b"})
+        ]
+      )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+
+    for marker <- ["pwn-path", "pwn-message", "pwn-sha"] do
+      refute has_element?(lv, ".#{marker}")
+    end
+
+    assert has_element?(lv, "h3[data-part=title] a", "<img src=x class=pwn-path>")
+    assert has_element?(lv, ~s(.issue-card[data-type="warning"] h3[data-part=title]), "Can't find a<b")
+    refute has_element?(lv, ~s(.issue-card[data-type="warning"] h3[data-part=title] a))
+    assert has_element?(lv, "[data-part=issue]", "<img src=x class=pwn-message> in <img src=x class=pwn-path>#L7")
+
+    assert has_element?(
+             lv,
+             ~s(a[href="https://github.com/tuist/tuist/blob/abc\\"><img src=x class=pwn-sha>/App/Sources/Safe.swift#L7"]),
+             "App/Sources/Safe.swift#L7"
+           )
+  end
+
   test "shows download button when build run has result bundle", %{
     conn: conn,
     organization: organization,

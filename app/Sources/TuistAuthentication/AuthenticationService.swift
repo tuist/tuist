@@ -19,19 +19,19 @@ public enum AuthenticationError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidCallbackURL:
-            return "Invalid callback URL received"
+            return String(localized: "Invalid callback URL received")
         case .missingAuthorizationCode:
-            return "Authorization code not found"
+            return String(localized: "Authorization code not found")
         case .invalidTokenResponse:
-            return "Invalid response format"
+            return String(localized: "Invalid response format")
         case let .tokenExchangeFailed(statusCode):
-            return "Token exchange failed with status code: \(statusCode)"
+            return String(localized: "Token exchange failed with status code: \(statusCode)")
         case .missingTokens:
-            return "Access token or refresh token missing from response"
+            return String(localized: "Access token or refresh token missing from response")
         case .appleSignInFailed:
-            return "Apple Sign In failed"
+            return String(localized: "Apple Sign In failed")
         case .missingAppleCredentials:
-            return "Missing Apple credentials from authorization"
+            return String(localized: "Missing Apple credentials from authorization")
         }
     }
 }

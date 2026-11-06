@@ -1,7 +1,7 @@
 # Tuist ClusterClass + Cluster CRs
 
 Self-hosted Kubernetes manifests for the Tuist workload clusters
-(staging / canary / production / preview), reconciled by our own
+(staging / canary / production), reconciled by our own
 management cluster running CAPI + caph. Production Kura regions are
 dedicated node pools inside the production workload cluster.
 
@@ -13,7 +13,16 @@ control plane, worker-pool variables, network config,
 `KubeadmControlPlaneTemplate`, `HCloudMachineTemplate` — and per-cluster
 `Cluster` CRs reference it via `topology.classRef.name`, only specifying
 what differs (replica counts, machine types per pool, labels, taints).
-K8s minor bumps are a `topology.version:` edit on each Cluster CR.
+K8s minor bumps are a `topology.version:` edit on each Cluster CR, one
+cluster at a time. The ClusterClass pins `KUBERNETES_VERSION` for apt; a
+Cluster ahead of the pin gets its packages from the
+`*KubernetesPackages` patches. Once every Cluster has moved, move the pin
+and both patches' `enabledIf` versions together (that rolls each cluster
+once). Annotate a MachineDeployment topology with
+`topology.cluster.x-k8s.io/defer-upgrade: ""` to keep it on the older
+kubelet. The bare-metal `stateful-worker` pools need that: their templates
+install from a fixed `pkgs.k8s.io` channel, and rolling them reinstalls the
+box under ClickHouse.
 
 ## Layout
 
@@ -27,7 +36,6 @@ clusters/
 │                              (separate /data, no Kata, per-cluster RAID;
 │                              carries ClickHouse)            (mgmt-cluster-apply.yml)
 ├── machinedrainrules.yaml     per-workload drain behaviour   (mgmt-cluster-apply.yml)
-├── cluster-preview.yaml       preview Cluster CR             (mgmt-cluster-apply.yml)
 └── workloads/                 Flux-reconciled Cluster CRs (infra/flux/mgmt/)
     ├── staging/{cluster,kustomization}.yaml
     ├── canary/{cluster,kustomization}.yaml
@@ -50,9 +58,7 @@ Two mechanisms apply these manifests, split deliberately (see
   path: the immutable `clusterclass-tuist.yaml` and `bare-metal*.yaml`
   templates (whose delete-and-apply fallback for `field is immutable` a plain
   Kustomization can't reproduce — a new `bare-metal*.yaml` is picked up by its
-  glob without touching the workflow), `machinedrainrules.yaml`, and the
-  `cluster-preview.yaml` CR (replicas mutated out-of-band by the preview
-  workflows).
+  glob without touching the workflow) and `machinedrainrules.yaml`.
   Flux never sees these files.
 
 Tenant `Cluster` CRs were migrated in from `tuist/{hive,once,atlas}`
@@ -67,7 +73,6 @@ the tenant-repo copies are then retired to a pointer.
 | `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-clickhouse: 1× AX42-1 in `fsn1` (`pool=clickhouse`, `stateful-worker`); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
 | `tuist-canary` | 3× cpx22 | md-0: 4× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: 1× OVH RISE-S in `gra` (`pool=runners-linux`) |
 | `tuist` (production) | 3× cpx32 | md-0: 5× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 6× OVH RISE-L in `gra` (`pool=runners-linux`) |
-| `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
 
 Canary's general-purpose pool runs its three CNPG instances and reserves
 capacity for deployment hooks and rolling-update surge pods. Without that
@@ -148,6 +153,94 @@ The safe prerequisite is a third pre-ordered production runner host and
 a matching replica increase. That gives the MachineDeployment spare
 capacity to create and verify a current-revision node before an old node
 is drained.
+
+## Upgrading the ClickHouse pool in place
+
+The `stateful-worker` class (`md-clickhouse`) is `OnDelete`. A new
+`topology.version` moves the MachineDeployment's template and replaces no
+Machine. Replacing a box would reinstall it, wiping `/data` and with it that
+ClickHouse replica, and would change its node name, which
+`clickhouse.managed.persistence.localVolume.nodeNames` pins the replica to.
+Each Kubernetes minor is therefore applied to the boxes in place, one box at
+a time.
+
+CAPI's Cluster webhook refuses the next `topology.version` bump until every
+Machine's `spec.version` matches its MachineDeployment
+(`validateTopologyMachineDeploymentVersions`). It reads `spec.version` and
+never the kubelet, and `spec.version` is mutable. So the procedure ends by
+recording the new version on each Machine. The Machines stay owned by their
+old MachineSet and show as not up to date, which `OnDelete` leaves alone. A
+box that is reprovisioned later joins at the template's version anyway.
+
+Everything below the PR is a human operation:
+- On canary and production it needs an elevation covering cordon, drain
+  and `kubectl debug node`, or root SSH to the box.
+- The Machine patch needs write access to the management cluster.
+
+1. Merge the Cluster CR change: drop `topology.cluster.x-k8s.io/defer-upgrade`
+   from `md-clickhouse`, or bump `topology.version` with the pool following
+   it. Wait for Flux to apply it. The MachineDeployment's
+   `spec.template.spec.version` then reads the new version, and no Machine
+   is replaced.
+2. Check both replicas are healthy first. All `tuist-tuist-clickhouse-*` pods
+   must be Ready: Ready means `/replicas_status` reports the replica caught
+   up. The PodDisruptionBudget refuses the drain otherwise, and that refusal
+   is the point. Check that the last backup CronJob runs succeeded.
+3. For **one** box (`NODE=bm-...-md-clickhouse-...`):
+
+   ```bash
+   kubectl cordon "$NODE"
+   kubectl drain "$NODE" --ignore-daemonsets --delete-emptydir-data --timeout=15m
+   # ClickHouse stops; its local PV stays on disk.
+   kubectl debug node/"$NODE" -it --profile=sysadmin --image=ubuntu:24.04 \
+     -- nsenter --target 1 --mount --uts --ipc --net --pid -- bash
+   ```
+
+   On the host, with `V` the control plane's patch version (for example
+   `1.35.10`):
+
+   ```bash
+   V=1.35.10; MINOR=${V%.*}
+   cp -a /var/lib/kubelet/config.yaml /var/lib/kubelet/kubeadm-flags.env /root/
+   curl -fsSL "https://pkgs.k8s.io/core:/stable:/v$MINOR/deb/Release.key" \
+     | gpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+   echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v$MINOR/deb/ /" \
+     > /etc/apt/sources.list.d/kubernetes.list
+   apt-get update
+   apt-mark unhold kubelet kubeadm kubectl
+   apt-get install -y kubeadm="$V-*"
+   kubeadm upgrade node
+   apt-get install -y kubelet="$V-*" kubectl="$V-*"
+   apt-mark hold kubelet kubeadm kubectl
+   systemctl daemon-reload && systemctl restart kubelet
+   # The reservations and eviction thresholds are flags in kubeadm-flags.env;
+   # both files should come back unchanged apart from version-specific defaults.
+   diff /root/kubeadm-flags.env /var/lib/kubelet/kubeadm-flags.env
+   diff /root/config.yaml /var/lib/kubelet/config.yaml
+   ```
+
+   Exit the debug shell, delete the debug pod (`kubectl get pods | grep node-debugger`),
+   and then:
+
+   ```bash
+   kubectl get node "$NODE" -o jsonpath='{.status.nodeInfo.kubeletVersion}'  # v1.35.10
+   kubectl uncordon "$NODE"
+   ```
+
+   Wait for that ClickHouse pod to be Ready again. It restarts on its own
+   data and only catches up on the writes it missed.
+4. Repeat step 3 for the other box. Never start it before the first replica
+   is Ready.
+5. On the management cluster, record the version on both Machines:
+
+   ```bash
+   for m in $(kubectl -n org-tuist get machines \
+       -l cluster.x-k8s.io/cluster-name=<cluster>,topology.cluster.x-k8s.io/deployment-name=md-clickhouse -o name); do
+     kubectl -n org-tuist patch "$m" --type merge -p '{"spec":{"version":"v1.35.10"}}'
+   done
+   ```
+
+   The next `topology.version` bump is then accepted.
 
 ## Resizing the control plane
 

@@ -8,7 +8,7 @@
 
 # Module cache {#module-cache}
 
-> [!WARNING]
+> [!IMPORTANT]
 > **Requirements**
 >
 > - A <.localized_link href="/guides/features/projects">generated project</.localized_link>. The module cache reads the project graph Tuist keeps behind `Project.swift` to hash targets and substitute their binaries.
@@ -127,7 +127,7 @@ tuist generate --cache-profile none
 ```
 
 > [!NOTE]
-> **Deprecated Flag**
+> **Deprecated flag**
 >
 > The `--no-binary-cache` flag is deprecated. Use `--cache-profile none` instead. The deprecated flag still works for backwards compatibility.
 
@@ -153,7 +153,7 @@ Test bundles remain excluded from the module cache. This means `unitTests` and `
 Cached library `.xcframework`s preserve the metadata needed by generated projects to import them, including Swift modules and public C/Objective-C headers when the source target declares public headers.
 
 > [!NOTE]
-> **Upstream Dependencies**
+> **Upstream dependencies**
 >
 > When a target is non-cacheable it makes the upstream targets non-cacheable too. For example, if you have the dependency graph `A > B`, where A depends on B, if B is non-cacheable, A will also be non-cacheable.
 
@@ -217,12 +217,12 @@ The above suggestions are part of the <.localized_link href="/guides/features/pr
 We recommend having a CI job that **runs in every commit in the main branch** to warm the cache. This will ensure the cache always contains binaries for the changes in `main` so local and CI branch build incrementally upon them.
 
 > [!TIP]
-> **Keep Cache Warming Isolated**
+> **Keep cache warming isolated**
 >
 > Run `tuist cache` in a dedicated CI step without subsequent steps that depend on the generated workspace. Since `tuist cache` modifies the workspace for cache building purposes, any CI steps that need the workspace should run `tuist generate` first to get a fresh, usable workspace.
 
 > [!TIP]
-> **Cache Warming Uses Binaries**
+> **Cache warming uses binaries**
 >
 > The `tuist cache` command also makes use of the binary cache to speed up the warming.
 
@@ -266,7 +266,7 @@ Tuist rejects a caller-owned scratch directory when a foreign build target needs
 
 ### Code coverage {#code-coverage}
 
-A target from the module cache is a prebuilt binary, and a test run measures its code only when that binary was built with coverage counters. Turn coverage on for your project in `Tuist.swift`:
+A target from the module cache is a prebuilt binary, and a test run measures its code only when that binary was built with coverage counters. This section describes how the cache handles coverage; to set up coverage end to end, see <.localized_link href="/guides/features/test-code-coverage/generated-xcode-project">Code Coverage</.localized_link>. Turn coverage on for your project in `Tuist.swift`:
 
 ```swift
 import ProjectDescription

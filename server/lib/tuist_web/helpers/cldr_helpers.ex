@@ -6,7 +6,8 @@ defmodule TuistWeb.CldrHelpers do
   @default_format %{decimal: ".", group: ",", space: ""}
   @locale_formats %{
     "es" => %{decimal: ",", group: ".", space: "\u00A0"},
-    "ru" => %{decimal: ",", group: "\u00A0", space: "\u00A0"}
+    "ru" => %{decimal: ",", group: "\u00A0", space: "\u00A0"},
+    "tr" => %{decimal: ",", group: ".", space: ""}
   }
 
   def format_number(number, opts \\ []) do

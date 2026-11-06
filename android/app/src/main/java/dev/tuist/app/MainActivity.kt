@@ -7,15 +7,21 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import dev.tuist.app.data.EnvironmentConfig
 import dev.tuist.app.data.TuistEnvironment
 import dev.tuist.app.data.auth.AuthRepository
+import dev.tuist.app.data.featureflags.FeatureFlagsRepository
 import dev.tuist.app.data.model.AuthState
+import dev.tuist.app.data.push.PushRegistrationManager
 import dev.tuist.app.navigation.TuistNavGraph
 import dev.tuist.app.ui.theme.TuistTheme
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -28,6 +34,12 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var environmentConfig: EnvironmentConfig
+
+    @Inject
+    lateinit var featureFlags: FeatureFlagsRepository
+
+    @Inject
+    lateinit var pushRegistrationManager: PushRegistrationManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,11 +57,32 @@ class MainActivity : ComponentActivity() {
             Log.d(TAG, "Environment: ${environmentConfig.current.name} (${environmentConfig.serverUrl})")
         }
 
+        // Refreshes the flags on launch, whenever the session changes, and when the app returns to the foreground.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                authRepository.authState.collectLatest { featureFlags.refresh(it) }
+            }
+        }
+
         intent?.data?.let { uri ->
             if (BuildConfig.DEBUG) {
                 Log.d(TAG, "onCreate intent data: $uri")
             }
             handleDeepLink(uri)
+        }
+
+        // Refresh the push registration on sign-in and whenever the app comes to the foreground,
+        // and forget the opt-in whenever the app ends up signed out, including an expired session.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                authRepository.authState.distinctUntilChanged().collect { state ->
+                    when (state) {
+                        is AuthState.LoggedIn -> pushRegistrationManager.requestSync()
+                        AuthState.LoggedOut -> pushRegistrationManager.forgetSignedOutState()
+                        AuthState.Authenticating -> Unit
+                    }
+                }
+            }
         }
 
         setContent {

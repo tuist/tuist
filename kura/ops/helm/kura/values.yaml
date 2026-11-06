@@ -146,6 +146,10 @@ config:
     acquireTimeoutMs: 5000
     # Leave unset to derive from the effective file descriptor pool size.
     segmentHandleCacheSize: null
+  reapi:
+    # Concurrent SpliceBlob verifications per node. Leave unset to derive from
+    # the CPU count (clamped to 4-16).
+    spliceVerificationConcurrency: null
   acceleratedFileServing:
     enabled: true
     mode: splice

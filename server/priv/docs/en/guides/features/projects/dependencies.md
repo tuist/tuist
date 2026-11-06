@@ -33,7 +33,7 @@ The intricacies and implementation details are abstracted away from you.
 In the following sections you'll learn how to declare dependencies in your project.
 
 > [!TIP]
-> **Graph Validation**
+> **Graph validation**
 >
 > Tuist validates the graph when generating the project to ensure that there are no cycles and that all the dependencies are valid. Thanks to this, any team can take part in evolving the dependency graph without worrying about breaking it.
 
@@ -53,7 +53,7 @@ When instantiating a `Target`, you can pass the `dependencies` argument with any
 - `Macro`: Declares a dependency with a Swift macro target defined in the same project (see [Swift Macros](#swift-macros)).
 
 > [!NOTE]
-> **Dependency Conditions**
+> **Dependency conditions**
 >
 > Every dependency type accepts a `condition` option to conditionally link the dependency based on the platform. By default, it links the dependency for all platforms the target supports.
 
@@ -113,7 +113,7 @@ let package = Package(
 :::
 
 > [!TIP]
-> **Package Settings**
+> **Package settings**
 >
 > The `PackageSettings` instance wrapped in a compiler directive allows you to configure how packages are integrated. For example, in the example above it's used to override the default product type used for packages. By default, you shouldn't need it. You can also use it to configure expected signatures for SwiftPM binary targets through `expectedSignatures`.
 
@@ -159,11 +159,11 @@ The `Package.swift` file is just an interface to declare external dependencies, 
 
 ```bash
 tuist install
-# Resolving and fetching dependencies. {#resolving-and-fetching-dependencies}
-# Installing Swift Package Manager dependencies. {#installing-swift-package-manager-dependencies}
+# Resolving and fetching dependencies.
+# Installing Swift Package Manager dependencies.
 ```
 
-As you might have noticed, we take an approach similar to [CocoaPods](https://cocoapods.org)', where the resolution of dependencies is its own command. This gives control to the users over when they'd like dependencies to be resolved and updated, and allows opening the Xcode in project and have it ready to compile. This is an area where we believe the developer experience provided by Apple's integration with the Swift Package Manager degrades over time as the project grows.
+As you might have noticed, we take an approach similar to [CocoaPods](https://cocoapods.org), where the resolution of dependencies is its own command. This gives control to the users over when they'd like dependencies to be resolved and updated, and allows opening the project in Xcode and have it ready to compile. This is an area where we believe the developer experience provided by Apple's integration with the Swift Package Manager degrades over time as the project grows.
 
 From your project targets you can then reference those dependencies using the `TargetDependency.external` dependency type:
 
@@ -184,7 +184,7 @@ let project = Project(
             infoPlist: .default,
             sources: ["Targets/App/Sources/**"],
             dependencies: [
-                .external(name: "Alamofire"), // [!code ++]
+                .external(name: "Alamofire"),
             ]
         ),
     ]
@@ -194,7 +194,7 @@ let project = Project(
 :::
 
 > [!NOTE]
-> **No Schemes Generated For External Packages**
+> **No schemes generated for external packages**
 >
 > The **schemes** are not automatically created for Swift Package projects to keep the schemes list clean. You can create them via Xcode's UI.
 
@@ -205,14 +205,14 @@ If you want to use Xcode's default integration mechanism, you can pass the list 
 
 ```swift
 let project = Project(name: "MyProject", packages: [
-    .remote(url: "https://github.com/krzyzanowskim/CryptoSwift", requirement: .exact("1.8.0"))
+    .package(url: "https://github.com/krzyzanowskim/CryptoSwift", .exact("1.8.0"))
 ])
 ```
 
 And then reference them from your targets:
 
 ```swift
-let target = .target(name: "MyTarget", dependencies: [
+let target: Target = .target(name: "MyTarget", destinations: .iOS, product: .framework, bundleId: "dev.tuist.MyTarget", dependencies: [
     .package(product: "CryptoSwift", type: .runtime)
 ])
 ```
@@ -220,7 +220,7 @@ let target = .target(name: "MyTarget", dependencies: [
 When integrating a Swift Macro or Build Tool Plugin from an external Swift Package through Xcode's default integration, declare it with the types `.macro` and `.plugin` respectively. Macros can also be consumed through [Tuist's XcodeProj-based integration](#tuists-xcodeprojbased-integration), and if you want to define a Swift macro of your own instead of consuming one from a package, see [Swift Macros](#swift-macros).
 
 > [!WARNING]
-> **SPM Build Tool Plugins**
+> **SPM build tool plugins**
 >
 > SPM build tool plugins must be declared using [Xcode's default integration](#xcodes-default-integration) mechanism, even when using Tuist's [XcodeProj-based integration](#tuists-xcodeprojbased-integration) for your project dependencies.
 
@@ -255,11 +255,14 @@ import ProjectDescription
 let project = Project(
     name: "Framework",
     packages: [
-        .remote(url: "https://github.com/SimplyDanny/SwiftLintPlugins", requirement: .upToNextMajor(from: "0.56.1")),
+        .package(url: "https://github.com/SimplyDanny/SwiftLintPlugins", from: "0.56.1"),
     ],
     targets: [
         .target(
             name: "Framework",
+            destinations: .iOS,
+            product: .framework,
+            bundleId: "dev.tuist.Framework",
             dependencies: [
                 .package(product: "SwiftLintBuildToolPlugin", type: .plugin),
             ]
@@ -280,7 +283,7 @@ tuist generate
 ```
 
 > [!WARNING]
-> **Build And Test**
+> **Build and test**
 >
 > If you build and test your project through `xcodebuild build` and `tuist test`, you will similarly need to ensure that the Carthage-resolved dependencies are present by running the `carthage update` command before building or testing.
 
@@ -416,7 +419,7 @@ Since the build system and Tuist have no way of inferring whether the flag is ne
 
 Consumers of Objective-C dependencies (or internal Objective-C targets) should apply `-ObjC` or `-force_load` flags when required by setting `OTHER_LDFLAGS` on consuming targets.
 
-### Firebase & Other Google Libraries {#firebase-other-google-libraries}
+### Firebase and other Google libraries {#firebase-other-google-libraries}
 
 Google's open source libraries — while powerful — can be difficult to integrate within Tuist as they often use non-standard architecture and techniques in how they are built.
 
@@ -436,7 +439,7 @@ Target.target(
 )
 ```
 
-Refer to the [Objective-C Dependencies](#objective-c-dependencies) section above for more details.
+Refer to the [Objective-C Dependencies](#objectivec-dependencies) section above for more details.
 
 #### Set the product type for `FBLPromises` to dynamic framework {#set-the-product-type-for-fblpromises-to-dynamic-framework}
 
@@ -476,7 +479,7 @@ When linking statically, test and app targets typically work without any issues,
 Following configuration will link everything dynamically - so app + test targets and SwiftUI previews are working.
 
 > [!TIP]
-> **Static Or Dynamic**
+> **Static or dynamic**
 >
 > Dynamic linking is not always recommended. See the section [Static or dynamic](#static-or-dynamic) for more details. In this example, all dependencies are linked dynamically without conditions for simplicity.
 

@@ -16,9 +16,13 @@ enum PreviewsViewModelError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .trackFilteringUnsupported:
-            "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks."
+            String(
+                localized: "This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks."
+            )
         case .searchUnsupported:
-            "This server does not support searching previews. Update your self-hosted Tuist server, or clear the search."
+            String(
+                localized: "This server does not support searching previews. Update your self-hosted Tuist server, or clear the search."
+            )
         }
     }
 }

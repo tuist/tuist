@@ -5,6 +5,7 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   alias Tuist.ClickHouseRepo
   alias Tuist.GitHistory
   alias Tuist.KeyValueStore
+  alias Tuist.TestImpactAnalysis.Input
   alias Tuist.Tests
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Coverage.Commits
@@ -262,6 +263,29 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "measured", covered_lines: 5, executable_lines: 7, skipped_tests_count: 0} =
              Reported.compute(project, "base")
+  end
+
+  test "carries a skipped test from the version test selection resolves for the same blobs", %{
+    project: project,
+    account: account
+  } do
+    base = base_run(project, account)
+    head_run(project, account, head_files())
+    CoverageFixtures.seed_listing(account, "head", ["Sources/Math.swift", "Sources/Text.swift", "Tests/AppTests.swift"])
+
+    assert %{carried_tests_count: 1, carried_from: ["base"]} = Reported.compute(project, "head")
+
+    # With nothing changed, selection reads the head's blobs, as carry does.
+    input =
+      Input.load(project,
+        repository_id: Reported.repository_id(project.id, "head"),
+        baseline_sha: "head",
+        baseline_run_ids: [base.id]
+      )
+
+    trim = Enum.find(input.tests, &(&1.name == "testTrim()"))
+    assert %{reproduced: %{sha: "base", run_id: run_id}} = Input.evidence(input, trim.test_case_id)
+    assert run_id == base.id
   end
 
   test "carries a skipped test's lines from the nearest ancestor run that holds its evidence", %{

@@ -6,7 +6,8 @@ Staging ran this branch's server (`sha-fd5dca456951`) with the
 `KURA_VOLUME_TRANSPORT_KEYS` item and pinned public key, the CSI digest
 `sha256:b47cc008cd8dbb10b5863f757452de31fc30ed316f54625c5b8970e249d19772`,
 controller `sha-3ac7fcc8bd9d` and runtime `sha-6baa9ccacd17`. A 32 GiB thin pool
-was prepared on the Paris node with `prepare_pool.rb`; the source was a legacy
+was prepared on the Paris node with `prepare_pool.rb` (since replaced by the
+driver's `prepare-pool` subcommand); the source was a legacy
 `scw-local-nvme` fixture on the Canada node, a different host. The fixture had
 authorization and usage reporting off and an archived `Kura.Server` row so the
 key service could resolve its account. The in-cluster rollout probe ran an
@@ -125,8 +126,8 @@ a fresh hosted staging rehearsal or a production performance measurement.
 
 ## Active encryption objective and unqualified thin candidate
 
-Encryption at rest with per-tenant keys and OpenBao remains the objective of
-#14152, including rack nodes. Disk sharing in #14825 is a separate workstream
+Encryption at rest with per-tenant keys remains the objective of #14152,
+including rack nodes. Disk sharing in #14825 is a separate workstream
 whose future reclamation/accounting needs constrain the encryption layout.
 The earlier decision below to defer encryption was a scope error and is
 superseded. Shared XFS without tenant encryption does not satisfy this work.
@@ -135,7 +136,7 @@ The tested thin implementation is still not a rollout candidate. Preserve its
 performance and physical-allocation failures while selecting a layout that
 supports safe future redistribution without routine volume replacement or
 permanent full-ceiling backing. Reopening the encryption draft does not waive
-those gates or establish permanent OpenBao custody. The shared-XFS benchmarks
+those gates or establish root-key custody. The shared-XFS benchmarks
 and no-node-reboot rollout in #14825 do not qualify an encrypted implementation.
 
 ## Fresh qualification and sharing compatibility — 2026-10-28
@@ -206,7 +207,7 @@ by this run. Raw JSON and driver logs are the workflow's `thin-stack-64` and
 
 ### Relationship to existing staging benchmarks
 
-This run did **not** recreate the hosted staging benchmark or deploy OpenBao.
+This run did **not** recreate the hosted staging benchmark.
 A read-only staging inventory found the original workloads and CSI pods running.
 No staging or production resources were changed. The prior encrypted staging
 evidence below remains relevant: the current Kura source matches tested runtime
@@ -223,7 +224,7 @@ plaintext sharing benchmarks in #14825 cannot replace either comparison.
 
 The release decision remains **hold**: establish a physically bounded,
 transferable grant model before committing to this layout, then benchmark and
-rehearse that final encrypted implementation with OpenBao on staging. Do not
+rehearse that final encrypted implementation on staging. Do not
 move this unresolved storage problem into #14825 or relax pool containment to
 make its admission policy appear compatible.
 
@@ -310,8 +311,7 @@ The migration fixture reduced its claim to 4 GiB but retained the rendered
 5,728,412,631-byte CAS budget. Its approximately 2 GiB retained workload stayed
 inside the grant; this is not a full-capacity budget-alignment test. The final
 paired performance fixtures explicitly set both cache budgets to 4 GiB.
-The live key provider was `tuist_root`; this rehearsal does not requalify OpenBao
-custody. Prior OpenBao evidence remains a separate deployment/operational gate.
+The live key provider was `tuist_root`.
 
 ### Packaged metadata checking
 
@@ -415,8 +415,9 @@ present on both one-CPU fixtures; these are workload comparisons under the same
 limits, not storage-only latency measurements. Each served 543,424,512 measured
 artifact bytes. Retained cache directories were 3.24–3.78 GB as segment eviction
 rotated; request bytes and cache budget matched, not the incidental ring phase.
-CPU/memory figures describe the runtime cgroup, not total host, CSI or OpenBao
-cost. They do not establish a tenant-density or regional-memory projection.
+CPU/memory figures describe the runtime cgroup, not total host, CSI or key
+service cost. They do not establish a tenant-density or regional-memory
+projection.
 Short ranges and page-cache hits do not prove statistical equivalence. These
 results replace the earlier runtime `532db7a28be5` application results as the
 current candidate comparison.
@@ -541,12 +542,12 @@ fails, with both direct random-read loss and application-level small-write/read
 tail increases. Further sector, chunk and queue/concurrency experiments did not
 remove the raw loss. A staged rollout limits exposure but cannot waive that gate.
 
-Permanent OpenBao custody/audit/off-cluster recovery, real populated-thick-volume
-multi-host migration, a host reboot, physical rack installation and public-ingress/
-gRPC continuity still need their own qualification before the corresponding
-production phase. This report does not infer those results from colocated final
-replicas or direct HTTP traffic. The node-by-node rollout and rollback procedure
-remains in [the storage interface](interface.md) and
+Real populated-thick-volume multi-host migration, a host reboot, physical rack
+installation and public-ingress/gRPC continuity still need their own
+qualification before the corresponding production phase. This report does not
+infer those results from colocated final replicas or direct HTTP traffic. The
+node-by-node rollout and rollback procedure remains in
+[the storage interface](interface.md) and
 [handoff runbook](../../kura-controller/thin-migration.md).
 
 ### Integration checks
@@ -554,16 +555,16 @@ remains in [the storage interface](interface.md) and
 Main `3552a2c78f4` is integrated. Three guidance-file conflicts retained both
 main's maintenance/KVM instructions and the storage contract. The merge changed
 no Kura runtime, controller or CSI implementation. Full controller and CSI Go
-tests/vet passed again, as did the OpenBao/CSI Helm checks, managed rack-release
+tests/vet passed again, as did the security/CSI Helm checks, managed rack-release
 isolation and `git diff --check`.
 
 After the required server dependency installation, **110 focused tests passed**
-for key management, the OpenBao provider, HKDF, internal endpoint authorization
+for key management, the share providers, HKDF, internal endpoint authorization
 and environment configuration. Hex also selected `websock_adapter` 0.7.0 over
 the upstream 0.6.0 lock; repeating with that dependency's local checkout removed
 still requested the same change. Only that lock entry was refreshed. A subsequent
 `MIX_ENV=test mix deps.get --check-locked` passed and all 110 tests passed again.
-These checks validate integration, not a new permanent OpenBao deployment.
+These checks validate integration, not a deployment.
 
 ### Additional random-read investigation
 
@@ -770,11 +771,11 @@ legacy migration fixture. Do not claim that the connection-cohort receipt is a
 data-transfer receipt or that this rehearsal qualifies zero-error migration.
 
 The live key path used **`tuist_root`**, with projected-token/node/account
-ownership checks and sealed transport. It does not requalify OpenBao custody.
-Actual thick-to-thin physical migration, single-copy standby, host reboot,
-public ingress/HTTP2/gRPC continuity and real pool metadata exhaustion remain
-outside this rehearsal. Thick-to-thin controller unit tests are separate from
-physical migration evidence.
+ownership checks and sealed transport. Actual thick-to-thin physical
+migration, single-copy standby, host reboot, public ingress/HTTP2/gRPC
+continuity and real pool metadata exhaustion remain outside this rehearsal.
+Thick-to-thin controller unit tests are separate from physical migration
+evidence.
 
 ### Cleanup and release decision
 
@@ -981,9 +982,8 @@ isolated fixture files; never drop host caches on a shared node.
   replace physical accounting.
 
 This run used the live server's **`tuist_root`** wrapping provider (fixture key
-version 1). It validates the real key-service/CSI path but does **not** requalify
-OpenBao custody. Earlier OpenBao-specific evidence remains separate. No keys,
-projected tokens or ciphertext were printed or exported for inspection.
+version 1). It validates the real key-service/CSI path. No keys, projected
+tokens or ciphertext were printed or exported for inspection.
 
 ### Migration outcome: storage completed, continuity gate failed
 
@@ -1212,4 +1212,4 @@ projections for the qualified thin geometry and final runtime sizing policy.
 Host bootstrap/reboot, genuine pool metadata exhaustion, and an actual populated
 thick-to-thin migration across prepared hosts remain separate qualification gates.
 The staging fixture uses legacy file-backed encrypted storage as its source.
-Neither this run nor the older thick/OpenBao evidence qualifies every topology.
+Neither this run nor the older thick-volume evidence qualifies every topology.

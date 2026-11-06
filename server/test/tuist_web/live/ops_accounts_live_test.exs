@@ -19,6 +19,18 @@ defmodule TuistWeb.OpsAccountsLiveTest do
     %{conn: conn, user: user}
   end
 
+  test "a revoked operations session reloads into login and retains its destination", %{conn: conn} do
+    path = "/ops/accounts?search=example"
+    {:ok, view, _} = live(conn, path)
+    conn |> get_session(:user_token) |> Accounts.delete_user_session_token()
+    send(view.pid, :check_browser_session)
+    assert_redirect(view, path)
+
+    challenged = conn |> recycle() |> get(path)
+    assert redirected_to(challenged) == ~p"/users/log_in"
+    assert get_session(challenged, :user_return_to) == path
+  end
+
   test "lists accounts with their plan", %{conn: conn, user: user} do
     # Given
     organization = AccountsFixtures.organization_fixture(name: "acme")

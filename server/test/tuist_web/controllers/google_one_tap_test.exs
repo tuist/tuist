@@ -22,6 +22,9 @@ defmodule TuistWeb.GoogleOneTapTest do
     stub(Environment, :google_auth_enabled?, fn -> true end)
     stub(Environment, :google_oauth_configured?, fn -> true end)
     stub(Environment, :google_oauth_client_id, fn -> "tuist-client" end)
+    # The existing users here registered with a password on an instance that
+    # confirms emails; skipping confirmation refuses to link them by email.
+    stub(Environment, :skip_email_confirmation?, fn -> false end)
     %{claims: %{"sub" => "google-user", "email" => "one-tap@gmail.com", "email_verified" => true}}
   end
 

@@ -204,6 +204,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
   test "shows workload identities directly for personal accounts without SSO or SCIM", %{conn: conn, user: user} do
     {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
+    assert has_element?(lv, ~s([data-part=mfa-card] a[href="/users/settings/mfa"]))
     assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
     lv |> element("#oidc-configuration-toggle") |> render_click()
     refute has_element?(lv, "#oidc-trust-policy-form[hidden]")
@@ -231,8 +232,10 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   end
 
   test "hides provider options when SSO is disabled", %{conn: conn, account: account} do
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
     refute html =~ "SSO provider"
+    # Two-factor authentication is personal, so organizations don't show it.
+    refute has_element?(lv, "[data-part=mfa-card]")
   end
 
   test "shows provider options when SSO is enabled via toggle", %{conn: conn, account: account} do

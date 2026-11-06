@@ -5,7 +5,7 @@ defmodule Tuist.Runners.GitLab.Client do
 
   # Keep aligned with infra/linux-runner-image/gitlab-runner/go.mod. Advertise only features
   # supported by the shell executor in our isolated runner images.
-  @version "18.11.1"
+  @version "19.5.2"
   @max_response_bytes 16 * 1024 * 1024
 
   def request_job(connection) do

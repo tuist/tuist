@@ -105,6 +105,12 @@ server:
       enabled: true
     originAppKey:
       enabled: true
+    apns:
+      enabled: true
+    fcm:
+      enabled: true
+    entirePluginKey:
+      enabled: true
     atlasEmail:
       enabled: true
     # Point server error reporting at the Atlas error-tracking ingest
@@ -134,8 +140,10 @@ server:
     prices:
       # macOS is billable. 6000000 compute-unit milliseconds (100 minutes
       # on the 6 vCPU / 14 GB baseline) are free, and beyond that each
-      # millisecond costs 0.0001 cents, which is $0.06 per baseline
-      # machine-minute.
+      # millisecond costs 0.000083333333 cents, which is $0.05 per baseline
+      # machine-minute. That is 1/12,000 of a cent, which repeats, so the
+      # amount is cut at the 12 decimals Stripe accepts: a cent less per 50
+      # million minutes.
       #
       # The 100 included minutes must stay in step with the free
       # allowance: this Price decides what is charged, and
@@ -150,8 +158,8 @@ server:
       # line reads in milliseconds. The dashboard renders minutes.
       #
       # The Linux Price is graduated the same way: 150000000 compute-unit
-      # milliseconds (2,500 minutes on the 2 vCPU / 8 GB baseline, worth the
-      # same $6 as the macOS allowance) are free, and beyond that each
+      # milliseconds (2,500 minutes on the 2 vCPU / 8 GB baseline, worth $6
+      # against the $5 macOS allowance) are free, and beyond that each
       # millisecond costs 0.000004 cents, which is $0.0024 per baseline
       # machine-minute and $0.001 on the 1 vCPU / 2 GB machine. The free
       # tier must stay in step with TUIST_RUNNER_LINUX_FREE_MONTHLY_MINUTES,
@@ -172,7 +180,10 @@ server:
       # and the renewal schedules have moved every item off it.
       runners:
         runner_linux_compute_unit_milliseconds: "price_1UXkpzLWue9IBlPSCGV7NlAg"
-        runner_macos_compute_unit_milliseconds: "price_1UXO5iLWue9IBlPSX793RSDB"
+        runner_macos_compute_unit_milliseconds: "price_1UY5HTLWue9IBlPSxLGHE0iW"
+      retired_runners:
+        runner_macos_compute_unit_milliseconds:
+          - "price_1UXO5iLWue9IBlPSX793RSDB"
       # Usage-based pricing meters: the Prices cache and test insights usage
       # is billed on. Checkout adds them to every paid subscription.
       # Provisioned in the live Stripe account by
@@ -217,6 +228,11 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
+    # Registered production plugin; its private signing key stays in ESO.
+    - name: TUIST_ENTIRE_PLUGIN_SLUG
+      value: tuist
+    - name: TUIST_ENTIRE_DELIVERY_JWKS_URL
+      value: https://us-east-2.entire-ci-webhooks.entire.io/.well-known/jwks.json
     # Keep clients on the existing registry base address while the Worker
     # moves its origin from the cache nodes to the standalone frontend.
     - name: TUIST_REGISTRY_URL
@@ -240,6 +256,10 @@ server:
     # runner_site_cache flag enables get a node there.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-west,us-east,us-west,ap-southeast,sa-west,eu-east,us-central,scw-fr-par-runners,ber1-runners
+    # The remote-execution chart's gateway Ingress host, which accounts'
+    # Bazel workspaces use as --remote_executor (capabilities API).
+    - name: TUIST_REMOTE_EXECUTION_ENDPOINT
+      value: grpcs://execution.tuist.dev
     # Wave 0 (canary) of a progressive Kura runtime rollout: Tuist-owned
     # accounts, and only those (spec #79).
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
@@ -422,11 +442,12 @@ pdcAgent:
   # single replica would make a node drain take every PDC-routed panel down.
   # Three is Grafana's production recommendation.
   replicas: 3
-  # Pin the tunnel to the CNPG read-only service and the ClickHouse HTTP port.
+  # Pin the tunnel to CNPG, ClickHouse and the private Pulse query endpoint.
   # Without this the agent permits any destination reachable from its pod.
   permitRemoteOpen:
     - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
     - tuist-tuist-clickhouse.tuist.svc.cluster.local:8123
+    - pulse.observability.svc.cluster.local:4000
 
 capi:
   ovhRunnerEgress:
@@ -525,7 +546,10 @@ kuraVolumesCSI:
   enabled: true
   # Public half of this environment's KURA_VOLUME_TRANSPORT_KEYS item.
   keyServicePublicKey: PCj63J/Ahkzb6ST6Pve32eQARfY0L7zB/EhR+MjwmVw=
-  thinRegions: []
+  # eu-west's thin-ready node is qvv7x-ndgzl (lvm-v1 since 2026-11-05). Only
+  # accounts on the kura_thin_volumes flag move; listing the region changes no
+  # other manifest.
+  thinRegions: [eu-west]
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
@@ -1151,10 +1175,11 @@ ovhFleets:
   # region out of service without touching the box.
   eu-east:
     enabled: true
-    # Three boxes: two Advance-1-2024 plus ns3128245 (Advance-1-2026, 2026-10-19).
-    # At two the region reserved 1228 GiB against an admission line of 1267, so
-    # Admission refused every storage claim growth for the accounts it hosts.
-    replicas: 3
+    # Four boxes: three Advance-1-2024 (ns3263234 added 2026-11-03) plus ns3128245
+    # (Advance-1-2026, 2026-10-19). At three the region's admission headroom was
+    # down to 4 GiB, so placement expansions and claim growths for the accounts it
+    # hosts were refused.
+    replicas: 4
     nodePool: kura-eu-east
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-eu-east
@@ -1171,16 +1196,27 @@ ovhFleets:
     # two the region reserved 1292 GiB against an admission line of 1303 (85% of
     # allocatable), so Admission refused every storage claim growth here — and a
     # claim is account-scoped, so that refusal also blocked the regions the same
-    # accounts run in that did have room.
-    replicas: 4
+    # accounts run in that did have room. The fifth (2026-11) is an Advance-2
+    # (EPYC 4344P, 4x960 GB): Advance-1 2024 was out of stock in Vint Hill, and
+    # admission was refusing new instances with 56 GiB of headroom left.
+    #
+    # Change offer and replicas in separate deploys. Helm patches the
+    # MachineDeployment before the OVHDedicatedMachineTemplate, and CAPI cloned
+    # the fifth Machine 65 ms after the scale-up, still with offer advance-1. It
+    # never matched the Advance-2, and the release rolled back on the
+    # MachineDeployment wait (2026-11-04).
+    replicas: 5
     endpoint: ovh-us
     nodePool: kura-us-east
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-production-us-east
-      offer: advance-1
+      # Substring of the box's commercialRange, so this adopts the Advance-1
+      # boxes and the Advance-2 one alike. The displayName prefix, set only by
+      # baremetal:prep-ovh, is what keeps other boxes out of the pool.
+      offer: advance
       datacenter: vin
       os: ubuntu_24.04
-      # Node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
+      # Node egress budget (Mbps): Advance-1 and Advance-2 ~3 Gbit/s, advertised as
       # tuist.dev/egress-mbps so the scheduler bin-packs the 25-Mbps-floor pods
       # (@enterprise_egress_floor_mbps).
       egressBudgetMbps: 3000
@@ -2097,7 +2133,7 @@ runnersFleet:
   # the largest working set ever measured.
   #
   # Priced at 2x the baseline, which is exactly what that multiplier
-  # already produces: $0.12 per machine-minute on demand, against $0.06
+  # already produces: $0.10 per machine-minute on demand, against $0.05
   # for the 6 vCPU shape. No Stripe work is needed for it. Usage is
   # reported gross into the single macOS meter weighted by
   # `Catalog.billing_multiplier/3`, and prepaid is a money-denominated
@@ -2175,6 +2211,11 @@ runnersFleet:
   # one. Revisit once we open the runners to general signups where the
   # pool mix is unpredictable in advance.
   xcodeOverrides:
+    "27.3-beta":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 16
     "27.2":
       autoscaling:
         enabled: true
@@ -2293,9 +2334,10 @@ buildersFleet:
 # Firecracker sandboxes for coding-agent sessions, on the OVH RISE-L boxes that
 # also host the Linux runner pool. No memory is set aside for sandboxes: each
 # box's daemon starts at the chart's 1 GiB floor, which holds no sandbox, and
-# grows up to 32 GiB as sandboxes need memory no running job holds. 100 GiB of disk holds four default sessions with a 10 GB workspace,
-# running or paused. The kata runner pools keep the rest. Accounts reach
-# sandboxes only through the `sandboxes` feature flag.
+# grows up to 32 GiB as sandboxes need memory no running job holds. 200 GiB of
+# disk holds seven default sessions with a 10 GB workspace, running or paused,
+# and fewer when the box also keeps disk snapshots. The kata runner pools keep
+# the rest. Accounts reach sandboxes only through the `sandboxes` feature flag.
 sandboxes:
   # Deploy the daemon; account access is controlled by the `sandboxes` flag.
   enabled: true
@@ -2311,7 +2353,8 @@ sandboxes:
       value: bare-metal
       effect: NoSchedule
   maxMemoryGiB: 32
-  diskGiB: 100
+  diskGiB: 200
+  archiveAfterHours: 24
   networkPolicy:
     # Amp Orb archives go to the in-rack shard-storage release.
     archiveStoreEgress: true

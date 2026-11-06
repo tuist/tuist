@@ -95,6 +95,34 @@ defmodule TuistWeb.AgentAuthControllerTest do
                Repo.get!(AgentRegistration, String.replace_prefix(response["registration_id"], "reg_", ""))
     end
 
+    test "claiming an unconfirmed account by code drops the password set before confirmation", %{conn: conn} do
+      email = AccountsFixtures.unique_user_email()
+      password = "StrongP@ssword!2036"
+      squatted = AccountsFixtures.user_fixture(email: email, password: password, confirmed_at: nil)
+
+      response =
+        conn
+        |> post("/agent/auth", %{"type" => "anonymous", "requested_credential_type" => "api_key"})
+        |> json_response(200)
+
+      post(build_conn(), "/agent/auth/claim", %{"claim_token" => response["claim_token"], "email" => email})
+      assert_delivered_email_matches(%{to: [{_, ^email}], html_body: html_body})
+
+      otp =
+        build_conn()
+        |> get("/agent/auth/claim/view", %{"token" => extract_claim_view_token(html_body)})
+        |> html_response(200)
+        |> extract_otp()
+
+      complete_conn =
+        post(build_conn(), "/agent/auth/claim/complete", %{"claim_token" => response["claim_token"], "otp" => otp})
+
+      assert json_response(complete_conn, 200)["status"] == "claimed"
+      claimed = Accounts.get_user_by_id(squatted.id)
+      assert claimed.confirmed_at
+      refute Tuist.Accounts.User.valid_password?(claimed, password)
+    end
+
     test "registers an anonymous API key and claims it later", %{conn: conn} do
       email = AccountsFixtures.unique_user_email()
 
@@ -178,6 +206,27 @@ defmodule TuistWeb.AgentAuthControllerTest do
 
       assert %AuthenticatedAccount{issued_by: %{email: ^email}} =
                Authentication.authenticated_subject(response["credential"])
+    end
+
+    test "an agent-verified ID-JAG for an existing account disconnects the sessions its proof ends", %{conn: conn} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
+      stub(Tuist.Environment, :operator_email_domain, fn -> "tuist.io" end)
+      squatted = AccountsFixtures.user_fixture(email: AccountsFixtures.unique_user_email())
+      TuistWeb.Endpoint.subscribe(Tuist.Accounts.UserToken.live_socket_id(Accounts.generate_user_session_token(squatted)))
+      {provider, assertion} = id_jag(squatted.email, "jti-existing-#{squatted.id}")
+      stub(Tuist.Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      conn =
+        post(conn, "/agent/auth", %{
+          "type" => "identity_assertion",
+          "assertion_type" => "urn:ietf:params:oauth:token-type:id-jag",
+          "assertion" => assertion,
+          "requested_credential_type" => "access_token"
+        })
+
+      assert json_response(conn, 200)
+      assert_received %Phoenix.Socket.Broadcast{event: "disconnect"}
     end
 
     test "rejects replayed ID-JAG assertions", %{conn: conn} do

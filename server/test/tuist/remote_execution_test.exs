@@ -1,0 +1,489 @@
+defmodule Tuist.RemoteExecutionTest do
+  # Schedulers are globally registered processes whose tasks reach the
+  # database and node stubs from outside the test process.
+  use TuistTestSupport.Cases.DataCase, async: false
+  use Mimic
+
+  import TuistTestSupport.Fixtures.ProjectsFixtures
+
+  alias Tuist.Cache
+  alias Tuist.FeatureFlags
+  alias Tuist.Kura
+  alias Tuist.RemoteExecution
+  alias Tuist.RemoteExecution.Scheduler
+  alias Tuist.RemoteExecution.VMs
+  alias Tuist.Sandboxes.Nodes
+  alias Tuist.Sandboxes.Sandbox
+
+  setup :set_mimic_global
+
+  @image "sha-" <> String.duplicate("a", 40)
+  @hash String.duplicate("a", 64)
+
+  setup do
+    project = project_fixture()
+    stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _ -> true end)
+    stub(Cache, :issue_cache_token, fn _project, _opts -> {:ok, "scoped-credential", %{}} end)
+
+    stub(Nodes, :connected_nodes, fn ->
+      [
+        %{
+          name: "reserved-linux",
+          execution_deadlines: true,
+          execution_slots: 4,
+          capacity: %{cpus: 8, memory_bytes: 32 * 1024 * 1024 * 1024},
+          templates: [%{name: "bazel", tag: @image, ready: true}],
+          disk: %{}
+        }
+      ]
+    end)
+
+    stub(Kura, :runner_cache_endpoint_url, fn _account, :linux -> "https://cache.example" end)
+    {:ok, _settings} = configure(project, max_concurrency: 2)
+
+    on_exit(fn ->
+      if pid = Scheduler.whereis(project.account_id) do
+        try do
+          GenServer.stop(pid)
+        catch
+          :exit, _ -> :ok
+        end
+      end
+    end)
+
+    %{project: project}
+  end
+
+  # Limits that hold `max_concurrency` VMs of 2 vCPUs and 4 GB.
+  defp configure(project, max_concurrency: vms) do
+    {:ok, account} =
+      RemoteExecution.update_limits(project.account, %{
+        remote_execution_vcpus_limit: vms * 2,
+        remote_execution_memory_gb_limit: vms * 4
+      })
+
+    RemoteExecution.available_settings(account.id)
+  end
+
+  # Records every node command and answers exec with `result`, optionally
+  # holding the action until the test releases it.
+  defp stub_node(result \\ %{"response" => Base.encode64(<<10, 0>>), "cacheable" => true}, opts \\ []) do
+    test = self()
+
+    stub(Nodes, :call, fn "reserved-linux", command, args, call_opts ->
+      send(test, {:node, command, args})
+
+      case command do
+        "exec" when is_map_key(args, :claim) ->
+          send(test, {:claim_pending, self()})
+          receive do: ({:claim, outcome} -> outcome)
+
+        "exec" ->
+          if args.cmd == ["/usr/local/bin/sbx-executor"], do: run_action(test, call_opts, result, opts)
+          {:ok, %{"exit_code" => 0}}
+
+        "delete" ->
+          Keyword.get(opts, :delete, {:ok, %{}})
+
+        _ ->
+          {:ok, %{}}
+      end
+    end)
+  end
+
+  defp run_action(test, call_opts, result, opts) do
+    if opts[:hold] do
+      send(test, {:holding, self()})
+      receive do: (:release -> :ok)
+    end
+
+    call_opts[:on_stream].({:stdout, JSON.encode!(result) <> "\n"})
+  end
+
+  defp vm_rows(project),
+    do: Repo.all(from(s in Sandbox, where: s.account_id == ^project.account_id and s.purpose == :remote_execution))
+
+  defp eventually(fun, attempts \\ 100) do
+    cond do
+      fun.() ->
+        :ok
+
+      attempts == 0 ->
+        flunk("condition not reached")
+
+      true ->
+        Process.sleep(20)
+        eventually(fun, attempts - 1)
+    end
+  end
+
+  defp submit(project, params \\ %{}, opts \\ [wait: 5_000]),
+    do: RemoteExecution.submit(project, Map.merge(%{"hash" => @hash, "size" => 10}, params), opts)
+
+  test "runs an action in a fresh VM and returns the result before deleting it", %{project: project} do
+    stub_node()
+
+    assert {:ok, %{done: true, state: "completed"} = operation} = submit(project)
+    assert operation.response == Base.encode64(<<10, 0>>)
+    assert %{cacheable: true, action_hash: @hash, action_size: 10, cas_endpoint: "grpcs://cache.example:443"} = operation
+
+    assert_received {:node, "create", %{template_tag: @image, expires_at_unix: expires}}
+    assert expires > DateTime.to_unix(DateTime.utc_now())
+    assert_received {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"], env: env}}
+    assert env["SBX_EXECUTION_TOKEN"] == "scoped-credential"
+
+    assert %{"hash" => @hash, "image" => @image, "instance" => instance} = JSON.decode!(env["SBX_EXECUTION_REQUEST"])
+    assert instance == project.name
+
+    assert_receive {:node, "delete", %{sandbox_id: used}}
+    eventually(fn -> Enum.all?(vm_rows(project), &(&1.id != used)) end)
+  end
+
+  test "results that must not be cached are returned without publication details", %{project: project} do
+    stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => false})
+
+    assert {:ok, %{done: true} = operation} = submit(project)
+    refute Map.has_key?(operation, :cacheable)
+    refute Map.has_key?(operation, :cas_endpoint)
+  end
+
+  test "identical in-flight actions of a project share one operation", %{project: project} do
+    stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => true}, hold: true)
+
+    assert {:ok, %{id: id, done: false}} = submit(project, %{}, wait: 0)
+    assert {:ok, %{id: ^id}} = submit(project, %{}, wait: 0)
+    assert {:ok, %{id: other}} = submit(project, %{"skip_cache" => true}, wait: 0)
+    assert other != id
+
+    another_project = project_fixture(account: project.account)
+    assert {:ok, %{id: separate}} = submit(another_project, %{}, wait: 0)
+    refute separate in [id, other]
+    assert {:error, :not_found} = RemoteExecution.await(another_project, id, nil)
+
+    for _ <- 1..3 do
+      assert_receive {:holding, task}, 2_000
+      send(task, :release)
+    end
+
+    assert {:ok, %{id: ^id, done: true}} = RemoteExecution.await(project, id, "executing")
+  end
+
+  test "operations of a scheduler that is gone are not found", %{project: project} do
+    assert {:error, :not_found} = RemoteExecution.await(project, Ecto.UUID.generate(), "queued")
+    assert {:error, :not_found} = RemoteExecution.await(project, "not-a-uuid", "queued")
+  end
+
+  test "VMs hold account capacity until their deletion is acknowledged", %{project: project} do
+    {:ok, settings} = configure(project, max_concurrency: 1)
+    assert {:ok, row} = VMs.reserve(project.account_id, settings)
+    assert {:error, :busy} = VMs.reserve(project.account_id, settings)
+
+    expect(Nodes, :call, fn _, "delete", _, _ -> {:error, :timeout} end)
+    assert {:error, :timeout} = VMs.destroy(%{row | node_name: "reserved-linux"})
+    assert {:error, :busy} = VMs.reserve(project.account_id, settings)
+
+    expect(Nodes, :call, fn _, "delete", %{sandbox_id: id}, _ -> {:ok, %{"id" => id}} end)
+    assert :ok = VMs.destroy(%{row | node_name: "reserved-linux"})
+    assert {:ok, _row} = VMs.reserve(project.account_id, settings)
+  end
+
+  test "an action waits while the account's only VM is still being deleted", %{project: project} do
+    {:ok, _} = configure(project, max_concurrency: 1)
+    # The first VM's deletion is not acknowledged before the second action.
+    stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => true}, delete: {:error, :timeout})
+    assert {:ok, %{done: true}} = submit(project)
+    assert {:ok, %{done: false, state: "queued", id: id}} = submit(project, %{"size" => 11}, wait: 200)
+
+    stub_node()
+    [row] = vm_rows(project)
+    send(Scheduler.whereis(project.account_id), {:destroy, row.id})
+    assert {:ok, %{id: ^id}} = RemoteExecution.await(project, id, "queued", wait: 5_000)
+    assert {:ok, %{id: ^id, done: true}} = RemoteExecution.await(project, id, "executing", wait: 5_000)
+    assert_receive {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"]}}
+  end
+
+  test "an action no node has room for runs as soon as the account frees one", %{project: project} do
+    stub(Nodes, :connected_nodes, fn ->
+      [
+        %{
+          name: "reserved-linux",
+          execution_deadlines: true,
+          execution_slots: 1,
+          capacity: %{cpus: 8, memory_bytes: 32 * 1024 * 1024 * 1024},
+          templates: [%{name: "bazel", tag: @image, ready: true}],
+          disk: %{}
+        }
+      ]
+    end)
+
+    # The account has room for a second VM, but the node is still deleting the first.
+    stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => true}, delete: {:error, :timeout})
+    assert {:ok, %{done: true}} = submit(project)
+    assert {:ok, %{done: false, state: "queued", id: id}} = submit(project, %{"size" => 11}, wait: 300)
+
+    stub_node()
+    [row] = Enum.filter(vm_rows(project), & &1.node_name)
+    send(Scheduler.whereis(project.account_id), {:destroy, row.id})
+    assert {:ok, %{id: ^id}} = RemoteExecution.await(project, id, "queued", wait: 2_000)
+    assert {:ok, %{id: ^id, done: true}} = RemoteExecution.await(project, id, "executing", wait: 2_000)
+  end
+
+  test "the warm pool follows demand below its ceiling", %{project: project} do
+    {:ok, _} = configure(project, max_concurrency: 8)
+    stub_node()
+    assert {:ok, %{done: true}} = submit(project)
+
+    # One recent action needs one ready VM plus one in reserve, not the ceiling.
+    eventually(fn -> length(vm_rows(project)) == 2 end)
+    Process.sleep(300)
+    assert length(vm_rows(project)) == 2
+  end
+
+  test "a warm VM is kept ready and taken by the next action", %{project: project} do
+    {:ok, _} = configure(project, max_concurrency: 1)
+    stub_node()
+    assert {:ok, %{done: true}} = submit(project)
+    assert_received {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"], sandbox_id: used}}
+
+    # The used VM is deleted first: the account has room for one.
+    eventually(fn ->
+      match?([%Sandbox{state: :running, id: id}] when id != used, vm_rows(project))
+    end)
+
+    [warm] = vm_rows(project)
+    flush_node_messages()
+    assert {:ok, %{done: true}} = submit(project, %{"size" => 11})
+    assert_received {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"], sandbox_id: id}}
+    assert id == warm.id
+  end
+
+  test "an unavailable account cannot submit", %{project: project} do
+    stub(FeatureFlags, :bazel_remote_execution_enabled?, fn _ -> false end)
+    assert {:error, :unavailable} = submit(project)
+    assert Scheduler.whereis(project.account_id) == nil
+  end
+
+  test "accounts execute with default limits and the deployment's image, cache and endpoint" do
+    stub(Tuist.Environment, :remote_execution_endpoint, fn -> "grpcs://execution.example" end)
+    stub(Kura, :runner_cache_endpoint_url, fn _account, :linux -> "http://kura.tuist.svc:4000" end)
+    account = project_fixture().account
+
+    # 16 vCPUs and 32 GB hold eight VMs of 2 vCPUs and 4 GB.
+    assert {:ok,
+            %{
+              max_concurrency: 8,
+              image_tag: @image,
+              cas_endpoint: "grpc://kura.tuist.svc:4000",
+              executor_endpoint: "grpcs://execution.example"
+            }} = RemoteExecution.available_settings(account.id)
+
+    stub(Kura, :runner_cache_endpoint_url, fn _account, :linux -> nil end)
+    assert {:error, :unavailable} = RemoteExecution.available_settings(account.id)
+
+    stub(Kura, :runner_cache_endpoint_url, fn _account, :linux -> "https://cache.example" end)
+    stub(Nodes, :connected_nodes, fn -> [] end)
+    assert {:error, :unavailable} = RemoteExecution.available_settings(account.id)
+  end
+
+  test "the scarcer of the vCPU and memory limits bounds the account's VMs", %{project: project} do
+    {:ok, account} =
+      RemoteExecution.update_limits(project.account, %{
+        remote_execution_vcpus_limit: 8,
+        remote_execution_memory_gb_limit: 7
+      })
+
+    assert {:ok, %{max_concurrency: 1} = settings} = RemoteExecution.available_settings(account.id)
+    assert {:ok, _row} = VMs.reserve(account.id, settings)
+    assert {:error, :busy} = VMs.reserve(account.id, settings)
+
+    assert {:error, changeset} =
+             RemoteExecution.update_limits(account, %{remote_execution_vcpus_limit: 1})
+
+    assert %{remote_execution_vcpus_limit: [_]} = errors_on(changeset)
+  end
+
+  test "inputs the gateway prefetched reach the action's VM", %{project: project} do
+    stub_node()
+
+    assert {:ok, %{done: true}} = submit(project, %{"inputs" => "cHJlZmV0Y2hlZA=="})
+    assert_received {:node, "exec", %{cmd: ["/usr/local/bin/sbx-executor"], env: env}}
+    assert %{"inputs" => "cHJlZmV0Y2hlZA=="} = JSON.decode!(env["SBX_EXECUTION_REQUEST"])
+  end
+
+  test "invalid requests are rejected before scheduling", %{project: project} do
+    assert {:error, :invalid_request} = submit(project, %{"hash" => "short"})
+    assert {:error, :invalid_request} = submit(project, %{"size" => -1})
+    assert {:error, :invalid_request} = submit(project, %{"skip_cache" => "yes"})
+    assert {:error, :invalid_request} = submit(project, %{"inputs" => 42})
+    assert {:error, :invalid_request} = submit(project, %{"inputs" => String.duplicate("a", 400_000)})
+  end
+
+  test "reaping deletes only VMs whose lease lapsed", %{project: project} do
+    {:ok, settings} = configure(project, max_concurrency: 2)
+    {:ok, lapsed} = VMs.reserve(project.account_id, settings)
+    {:ok, live} = VMs.reserve(project.account_id, settings)
+
+    lapsed
+    |> Ecto.Changeset.change(
+      node_name: "reserved-linux",
+      execution_lease_expires_at: DateTime.add(DateTime.utc_now(:second), -60)
+    )
+    |> Repo.update!()
+
+    stub_node()
+    RemoteExecution.maintain()
+
+    assert_received {:node, "delete", %{sandbox_id: id}}
+    assert id == lapsed.id
+    assert [%{id: live_id}] = vm_rows(project)
+    assert live_id == live.id
+  end
+
+  test "renewal extends leases of existing rows only", %{project: project} do
+    {:ok, settings} = configure(project, max_concurrency: 2)
+    {:ok, row} = VMs.reserve(project.account_id, settings)
+    short = DateTime.add(DateTime.utc_now(:second), 5)
+    row |> Ecto.Changeset.change(execution_lease_expires_at: short) |> Repo.update!()
+
+    assert [id] = VMs.renew([row.id, Ecto.UUID.generate()])
+    assert id == row.id
+    assert DateTime.after?(Repo.get!(Sandbox, row.id).execution_lease_expires_at, short)
+  end
+
+  describe "telemetry" do
+    setup do
+      test = self()
+      handler = "remote-execution-#{inspect(test)}"
+
+      events = [
+        [:tuist, :remote_execution, :submission],
+        [:tuist, :remote_execution, :operation],
+        [:tuist, :remote_execution, :prepare],
+        [:tuist, :remote_execution, :lease]
+      ]
+
+      :telemetry.attach_many(
+        handler,
+        events,
+        fn event, measurements, metadata, _ -> send(test, {:telemetry, event, measurements, metadata}) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler) end)
+    end
+
+    test "a completed action reports its submission, preparation and outcome", %{project: project} do
+      stub_node()
+
+      assert {:ok, %{done: true}} = submit(project)
+
+      assert_receive {:telemetry, [:tuist, :remote_execution, :submission], %{count: 1}, %{outcome: "accepted"}}
+      assert_receive {:telemetry, [:tuist, :remote_execution, :prepare], %{duration: prepare}, %{outcome: "ok"}}
+      assert prepare >= 0
+
+      assert_receive {:telemetry, [:tuist, :remote_execution, :operation], %{duration: duration, queue_time: queue},
+                      %{outcome: "ok"}}
+
+      assert duration >= queue and queue >= 0
+    end
+
+    test "joining an in-flight action and a full queue are reported", %{project: project} do
+      {:ok, _} = configure(project, max_concurrency: 1)
+      stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => true}, hold: true)
+
+      assert {:ok, %{done: false}} = submit(project, %{}, wait: 0)
+      assert {:ok, %{done: false}} = submit(project, %{}, wait: 0)
+      assert_receive {:holding, _task}, 2_000
+      for size <- 11..14, do: assert({:ok, %{done: false}} = submit(project, %{"size" => size}, wait: 0))
+      assert {:error, :queue_full} = submit(project, %{"size" => 15}, wait: 0)
+
+      assert_receive {:telemetry, [:tuist, :remote_execution, :submission], _, %{outcome: "deduplicated"}}
+      assert_receive {:telemetry, [:tuist, :remote_execution, :submission], _, %{outcome: "queue_full"}}
+    end
+
+    test "failed actions report their status code", %{project: project} do
+      stub_node(%{"unexpected" => true})
+
+      assert {:ok, %{done: true}} = submit(project)
+      assert_receive {:telemetry, [:tuist, :remote_execution, :operation], _, %{outcome: "internal"}}
+    end
+
+    test "leases report whether the gateway claimed them", %{project: project} do
+      stub(Nodes, :lookup, fn "reserved-linux" -> {:ok, self(), %{direct_exec_endpoint: "http://10.0.0.1:7071"}} end)
+      stub_node()
+
+      assert {:ok, %{}} = RemoteExecution.lease(project, wait: 5_000)
+      assert_receive {:claim_pending, first}
+      send(first, {:claim, {:ok, %{"exit_code" => 0, "unclaimed" => true}}})
+      assert_receive {:telemetry, [:tuist, :remote_execution, :lease], %{count: 1}, %{outcome: "unclaimed"}}
+
+      assert {:ok, %{}} = RemoteExecution.lease(project, wait: 5_000)
+      assert_receive {:claim_pending, second}
+      send(second, {:claim, {:ok, %{"exit_code" => 0}}})
+      assert_receive {:telemetry, [:tuist, :remote_execution, :lease], %{count: 1}, %{outcome: "claimed"}}
+    end
+  end
+
+  describe "leases" do
+    setup do
+      stub(Nodes, :lookup, fn "reserved-linux" -> {:ok, self(), %{direct_exec_endpoint: "http://10.0.0.1:7071"}} end)
+      :ok
+    end
+
+    test "a lease hands a prepared VM to the gateway through a claimed exec", %{project: project} do
+      stub_node()
+
+      assert {:ok, lease} = RemoteExecution.lease(project, wait: 5_000)
+      assert %{endpoint: "http://10.0.0.1:7071", image: @image, cas_endpoint: "grpcs://cache.example:443"} = lease
+      assert lease.expires_in_ms > 0
+      assert_receive {:claim_pending, node_call}
+      assert_received {:node, "exec", %{sandbox_id: id, env: env, claim: claim}}
+      assert id == lease.sandbox_id
+      assert env["SBX_EXECUTION_TOKEN"] == "scoped-credential"
+      refute Map.has_key?(env, "SBX_EXECUTION_REQUEST")
+      assert claim.env == "SBX_EXECUTION_REQUEST"
+      assert claim.nonce_sha256 == Base.encode16(:crypto.hash(:sha256, Base.decode64!(lease.nonce)), case: :lower)
+
+      send(node_call, {:claim, {:ok, %{"exit_code" => 0}}})
+      assert_receive {:node, "delete", %{sandbox_id: ^id}}
+      eventually(fn -> Enum.all?(vm_rows(project), &(&1.id != id)) end)
+    end
+
+    test "an unclaimed lease returns its VM untouched to the next action", %{project: project} do
+      stub_node()
+
+      assert {:ok, %{sandbox_id: id}} = RemoteExecution.lease(project, wait: 5_000)
+      assert_receive {:claim_pending, node_call}
+      send(node_call, {:claim, {:ok, %{"exit_code" => 0, "unclaimed" => true}}})
+
+      assert {:ok, %{done: true}} = submit(project)
+
+      assert_received {:node, "exec",
+                       %{cmd: ["/usr/local/bin/sbx-executor"], sandbox_id: ^id, env: %{"SBX_EXECUTION_REQUEST" => _}}}
+    end
+
+    test "a lease that finds no VM in time returns none", %{project: project} do
+      {:ok, _} = configure(project, max_concurrency: 1)
+      stub_node(%{"response" => Base.encode64(<<10, 0>>), "cacheable" => true}, hold: true)
+      assert {:ok, %{done: false}} = submit(project, %{}, wait: 0)
+      assert_receive {:holding, _task}, 2_000
+
+      assert {:ok, nil} = RemoteExecution.lease(project, wait: 100)
+    end
+
+    test "nodes without a direct endpoint grant no leases", %{project: project} do
+      stub(Nodes, :lookup, fn "reserved-linux" -> {:ok, self(), %{}} end)
+      stub_node()
+
+      assert {:error, :unsupported} = RemoteExecution.lease(project, wait: 5_000)
+    end
+  end
+
+  defp flush_node_messages do
+    receive do
+      {:node, _, _} -> flush_node_messages()
+    after
+      0 -> :ok
+    end
+  end
+end

@@ -5,6 +5,7 @@ defmodule AtlasWeb.MCPLiveTest do
   alias Atlas.MCP.OAuthSession
   alias Atlas.MCP.Proxy.Server
   alias Atlas.MCP.ServerConfiguration
+  alias Atlas.MCP.ToolApproval
   alias AtlasWeb.MCPLive
 
   test "deployment-configured servers expose connection actions only" do
@@ -67,6 +68,26 @@ defmodule AtlasWeb.MCPLiveTest do
            |> String.trim() == "Expired Sep 18, 2020 at 10:22 UTC"
   end
 
+  test "pending approvals show the exact arguments with approve and reject actions" do
+    approval = %ToolApproval{
+      id: "approval-1",
+      server_name: "ovh-servers",
+      tool_name: "reinstall-dedicated-server",
+      arguments: %{"serviceName" => "ns1.example"},
+      inserted_at: ~U[2026-11-05 09:00:00Z],
+      expires_at: ~U[2026-11-05 10:00:00Z]
+    }
+
+    document = render_page([oauth_entry()], approvals: [approval])
+
+    assert document |> LazyHTML.query("#mcp-approval-approval-1 [data-part=approval-arguments]") |> LazyHTML.text() =~
+             ~s("serviceName": "ns1.example")
+
+    assert exists?(document, "#mcp-approval-approve-approval-1[phx-click=decide_approval][phx-value-decision=approved]")
+    assert exists?(document, "#mcp-approval-reject-approval-1[phx-click=decide_approval][phx-value-decision=rejected]")
+    refute [oauth_entry()] |> render_page() |> exists?("[data-part=approval]")
+  end
+
   test "sessions without expiry omit the secondary line" do
     document = render_page([oauth_entry()])
 
@@ -111,6 +132,7 @@ defmodule AtlasWeb.MCPLiveTest do
   defp render_page(servers, overrides \\ []) do
     assigns = %{
       __changed__: %{},
+      approvals: [],
       can_manage?: true,
       configuration_ids: %{},
       deleting_server: nil,

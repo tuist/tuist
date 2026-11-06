@@ -9,8 +9,7 @@
 
 Tuist caches supported Rust compilation outputs so Cargo can reuse them after its build outputs have been removed. The cache is built into the Tuist CLI. There is no separate cache executable or Cargo plugin to install.
 
-> [!WARNING] Experimental compilation cache
-> The current version caches only registry leaf libraries: library crates downloaded from a Cargo registry that don't depend on other crates. Other compilations run normally. Cache keys retain absolute paths and environment inputs, so reuse across different checkout locations isn't supported yet.
+<!-- @snippet: ./_rust-experimental -->
 
 ## Enable caching {#enable-caching}
 
@@ -26,7 +25,7 @@ If you use mise, <.localized_link href="/guides/get-started/rust-project#keep-ty
 
 ## How it works {#how-it-works}
 
-For each eligible compilation, Tuist:
+Before Cargo starts, Tuist restores the outputs of your registry and git dependencies that an earlier build produced with the same toolchain, profile and configuration, so Cargo finds them up to date. Cargo stays in charge of deciding what to rebuild. Then, for each eligible compilation Cargo still runs, Tuist:
 
 1. Checks its local cache for matching outputs.
 2. On a local miss, queries Kura through the Remote Execution API (REAPI), downloads any missing content, and verifies the outputs before restoring them.
@@ -38,20 +37,24 @@ If remote setup fails, local caching remains available. Unavailable, missing, or
 
 ## What can be cached {#what-can-be-cached}
 
-The current cache supports eligible registry leaf libraries producing Rust library artifacts and their accompanying metadata, dependency information, and supported split-debug outputs.
+The cache supports:
+
+- Library crates, including workspace and path crates, crates with dependencies, and crates with generated sources. Tuist keys them by the sources the compiler read.
+- On Apple silicon Macs, compilations that source inspection can't key in advance, such as crates that use procedural macros, inline assembly or native libraries, procedural macros themselves, and linked executables. Tuist records the files, environment variables and read-only commands each one reads, such as `git describe`, and keys it by them.
+- On Apple silicon Macs, build-script runs, including the C compilations they perform with the default Apple compiler. A run is restored only when the files, environment and commands it read are unchanged.
+- Warnings and other diagnostics, which a cached crate shows again.
 
 The following still build normally:
 
-- Workspace crates and libraries with dependencies on other crates.
-- Build scripts, procedural macros, and crates that depend on their outputs.
-- Executables, test binaries, native linking, and C/C++ compilations.
+- Build scripts and recorded compilations on Linux.
+- Build scripts that connect to the network, start programs Tuist can't observe, or write outside their output directory.
 - Incremental compilations, custom targets, and unsupported compiler arguments or source inputs.
 - Metadata-only `cargo check` invocations.
-- Compilations that emit rendered diagnostics or unexpected compiler output.
+- Compilations that emit unexpected compiler output.
 
 A pre-existing global compiler wrapper disables Tuist's compilation cache and compiler observer. Custom workspace wrappers also bypass caching. See <.localized_link href="/guides/features/build-insights/rust#other-compiler-tools">compiler tool compatibility</.localized_link>.
 
-Cache keys include the package contents, compiler and toolchain, arguments, working directory, and build environment. Credentials, Tuist reporting settings, and recognized CI run metadata don't invalidate entries. Crates that read those excluded variables during compilation aren't cached. Keep the other inputs and their absolute paths consistent when testing reuse. Remote transport support does not make outputs relocatable between different checkout paths.
+Cache keys include the package contents, compiler and toolchain, arguments, and build environment. The checkout, target directory, Cargo home and toolchain locations are replaced with placeholders, so a checkout at another path reuses the same entries. A crate whose output embeds its own path, for example through `env!("CARGO_MANIFEST_DIR")`, is reused only at that path. Credentials, Tuist reporting settings, and recognized CI run metadata don't invalidate entries. Crates that read those excluded variables during compilation aren't cached.
 
 ## Verify reuse {#verify-reuse}
 
@@ -79,4 +82,4 @@ Enable debug output to inspect cache transfer and reporting failures:
 TUIST_DEBUG=1 tuist cargo build --release
 ```
 
-If you see no hits, check that your build contains eligible registry leaf libraries, that another compiler wrapper isn't taking precedence, and that the compiler, flags, environment, and paths match the build that populated the cache. For remote uploads, also check authentication and the account's cache upload policy.
+Debug output also explains why a compilation or build-script run wasn't stored. If you see no hits, check that another compiler wrapper isn't taking precedence, and that the compiler, flags and environment match the build that populated the cache. For remote uploads, also check authentication and the account's cache upload policy.

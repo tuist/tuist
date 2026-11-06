@@ -376,6 +376,47 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert %{"type" => "test", "id" => _id} = json_response(conn, :ok)
     end
 
+    test "accepts the impact run of coverage-based test selection", %{conn: conn, user: user, project: project} do
+      test_impact_run_id = UUIDv7.generate()
+
+      expect(Tests, :create_test, fn attrs ->
+        assert attrs.test_impact_run_id == test_impact_run_id
+        {:ok, %Test{id: attrs.id, duration: attrs.duration, project_id: project.id, test_case_runs: []}}
+      end)
+
+      body = %{
+        duration: 100,
+        is_ci: true,
+        status: "success",
+        test_impact_run_id: test_impact_run_id,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 100,
+            test_suites: [],
+            test_cases: [%{name: "testExample", status: "success", duration: 100}]
+          }
+        ]
+      }
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/tests", body)
+
+      assert %{"type" => "test"} = json_response(response, :ok)
+
+      response =
+        conn
+        |> recycle()
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/tests", %{body | test_impact_run_id: "not-a-uuid"})
+
+      assert json_response(response, :bad_request)
+    end
+
     test "persists shard execution timestamps with seconds or milliseconds", %{conn: conn, user: user, project: project} do
       for version <- [0, 1],
           {ran_at, expected} <- [

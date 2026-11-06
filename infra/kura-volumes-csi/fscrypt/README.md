@@ -1,7 +1,7 @@
 # Disposable ext4/fscrypt qualification
 
 This is a storage-primitive experiment for #14152, not a CSI implementation,
-OpenBao deployment or replacement rollout. The aim is to preserve tenant keys
+key-service change or replacement rollout. The aim is to preserve tenant keys
 while letting the later #14825 allocator transfer filesystem quota grants
 without thin-pool overcommit or filesystem replacement.
 The [integration gates](integration.md) describe the remaining CSI, key lifecycle,
@@ -46,7 +46,7 @@ plain ext4, fscrypt and thin LUKS/XFS in forward/reverse order with a new cache
 directory each time. Every layout has a 6 GiB project quota. Authenticated,
 checksum-checked HTTP workloads include eviction churn and a 1 GiB working set.
 The temporary auth token is fixture-only, kept out of artifacts and deleted
-with the fixture. This remains VM testing, not Kubernetes/CSI or OpenBao E2E.
+with the fixture. This remains VM testing, not Kubernetes/CSI or key-service E2E.
 The optional `fscrypt_profile` workflow input runs each application layout once
 under a 99 Hz CPU profile and skips fio; it records symbol reports, not raw
 profile data. Keep those diagnostic timings separate from the unprofiled runs.

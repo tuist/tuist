@@ -125,7 +125,8 @@
           }
 
           & [data-part="footer"] {
-            padding: var(--noora-spacing-6) var(--noora-spacing-7) var(--noora-spacing-5) var(--noora-spacing-0);
+            padding-inline: var(--noora-spacing-0) var(--noora-spacing-7);
+            padding-block: var(--noora-spacing-6) var(--noora-spacing-5);
           }
         }
       }
@@ -323,10 +324,10 @@
     display: flex;
     position: absolute;
     top: 0;
-    right: 0;
-    left: 0;
     flex-direction: column;
     align-items: center;
+    inset-inline-end: 0;
+    inset-inline-start: 0;
     border-radius: var(--noora-radius-8);
 
     & > [data-part="label"] {
@@ -339,9 +340,9 @@
     & > [data-part="bezel"] {
       position: absolute;
       top: 0;
-      right: 0px;
-      left: 0px;
       z-index: var(--noora-z-index-1);
+      inset-inline-end: 0px;
+      inset-inline-start: 0px;
 
       & > svg {
         width: 100%;

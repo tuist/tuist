@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+clear
+
+# Test the case where multiple series have the same labels after the metric name is removed by a function.
+load 1m
+  float_metric_1 0+1x4
+  float_metric_2 0+2x4
+  histogram_metric_1 {{sum:0 count:0}}x4
+  histogram_metric_2 {{sum:1 count:1}}x4
+
+eval_fail instant at 5m cosh({__name__=~"float_metric_.*"})
+  expected_fail_message vector cannot contain metrics with the same labelset
+
+eval_fail instant at 5m sinh({__name__=~"float_metric_.*"})
+  expected_fail_message vector cannot contain metrics with the same labelset
+
+eval_fail instant at 5m tanh({__name__=~"float_metric_.*"})
+  expected_fail_message vector cannot contain metrics with the same labelset
+

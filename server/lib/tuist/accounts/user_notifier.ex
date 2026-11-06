@@ -8,6 +8,7 @@ defmodule Tuist.Accounts.UserNotifier do
 
   alias Tuist.Accounts.User
   alias Tuist.Environment
+  alias Tuist.Locale
   alias Tuist.Mailer
   alias Tuist.Runners.Allowance
   alias Tuist.Utilities.ByteFormatter
@@ -162,7 +163,7 @@ defmodule Tuist.Accounts.UserNotifier do
 
     """
     <!DOCTYPE html>
-    <html lang="#{String.replace(locale, "_", "-")}">
+    <html lang="#{String.replace(locale, "_", "-")}" dir="#{Locale.direction(locale)}">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -350,6 +351,40 @@ defmodule Tuist.Accounts.UserNotifier do
       title: subject,
       paragraphs: [
         dgettext("dashboard_account", "The passkeys that can sign in to your Tuist account were changed."),
+        dgettext(
+          "dashboard_account",
+          "If you did not make this change, contact Tuist support immediately and secure your account."
+        )
+      ]
+    })
+    |> Mailer.deliver_now()
+  rescue
+    ArgumentError -> {:error, :invalid_mailer_configuration}
+  end
+
+  def deliver_recovery_notification(user, event) do
+    {subject, message} =
+      case event do
+        :used ->
+          {dgettext("dashboard_account", "Recovery code used"),
+           dgettext(
+             "dashboard_account",
+             "A recovery code was used to access or change security settings on your Tuist account."
+           )}
+
+        :regenerated ->
+          {dgettext("dashboard_account", "Recovery codes regenerated"),
+           dgettext(
+             "dashboard_account",
+             "New recovery codes were created for your Tuist account. All previous codes are now invalid."
+           )}
+      end
+
+    user.email
+    |> build_email(subject, %{
+      title: subject,
+      paragraphs: [
+        message,
         dgettext(
           "dashboard_account",
           "If you did not make this change, contact Tuist support immediately and secure your account."

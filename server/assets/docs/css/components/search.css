@@ -7,9 +7,9 @@ body[data-search-open] {
     display: none;
     position: fixed;
     top: 0;
-    left: 0;
     z-index: var(--noora-z-index-11);
     backdrop-filter: blur(2.5px);
+    inset-inline-start: 0;
     background: var(--noora-surface-overlay);
     width: 100dvw;
     height: 100dvh;

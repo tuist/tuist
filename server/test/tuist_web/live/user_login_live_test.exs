@@ -97,8 +97,9 @@ defmodule TuistWeb.UserLoginLiveTest do
     test "renders email and password fields regardless of mail configuration", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/log_in")
 
-      assert has_element?(lv, "input#email")
-      assert has_element?(lv, "input#password")
+      assert has_element?(lv, "input#email[autocomplete='username webauthn']")
+      assert has_element?(lv, "input#password[autocomplete='current-password']")
+      assert has_element?(lv, "#passkey-login", "Log in with a passkey")
     end
 
     test "hides the password form and sign-up link when email auth is disabled", %{conn: conn} do
@@ -107,6 +108,7 @@ defmodule TuistWeb.UserLoginLiveTest do
       {:ok, lv, html} = live(conn, ~p"/users/log_in")
 
       refute has_element?(lv, "#login_form")
+      refute has_element?(lv, "#passkey-login")
       refute has_element?(lv, "input#password")
       refute html =~ "Sign up"
     end

@@ -6,6 +6,7 @@ defmodule Tuist.AccountsTest do
   import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Phoenix.Socket.Broadcast
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
@@ -17,6 +18,8 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts.Role
   alias Tuist.Accounts.SSOLoginDomainVerification
   alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserMFA
+  alias Tuist.Accounts.UserPasskey
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
   alias Tuist.Accounts.Workers.DeleteAccountArtifactsWorker
@@ -401,18 +404,48 @@ defmodule Tuist.AccountsTest do
       :ok
     end
 
-    test "true on a self-hosted instance for an operator-domain email (no Google check)" do
-      # Self-hosted has no Tuist Google Workspace; the operator-domain email
-      # match alone qualifies, with no Google identity required.
+    test "true on a self-hosted instance for a verified email in the configured operator domain (no Google check)" do
+      # Self-hosted has no Tuist Google Workspace; once the instance sets the
+      # operator domain, a proven address in it qualifies, with no Google
+      # identity required.
       stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :operator_email_domain, fn -> "example.com" end)
+      stub(Environment, :operator_email_domain_configured?, fn -> true end)
 
       user =
         user_fixture(
-          email: "selfhosted-#{System.unique_integer([:positive])}@tuist.dev",
-          confirmed_at: nil
+          email: "selfhosted-#{System.unique_integer([:positive])}@example.com",
+          email_verified_at: ~U[2026-11-01 00:00:00Z]
         )
 
       assert Accounts.tuist_operator?(user)
+    end
+
+    test "false on a self-hosted instance whose operator domain is left at its default" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :operator_email_domain_configured?, fn -> false end)
+
+      user =
+        user_fixture(
+          email: "default-#{System.unique_integer([:positive])}@tuist.dev",
+          email_verified_at: ~U[2026-11-01 00:00:00Z]
+        )
+
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "false on a self-hosted instance for an auto-confirmed email that never proved its mailbox" do
+      # An instance without mail confirms sign-ups without checking the
+      # mailbox; such an account must not turn into an operator once the
+      # domain is configured.
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :operator_email_domain, fn -> "example.com" end)
+      stub(Environment, :operator_email_domain_configured?, fn -> true end)
+
+      user = user_fixture(email: "squatter-#{System.unique_integer([:positive])}@example.com")
+
+      assert user.confirmed_at
+      refute Accounts.tuist_operator?(user)
     end
 
     test "false on a self-hosted instance for a non-operator-domain email" do
@@ -2157,6 +2190,7 @@ defmodule Tuist.AccountsTest do
 
   describe "find_oauth2_identity/2" do
     test "returns github oauth2 identity when user also has a google identity" do
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       # Given
       user = AccountsFixtures.user_fixture()
 
@@ -2189,6 +2223,7 @@ defmodule Tuist.AccountsTest do
     end
 
     test "returns google oauth2 identity" do
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       # Given
       user = AccountsFixtures.user_fixture()
 
@@ -2258,6 +2293,7 @@ defmodule Tuist.AccountsTest do
 
   describe "delete_user/1" do
     test "deletes a user" do
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -2734,9 +2770,9 @@ defmodule Tuist.AccountsTest do
     end
 
     @tag :browser_session
-    test "expires at fifteen minutes idle without activity from validity checks", %{token: token} do
+    test "expires at seven days idle without activity from validity checks", %{token: token} do
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
-      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -899)])
+      Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -604_799)])
       assert Accounts.get_user_by_session_token(token)
 
       stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1) end)
@@ -2745,11 +2781,11 @@ defmodule Tuist.AccountsTest do
     end
 
     @tag :browser_session
-    test "activity cannot extend the eight-hour absolute deadline", %{token: token} do
+    test "activity cannot extend the 30-day absolute deadline", %{token: token} do
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
 
       Repo.update_all(UserToken,
-        set: [inserted_at: now |> DateTime.add(-28_799) |> DateTime.to_naive(), last_active_at: now]
+        set: [inserted_at: now |> DateTime.add(-2_591_999) |> DateTime.to_naive(), last_active_at: now]
       )
 
       assert Accounts.get_user_session(token, touch: true)
@@ -2761,10 +2797,10 @@ defmodule Tuist.AccountsTest do
     test "user activity extends only the idle deadline and only for that session", %{token: token, user: user} do
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
       other_token = Accounts.generate_user_session_token(user)
-      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 840) end)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 604_740) end)
       assert Accounts.get_user_session(token, touch: true)
 
-      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1680) end)
+      stub(Tuist.Time, :utc_now, fn -> DateTime.add(now, 1_209_480) end)
       assert Accounts.get_user_by_session_token(token)
       refute Accounts.get_user_by_session_token(other_token)
     end
@@ -2775,7 +2811,7 @@ defmodule Tuist.AccountsTest do
 
       Repo.update_all(UserToken,
         set: [
-          inserted_at: now |> DateTime.add(-900) |> DateTime.to_naive(),
+          inserted_at: now |> DateTime.add(-604_800) |> DateTime.to_naive(),
           last_active_at: nil,
           auth_provider: nil,
           auth_provider_organization_id: nil
@@ -2884,6 +2920,7 @@ defmodule Tuist.AccountsTest do
     test "confirms the email with a valid token", %{user: user, token: token} do
       assert {:ok, confirmed_user} = Accounts.confirm_user(token)
       assert confirmed_user.confirmed_at
+      assert Repo.get!(User, user.id).email_verified_at
       assert confirmed_user.confirmed_at != user.confirmed_at
       assert Repo.get!(User, user.id).confirmed_at
       refute Repo.get_by(UserToken, user_id: user.id)
@@ -3043,6 +3080,202 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "record_mailbox_proof/1" do
+    test "records nothing once the account's address changed since it was read" do
+      user = user_fixture(email: "before-#{System.unique_integer([:positive])}@example.com")
+      user |> User.email_changeset(%{email: "after-#{user.id}@example.com"}) |> Repo.update!()
+
+      assert {:ok, _} = Accounts.record_mailbox_proof(user)
+      assert is_nil(Repo.get!(User, user.id).email_verified_at)
+    end
+
+    test "keeps a password the owner set through a reset link before confirming" do
+      user = user_fixture(email: "reset-first-#{System.unique_integer([:positive])}@example.com", confirmed_at: nil)
+      {token, user_token} = UserToken.build_email_token(user, "reset_password")
+      Repo.insert!(user_token)
+      {:ok, %{user: reset}} = Accounts.reset_user_password(token, %{"password" => "reset StrongP@ss 2038"})
+
+      assert {:ok, _} = Accounts.record_mailbox_proof(reset)
+      proven = Repo.get!(User, user.id)
+      assert proven.confirmed_at
+      assert User.valid_password?(proven, "reset StrongP@ss 2038")
+    end
+
+    test "link_oauth_identity_by_email/2 refuses an account renamed since it was matched" do
+      user = user_fixture(email: "matched-#{System.unique_integer([:positive])}@example.com")
+      user |> User.email_changeset(%{email: "renamed-#{user.id}@example.com"}) |> Repo.update!()
+
+      assert {:error, :email_changed} =
+               Accounts.link_oauth_identity_by_email(user, %{provider: :google, id_in_provider: "matched-uid"})
+
+      assert {:error, :not_found} = Accounts.get_oauth2_identity(:google, "matched-uid")
+      assert is_nil(Repo.get!(User, user.id).email_verified_at)
+    end
+
+    test "ends the sessions and CLI credentials started with the password it clears" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :operator_email_domain_configured?, fn -> true end)
+      stub(Environment, :operator_email_domain, fn -> "example.com" end)
+      squatted = user_fixture(email: "squatted-#{System.unique_integer([:positive])}@example.com")
+      squatter_session = Accounts.generate_user_session_token(squatted)
+      TuistWeb.Endpoint.subscribe(UserToken.live_socket_id(squatter_session))
+      {:ok, squatter_refresh, _} = Authentication.encode_and_sign(squatted, %{}, token_type: "refresh")
+      device_code = "squat-#{squatted.id}"
+      Accounts.create_device_code(device_code)
+      Accounts.authenticate_device_code(device_code, squatted)
+
+      Repo.insert!(%UserPasskey{
+        user_id: squatted.id,
+        name: "Squatter",
+        credential_id: "c",
+        public_key: "k",
+        user_handle: "h"
+      })
+
+      Repo.insert!(%UserMFA{
+        user_id: squatted.id,
+        secret: "s",
+        enrollment_session_hash: "h",
+        enrollment_expires_at: DateTime.truncate(DateTime.utc_now(), :second),
+        confirmed_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+
+      {:ok, _} =
+        Accounts.link_oauth_identity_to_user(squatted, %{
+          provider: :oauth2,
+          id_in_provider: "evil-#{squatted.id}",
+          provider_organization_id: "https://idp.evil.example"
+        })
+
+      {:ok, _} = Accounts.link_oauth_identity_to_user(squatted, %{provider: :github, id_in_provider: "gh-#{squatted.id}"})
+
+      assert {:ok, _} = Accounts.record_mailbox_proof(squatted)
+      assert UserPasskey.list(squatted) == []
+
+      assert {:error, :not_found} =
+               Accounts.get_oauth2_identity(:oauth2, "evil-#{squatted.id}", "https://idp.evil.example")
+
+      assert {:ok, _} = Accounts.get_oauth2_identity(:github, "gh-#{squatted.id}")
+      # A second factor alone signs nobody in, so it stays.
+      assert UserMFA.enabled?(squatted)
+      refute Accounts.get_user_by_session_token(squatter_session)
+      assert_receive %Broadcast{event: "disconnect"}
+      refute Accounts.get_device_code(device_code)
+      refute Accounts.get_user_by_token(squatted.token)
+      assert {:error, _} = Tuist.Guardian.resource_from_token(squatter_refresh, %{"typ" => "refresh"})
+    end
+
+    test "refuses credentials for the account as it was read before a proof cleared its password" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :operator_email_domain_configured?, fn -> true end)
+      stub(Environment, :operator_email_domain, fn -> "example.com" end)
+      read = user_fixture(email: "read-first-#{System.unique_integer([:positive])}@example.com")
+
+      assert {:ok, _} = Accounts.record_mailbox_proof(read)
+      assert_raise MatchError, fn -> Accounts.generate_user_session_token(read) end
+
+      assert {:error, :credentials_revoked} =
+               Accounts.link_oauth_identity_to_user(read, %{
+                 provider: :oauth2,
+                 id_in_provider: "late-#{read.id}",
+                 provider_organization_id: "https://idp.evil.example"
+               })
+
+      assert {:error, :credentials_revoked} = Authentication.encode_and_sign(read, %{}, token_type: "refresh")
+    end
+
+    test "keeps the credentials of a self-hosted account outside the operator domain" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :operator_email_domain_configured?, fn -> true end)
+      stub(Environment, :operator_email_domain, fn -> "ops.example.com" end)
+      user = user_fixture(email: "member-#{System.unique_integer([:positive])}@example.com")
+      session = Accounts.generate_user_session_token(user)
+
+      assert {:ok, _} = Accounts.record_mailbox_proof(user)
+      proven = Repo.get!(User, user.id)
+      assert User.valid_password?(proven, valid_user_password())
+      assert Accounts.get_user_by_session_token(session)
+    end
+
+    test "a proof made before the account's address was in the operator domain doesn't make it an operator" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :operator_email_domain_configured?, fn -> false end)
+      squatted = user_fixture(email: "early-#{System.unique_integer([:positive])}@corp.example.com")
+      squatter_session = Accounts.generate_user_session_token(squatted)
+      {:ok, _} = Accounts.record_mailbox_proof(squatted)
+
+      stub(Environment, :operator_email_domain_configured?, fn -> true end)
+      stub(Environment, :operator_email_domain, fn -> "corp.example.com" end)
+      refute Accounts.tuist_operator?(Repo.get!(User, squatted.id))
+
+      {:ok, _} = Accounts.record_mailbox_proof(Repo.get!(User, squatted.id))
+      assert Accounts.tuist_operator?(Repo.get!(User, squatted.id))
+      refute Accounts.get_user_by_session_token(squatter_session)
+    end
+
+    test "disconnects sessions revoked inside a caller's transaction only after it" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :operator_email_domain_configured?, fn -> true end)
+      stub(Environment, :operator_email_domain, fn -> "example.com" end)
+      squatted = user_fixture(email: "nested-#{System.unique_integer([:positive])}@example.com")
+      TuistWeb.Endpoint.subscribe(UserToken.live_socket_id(Accounts.generate_user_session_token(squatted)))
+
+      {:ok, _} = Repo.transaction(fn -> Accounts.record_mailbox_proof(squatted) end)
+      refute_received %Broadcast{event: "disconnect"}
+
+      Accounts.disconnect_revoked_sessions()
+      assert_received %Broadcast{event: "disconnect"}
+    end
+
+    test "a reset ends the CLI credentials started with a password nobody proved" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :operator_email_domain_configured?, fn -> true end)
+      stub(Environment, :operator_email_domain, fn -> "example.com" end)
+      squatted = user_fixture(email: "squat-reset-#{System.unique_integer([:positive])}@example.com")
+      {:ok, squatter_refresh, _} = Authentication.encode_and_sign(squatted, %{}, token_type: "refresh")
+      {token, user_token} = UserToken.build_email_token(squatted, "reset_password")
+      Repo.insert!(user_token)
+
+      {:ok, _} = Accounts.reset_user_password(token, %{"password" => "reset StrongP@ss 2038"})
+      refute Accounts.get_user_by_token(squatted.token)
+      assert {:error, _} = Tuist.Guardian.resource_from_token(squatter_refresh, %{"typ" => "refresh"})
+    end
+
+    test "link_oauth_identity_by_email/2 proves against the account as locked, not as matched" do
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
+      matched = user_fixture(email: "stale-#{System.unique_integer([:positive])}@example.com", confirmed_at: nil)
+      {token, user_token} = UserToken.build_email_token(matched, "reset_password")
+      Repo.insert!(user_token)
+      {:ok, _} = Accounts.reset_user_password(token, %{"password" => "reset StrongP@ss 2038"})
+
+      assert {:ok, _} =
+               Accounts.link_oauth_identity_by_email(matched, %{provider: :google, id_in_provider: "stale-#{matched.id}"})
+
+      linked = Repo.get!(User, matched.id)
+      assert linked.confirmed_at
+      assert User.valid_password?(linked, "reset StrongP@ss 2038")
+    end
+
+    test "link_oauth_identity_by_email/2 accepts an identity a concurrent sign-in already linked" do
+      user = user_fixture(email: "twice-#{System.unique_integer([:positive])}@example.com")
+      attrs = %{provider: :github, id_in_provider: "twice-#{user.id}"}
+      {:ok, _} = Accounts.link_oauth_identity_to_user(user, attrs)
+
+      assert {:ok, %{user_id: user_id}} = Accounts.link_oauth_identity_by_email(user, attrs)
+      assert user_id == user.id
+    end
+
+    test "keeps a password on tuist.dev, where sign-ups always confirm their mailbox" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = user_fixture(email: "hosted-#{System.unique_integer([:positive])}@example.com")
+
+      assert {:ok, _} = Accounts.record_mailbox_proof(user)
+      proven = Repo.get!(User, user.id)
+      assert proven.email_verified_at
+      assert User.valid_password?(proven, valid_user_password())
+    end
+  end
+
   describe "reset_user_password/2" do
     setup do
       user = user_fixture()
@@ -3058,6 +3291,7 @@ defmodule Tuist.AccountsTest do
         Accounts.reset_user_password(token, %{"password" => "new valid password"})
 
       assert updated_user.id == user.id
+      assert Repo.get!(User, user.id).email_verified_at
       assert Accounts.get_user_by_email_and_password(user.email, "new valid password")
       assert {:error, :invalid_token} = Accounts.reset_user_password(token, %{"password" => "another valid password"})
     end
@@ -3347,6 +3581,7 @@ defmodule Tuist.AccountsTest do
     end
 
     test "updates an existing user with a new github identity" do
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
       user = user_fixture(email: email)
 
@@ -3361,6 +3596,67 @@ defmodule Tuist.AccountsTest do
 
       assert user.email == got.email
       assert Accounts.find_oauth2_identity(%{user: user, provider: :github})
+    end
+
+    test "claims an unconfirmed account matched by the provider's email and voids its registration password" do
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
+      email = unique_user_email()
+      {:ok, registered} = Accounts.create_user(email, password: "registrant password!", confirmed_at: nil)
+      {encoded_confirmation, confirmation} = UserToken.build_email_token(registered, "confirm")
+      Repo.insert!(confirmation)
+
+      user = Accounts.find_or_create_user_from_oauth2(%{provider: :apple, uid: "apple-claim", info: %{email: email}})
+
+      assert user.id == registered.id
+      assert user.confirmed_at
+      assert {:ok, %{user_id: user_id}} = Accounts.get_oauth2_identity(:apple, "apple-claim")
+      assert user_id == registered.id
+
+      assert Accounts.get_user_by_email_and_password(email, "registrant password!") ==
+               {:error, :invalid_email_or_password}
+
+      assert Accounts.confirm_user(encoded_confirmation) == :error
+    end
+
+    test "does not link an email-matched password account while email confirmation is skipped" do
+      stub(Environment, :skip_email_confirmation?, fn -> true end)
+      email = unique_user_email()
+      {:ok, registered} = Accounts.create_user(email, password: "registrant password!")
+      assert registered.confirmed_at
+
+      assert Accounts.find_or_create_user_from_oauth2(%{provider: :apple, uid: "apple-refused", info: %{email: email}}) ==
+               {:error, :email_not_proven}
+
+      assert Accounts.get_oauth2_identity(:apple, "apple-refused") == {:error, :not_found}
+      assert {:ok, _} = Accounts.get_user_by_email_and_password(email, "registrant password!")
+    end
+
+    test "links another provider while email confirmation is skipped once a provider proved the email" do
+      stub(Environment, :skip_email_confirmation?, fn -> true end)
+      email = unique_user_email()
+
+      github_user =
+        Accounts.find_or_create_user_from_oauth2(%{provider: :github, uid: "github-first", info: %{email: email}})
+
+      user = Accounts.find_or_create_user_from_oauth2(%{provider: :apple, uid: "apple-second", info: %{email: email}})
+
+      assert user.id == github_user.id
+      assert {:ok, %{user_id: user_id}} = Accounts.get_oauth2_identity(:apple, "apple-second")
+      assert user_id == github_user.id
+    end
+
+    test "a sign-in that loaded the account before a concurrent claim links without voiding the claim's session" do
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
+      {:ok, stale} = Accounts.create_user(unique_user_email(), password: "registrant password!", confirmed_at: nil)
+      attrs = %{provider: :github, id_in_provider: "github-race", provider_organization_id: nil}
+
+      assert {:ok, _} = Accounts.link_oauth_identity_by_email(stale, attrs)
+      session = Accounts.generate_user_session_token(Accounts.get_user_by_id(stale.id))
+
+      assert {:ok, %{user_id: user_id}} = Accounts.link_oauth_identity_by_email(stale, attrs)
+      assert user_id == stale.id
+      assert %{id: session_user_id} = Accounts.get_user_by_session_token(session)
+      assert session_user_id == stale.id
     end
 
     test "updates an existing user with a new okta identity" do
@@ -3402,7 +3698,7 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
 
       # When
-      authenticated_device_code = Accounts.authenticate_device_code(device_code.code, user)
+      {:ok, authenticated_device_code} = Accounts.authenticate_device_code(device_code.code, user)
 
       # Then
       assert device_code.authenticated == false

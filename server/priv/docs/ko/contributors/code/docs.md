@@ -7,7 +7,7 @@
 ---
 # 문서 {#docs}
 
-소스: [github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
+출처: [github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
 
 ## 용도 {#what-it-is-for}
 
@@ -15,7 +15,7 @@
 
 ## 기여 방법 {#how-to-contribute}
 
-### 로컬 설정 {#set-up-locally}
+### 로컬 환경 설정 {#set-up-locally}
 
 ```bash
 cd docs
@@ -29,6 +29,6 @@ mise run dev
 
 - CLI 참조 데이터: `mise run generate-cli-docs`
 
-이들은 선택 사항입니다. 문서가 해당 데이터 없이도 렌더링되므로, 생성된 콘텐츠를 새로고침해야 할 때만 실행하세요.
+이들은 선택 사항입니다. 문서가 이 데이터 없이도 렌더링되므로, 생성된 콘텐츠를 새로고침해야 할 때만 실행하세요.
 
 ProjectDescription API 참조는 [projectdescription.tuist.dev](https://projectdescription.tuist.dev)에서 DocC 사이트로 별도로 호스팅됩니다. 로컬에서 빌드하려면 저장소 루트에서 `mise run docs:project-description`를 실행하세요.

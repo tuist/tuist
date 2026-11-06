@@ -22,4 +22,4 @@ Logger.current
 Logs are not the CLI's UI. They are a tool to diagnose issues when they arise.
 Therefore, the more information you provide, the better.
 When building new features, put yourself in the shoes of a developer coming across unexpected behavior, and think about what information would be helpful to them.
-Ensure you you use the right [log level](https://www.swift.org/documentation/server/guides/libraries/log-levels.html). Otherwise developers won't be able to filter out the noise.
+Ensure you use the right [log level](https://www.swift.org/documentation/server/guides/libraries/log-levels.html). Otherwise developers won't be able to filter out the noise.

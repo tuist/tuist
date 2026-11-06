@@ -198,6 +198,46 @@ func TestEvacuateMovesTheStandbyBeforeThePrimary(t *testing.T) {
 	}
 }
 
+// A re-templated StatefulSet can restart a replica on a claim pinned to the
+// cordoned box. That pod never schedules, so it has no node name, yet it still
+// has to move; otherwise it stays Pending and the evacuation never finishes.
+func TestEvacuateMovesAPendingPodPinnedToTheLeavingNode(t *testing.T) {
+	instance := evacInstance()
+	caughtUp := stubRuntimeStatus{byPod: map[string]runtimeStatus{
+		"kura-acct-region-0": routableStatus(backfillCycleComplete),
+	}}
+	claim := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "data-kura-acct-region-1", Namespace: "kura"},
+		Spec:       corev1.PersistentVolumeClaimSpec{VolumeName: "pinned"},
+	}
+	pv := &corev1.PersistentVolume{ObjectMeta: metav1.ObjectMeta{Name: "pinned"}, Spec: corev1.PersistentVolumeSpec{
+		NodeAffinity: &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{Key: corev1.LabelHostname, Operator: corev1.NodeSelectorOpIn, Values: []string{"old-box"}}}}}}},
+	}}
+	r, c := evacReconciler(t, caughtUp,
+		instance,
+		primaryService("kura-acct-region-0"),
+		servingEndpoints("kura-acct-region-0"),
+		evacPod("kura-acct-region-0", "new-box", true),
+		evacPod("kura-acct-region-1", "", false),
+		claim, pv,
+		evacNode("old-box", true),
+		evacNode("new-box", false),
+	)
+
+	if err := r.evacuateMarkedNodes(context.Background(), instance); err != nil {
+		t.Fatalf("evacuateMarkedNodes: %v", err)
+	}
+	if podExists(t, c, "kura-acct-region-1") {
+		t.Fatal("the Pending pod pinned to the leaving node was not moved")
+	}
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(claim), &corev1.PersistentVolumeClaim{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("its claim was kept (err=%v); the replacement would pin to the leaving node again", err)
+	}
+	if !podExists(t, c, "kura-acct-region-0") {
+		t.Fatal("the serving replica on the landing node was evacuated")
+	}
+}
+
 // One replica per pass. Both at once leaves the instance with no serving pod.
 func TestEvacuateMovesOneReplicaAtATime(t *testing.T) {
 	instance := evacInstance()

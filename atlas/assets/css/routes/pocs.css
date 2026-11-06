@@ -3,7 +3,7 @@
 #poc-show {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-7);
+  gap: var(--noora-spacing-6);
   min-width: 0;
   width: 100%;
 
@@ -17,12 +17,13 @@
   & [data-part="title-group"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-3);
+    gap: var(--noora-spacing-2);
     min-width: 0;
   }
 
   & [data-part="title-group"] h1,
   & [data-part="empty-state"] h2 {
+    margin: 0;
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
@@ -31,6 +32,11 @@
   & [data-part="empty-state"] p {
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  & [data-part="title-group"] p {
+    margin: 0;
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
   }
 
   & [data-part="header-actions"],

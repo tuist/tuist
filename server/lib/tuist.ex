@@ -11,6 +11,10 @@ defmodule Tuist do
     # that `Tuist.OnceEvents` projects from.
     deps: [Once],
     exports: [
+      Threads,
+      Threads.Checkpoints,
+      Threads.Thread,
+      Threads.RecoveryWorker,
       # Marketing
       # -----
       # These modules contain utilities that are used for the marketing-related
@@ -178,7 +182,11 @@ defmodule Tuist do
       Tests.Coverage.TestSources,
       Tests.Coverage.Workers.CommitWorker,
       Tests.CoverageCommit,
+      Tests.Selections,
       Tests.TestRunStressCandidate,
+      TestImpactAnalysis.Baselines,
+      TestImpactAnalysis.Runs,
+      TestImpactAnalysis.Storage,
       Shards,
       Shards.Analytics,
       Shards.ShardPlan,
@@ -186,6 +194,7 @@ defmodule Tuist do
       Shards.ShardPlanTestSuite,
       Shards.ShardRun,
       MCP.Server,
+      MCP.WebMCP,
       MCP.Transport.StreamableHTTP,
       # App
       # -----
@@ -198,6 +207,8 @@ defmodule Tuist do
       Accounts.Organization,
       Accounts.AuthenticatedAccount,
       Accounts.AccountToken,
+      Accounts.AISubscriptions,
+      Accounts.MCPServers,
       Accounts.User,
       Accounts.UserMFA,
       Accounts.UserPasskey,
@@ -223,6 +234,8 @@ defmodule Tuist do
       Artifacts,
       Artifacts.Package,
       Projects,
+      Push,
+      Notifications,
       Projects.Project,
       Accounts.OIDCTrustPolicy,
       Projects.Workers.CleanProjectWorker,
@@ -243,6 +256,9 @@ defmodule Tuist do
       Origin.Client,
       Origin.Signatures,
       Origin.WebhookWorker,
+      Entire,
+      Entire.Client,
+      EntireTrails,
       VCS.RemoteURL,
       Alerts,
       Alerts.Alert,
@@ -312,6 +328,7 @@ defmodule Tuist do
       # Firecracker sandboxes for coding-agent sessions (control plane
       # for infra/sandboxd; see lib/tuist/sandboxes/AGENTS.md).
       Sandboxes,
+      RemoteExecution,
       Sandboxes.AtlasIdentity,
       Sandboxes.ProviderEnvironments,
       Sandboxes.AmpIntegrations,
@@ -319,11 +336,17 @@ defmodule Tuist do
       Sandboxes.AmpRuntime,
       Sandboxes.AgentEnvironment,
       Sandboxes.AgentSession,
+      Sandboxes.ClaudeCodeRunners,
+      Sandboxes.ClaudeCodeRuntime,
       Sandboxes.Anthropic.Client,
+      Sandboxes.Analytics,
       Sandboxes.Concurrency,
       Sandboxes.Nodes,
+      Sandboxes.Pricing,
+      Sandboxes.Query,
       Sandboxes.Router,
       Sandboxes.Sandbox,
+      Sandboxes.Schemas,
       # Customer-runner pool. The Tuist GitHub App fires
       # `workflow_job: queued` events into the webhook controller,
       # which delegates to Tuist.Runners.Dispatch; the
@@ -353,6 +376,8 @@ defmodule Tuist do
       Runners.Workers.FetchLogsWorker,
       Runners.Workers.PruneArchivedLogsWorker,
       Runners.Claims,
+      Runners.APIJobs,
+      Runners.APIJobs.Job,
       Runners.GitLab,
       Runners.GitLab.Cache,
       Runners.GitLab.Connection,

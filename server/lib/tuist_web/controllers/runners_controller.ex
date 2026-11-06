@@ -225,6 +225,8 @@ defmodule TuistWeb.RunnersController do
     }
   end
 
+  defp credential_fields(%{kind: :api, job: job}), do: %{api_job: job}
+
   defp credential_fields(%{kind: :bitrise} = credential) do
     %{bitrise_intro_secret: credential.intro_secret, bitrise_report_token: credential.report_token}
   end

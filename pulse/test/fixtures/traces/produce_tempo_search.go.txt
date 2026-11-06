@@ -1,0 +1,140 @@
+package vparquet4
+
+import (
+	"context"
+	"encoding/hex"
+	"encoding/json"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/tempopb"
+	cv "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	rv "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	tv "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"os"
+	"sort"
+	"testing"
+)
+
+func value(key, v string) *cv.KeyValue {
+	return &cv.KeyValue{Key: key, Value: &cv.AnyValue{Value: &cv.AnyValue_StringValue{StringValue: v}}}
+}
+func batch(id int, service, name string, span, parent byte, start, end uint64) *tv.ResourceSpans {
+	tid := make([]byte, 16)
+	tid[15] = byte(id)
+	sid := make([]byte, 8)
+	sid[7] = span
+	var pid []byte
+	if parent != 0 {
+		pid = make([]byte, 8)
+		pid[7] = parent
+	}
+	return &tv.ResourceSpans{Resource: &rv.Resource{Attributes: []*cv.KeyValue{value("service.namespace", "example"), value("service.name", service), value("deployment.environment", "production")}}, ScopeSpans: []*tv.ScopeSpans{{Spans: []*tv.Span{{TraceId: tid, SpanId: sid, ParentSpanId: pid, Name: name, StartTimeUnixNano: start, EndTimeUnixNano: end}}}}}
+}
+func TestPulseOracle(t *testing.T) {
+	ns := uint64(1_000_000_000)
+	inputs := []*tempopb.Trace{
+		{ResourceSpans: []*tv.ResourceSpans{batch(1, "frontend", "request", 1, 0, 10*ns, 50*ns), batch(1, "worker", "outside-window", 2, 1, 45*ns, 46*ns)}},
+		{ResourceSpans: []*tv.ResourceSpans{batch(2, "worker", "before", 1, 0, 20*ns, 24*ns)}},
+		{ResourceSpans: []*tv.ResourceSpans{batch(3, "frontend", "newer", 1, 0, 35*ns, 36*ns), batch(3, "worker", "inside", 2, 1, 37*ns, 38*ns)}},
+		{ResourceSpans: []*tv.ResourceSpans{batch(4, "worker", "after", 1, 0, 41*ns, 45*ns)}},
+		{ResourceSpans: []*tv.ResourceSpans{batch(5, "worker", "missing-root", 2, 1, 32*ns, 47*ns)}},
+		{ResourceSpans: []*tv.ResourceSpans{batch(6, "frontend", "gap-root", 1, 0, 10*ns, 15*ns), batch(6, "worker", "gap-match", 2, 1, 70*ns, 71*ns)}},
+		{ResourceSpans: []*tv.ResourceSpans{batch(7, "worker", "inside-final-second", 1, 0, 40*ns+500_000_000, 40*ns+900_000_000)}},
+		{ResourceSpans: []*tv.ResourceSpans{batch(8, "frontend", "many-root", 1, 0, 55*ns, 56*ns), batch(8, "worker", "many-a", 2, 1, 57*ns, 58*ns), batch(8, "worker", "many-b", 3, 1, 58*ns, 59*ns), batch(8, "worker", "many-c", 4, 1, 59*ns, 60*ns)}},
+	}
+	var rows []*Trace
+	all := &tempopb.Trace{}
+	for _, tr := range inputs {
+		all.ResourceSpans = append(all.ResourceSpans, tr.ResourceSpans...)
+		id := tr.ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId
+		row, _ := traceToParquet(&backend.BlockMeta{}, id, tr, nil)
+		rows = append(rows, row)
+	}
+	block := makeBackendBlockWithTraces(t, rows)
+	ctx := context.Background()
+	opts := common.DefaultSearchOptions()
+	selector := `{ resource.service.namespace = "example" && resource.service.name = "worker" && resource.deployment.environment =~ "production" } with (most_recent=true)`
+	type Case struct {
+		Name                    string `json:"name"`
+		Query                   string `json:"query"`
+		Start, End, Limit, SPSS uint32
+		Response                json.RawMessage `json:"response"`
+	}
+	cases := []Case{{Name: "overlap-and-outside-match", Start: 30, End: 40, Limit: 100, SPSS: 3}, {Name: "most-recent-before-limit", Start: 30, End: 40, Limit: 1, SPSS: 1}, {Name: "gap-overlap", Start: 25, End: 30, Limit: 100, SPSS: 3}, {Name: "inclusive-left", Start: 50, End: 50, Limit: 100, SPSS: 3}, {Name: "no-match", Start: 80, End: 90, Limit: 100, SPSS: 3}, {Name: "final-second-exclusive", Start: 40, End: 40, Limit: 100, SPSS: 3}, {Name: "final-second-included", Start: 40, End: 41, Limit: 100, SPSS: 3}, {Name: "sample-not-matched-count", Start: 55, End: 60, Limit: 100, SPSS: 1}}
+	for i := range cases {
+		c := &cases[i]
+		c.Query = selector
+		response, err := traceql.NewEngine().ExecuteSearch(ctx, &tempopb.SearchRequest{Query: selector, Start: c.Start, End: c.End, Limit: c.Limit, SpansPerSpanSet: c.SPSS}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return block.Fetch(ctx, req, opts)
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Provider work counters depend on physical layout, not query semantics.
+		response.Metrics = nil
+		for _, tr := range response.Traces {
+			for _, ss := range tr.SpanSets {
+				for _, sp := range ss.Spans {
+					sort.Slice(sp.Attributes, func(i, j int) bool { return sp.Attributes[i].Key < sp.Attributes[j].Key })
+				}
+			}
+		}
+		buffer := proto.NewBuffer(nil)
+		if err := buffer.Marshal(response); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile("/tmp/pulse-tempo-search/search-"+c.Name+".protobuf", buffer.Bytes(), 0644); err != nil {
+			t.Fatal(err)
+		}
+		out, err := (&jsonpb.Marshaler{}).MarshalToString(response)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.Response = json.RawMessage(out)
+		// Optional one-off consumer interoperability check, never required for replay.
+		if wire, err := os.ReadFile("/tmp/pulse-tempo-search/elixir-" + c.Name + ".protobuf"); err == nil {
+			var decoded tempopb.SearchResponse
+			if err := proto.Unmarshal(wire, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			got, err := (&jsonpb.Marshaler{}).MarshalToString(&decoded)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var wantMap, gotMap interface{}
+			if err := json.Unmarshal([]byte(out), &wantMap); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal([]byte(got), &gotMap); err != nil {
+				t.Fatal(err)
+			}
+			// Absent and empty repeated traces are the same protobuf default.
+			if len(response.Traces) == 0 {
+				continue
+			}
+			wantBytes, _ := json.Marshal(wantMap)
+			gotBytes, _ := json.Marshal(gotMap)
+			if string(wantBytes) != string(gotBytes) {
+				t.Fatalf("consumer mismatch %s: got %s want %s", c.Name, gotBytes, wantBytes)
+			}
+		}
+	}
+	out, err := json.MarshalIndent(cases, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("/tmp/pulse-tempo-search/search-oracle.json", append(out, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+	wire, err := proto.Marshal(all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("/tmp/pulse-tempo-search/search-input.protobuf", wire, 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Log("Trace 1", hex.EncodeToString(inputs[0].ResourceSpans[0].ScopeSpans[0].Spans[0].TraceId))
+}

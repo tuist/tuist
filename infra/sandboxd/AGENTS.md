@@ -131,8 +131,9 @@ resolve both cluster Services and public names through the pod's NAT.
   keeps its workspace. The first pause writes the sandbox's own memory
   image.
 - `archive {sandbox_id, part_size, part_urls}`: refuse unless the sandbox is
-  paused; stream `vmlinux`, `rootfs.ext4` and `workspace.ext4` (no memory
-  image) as one zstd object (`internal/archive`: magic `SBXARC1`, a JSON
+  paused with `disks_synced`, since only the disks are archived; stream
+  `vmlinux`, `rootfs.ext4` and `workspace.ext4` (no memory image) as one
+  zstd object (`internal/archive`: magic `SBXARC1`, a JSON
   header, file records with data blocks at their offsets, holes and zero
   blocks left out) cut into `part_size` parts, each PUT to the next
   presigned UploadPart URL (two parts in memory at most, three attempts per
@@ -259,6 +260,7 @@ Server to node:
 {"type":"command","id":"c3","op":"pause","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c4","op":"delete","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c5","op":"exec","args":{"sandbox_id":"...","cmd":["/bin/bash","-lc","ls"],"env":{},"cwd":"/workspace","timeout_ms":60000}}
+{"type":"command","id":"c11","op":"exec","args":{"sandbox_id":"...","cmd":["/usr/local/bin/sbx-executor"],"env":{...},"cwd":"/workspace","timeout_ms":780000,"claim":{"nonce_sha256":"<hex>","env":"SBX_EXECUTION_REQUEST","timeout_ms":30000}}}
 {"type":"command","id":"c6","op":"start_worker","args":{"sandbox_id":"...","env":{"ANTHROPIC_SESSION_ID":"...","ANTHROPIC_WORK_ID":"...","ANTHROPIC_ENVIRONMENT_ID":"...","ANTHROPIC_ENVIRONMENT_KEY":"...","ANTHROPIC_WORK_SECRET":"...","ANTHROPIC_BASE_URL":"...","SBX_MAX_IDLE":"30s"}}}
 {"type":"command","id":"c7","op":"stop_worker","args":{"sandbox_id":"..."}}
 {"type":"command","id":"c8","op":"status","args":{"sandbox_id":"..."}}
@@ -276,6 +278,14 @@ its result (`data.exit_code`). `start_worker` results as soon as the worker
 process is running; `worker_exited` follows as an event. Credentials travel
 only in `start_worker` args, are handed to the guest over vsock, and are never
 written to the node's disk by the daemon.
+
+An `exec` with a `claim` waits up to `claim.timeout_ms` for a caller to post
+`{sandbox_id, nonce, value}` to `POST /v1/claims` on `DIRECT_EXEC_ADDR`
+(advertised as `direct_exec_endpoint` in `hello`). The nonce must hash to
+`claim.nonce_sha256`; the claim is single-use. The command then runs with
+`value` in `claim.env`, its standard output goes only to the caller
+(`{exit_code, stdout}`), and the result carries the exit code. Unclaimed, the
+result is `{"unclaimed": true}` and nothing ran.
 
 The daemon rereads its cgroup's memory limit every 250 ms and sends a
 `report` as soon as it changes, so a resize of its Pod reaches the server's
@@ -295,6 +305,13 @@ reads `ANTHROPIC_SESSION_ID`, `ANTHROPIC_WORK_ID`, `ANTHROPIC_ENVIRONMENT_ID`,
 attaches to the session's event stream, executes tool calls and exits after
 `MaxIdle` following an `end_turn` idle. The work item was already claimed and
 acknowledged by the server's poller; the worker never polls.
+
+With `SBX_CLAUDE_CODE_WORK_ORDER` set, `sbx-worker` instead runs `claude
+self-hosted-runner` for one Claude Code session (capacity 1, Anthropic's git
+proxy, release after `SBX_CLAUDE_CODE_RELEASE_IDLE_MIN` idle minutes) under
+`<workdir>/claude-code`. The work order reaches the runner only as
+`SELF_HOSTED_RUNNER_ENVIRONMENT_SECRET`. On Linux it drops from root to `user`;
+a guest without the pinned binary downloads and checksums it first.
 
 ## Server side
 
@@ -356,7 +373,7 @@ Runner/sandbox capacity policy and rollout gates: [fleet-sharing.md](fleet-shari
 
 Diff snapshots, userfaultfd restore from object storage, cross-node resume
 with memory (archived sandboxes restore on any node, but cold),
-per-account egress policy, non-root execution in the guest, Claude Code
+per-account egress policy, non-root agent execution in the guest, Claude Code
 self-hosted runners.
 
 ## Operations
@@ -391,6 +408,12 @@ agent so the manager runs end to end without KVM).
   sparse workspace of `TEMPLATE_WORKSPACE_GB` (default 10); when a create
   asks for a different size the daemon issues `PATCH /drives/workspace`
   after the load so the guest learns the new capacity before formatting.
+  Bazel templates are the exception: the builder formats and unmounts a pristine
+  workspace before snapshotting and records `workspace_prepared`. Matching-size
+  creates reflink `workspace.empty.ext4` and mount it without formatting; older
+  snapshots and different sizes retain the original path. The optional trusted
+  `/usr/local/bin/sbx-template-prepare` hook runs before unmounting. Never derive
+  this image or memory snapshot from a VM that has received an action or token.
 
 ### Configuration (environment)
 
@@ -407,6 +430,7 @@ agent so the manager runs end to end without KVM).
 | `PREBUILD_SHAPES` | | Comma-separated shapes to build at startup, e.g. `2x4096,4x8192`. Must be a subset of `ALLOWED_SHAPES` when that is set. |
 | `ALLOWED_SHAPES` | | The only shapes `create` and template builds accept. Empty accepts any valid shape. |
 | `DISK_BUDGET_GIB` | `0` | Share of the data filesystem sandboxes may reserve, reported as `disk.budget_bytes`; the server reserves each sandbox's ceiling against it. `0` reports no budget. |
+| `DIRECT_EXEC_ADDR` | | Listen address for claims of claimed execs, e.g. `$(POD_IP):7071`. Empty disables claims. |
 | `POD_NAME` | | The daemon's Pod (downward API), reported in `hello.elastic` so the server can resize it. |
 | `MEMORY_FLOOR_GIB`, `MEMORY_CEILING_GIB` | `0`, `0` | The memory the Pod starts at and the most the server may grow it to, reported in `hello.elastic`. A ceiling not above the floor keeps the limit fixed. |
 | `TEMPLATE_WORKSPACE_GB` | `10` | Workspace size attached during the template boot. |
@@ -509,6 +533,9 @@ inside an error.
 `sandboxd_pause_seconds`, `sandboxd_template_build_seconds{shape}`
 (histograms), `sandboxd_sandboxes{state}`, `sandboxd_workers_running`
 (gauges), `sandboxd_operations_total{op,result}` (counter).
+`sandboxd_lifecycle_phase_seconds{phase}` breaks down fixed lifecycle phases;
+sandbox IDs are never labels. Delete overlaps process exit and network teardown,
+but retains files, the instance reference and slot until both succeed.
 
 ### Development
 

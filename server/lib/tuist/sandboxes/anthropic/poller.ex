@@ -144,7 +144,7 @@ defmodule Tuist.Sandboxes.Anthropic.Poller do
   # stop that would hold the turn until the session's next event.
   defp handle_item(%{"id" => work_id, "data" => %{"type" => "session", "id" => session_id}} = item, agent_environment)
        when is_binary(session_id) do
-    if Capacity.admissible?(agent_environment, session_id) do
+    if Capacity.admissible?(Router.session_environment(agent_environment, item), session_id) do
       ack_and_dispatch(work_id, item, agent_environment)
     else
       Logger.info("sandboxes: no capacity for work item, leaving it queued",

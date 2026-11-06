@@ -1,0 +1,253 @@
+package vparquet4
+
+import (
+	"context"
+	"encoding/binary"
+	"encoding/json"
+	"fmt"
+	"os"
+	"sort"
+	"testing"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/tempopb"
+	cv "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	rv "github.com/grafana/tempo/pkg/tempopb/resource/v1"
+	tv "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+)
+
+// Optional public-source oracle. Raw block dictionaries are recorded separately
+// from complete, unambiguous roots over actual engine-selected trace IDs.
+func TestPulseRoots(t *testing.T) {
+	dir := "/tmp/pulse-root-discovery"
+	if e := os.MkdirAll(dir, 0755); e != nil {
+		t.Fatal(e)
+	}
+	attr := func(k, v string) *cv.KeyValue {
+		return &cv.KeyValue{Key: k, Value: &cv.AnyValue{Value: &cv.AnyValue_StringValue{StringValue: v}}}
+	}
+	id := func(n uint64, w int) []byte { b := make([]byte, w); binary.BigEndian.PutUint64(b[w-8:], n); return b }
+	labels := []string{"normal", "duplicate", "missing", "unknownservice", "ambiguous", "childlink", "empty", "parentflip"}
+	all := &tempopb.Trace{}
+	rows := []*Trace{}
+	for i, label := range labels {
+		tid := id(uint64(i+1), 16)
+		makeOwner := func(sid uint64, parent []byte, name, service string) *tv.ResourceSpans {
+			attrs := []*cv.KeyValue{}
+			if service != "<missing>" {
+				attrs = append(attrs, attr("service.name", service))
+			}
+			sp := &tv.Span{TraceId: tid, SpanId: id(sid, 8), ParentSpanId: parent, Name: name, StartTimeUnixNano: uint64(i+1)*1_000_000_000 + sid, EndTimeUnixNano: uint64(i+1)*1_000_000_000 + sid + 100, Attributes: []*cv.KeyValue{attr("case", label)}}
+			return &tv.ResourceSpans{Resource: &rv.Resource{Attributes: attrs}, ScopeSpans: []*tv.ScopeSpans{{Spans: []*tv.Span{sp}}}}
+		}
+		rootName, rootService := "GET /api", "gateway"
+		if label == "unknownservice" {
+			rootService = "<missing>"
+		}
+		if label == "empty" {
+			rootName = ""
+			rootService = ""
+		}
+		root := makeOwner(1, nil, rootName, rootService)
+		child := makeOwner(2, id(1, 8), "work", "worker")
+		if label == "normal" {
+			child.ScopeSpans[0].Spans[0].StartTimeUnixNano = 20_000_000_000
+			child.ScopeSpans[0].Spans[0].EndTimeUnixNano = 20_000_000_100
+		}
+		owners := []*tv.ResourceSpans{root, child}
+		switch label {
+		case "duplicate":
+			owners = append(owners, proto.Clone(root).(*tv.ResourceSpans))
+		case "missing":
+			owners = owners[1:]
+		case "ambiguous":
+			owners = append(owners, makeOwner(3, nil, rootName, rootService))
+		case "childlink":
+			root.ScopeSpans[0].Spans[0].Links = []*tv.Span_Link{{TraceId: id(100, 16), SpanId: id(100, 8), Attributes: []*cv.KeyValue{attr("opentracing.ref_type", "child_of")}}}
+		case "parentflip":
+			owners = append(owners, makeOwner(1, id(99, 8), rootName, rootService))
+		}
+		all.ResourceSpans = append(all.ResourceSpans, owners...)
+		row, _ := traceToParquet(&backend.BlockMeta{}, tid, &tempopb.Trace{ResourceSpans: owners}, nil)
+		rows = append(rows, row)
+	}
+	wire, e := proto.Marshal(all)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(dir+"/input.protobuf", wire, 0644); e != nil {
+		t.Fatal(e)
+	}
+	block := makeBackendBlockWithTraces(t, rows)
+	opts := common.DefaultSearchOptions()
+	engine := traceql.NewEngine()
+	queries := []string{`{}`}
+	for _, label := range append(labels, "absent") {
+		queries = append(queries, fmt.Sprintf(`{span.case="%s"}`, label))
+	}
+	queries = append(queries, `{resource.service.name="worker" && span.case=~"norm.*"}`)
+	cases := []map[string]any{}
+	consumed := 0
+	for _, target := range []string{"rootName", "trace:rootName", "rootServiceName", "trace:rootService"} {
+		for _, q := range queries {
+			tag, e := traceql.ParseIdentifier(target)
+			if e != nil {
+				t.Fatal(e)
+			}
+			rawSet := map[tempopb.TagValue]bool{}
+			fetch := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, r traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
+				return block.FetchTagValues(ctx, r, cb, func(uint64) {}, opts)
+			})
+			if e = engine.ExecuteTagValues(context.Background(), tag, q, traceql.MakeCollectTagValueFunc(func(v tempopb.TagValue) bool { rawSet[v] = true; return false }), fetch); e != nil {
+				t.Fatal(e)
+			}
+			found, e := engine.ExecuteSearch(context.Background(), &tempopb.SearchRequest{Query: q + " with (most_recent=true)", Limit: 1000, SpansPerSpanSet: 1000}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, r traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return block.Fetch(ctx, r, opts)
+			}))
+			if e != nil {
+				t.Fatal(e)
+			}
+			selected := map[string]bool{}
+			for _, tr := range found.Traces {
+				if tr.SpanSet.Matched != uint32(len(tr.SpanSet.Spans)) {
+					t.Fatal("clipped fixture")
+				}
+				selected[tr.TraceID] = true
+			}
+			grouped := map[string][]*tv.ResourceSpans{}
+			for _, owner := range all.ResourceSpans {
+				sp := owner.ScopeSpans[0].Spans[0]
+				key := util.TraceIDToHexString(sp.TraceId)
+				if selected[key] {
+					grouped[key] = append(grouped[key], owner)
+				}
+			}
+			conflict, unknown := false, false
+			completeSet := map[tempopb.TagValue]bool{}
+			serviceTarget := target == "rootServiceName" || target == "trace:rootService"
+			for _, owners := range grouped {
+				flags := map[string]bool{}
+				rootID := ""
+				rootName := ""
+				rootService := ""
+				known := true
+				for _, owner := range owners {
+					sp := owner.ScopeSpans[0].Spans[0]
+					root := len(sp.ParentSpanId) == 0
+					for _, link := range sp.Links {
+						for _, a := range link.Attributes {
+							if a.Key == "opentracing.ref_type" && a.Value.GetStringValue() == "child_of" {
+								root = false
+							}
+						}
+					}
+					sid := util.SpanIDToHexString(sp.SpanId)
+					if prior, ok := flags[sid]; ok && prior != root {
+						conflict = true
+					}
+					flags[sid] = root
+					if !root {
+						continue
+					}
+					service := ""
+					present := false
+					for _, a := range owner.Resource.Attributes {
+						if a.Key == "service.name" {
+							if v, ok := a.Value.Value.(*cv.AnyValue_StringValue); ok {
+								service = v.StringValue
+								present = true
+							}
+						}
+					}
+					if rootID != "" && (rootID != sid || rootName != sp.Name || rootService != service) {
+						conflict = true
+					}
+					if rootID == "" {
+						rootID = sid
+						rootName = sp.Name
+						rootService = service
+					}
+					known = known && present
+				}
+				if rootID == "" || (serviceTarget && !known) {
+					unknown = true
+					continue
+				}
+				value := rootName
+				if serviceTarget {
+					value = rootService
+				}
+				completeSet[tempopb.TagValue{Type: "string", Value: value}] = true
+			}
+			sorted := func(set map[tempopb.TagValue]bool) []*tempopb.TagValue {
+				v := []*tempopb.TagValue{}
+				for p := range set {
+					p := p
+					v = append(v, &p)
+				}
+				sort.Slice(v, func(i, j int) bool { return v[i].Value < v[j].Value })
+				return v
+			}
+			c := map[string]any{"target": target, "query": q, "raw": map[string]any{"tagValues": sorted(rawSet)}}
+			errorName := ""
+			if conflict {
+				errorName = "trace_root_conflict"
+			} else if unknown {
+				errorName = "trace_root_unknown"
+			}
+			complete := sorted(completeSet)
+			if errorName != "" {
+				c["expected_error"] = errorName
+			} else {
+				c["complete"] = map[string]any{"tagValues": complete}
+			}
+			cases = append(cases, c)
+			if errorName != "" {
+				continue
+			}
+			for _, version := range []int{1, 2} {
+				b, e := os.ReadFile(fmt.Sprintf("%s/value-%02d-v%d.protobuf", dir, len(cases)-1, version))
+				if os.IsNotExist(e) && os.Getenv("PULSE_REQUIRE_CONSUMER") != "1" {
+					continue
+				}
+				if e != nil {
+					t.Fatal(e)
+				}
+				if version == 2 {
+					got := &tempopb.SearchTagValuesV2Response{}
+					if e = proto.Unmarshal(b, got); e != nil {
+						t.Fatal(e)
+					}
+					if !proto.Equal(got, &tempopb.SearchTagValuesV2Response{TagValues: complete}) {
+						t.Fatal("v2 mismatch")
+					}
+				} else {
+					got := &tempopb.SearchTagValuesResponse{}
+					if e = proto.Unmarshal(b, got); e != nil {
+						t.Fatal(e)
+					}
+					want := []string{}
+					for _, v := range complete {
+						want = append(want, v.Value)
+					}
+					if !proto.Equal(got, &tempopb.SearchTagValuesResponse{TagValues: want}) {
+						t.Fatal("v1 mismatch")
+					}
+				}
+				consumed++
+			}
+		}
+	}
+	data, e := json.MarshalIndent(cases, "", "  ")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(dir+"/oracle.json", append(data, '\n'), 0644); e != nil {
+		t.Fatal(e)
+	}
+	t.Logf("%d actual public consumer messages", consumed)
+}

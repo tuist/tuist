@@ -33,13 +33,13 @@ Helm-installed resource; publishing it is a separate rollout step.
   authorizes by that TokenReview username. Explicit driver upgrades require
   `kuraVolumesCSI.image.digest`; the tag fallback preserves older installations.
   Server deployments preserve the driver independently of controller tags.
-  Production/canary installation and root sync default off; staging retains
-  its validated installation. An account's
+  Every managed overlay enables the driver and root sync; canary and
+  production install it only through a digest-pinned deploy. An account's
   instances use encryption when their region is LVM-enrolled or its legacy
-  policy permits the `:kura_encrypted_volumes` feature flag. Legacy root keys
-  are synced by `server.config.kuraVolumeRootKeys.enabled` from the env's
-  `KURA_VOLUME_ROOT_KEYS` 1Password item (`value`); OpenBao configuration and
-  migration gates are described below. Missing wrapping keys fail closed.
+  policy permits the `:kura_encrypted_volumes` feature flag. Root keys are
+  synced by `server.config.kuraVolumeRootKeys.enabled` from the env's
+  `KURA_VOLUME_ROOT_KEYS` 1Password item (`value`). Missing wrapping keys fail
+  closed.
   Its objects are `helm.sh/resource-policy: keep`, so a release without them
   (a rollback, or a staging deploy of an older branch) leaves the driver
   running: only it can unmount, close and delete existing volumes. Remove it
@@ -278,12 +278,6 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   through the `kura_thin_volumes` flag. Keep it empty in every managed overlay
   until a region has `tuist.dev/kura-thin-ready=true` nodes.
 
-- `server.config.kuraVolumeOpenBao` adds a dedicated projected Kubernetes token
-  to the web server, with explicit HTTPS origin, Transit/auth mounts, key names
-  and role. An optional ConfigMap supplies the private CA without disabling TLS. Legacy root sync
-  remains independently enabled during verified rewrap, then must be disabled
-  and every shared Secret consumer restarted. Managed overlays must not claim
-  OpenBao custody until identity, seal recovery, backups, audit and re-stage gates pass.
 - Kura CSI's retained admission policies constrain its pod-bound identity to
   its own node's PV lifecycle and disk capacity, and preserve PVC ownership.
   Claim writes/events are a `kura` Role. Run the disposable real-API admission

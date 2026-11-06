@@ -99,8 +99,10 @@ defmodule Tuist.OAuth.Apple do
         }
       }
 
-      user = Accounts.find_or_create_user_from_oauth2(auth, preload: [:account])
-      {:ok, user}
+      case Accounts.find_or_create_user_from_oauth2(auth, preload: [:account]) do
+        {:error, reason} -> {:error, reason}
+        user -> {:ok, user}
+      end
     end
   end
 

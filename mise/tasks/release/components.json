@@ -1,6 +1,22 @@
 {
   "components": [
     {
+      "name": "pulse",
+      "tag_prefix": "pulse@",
+      "tag_regex": "^pulse@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "pulse/cliff.toml",
+      "initial_version": "1.39.0",
+      "include_paths": [
+        "pulse/**/*",
+        "infra/helm/pulse/**/*",
+        ".github/workflows/pulse.yml",
+        ".github/workflows/pulse-release.yml",
+        ".github/workflows/pulse-nif-release.yml",
+        ".github/workflows/pulse-deployment.yml",
+        ".github/workflows/pulse-instance-deployment.yml"
+      ]
+    },
+    {
       "name": "tuist-ex",
       "tag_prefix": "tuist-ex@",
       "tag_regex": "^tuist-ex@[0-9]+\\.[0-9]+\\.[0-9]+$",
