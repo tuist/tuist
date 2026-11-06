@@ -422,7 +422,8 @@ volumes used in the last day, for the repositories the server places on this
 node (a few nodes per repository; dispatch leaves its young jobs to them). The
 agent restores the ones it lacks one at a time, separately from the job
 prefetch, with a ten-minute deadline each, through `LocalImages.PrefetchSpare`:
-only into free space above the reserve, never evicting, and as a speculative
+only into free space above the reserve and a checkout volume's 60 GB capacity
+(a checkout never evicts for its room), never evicting, and as a speculative
 master that pressure eviction takes first until a job clones it.
 `tuist_runner_cache_volume_prefetched_bytes_total{reason}` counts the saved
 heads' used bytes it installed (`job`, `prewarm`, `recent`). Checkout HEADs in the list (`kind: "checkout"`)
