@@ -74,20 +74,22 @@ defmodule TuistWeb.TestRunLive do
     ci_context = test_ci_context(run, socket.assigns.selected_account, ci_run_url)
     run = Map.put(run, :project, project)
 
-    [command_event, test_metrics, failures_count] =
+    [test_run_command_event, test_metrics, failures_count] =
       Tuist.Tasks.parallel_tasks([
         fn ->
-          if is_nil(run.shard_plan_id) do
-            case CommandEvents.get_command_event_by_test_run_id(run.id, project_id: run.project_id) do
-              {:ok, event} -> event
-              {:error, :not_found} -> nil
-            end
+          case CommandEvents.get_command_event_by_test_run_id(run.id, project_id: run.project_id) do
+            {:ok, event} -> event
+            {:error, :not_found} -> nil
           end
         end,
         fn -> Tests.Analytics.get_test_run_metrics(run) end,
         fn -> Tests.get_test_run_failures_count(run) end
       ])
 
+    # Each shard reports its own command event, so none stands for the whole run's
+    # command, session or result bundle. Every shard restores the build's selective
+    # testing hashes from the shared test products, so any of them carries the modules.
+    command_event = if is_nil(run.shard_plan_id), do: test_run_command_event
     binary_cache_event = binary_cache_command_event(run, command_event)
 
     socket =
@@ -95,6 +97,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:selected_project, project)
       |> assign(:run, run)
       |> assign(:command_event, command_event)
+      |> assign(:selective_testing_command_event, test_run_command_event)
       |> assign(:binary_cache_command_event, binary_cache_event)
       |> assign(:ci_run_url, ci_run_url)
       |> assign(:ci_context, ci_context)
@@ -119,7 +122,10 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:bazel_invocation_logs_meta, %{current_page: 1, total_pages: 1})
       |> assign(:available_filters, [])
       |> assign(:active_filters, [])
-      |> assign(:has_selective_testing_data, command_event && Xcode.has_selective_testing_data?(command_event))
+      |> assign(
+        :has_selective_testing_data,
+        test_run_command_event && Xcode.has_selective_testing_data?(test_run_command_event)
+      )
       |> assign(:has_binary_cache_data, not is_nil(binary_cache_event))
       |> assign(
         OpenGraph.project_image_assigns(project,
@@ -603,8 +609,8 @@ defmodule TuistWeb.TestRunLive do
         do: RunTab.assign_data(socket, socket.assigns.selection_run, socket.assigns.run.id, params),
         else: socket
 
-    if socket.assigns.command_event do
-      {analytics, meta} = load_selective_testing_data(socket.assigns.command_event, params)
+    if socket.assigns.selective_testing_command_event do
+      {analytics, meta} = load_selective_testing_data(socket.assigns.selective_testing_command_event, params)
       assign_selective_testing_data(socket, analytics, meta, params)
     else
       socket |> assign_selective_testing_defaults() |> assign_param_defaults(params)

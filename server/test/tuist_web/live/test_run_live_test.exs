@@ -20,6 +20,7 @@ defmodule TuistWeb.TestRunLiveTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
+  alias TuistTestSupport.Fixtures.TestSelectionFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.Helpers.OpenGraph
 
@@ -1059,6 +1060,98 @@ defmodule TuistWeb.TestRunLiveTest do
       assert has_element?(lv, "#test-cases-table", "firstShardCase")
       assert has_element?(lv, "#test-cases-table", "secondShardPassed")
       assert has_element?(lv, "#test-cases-table", "secondShardFailed")
+    end
+  end
+
+  describe "selective testing of a sharded test run" do
+    defp sharded_test_run_with_shard_events(project, attrs) do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          Keyword.merge([project_id: project.id, scheme: "AppScheme", shard_plan_id: shard_plan.id], attrs)
+        )
+
+      for shard_index <- 0..1 do
+        command_event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            test_run_id: test_run.id,
+            name: "test",
+            command_arguments: "test --without-building --shard-reference ref --shard-index #{shard_index}"
+          )
+
+        graph = XcodeFixtures.xcode_graph_fixture(command_event_id: command_event.id)
+        xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: graph.id)
+
+        for {name, hit} <- [{"AppTests", :miss}, {"CoreTests", :remote}] do
+          XcodeFixtures.xcode_target_fixture(
+            xcode_project_id: xcode_project.id,
+            name: name,
+            selective_testing_hash: "#{name}-hash",
+            selective_testing_hit: hit
+          )
+        end
+      end
+
+      test_run
+    end
+
+    defp module_rows(lv) do
+      lv
+      |> element("#selective-testing-table")
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.find("tbody tr")
+      |> Enum.map(&(&1 |> Floki.text() |> String.replace(~r/\s+/, " ")))
+      |> Enum.filter(&(&1 =~ "-hash"))
+    end
+
+    test "shows the shards' modules without a test impact run", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      test_run = sharded_test_run_with_shard_events(project, [])
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+
+      {:ok, lv, _html} = live(conn, path)
+      assert has_element?(lv, "a[href*='tab=test-optimizations']", "Selective Testing")
+      refute has_element?(lv, "[data-part='command-card-section']")
+
+      {:ok, lv, _html} = live(conn, path <> "?tab=test-optimizations")
+      assert [app, core] = module_rows(lv)
+      assert app =~ "AppTests"
+      assert app =~ "Missed"
+      assert core =~ "CoreTests"
+      assert core =~ "Remote"
+    end
+
+    test "shows the shards' modules under a test impact run that fell back", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      impact_run =
+        TestSelectionFixtures.run_fixture(
+          project_id: project.id,
+          outcome: "fallback",
+          reason: "no_baseline_evidence",
+          baseline_sha: nil
+        )
+
+      test_run = sharded_test_run_with_shard_events(project, test_impact_run_id: impact_run.id)
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
+        )
+
+      assert has_element?(lv, "#test-selection-fallback", "No baseline evidence")
+      assert [app, core] = module_rows(lv)
+      assert app =~ "AppTests"
+      assert core =~ "CoreTests"
     end
   end
 
