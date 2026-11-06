@@ -147,7 +147,9 @@ aggregationRule:
           values: ["external-secrets"]
     - matchLabels:
         tuist.dev/aggregate-to-write: "true"
-rules: []
+# No `rules`: the aggregation controller owns them. Rendering `rules: []` makes
+# Helm's server-side apply reset a field that controller manages, which fails
+# every upgrade after the first.
 ---
 # Force-syncing an ExternalSecret (`kubectl annotate externalsecret ...
 # force-sync=...`) is a patch; reads come from External Secrets' view role.
