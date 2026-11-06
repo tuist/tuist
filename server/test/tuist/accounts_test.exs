@@ -2772,6 +2772,7 @@ defmodule Tuist.AccountsTest do
     @tag :browser_session
     test "expires at seven days idle without activity from validity checks", %{token: token} do
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+      stub(Tuist.Time, :utc_now, fn -> now end)
       Repo.update_all(UserToken, set: [last_active_at: DateTime.add(now, -604_799)])
       assert Accounts.get_user_by_session_token(token)
 
@@ -2783,6 +2784,7 @@ defmodule Tuist.AccountsTest do
     @tag :browser_session
     test "activity cannot extend the 30-day absolute deadline", %{token: token} do
       now = DateTime.truncate(Tuist.Time.utc_now(), :second)
+      stub(Tuist.Time, :utc_now, fn -> now end)
 
       Repo.update_all(UserToken,
         set: [inserted_at: now |> DateTime.add(-2_591_999) |> DateTime.to_naive(), last_active_at: now]
