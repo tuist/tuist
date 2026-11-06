@@ -292,36 +292,39 @@ defmodule Tuist.Docs.ReleaseStatus do
   defp parse_schedule(yaml) do
     with {:ok, document} when is_map(document) <- YamlElixir.read_from_string(yaml),
          %{"schedule" => schedules} when is_list(schedules) <- document["on"] do
-      Enum.reduce_while(schedules, [], fn
-        %{"cron" => cron}, acc when is_binary(cron) ->
-          # GitHub schedules use five fields, not Oban's @reboot shortcuts.
-          case {String.split(cron), Expression.parse(cron)} do
-            {[_, _, day, _, weekday], {:ok, expression}} ->
-              # POSIX cron uses OR when both day fields are restricted, whereas
-              # Oban's matcher uses AND. Expand that case into two expressions.
-              expressions =
-                if not String.starts_with?(day, "*") and not String.starts_with?(weekday, "*") do
-                  [
-                    %{expression | weekdays: MapSet.new(0..6)},
-                    %{expression | days: MapSet.new(1..31)}
-                  ]
-                else
-                  [expression]
-                end
-
-              {:cont, expressions ++ acc}
-
-            _ ->
-              {:halt, []}
-          end
-
-        _, _ ->
-          {:halt, []}
+      Enum.reduce_while(schedules, [], fn schedule, acc ->
+        case cron_expressions(schedule) do
+          {:ok, expressions} -> {:cont, expressions ++ acc}
+          :error -> {:halt, []}
+        end
       end)
     else
       _ -> []
     end
   end
+
+  # GitHub schedules use five fields, not Oban's @reboot shortcuts.
+  defp cron_expressions(%{"cron" => cron}) when is_binary(cron) do
+    case {String.split(cron), Expression.parse(cron)} do
+      {[_, _, day, _, weekday], {:ok, expression}} ->
+        # POSIX cron uses OR when both day fields are restricted, whereas
+        # Oban's matcher uses AND. Expand that case into two expressions.
+        if not String.starts_with?(day, "*") and not String.starts_with?(weekday, "*") do
+          {:ok,
+           [
+             %{expression | weekdays: MapSet.new(0..6)},
+             %{expression | days: MapSet.new(1..31)}
+           ]}
+        else
+          {:ok, [expression]}
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  defp cron_expressions(_schedule), do: :error
 
   defp schedule([], _now), do: []
 
