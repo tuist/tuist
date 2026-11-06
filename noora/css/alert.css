@@ -65,7 +65,7 @@
      length of the title and actions before it. */
   & [data-part="dismiss-icon"] {
     flex-shrink: 0;
-    margin-left: auto;
+    margin-inline-start: auto;
   }
 
   & [data-part="actions"] {
