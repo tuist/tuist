@@ -156,13 +156,13 @@
       [data-part="buildkite-card-section"],
       [data-part="gitlab-card-section"],
       [data-part="bitrise-card-section"],
-      [data-part="amp-card-section"],
-      [data-part="amp-workspaces-card-section"]
+      [data-part="amp-card-section"]
     ) {
     display: flex;
     flex-direction: column;
 
-    & > :is(#buildkite-form, [id^="gitlab-connection-"], #bitrise-token-form, [id^="amp-settings-form-"]) {
+    & > :is(#buildkite-form, [id^="gitlab-connection-"], #bitrise-token-form),
+    & > [data-part="amp-part"] > [id^="amp-settings-form-"] {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-6);
@@ -493,8 +493,50 @@
   }
 }
 
-#integrations > [data-part="amp-card-section"][hidden] {
-  display: none;
+/* One Amp card: workspace sign-in, then the Orb provider when sandboxes are available. */
+#integrations > [data-part="amp-card-section"] {
+  gap: var(--noora-spacing-6);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
+
+    & > [data-part="subtitle"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  & > [data-part="amp-part"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    border-top: 1px solid var(--noora-surface-border-primary);
+    padding-top: var(--noora-spacing-6);
+
+    &[hidden] {
+      display: none;
+    }
+
+    /* Dialogs render no box of their own; don't let them add a gap. */
+    & > .noora-modal {
+      margin-top: calc(-1 * var(--noora-spacing-6));
+    }
+
+    & [data-part="header-row"] > [data-part="header"] > [data-part="title"] {
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & [data-part="header-row"] > [data-part="header"] > [data-part="subtitle"] {
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+  }
 }
 
 :is(#connect-amp-modal, #disconnect-amp-modal) > [data-part="positioner"] > [data-part="content"] {
@@ -526,11 +568,7 @@
   }
 }
 
-#integrations > [data-part="amp-workspaces-card-section"] {
-  display: flex;
-  flex-direction: column;
-  gap: var(--noora-spacing-6);
-
+#amp-workspaces {
   & > [data-part="workspace"] {
     display: flex;
     flex-direction: row;

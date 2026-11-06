@@ -79,9 +79,12 @@ defmodule Tuist.Accounts do
   defdelegate oidc_trust_candidates(issuer, account_handle, claims), to: OIDCTrustPolicies, as: :candidates
   defdelegate oidc_account_by_grants(identity), to: OIDCTrustPolicies, as: :account_for_identity
   defdelegate list_amp_workspace_connections(account), to: AmpWorkspaceConnections, as: :list
-  defdelegate create_amp_workspace_connection(account, workspace_id), to: AmpWorkspaceConnections, as: :create
+  defdelegate create_amp_workspace_connection(account, attrs), to: AmpWorkspaceConnections, as: :create
   defdelegate delete_amp_workspace_connection(account, connection_id), to: AmpWorkspaceConnections, as: :delete
-  defdelegate amp_workspace_account(workspace_id, account_handle), to: AmpWorkspaceConnections, as: :account_for_workspace
+
+  defdelegate amp_workspace_account(workspace_id, project_id, account_handle),
+    to: AmpWorkspaceConnections,
+    as: :account_for_workspace
 
   # auth.md agent registration workflow lives in `Tuist.Accounts.AgentAuth`.
   # These delegators keep `Tuist.Accounts` as the single context facade.

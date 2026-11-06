@@ -11,11 +11,9 @@ defmodule Tuist.Accounts.AmpWorkspaceConnections do
     Repo.all(from c in AmpWorkspaceConnection, where: c.account_id == ^account_id, order_by: c.id)
   end
 
-  # Callers must have verified an Amp identity token from `workspace_id`
-  # before connecting it; the workspace ID alone proves nothing.
-  def create(%Account{id: account_id}, workspace_id) do
+  def create(%Account{id: account_id}, attrs) do
     %AmpWorkspaceConnection{account_id: account_id}
-    |> AmpWorkspaceConnection.changeset(%{workspace_id: workspace_id})
+    |> AmpWorkspaceConnection.changeset(attrs)
     |> Repo.insert()
   end
 
@@ -27,15 +25,21 @@ defmodule Tuist.Accounts.AmpWorkspaceConnections do
   end
 
   @doc """
-  The account a verified Amp workspace exchanges into. Without an account
-  handle, the workspace must be connected to exactly one account.
+  The account a verified Amp orb exchanges into. A connection matches the
+  orb's workspace and, when it names one, the orb's Amp project. Without an
+  account handle, exactly one account must match.
   """
-  def account_for_workspace(workspace_id, account_handle) do
+  def account_for_workspace(workspace_id, project_id, account_handle) do
     query =
       from connection in AmpWorkspaceConnection,
         join: account in assoc(connection, :account),
         where: connection.workspace_id == ^workspace_id,
         select: account
+
+    query =
+      if project_id,
+        do: where(query, [c], is_nil(c.project_id) or c.project_id == ^project_id),
+        else: where(query, [c], is_nil(c.project_id))
 
     query = if account_handle in [nil, ""], do: query, else: where(query, [_, account], account.name == ^account_handle)
 

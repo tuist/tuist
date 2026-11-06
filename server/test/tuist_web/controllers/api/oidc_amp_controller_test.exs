@@ -13,6 +13,7 @@ defmodule TuistWeb.API.OIDCAmpControllerTest do
 
   @issuer "https://ampcode.com/api/workload-identity"
   @workspace_id "8e5f0d8f-a1a5-429d-843d-6096a60fa0a1"
+  @project_id "1e345004-78e8-4e1d-bb72-27bb1a22d450"
 
   setup_all do
     %{key: JOSE.JWK.generate_key({:rsa, 2048}), other_key: JOSE.JWK.generate_key({:rsa, 2048})}
@@ -29,7 +30,7 @@ defmodule TuistWeb.API.OIDCAmpControllerTest do
   end
 
   test "issues account-wide CI access to Orbs of a connected workspace", %{conn: conn, key: key, project: project} do
-    {:ok, _} = Accounts.create_amp_workspace_connection(project.account, @workspace_id)
+    {:ok, _} = Accounts.create_amp_workspace_connection(project.account, %{workspace_id: @workspace_id})
 
     response = conn |> exchange(sign(key)) |> json_response(:ok)
 
@@ -39,24 +40,39 @@ defmodule TuistWeb.API.OIDCAmpControllerTest do
     assert claims["all_projects"] == true
   end
 
-  test "rejects workspaces without a connection, personal threads and other audiences", %{
+  test "rejects unconnected workspaces, personal threads, tokens not printed by amp orb id-token and other audiences", %{
     conn: conn,
     key: key,
     project: project
   } do
-    {:ok, _} = Accounts.create_amp_workspace_connection(project.account, @workspace_id)
+    {:ok, _} = Accounts.create_amp_workspace_connection(project.account, %{workspace_id: @workspace_id})
 
-    assert %{"message" => "This Amp workspace is not connected" <> _} =
+    assert %{"message" => "This Amp workspace or project is not connected" <> _} =
              conn
              |> exchange(sign(key, %{"workspace_id" => "5b3ca4b4-55a2-4d33-9c87-1d0b0f2f3c11"}))
              |> json_response(:forbidden)
 
     assert conn |> exchange(sign(key, %{"workspace_id" => nil})) |> json_response(:forbidden)
-    assert conn |> exchange(sign(key, %{"aud" => "tuist-amp-connect:abc"})) |> json_response(:unauthorized)
+    assert conn |> exchange(sign(key, %{"token_use" => nil})) |> json_response(:forbidden)
+    assert conn |> exchange(sign(key, %{"token_use" => "setup"})) |> json_response(:forbidden)
+    assert conn |> exchange(sign(key, %{"aud" => "tuist"})) |> json_response(:unauthorized)
+  end
+
+  test "a project-scoped connection admits only Orbs of that Amp project", %{conn: conn, key: key, project: project} do
+    {:ok, _} =
+      Accounts.create_amp_workspace_connection(project.account, %{workspace_id: @workspace_id, project_id: @project_id})
+
+    assert conn |> exchange(sign(key)) |> json_response(:ok)
+
+    assert conn
+           |> exchange(sign(key, %{"project_id" => "5b3ca4b4-55a2-4d33-9c87-1d0b0f2f3c11"}))
+           |> json_response(:forbidden)
+
+    assert conn |> exchange(sign(key, %{"project_id" => nil})) |> json_response(:forbidden)
   end
 
   test "rejects tokens Amp did not sign", %{conn: conn, other_key: other_key, project: project} do
-    {:ok, _} = Accounts.create_amp_workspace_connection(project.account, @workspace_id)
+    {:ok, _} = Accounts.create_amp_workspace_connection(project.account, %{workspace_id: @workspace_id})
 
     assert conn |> exchange(sign(other_key)) |> json_response(:unauthorized)
   end
@@ -67,8 +83,8 @@ defmodule TuistWeb.API.OIDCAmpControllerTest do
     project: project
   } do
     other = ProjectsFixtures.project_fixture(preload: [:account])
-    {:ok, _} = Accounts.create_amp_workspace_connection(project.account, @workspace_id)
-    {:ok, _} = Accounts.create_amp_workspace_connection(other.account, @workspace_id)
+    {:ok, _} = Accounts.create_amp_workspace_connection(project.account, %{workspace_id: @workspace_id})
+    {:ok, _} = Accounts.create_amp_workspace_connection(other.account, %{workspace_id: @workspace_id})
 
     assert %{"message" => message} = conn |> exchange(sign(key)) |> json_response(:forbidden)
     assert message =~ "TUIST_OIDC_ACCOUNT"
@@ -85,7 +101,7 @@ defmodule TuistWeb.API.OIDCAmpControllerTest do
     project: project
   } do
     other = ProjectsFixtures.project_fixture(preload: [:account])
-    {:ok, _} = Accounts.create_amp_workspace_connection(project.account, @workspace_id)
+    {:ok, _} = Accounts.create_amp_workspace_connection(project.account, %{workspace_id: @workspace_id})
 
     assert conn |> exchange(sign(key), other.account.name) |> json_response(:forbidden)
   end
@@ -100,7 +116,7 @@ defmodule TuistWeb.API.OIDCAmpControllerTest do
         name: "Amp",
         issuer: @issuer,
         jwks_url: "#{@issuer}/jwks.json",
-        audience: "tuist",
+        audience: "https://tuist.dev",
         claims: %{"user_id" => "user_1"}
       })
       |> Repo.insert()
@@ -125,10 +141,11 @@ defmodule TuistWeb.API.OIDCAmpControllerTest do
     claims =
       %{
         "iss" => @issuer,
-        "aud" => "tuist",
+        "aud" => "https://tuist.dev",
         "sub" => "workspace:#{@workspace_id}:user:user_1:thread:T-1",
         "exp" => DateTime.to_unix(DateTime.utc_now()) + 600,
         "workspace_id" => @workspace_id,
+        "project_id" => @project_id,
         "user_id" => "user_1",
         "token_use" => "exchanged"
       }

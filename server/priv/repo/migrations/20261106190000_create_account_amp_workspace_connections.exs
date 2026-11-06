@@ -8,6 +8,7 @@ defmodule Tuist.Repo.Migrations.CreateAccountAmpWorkspaceConnections do
     create table(:account_amp_workspace_connections) do
       add :account_id, references(:accounts, on_delete: :delete_all), null: false
       add :workspace_id, :uuid, null: false
+      add :project_id, :uuid
 
       timestamps(type: :timestamptz)
     end

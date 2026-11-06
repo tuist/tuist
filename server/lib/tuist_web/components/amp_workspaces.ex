@@ -9,12 +9,9 @@ defmodule TuistWeb.Components.AmpWorkspaces do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Authorization
-  alias Tuist.OIDC
   alias Tuist.Repo
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.UnauthorizedError
-
-  @audience_prefix "tuist-amp-connect:"
 
   @impl true
   def update(assigns, socket) do
@@ -23,7 +20,6 @@ defmodule TuistWeb.Components.AmpWorkspaces do
       |> assign(assigns)
       |> assign_new(:error, fn -> nil end)
       |> assign_new(:form_version, fn -> 0 end)
-      |> assign_new(:audience, &new_audience/0)
 
     {:ok, load(socket)}
   end
@@ -39,16 +35,15 @@ defmodule TuistWeb.Components.AmpWorkspaces do
 
   def handle_event("cancel", _, socket), do: {:noreply, close_modal(socket)}
 
-  def handle_event("connect", %{"token" => token}, socket) do
+  # Like Amp's own trust recipes (Google Cloud, AWS, Tailscale), the account
+  # admin names the workspace; Amp's signature on each orb token proves the rest.
+  def handle_event("connect", params, socket) do
     socket = load(socket)
+    attrs = Map.new(["workspace_id", "project_id"], &{&1, params |> Map.get(&1, "") |> String.trim()})
 
-    # The audience names this page's single-use challenge, so a token minted
-    # for login or for another connection attempt cannot be replayed here.
-    with {:ok, workspace_id} <- OIDC.amp_workspace_id(String.trim(token), socket.assigns.audience),
-         {:ok, _connection} <- Accounts.create_amp_workspace_connection(socket.assigns.account, workspace_id) do
-      {:noreply, socket |> load() |> close_modal()}
-    else
-      error -> {:noreply, assign(socket, error: connect_error(error))}
+    case Accounts.create_amp_workspace_connection(socket.assigns.account, attrs) do
+      {:ok, _connection} -> {:noreply, socket |> load() |> close_modal()}
+      {:error, changeset} -> {:noreply, assign(socket, error: connect_error(changeset))}
     end
   end
 
@@ -58,31 +53,23 @@ defmodule TuistWeb.Components.AmpWorkspaces do
     {:noreply, load(socket)}
   end
 
-  defp connect_error({:error, :missing_amp_workspace_claim}),
-    do:
-      dgettext(
-        "dashboard_integrations",
-        "This token comes from a personal Amp thread. Run the command in a thread of a workspace project."
-      )
+  defp connect_error(%Ecto.Changeset{errors: errors}) do
+    case errors do
+      [workspace_id: {_, [constraint: :unique] ++ _}] ->
+        dgettext("dashboard_integrations", "This Amp workspace is already connected.")
 
-  defp connect_error({:error, %Ecto.Changeset{}}),
-    do: dgettext("dashboard_integrations", "This Amp workspace is already connected.")
+      [workspace_id: _] ->
+        dgettext("dashboard_integrations", "Enter the workspace ID, a UUID such as 8e5f0d8f-a1a5-429d-843d-6096a60fa0a1.")
 
-  defp connect_error(_),
-    do:
-      dgettext(
-        "dashboard_integrations",
-        "The token is not valid for this connection. Run the command again and paste the new token within 10 minutes."
-      )
+      _ ->
+        dgettext("dashboard_integrations", "Enter the project ID as a UUID, or leave it empty for the whole workspace.")
+    end
+  end
 
   defp close_modal(socket) do
     socket
     |> push_event("close-modal", %{id: "connect-amp-workspace-modal"})
-    |> assign(error: nil, form_version: socket.assigns.form_version + 1, audience: new_audience())
-  end
-
-  defp new_audience do
-    @audience_prefix <> (18 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false))
+    |> assign(error: nil, form_version: socket.assigns.form_version + 1)
   end
 
   # Reload the account and reauthorize on every event, including events from
@@ -100,14 +87,14 @@ defmodule TuistWeb.Components.AmpWorkspaces do
   @impl true
   def render(assigns) do
     ~H"""
-    <section id={@id} data-part="amp-workspaces-card-section" class="noora-card__section">
+    <div id={@id} data-part="amp-part">
       <div data-part="header-row">
         <div data-part="header">
-          <span data-part="title">Amp</span>
+          <span data-part="title">{dgettext("dashboard_integrations", "Workspace sign-in")}</span>
           <span data-part="subtitle">
             {dgettext(
               "dashboard_integrations",
-              "Let Amp Orbs in your workspaces sign in to Tuist without a stored token. Orbs get CI access, including cache uploads, to every project in this account."
+              "Let Orbs in your Amp workspaces sign in to Tuist without a stored token. They get CI access, including cache uploads, to every project in this account."
             )}
           </span>
         </div>
@@ -131,7 +118,12 @@ defmodule TuistWeb.Components.AmpWorkspaces do
             {dgettext("dashboard_integrations", "Workspace %{id}", id: connection.workspace_id)}
           </span>
           <span data-part="meta">
-            {dgettext("dashboard_integrations", "Connected %{time}",
+            <%= if connection.project_id do %>
+              {dgettext("dashboard_integrations", "Project %{id}", id: connection.project_id)}
+            <% else %>
+              {dgettext("dashboard_integrations", "All projects")}
+            <% end %>
+            · {dgettext("dashboard_integrations", "Connected %{time}",
               time: DateFormatter.from_now(connection.inserted_at)
             )}
           </span>
@@ -167,10 +159,10 @@ defmodule TuistWeb.Components.AmpWorkspaces do
             <li>
               {dgettext(
                 "dashboard_integrations",
-                "In a thread of the workspace that runs in an Orb, run this command:"
+                "In a thread of the workspace that runs in an Orb, print its workspace and project IDs:"
               )}
               <div data-part="command">
-                <code id="amp-workspace-command">amp orb id-token --audience {@audience}</code>
+                <code id="amp-workspace-command">echo $AMP_WORKSPACE_ID $AMP_PROJECT_ID</code>
                 <.button
                   id="copy-amp-workspace-command"
                   variant="secondary"
@@ -178,7 +170,7 @@ defmodule TuistWeb.Components.AmpWorkspaces do
                   icon_only
                   type="button"
                   phx-hook="Clipboard"
-                  data-clipboard-value={"amp orb id-token --audience #{@audience}"}
+                  data-clipboard-value="echo $AMP_WORKSPACE_ID $AMP_PROJECT_ID"
                   aria-label={dgettext("dashboard_integrations", "Copy command")}
                 >
                   <.copy />
@@ -188,20 +180,33 @@ defmodule TuistWeb.Components.AmpWorkspaces do
             <li>
               {dgettext(
                 "dashboard_integrations",
-                "Paste the token it prints. It proves the Orb runs in the workspace and only works for this connection."
+                "Paste the workspace ID below. Add the project ID to limit access to that Amp project's Orbs. Those Orbs get CI access, including cache uploads, to every project in this account."
               )}
             </li>
           </ol>
           <.text_input
-            id={"amp-workspace-token-#{@form_version}"}
-            name="token"
-            type="password"
-            input_type="password"
-            label={dgettext("dashboard_integrations", "Amp identity token")}
-            placeholder="eyJ…"
+            id={"amp-workspace-id-#{@form_version}"}
+            name="workspace_id"
+            type="basic"
+            label={dgettext("dashboard_integrations", "Workspace ID")}
+            placeholder="8e5f0d8f-a1a5-429d-843d-6096a60fa0a1"
             value=""
             required
             show_required
+          />
+          <.text_input
+            id={"amp-project-id-#{@form_version}"}
+            name="project_id"
+            type="basic"
+            label={dgettext("dashboard_integrations", "Project ID")}
+            hint={
+              dgettext(
+                "dashboard_integrations",
+                "Optional. Leave empty for every project in the workspace."
+              )
+            }
+            placeholder="1e345004-78e8-4e1d-bb72-27bb1a22d450"
+            value=""
           />
           <div data-part="actions">
             <.button
@@ -219,7 +224,7 @@ defmodule TuistWeb.Components.AmpWorkspaces do
           </div>
         </form>
       </.modal>
-    </section>
+    </div>
     """
   end
 end

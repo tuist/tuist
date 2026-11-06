@@ -156,7 +156,7 @@ defmodule TuistWeb.API.OIDCController do
         |> put_status(:forbidden)
         |> json(%{
           message:
-            "This Amp workspace is not connected to a Tuist account. Connect it in your Tuist account's Integrations settings. Amp threads outside a workspace are not supported."
+            "This Amp workspace or project is not connected to a Tuist account. Connect it in your Tuist account's Integrations settings. Amp threads outside a workspace are not supported."
         })
 
       {:error, :ambiguous_amp_workspace, account_handles} ->
@@ -182,10 +182,10 @@ defmodule TuistWeb.API.OIDCController do
     end
   end
 
-  defp authorized_account(%{amp_workspace_id: workspace_id}, token, account_handle) do
+  defp authorized_account(%{amp_workspace_id: workspace_id, amp_project_id: project_id}, token, account_handle) do
     result =
       if workspace_id,
-        do: Accounts.amp_workspace_account(workspace_id, account_handle),
+        do: Accounts.amp_workspace_account(workspace_id, project_id, account_handle),
         else: {:error, :amp_workspace_not_connected}
 
     case result do

@@ -54,11 +54,13 @@ See the <.localized_link href="/guides/integrations/continuous-integration">Cont
 
 [Amp](https://ampcode.com) orbs can mint OIDC tokens that identify their Amp workspace. Connect a workspace to your Tuist account once, and `tuist auth login` in any orb of that workspace signs in without a stored token:
 
-1. In your Tuist account, open **Settings → Integrations** and select **Connect workspace** on the Amp card. You need to be an account admin or owner.
-2. In a thread of the workspace that runs in an orb, run the `amp orb id-token` command the dialog shows, and paste the token it prints. The dialog's command contains a single-use audience, so the token can only complete this connection. It proves that the orb runs in the workspace you're connecting.
-3. In orbs of the workspace, run `tuist auth login`. The CLI detects the orb, mints a token with audience `tuist`, and exchanges it for a Tuist session.
+1. Find the IDs: in a thread of the workspace that runs in an orb, run `echo $AMP_WORKSPACE_ID $AMP_PROJECT_ID`.
+2. In your Tuist account, open **Settings → Integrations**, select **Connect workspace** on the Amp card, and paste the workspace ID. To admit only the orbs of one Amp project, also paste its project ID. You need to be an account admin or owner.
+3. In orbs of the workspace, run `tuist auth login`. The CLI detects the orb, mints a token with `amp orb id-token --audience https://tuist.dev`, and exchanges it for a Tuist session.
 
-Every orb in a connected workspace gets CI access to all current and future projects owned by the account, including cache uploads, so connect only workspaces whose members you trust with that access. If you connect the same workspace to several Tuist accounts, set `TUIST_OIDC_ACCOUNT` to the account to sign in to. Threads outside a workspace have no workspace identity and can't use a connection. Disconnect a workspace from the Amp card to stop new sign-ins; sessions that were already issued stay valid until they expire after one hour. Orbs that run longer than that need to run `tuist auth login` again.
+Like the trust configurations in [Amp's OIDC guide](https://ampcode.com/manual/orbs/oidc), Tuist verifies Amp's signature on every token and accepts it only when its audience is `https://tuist.dev`, its `token_use` is `exchanged`, its `workspace_id` matches a connected workspace, and, for a connection limited to a project, its `project_id` matches that project.
+
+Every orb a connection admits gets CI access to all current and future projects owned by the account, including cache uploads, so connect only workspaces whose members you trust with that access. Check the ID carefully: Tuist can't confirm that you belong to the workspace you connect. If a workspace is connected to several Tuist accounts, orbs must set `TUIST_OIDC_ACCOUNT` to the account to sign in to; setting it in the Amp project's environment also keeps sign-in pinned to your account. Threads outside a workspace have no workspace identity and can't use a connection. Disconnect a workspace from the Amp card to stop new sign-ins; sessions that were already issued stay valid until they expire after one hour. Orbs that run longer than that need to run `tuist auth login` again.
 
 Trust policies for the Amp issuer that you created before connecting a workspace keep working when you set `TUIST_OIDC_ACCOUNT`.
 

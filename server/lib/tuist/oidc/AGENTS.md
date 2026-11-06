@@ -2,7 +2,7 @@
 
 `Workload` verifies account-configured providers with account-wide CI access; the parent `Tuist.OIDC` module keeps GitHub Actions, CircleCI and Bitrise on their fixed-key repository flow. Reserved built-in issuers cannot be configured as workload policies.
 
-Amp orb tokens (`https://ampcode.com/api/workload-identity`) are built in but not reserved: `Tuist.OIDC` verifies them with Amp's fixed JWKS and returns their `workspace_id`, and the exchange controller authorizes through account Amp workspace connections before falling back to the account's custom Amp policies. `amp_workspace_id/2` proves workspace membership for connecting; its audience must be the connection's single-use challenge, never `tuist`.
+Amp orb tokens (`https://ampcode.com/api/workload-identity`) are built in but not reserved: `Tuist.OIDC` verifies them with Amp's fixed JWKS and returns their `workspace_id` and `project_id` only when `token_use` is `exchanged` and the audience is `https://tuist.dev` (Amp's trust guidance). The exchange controller authorizes through account Amp workspace connections before falling back to the account's custom Amp policies.
 
 - Require `account_handle` before custom-policy lookup. Unsigned issuer/audience/claims only reject or bound work, never authorize.
 - Limit tokens to 16 KiB, candidate policies to 20 and distinct JWKS URLs to two. A grant must verify with that policy's own key URL and match its exact issuer, audience and scalar identity claims, including JSON types. Do not let one key group vouch for another group's policies.
