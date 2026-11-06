@@ -30,7 +30,12 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
     public var queueDirectoryStub: AbsolutePath?
     public var shouldOutputBeColoured: Bool = false
     public var isStandardOutputInteractive: Bool = false
-    public var manifestLoadingVariables: [String: String] = [:]
+    private var manifestLoadingVariablesOverride: [String: String]?
+    public var manifestLoadingVariables: [String: String] {
+        get { manifestLoadingVariablesOverride ?? Environment.manifestLoadingVariables(from: variables) }
+        set { manifestLoadingVariablesOverride = newValue }
+    }
+
     public var isStatsEnabled: Bool = true
     public var isGitHubActions: Bool = false
     public var variables: [String: String] = [:]

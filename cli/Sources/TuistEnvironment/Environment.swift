@@ -347,6 +347,10 @@ public struct Environment: Environmenting {
     }
 
     public var manifestLoadingVariables: [String: String] {
+        Self.manifestLoadingVariables(from: variables)
+    }
+
+    public static func manifestLoadingVariables(from variables: [String: String]) -> [String: String] {
         let allowedVariableKeys = [
             "DEVELOPER_DIR",
         ]
@@ -355,9 +359,9 @@ public struct Environment: Environmenting {
         }
         let additionalPatterns = Environment.additionalManifestEnvironmentKeys
         let additionalVariables = additionalPatterns.isEmpty ? [:] : variables.filter { key, _ in
-            Self.matches(key: key, patterns: additionalPatterns)
+            matches(key: key, patterns: additionalPatterns)
         }
-        return tuistVariables
+        return variables.filter { $0.key.hasPrefix("TUIST_") || $0.key == "CI" }
             .merging(allowedVariables, uniquingKeysWith: { $1 })
             .merging(additionalVariables, uniquingKeysWith: { $1 })
     }
