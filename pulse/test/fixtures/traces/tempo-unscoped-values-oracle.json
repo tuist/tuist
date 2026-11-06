@@ -1,0 +1,146 @@
+[
+  {
+    "target": "shared",
+    "query": "",
+    "valid": false
+  },
+  {
+    "target": "shared",
+    "query": "{resource.service.name=\"worker\"}",
+    "valid": false
+  },
+  {
+    "target": "http.method",
+    "query": "",
+    "valid": false
+  },
+  {
+    "target": "http.method",
+    "query": "{resource.service.name=\"worker\"}",
+    "valid": false
+  },
+  {
+    "target": ".shared",
+    "query": "",
+    "valid": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "instrumentation"
+        },
+        {
+          "type": "string",
+          "value": "resource"
+        },
+        {
+          "type": "string",
+          "value": "span"
+        }
+      ]
+    }
+  },
+  {
+    "target": ".shared",
+    "query": "{resource.service.name=\"worker\"}",
+    "valid": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "instrumentation"
+        },
+        {
+          "type": "string",
+          "value": "resource"
+        },
+        {
+          "type": "string",
+          "value": "span"
+        }
+      ]
+    }
+  },
+  {
+    "target": ".phase",
+    "query": "",
+    "valid": true,
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "target": ".phase",
+    "query": "{resource.service.name=\"worker\"}",
+    "valid": true,
+    "response": {
+      "tagValues": []
+    }
+  },
+  {
+    "target": ".http.method",
+    "query": "",
+    "valid": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "bool",
+          "value": "false"
+        },
+        {
+          "type": "string"
+        }
+      ]
+    }
+  },
+  {
+    "target": ".http.method",
+    "query": "{resource.service.name=\"worker\"}",
+    "valid": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "bool",
+          "value": "false"
+        },
+        {
+          "type": "string"
+        }
+      ]
+    }
+  },
+  {
+    "target": ".service.name",
+    "query": "",
+    "valid": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "frontend"
+        },
+        {
+          "type": "string",
+          "value": "worker"
+        }
+      ]
+    }
+  },
+  {
+    "target": ".service.name",
+    "query": "{resource.service.name=\"worker\"}",
+    "valid": true,
+    "response": {
+      "tagValues": [
+        {
+          "type": "string",
+          "value": "frontend"
+        },
+        {
+          "type": "string",
+          "value": "worker"
+        }
+      ]
+    }
+  }
+]

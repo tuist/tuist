@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/hostinfo"
-	"github.com/tuist/tuist/infra/sandboxd/internal/protocol"
+	"github.com/tuist/tuist/infra/sandboxd/pkg/protocol"
 	"github.com/tuist/tuist/infra/sandboxd/internal/vsock"
 )
 

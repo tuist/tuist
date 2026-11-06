@@ -108,7 +108,7 @@ jobs:
     needs: [guard, build-template, build-sandboxd]
     if: always() && needs.guard.result == 'success' && needs.guard.outputs.enabled == 'true' && (needs.build-template.result == 'success' || needs.build-template.result == 'skipped') && (needs.build-sandboxd.result == 'success' || needs.build-sandboxd.result == 'skipped')
     runs-on: ubuntu-latest
-    # A first install waits for every worker to pull the template image.
+    # Allow time for the gateway rollout, rollback and DNS publication.
     timeout-minutes: 30
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -149,6 +149,8 @@ jobs:
         # The server release owns the namespace and its policies.
         run: kubectl get namespace "$NAMESPACE" >/dev/null
       - name: helm upgrade --install
+        # Helm 4's watcher waits for updated workers even with OnDelete.
+        # Legacy waits for the gateway but leaves worker replacement to a drain.
         run: |
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" \
@@ -156,7 +158,7 @@ jobs:
             --set gateway.tag="$TEMPLATE_IMAGE_TAG" \
             --set workers.templateTag="$TEMPLATE_IMAGE_TAG" \
             --set workers.tag="$SANDBOXD_IMAGE_TAG" \
-            --atomic --timeout 20m --wait
+            --atomic --timeout 20m --wait=legacy
       # platform-external-dns publishes the gateway Ingress host to Cloudflare
       # (DNS-only) within about a minute of the Ingress existing.
       - name: Wait for the gateway's DNS record

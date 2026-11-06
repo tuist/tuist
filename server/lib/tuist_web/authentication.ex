@@ -27,7 +27,14 @@ defmodule TuistWeb.Authentication do
   @current_project_key :current_project
   @remember_me_cookie "_tuist_web_user_remember_me"
   @reconnect_recovery_ms 5_000
-  @remember_me_options [sign: true, max_age: UserToken.session_absolute_seconds(), same_site: "Lax"]
+  # The origin serves plain HTTP behind Cloudflare, so Plug would not add
+  # Secure on its own; follow the session cookie's setting instead.
+  @remember_me_options [
+    sign: true,
+    max_age: UserToken.session_absolute_seconds(),
+    same_site: "Lax",
+    secure: Application.compile_env(:tuist, :session_cookie_secure, false)
+  ]
 
   def authenticated?(%Plug.Conn{} = conn), do: authenticated?(conn.assigns)
 
@@ -209,7 +216,7 @@ defmodule TuistWeb.Authentication do
       |> delete_session(:user_token)
       |> delete_session(:live_socket_id)
       |> delete_session(:auth_method)
-      |> delete_resp_cookie(@remember_me_cookie)
+      |> delete_remember_me_cookie()
       |> put_session(:pending_mfa, challenge)
       |> put_session(:pending_mfa_remember, params["remember_me"] == "true")
       |> maybe_put_post_invitation_context(params[:post_invitation_return_to], user.id, params[:post_invitation_token])
@@ -282,6 +289,13 @@ defmodule TuistWeb.Authentication do
     conn
   end
 
+  @doc """
+  Clears the remember-me cookie with the attributes it was written with.
+  """
+  def delete_remember_me_cookie(conn) do
+    delete_resp_cookie(conn, @remember_me_cookie, @remember_me_options)
+  end
+
   # This function renews the session ID and erases the whole
   # session to avoid fixation attacks. If there is any data
   # in the session you may want to preserve after log in/log out,
@@ -326,7 +340,7 @@ defmodule TuistWeb.Authentication do
 
     conn
     |> renew_session()
-    |> delete_resp_cookie(@remember_me_cookie)
+    |> delete_remember_me_cookie()
     |> redirect(to: return_to)
     |> halt()
   end
@@ -349,7 +363,7 @@ defmodule TuistWeb.Authentication do
         |> delete_session(:user_token)
         |> delete_session(:live_socket_id)
         |> delete_session(:auth_method)
-        |> delete_resp_cookie(@remember_me_cookie)
+        |> delete_remember_me_cookie()
       else
         conn
       end
@@ -749,7 +763,7 @@ defmodule TuistWeb.Authentication do
 
   defp redirect_to_sso_sign_in(conn, organization) do
     conn
-    |> put_session(:oauth_return_to, current_path(conn))
+    |> put_session(:user_return_to, current_path(conn))
     |> redirect(to: sso_provider_path(organization))
     |> halt()
   end

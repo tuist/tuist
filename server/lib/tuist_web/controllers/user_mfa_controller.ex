@@ -73,7 +73,7 @@ defmodule TuistWeb.UserMFAController do
   defp mfa_purpose(_pending), do: {:mfa, nil}
 
   def show(conn, _params) do
-    render_page(conn, :settings, enabled: UserMFA.enabled?(conn.assigns.current_user), error: nil, secret: nil)
+    redirect(conn, to: ~p"/#{conn.assigns.current_user.account.name}/settings/two-factor-authentication")
   end
 
   def enroll(conn, _params) do
@@ -111,6 +111,27 @@ defmodule TuistWeb.UserMFAController do
     redirect(conn, to: ~p"/users/settings/mfa")
   end
 
+  def regenerate(conn, params) do
+    case UserMFA.regenerate_recovery_codes(
+           conn.assigns.current_user,
+           conn.assigns.current_user_session,
+           params["mfa_code"]
+         ) do
+      {:ok, result} ->
+        conn |> rotate_session(result) |> render_page(:recovery, codes: result.recovery_codes)
+
+      {:error, _} ->
+        conn
+        |> put_status(:unauthorized)
+        |> render_page(:settings,
+          enabled: true,
+          secret: nil,
+          proof_action: :regenerate,
+          error: reauthenticate() <> " " <> invalid_code()
+        )
+    end
+  end
+
   def disable(conn, params) do
     case UserMFA.disable(conn.assigns.current_user, conn.assigns.current_user_session, params["mfa_code"]) do
       {:ok, result} ->
@@ -133,7 +154,7 @@ defmodule TuistWeb.UserMFAController do
     |> configure_session(renew: true)
     |> put_session(:user_token, result.session.token)
     |> put_session(:live_socket_id, UserToken.live_socket_id(result.session))
-    |> delete_resp_cookie("_tuist_web_user_remember_me")
+    |> Authentication.delete_remember_me_cookie()
   end
 
   defp private_response(conn, _opts) do
@@ -157,20 +178,10 @@ defmodule TuistWeb.UserMFAController do
     |> render(
       template,
       assigns
+      |> Keyword.put_new(:proof_action, :disable)
       |> Keyword.put(:head_title, dgettext("dashboard_auth", "Two-factor authentication · Tuist"))
-      |> put_passkeys(conn, template)
     )
   end
-
-  # Every settings render lists the user's passkeys, including after a
-  # rejected authenticator-app change.
-  defp put_passkeys(assigns, conn, :settings) do
-    enabled? = UserPasskeyController.enabled?()
-    passkeys = if enabled?, do: UserPasskey.list(conn.assigns.current_user), else: []
-    Keyword.merge(assigns, passkeys: passkeys, passkeys_enabled?: enabled?)
-  end
-
-  defp put_passkeys(assigns, _conn, _template), do: assigns
 
   defp reauthenticate,
     do: dgettext("dashboard_auth", "Sign out and sign in again before changing two-factor authentication.")

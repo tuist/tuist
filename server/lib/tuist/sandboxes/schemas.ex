@@ -12,7 +12,7 @@ defmodule Tuist.Sandboxes.Schemas do
   def sandbox do
     %Schema{
       title: "Sandbox",
-      description: "A Firecracker sandbox VM.",
+      description: "A persistent Linux or macOS sandbox VM.",
       type: :object,
       properties: %{
         id: %Schema{type: :string, format: "uuid"},
@@ -22,6 +22,8 @@ defmodule Tuist.Sandboxes.Schemas do
           description:
             "The status the dashboard shows: `active` while a worker or command runs, `idle` when running without one, `starting` while it boots, `failed` for the `error` state, otherwise the state (`resuming`, `paused`, `archived`). More values may be added."
         },
+        platform: %Schema{type: :string, enum: ["linux", "darwin"], default: "linux"},
+        resident: %Schema{type: :boolean, description: "Whether a macOS sandbox retains its process and capacity."},
         template: %Schema{type: :string},
         template_tag: %Schema{type: :string, nullable: true},
         vcpus: %Schema{type: :integer},
@@ -47,6 +49,21 @@ defmodule Tuist.Sandboxes.Schemas do
         updated_at: %Schema{type: :string, format: "date-time"}
       },
       required: [:id, :state, :template, :vcpus, :memory_mb, :workspace_gb, :inserted_at, :updated_at]
+    }
+  end
+
+  @doc "The shape a sandbox or agent environment is created with; every field is optional."
+  def shape do
+    %{
+      platform: %Schema{type: :string, enum: ["linux", "darwin"], default: "linux"},
+      template: %Schema{type: :string, pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", description: "Sandbox template name."},
+      vcpus: %Schema{
+        type: :integer,
+        enum: [2, 4, 8],
+        description: "Linux: 2x4096, 4x8192 or 8x16384. macOS: 8x8192, 8x16384 or 8x24576."
+      },
+      memory_mb: %Schema{type: :integer, enum: [4096, 8192, 16_384, 24_576]},
+      workspace_gb: %Schema{type: :integer, minimum: 1, maximum: 100}
     }
   end
 
@@ -127,11 +144,14 @@ defmodule Tuist.Sandboxes.Schemas do
         :analytics ->
           %{start: timestamp(), end: timestamp()}
 
+        :create ->
+          shape()
+
         _ ->
           %{sandbox_id: %Schema{type: :string, format: "uuid"}}
       end
 
-    required = if action in [:list, :analytics], do: [:account_handle], else: [:account_handle, :sandbox_id]
+    required = if action in [:list, :analytics, :create], do: [:account_handle], else: [:account_handle, :sandbox_id]
     %{object(nil, Map.merge(base, fields)) | required: required}
   end
 

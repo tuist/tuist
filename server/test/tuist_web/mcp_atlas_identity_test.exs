@@ -17,12 +17,14 @@ defmodule TuistWeb.MCPAtlasIdentityTest do
 
   setup do
     stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+    stub(Tuist.Environment, :operator_email_domain_configured?, fn -> true end)
 
     project = ProjectsFixtures.project_fixture(preload: [:account])
 
     operator =
       AccountsFixtures.user_fixture(
         email: "operator-#{System.unique_integer([:positive])}@tuist.dev",
+        email_verified_at: ~U[2026-11-01 00:00:00Z],
         preload: [:account]
       )
 

@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/functions.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+# Testdata for resets() and changes().
+load 5m
+	http_requests{path="/foo"}	1 2 3 0 1 0 0 1 2 0
+	http_requests{path="/bar"}	1 2 3 4 5 1 2 3 4 5
+	http_requests{path="/biz"}  0 0 0 0 0 1 1 1 1 1
+    http_requests_histogram{path="/foo"}    {{schema:0 sum:1 count:1}}x9
+    http_requests_histogram{path="/bar"}    0 0 0 0 0 0 0 0 {{schema:0 sum:1 count:1}} {{schema:0 sum:1 count:1}}
+    http_requests_histogram{path="/biz"}    0 1 0 2 0 3 0 {{schema:0 sum:1 count:1 z_bucket_w:0.001 z_bucket:2}} {{schema:0 sum:2 count:2 z_bucket_w:0.001 z_bucket:1}} {{schema:0 sum:1 count:1 z_bucket_w:0.001 z_bucket:2}}
+
+# Tests for resets().
+eval instant at 50m resets(http_requests[5m])
+
+eval instant at 50m resets(http_requests[10m])
+	{path="/foo"} 0
+	{path="/bar"} 0
+	{path="/biz"} 0
+
+eval instant at 50m resets(http_requests[600])
+	{path="/foo"} 0
+	{path="/bar"} 0
+	{path="/biz"} 0
+

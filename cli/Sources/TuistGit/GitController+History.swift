@@ -214,7 +214,7 @@ extension GitController {
         let reasons: [String]
     }
 
-    private enum FetchOutcome {
+    enum FetchOutcome {
         case succeeded, failed, timedOut
     }
 
@@ -248,7 +248,7 @@ extension GitController {
     /// Runs the fetch until it exits or the deadline passes, whichever comes first. A fetch still
     /// running at the deadline is torn down together with the processes it started
     /// (`git-remote-https`, `ssh`, `index-pack`), which a stalled remote would otherwise keep alive.
-    private func fetch(arguments: [String], deadline: Date) async -> FetchOutcome {
+    func fetch(arguments: [String], deadline: Date) async -> FetchOutcome {
         let remaining = deadline.timeIntervalSinceNow
         guard remaining > 0 else { return .timedOut }
         return await withTaskGroup(of: FetchOutcome?.self) { group in

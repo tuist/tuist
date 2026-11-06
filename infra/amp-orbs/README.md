@@ -6,6 +6,27 @@ This adapter implements [Amp's self-hosted Orb dispatch contract](https://ampcod
 
 Account administrators connect Amp from **Settings → Integrations → Amp**. Register a provider in the Amp workspace and paste its `aop_live_…` token into Tuist. No Tuist CLI login, per-environment 1Password item, or operator-created provider is required. One connection serves one Tuist account; the same provider token cannot be connected to two accounts in one environment. Use distinct Amp registrations across environments. Anyone permitted to use that provider in Amp can run Orbs charged to the connected Tuist account. Canary and production retain the account's existing `sandboxes` flag; staging/development follow the sandbox substrate's default eligibility.
 
+### Orb types
+
+One managed provider serves every platform through Amp's [orb types](https://ampcode.com/docs/orbs/self-hosted#orb-types). In the provider's **Edit** dialog in Amp, add the types Tuist offers and pick the default:
+
+| Type | Platform | Template | Shape |
+| --- | --- | --- | --- |
+| `linux` | Linux (Firecracker) | `default` | 2 vCPU, 4 GiB RAM, 10 GB workspace |
+| `macos` | macOS (Tart) | `macos` | 8 vCPU, 8 GiB RAM, 10 GB workspace |
+
+Amp passes the thread's type to every spawn as `ORB_TYPE`, and the dispatch adapter forwards it as `orb_type`. The server owns the mapping (`Tuist.Sandboxes.AmpOrbs.orb_type/1`), so the provider workload cannot choose a template or shape. A thread keeps its type for life; threads created before the provider had types arrive without one and get `linux`. Amp refuses a type the provider does not list before dispatching. Tuist refuses a listed type it does not know with HTTP 400 and `X-Tuist-Orb-Refusal: unknown-orb-type`, and a spawn whose type names another platform than the Orb's existing row with HTTP 409 and `orb-type-mismatch`; it never boots the other guest or moves disks. Pause and delete act on the existing row and ignore the type. Changing a type's shape in the catalog affects only new Orbs.
+
+macOS Orbs follow the macOS sandbox lifecycle (`infra/tart-kubelet/macos-sandboxes.md`): CI-first admission, resident pause and checkpoint eviction. Differences from Linux Orbs:
+
+- **Bootstrap:** the shared guest bridge (`sbx-macos --orb-bootstrap`) starts `amp orb bootstrap` as `runner` in its own session, so the exec's process-group fence spares it, with the same fingerprinted, token-free reuse and replacement as `sbx-orb-bootstrap`. The first Orb on a guest installs the Amp CLI with Amp's installer into `~/.amp/bin` (it updates itself afterwards), so that spawn may take up to two minutes. `~/workspace` links to `~/work/amp` on the quota-limited workspace volume.
+- **Residency:** the host cannot see Amp's detached process, so a spawn also sends `hold_residency` with the turn's work ID. The hold survives host restarts and blocks idle and CI eviction until Amp's pause (or a failed bootstrap's `release_residency`). CI still waits for the turn to end, as it does for other active macOS work.
+- **Idle backstop:** the host samples the `runner` user's CPU in each running guest every 30 seconds (`ps` %CPU, integrated into `cpu_ms`), so the server's ten-minute idle pause applies.
+- **Retention:** there is no archive tier and no project snapshot, so a new macOS thread always runs `.agents/setup`. macOS Orbs paused or errored for seven days are deleted; the thread's next message spawns a fresh Orb and Amp sets the repository up again.
+- **Unverified:** Amp documents Linux orb images with a `user` account and `/home/user`. Whether `amp orb bootstrap` and Amp's tools work in a macOS guest under `/Users/runner` has not been run end to end; qualify it on staging before listing `macos` in a customer's provider.
+
+Standalone adapters keep their `TUIST_ORB_*` shape and do not forward `ORB_TYPE`.
+
 `amp_integrations` stores the account binding and Cloak-encrypted provider token. The UI never reads the saved token back, only a public status projection. Connect/replace/disconnect reauthorize the account administrator and persist an Oban reconciliation job in the same database transaction. A minute sweep repairs partial provisioning, observes provider availability and removes resources orphaned by account deletion.
 
 The chart enables provisioning in a dedicated `tuist-amp-orbs` namespace. Each account connection gets a single-replica provider Deployment, Secret and ServiceAccount, named by integration UUID and credential revision. The outgoing consumer uses the Amp token; the dispatch adapter reads a fresh, kubelet-rotated, one-hour projected ServiceAccount token with audience `tuist-amp-orbs`. The internal dispatch endpoint requires TokenReview, the configured namespace, the exact current integration/revision identity and the current account binding. It authorizes only this connection's Orb operations. The workload identity never enters the guest. It receives no Kubernetes API RBAC and no default API-audience token. Runtime state is ephemeral; PostgreSQL owns the Orb mapping. Providers run unprivileged with a read-only root on the general amd64 pool.

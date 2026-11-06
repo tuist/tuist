@@ -27,7 +27,7 @@ msgstr ""
 msgid "%{month}/%{year}"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:409
+#: lib/tuist/accounts/user_notifier.ex:443
 #: lib/tuist_web/live/accept_invitation_live.ex:185
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
@@ -62,13 +62,13 @@ msgstr ""
 msgid "All members"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:306
+#: lib/tuist_web/live/account_settings_live.ex:312
 #, elixir-autogen, elixir-format
 msgid "All regions"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.html.heex:111
-#: lib/tuist_web/live/account_settings_live.html.heex:267
+#: lib/tuist_web/live/account_settings_live.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this?"
 msgstr ""
@@ -89,17 +89,19 @@ msgstr ""
 msgid "Billing email"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:378
-#: lib/tuist_web/live/account_settings_live.ex:465
+#: lib/tuist_web/live/account_settings_live.ex:384
+#: lib/tuist_web/live/account_settings_live.ex:471
 #: lib/tuist_web/live/account_settings_live.html.heex:75
 #: lib/tuist_web/live/account_settings_live.html.heex:149
-#: lib/tuist_web/live/account_settings_live.html.heex:231
-#: lib/tuist_web/live/account_settings_live.html.heex:303
+#: lib/tuist_web/live/account_settings_live.html.heex:282
+#: lib/tuist_web/live/account_settings_live.html.heex:354
 #: lib/tuist_web/live/account_token_live.html.heex:49
 #: lib/tuist_web/live/account_tokens_live.html.heex:250
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:145
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:202
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:239
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:247
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:283
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:347
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:404
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:441
 #: lib/tuist_web/live/authentication_settings_live.html.heex:910
 #: lib/tuist_web/live/cache_live.ex:376
 #: lib/tuist_web/live/cache_live.ex:441
@@ -124,7 +126,7 @@ msgstr ""
 msgid "Change your subscription to fit your needs."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:290
+#: lib/tuist_web/live/account_settings_live.ex:296
 #, elixir-autogen, elixir-format
 msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
 msgstr ""
@@ -212,17 +214,17 @@ msgstr ""
 msgid "Decline"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:439
-#: lib/tuist_web/live/account_settings_live.ex:473
-#: lib/tuist_web/live/account_settings_live.ex:485
+#: lib/tuist_web/live/account_settings_live.ex:445
+#: lib/tuist_web/live/account_settings_live.ex:479
+#: lib/tuist_web/live/account_settings_live.ex:491
 #: lib/tuist_web/live/account_settings_live.html.heex:157
-#: lib/tuist_web/live/account_settings_live.html.heex:311
+#: lib/tuist_web/live/account_settings_live.html.heex:362
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:252
-#: lib/tuist_web/live/account_settings_live.html.heex:273
+#: lib/tuist_web/live/account_settings_live.html.heex:303
+#: lib/tuist_web/live/account_settings_live.html.heex:324
 #, elixir-autogen, elixir-format
 msgid "Delete account"
 msgstr ""
@@ -308,7 +310,7 @@ msgstr ""
 msgid "Deleting the organization will delete all of its projects"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:285
+#: lib/tuist_web/live/account_settings_live.html.heex:336
 #, elixir-autogen, elixir-format
 msgid "Deleting your account will also delete all the projects that belong to it"
 msgstr ""
@@ -343,7 +345,7 @@ msgstr ""
 msgid "Enter this organization's name to confirm"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:292
+#: lib/tuist_web/live/account_settings_live.html.heex:343
 #, elixir-autogen, elixir-format
 msgid "Enter your username to confirm"
 msgstr ""
@@ -355,7 +357,7 @@ msgstr ""
 msgid "Enterprise"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:307
+#: lib/tuist_web/live/account_settings_live.ex:313
 #, elixir-autogen, elixir-format
 msgid "Europe"
 msgstr ""
@@ -415,7 +417,7 @@ msgstr ""
 msgid "Get started with no credit card required—try with no commitment."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:403
+#: lib/tuist/accounts/user_notifier.ex:437
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
 msgstr ""
@@ -436,7 +438,7 @@ msgstr ""
 msgid "Invitation not found"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:393
+#: lib/tuist/accounts/user_notifier.ex:427
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
 msgstr ""
@@ -496,6 +498,7 @@ msgstr ""
 #: lib/tuist_web/components/workload_identities.html.heex:74
 #: lib/tuist_web/live/account_token_live.html.heex:74
 #: lib/tuist_web/live/account_tokens_live.html.heex:277
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:240
 #: lib/tuist_web/live/authentication_settings_live.html.heex:930
 #: lib/tuist_web/live/cache_live.ex:354
 #: lib/tuist_web/live/cache_live.ex:395
@@ -543,7 +546,7 @@ msgstr ""
 msgid "Organization name"
 msgstr ""
 
-#: lib/tuist/accounts/user.ex:114
+#: lib/tuist/accounts/user.ex:129
 #, elixir-autogen, elixir-format
 msgid "Passwords don't match"
 msgstr ""
@@ -607,12 +610,14 @@ msgstr ""
 msgid "Pro"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:303
+#: lib/tuist_web/live/account_settings_live.ex:309
 #: lib/tuist_web/live/cache_live.ex:492
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
 
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:187
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:290
 #: lib/tuist_web/live/members_live.ex:260
 #, elixir-autogen, elixir-format
 msgid "Remove"
@@ -625,7 +630,7 @@ msgid "Remove member"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.html.heex:83
-#: lib/tuist_web/live/account_settings_live.html.heex:239
+#: lib/tuist_web/live/account_settings_live.html.heex:290
 #, elixir-autogen, elixir-format
 msgid "Rename"
 msgstr ""
@@ -642,7 +647,7 @@ msgid "Rename your organization?"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.html.heex:61
-#: lib/tuist_web/live/account_settings_live.html.heex:218
+#: lib/tuist_web/live/account_settings_live.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "Renaming can have unexpected consequences"
 msgstr ""
@@ -686,7 +691,7 @@ msgstr ""
 msgid "Search members..."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:298
+#: lib/tuist_web/live/account_settings_live.ex:304
 #, elixir-autogen, elixir-format
 msgid "Select region"
 msgstr ""
@@ -696,12 +701,13 @@ msgstr ""
 msgid "Self-host your instance of Tuist"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:43
+#: lib/tuist_web/live/account_settings_live.ex:49
 #: lib/tuist_web/live/account_settings_live.html.heex:3
 #: lib/tuist_web/live/account_tokens_live.html.heex:3
 #: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:3
 #: lib/tuist_web/live/authentication_settings_live.html.heex:3
 #: lib/tuist_web/live/integrations_live.html.heex:2
+#: lib/tuist_web/live/user_security_settings_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -730,7 +736,7 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:287
+#: lib/tuist_web/live/account_settings_live.ex:293
 #, elixir-autogen, elixir-format
 msgid "Storage region"
 msgstr ""
@@ -746,7 +752,7 @@ msgid "Tailored agreements to meet your specific needs"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.html.heex:99
-#: lib/tuist_web/live/account_settings_live.html.heex:255
+#: lib/tuist_web/live/account_settings_live.html.heex:306
 #, elixir-autogen, elixir-format
 msgid "This action cannot be undone."
 msgstr ""
@@ -775,7 +781,7 @@ msgstr ""
 msgid "Tuist Logo"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:308
+#: lib/tuist_web/live/account_settings_live.ex:314
 #, elixir-autogen, elixir-format
 msgid "United States"
 msgstr ""
@@ -796,18 +802,18 @@ msgstr ""
 msgid "Update payment method"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:183
-#: lib/tuist_web/live/account_settings_live.html.heex:207
+#: lib/tuist_web/live/account_settings_live.html.heex:234
+#: lib/tuist_web/live/account_settings_live.html.heex:258
 #, elixir-autogen, elixir-format
 msgid "Update username"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:201
+#: lib/tuist_web/live/account_settings_live.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "Update your username?"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:186
+#: lib/tuist_web/live/account_settings_live.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "Updating your username can have unintended consequences."
 msgstr ""
@@ -876,8 +882,8 @@ msgstr ""
 msgid "User"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.html.heex:223
-#: lib/tuist_web/live/account_settings_live.html.heex:295
+#: lib/tuist_web/live/account_settings_live.html.heex:274
+#: lib/tuist_web/live/account_settings_live.html.heex:346
 #, elixir-autogen, elixir-format
 msgid "Username"
 msgstr ""
@@ -893,7 +899,7 @@ msgid "Via shared Slack channel"
 msgstr ""
 
 #: lib/tuist_web/components/workload_identities.ex:289
-#: lib/tuist_web/live/account_settings_live.ex:19
+#: lib/tuist_web/live/account_settings_live.ex:22
 #: lib/tuist_web/live/account_token_live.ex:19
 #: lib/tuist_web/live/account_tokens_live.ex:27
 #: lib/tuist_web/live/authentication_settings_live.ex:42
@@ -923,7 +929,7 @@ msgstr ""
 msgid "You received this email because you requested a password reset for your Tuist account."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:396
+#: lib/tuist/accounts/user_notifier.ex:430
 #, elixir-autogen, elixir-format
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
 msgstr ""
@@ -959,61 +965,61 @@ msgstr ""
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:386
+#: lib/tuist_web/live/account_settings_live.ex:392
 #, elixir-autogen, elixir-format
 msgid "Add"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:348
+#: lib/tuist_web/live/account_settings_live.ex:354
 #, elixir-autogen, elixir-format
 msgid "Add cache endpoint"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:355
+#: lib/tuist_web/live/account_settings_live.ex:361
 #: lib/tuist_web/live/webhooks_live.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "Add endpoint"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:368
+#: lib/tuist_web/live/account_settings_live.ex:374
 #: lib/tuist_web/live/webhook_endpoint_form.ex:75
 #: lib/tuist_web/live/webhook_live.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Endpoint URL"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:425
+#: lib/tuist_web/live/account_settings_live.ex:431
 #: lib/tuist_web/live/webhooks_live.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "URL"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:432
+#: lib/tuist_web/live/account_settings_live.ex:438
 #, elixir-autogen, elixir-format
 msgid "Delete last cache endpoint?"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:452
+#: lib/tuist_web/live/account_settings_live.ex:458
 #, elixir-autogen, elixir-format
 msgid "Removing the last custom cache endpoint will switch your organization back to Tuist-hosted caching. This affects all builds across your organization."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:330
+#: lib/tuist_web/live/account_settings_live.ex:336
 #, elixir-autogen, elixir-format
 msgid "Cache endpoints"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:334
+#: lib/tuist_web/live/account_settings_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "Configure custom cache endpoints for self-hosted cache setups. When enabled, Tuist will read from and write to these endpoints instead of the default Tuist-hosted cache."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:402
+#: lib/tuist_web/live/account_settings_live.ex:408
 #, elixir-autogen, elixir-format
 msgid "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted cache."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:414
+#: lib/tuist_web/live/account_settings_live.ex:420
 #, elixir-autogen, elixir-format
 msgid "No custom cache endpoints configured. Tuist will use the default Tuist-hosted cache until endpoints are added."
 msgstr ""
@@ -1156,23 +1162,23 @@ msgstr ""
 msgid "What's the name of your company or team? You can change this later in the settings"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:242
+#: lib/tuist_web/live/account_settings_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "Browser default"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:252
+#: lib/tuist_web/live/account_settings_live.ex:258
 #, elixir-autogen, elixir-format
 msgid "Choose your preferred dashboard language."
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:249
+#: lib/tuist_web/live/account_settings_live.ex:255
 #, elixir-autogen, elixir-format
 msgid "Dashboard language"
 msgstr ""
 
-#: lib/tuist_web/live/account_settings_live.ex:257
-#: lib/tuist_web/live/account_settings_live.ex:262
+#: lib/tuist_web/live/account_settings_live.ex:263
+#: lib/tuist_web/live/account_settings_live.ex:268
 #, elixir-autogen, elixir-format
 msgid "Language"
 msgstr ""
@@ -1702,27 +1708,27 @@ msgstr ""
 msgid "Copy payload"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:439
+#: lib/tuist/accounts/user_notifier.ex:473
 #, elixir-autogen, elixir-format
 msgid "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM)."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:454
+#: lib/tuist/accounts/user_notifier.ex:488
 #, elixir-autogen, elixir-format
 msgid "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:445
+#: lib/tuist/accounts/user_notifier.ex:479
 #, elixir-autogen, elixir-format
 msgid "If you expected this, no action is needed. You can open the organization here:"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:451
+#: lib/tuist/accounts/user_notifier.ex:485
 #, elixir-autogen, elixir-format
 msgid "Open %{organization_name}"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:431
+#: lib/tuist/accounts/user_notifier.ex:465
 #, elixir-autogen, elixir-format
 msgid "You were added to the %{organization_name} Tuist organization"
 msgstr ""
@@ -2559,74 +2565,74 @@ msgstr ""
 msgid "The role members get when they join through automatic enrollment."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:523
+#: lib/tuist/accounts/user_notifier.ex:557
 #, elixir-autogen, elixir-format
 msgid "Pro includes the same free allowance, with usage-based pricing beyond it."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:711
+#: lib/tuist/accounts/user_notifier.ex:745
 #, elixir-autogen, elixir-format
 msgid "Remote cache access is paused for this account. Upgrade to Pro to keep using the cache, or wait until your free allowance resets."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:520
+#: lib/tuist/accounts/user_notifier.ex:554
 #, elixir-autogen, elixir-format
 msgid "Review usage and upgrade"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:720
+#: lib/tuist/accounts/user_notifier.ex:754
 #, elixir-autogen, elixir-format
 msgid "You're approaching your Air limit"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:721
+#: lib/tuist/accounts/user_notifier.ex:755
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free allowance. Upgrade to Pro before you reach the limit to keep remote cache access uninterrupted."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:526
-#: lib/tuist/accounts/user_notifier.ex:613
-#: lib/tuist/accounts/user_notifier.ex:651
+#: lib/tuist/accounts/user_notifier.ex:560
+#: lib/tuist/accounts/user_notifier.ex:647
+#: lib/tuist/accounts/user_notifier.ex:685
 #, elixir-autogen, elixir-format
 msgid "You're receiving this email because you administer this Tuist account."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:710
+#: lib/tuist/accounts/user_notifier.ex:744
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air limit"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:513
+#: lib/tuist/accounts/user_notifier.ex:547
 #, elixir-autogen, elixir-format
 msgid "Your free allowance resets on %{date} (UTC)."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:691
+#: lib/tuist/accounts/user_notifier.ex:725
 #, elixir-autogen, elixir-format
 msgid "New runner jobs are paused for this account. Upgrade to Pro to keep running jobs, or wait until your free runner allowance resets."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:690
+#: lib/tuist/accounts/user_notifier.ex:724
 #, elixir-autogen, elixir-format
 msgid "You've reached your Air runner limit"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:701
+#: lib/tuist/accounts/user_notifier.ex:735
 #, elixir-autogen, elixir-format
 msgid "You're getting close to your monthly free runner allowance. Upgrade to Pro before you reach the limit to keep using runners."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:700
+#: lib/tuist/accounts/user_notifier.ex:734
 #, elixir-autogen, elixir-format
 msgid "You're nearing your Air runner limit"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:496
+#: lib/tuist/accounts/user_notifier.ex:530
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air limit"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:491
+#: lib/tuist/accounts/user_notifier.ex:525
 #, elixir-autogen, elixir-format
 msgid "%{account_name} has reached %{percentage}% of its Air runner limit"
 msgstr ""
@@ -2636,12 +2642,12 @@ msgstr ""
 msgid "All rights reserved."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:738
+#: lib/tuist/accounts/user_notifier.ex:772
 #, elixir-autogen, elixir-format
 msgid "Hi %{email}, you can change your email by clicking the button below:"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:743
+#: lib/tuist/accounts/user_notifier.ex:777
 #, elixir-autogen, elixir-format
 msgid "If you didn't request this change, please ignore this email."
 msgstr ""
@@ -2651,13 +2657,13 @@ msgstr ""
 msgid "This email was sent by Tuist. By using our services, you agree to our"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:734
+#: lib/tuist/accounts/user_notifier.ex:768
 #, elixir-autogen, elixir-format
 msgid "Update email instructions"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:736
-#: lib/tuist/accounts/user_notifier.ex:742
+#: lib/tuist/accounts/user_notifier.ex:770
+#: lib/tuist/accounts/user_notifier.ex:776
 #, elixir-autogen, elixir-format
 msgid "Update your email"
 msgstr ""
@@ -2707,12 +2713,12 @@ msgstr ""
 msgid "of your usage"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:674
+#: lib/tuist/accounts/user_notifier.ex:708
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} cache requests used"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:667
+#: lib/tuist/accounts/user_notifier.ex:701
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} of cache egress used"
 msgstr ""
@@ -2807,8 +2813,8 @@ msgstr ""
 msgid "A payment for your subscription failed"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:612
-#: lib/tuist/accounts/user_notifier.ex:650
+#: lib/tuist/accounts/user_notifier.ex:646
+#: lib/tuist/accounts/user_notifier.ex:684
 #: lib/tuist_web/live/billing_live.html.heex:28
 #, elixir-autogen, elixir-format
 msgid "Pay open invoice"
@@ -2824,47 +2830,47 @@ msgstr ""
 msgid "Your plan stays active while the payment is retried. Pay the open invoice or update your payment method to keep it."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:593
+#: lib/tuist/accounts/user_notifier.ex:627
 #, elixir-autogen, elixir-format
 msgid "A payment for the Tuist subscription of %{account_name} failed"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:610
+#: lib/tuist/accounts/user_notifier.ex:644
 #, elixir-autogen, elixir-format
 msgid "Pay the open invoice or update your payment method to keep your plan:"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:600
+#: lib/tuist/accounts/user_notifier.ex:634
 #, elixir-autogen, elixir-format
 msgid "We couldn't charge the payment method on file for the subscription of %{account_name}. The payment is retried automatically."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:598
+#: lib/tuist/accounts/user_notifier.ex:632
 #, elixir-autogen, elixir-format
 msgid "Your subscription payment failed"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:605
+#: lib/tuist/accounts/user_notifier.ex:639
 #, elixir-autogen, elixir-format
 msgid "Your plan stays active while the payment is retried. If it still hasn't gone through when the retries end, %{account_name} is limited to the free tier of the Air plan until the invoice is paid."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:632
+#: lib/tuist/accounts/user_notifier.ex:666
 #, elixir-autogen, elixir-format
 msgid "%{account_name} moved to the Air plan because its subscription payment failed"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:644
+#: lib/tuist/accounts/user_notifier.ex:678
 #, elixir-autogen, elixir-format
 msgid "Paying the open invoice restores your plan. You can also update your payment method before paying:"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:639
+#: lib/tuist/accounts/user_notifier.ex:673
 #, elixir-autogen, elixir-format
 msgid "We couldn't collect the payment for the subscription of %{account_name}, and the retries have ended. %{account_name} is now limited to the free tier of the Air plan."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:637
+#: lib/tuist/accounts/user_notifier.ex:671
 #, elixir-autogen, elixir-format
 msgid "Your account moved to the Air plan"
 msgstr ""
@@ -3071,6 +3077,7 @@ msgstr ""
 
 #: lib/tuist/accounts/user_notifier.ex:332
 #: lib/tuist/accounts/user_notifier.ex:354
+#: lib/tuist/accounts/user_notifier.ex:388
 #, elixir-autogen, elixir-format
 msgid "If you did not make this change, contact Tuist support immediately and secure your account."
 msgstr ""
@@ -3105,7 +3112,7 @@ msgstr ""
 msgid "The passkeys that can sign in to your Tuist account were changed."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:658
+#: lib/tuist/accounts/user_notifier.ex:692
 #, elixir-autogen, elixir-format
 msgid "%{usage} of %{limit} free runner minutes used, counted in macOS minutes (%{linux} Linux minutes count as %{limit})"
 msgstr ""
@@ -3125,122 +3132,123 @@ msgstr ""
 msgid "within your %{macos} free macOS and %{linux} free Linux minutes"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:136
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:338
 #, elixir-autogen, elixir-format
 msgid "Claude token"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:81
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:89
 #, elixir-autogen, elixir-format
 msgid "Could not save your Claude token. Please try again."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:42
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:87
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:221
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:246
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:52
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:97
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:423
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "Disconnect"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:74
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:82
 #, elixir-autogen, elixir-format
 msgid "Paste the token printed by claude setup-token."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:178
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:264
 #, elixir-autogen, elixir-format
 msgid "The ChatGPT sign-in did not complete. Please try again."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:22
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:24
 #, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:34
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:78
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:152
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:44
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:88
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:177
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "Connect"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:162
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:364
 #, elixir-autogen, elixir-format
 msgid "Connect ChatGPT"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:104
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:306
 #, elixir-autogen, elixir-format
 msgid "Connect Claude"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:66
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:76
 #, elixir-autogen, elixir-format
 msgid "Connected. Threads run on your ChatGPT subscription. Updated %{date}."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:22
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "Connected. Threads run on your Claude subscription. Updated %{date}."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:189
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:391
 #, elixir-autogen, elixir-format
 msgid "Enter this one-time code:"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:121
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:323
 #, elixir-autogen, elixir-format
 msgid "Install Claude Code on your computer."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:209
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:411
 #, elixir-autogen, elixir-format
 msgid "Open ChatGPT"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:183
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:385
 #, elixir-autogen, elixir-format
 msgid "Open ChatGPT and sign in with the account that has your subscription."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:129
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:331
 #, elixir-autogen, elixir-format
 msgid "Paste the token it prints below."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:179
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:381
 #, elixir-autogen, elixir-format
 msgid "Requesting a sign-in code from OpenAI…"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:140
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:342
 #, elixir-autogen, elixir-format
 msgid "Stored encrypted and never shown again."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:194
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:396
 #, elixir-autogen, elixir-format
 msgid "This page updates once you approve. The code expires in 15 minutes; only enter it if you started this sign-in."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:223
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:425
 #, elixir-autogen, elixir-format
 msgid "Tuist deletes the credentials it stored for this subscription. To revoke the access itself, do so in your Claude or OpenAI account."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:60
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:70
 #, elixir-autogen, elixir-format
 msgid "Use your ChatGPT Plus, Pro, or Team subscription in threads."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:19
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:29
 #, elixir-autogen, elixir-format
 msgid "Use your Claude Pro or Max subscription in threads."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:150
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "Could not start the ChatGPT sign-in. Please try again in a few minutes."
 msgstr ""
@@ -3255,6 +3263,7 @@ msgstr ""
 msgid "Authenticator app and passkeys"
 msgstr ""
 
+#: lib/tuist_web/live/account_settings_live.html.heex:216
 #: lib/tuist_web/live/authentication_settings_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Manage two-factor authentication"
@@ -3275,17 +3284,192 @@ msgstr ""
 msgid "Protect your sign-ins with an authenticator app, passkeys, and recovery codes."
 msgstr ""
 
+#: lib/tuist_web/live/account_settings_live.html.heex:202
 #: lib/tuist_web/live/authentication_settings_live.html.heex:13
 #, elixir-autogen, elixir-format
 msgid "Two-factor authentication"
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:123
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:325
 #, elixir-autogen, elixir-format
 msgid "Run the following command and sign in with your Claude account."
 msgstr ""
 
-#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:11
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:13
 #, elixir-autogen, elixir-format
 msgid "Subscriptions"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:204
+#, elixir-autogen, elixir-format
+msgid "Add MCP server"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:254
+#, elixir-autogen, elixir-format
+msgid "Add and sign in"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:121
+#, elixir-autogen, elixir-format
+msgid "Add server"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:112
+#, elixir-autogen, elixir-format
+msgid "Connect MCP servers so AI features can use their tools on your behalf. Tuist manages the sessions for you, so your connections are portable."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:16
+#, elixir-autogen, elixir-format
+msgid "Connect your Claude or ChatGPT subscription so AI features run inference on your subscription's tokens."
+msgstr ""
+
+#: lib/tuist_web/controllers/mcp_server_oauth_controller.ex:20
+#, elixir-autogen, elixir-format
+msgid "Connected to %{name}."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:162
+#, elixir-autogen, elixir-format
+msgid "Connected. Updated %{date}."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:324
+#, elixir-autogen, elixir-format
+msgid "Could not sign in to this server. Check that the URL is right and that the server supports MCP OAuth sign-in with dynamic client registration."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:242
+#, elixir-autogen, elixir-format
+msgid "Defaults to the server's host name."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:312
+#, elixir-autogen, elixir-format
+msgid "Enter the server's HTTPS endpoint, for example https://example.com/mcp."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:109
+#, elixir-autogen, elixir-format
+msgid "MCP servers"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:320
+#, elixir-autogen, elixir-format
+msgid "Names can be up to 64 characters long."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:144
+#, elixir-autogen, elixir-format
+msgid "No MCP servers yet."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:166
+#, elixir-autogen, elixir-format
+msgid "Not connected."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Reconnect"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:265
+#, elixir-autogen, elixir-format
+msgid "Remove MCP server"
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:231
+#, elixir-autogen, elixir-format
+msgid "Server URL"
+msgstr ""
+
+#: lib/tuist_web/controllers/mcp_server_oauth_controller.ex:32
+#, elixir-autogen, elixir-format
+msgid "The MCP server sign-in did not complete. Please try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/mcp_server_oauth_controller.ex:25
+#, elixir-autogen, elixir-format
+msgid "The MCP server sign-in was cancelled."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:318
+#, elixir-autogen, elixir-format
+msgid "Too many sign-in attempts. Please try again in a few minutes."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:267
+#, elixir-autogen, elixir-format
+msgid "Tuist deletes the server and the session it stored for it. To revoke the access itself, do so on the server."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.html.heex:221
+#, elixir-autogen, elixir-format
+msgid "Tuist signs in to the server with OAuth. You approve access on the server's sign-in page and come back here."
+msgstr ""
+
+#: lib/tuist_web/live/ai_subscriptions_settings_live.ex:315
+#, elixir-autogen, elixir-format
+msgid "You can add up to 25 MCP servers. Remove one to add another."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:180
+#, elixir-autogen, elixir-format
+msgid "%{count} passkey added"
+msgid_plural "%{count} passkeys added"
+msgstr[0] ""
+msgstr[1] ""
+
+#: lib/tuist/accounts/user_notifier.ex:370
+#, elixir-autogen, elixir-format
+msgid "A recovery code was used to access or change security settings on your Tuist account."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:203
+#, elixir-autogen, elixir-format
+msgid "Add an authenticator code to your password or SSO sign-in. Keep recovery codes as a backup."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:208
+#: lib/tuist_web/live/user_security_settings_live.html.heex:133
+#, elixir-autogen, elixir-format
+msgid "Enabled"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:192
+#, elixir-autogen, elixir-format
+msgid "Manage passkeys"
+msgstr ""
+
+#: lib/tuist/accounts/user_notifier.ex:377
+#, elixir-autogen, elixir-format
+msgid "New recovery codes were created for your Tuist account. All previous codes are now invalid."
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:209
+#: lib/tuist_web/live/user_security_settings_live.html.heex:134
+#, elixir-autogen, elixir-format
+msgid "Not enabled"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:175
+#, elixir-autogen, elixir-format
+msgid "Passkeys"
+msgstr ""
+
+#: lib/tuist/accounts/user_notifier.ex:369
+#, elixir-autogen, elixir-format
+msgid "Recovery code used"
+msgstr ""
+
+#: lib/tuist/accounts/user_notifier.ex:376
+#, elixir-autogen, elixir-format
+msgid "Recovery codes regenerated"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Sign in without a password using a passkey saved in your password manager or on a security key."
 msgstr ""

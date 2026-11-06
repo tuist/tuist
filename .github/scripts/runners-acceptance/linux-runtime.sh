@@ -5,7 +5,14 @@ source "$(dirname "$0")/lib.sh"
 trap 'fail "Linux image/runtime" "a runtime assertion failed at line ${LINENO}"' ERR
 
 test "$(id -u)" != 0
-test "${ImageOS:-}" = ubuntu22
+# Profiles can select different Ubuntu releases. Setup actions need ImageOS
+# to describe the actual image, not a fixed acceptance-profile version.
+source /etc/os-release
+test "$ID" = ubuntu
+expected_image_os="ubuntu${VERSION_ID%%.*}"
+if [ "${ImageOS:-}" != "$expected_image_os" ]; then
+  fail "Linux image/runtime" "ImageOS=${ImageOS:-<unset>}, expected ${expected_image_os} for ${ID} ${VERSION_ID}"
+fi
 test -c /dev/kvm
 test -r /dev/kvm
 test -w /dev/kvm

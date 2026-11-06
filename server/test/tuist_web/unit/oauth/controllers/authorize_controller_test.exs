@@ -86,7 +86,7 @@ defmodule TuistWeb.Controllers.Oauth.AuthorizeControllerTest do
       assert conn.status == 302
       assert redirected_to(conn) == "/users/auth/apple"
 
-      assert get_session(conn, :oauth_return_to) =~
+      assert get_session(conn, :user_return_to) =~
                "/oauth2/authorize?"
     end
   end
@@ -105,7 +105,7 @@ defmodule TuistWeb.Controllers.Oauth.AuthorizeControllerTest do
       assert conn.status == 302
       assert redirected_to(conn) == "/users/auth/github"
 
-      assert get_session(conn, :oauth_return_to) =~
+      assert get_session(conn, :user_return_to) =~
                "/oauth2/authorize?"
     end
   end
@@ -124,7 +124,7 @@ defmodule TuistWeb.Controllers.Oauth.AuthorizeControllerTest do
       assert conn.status == 302
       assert redirected_to(conn) == "/users/auth/google"
 
-      assert get_session(conn, :oauth_return_to) =~
+      assert get_session(conn, :user_return_to) =~
                "/oauth2/authorize?"
     end
   end

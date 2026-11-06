@@ -42,7 +42,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             .github/actions/setup-docker-builder
-            .github/scripts/docker-build-cache-benchmark.sh
+            .github/scripts
       - name: Require candidate runner and mounted cache
         env:
           EXPECTED_LINUX_IMAGE: ${{ inputs.expected_linux_image }}

@@ -188,6 +188,20 @@ defmodule Atlas.MCP.ProxyTest do
     assert message =~ "not available"
   end
 
+  # Every per-environment Pulse upstream reads production-adjacent telemetry,
+  # so each one sits behind the observability toggle, not just one named entry.
+  test "gates every Pulse environment upstream on observability access" do
+    stub(Config, :get, fn ->
+      [servers: [%{"name" => "pulse_canary", "url" => "https://pulse-canary.example/mcp", "bearer_token" => "t"}]]
+    end)
+
+    conn = %{assigns: %{mcp_claims: %{"mcp_tool_groups" => []}}}
+
+    assert Proxy.list_hoisted_tools(conn) == []
+    assert {:error, message} = Proxy.call_hoisted_tool(conn, "pulse_canary__query_promql", %{"query" => "up"})
+    assert message =~ "not available"
+  end
+
   test "keeps upstream observability tools available for restricted observability sessions" do
     conn = %{assigns: %{mcp_claims: %{"mcp_tool_groups" => ["observability"]}}}
 
@@ -277,6 +291,80 @@ defmodule Atlas.MCP.ProxyTest do
 
     assert {:error, message} = Proxy.call_tool("tuist", "create_project", %{"name" => "app"})
     assert message =~ "restricted tool set"
+  end
+
+  # Revision 2026-07-28 has no handshake: an `initialize` here would be refused,
+  # and each request must carry the version in `_meta` and mirrored headers.
+  #
+  # The credential is a projected ServiceAccount token the kubelet rotates in
+  # place, so it is read from disk on every request, never cached at boot.
+  @tag :tmp_dir
+  test "calls a read-only tool on a stateless upstream without a session", %{tmp_dir: tmp_dir} do
+    token_path = Path.join(tmp_dir, "token")
+    File.write!(token_path, "first-token\n")
+
+    stub(Config, :get, fn ->
+      [
+        servers: [
+          %{
+            "name" => "pulse_staging",
+            "url" => "https://pulse-staging.example/mcp",
+            "auth_type" => "service_account_token",
+            "token_path" => token_path,
+            "protocol_version" => "2026-07-28",
+            "read_only" => true
+          }
+        ]
+      ]
+    end)
+
+    expect(Req, :post, 2, fn %Req.Request{} = request ->
+      %{"method" => method, "params" => params} = request.options.json
+      assert request.options.auth == {:bearer, "first-token"}
+
+      assert request.headers["mcp-protocol-version"] == ["2026-07-28"]
+      assert request.headers["mcp-method"] == [method]
+      refute Map.has_key?(request.headers, "mcp-session-id")
+      assert params["_meta"]["io.modelcontextprotocol/protocolVersion"] == "2026-07-28"
+      assert params["_meta"]["io.modelcontextprotocol/clientCapabilities"] == %{}
+
+      result =
+        case method do
+          "tools/list" ->
+            refute Map.has_key?(request.headers, "mcp-name")
+            %{"tools" => [%{"name" => "query_promql", "annotations" => %{"readOnlyHint" => true}}]}
+
+          "tools/call" ->
+            assert request.headers["mcp-name"] == ["query_promql"]
+            assert params["name"] == "query_promql"
+            assert params["arguments"] == %{"query" => "up"}
+            %{"content" => [%{"type" => "text", "text" => "ok"}], "isError" => false}
+        end
+
+      {:ok,
+       %Req.Response{status: 200, body: %{"jsonrpc" => "2.0", "id" => request.options.json["id"], "result" => result}}}
+    end)
+
+    assert {:ok, %{"content" => [%{"text" => "ok"}]}} =
+             Proxy.call_tool("pulse_staging", "query_promql", %{"query" => "up"})
+
+    File.write!(token_path, "rotated-token")
+
+    expect(Req, :post, fn %Req.Request{} = request ->
+      assert request.options.auth == {:bearer, "rotated-token"}
+
+      {:ok,
+       %Req.Response{
+         status: 200,
+         body: %{"jsonrpc" => "2.0", "id" => request.options.json["id"], "result" => %{"tools" => []}}
+       }}
+    end)
+
+    assert {:ok, []} = Proxy.list_tools("pulse_staging")
+
+    File.rm!(token_path)
+    assert {:error, message} = Proxy.list_tools("pulse_staging")
+    assert message =~ "workload identity token"
   end
 
   # The allowlist is the check for an upstream whose annotation cannot be taken

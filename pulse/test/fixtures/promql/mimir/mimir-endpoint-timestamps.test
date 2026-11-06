@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Tests for ts_of_last_over_time using a mix of floats and histograms
+load 10s
+  metric_histogram{type="mix_last_histogram"} 5 2 1 {{schema:1 sum:2 count:3}} 1 {{schema:1 sum:2 count:3}}
+  metric_histogram{type="mix_last_float"} 5 2 1 {{schema:1 sum:2 count:3}} {{schema:1 sum:2 count:3}} 1
+  metric_histogram{type="mix_last_missing"} 5 2 1 {{schema:1 sum:2 count:3}} {{schema:1 sum:2 count:3}} _
+
+eval instant at 60s ts_of_last_over_time(metric_histogram{type="mix_last_histogram"}[60s])
+  {type="mix_last_histogram"} 50
+
+eval instant at 60s ts_of_last_over_time(metric_histogram{type="mix_last_float"}[60s])
+  {type="mix_last_float"} 50
+
+eval instant at 60s ts_of_last_over_time(metric_histogram{type="mix_last_missing"}[60s])
+  {type="mix_last_missing"} 40
+
+clear
+
+# Tests for ts_of_first_over_time using a mix of floats and histograms
+load 10s
+  metric_histogram{type="mix_first_histogram"} {{schema:1 sum:2 count:3}} 1 {{schema:1 sum:2 count:3}} 5 2 1
+  metric_histogram{type="mix_first_float"} 5 {{schema:1 sum:2 count:3}} {{schema:1 sum:2 count:3}} 1 2 1
+  metric_histogram{type="mix_first_missing"} _ 2 1 {{schema:1 sum:2 count:3}} {{schema:1 sum:2 count:3}} _
+
+eval instant at 60s ts_of_first_over_time(metric_histogram{type="mix_first_histogram"}[80s])
+  {type="mix_first_histogram"} 0
+
+eval instant at 60s ts_of_first_over_time(metric_histogram{type="mix_first_float"}[80s])
+  {type="mix_first_float"} 0
+
+eval instant at 60s ts_of_first_over_time(metric_histogram{type="mix_first_missing"}[80s])
+  {type="mix_first_missing"} 10
+
+clear

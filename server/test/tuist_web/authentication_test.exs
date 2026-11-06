@@ -179,6 +179,21 @@ defmodule TuistWeb.AuthenticationTest do
       assert signed_token != get_session(conn, :user_token)
       assert max_age == 2_592_000
     end
+
+    test "flags the remember-me cookie Secure even when the origin is reached over plain HTTP", %{
+      conn: conn,
+      user: user
+    } do
+      # Production terminates TLS at Cloudflare, so the origin sees :http and
+      # Plug only adds Secure for :https. test.exs mirrors production's
+      # `session_cookie_secure`, so the flag must come from that setting.
+      assert conn.scheme == :http
+
+      conn =
+        conn |> fetch_cookies() |> Authentication.log_in_user(user, %{"remember_me" => "true"})
+
+      assert %{secure: true} = conn.resp_cookies[@remember_me_cookie]
+    end
   end
 
   describe "logout_user/1" do
@@ -194,7 +209,8 @@ defmodule TuistWeb.AuthenticationTest do
 
       refute get_session(conn, :user_token)
       refute conn.cookies[@remember_me_cookie]
-      assert %{max_age: 0} = conn.resp_cookies[@remember_me_cookie]
+      # Cleared with the attributes it was written with, including Secure over :http.
+      assert %{max_age: 0, same_site: "Lax", secure: true} = conn.resp_cookies[@remember_me_cookie]
       assert redirected_to(conn) == ~p"/"
       refute Accounts.get_user_by_session_token(user_token)
     end
@@ -784,7 +800,7 @@ defmodule TuistWeb.AuthenticationTest do
 
       assert conn.halted
       assert redirected_to(conn) == "/users/auth/google"
-      assert get_session(conn, :oauth_return_to) == "/#{organization.account.name}/settings"
+      assert get_session(conn, :user_return_to) == "/#{organization.account.name}/settings"
     end
 
     test "redirects to Okta SSO when org has Okta SSO enforced and session auth provider does not match",

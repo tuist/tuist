@@ -44,6 +44,10 @@ if config_env() == :prod do
     System.get_env("TURNSTILE_SECRET_KEY") ||
       raise "environment variable TURNSTILE_SECRET_KEY is missing"
 
+  # The release filesystem is read-only; /tmp is a writable volume in Kubernetes.
+  # Tzdata seeds this directory from its bundled database and keeps updates enabled.
+  config :tzdata, :data_dir, "/tmp/tzdata"
+
   case System.get_env("SLACK_MAILER_PROVIDER", "mailgun") do
     "mailgun" ->
       config :slack, Slack.Mailer,

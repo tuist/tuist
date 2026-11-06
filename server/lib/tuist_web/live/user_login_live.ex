@@ -157,6 +157,7 @@ defmodule TuistWeb.UserLoginLive do
               id="password"
               type="password"
               input_type="password"
+              autocomplete="current-password"
               show_prefix={false}
               error={Flash.get(@flash, :error)}
               show_error_message={false}

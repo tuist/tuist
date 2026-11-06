@@ -941,6 +941,10 @@ defmodule Tuist.Runners.Dispatch do
   """
   def cache_name, do: :tuist
 
+  # A warm macOS sandbox pool runs no CI: a job routed to it would queue with
+  # nothing polling for it, and queued macOS CI closes every sandbox grant.
+  defp pool_summary(%{"metadata" => %{"labels" => %{"tuist.dev/macos-sandbox-warm" => "true"}}}), do: nil
+
   defp pool_summary(%{"metadata" => %{"name" => name} = metadata, "spec" => %{"dispatchLabel" => label} = spec})
        when is_binary(name) and is_binary(label) and label != "" do
     platform = extract_pool_platform(spec)

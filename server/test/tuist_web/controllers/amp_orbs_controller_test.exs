@@ -145,6 +145,35 @@ defmodule TuistWeb.AmpOrbsControllerTest do
     assert response(request(conn, %{"operation" => "spawn"}), 400)
   end
 
+  test "spawns take the platform and shape of their orb type; threads without one get Linux", %{
+    conn: conn,
+    integration: integration
+  } do
+    identity(integration)
+    parent = self()
+
+    stub(Tuist.Sandboxes, :dispatch_amp_orb, fn _account, _orb_id, attrs ->
+      send(parent, {:shape, Map.take(attrs, [:platform, :template, :vcpus, :memory_mb])})
+      {:ok, nil}
+    end)
+
+    request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture", "orb_type" => "macos"})
+    assert_received {:shape, %{platform: :darwin, template: "macos", vcpus: 8, memory_mb: 8192}}
+
+    request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture", "template" => "macos", "vcpus" => 8})
+    assert_received {:shape, %{platform: :linux, template: "default", vcpus: 2, memory_mb: 4096}}
+  end
+
+  test "an unknown orb type is refused before dispatch", %{conn: conn, integration: integration} do
+    identity(integration)
+    reject(&Tuist.Sandboxes.dispatch_amp_orb/3)
+
+    conn = request(conn, %{"operation" => "spawn", "orb_token" => "orb-fixture", "orb_type" => "gpu"})
+
+    assert response(conn, 400) == "Unknown orb type"
+    assert get_resp_header(conn, "x-tuist-orb-refusal") == ["unknown-orb-type"]
+  end
+
   test "failed dispatch retains the sandbox identity and recovery state", %{
     conn: conn,
     integration: integration,

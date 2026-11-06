@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Testing resets
+# nh stands for native histogram
+# nhcb stands for native histogram custom bucket
+load 1m
+  metric{case="all same floats, no resets value=0"} 0 0 0 0 0 0 0 0
+  metric{case="all same floats, no resets value=3"} 3 3 3 3 3 3 3 3
+  metric{case="all NaN, no resets"} NaN NaN NaN NaN NaN NaN NaN NaN
+  metric{case="all Inf, no resets"} Inf Inf Inf Inf Inf Inf Inf Inf
+  metric{case="all floats, no resets"} 0 1 2 3 _ 5 6 _
+  metric{case="all floats, some resets"} 0 1 2 3 2 1 0 _
+  metric{case="mixed float, NaN and Inf, some resets"} Inf 1 2 3 NaN Inf Inf NaN 100 10 8 7 7 6
+  metric{case="all same histogram, no resets"} {{schema:3 sum:0 count:0 buckets:[1 2 1]}} {{schema:3 sum:0 count:0 buckets:[1 2 1]}}
+  metric{case="nh, count decreased, some resets"} {{schema:3 sum:0 count:2 buckets:[1 2 1]}} {{schema:3 sum:0 count:1 buckets:[1 2 1]}}
+  metric{case="nh, bucket decreased, some resets"} {{schema:3 sum:0 count:2 buckets:[1 2 1]}} {{schema:3 sum:0 count:1 buckets:[1 2 1]}} {{schema:3 sum:0 count:1 buckets:[1 0 1]}}
+  metric{case="nh, sum decreased, no resets"} {{schema:3 sum:3 count:2 buckets:[1 2 1]}} {{schema:3 sum:0 count:2 buckets:[1 2 1]}}
+  metric{case="nh, schema increased, some resets"} {{schema:3 sum:0 count:2 buckets:[1 2 1]}} {{schema:4 sum:0 count:2 buckets:[1 2 1]}}
+  metric{case="floats and nh, some resets"} 9 1 2 3 _ _ {{schema:3 sum:4 count:4 buckets:[1 2 1]}} {{schema:3 sum:5 count:3 buckets:[2 5 4]}}
+  metric{case="nhcb, no resets"} {{schema:-53 sum:1 count:5 custom_values:[5 10] buckets:[1 4]}} {{schema:-53 sum:1 count:5 custom_values:[5 10] buckets:[1 4]}} {{schema:-53 sum:1 count:5 custom_values:[5 10] buckets:[1 4]}}
+  metric{case="nhcb, some resets"} {{schema:-53 sum:1 count:5 custom_values:[5 10] buckets:[1 4]}} {{schema:-53 sum:15 count:2 custom_values:[5 10] buckets:[0 2]}} {{schema:-53 sum:3 count:15 custom_values:[5 10] buckets:[7 8]}} {{schema:-53 sum:3 count:15 custom_values:[5 10] buckets:[0 0]}}
+  metric{case="floats, nh and nhcb, some resets"} 0 1 2 3 2 1 0 _ {{schema:3 sum:0 count:2 buckets:[1 2 1]}} {{schema:3 sum:0 count:1 buckets:[1 2 1]}} {{schema:3 sum:0 count:1 buckets:[1 0 1]}} {{schema:-53 sum:1 count:5 custom_values:[5 10] buckets:[1 4]}} {{schema:-53 sum:15 count:2 custom_values:[5 10] buckets:[0 2]}} {{schema:-53 sum:3 count:15 custom_values:[5 10] buckets:[7 8]}} {{schema:-53 sum:3 count:15 custom_values:[5 10] buckets:[0 0]}}
+
+eval range from 0 to 20m step 1m resets(metric[3m1s])
+  {case="all same floats, no resets value=0"} 0 0 0 0 0 0 0 0 0 0 0
+  {case="all same floats, no resets value=3"} 0 0 0 0 0 0 0 0 0 0 0
+  {case="all floats, no resets"} 0 0 0 0 0 0 0 0 0 0
+  {case="all floats, some resets"} 0 0 0 0 1 2 3 2 1 0
+  {case="all NaN, no resets"} 0 0 0 0 0 0 0 0 0 0 0
+  {case="all Inf, no resets"} 0 0 0 0 0 0 0 0 0 0 0
+  {case="all same histogram, no resets"} 0 0 0 0 0
+  {case="floats and nh, some resets"} 0 1 1 1 0 0 1 1 1 1 0
+  {case="floats, nh and nhcb, some resets"} 0 0 0 0 1 2 3 2 2 2 2 3 3 2 2 1 1 0
+  {case="mixed float, NaN and Inf, some resets"} 0 1 1 1 0 0 0 0 0 1 2 3 2 2 1 1 0
+  {case="nh, bucket decreased, some resets"} 0 1 2 2 1 0
+  {case="nh, count decreased, some resets"} 0 1 1 1 0
+  {case="nh, schema increased, some resets"} 0 1 1 1 0
+  {case="nh, sum decreased, no resets"} 0 0 0 0 0
+  {case="nhcb, no resets"} 0 0 0 0 0 0
+  {case="nhcb, some resets"} 0 1 1 2 1 1 0
+
+clear

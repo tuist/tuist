@@ -1,0 +1,60 @@
+defmodule SDKFixturePlug do
+  @behaviour Plug
+
+  def init(opts), do: opts
+
+  def call(conn, _opts) do
+    current = OpenTelemetry.Tracer.current_span_ctx()
+
+    :otel_span.set_attributes(current, %{
+      "typed.int" => 9_007_199_254_740_993,
+      "typed.zero" => -0.0,
+      "typed.floats" => [1.5, -0.0],
+      "typed.bool" => true,
+      "typed.bools" => [true, false]
+    })
+
+    :otel_span.add_event(current, "cache lookup", %{"cache.hit" => false, "event.extra" => "dropped"})
+    :otel_span.set_status(current, :opentelemetry.status(:ok))
+    # Execute the actual Ecto instrumentation handler with synthetic Ecto metadata.
+    # This does not connect to Postgres or exercise Ecto query execution.
+    :telemetry.execute(
+      [:fixture, :repo, :query],
+      %{total_time: 10_000, query_time: 8_000, decode_time: 1_000, queue_time: 1_000, idle_time: 500},
+      %{
+        repo: SDKFixtureRepo,
+        source: "packages",
+        query: "SELECT version FROM packages WHERE name = $1",
+        result: {:ok, %{}},
+        type: :ecto_sql_query
+      }
+    )
+
+    link =
+      :opentelemetry.link(
+        0x2122232425262728292A2B2C2D2E2F30,
+        0x3132333435363738,
+        %{"link.kind" => "async", "link.extra" => "dropped"},
+        :otel_tracestate.new([{"vendor", "link"}])
+      )
+
+    task =
+      OpentelemetryProcessPropagator.Task.async(fn ->
+        tracer = :otel_tracer_provider.get_tracer(:global, :elixir_fixture, "1.0", "https://example.test/scope/1.0")
+
+        :otel_tracer.with_span(
+          tracer,
+          "async job",
+          %{
+            kind: :consumer,
+            links: [link],
+            attributes: %{"messaging.system" => "fixture", "job.id" => 9_007_199_254_740_993}
+          },
+          fn _ -> :ok end
+        )
+      end)
+
+    :ok = Task.await(task)
+    Plug.Conn.send_resp(conn, 200, "ok")
+  end
+end

@@ -1,0 +1,38 @@
+clear
+
+# Check for empty le label
+# This is treated the same as having `series{} 9` which will emit InvalidQuantileWarning
+load 6m
+  series{le="0"}    0
+  series{le="2"}    1
+  series{le="4"}    2
+  series{le="6"}    3
+  series{le=""}     9
+  series{le="+Inf"} 3
+  series{le="3"}    {{schema:0 sum:5 count:4 buckets:[1 2 1]}}
+
+eval instant at 0m histogram_quantile(0.8, series)
+  expect no_info
+  expect warn
+  {} 4.800000000000001
+  {le="3"} 2.29739670999407
+
+clear
+
+# Check for empty le label with NH
+# This is treated the same as having `series{} NH` which will emit MixedClassicNativeHistogramsWarning
+load 6m
+  series{le="0"}    0
+  series{le="2"}    1
+  series{le="4"}    2
+  series{le="6"}    3
+  series{le=""}     {{schema:0 sum:5 count:4 buckets:[1 2 1]}}
+  series{le="+Inf"} 3
+  series{le="3"}    {{schema:0 sum:5 count:4 buckets:[1 2 1]}}
+
+eval instant at 0m histogram_quantile(0.8, series)
+  expect no_info
+  expect warn
+  {le="3"} 2.29739670999407
+
+clear

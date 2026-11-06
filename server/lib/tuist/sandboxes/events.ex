@@ -10,7 +10,7 @@ defmodule Tuist.Sandboxes.Events do
 
   @events ~w(created started paused archived failed deleted setup)
   @stop_events ~w(paused archived failed deleted)
-  @boot_sources ~w(template disk_snapshot archive)
+  @boot_sources ~w(template disk_snapshot archive warm)
 
   def stop_events, do: @stop_events
 

@@ -1,0 +1,40 @@
+# group_left() without labels.
+clear
+load
+  {app="foo", machine="fuzz"} "x" @ 0s [repeat every 10s for 19]
+  {app="foo", machine="buzz"} "x" @ 0s [repeat every 15s for 19]
+  {app="noise"} "noise" @ 0s [repeat every 10s for 19]
+
+# Many-to-one without an explicit group_left errors.
+eval instant at 60s sum by (app,machine) (count_over_time({app="foo"}[1m])) > bool ignoring (machine) sum by (app) (count_over_time({app="foo"}[1m]))
+  expect fail msg: multiple matches for labels: many-to-one matching must be explicit (group_left/group_right)
+eval range from 60s to 180s step 30s sum by (app,machine) (count_over_time({app="foo"}[1m])) > bool ignoring (machine) sum by (app) (count_over_time({app="foo"}[1m]))
+  expect fail msg: multiple matches for labels: many-to-one matching must be explicit (group_left/group_right)
+# Two grammar forms: bare and an explicit empty ().
+eval instant at 60s sum by (app,machine) (count_over_time({app="foo"}[1m])) > bool on () group_left sum by (app) (count_over_time({app="foo"}[1m]))
+  {app="foo", machine="fuzz"} 0
+  {app="foo", machine="buzz"} 0
+eval range from 60s to 180s step 30s sum by (app,machine) (count_over_time({app="foo"}[1m])) > bool on () group_left sum by (app) (count_over_time({app="foo"}[1m]))
+  {app="foo", machine="fuzz"} 0 0 0 0 0
+  {app="foo", machine="buzz"} 0 0 0 0 0
+eval instant at 60s sum by (app,machine) (count_over_time({app="foo"}[1m])) > bool on () group_left () sum by (app) (count_over_time({app="foo"}[1m]))
+  {app="foo", machine="fuzz"} 0
+  {app="foo", machine="buzz"} 0
+eval range from 60s to 180s step 30s sum by (app,machine) (count_over_time({app="foo"}[1m])) > bool on () group_left () sum by (app) (count_over_time({app="foo"}[1m]))
+  {app="foo", machine="fuzz"} 0 0 0 0 0
+  {app="foo", machine="buzz"} 0 0 0 0 0
+# ignoring(machine) group_left reaches the same result here, since app is the only other
+# label.
+eval instant at 60s sum by (app,machine) (count_over_time({app="foo"}[1m])) > bool ignoring (machine) group_left sum by (app) (count_over_time({app="foo"}[1m]))
+  {app="foo", machine="fuzz"} 0
+  {app="foo", machine="buzz"} 0
+eval range from 60s to 180s step 30s sum by (app,machine) (count_over_time({app="foo"}[1m])) > bool ignoring (machine) group_left sum by (app) (count_over_time({app="foo"}[1m]))
+  {app="foo", machine="fuzz"} 0 0 0 0 0
+  {app="foo", machine="buzz"} 0 0 0 0 0
+# Non-bool keeps the many side's own value and labels; the one side is used only to match.
+eval instant at 60s sum by (app,machine) (count_over_time({app="foo"}[1m])) < on () group_left sum by (app) (count_over_time({app="foo"}[1m]))
+  {app="foo", machine="fuzz"} 6
+  {app="foo", machine="buzz"} 4
+eval range from 60s to 180s step 30s sum by (app,machine) (count_over_time({app="foo"}[1m])) < on () group_left sum by (app) (count_over_time({app="foo"}[1m]))
+  {app="foo", machine="fuzz"} 6 6 6 6 6
+  {app="foo", machine="buzz"} 4 4 4 4 4

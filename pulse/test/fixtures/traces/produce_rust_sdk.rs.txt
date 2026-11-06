@@ -1,0 +1,444 @@
+//! First-party local workload using actual public SDK/exporter/tracing adapter.
+//! Snapshot is SDK SpanData plus a public proto-transform request, not wire capture.
+use opentelemetry::{
+    propagation::TextMapPropagator,
+    trace::{
+        Link, Span, SpanContext, SpanId, SpanKind, Status, TraceContextExt, TraceFlags, TraceId,
+        TraceState, Tracer, TracerProvider,
+    },
+    Array, Context, InstrumentationScope, KeyValue, Value,
+};
+use opentelemetry_otlp::{Protocol, WithExportConfig, WithHttpConfig};
+use opentelemetry_proto::{
+    tonic::collector::trace::v1::ExportTraceServiceRequest,
+    transform::{
+        common::tonic::ResourceAttributesWithSchema,
+        trace::tonic::group_spans_by_resource_and_scope,
+    },
+};
+use opentelemetry_sdk::{
+    error::OTelSdkResult,
+    propagation::TraceContextPropagator,
+    trace::{
+        BatchConfigBuilder, BatchSpanProcessor, IdGenerator, Sampler, SdkTracer, SdkTracerProvider,
+        SpanData, SpanExporter as Exporter,
+    },
+    Resource,
+};
+use prost::Message;
+use serde_json::{json, Value as Json};
+use std::{
+    collections::HashMap,
+    fs,
+    io::{Read, Write},
+    net::{IpAddr, SocketAddr, TcpListener},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex,
+    },
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
+use tracing_subscriber::layer::SubscriberExt;
+
+const QUEUE_SIZE: usize = 64;
+const MAXIMUM_BATCH: usize = 64;
+const SCHEDULED_DELAY_SECONDS: u64 = 86_400;
+
+#[derive(Debug, Default)]
+struct Captures {
+    spans: Vec<Json>,
+    request: Vec<u8>,
+    errors: Vec<String>,
+}
+
+#[derive(Debug)]
+struct CaptureExporter {
+    inner: opentelemetry_otlp::SpanExporter,
+    resource: Resource,
+    capture: Arc<Mutex<Captures>>,
+}
+impl Exporter for CaptureExporter {
+    async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
+        {
+            let mut capture = self.capture.lock().unwrap();
+            capture
+                .spans
+                .extend(batch.iter().map(|s| snapshot(s, &self.resource)));
+            let resource = ResourceAttributesWithSchema::from(&self.resource);
+            let request = ExportTraceServiceRequest {
+                resource_spans: group_spans_by_resource_and_scope(batch.clone(), &resource),
+            };
+            capture.request.extend(request.encode_to_vec());
+        }
+        let result = self.inner.export(batch).await;
+        if let Err(error) = &result {
+            self.capture.lock().unwrap().errors.push(error.to_string());
+        }
+        result
+    }
+    fn set_resource(&mut self, resource: &Resource) {
+        self.resource = resource.clone();
+        self.inner.set_resource(resource);
+    }
+    fn shutdown_with_timeout(&mut self, timeout: Duration) -> OTelSdkResult {
+        self.inner.shutdown_with_timeout(timeout)
+    }
+    fn force_flush(&mut self) -> OTelSdkResult {
+        self.inner.force_flush()
+    }
+}
+#[derive(Debug)]
+struct Ids(Arc<AtomicU64>);
+impl IdGenerator for Ids {
+    fn new_trace_id(&self) -> TraceId {
+        TraceId::from_hex("0102030405060708090a0b0c0d0e0f10").unwrap()
+    }
+    fn new_span_id(&self) -> SpanId {
+        SpanId::from(self.0.fetch_add(1, Ordering::SeqCst))
+    }
+}
+fn nanos(time: SystemTime) -> String {
+    time.duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
+        .to_string()
+}
+fn float(value: f64) -> String {
+    if value.is_nan() {
+        "NaN".into()
+    } else if value == f64::INFINITY {
+        "Infinity".into()
+    } else if value == f64::NEG_INFINITY {
+        "-Infinity".into()
+    } else {
+        value.to_string()
+    }
+}
+fn any(value: &Value) -> Json {
+    match value {
+        Value::Bool(v) => json!({"boolValue": v}),
+        Value::I64(v) => json!({"intValue": v.to_string()}),
+        Value::F64(v) => json!({"doubleValue": float(*v)}),
+        Value::String(v) => json!({"stringValue": v.as_str()}),
+        Value::Array(v) => {
+            let values: Vec<Json> = match v {
+                Array::Bool(v) => v.iter().map(|v| any(&Value::Bool(*v))).collect(),
+                Array::I64(v) => v.iter().map(|v| any(&Value::I64(*v))).collect(),
+                Array::F64(v) => v.iter().map(|v| any(&Value::F64(*v))).collect(),
+                Array::String(v) => v.iter().map(|v| any(&Value::String(v.clone()))).collect(),
+                _ => panic!("fixture does not support this SDK array variant"),
+            };
+            json!({"arrayValue": {"values": values}})
+        }
+        _ => panic!("fixture does not support this SDK value variant"),
+    }
+}
+fn attributes<'a>(values: impl Iterator<Item = (&'a opentelemetry::Key, &'a Value)>) -> Vec<Json> {
+    values
+        .map(|(key, value)| json!({"key": key.as_str(), "value": any(value)}))
+        .collect()
+}
+fn attrs(values: &[KeyValue]) -> Vec<Json> {
+    attributes(values.iter().map(|kv| (&kv.key, &kv.value)))
+}
+fn snapshot(s: &SpanData, r: &Resource) -> Json {
+    let (status, message) = match &s.status {
+        Status::Unset => (0, ""),
+        Status::Ok => (1, ""),
+        Status::Error { description } => (2, description.as_ref()),
+    };
+    let kind = match s.span_kind {
+        SpanKind::Internal => 1,
+        SpanKind::Server => 2,
+        SpanKind::Client => 3,
+        SpanKind::Producer => 4,
+        SpanKind::Consumer => 5,
+    };
+    json!({
+        "trace_id": s.span_context.trace_id().to_string(), "span_id": s.span_context.span_id().to_string(),
+        "parent_id": if s.parent_span_id == SpanId::INVALID { String::new() } else { s.parent_span_id.to_string() },
+        "parent_remote": s.parent_span_is_remote, "flags": s.span_context.trace_flags().to_u8(),
+        "state": s.span_context.trace_state().header(), "name": s.name, "kind":kind,
+        "start":nanos(s.start_time), "end":nanos(s.end_time), "status":status, "message":message,
+        "resource":attributes(r.iter()), "resource_schema":r.schema_url().unwrap_or(""),
+        "scope":{"name":s.instrumentation_scope.name(), "version":s.instrumentation_scope.version().unwrap_or(""),
+          "schema":s.instrumentation_scope.schema_url().unwrap_or(""), "attributes":attrs(&s.instrumentation_scope.attributes().cloned().collect::<Vec<_>>())},
+        "attributes":attrs(&s.attributes), "dropped_attributes":s.dropped_attributes_count,
+        "dropped_events":s.events.dropped_count, "dropped_links":s.links.dropped_count,
+        "events":s.events.iter().map(|e| json!({"name":e.name,"time":nanos(e.timestamp),"attributes":attrs(&e.attributes),"dropped":e.dropped_attributes_count})).collect::<Vec<_>>(),
+        "links":s.links.iter().map(|l| json!({"trace_id":l.span_context.trace_id().to_string(),"span_id":l.span_context.span_id().to_string(),
+          "state":l.span_context.trace_state().header(),"remote":l.span_context.is_remote(),"flags":l.span_context.trace_flags().to_u8(),
+          "attributes":attrs(&l.attributes),"dropped":l.dropped_attributes_count})).collect::<Vec<_>>()
+    })
+}
+// One owned, bounded, real HTTP/W3C service hop. This is not a Kura app bootstrap.
+fn serve(listener: TcpListener, tracer: SdkTracer) -> HashMap<String, String> {
+    let (mut stream, peer) = listener.accept().unwrap();
+    assert!(peer.ip().is_loopback());
+    stream
+        .set_read_timeout(Some(Duration::from_secs(3)))
+        .unwrap();
+    stream
+        .set_write_timeout(Some(Duration::from_secs(3)))
+        .unwrap();
+    let mut bytes = Vec::new();
+    while !bytes.ends_with(b"\r\n\r\n") {
+        assert!(bytes.len() < 4096, "HTTP evidence bound");
+        let mut byte = [0];
+        stream.read_exact(&mut byte).unwrap();
+        bytes.push(byte[0]);
+    }
+    let request = String::from_utf8(bytes).unwrap();
+    let mut lines = request.split("\r\n");
+    assert_eq!(lines.next(), Some("GET /fixture HTTP/1.1"));
+    let headers: HashMap<String, String> = lines
+        .filter_map(|line| line.split_once(": "))
+        .map(|(key, value)| (key.to_ascii_lowercase(), value.to_owned()))
+        .collect();
+    let remote_context = TraceContextPropagator::new().extract(&headers);
+    assert!(remote_context.span().span_context().is_valid());
+    let link_context = SpanContext::new(
+        TraceId::from(99_u128),
+        SpanId::from(99_u64),
+        TraceFlags::SAMPLED,
+        true,
+        TraceState::from_key_value([("vendor", "opaque")]).unwrap(),
+    );
+    let mut server = tracer
+        .span_builder("rust server")
+        .with_kind(SpanKind::Server)
+        .with_attributes([
+            KeyValue::new("typed.int", 9_007_199_254_740_993_i64),
+            KeyValue::new("typed.zero", -0.0_f64),
+            KeyValue::new("typed.bool", true),
+            KeyValue::new("http.route", "/fixture"),
+            KeyValue::new("http.response.status_code", 503_i64),
+            KeyValue::new("typed.nan", f64::NAN),
+            KeyValue::new("typed.infinity", f64::INFINITY),
+            KeyValue::new("typed.negative_infinity", f64::NEG_INFINITY),
+            KeyValue::new(
+                "typed.floats",
+                Value::Array(Array::F64(vec![
+                    f64::NAN,
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    -0.0,
+                ])),
+            ),
+        ])
+        .with_links(vec![Link::new(
+            link_context,
+            vec![
+                KeyValue::new("link.int", 9_007_199_254_740_993_i64),
+                KeyValue::new("link.bool", true),
+            ],
+            0,
+        )])
+        .start_with_context(&tracer, &remote_context);
+    server.add_event(
+        "rust event",
+        vec![
+            KeyValue::new("event.nan", f64::NAN),
+            KeyValue::new("event.bool", true),
+        ],
+    );
+    server.set_status(Status::error("fixture failure"));
+    // A real local Span, not a remotely-labelled SpanContext, parents the adapter.
+    let server_context = Context::new().with_span(server);
+    let subscriber =
+        tracing_subscriber::registry().with(tracing_opentelemetry::layer().with_tracer(tracer));
+    tracing::subscriber::with_default(subscriber, || {
+        let span = tracing::info_span!(
+            "tracing adapter",
+            task = "cache-read",
+            answer = 9_007_199_254_740_993_i64
+        );
+        span.set_parent(server_context.clone()).unwrap();
+        let _guard = span.enter();
+        tracing::warn!(cache.hit = false, "cache miss");
+    });
+    server_context.span().end();
+    stream
+        .write_all(
+            b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        )
+        .unwrap();
+    headers
+}
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() == 2 {
+        let source: &[u8] = match args[1].as_str() {
+            "--embedded-source" => include_bytes!("main.rs"),
+            "--embedded-manifest" => include_bytes!("../Cargo.toml"),
+            "--embedded-lock" => include_bytes!("../Cargo.lock"),
+            "--embedded-build" => include_bytes!("../build.rs"),
+            _ => panic!("unknown provenance request"),
+        };
+        std::io::stdout().write_all(source).unwrap();
+        return;
+    }
+    assert_eq!(
+        args.len(),
+        5,
+        "usage: producer http|http-env|grpc loopback-endpoint tenant output-prefix"
+    );
+    let (protocol, endpoint, tenant, output) = (&args[1], &args[2], &args[3], &args[4]);
+    assert!(matches!(protocol.as_str(), "http" | "http-env" | "grpc"));
+    // Parse only literal loopback addresses; no DNS, credentials or remote URLs.
+    let address = endpoint
+        .strip_prefix("http://")
+        .expect("loopback http endpoint required");
+    assert!(!address.contains(['?', '#', '\\']));
+    let (authority, path) = address.split_once('/').unwrap_or((address, ""));
+    if protocol == "grpc" {
+        assert!(path.is_empty());
+    } else {
+        assert!(
+            path.ends_with("v1/traces")
+                && path
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"/-_".contains(&b))
+        );
+    }
+    let socket: SocketAddr = authority.parse().expect("literal loopback socket required");
+    assert!(IpAddr::is_loopback(&socket.ip()) && socket.port() != 0);
+    assert!(
+        !tenant.is_empty()
+            && tenant.len() <= 64
+            && tenant
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+    );
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .unwrap();
+    // Build blocking HTTP client outside a Tokio-entered thread; tonic requires
+    // a live runtime. This component fixture is not the actual Kura bootstrap.
+    let client = reqwest::blocking::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(3))
+        .build()
+        .unwrap();
+    let inner = if protocol != "grpc" {
+        let builder = opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
+            .with_endpoint(endpoint)
+            .with_protocol(Protocol::HttpBinary)
+            .with_timeout(Duration::from_secs(3))
+            .with_http_client(client.clone());
+        let builder = if protocol == "http" {
+            builder.with_headers(HashMap::from([
+                ("authorization".into(), format!("Bearer token-{tenant}")),
+                ("x-scope-orgid".into(), tenant.clone()),
+            ]))
+        } else {
+            builder
+        };
+        builder.build().unwrap()
+    } else {
+        let _enter = runtime.enter();
+        opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .with_endpoint(endpoint)
+            .with_timeout(Duration::from_secs(3))
+            .build()
+            .unwrap()
+    };
+    let resource = Resource::builder_empty()
+        .with_schema_url(
+            [
+                KeyValue::new("service.name", "rust-bridge"),
+                KeyValue::new("service.namespace", "example"),
+                KeyValue::new("deployment.environment.name", tenant.clone()),
+                KeyValue::new("typed.int", 9_007_199_254_740_993_i64),
+                KeyValue::new("resource.bool", true),
+                KeyValue::new("resource.zero", -0.0_f64),
+                KeyValue::new("resource.nan", f64::NAN),
+            ],
+            "https://example.test/resource/1.0",
+        )
+        .build();
+    let capture = Arc::new(Mutex::new(Captures::default()));
+    // Explicit flush profile: never race the default five-second scheduler.
+    // The process is owned with a <=30s await; this delay is not Kura's default.
+    let processor = BatchSpanProcessor::builder(CaptureExporter {
+        inner,
+        resource: resource.clone(),
+        capture: capture.clone(),
+    })
+    .with_batch_config(
+        BatchConfigBuilder::default()
+            .with_max_queue_size(QUEUE_SIZE)
+            .with_max_export_batch_size(MAXIMUM_BATCH)
+            .with_scheduled_delay(Duration::from_secs(SCHEDULED_DELAY_SECONDS))
+            .build(),
+    )
+    .build();
+    let provider = SdkTracerProvider::builder()
+        .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(
+            1.0,
+        ))))
+        .with_id_generator(Ids(Arc::new(AtomicU64::new(1))))
+        .with_max_attributes_per_event(1)
+        .with_max_attributes_per_link(1)
+        .with_resource(resource.clone())
+        .with_span_processor(processor)
+        .build();
+    let scope = InstrumentationScope::builder("sdk-bridge")
+        .with_version("0.31.0")
+        .with_schema_url("https://example.test/scope/1.0")
+        .with_attributes([
+            KeyValue::new("scope.enabled", true),
+            KeyValue::new("scope.zero", -0.0_f64),
+            KeyValue::new("scope.nan", f64::NAN),
+        ])
+        .build();
+    let tracer = provider.tracer_with_scope(scope);
+    let mut root = tracer
+        .span_builder("rust client")
+        .with_kind(SpanKind::Client)
+        .start(&tracer);
+    root.set_status(Status::Ok);
+    let root_context = Context::new().with_span(root);
+    let propagator = TraceContextPropagator::new();
+    let mut headers = HashMap::new();
+    propagator.inject_context(&root_context, &mut headers);
+    headers.insert("tracestate".into(), "vendor=opaque".into());
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let target = format!("http://{}/fixture", listener.local_addr().unwrap());
+    let worker = std::thread::Builder::new()
+        .name("fixture-service".into())
+        .spawn(move || serve(listener, tracer))
+        .unwrap();
+    let mut request = client.get(target);
+    for (key, value) in &headers {
+        request = request.header(key, value);
+    }
+    assert_eq!(request.send().unwrap().status().as_u16(), 503);
+    let received_headers = worker.join().unwrap(); // all child on_end calls completed
+    assert_eq!(
+        received_headers.get("traceparent"),
+        headers.get("traceparent")
+    );
+    assert_eq!(
+        received_headers.get("tracestate"),
+        headers.get("tracestate")
+    );
+    root_context.span().end();
+    let flush = provider.force_flush().map_err(|e| e.to_string());
+    let shutdown = provider.shutdown().map_err(|e| e.to_string());
+    let capture = capture.lock().unwrap();
+    fs::write(format!("{output}-sdk.protobuf"), &capture.request).unwrap();
+    fs::write(format!("{output}-oracle.json"),serde_json::to_vec_pretty(&json!({
+        "sdk":"rust opentelemetry_sdk 0.31.0 / opentelemetry-otlp 0.31.1 / tracing-opentelemetry 0.32.1",
+        "batch_profile":{"queue":QUEUE_SIZE,"maximum_batch":MAXIMUM_BATCH,"scheduled_delay_ms":SCHEDULED_DELAY_SECONDS * 1000},
+        "protocol":protocol,"spans":capture.spans,"export_errors":capture.errors,"flush":flush.err(),"shutdown":shutdown.err(),
+        "propagation":headers,"received_headers":received_headers,"http_hop_status":503,
+        "rustc":env!("PULSE_FIXTURE_RUSTC"),"target":env!("PULSE_FIXTURE_TARGET")
+    })).unwrap()).unwrap();
+}

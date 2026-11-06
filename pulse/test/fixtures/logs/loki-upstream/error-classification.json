@@ -1,0 +1,998 @@
+{
+  "classification_row_count": 22,
+  "execution_paths": [
+    {
+      "assertions": [
+        {
+          "lines": [
+            114,
+            114
+          ],
+          "original_go": "require.Equal(t, tc.wantCategory, gotCategory, \"category\")",
+          "source": "pkg/util/server/error_classify_test.go"
+        },
+        {
+          "lines": [
+            115,
+            115
+          ],
+          "original_go": "require.Equal(t, tc.wantReason, gotReason, \"reason\")",
+          "source": "pkg/util/server/error_classify_test.go"
+        }
+      ],
+      "lines": [
+        112,
+        116
+      ],
+      "original_go": "t.Run(tc.name, func(t *testing.T) {\n\t\t\tgotCategory, gotReason := ClassifyFailure(tc.err)\n\t\t\trequire.Equal(t, tc.wantCategory, gotCategory, \"category\")\n\t\t\trequire.Equal(t, tc.wantReason, gotReason, \"reason\")\n\t\t})",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure"
+    },
+    {
+      "assertions": [
+        {
+          "lines": [
+            152,
+            152
+          ],
+          "original_go": "require.Equal(t, tc.status, status)",
+          "source": "pkg/util/server/error_classify_test.go"
+        },
+        {
+          "lines": [
+            155,
+            155
+          ],
+          "original_go": "require.Equal(t, tc.msg, clientErr.Error())",
+          "source": "pkg/util/server/error_classify_test.go"
+        },
+        {
+          "lines": [
+            157,
+            157
+          ],
+          "original_go": "require.ErrorIs(t, wrapped, tc.sentinel)",
+          "source": "pkg/util/server/error_classify_test.go"
+        }
+      ],
+      "lines": [
+        148,
+        158
+      ],
+      "original_go": "t.Run(tc.name, func(t *testing.T) {\n\t\t\twrapped := wrapLimit(tc.sentinel, tc.status, tc.msg)\n\n\t\t\tstatus, clientErr := ClientHTTPStatusAndError(wrapped)\n\t\t\trequire.Equal(t, tc.status, status)\n\t\t\t// The message comes from the embedded HTTPResponse body, not the\n\t\t\t// sentinel prefix.\n\t\t\trequire.Equal(t, tc.msg, clientErr.Error())\n\t\t\t// And the sentinel is still detectable for classification.\n\t\t\trequire.ErrorIs(t, wrapped, tc.sentinel)\n\t\t})",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestWrappedLimitErrorStatusPreserved"
+    }
+  ],
+  "prefix_constraints": {
+    "assertion_sites": [
+      {
+        "lines": [
+          174,
+          174
+        ],
+        "original_go": "require.NotEmpty(t, prefix, \"template %q has no stable prefix to match on\", name)",
+        "source": "pkg/util/server/error_classify_test.go"
+      },
+      {
+        "lines": [
+          175,
+          175
+        ],
+        "original_go": "require.NotContains(t, prefix, \"%\", \"prefix for %q must not contain a format verb\", name)",
+        "source": "pkg/util/server/error_classify_test.go"
+      },
+      {
+        "lines": [
+          178,
+          178
+        ],
+        "original_go": "t.Fatalf(\"templates %q and %q share the prefix %q\", name, other, prefix)",
+        "source": "pkg/util/server/error_classify_test.go"
+      },
+      {
+        "lines": [
+          185,
+          185
+        ],
+        "original_go": "require.True(t, matchesTemplate(msg, tmpl))",
+        "source": "pkg/util/server/error_classify_test.go"
+      },
+      {
+        "lines": [
+          190,
+          190
+        ],
+        "original_go": "require.False(t, matchesTemplate(msg, otherTmpl), \"%q must not match the %q template\", name, otherName)",
+        "source": "pkg/util/server/error_classify_test.go"
+      },
+      {
+        "lines": [
+          195,
+          195
+        ],
+        "original_go": "require.Empty(t, prefixBeforeFormat(\"%s exceeded the limit\"))",
+        "source": "pkg/util/server/error_classify_test.go"
+      },
+      {
+        "lines": [
+          196,
+          196
+        ],
+        "original_go": "require.False(t, matchesTemplate(\"any message at all\", \"%s exceeded the limit\"))",
+        "source": "pkg/util/server/error_classify_test.go"
+      }
+    ],
+    "constraint_count": 11,
+    "constraints": [
+      {
+        "input": "max_entries",
+        "original_assertion_shape": "require.NotEmpty(t, prefix)"
+      },
+      {
+        "input": "max_entries",
+        "original_assertion_shape": "require.NotContains(t, prefix, \"%\")"
+      },
+      {
+        "input": "max_entries",
+        "original_assertion_shape": "require.True(t, matchesTemplate(msg, tmpl))"
+      },
+      {
+        "input": "max_query_length",
+        "original_assertion_shape": "require.NotEmpty(t, prefix)"
+      },
+      {
+        "input": "max_query_length",
+        "original_assertion_shape": "require.NotContains(t, prefix, \"%\")"
+      },
+      {
+        "input": "max_query_length",
+        "original_assertion_shape": "require.True(t, matchesTemplate(msg, tmpl))"
+      },
+      {
+        "input": "max_entries",
+        "original_assertion_shape": "require.False(t, matchesTemplate(msg, otherTmpl))",
+        "other_input": "max_query_length"
+      },
+      {
+        "input": "max_query_length",
+        "original_assertion_shape": "require.False(t, matchesTemplate(msg, otherTmpl))",
+        "other_input": "max_entries"
+      },
+      {
+        "inputs": [
+          "max_entries",
+          "max_query_length"
+        ],
+        "original_failure": "t.Fatalf(\"templates %q and %q share the prefix %q\", name, other, prefix)",
+        "original_guard": "if other, ok := seen[prefix]; ok",
+        "relation": "distinct prefixes"
+      },
+      {
+        "lines": [
+          195,
+          195
+        ],
+        "original_go": "require.Empty(t, prefixBeforeFormat(\"%s exceeded the limit\"))",
+        "source": "pkg/util/server/error_classify_test.go"
+      },
+      {
+        "lines": [
+          196,
+          196
+        ],
+        "original_go": "require.False(t, matchesTemplate(\"any message at all\", \"%s exceeded the limit\"))",
+        "source": "pkg/util/server/error_classify_test.go"
+      }
+    ],
+    "fatal_call_count_on_success": 0,
+    "inputs": [
+      {
+        "lines": [
+          167,
+          167
+        ],
+        "message": "max entries limit per query exceeded, limit > max_entries_limit_per_query (1 > 1)",
+        "name": "max_entries",
+        "original_go": "\"max_entries\":      validation.ErrMaxEntriesLimit",
+        "source": "pkg/util/server/error_classify_test.go",
+        "template": "max entries limit per query exceeded, limit > max_entries_limit_per_query (%d > %d)",
+        "template_expression": "validation.ErrMaxEntriesLimit"
+      },
+      {
+        "lines": [
+          168,
+          168
+        ],
+        "message": "the query time range exceeds the limit (query length: x, limit: x)",
+        "name": "max_query_length",
+        "original_go": "\"max_query_length\": validation.ErrQueryTooLong",
+        "source": "pkg/util/server/error_classify_test.go",
+        "template": "the query time range exceeds the limit (query length: %s, limit: %s)",
+        "template_expression": "validation.ErrQueryTooLong"
+      }
+    ],
+    "map_iteration_order": "unspecified; source declaration order is used only to enumerate inputs",
+    "name": "TestPrefixBeforeFormat",
+    "operations_and_assertions_original_go": "{\n\ttemplates := map[string]string{\n\t\t\"max_entries\":      validation.ErrMaxEntriesLimit,\n\t\t\"max_query_length\": validation.ErrQueryTooLong,\n\t}\n\n\tseen := make(map[string]string, len(templates))\n\tfor name, tmpl := range templates {\n\t\tprefix := prefixBeforeFormat(tmpl)\n\t\trequire.NotEmpty(t, prefix, \"template %q has no stable prefix to match on\", name)\n\t\trequire.NotContains(t, prefix, \"%\", \"prefix for %q must not contain a format verb\", name)\n\n\t\tif other, ok := seen[prefix]; ok {\n\t\t\tt.Fatalf(\"templates %q and %q share the prefix %q\", name, other, prefix)\n\t\t}\n\t\tseen[prefix] = name\n\n\t\t// A formatted instance of the template must be recognised, and no other\n\t\t// template's instance may be.\n\t\tmsg := strings.ReplaceAll(strings.ReplaceAll(tmpl, \"%s\", \"x\"), \"%d\", \"1\")\n\t\trequire.True(t, matchesTemplate(msg, tmpl))\n\t\tfor otherName, otherTmpl := range templates {\n\t\t\tif otherName == name {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\trequire.False(t, matchesTemplate(msg, otherTmpl), \"%q must not match the %q template\", name, otherName)\n\t\t}\n\t}\n\n\t// A verb-first template has no stable prefix and must not match anything.\n\trequire.Empty(t, prefixBeforeFormat(\"%s exceeded the limit\"))\n\trequire.False(t, matchesTemplate(\"any message at all\", \"%s exceeded the limit\"))\n}",
+    "require_assertion_execution_count": 10,
+    "test_body_execution_count": 1,
+    "uniqueness_guard_evaluation_count": 2,
+    "verb_first_control": {
+      "assertions": [
+        {
+          "lines": [
+            195,
+            195
+          ],
+          "original_go": "require.Empty(t, prefixBeforeFormat(\"%s exceeded the limit\"))",
+          "source": "pkg/util/server/error_classify_test.go"
+        },
+        {
+          "lines": [
+            196,
+            196
+          ],
+          "original_go": "require.False(t, matchesTemplate(\"any message at all\", \"%s exceeded the limit\"))",
+          "source": "pkg/util/server/error_classify_test.go"
+        }
+      ],
+      "message": "any message at all",
+      "template": "%s exceeded the limit"
+    }
+  },
+  "resolved_constants": [
+    {
+      "lines": [
+        28,
+        28
+      ],
+      "original_go": "FailureTimeout   = \"timeout\"",
+      "source": "pkg/util/server/error.go",
+      "source_sha256": "5ada39308f1f1a5f7c43918d92e13e854a50d3dbe35c08348a39db29ffd7f85e",
+      "symbol": "FailureTimeout",
+      "value": "timeout"
+    },
+    {
+      "lines": [
+        29,
+        29
+      ],
+      "original_go": "FailureCanceled  = \"canceled\"",
+      "source": "pkg/util/server/error.go",
+      "source_sha256": "5ada39308f1f1a5f7c43918d92e13e854a50d3dbe35c08348a39db29ffd7f85e",
+      "symbol": "FailureCanceled",
+      "value": "canceled"
+    },
+    {
+      "lines": [
+        30,
+        30
+      ],
+      "original_go": "FailureThrottled = \"throttled\"",
+      "source": "pkg/util/server/error.go",
+      "source_sha256": "5ada39308f1f1a5f7c43918d92e13e854a50d3dbe35c08348a39db29ffd7f85e",
+      "symbol": "FailureThrottled",
+      "value": "throttled"
+    },
+    {
+      "lines": [
+        31,
+        31
+      ],
+      "original_go": "FailureLimit     = \"limit\"",
+      "source": "pkg/util/server/error.go",
+      "source_sha256": "5ada39308f1f1a5f7c43918d92e13e854a50d3dbe35c08348a39db29ffd7f85e",
+      "symbol": "FailureLimit",
+      "value": "limit"
+    },
+    {
+      "lines": [
+        32,
+        32
+      ],
+      "original_go": "FailureSyntax    = \"syntax\"",
+      "source": "pkg/util/server/error.go",
+      "source_sha256": "5ada39308f1f1a5f7c43918d92e13e854a50d3dbe35c08348a39db29ffd7f85e",
+      "symbol": "FailureSyntax",
+      "value": "syntax"
+    },
+    {
+      "lines": [
+        33,
+        33
+      ],
+      "original_go": "FailureBlocked   = \"blocked\"",
+      "source": "pkg/util/server/error.go",
+      "source_sha256": "5ada39308f1f1a5f7c43918d92e13e854a50d3dbe35c08348a39db29ffd7f85e",
+      "symbol": "FailureBlocked",
+      "value": "blocked"
+    },
+    {
+      "lines": [
+        34,
+        34
+      ],
+      "original_go": "FailureUserError = \"user_error\"",
+      "source": "pkg/util/server/error.go",
+      "source_sha256": "5ada39308f1f1a5f7c43918d92e13e854a50d3dbe35c08348a39db29ffd7f85e",
+      "symbol": "FailureUserError",
+      "value": "user_error"
+    },
+    {
+      "lines": [
+        35,
+        35
+      ],
+      "original_go": "FailureInternal  = \"internal\"",
+      "source": "pkg/util/server/error.go",
+      "source_sha256": "5ada39308f1f1a5f7c43918d92e13e854a50d3dbe35c08348a39db29ffd7f85e",
+      "symbol": "FailureInternal",
+      "value": "internal"
+    },
+    {
+      "lines": [
+        11,
+        11
+      ],
+      "original_go": "ErrMaxEntriesLimit = \"max entries limit per query exceeded, limit > max_entries_limit_per_query (%d > %d)\"",
+      "source": "pkg/util/validation/validate.go",
+      "source_sha256": "f25baad77b4c96f00585209c90d8dec7be92ac5150fce7dfe4b861c302ba3672",
+      "symbol": "validation.ErrMaxEntriesLimit",
+      "value": "max entries limit per query exceeded, limit > max_entries_limit_per_query (%d > %d)"
+    },
+    {
+      "lines": [
+        5,
+        5
+      ],
+      "original_go": "ErrQueryTooLong = \"the query time range exceeds the limit (query length: %s, limit: %s)\"",
+      "source": "pkg/util/validation/validate.go",
+      "source_sha256": "f25baad77b4c96f00585209c90d8dec7be92ac5150fce7dfe4b861c302ba3672",
+      "symbol": "validation.ErrQueryTooLong",
+      "value": "the query time range exceeds the limit (query length: %s, limit: %s)"
+    }
+  ],
+  "revision": "5aa4b9212d64d723f63b2770452054aa23df114d",
+  "row_count": 25,
+  "rows": [
+    {
+      "expected": {
+        "category": "",
+        "reason": ""
+      },
+      "expected_expressions": {
+        "category": "\"\"",
+        "reason": "\"\""
+      },
+      "input": {
+        "error_expression": "nil"
+      },
+      "lines": [
+        31,
+        31
+      ],
+      "name": "nil",
+      "original_go": "{\"nil\", nil, \"\", \"\"}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "canceled",
+        "reason": "client_canceled"
+      },
+      "expected_expressions": {
+        "category": "FailureCanceled",
+        "reason": "\"client_canceled\""
+      },
+      "input": {
+        "error_expression": "context.Canceled"
+      },
+      "lines": [
+        32,
+        32
+      ],
+      "name": "canceled",
+      "original_go": "{\"canceled\", context.Canceled, FailureCanceled, \"client_canceled\"}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "timeout",
+        "reason": "query_timeout"
+      },
+      "expected_expressions": {
+        "category": "FailureTimeout",
+        "reason": "\"query_timeout\""
+      },
+      "input": {
+        "error_expression": "context.DeadlineExceeded"
+      },
+      "lines": [
+        33,
+        33
+      ],
+      "name": "deadline",
+      "original_go": "{\"deadline\", context.DeadlineExceeded, FailureTimeout, \"query_timeout\"}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "limit",
+        "reason": "max_query_bytes_read"
+      },
+      "expected_expressions": {
+        "category": "FailureLimit",
+        "reason": "\"max_query_bytes_read\""
+      },
+      "input": {
+        "error_expression": "wrapLimit(logqlmodel.ErrMaxQueryBytesRead, http.StatusBadRequest, \"the query would read too many bytes (query: 5GB, limit: 1GB)\")"
+      },
+      "lines": [
+        34,
+        38
+      ],
+      "name": "max_query_bytes_read",
+      "original_go": "{\n\t\t\t\"max_query_bytes_read\",\n\t\t\twrapLimit(logqlmodel.ErrMaxQueryBytesRead, http.StatusBadRequest, \"the query would read too many bytes (query: 5GB, limit: 1GB)\"),\n\t\t\tFailureLimit, \"max_query_bytes_read\",\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "limit",
+        "reason": "querier_too_large"
+      },
+      "expected_expressions": {
+        "category": "FailureLimit",
+        "reason": "\"querier_too_large\""
+      },
+      "input": {
+        "error_expression": "wrapLimit(logqlmodel.ErrQuerierTooManyBytes, http.StatusBadRequest, \"query too large to execute on a single querier: (query: 5GB, limit: 1GB)\")"
+      },
+      "lines": [
+        39,
+        43
+      ],
+      "name": "querier_too_large",
+      "original_go": "{\n\t\t\t\"querier_too_large\",\n\t\t\twrapLimit(logqlmodel.ErrQuerierTooManyBytes, http.StatusBadRequest, \"query too large to execute on a single querier: (query: 5GB, limit: 1GB)\"),\n\t\t\tFailureLimit, \"querier_too_large\",\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "limit",
+        "reason": "interval_limit"
+      },
+      "expected_expressions": {
+        "category": "FailureLimit",
+        "reason": "\"interval_limit\""
+      },
+      "input": {
+        "error_expression": "logqlmodel.ErrIntervalLimit"
+      },
+      "lines": [
+        44,
+        44
+      ],
+      "name": "interval_limit",
+      "original_go": "{\"interval_limit\", logqlmodel.ErrIntervalLimit, FailureLimit, \"interval_limit\"}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "limit",
+        "reason": "series_limit"
+      },
+      "expected_expressions": {
+        "category": "FailureLimit",
+        "reason": "\"series_limit\""
+      },
+      "input": {
+        "error_expression": "logqlmodel.NewSeriesLimitError(100)"
+      },
+      "lines": [
+        45,
+        45
+      ],
+      "name": "series_limit",
+      "original_go": "{\"series_limit\", logqlmodel.NewSeriesLimitError(100), FailureLimit, \"series_limit\"}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "blocked",
+        "reason": "blocked_by_policy"
+      },
+      "expected_expressions": {
+        "category": "FailureBlocked",
+        "reason": "\"blocked_by_policy\""
+      },
+      "input": {
+        "error_expression": "logqlmodel.ErrBlocked"
+      },
+      "lines": [
+        46,
+        46
+      ],
+      "name": "blocked",
+      "original_go": "{\"blocked\", logqlmodel.ErrBlocked, FailureBlocked, \"blocked_by_policy\"}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "syntax",
+        "reason": "parse"
+      },
+      "expected_expressions": {
+        "category": "FailureSyntax",
+        "reason": "\"parse\""
+      },
+      "input": {
+        "error_expression": "logqlmodel.ErrParse"
+      },
+      "lines": [
+        47,
+        47
+      ],
+      "name": "parse",
+      "original_go": "{\"parse\", logqlmodel.ErrParse, FailureSyntax, \"parse\"}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "syntax",
+        "reason": "pipeline"
+      },
+      "expected_expressions": {
+        "category": "FailureSyntax",
+        "reason": "\"pipeline\""
+      },
+      "input": {
+        "error_expression": "logqlmodel.ErrPipeline"
+      },
+      "lines": [
+        48,
+        48
+      ],
+      "name": "pipeline",
+      "original_go": "{\"pipeline\", logqlmodel.ErrPipeline, FailureSyntax, \"pipeline\"}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "user_error",
+        "reason": "no_org_id"
+      },
+      "expected_expressions": {
+        "category": "FailureUserError",
+        "reason": "\"no_org_id\""
+      },
+      "input": {
+        "error_expression": "user.ErrNoOrgID"
+      },
+      "lines": [
+        49,
+        49
+      ],
+      "name": "no_org_id",
+      "original_go": "{\"no_org_id\", user.ErrNoOrgID, FailureUserError, \"no_org_id\"}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "limit",
+        "reason": "max_entries"
+      },
+      "expected_expressions": {
+        "category": "FailureLimit",
+        "reason": "\"max_entries\""
+      },
+      "input": {
+        "error_expression": "wrapLimit(logqlmodel.ErrMaxEntriesLimit, http.StatusBadRequest, fmt.Sprintf(validation.ErrMaxEntriesLimit, 10000, 5000))"
+      },
+      "lines": [
+        50,
+        55
+      ],
+      "name": "max_entries",
+      "original_go": "{\n\t\t\t// Raised in-process, so it is matched by sentinel.\n\t\t\t\"max_entries\",\n\t\t\twrapLimit(logqlmodel.ErrMaxEntriesLimit, http.StatusBadRequest, fmt.Sprintf(validation.ErrMaxEntriesLimit, 10000, 5000)),\n\t\t\tFailureLimit, \"max_entries\",\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "limit",
+        "reason": "max_query_length"
+      },
+      "expected_expressions": {
+        "category": "FailureLimit",
+        "reason": "\"max_query_length\""
+      },
+      "input": {
+        "error_expression": "wrapLimit(logqlmodel.ErrMaxQueryLength, http.StatusBadRequest, fmt.Sprintf(validation.ErrQueryTooLong, \"800h\", \"721h\"))"
+      },
+      "lines": [
+        56,
+        61
+      ],
+      "name": "max_query_length",
+      "original_go": "{\n\t\t\t// Raised in-process, so it is matched by sentinel.\n\t\t\t\"max_query_length\",\n\t\t\twrapLimit(logqlmodel.ErrMaxQueryLength, http.StatusBadRequest, fmt.Sprintf(validation.ErrQueryTooLong, \"800h\", \"721h\")),\n\t\t\tFailureLimit, \"max_query_length\",\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "limit",
+        "reason": "max_entries"
+      },
+      "expected_expressions": {
+        "category": "FailureLimit",
+        "reason": "\"max_entries\""
+      },
+      "input": {
+        "error_expression": "httpgrpc.Errorf(http.StatusBadRequest, validation.ErrMaxEntriesLimit, 10000, 5000)"
+      },
+      "lines": [
+        62,
+        69
+      ],
+      "name": "max_entries_400_message_only",
+      "original_go": "{\n\t\t\t// The same limit raised on a querier arrives with no error identity\n\t\t\t// left, so the message-match fallback has to produce the same\n\t\t\t// category and reason as the sentinel case above.\n\t\t\t\"max_entries_400_message_only\",\n\t\t\thttpgrpc.Errorf(http.StatusBadRequest, validation.ErrMaxEntriesLimit, 10000, 5000),\n\t\t\tFailureLimit, \"max_entries\",\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "limit",
+        "reason": "max_query_length"
+      },
+      "expected_expressions": {
+        "category": "FailureLimit",
+        "reason": "\"max_query_length\""
+      },
+      "input": {
+        "error_expression": "httpgrpc.Errorf(http.StatusBadRequest, validation.ErrQueryTooLong, \"800h\", \"721h\")"
+      },
+      "lines": [
+        70,
+        75
+      ],
+      "name": "max_query_length_400_message_only",
+      "original_go": "{\n\t\t\t// Wire-crossing counterpart of max_query_length, as above.\n\t\t\t\"max_query_length_400_message_only\",\n\t\t\thttpgrpc.Errorf(http.StatusBadRequest, validation.ErrQueryTooLong, \"800h\", \"721h\"),\n\t\t\tFailureLimit, \"max_query_length\",\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "timeout",
+        "reason": "query_timeout"
+      },
+      "expected_expressions": {
+        "category": "FailureTimeout",
+        "reason": "\"query_timeout\""
+      },
+      "input": {
+        "error_expression": "httpgrpc.Errorf(http.StatusGatewayTimeout, \"upstream timeout\")"
+      },
+      "lines": [
+        76,
+        80
+      ],
+      "name": "gateway_timeout",
+      "original_go": "{\n\t\t\t\"gateway_timeout\",\n\t\t\thttpgrpc.Errorf(http.StatusGatewayTimeout, \"upstream timeout\"),\n\t\t\tFailureTimeout, \"query_timeout\",\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "throttled",
+        "reason": "too_many_requests"
+      },
+      "expected_expressions": {
+        "category": "FailureThrottled",
+        "reason": "\"too_many_requests\""
+      },
+      "input": {
+        "error_expression": "httpgrpc.Errorf(http.StatusTooManyRequests, \"rate limited\")"
+      },
+      "lines": [
+        81,
+        85
+      ],
+      "name": "too_many_requests_generic",
+      "original_go": "{\n\t\t\t\"too_many_requests_generic\",\n\t\t\thttpgrpc.Errorf(http.StatusTooManyRequests, \"rate limited\"),\n\t\t\tFailureThrottled, \"too_many_requests\",\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "throttled",
+        "reason": "too_many_requests"
+      },
+      "expected_expressions": {
+        "category": "FailureThrottled",
+        "reason": "\"too_many_requests\""
+      },
+      "input": {
+        "error_expression": "httpgrpc.Errorf(http.StatusTooManyRequests, \"%s\", logqlmodel.ErrMaxQueryParallelism.Error())"
+      },
+      "lines": [
+        86,
+        92
+      ],
+      "name": "max_query_parallelism_message_only",
+      "original_go": "{\n\t\t\t// A 429 whose sentinel did not survive the wire is bucketed\n\t\t\t// generically: the message is deliberately not matched.\n\t\t\t\"max_query_parallelism_message_only\",\n\t\t\thttpgrpc.Errorf(http.StatusTooManyRequests, \"%s\", logqlmodel.ErrMaxQueryParallelism.Error()),\n\t\t\tFailureThrottled, \"too_many_requests\",\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "throttled",
+        "reason": "max_query_parallelism"
+      },
+      "expected_expressions": {
+        "category": "FailureThrottled",
+        "reason": "\"max_query_parallelism\""
+      },
+      "input": {
+        "error_expression": "wrapLimit(logqlmodel.ErrMaxQueryParallelism, http.StatusTooManyRequests, logqlmodel.ErrMaxQueryParallelism.Error())"
+      },
+      "lines": [
+        93,
+        98
+      ],
+      "name": "max_query_parallelism",
+      "original_go": "{\n\t\t\t// Raised in-process, so it is matched by sentinel.\n\t\t\t\"max_query_parallelism\",\n\t\t\twrapLimit(logqlmodel.ErrMaxQueryParallelism, http.StatusTooManyRequests, logqlmodel.ErrMaxQueryParallelism.Error()),\n\t\t\tFailureThrottled, \"max_query_parallelism\",\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "user_error",
+        "reason": "bad_request"
+      },
+      "expected_expressions": {
+        "category": "FailureUserError",
+        "reason": "\"bad_request\""
+      },
+      "input": {
+        "error_expression": "httpgrpc.Errorf(http.StatusBadRequest, \"some unrelated bad request\")"
+      },
+      "lines": [
+        99,
+        104
+      ],
+      "name": "unrelated_bad_request",
+      "original_go": "{\n\t\t\t// An unrelated 400 must not be over-matched onto a limit reason above.\n\t\t\t\"unrelated_bad_request\",\n\t\t\thttpgrpc.Errorf(http.StatusBadRequest, \"some unrelated bad request\"),\n\t\t\tFailureUserError, \"bad_request\",\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "internal",
+        "reason": "downstream_error"
+      },
+      "expected_expressions": {
+        "category": "FailureInternal",
+        "reason": "\"downstream_error\""
+      },
+      "input": {
+        "error_expression": "httpgrpc.Errorf(http.StatusInternalServerError, \"too many unhealthy instances in the ring\")"
+      },
+      "lines": [
+        105,
+        109
+      ],
+      "name": "internal",
+      "original_go": "{\n\t\t\t\"internal\",\n\t\t\thttpgrpc.Errorf(http.StatusInternalServerError, \"too many unhealthy instances in the ring\"),\n\t\t\tFailureInternal, \"downstream_error\",\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "category": "internal",
+        "reason": "downstream_error"
+      },
+      "expected_expressions": {
+        "category": "FailureInternal",
+        "reason": "\"downstream_error\""
+      },
+      "input": {
+        "error_expression": "fmt.Errorf(\"some unexpected error\")"
+      },
+      "lines": [
+        110,
+        110
+      ],
+      "name": "unknown_plain",
+      "original_go": "{\"unknown_plain\", fmt.Errorf(\"some unexpected error\"), FailureInternal, \"downstream_error\"}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "body": "the query would read too many bytes (query: 5GB, limit: 1GB)",
+        "error_is_expression": "logqlmodel.ErrMaxQueryBytesRead",
+        "status": 400
+      },
+      "expected_expressions": {
+        "body": "tc.msg",
+        "error_is": "tc.sentinel",
+        "status": "tc.status"
+      },
+      "input": {
+        "message_expression": "\"the query would read too many bytes (query: 5GB, limit: 1GB)\"",
+        "operation": "wrapLimit(tc.sentinel, tc.status, tc.msg)",
+        "sentinel_expression": "logqlmodel.ErrMaxQueryBytesRead",
+        "status_expression": "http.StatusBadRequest"
+      },
+      "lines": [
+        129,
+        134
+      ],
+      "name": "max_query_bytes_read",
+      "original_go": "{\n\t\t\t\"max_query_bytes_read\",\n\t\t\tlogqlmodel.ErrMaxQueryBytesRead,\n\t\t\thttp.StatusBadRequest,\n\t\t\t\"the query would read too many bytes (query: 5GB, limit: 1GB)\",\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestWrappedLimitErrorStatusPreserved",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "body": "the query time range exceeds the limit (query length: 800h, limit: 721h)",
+        "error_is_expression": "logqlmodel.ErrMaxQueryLength",
+        "status": 400
+      },
+      "expected_expressions": {
+        "body": "tc.msg",
+        "error_is": "tc.sentinel",
+        "status": "tc.status"
+      },
+      "input": {
+        "message_expression": "fmt.Sprintf(validation.ErrQueryTooLong, \"800h\", \"721h\")",
+        "operation": "wrapLimit(tc.sentinel, tc.status, tc.msg)",
+        "sentinel_expression": "logqlmodel.ErrMaxQueryLength",
+        "status_expression": "http.StatusBadRequest"
+      },
+      "lines": [
+        135,
+        140
+      ],
+      "name": "max_query_length",
+      "original_go": "{\n\t\t\t\"max_query_length\",\n\t\t\tlogqlmodel.ErrMaxQueryLength,\n\t\t\thttp.StatusBadRequest,\n\t\t\tfmt.Sprintf(validation.ErrQueryTooLong, \"800h\", \"721h\"),\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestWrappedLimitErrorStatusPreserved",
+      "upstream_execution_count": 1
+    },
+    {
+      "expected": {
+        "body": "max entries limit per query exceeded, limit > max_entries_limit_per_query (10000 > 5000)",
+        "error_is_expression": "logqlmodel.ErrMaxEntriesLimit",
+        "status": 400
+      },
+      "expected_expressions": {
+        "body": "tc.msg",
+        "error_is": "tc.sentinel",
+        "status": "tc.status"
+      },
+      "input": {
+        "message_expression": "fmt.Sprintf(validation.ErrMaxEntriesLimit, 10000, 5000)",
+        "operation": "wrapLimit(tc.sentinel, tc.status, tc.msg)",
+        "sentinel_expression": "logqlmodel.ErrMaxEntriesLimit",
+        "status_expression": "http.StatusBadRequest"
+      },
+      "lines": [
+        141,
+        146
+      ],
+      "name": "max_entries",
+      "original_go": "{\n\t\t\t\"max_entries\",\n\t\t\tlogqlmodel.ErrMaxEntriesLimit,\n\t\t\thttp.StatusBadRequest,\n\t\t\tfmt.Sprintf(validation.ErrMaxEntriesLimit, 10000, 5000),\n\t\t}",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestWrappedLimitErrorStatusPreserved",
+      "upstream_execution_count": 1
+    }
+  ],
+  "schema_version": 1,
+  "selections": [
+    {
+      "lines": [
+        24,
+        118
+      ],
+      "original_go": "func TestClassifyFailure(t *testing.T) {\n\tfor _, tc := range []struct {\n\t\tname         string\n\t\terr          error\n\t\twantCategory string\n\t\twantReason   string\n\t}{\n\t\t{\"nil\", nil, \"\", \"\"},\n\t\t{\"canceled\", context.Canceled, FailureCanceled, \"client_canceled\"},\n\t\t{\"deadline\", context.DeadlineExceeded, FailureTimeout, \"query_timeout\"},\n\t\t{\n\t\t\t\"max_query_bytes_read\",\n\t\t\twrapLimit(logqlmodel.ErrMaxQueryBytesRead, http.StatusBadRequest, \"the query would read too many bytes (query: 5GB, limit: 1GB)\"),\n\t\t\tFailureLimit, \"max_query_bytes_read\",\n\t\t},\n\t\t{\n\t\t\t\"querier_too_large\",\n\t\t\twrapLimit(logqlmodel.ErrQuerierTooManyBytes, http.StatusBadRequest, \"query too large to execute on a single querier: (query: 5GB, limit: 1GB)\"),\n\t\t\tFailureLimit, \"querier_too_large\",\n\t\t},\n\t\t{\"interval_limit\", logqlmodel.ErrIntervalLimit, FailureLimit, \"interval_limit\"},\n\t\t{\"series_limit\", logqlmodel.NewSeriesLimitError(100), FailureLimit, \"series_limit\"},\n\t\t{\"blocked\", logqlmodel.ErrBlocked, FailureBlocked, \"blocked_by_policy\"},\n\t\t{\"parse\", logqlmodel.ErrParse, FailureSyntax, \"parse\"},\n\t\t{\"pipeline\", logqlmodel.ErrPipeline, FailureSyntax, \"pipeline\"},\n\t\t{\"no_org_id\", user.ErrNoOrgID, FailureUserError, \"no_org_id\"},\n\t\t{\n\t\t\t// Raised in-process, so it is matched by sentinel.\n\t\t\t\"max_entries\",\n\t\t\twrapLimit(logqlmodel.ErrMaxEntriesLimit, http.StatusBadRequest, fmt.Sprintf(validation.ErrMaxEntriesLimit, 10000, 5000)),\n\t\t\tFailureLimit, \"max_entries\",\n\t\t},\n\t\t{\n\t\t\t// Raised in-process, so it is matched by sentinel.\n\t\t\t\"max_query_length\",\n\t\t\twrapLimit(logqlmodel.ErrMaxQueryLength, http.StatusBadRequest, fmt.Sprintf(validation.ErrQueryTooLong, \"800h\", \"721h\")),\n\t\t\tFailureLimit, \"max_query_length\",\n\t\t},\n\t\t{\n\t\t\t// The same limit raised on a querier arrives with no error identity\n\t\t\t// left, so the message-match fallback has to produce the same\n\t\t\t// category and reason as the sentinel case above.\n\t\t\t\"max_entries_400_message_only\",\n\t\t\thttpgrpc.Errorf(http.StatusBadRequest, validation.ErrMaxEntriesLimit, 10000, 5000),\n\t\t\tFailureLimit, \"max_entries\",\n\t\t},\n\t\t{\n\t\t\t// Wire-crossing counterpart of max_query_length, as above.\n\t\t\t\"max_query_length_400_message_only\",\n\t\t\thttpgrpc.Errorf(http.StatusBadRequest, validation.ErrQueryTooLong, \"800h\", \"721h\"),\n\t\t\tFailureLimit, \"max_query_length\",\n\t\t},\n\t\t{\n\t\t\t\"gateway_timeout\",\n\t\t\thttpgrpc.Errorf(http.StatusGatewayTimeout, \"upstream timeout\"),\n\t\t\tFailureTimeout, \"query_timeout\",\n\t\t},\n\t\t{\n\t\t\t\"too_many_requests_generic\",\n\t\t\thttpgrpc.Errorf(http.StatusTooManyRequests, \"rate limited\"),\n\t\t\tFailureThrottled, \"too_many_requests\",\n\t\t},\n\t\t{\n\t\t\t// A 429 whose sentinel did not survive the wire is bucketed\n\t\t\t// generically: the message is deliberately not matched.\n\t\t\t\"max_query_parallelism_message_only\",\n\t\t\thttpgrpc.Errorf(http.StatusTooManyRequests, \"%s\", logqlmodel.ErrMaxQueryParallelism.Error()),\n\t\t\tFailureThrottled, \"too_many_requests\",\n\t\t},\n\t\t{\n\t\t\t// Raised in-process, so it is matched by sentinel.\n\t\t\t\"max_query_parallelism\",\n\t\t\twrapLimit(logqlmodel.ErrMaxQueryParallelism, http.StatusTooManyRequests, logqlmodel.ErrMaxQueryParallelism.Error()),\n\t\t\tFailureThrottled, \"max_query_parallelism\",\n\t\t},\n\t\t{\n\t\t\t// An unrelated 400 must not be over-matched onto a limit reason above.\n\t\t\t\"unrelated_bad_request\",\n\t\t\thttpgrpc.Errorf(http.StatusBadRequest, \"some unrelated bad request\"),\n\t\t\tFailureUserError, \"bad_request\",\n\t\t},\n\t\t{\n\t\t\t\"internal\",\n\t\t\thttpgrpc.Errorf(http.StatusInternalServerError, \"too many unhealthy instances in the ring\"),\n\t\t\tFailureInternal, \"downstream_error\",\n\t\t},\n\t\t{\"unknown_plain\", fmt.Errorf(\"some unexpected error\"), FailureInternal, \"downstream_error\"},\n\t} {\n\t\tt.Run(tc.name, func(t *testing.T) {\n\t\t\tgotCategory, gotReason := ClassifyFailure(tc.err)\n\t\t\trequire.Equal(t, tc.wantCategory, gotCategory, \"category\")\n\t\t\trequire.Equal(t, tc.wantReason, gotReason, \"reason\")\n\t\t})\n\t}\n}\n",
+      "row_count": 22,
+      "sha256": "4a6ebacdb4da3a38e15fccb5776814600e2876879b412f7e74d54e971f2e15c0",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestClassifyFailure",
+      "upstream_subtest_execution_count": 22
+    },
+    {
+      "lines": [
+        122,
+        160
+      ],
+      "original_go": "func TestWrappedLimitErrorStatusPreserved(t *testing.T) {\n\tfor _, tc := range []struct {\n\t\tname     string\n\t\tsentinel error\n\t\tstatus   int\n\t\tmsg      string\n\t}{\n\t\t{\n\t\t\t\"max_query_bytes_read\",\n\t\t\tlogqlmodel.ErrMaxQueryBytesRead,\n\t\t\thttp.StatusBadRequest,\n\t\t\t\"the query would read too many bytes (query: 5GB, limit: 1GB)\",\n\t\t},\n\t\t{\n\t\t\t\"max_query_length\",\n\t\t\tlogqlmodel.ErrMaxQueryLength,\n\t\t\thttp.StatusBadRequest,\n\t\t\tfmt.Sprintf(validation.ErrQueryTooLong, \"800h\", \"721h\"),\n\t\t},\n\t\t{\n\t\t\t\"max_entries\",\n\t\t\tlogqlmodel.ErrMaxEntriesLimit,\n\t\t\thttp.StatusBadRequest,\n\t\t\tfmt.Sprintf(validation.ErrMaxEntriesLimit, 10000, 5000),\n\t\t},\n\t} {\n\t\tt.Run(tc.name, func(t *testing.T) {\n\t\t\twrapped := wrapLimit(tc.sentinel, tc.status, tc.msg)\n\n\t\t\tstatus, clientErr := ClientHTTPStatusAndError(wrapped)\n\t\t\trequire.Equal(t, tc.status, status)\n\t\t\t// The message comes from the embedded HTTPResponse body, not the\n\t\t\t// sentinel prefix.\n\t\t\trequire.Equal(t, tc.msg, clientErr.Error())\n\t\t\t// And the sentinel is still detectable for classification.\n\t\t\trequire.ErrorIs(t, wrapped, tc.sentinel)\n\t\t})\n\t}\n}\n",
+      "row_count": 3,
+      "sha256": "1f0a53061263c771e8851c69a5b102169d904e974c4b6a85dfbdb3d93242d091",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table": "TestWrappedLimitErrorStatusPreserved",
+      "upstream_subtest_execution_count": 3
+    },
+    {
+      "lines": [
+        165,
+        197
+      ],
+      "original_go": "func TestPrefixBeforeFormat(t *testing.T) {\n\ttemplates := map[string]string{\n\t\t\"max_entries\":      validation.ErrMaxEntriesLimit,\n\t\t\"max_query_length\": validation.ErrQueryTooLong,\n\t}\n\n\tseen := make(map[string]string, len(templates))\n\tfor name, tmpl := range templates {\n\t\tprefix := prefixBeforeFormat(tmpl)\n\t\trequire.NotEmpty(t, prefix, \"template %q has no stable prefix to match on\", name)\n\t\trequire.NotContains(t, prefix, \"%\", \"prefix for %q must not contain a format verb\", name)\n\n\t\tif other, ok := seen[prefix]; ok {\n\t\t\tt.Fatalf(\"templates %q and %q share the prefix %q\", name, other, prefix)\n\t\t}\n\t\tseen[prefix] = name\n\n\t\t// A formatted instance of the template must be recognised, and no other\n\t\t// template's instance may be.\n\t\tmsg := strings.ReplaceAll(strings.ReplaceAll(tmpl, \"%s\", \"x\"), \"%d\", \"1\")\n\t\trequire.True(t, matchesTemplate(msg, tmpl))\n\t\tfor otherName, otherTmpl := range templates {\n\t\t\tif otherName == name {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\trequire.False(t, matchesTemplate(msg, otherTmpl), \"%q must not match the %q template\", name, otherName)\n\t\t}\n\t}\n\n\t// A verb-first template has no stable prefix and must not match anything.\n\trequire.Empty(t, prefixBeforeFormat(\"%s exceeded the limit\"))\n\trequire.False(t, matchesTemplate(\"any message at all\", \"%s exceeded the limit\"))\n}\n",
+      "sha256": "45a34eb8d3e63886fe730fa1253a2ae864bd595071245fec6f1699bf595e017a",
+      "source": "pkg/util/server/error_classify_test.go",
+      "table_row_count": 0,
+      "test_body_execution_count": 1
+    }
+  ],
+  "sources": [
+    {
+      "sha256": "3629f2a42093f4b92d6ee4169095b3b8cd562175f9c17cad8aa3b748fd98cc3e",
+      "source": "pkg/util/server/error_classify_test.go"
+    },
+    {
+      "sha256": "5ada39308f1f1a5f7c43918d92e13e854a50d3dbe35c08348a39db29ffd7f85e",
+      "source": "pkg/util/server/error.go"
+    },
+    {
+      "sha256": "f25baad77b4c96f00585209c90d8dec7be92ac5150fce7dfe4b861c302ba3672",
+      "source": "pkg/util/validation/validate.go"
+    }
+  ],
+  "standard_library_status_constants": {
+    "http.StatusBadRequest": 400,
+    "http.StatusGatewayTimeout": 504,
+    "http.StatusInternalServerError": 500,
+    "http.StatusTooManyRequests": 429
+  },
+  "supporting_declarations": [
+    {
+      "lines": [
+        20,
+        22
+      ],
+      "original_go": "func wrapLimit(sentinel error, status int, msg string) error {\n\treturn fmt.Errorf(\"%w: %w\", sentinel, httpgrpc.Errorf(status, \"%s\", msg))\n}\n",
+      "sha256": "c1c14280a39a3a9f41ba29a6ba9cddc19619404c3e5d7f7e45d21589f4cf004a",
+      "source": "pkg/util/server/error_classify_test.go"
+    }
+  ],
+  "upstream_require_assertion_execution_count": 63,
+  "upstream_subtest_execution_count": 25,
+  "upstream_top_level_test_count": 3,
+  "wrapped_limit_row_count": 3
+}

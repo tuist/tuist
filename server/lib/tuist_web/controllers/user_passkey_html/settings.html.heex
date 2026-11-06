@@ -1,0 +1,73 @@
+<.security_settings_frame
+  title={dgettext("dashboard_auth", "Add a passkey")}
+  subtitle={
+    dgettext(
+      "dashboard_auth",
+      "Use your password manager or a security key."
+    )
+  }
+>
+  <.alert
+    :if={Phoenix.Flash.get(@flash, :info)}
+    type="secondary"
+    status="information"
+    size="small"
+    title={Phoenix.Flash.get(@flash, :info)}
+  />
+  <.alert
+    :if={Phoenix.Flash.get(@flash, :error)}
+    type="secondary"
+    status="error"
+    size="small"
+    title={Phoenix.Flash.get(@flash, :error)}
+  />
+  <div data-part="passkey-settings">
+    <div
+      id="passkey-registration"
+      data-part="form"
+    >
+      <.text_input
+        id="passkey-name"
+        name="name"
+        value=""
+        label={dgettext("dashboard_auth", "Passkey name")}
+        placeholder={dgettext("dashboard_auth", "For example, 1Password")}
+        autocomplete="off"
+        data-1p-ignore
+        show_prefix={false}
+      />
+      <span
+        id="passkey-status"
+        data-part="passkey-status"
+        role="status"
+        data-cancelled={dgettext("dashboard_auth", "Adding the passkey was cancelled.")}
+        data-failed={dgettext("dashboard_auth", "The passkey could not be added. Try again.")}
+        data-already-registered={
+          dgettext("dashboard_auth", "This passkey is already registered.")
+        }
+        data-unsupported={dgettext("dashboard_auth", "This browser does not support passkeys.")}
+      ></span>
+      <noscript>{dgettext("dashboard_auth", "JavaScript is required to use passkeys.")}</noscript>
+    </div>
+  </div>
+  <div data-part="actions">
+    <.button
+      id="passkey-add"
+      type="button"
+      variant="primary"
+      size="large"
+      label={dgettext("dashboard_auth", "Add a passkey")}
+      data-passkey-ceremony="register"
+      data-options-url={~p"/users/settings/passkeys/options"}
+      data-action-url={~p"/users/settings/passkeys"}
+      data-name-input="passkey-name"
+      data-status="passkey-status"
+    />
+    <.link_button
+      href={~p"/users/settings/passkeys"}
+      variant="primary"
+      size="large"
+      label={dgettext("dashboard_auth", "Cancel")}
+    />
+  </div>
+</.security_settings_frame>

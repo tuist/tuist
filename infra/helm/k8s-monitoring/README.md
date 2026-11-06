@@ -23,6 +23,11 @@ With these in place the Grafana Cloud **Observability → Kubernetes** app popul
 The recommended incident alerts and Grafana setup steps are in
 [`alerts.md`](alerts.md).
 
+For using Pulse as storage while retaining Grafana Cloud dashboards, alert
+evaluation and notifications, see [the private Pulse connection and cutover checks](pulse-grafana.md).
+The accompanying `pulse-datasources.json` is an API configuration template,
+not an automatically provisioned Helm resource.
+
 ## Install
 
 Installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) for the managed workload clusters. The path is idempotent, so the chart tracks whatever's committed on `main`.
@@ -74,9 +79,13 @@ Prerequisites:
    | `PROMETHEUS_TOKEN` | Password | `password` |
    | `LOKI_TOKEN` | Password | `password` |
    | `TEMPO_TOKEN` | Password | `password` |
+   | `PULSE_TOKEN` | Password | `password` (random, e.g. `openssl rand -hex 32`) |
+   | `PULSE_SECRET_KEY_BASE` | Password | `password` (`openssl rand -base64 48`) |
+   | `PULSE_S3_CREDENTIALS` | Login | `access_key_id`, `secret_access_key` |
 
-3. **Grafana Cloud endpoints / usernames** — baked into `values.yaml`. Sanity-check they match the stack before installing a fresh cluster.
-4. **Worker nodes sized for the footprint.** The Alloy collectors, kube-state-metrics, and node-exporter want ~1.5 GB per node on top of the app. Staging/canary clusters run on `cpx31` (8 GB/node), production on `ccx23` (16 GB/node). `cpx22` (4 GB) is too small — a rolling server update can't fit a fresh pod alongside the old one while the node-local collectors are pinned to the node.
+3. **Pulse bucket** `tuist-pulso-<env>` in Tigris, private, without snapshots, soft delete, or lifecycle rules, reachable with the `PULSE_S3_CREDENTIALS` key. Existing bucket names are retained across the product rename. Pulse needs conditional writes (`If-None-Match: *` and `If-Match`); see the [Pulse object storage requirements](../../../pulse/docs/configuration.md#object-storage).
+4. **Grafana Cloud endpoints / usernames** — baked into `values.yaml`. Sanity-check they match the stack before installing a fresh cluster.
+5. **Worker nodes sized for the footprint.** The Alloy collectors, kube-state-metrics, and node-exporter want ~1.5 GB per node on top of the app. Staging/canary clusters run on `cpx31` (8 GB/node), production on `ccx23` (16 GB/node). `cpx22` (4 GB) is too small — a rolling server update can't fit a fresh pod alongside the old one while the node-local collectors are pinned to the node.
 
 ## Workload-side wiring
 
@@ -129,6 +138,12 @@ A rack can live in a non-production env (BER1 was in staging while it was built 
 
 The rack's switches report through the Omada controller rather than a scrape of their own: [`rack-switch-controller`](../../rack-switch-controller/AGENTS.md) exports `rack_switch_*` and carries the `prometheus.io/scrape` annotation.
 
+## Pulse
+
+The chart forwards to the independently released [Pulse](../pulse/README.md) (`pulse.observability.svc.cluster.local`, port 4000), backed by the per-environment bucket. It does not deploy the backend or own its credentials. Every feature sends to all compatible destinations, so the `pulse-metrics`, `pulse-logs`, and `pulse-traces` destinations receive the same metrics, pod and node logs, events, and traces as Grafana Cloud, each through its own write queue. Custom `extraConfig` scrapes forward to both explicitly.
+
+Staging, canary and production configure Pulse destinations; management and pentest keep their Grafana Cloud-only destinations. Data lives in the `tuist` tenant. Each cluster exposes only `/mcp`, at `pulse-staging.tuist.dev`, `pulse-canary.tuist.dev` and `pulse.tuist.dev`, for Atlas, which authenticates with its projected ServiceAccount token through Pulse's `workloadIdentity` trust (read-only, one token audience per host). Ingestion and the Prometheus/Loki query APIs stay in-cluster, where Alloy uses the `PULSE_TOKEN` tenant token through the backend-owned `pulse-credentials` Secret. Grafana Cloud scrapes Pulse's own `/metrics` through annotation autodiscovery, so its health is visible independently of Pulse.
+
 ## What gets deployed
 
 Seven Alloy instances, split by role (managed by the upstream `alloy-operator`):
@@ -162,7 +177,11 @@ Plus the telemetry services themselves:
 named `hubble-metrics` port once per minute with clustered target ownership.
 It retains `hubble_drop_total`, `up`, and `scrape_samples_scraped`, labelled with
 `node`, `instance=<node>`, `namespace`, and `pod`. Source, destination, reason,
-and protocol labels on drop counters are preserved. Unready agents remain
+and protocol labels on drop counters are preserved. Drops with reason
+`UNSUPPORTED_L3_PROTOCOL` are discarded, whatever their L4 protocol. Cilium runs
+IPv4-only, so these are IPv6 packets, mostly router and neighbour discovery from
+the hosting network. They are keyed by raw source address, so per-node
+collection turned them into an unbounded series count. Unready agents remain
 targets: `up=0` distinguishes a failed scrape from a missing discovery target.
 The existing Cilium-agent scrape is unchanged.
 
@@ -266,6 +285,21 @@ It catches every `tuist_*` metric without an exact rule, so any `tuist_*`
 counter can be rated. An exact rule takes precedence over it, as
 `tuist_runners_dispatch_request_count` shows, and then only that rule's
 aggregations count.
+
+The Registry Service dashboard's package rankings retain `env`, `scope` and
+`name`, but not `pod`; they deliberately ignore the Pod selector and document
+that limitation. Archive rankings use `increase` over the selected interval.
+Manifest rankings are explicitly cumulative until counter-aware aggregation is
+available: on 2026-11-05, production manifest sums had multiple changing samples
+in a fifteen-minute window, but `rate` and `increase` returned no data even over
+six hours. This is consistent with a plain-`sum` override, not proof of its
+current rule: the Grafana plugin rule endpoint denied the audit connection
+access. An operator with Adaptive Metrics rule access must inspect the exact
+manifest rule and the prefix rule, preserve their other aggregations and label
+coverage, and ensure `sum:counter` is available. Verify fresh interval results
+after ingest catches up before changing the manifest ranking back to interval
+counts. Do not restore high-cardinality pod series just to enable this ranking,
+or substitute a zero for unavailable interval data.
 
 **Fix rates on the prefix rule, not with an exact rule.** Auto-apply makes the
 rule set match the recommendations, and deletes any exact rule they leave out:

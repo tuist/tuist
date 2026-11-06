@@ -2334,6 +2334,71 @@ rows in one result: a region is the sum of its boxes, and a single box past
 the line is a problem for the tenants on it whether or not the region total
 says so, which matters once a region has boxes with different budgets.
 
+### Runner host disk buffer
+
+Rule `efss9ss24579ce`, **Runner Host Disk Buffer**, folder `Alerts`, group
+`Runners`: evaluate every minute, threshold **A < 10**, pending **15m**.
+Keep **No Data: NoData**, **Error: Error**, and the existing notification
+policy routing. The separately provisioned payload is
+[`runner-host-disk-alert-rule.json`](runner-host-disk-alert-rule.json); Helm
+does not install it. Before updating the live rule, GET it again and merge
+only the intended query/annotation changes into its current configuration.
+Do not replace notification policies or add a zero/healthy fallback.
+
+```promql
+min by (cluster, env, instance) (
+  100 * node_filesystem_avail_bytes{
+    job="tuist-macos-node-exporter",
+    instance=~".*-(runners|rack)-fleet-.*", mountpoint="/"
+  }
+  / node_filesystem_size_bytes{
+    job="tuist-macos-node-exporter",
+    instance=~".*-(runners|rack)-fleet-.*", mountpoint="/"
+  }
+)
+```
+
+The percentage must remain an unfiltered value in A, with the threshold in
+C: filtering A with `< 10` would turn a healthy fleet into NoData. Group by
+both cluster and env so a host's environment survives into notifications.
+Scope includes rented runner hosts and rack runner hosts, including the rack
+hosts lent to staging and canary; it excludes processor (`-macos-fleet-`) and
+builder (`-builders-fleet-`) hosts. The egress Service name is `instance`.
+
+On 2026-11-05 the old `tuist-tuist-runners-fleet-.*` selector returned no
+series while all 15 rack runners had `up=1` and root filesystem metrics.
+Production's 13 rack Nodes (b03–b15) independently appeared in
+`kube_node_info`; canary b02 and staging b01 also had exporter metrics.
+The rented fleet's two production `hostCount` values had deliberately been
+zero since October 26, matching the start of the rule's NoData instance
+(`2026-10-26T11:53:50Z`). This was stale alert scope, not evidence of a rack
+ingestion outage. The corrected query returned 15 percentages, production
+approximately 39–47%, canary 87%, staging 62%.
+
+Validation and triage:
+
+- Run `bash infra/helm/k8s-monitoring/test-runner-host-disk-alert.sh` with jq
+  and promtool on PATH. It exercises rented/rack coverage across envs,
+  exclusions, the strict 10% boundary, 15m pending and missing metric sides.
+- Compare the percentage host set with
+  `up{job="tuist-macos-node-exporter",instance=~".*-(runners|rack)-fleet-.*"}`
+  and the runner Node inventory, not merely a nonempty aggregate. Check both
+  `node_filesystem_avail_bytes` and `node_filesystem_size_bytes` at `/`.
+- Total absence stays NoData, and execution failure stays Error. Those are
+  telemetry failures, not proof of healthy disks. Partial host disappearance
+  is not detected by this capacity rule: compare inventory and exporter
+  health explicitly rather than relying on the other hosts' normal state.
+  The annotation guards missing A so NoData does not print a nil percentage.
+- For low space, use approved host access to inspect `df -h /` and Tart
+  golden/cache disk use. Goldens and custom cache volumes share physical
+  APFS space. Correlate tart-kubelet DiskPressure and its 15% golden-reclaim
+  floor; determine what live clones pin before reclaiming anything. Never
+  infer free physical capacity from a custom cache volume's quota alone.
+- After publishing, confirm health `ok`, 15 host instances with labels and
+  numeric percentages (or the current inventory), and no stale NoData
+  instance. Monitor several one-minute evaluations. No exporter interruption
+  or deliberate disk fill is needed to test the query's failure cases.
+
 ### Runner host PN VLAN missing
 
 ```promql

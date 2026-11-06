@@ -38,6 +38,10 @@ defmodule TuistWeb.Router do
     plug :rate_limit, limit: 300
   end
 
+  pipeline :device_authorization_rate_limit do
+    plug :rate_limit, limit: 30
+  end
+
   pipeline :open_graph_image do
     plug :put_request_kind, "open_graph_image"
     plug :rate_limit, limit: 60
@@ -725,6 +729,8 @@ defmodule TuistWeb.Router do
     delete "/installation", IntegrationInstallationController, :delete
     get "/origin/start", OriginAppSetupController, :start
     get "/origin/setup", OriginAppSetupController, :setup
+    # The query carries the authorization code and state; keep them out of request logs.
+    get "/mcp/callback", MCPServerOAuthController, :callback, log: false
   end
 
   scope "/integrations", TuistWeb do
@@ -1233,6 +1239,12 @@ defmodule TuistWeb.Router do
     post "/auth/oidc/token", OIDCController, :exchange_token
   end
 
+  scope "/api", TuistWeb.API do
+    pipe_through [:open_api, :non_authenticated_api, :device_authorization_rate_limit]
+
+    post "/auth/device_codes", AuthController, :create_device_code
+  end
+
   scope "/api/remote-execution", TuistWeb do
     pipe_through [:non_authenticated_api]
 
@@ -1444,6 +1456,7 @@ defmodule TuistWeb.Router do
     end
 
     post "/users/log_in", UserSessionController, :create
+    post "/users/reset_password/:token", UserResetPasswordController, :update
     post "/users/log_in/passkey/options", UserPasskeyController, :authentication_options
     post "/users/log_in/passkey", UserPasskeyController, :authenticate
   end
@@ -1456,8 +1469,13 @@ defmodule TuistWeb.Router do
     post "/users/settings/mfa/confirm", UserMFAController, :confirm
     post "/users/settings/mfa/cancel", UserMFAController, :cancel
     post "/users/settings/mfa/disable", UserMFAController, :disable
+    post "/users/settings/mfa/recovery", UserMFAController, :regenerate
+    get "/users/settings/passkeys", UserPasskeyController, :show
+    get "/users/settings/passkeys/new", UserPasskeyController, :new
     post "/users/settings/passkeys/options", UserPasskeyController, :registration_options
     post "/users/settings/passkeys", UserPasskeyController, :create
+    get "/users/settings/passkeys/:id/delete", UserPasskeyController, :confirm_delete
+    post "/users/settings/passkeys/:id/rename", UserPasskeyController, :rename
     post "/users/settings/passkeys/:id/delete", UserPasskeyController, :delete
 
     live_session :require_authenticated_user,
@@ -1525,6 +1543,7 @@ defmodule TuistWeb.Router do
     live_session :auth,
       on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
       live "/device_codes/:device_code/success", DeviceCodesSuccessLive, :new
+      live "/device/success", DeviceCodesSuccessLive, :new
       live "/invitations/:token", AcceptInvitationLive, :new
     end
 
@@ -1539,6 +1558,16 @@ defmodule TuistWeb.Router do
     # This route is deprecated and will be removed in future versions.
     get "/cli/:device_code", AuthController, :authenticate_cli_deprecated
     get "/device_codes/:device_code", AuthController, :authenticate_device_code
+    post "/device_codes/:device_code", AuthController, :confirm_device_code
+
+    # The standard device flow (RFC 8628): the person types the code their
+    # terminal shows, and the confirmation POST approves it.
+    live_session :device_authorization,
+      on_mount: [{TuistWeb.Authentication, :ensure_authenticated}] do
+      live "/device", DeviceAuthorizationLive, :new
+    end
+
+    post "/device", AuthController, :confirm_user_code
   end
 
   # Anonymous Turnstile challenge shown before public-project and
@@ -1738,6 +1767,8 @@ defmodule TuistWeb.Router do
       live "/cache", CacheLive
       live "/billing", BillingLive
       live "/settings", AccountSettingsLive
+      live "/settings/passkeys", UserSecuritySettingsLive, :passkeys
+      live "/settings/two-factor-authentication", UserSecuritySettingsLive, :mfa
       live "/settings/tokens", AccountTokensLive
       live "/settings/tokens/:token_id", AccountTokenLive
       live "/settings/integrations", IntegrationsLive
@@ -1778,6 +1809,7 @@ defmodule TuistWeb.Router do
       live "/tests/coverage/branches/*branch", CoverageDetailLive, :branch
       live "/tests/coverage/commits/:git_commit_sha", CoverageDetailLive, :commit
       live "/tests/coverage/files/*path", CoverageFileLive, :show
+      live "/tests/test-selection", TestSelectionsLive
       live "/tests/test-runs/:test_run_id", TestRunLive, metadata: @public_project_route_metadata
       live "/tests/test-cases", TestCasesLive, metadata: @public_project_route_metadata
       live "/tests/test-cases/:test_case_id", TestCaseLive, metadata: @public_project_route_metadata

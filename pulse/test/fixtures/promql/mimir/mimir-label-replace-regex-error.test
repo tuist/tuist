@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# label_replace() tests
+load 5m
+  series{label="a"} 1.1
+  series{label="b"} 2.9
+  series{label="c"} NaN
+
+eval instant at 0m label_replace(series, "export", "$1", "label", "(.*)")
+  series{label="a", export="a"} 1.1
+  series{label="b", export="b"} 2.9
+  series{label="c", export="c"} NaN
+
+# Bad regex
+eval_fail instant at 0m label_replace(series, "export", "$1", "label", "[.*")
+  expected_fail_message invalid regular expression in label_replace(): [.*
+
+clear

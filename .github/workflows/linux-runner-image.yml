@@ -76,10 +76,13 @@ jobs:
         run: |
           go test -race ./cmd/tuist-cache-volume
           CGO_ENABLED=0 go test -c -o "$RUNNER_TEMP/cache-volume.test" ./cmd/tuist-cache-volume
-          docker run --rm --privileged \
-            -e TUIST_TEST_BIND_MOUNTS=1 \
-            -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
-            ubuntu:22.04 /cache-volume.test -test.v
+          # Every Ubuntu release the image ships on (Dockerfile base stages).
+          for base in ubuntu:24.04 ubuntu:22.04; do
+            docker run --rm --privileged \
+              -e TUIST_TEST_BIND_MOUNTS=1 \
+              -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
+              "$base" /cache-volume.test -test.v
+          done
       - name: Verify Docker layers and cache mounts across jobs
         timeout-minutes: 15
         shell: bash
@@ -143,16 +146,18 @@ jobs:
       - name: Test Bitrise build start hook
         run: bash infra/linux-runner-image/bitrise-build-start_test.sh
 
-      # Runs on the image's own base rather than the CI runner, because
+      # Runs on the image's own bases rather than the CI runner, because
       # the assertions are about how Ubuntu's awk (mawk) formats byte
       # counters. Under gawk or BWK awk they pass no matter what the
-      # sampler does. Keep the tag in step with the Dockerfile's final
-      # `FROM`.
+      # sampler does. Keep the tags in step with the Dockerfile's base
+      # stages.
       - name: Test metrics sampler
         run: |
-          docker run --rm \
-            -v "${{ github.workspace }}/infra/linux-runner-image:/w" \
-            -w /w ubuntu:22.04 bash ./metrics-sampler_test.sh
+          for base in ubuntu:24.04 ubuntu:22.04; do
+            docker run --rm \
+              -v "${{ github.workspace }}/infra/linux-runner-image:/w" \
+              -w /w "$base" bash ./metrics-sampler_test.sh
+          done
 
       - uses: actions/setup-go@v5
         with:
@@ -230,6 +235,73 @@ jobs:
           BUILD_CACHE: ${{ runner.temp }}/linux-runner-cache
           RUNNER_VERSION_OVERRIDE: ${{ inputs.runner_version }}
         run: bash infra/linux-runner-image/verify-layer-reuse.sh "$BASELINE" "$BUILD_CACHE" "$RUNNER_VERSION_OVERRIDE"
+
+  # Every non-default Ubuntu release a Runner Profile can pick. The default
+  # (24.04) is the `build` job above, which also checks layer reuse.
+  build-os-variants:
+    needs: cache-mounts
+    if: inputs.benchmark != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    strategy:
+      fail-fast: false
+      matrix:
+        os_version: [ubuntu-22.04]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute tags
+        id: tags
+        env:
+          OS_VERSION: ${{ matrix.os_version }}
+        run: |
+          set -euo pipefail
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          GIT_SHA="${GITHUB_SHA::12}"
+          os_tag="${OS_VERSION//./-}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "tags=${IMAGE}:pr-${GIT_SHA}-${os_tag}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tags=${IMAGE}:sha-${GIT_SHA}-${os_tag}" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/build-push-action@v6
+        with:
+          context: infra/linux-runner-image
+          file: infra/linux-runner-image/Dockerfile
+          build-contexts: certificate-trust=infra/certificate-trust
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            OS_VERSION=${{ matrix.os_version }}
+            ${{ inputs.runner_version && format('RUNNER_VERSION={0}', inputs.runner_version) || '' }}
+          cache-from: |
+            type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache-${{ matrix.os_version }}
+            type=gha,scope=linux-runner-image-${{ matrix.os_version }}
+          cache-to: type=gha,mode=max,scope=linux-runner-image-${{ matrix.os_version }}
+      # The image's own claims about its OS, which setup actions and the
+      # cached checkouts (owned by UID 1000) rely on.
+      - name: Verify the release, ImageOS and runner user
+        if: github.event_name == 'pull_request'
+        env:
+          IMAGE: ${{ steps.tags.outputs.tags }}
+          OS_VERSION: ${{ matrix.os_version }}
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint bash "$IMAGE" -c '
+            set -euo pipefail
+            . /etc/os-release
+            test "ubuntu-$VERSION_ID" = "$1"
+            test "$ImageOS" = "ubuntu${VERSION_ID%%.*}"
+            test "$(id -u runner)" = 1000
+            /home/runner/actions-runner/bin/Runner.Listener --version
+          ' _ "$OS_VERSION"
 
   benchmark:
     if: github.event_name == 'workflow_dispatch' && inputs.benchmark

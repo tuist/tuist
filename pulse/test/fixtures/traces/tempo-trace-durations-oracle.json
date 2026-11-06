@@ -1,0 +1,864 @@
+[
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "int",
+          "value": "0"
+        },
+        {
+          "type": "int",
+          "value": "1"
+        },
+        {
+          "type": "int",
+          "value": "10"
+        },
+        {
+          "type": "int",
+          "value": "100"
+        },
+        {
+          "type": "int",
+          "value": "1000"
+        },
+        {
+          "type": "int",
+          "value": "1000000"
+        },
+        {
+          "type": "int",
+          "value": "1000000000"
+        },
+        {
+          "type": "int",
+          "value": "1000000001"
+        },
+        {
+          "type": "int",
+          "value": "1000001"
+        },
+        {
+          "type": "int",
+          "value": "1001"
+        },
+        {
+          "type": "int",
+          "value": "19000000100"
+        },
+        {
+          "type": "int",
+          "value": "9"
+        },
+        {
+          "type": "int",
+          "value": "9007199254740991"
+        },
+        {
+          "type": "int",
+          "value": "9007199254740992"
+        },
+        {
+          "type": "int",
+          "value": "9007199254740993"
+        },
+        {
+          "type": "int",
+          "value": "9223372036854775806"
+        },
+        {
+          "type": "int",
+          "value": "99"
+        },
+        {
+          "type": "int",
+          "value": "999"
+        },
+        {
+          "type": "int",
+          "value": "999999"
+        },
+        {
+          "type": "int",
+          "value": "999999999"
+        }
+      ]
+    },
+    "query": "{}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "int",
+          "value": "0"
+        },
+        {
+          "type": "int",
+          "value": "1"
+        },
+        {
+          "type": "int",
+          "value": "10"
+        },
+        {
+          "type": "int",
+          "value": "100"
+        },
+        {
+          "type": "int",
+          "value": "1000"
+        },
+        {
+          "type": "int",
+          "value": "1000000"
+        },
+        {
+          "type": "int",
+          "value": "1000000000"
+        },
+        {
+          "type": "int",
+          "value": "1000000001"
+        },
+        {
+          "type": "int",
+          "value": "1000001"
+        },
+        {
+          "type": "int",
+          "value": "1001"
+        },
+        {
+          "type": "int",
+          "value": "19000000100"
+        },
+        {
+          "type": "int",
+          "value": "9"
+        },
+        {
+          "type": "int",
+          "value": "9007199254740991"
+        },
+        {
+          "type": "int",
+          "value": "9007199254740992"
+        },
+        {
+          "type": "int",
+          "value": "9007199254740993"
+        },
+        {
+          "type": "int",
+          "value": "9223372036854775806"
+        },
+        {
+          "type": "int",
+          "value": "99"
+        },
+        {
+          "type": "int",
+          "value": "999"
+        },
+        {
+          "type": "int",
+          "value": "999999"
+        },
+        {
+          "type": "int",
+          "value": "999999999"
+        }
+      ]
+    },
+    "target": "trace:duration"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "duration",
+          "value": "0s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000001ms"
+        },
+        {
+          "type": "duration",
+          "value": "1.001µs"
+        },
+        {
+          "type": "duration",
+          "value": "100ns"
+        },
+        {
+          "type": "duration",
+          "value": "10ns"
+        },
+        {
+          "type": "duration",
+          "value": "19.0000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1ms"
+        },
+        {
+          "type": "duration",
+          "value": "1ns"
+        },
+        {
+          "type": "duration",
+          "value": "1s"
+        },
+        {
+          "type": "duration",
+          "value": "1µs"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740991s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740992s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740993s"
+        },
+        {
+          "type": "duration",
+          "value": "2562047h47m16.854775806s"
+        },
+        {
+          "type": "duration",
+          "value": "999.999999ms"
+        },
+        {
+          "type": "duration",
+          "value": "999.999µs"
+        },
+        {
+          "type": "duration",
+          "value": "999ns"
+        },
+        {
+          "type": "duration",
+          "value": "99ns"
+        },
+        {
+          "type": "duration",
+          "value": "9ns"
+        }
+      ]
+    },
+    "query": "{resource.service.name=\"worker\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "duration",
+          "value": "0s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000001ms"
+        },
+        {
+          "type": "duration",
+          "value": "1.001µs"
+        },
+        {
+          "type": "duration",
+          "value": "100ns"
+        },
+        {
+          "type": "duration",
+          "value": "10ns"
+        },
+        {
+          "type": "duration",
+          "value": "19.0000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1ms"
+        },
+        {
+          "type": "duration",
+          "value": "1ns"
+        },
+        {
+          "type": "duration",
+          "value": "1s"
+        },
+        {
+          "type": "duration",
+          "value": "1µs"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740991s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740992s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740993s"
+        },
+        {
+          "type": "duration",
+          "value": "2562047h47m16.854775806s"
+        },
+        {
+          "type": "duration",
+          "value": "999.999999ms"
+        },
+        {
+          "type": "duration",
+          "value": "999.999µs"
+        },
+        {
+          "type": "duration",
+          "value": "999ns"
+        },
+        {
+          "type": "duration",
+          "value": "99ns"
+        },
+        {
+          "type": "duration",
+          "value": "9ns"
+        }
+      ]
+    },
+    "target": "trace:duration"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "duration",
+          "value": "0s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000001ms"
+        },
+        {
+          "type": "duration",
+          "value": "1.001µs"
+        },
+        {
+          "type": "duration",
+          "value": "100ns"
+        },
+        {
+          "type": "duration",
+          "value": "10ns"
+        },
+        {
+          "type": "duration",
+          "value": "19.0000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1ms"
+        },
+        {
+          "type": "duration",
+          "value": "1ns"
+        },
+        {
+          "type": "duration",
+          "value": "1s"
+        },
+        {
+          "type": "duration",
+          "value": "1µs"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740991s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740992s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740993s"
+        },
+        {
+          "type": "duration",
+          "value": "2562047h47m16.854775806s"
+        },
+        {
+          "type": "duration",
+          "value": "999.999999ms"
+        },
+        {
+          "type": "duration",
+          "value": "999.999µs"
+        },
+        {
+          "type": "duration",
+          "value": "999ns"
+        },
+        {
+          "type": "duration",
+          "value": "99ns"
+        },
+        {
+          "type": "duration",
+          "value": "9ns"
+        }
+      ]
+    },
+    "query": "{resource.service.name=\"gateway\" \u0026\u0026 span.parity=\"even\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "duration",
+          "value": "0s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000001ms"
+        },
+        {
+          "type": "duration",
+          "value": "1.001µs"
+        },
+        {
+          "type": "duration",
+          "value": "100ns"
+        },
+        {
+          "type": "duration",
+          "value": "10ns"
+        },
+        {
+          "type": "duration",
+          "value": "19.0000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1ms"
+        },
+        {
+          "type": "duration",
+          "value": "1ns"
+        },
+        {
+          "type": "duration",
+          "value": "1s"
+        },
+        {
+          "type": "duration",
+          "value": "1µs"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740991s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740992s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740993s"
+        },
+        {
+          "type": "duration",
+          "value": "2562047h47m16.854775806s"
+        },
+        {
+          "type": "duration",
+          "value": "999.999999ms"
+        },
+        {
+          "type": "duration",
+          "value": "999.999µs"
+        },
+        {
+          "type": "duration",
+          "value": "999ns"
+        },
+        {
+          "type": "duration",
+          "value": "99ns"
+        },
+        {
+          "type": "duration",
+          "value": "9ns"
+        }
+      ]
+    },
+    "target": "trace:duration"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "duration",
+          "value": "0s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000001ms"
+        },
+        {
+          "type": "duration",
+          "value": "1.001µs"
+        },
+        {
+          "type": "duration",
+          "value": "100ns"
+        },
+        {
+          "type": "duration",
+          "value": "10ns"
+        },
+        {
+          "type": "duration",
+          "value": "1ms"
+        },
+        {
+          "type": "duration",
+          "value": "1ns"
+        },
+        {
+          "type": "duration",
+          "value": "1s"
+        },
+        {
+          "type": "duration",
+          "value": "1µs"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740991s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740992s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740993s"
+        },
+        {
+          "type": "duration",
+          "value": "2562047h47m16.854775806s"
+        },
+        {
+          "type": "duration",
+          "value": "999.999999ms"
+        },
+        {
+          "type": "duration",
+          "value": "999.999µs"
+        },
+        {
+          "type": "duration",
+          "value": "999ns"
+        },
+        {
+          "type": "duration",
+          "value": "99ns"
+        },
+        {
+          "type": "duration",
+          "value": "9ns"
+        }
+      ]
+    },
+    "query": "{span.parity=\"odd\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "duration",
+          "value": "0s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000001ms"
+        },
+        {
+          "type": "duration",
+          "value": "1.001µs"
+        },
+        {
+          "type": "duration",
+          "value": "100ns"
+        },
+        {
+          "type": "duration",
+          "value": "10ns"
+        },
+        {
+          "type": "duration",
+          "value": "1ms"
+        },
+        {
+          "type": "duration",
+          "value": "1ns"
+        },
+        {
+          "type": "duration",
+          "value": "1s"
+        },
+        {
+          "type": "duration",
+          "value": "1µs"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740991s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740992s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740993s"
+        },
+        {
+          "type": "duration",
+          "value": "2562047h47m16.854775806s"
+        },
+        {
+          "type": "duration",
+          "value": "999.999999ms"
+        },
+        {
+          "type": "duration",
+          "value": "999.999µs"
+        },
+        {
+          "type": "duration",
+          "value": "999ns"
+        },
+        {
+          "type": "duration",
+          "value": "99ns"
+        },
+        {
+          "type": "duration",
+          "value": "9ns"
+        }
+      ]
+    },
+    "target": "trace:duration"
+  },
+  {
+    "complete": {
+      "tagValues": [
+        {
+          "type": "duration",
+          "value": "0s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000001ms"
+        },
+        {
+          "type": "duration",
+          "value": "1.001µs"
+        },
+        {
+          "type": "duration",
+          "value": "100ns"
+        },
+        {
+          "type": "duration",
+          "value": "10ns"
+        },
+        {
+          "type": "duration",
+          "value": "19.0000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1ms"
+        },
+        {
+          "type": "duration",
+          "value": "1ns"
+        },
+        {
+          "type": "duration",
+          "value": "1s"
+        },
+        {
+          "type": "duration",
+          "value": "1µs"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740991s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740992s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740993s"
+        },
+        {
+          "type": "duration",
+          "value": "2562047h47m16.854775806s"
+        },
+        {
+          "type": "duration",
+          "value": "999.999999ms"
+        },
+        {
+          "type": "duration",
+          "value": "999.999µs"
+        },
+        {
+          "type": "duration",
+          "value": "999ns"
+        },
+        {
+          "type": "duration",
+          "value": "99ns"
+        },
+        {
+          "type": "duration",
+          "value": "9ns"
+        }
+      ]
+    },
+    "query": "{span.parity=~\"ev.*\"}",
+    "raw": {
+      "tagValues": [
+        {
+          "type": "duration",
+          "value": "0s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1.000001ms"
+        },
+        {
+          "type": "duration",
+          "value": "1.001µs"
+        },
+        {
+          "type": "duration",
+          "value": "100ns"
+        },
+        {
+          "type": "duration",
+          "value": "10ns"
+        },
+        {
+          "type": "duration",
+          "value": "19.0000001s"
+        },
+        {
+          "type": "duration",
+          "value": "1ms"
+        },
+        {
+          "type": "duration",
+          "value": "1ns"
+        },
+        {
+          "type": "duration",
+          "value": "1s"
+        },
+        {
+          "type": "duration",
+          "value": "1µs"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740991s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740992s"
+        },
+        {
+          "type": "duration",
+          "value": "2501h59m59.254740993s"
+        },
+        {
+          "type": "duration",
+          "value": "2562047h47m16.854775806s"
+        },
+        {
+          "type": "duration",
+          "value": "999.999999ms"
+        },
+        {
+          "type": "duration",
+          "value": "999.999µs"
+        },
+        {
+          "type": "duration",
+          "value": "999ns"
+        },
+        {
+          "type": "duration",
+          "value": "99ns"
+        },
+        {
+          "type": "duration",
+          "value": "9ns"
+        }
+      ]
+    },
+    "target": "trace:duration"
+  },
+  {
+    "complete": {
+      "tagValues": []
+    },
+    "query": "{span.absent=\"no\"}",
+    "raw": {
+      "tagValues": []
+    },
+    "target": "trace:duration"
+  }
+]

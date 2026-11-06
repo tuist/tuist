@@ -50,6 +50,8 @@ defmodule Tuist.Accounts do
 
   require Logger
 
+  @revoked_sessions_key {__MODULE__, :revoked_session_live_socket_ids}
+
   @reset_password_delivery_cooldown_in_minutes 5
   @confirmation_delivery_cooldown_in_minutes 5
   @last_sign_in_touch_interval_seconds 12 * 60 * 60
@@ -381,21 +383,144 @@ defmodule Tuist.Accounts do
     Repo.get_by(DeviceCode, code: code)
   end
 
+  @device_code_ttl_minutes 5
+
+  def device_code_expired?(%DeviceCode{created_at: created_at}) do
+    NaiveDateTime.before?(created_at, device_code_cutoff())
+  end
+
+  @doc """
+  Approves a pending, unexpired device code from the link-based flow for
+  `user`. Codes issued with a user code (`create_device_authorization/0`) can
+  only be approved by entering that code (`approve_device_code_by_user_code/3`),
+  so a link alone cannot approve them.
+  """
   def authenticate_device_code(code, %User{} = user, session \\ nil) do
-    device_code = get_device_code(code)
+    approve_pending_device_code(from(d in DeviceCode, where: d.code == ^code and is_nil(d.user_code)), user, session)
+  end
 
-    {:ok, device_code} =
-      device_code
-      |> DeviceCode.authenticate_changeset(%{
-        authenticated: true,
-        user_id: user.id,
-        auth_provider: session && session.auth_provider,
-        auth_provider_organization_id: session && session.auth_provider_organization_id,
-        auth_organization_id: session && session.auth_organization_id
-      })
-      |> Repo.update()
+  @doc """
+  Approves the pending, unexpired device code with the given user code, as a
+  person types it (case, spaces and dashes don't matter).
+  """
+  def approve_device_code_by_user_code(user_code, %User{} = user, session \\ nil) do
+    # Bounds how many codes one account can try, so user codes can't be
+    # guessed by submitting many of them.
+    with {:allow, _count} <- RateLimit.hit("device-code:user-code:#{user.id}", limit: 10, window: to_timeout(minute: 5)),
+         user_code when is_binary(user_code) <- normalize_user_code(user_code) do
+      approve_pending_device_code(from(d in DeviceCode, where: d.user_code == ^user_code), user, session)
+    else
+      {:deny, _retry_after} -> {:error, :rate_limited}
+      nil -> {:error, :not_pending}
+    end
+  end
 
-    device_code
+  # The single conditional update means a code can only be approved once, so a
+  # second approval (by the same or another user) cannot replace the account
+  # the code signs in to.
+  defp approve_pending_device_code(query, user, session) do
+    query =
+      from(d in query,
+        where: not coalesce(d.authenticated, false) and d.created_at >= ^device_code_cutoff(),
+        select: d
+      )
+
+    # Approval is a credential: it lets the code's poll sign in as `user`.
+    issue_user_credential(user, fn ->
+      case Repo.update_all(query,
+             set: [
+               authenticated: true,
+               user_id: user.id,
+               auth_provider: session && session.auth_provider,
+               auth_provider_organization_id: session && session.auth_provider_organization_id,
+               auth_organization_id: session && session.auth_organization_id,
+               updated_at: NaiveDateTime.utc_now()
+             ]
+           ) do
+        {1, [device_code]} -> {:ok, device_code}
+        {0, []} -> {:error, :not_pending}
+      end
+    end)
+  end
+
+  # RFC 8628 §6.1: eight characters from 20 consonants (no vowels, so no words;
+  # no digits, so nothing to confuse with letters), shown as `WDJB-MJHT`.
+  @user_code_alphabet ~c"BCDFGHJKLMNPQRSTVWXZ"
+  @user_code_length 8
+
+  @doc """
+  Starts the standard device flow: issues a secret device code for the client
+  to poll with and a short user code for the person to type in the browser.
+  """
+  def create_device_authorization do
+    device_code = 32 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
+    user_code = random_user_code()
+
+    %DeviceCode{}
+    |> DeviceCode.create_changeset(%{code: device_code, user_code: user_code, created_at: DateTime.utc_now()})
+    |> Repo.insert()
+    |> case do
+      {:ok, device_code} -> {:ok, device_code}
+      # A user code still held by an earlier code; draw another.
+      {:error, %Changeset{errors: [user_code: _]}} -> create_device_authorization()
+    end
+  end
+
+  # Bytes of 240 and above are dropped so each of the 20 characters is equally
+  # likely (240 is the largest multiple of 20 below 256).
+  defp random_user_code(acc \\ "")
+
+  defp random_user_code(acc) when byte_size(acc) >= @user_code_length, do: binary_part(acc, 0, @user_code_length)
+
+  defp random_user_code(acc) do
+    chars =
+      for <<byte <- :crypto.strong_rand_bytes(@user_code_length)>>, byte < 240,
+        into: "",
+        do: <<Enum.at(@user_code_alphabet, rem(byte, 20))>>
+
+    random_user_code(acc <> chars)
+  end
+
+  def device_code_ttl_seconds, do: @device_code_ttl_minutes * 60
+
+  def format_user_code(<<first::binary-size(4), second::binary-size(4)>>), do: first <> "-" <> second
+
+  def normalize_user_code(user_code) when is_binary(user_code) do
+    normalized = user_code |> String.upcase() |> String.replace(~r/[^A-Z]/, "")
+    if byte_size(normalized) == @user_code_length, do: normalized
+  end
+
+  def normalize_user_code(_user_code), do: nil
+
+  @doc """
+  Marks an approved device code as used, so the tokens it grants are issued
+  to exactly one poll. The row is kept, with its user cleared, rather than
+  deleted: a deleted code could be created again by opening the same link and
+  approved a second time.
+  """
+  def consume_device_code(%DeviceCode{id: id} = device_code) do
+    query = from(d in DeviceCode, where: d.id == ^id and d.authenticated == true and not is_nil(d.user_id))
+
+    case Repo.update_all(query,
+           set: [
+             user_id: nil,
+             user_code: nil,
+             auth_provider: nil,
+             auth_provider_organization_id: nil,
+             auth_organization_id: nil,
+             updated_at: NaiveDateTime.utc_now()
+           ]
+         ) do
+      {1, _} -> {:ok, device_code}
+      {0, _} -> {:error, :already_used}
+    end
+  end
+
+  def device_code_used?(%DeviceCode{authenticated: true, user_id: nil}), do: true
+  def device_code_used?(%DeviceCode{}), do: false
+
+  defp device_code_cutoff do
+    Tuist.Time.utc_now() |> DateTime.add(-@device_code_ttl_minutes, :minute) |> DateTime.to_naive()
   end
 
   def create_device_code(code, attrs \\ []) do
@@ -801,57 +926,151 @@ defmodule Tuist.Accounts do
       |> get_user_by_id()
       |> Repo.preload(Keyword.get(opts, :preload, [:account]))
     else
-      oauth2_identity =
-        create_oauth2_identity(%{
+      link_or_create_oauth2_user(
+        %{
           provider: provider,
           id_in_provider: id_in_provider,
           email: email,
           provider_organization_id: provider_organization_id
-        })
+        },
+        opts
+      )
+    end
+  end
 
-      user =
-        oauth2_identity.user_id
-        |> get_user_by_id()
-        |> Repo.preload(Keyword.get(opts, :preload, [:account]))
+  defp link_or_create_oauth2_user(attrs, opts) do
+    case create_oauth2_identity(attrs) do
+      {:ok, oauth2_identity} ->
+        user =
+          oauth2_identity.user_id
+          |> get_user_by_id()
+          |> Repo.preload(Keyword.get(opts, :preload, [:account]))
 
-      # Add SSO user to their organization with default :user role
-      assign_sso_user_to_organization(user, provider, provider_organization_id)
+        # Add SSO user to their organization with default :user role
+        assign_sso_user_to_organization(user, attrs.provider, attrs.provider_organization_id)
 
-      user
+        user
+
+      {:error, :email_not_proven} = error ->
+        error
     end
   end
 
   @doc """
   Links an OAuth identity to an existing user.
   Used when a user signs in with OAuth using an email that already exists.
+
+  The identity is a sign-in credential, so it is linked through
+  `issue_user_credential/2`: a link can't outlive a mailbox proof that ends the
+  account's organization identities, and returns
+  `{:error, :credentials_revoked}` once one did.
   """
   def link_oauth_identity_to_user(%User{id: user_id} = user, attrs) do
-    case Repo.insert(
-           Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
-             provider: attrs.provider,
-             id_in_provider: to_string(attrs.id_in_provider),
-             user_id: user_id,
-             provider_organization_id: attrs[:provider_organization_id]
-           })
-         ) do
-      {:ok, oauth_identity} ->
-        assign_sso_user_to_organization(user, attrs.provider, attrs[:provider_organization_id])
-        {:ok, oauth_identity}
+    issue_user_credential(user, fn ->
+      # A savepoint keeps a duplicate from aborting the transaction, so the
+      # identity a concurrent sign-in linked can be looked up instead.
+      case Repo.insert(oauth2_identity_changeset(user, attrs), mode: :savepoint) do
+        {:ok, oauth_identity} ->
+          assign_sso_user_to_organization(user, attrs.provider, attrs[:provider_organization_id])
+          {:ok, oauth_identity}
 
-      {:error, %Changeset{}} = error ->
-        case get_oauth2_identity(
-               attrs.provider,
-               attrs.id_in_provider,
-               attrs[:provider_organization_id]
-             ) do
-          {:ok, %Oauth2Identity{user_id: ^user_id} = oauth_identity} ->
-            assign_sso_user_to_organization(user, attrs.provider, attrs[:provider_organization_id])
-            {:ok, oauth_identity}
+        {:error, %Changeset{}} = error ->
+          case get_oauth2_identity(
+                 attrs.provider,
+                 attrs.id_in_provider,
+                 attrs[:provider_organization_id]
+               ) do
+            {:ok, %Oauth2Identity{user_id: ^user_id} = oauth_identity} ->
+              assign_sso_user_to_organization(user, attrs.provider, attrs[:provider_organization_id])
+              {:ok, oauth_identity}
 
-          _ ->
-            error
+            _ ->
+              error
+          end
+      end
+    end)
+  end
+
+  @doc """
+  Links an OAuth identity to the existing user whose email the provider
+  reported, for a sign-in that is not already linked. Every sign-in path that
+  matches an account by provider email goes through here.
+
+  An unconfirmed account's email was never proven, so whoever registered it
+  may not own the address, while the provider's sign-in does prove it. The
+  link therefore claims the account: it is confirmed, and the password it was
+  registered with and its outstanding email tokens are voided, so the
+  registrant cannot sign in once the account is confirmed. An unconfirmed
+  account cannot sign in, so it holds no sessions or other credentials.
+
+  Without email confirmation, registration confirms an account on the spot,
+  so its email proves nothing and its registrant may already hold sessions,
+  MFA factors and tokens. A global provider (GitHub, Google, Apple) then links
+  only to an account a global provider already proved the email of, and
+  returns `{:error, :email_not_proven}` otherwise. Custom providers link by
+  domain trust or SCIM provenance, which their callers check.
+
+  A global provider's sign-in also records the mailbox proof
+  (`record_mailbox_proof/1`), which on an account that could become an
+  operator ends the credentials set up before it. Returns
+  `{:error, :email_changed}` when the account's address changed since `user`
+  was read.
+  """
+  def link_oauth_identity_by_email(%User{} = user, attrs) do
+    result =
+      Repo.transaction(fn ->
+        # The lock orders concurrent sign-ins for the same account: the later
+        # one sees the account confirmed and links without claiming it again,
+        # so it cannot void the session the earlier one just issued. It also
+        # keeps a SCIM rename from landing between the email match and the link.
+        locked = Repo.one!(from(u in User, where: u.id == ^user.id, lock: "FOR UPDATE"))
+
+        cond do
+          locked.email != user.email ->
+            Repo.rollback(:email_changed)
+
+          not is_nil(locked.confirmed_at) and not email_proven_for_provider_link?(locked, attrs.provider) ->
+            Repo.rollback(:email_not_proven)
+
+          true ->
+            {:ok, locked} = prove_mailbox_by_link(locked, attrs.provider)
+
+            case link_oauth_identity_to_user(locked, attrs) do
+              {:ok, oauth_identity} -> oauth_identity
+              {:error, reason} -> Repo.rollback(reason)
+            end
         end
+      end)
+
+    disconnect_revoked_sessions()
+    result
+  end
+
+  # A global provider's sign-in proves the address. Any provider's sign-in
+  # claims an unconfirmed account, whose email nobody proved, without
+  # recording a proof.
+  defp prove_mailbox_by_link(user, provider) do
+    cond do
+      instance_email_provider?(provider) -> record_mailbox_proof(user)
+      is_nil(user.confirmed_at) -> prove_mailbox(user, false)
+      true -> {:ok, user}
     end
+  end
+
+  defp email_proven_for_provider_link?(_user, provider) when provider in [:okta, :oauth2], do: true
+
+  defp email_proven_for_provider_link?(%User{id: user_id}, _provider) do
+    not Environment.skip_email_confirmation?() or
+      Repo.exists?(from(o in Oauth2Identity, where: o.user_id == ^user_id and o.provider in [:github, :google, :apple]))
+  end
+
+  defp oauth2_identity_changeset(%User{id: user_id}, attrs) do
+    Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
+      provider: attrs.provider,
+      id_in_provider: to_string(attrs.id_in_provider),
+      user_id: user_id,
+      provider_organization_id: attrs[:provider_organization_id]
+    })
   end
 
   @doc """
@@ -934,7 +1153,8 @@ defmodule Tuist.Accounts do
     case create_user(oauth_data["email"],
            password: generate_random_string(16),
            handle: username,
-           oauth2_identity: oauth2_attrs
+           oauth2_identity: oauth2_attrs,
+           email_verified_at: oauth_email_verified_at(oauth2_attrs.provider)
          ) do
       {:ok, user} ->
         assign_sso_user_to_organization(
@@ -987,7 +1207,8 @@ defmodule Tuist.Accounts do
           password: password,
           confirmed_at: confirmed_at,
           created_at: created_at,
-          provisioned_by_organization_id: Keyword.get(opts, :provisioned_by_organization_id)
+          provisioned_by_organization_id: Keyword.get(opts, :provisioned_by_organization_id),
+          email_verified_at: Keyword.get(opts, :email_verified_at)
         })
       )
       |> Multi.run(:account, fn repo, %{user: %{id: user_id, email: email}} ->
@@ -1174,22 +1395,23 @@ defmodule Tuist.Accounts do
        }) do
     case get_user_by_email(email) do
       {:ok, user} ->
-        {:ok, oauth2_identity} =
-          Repo.insert(
-            Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
-              provider: provider,
-              id_in_provider: to_string(id_in_provider),
-              user_id: user.id,
-              provider_organization_id: provider_organization_id
-            })
-          )
-
-        oauth2_identity
+        case link_oauth_identity_by_email(user, %{
+               provider: provider,
+               id_in_provider: id_in_provider,
+               provider_organization_id: provider_organization_id
+             }) do
+          {:ok, oauth2_identity} -> {:ok, oauth2_identity}
+          {:error, :email_not_proven} = error -> error
+        end
 
       {:error, :not_found} ->
         user = create_oauth2_user(email, provider, id_in_provider, provider_organization_id)
-        find_oauth2_identity(%{user: user, provider: provider})
+        {:ok, find_oauth2_identity(%{user: user, provider: provider})}
     end
+  end
+
+  defp oauth_email_verified_at(provider) do
+    if instance_email_provider?(provider), do: DateTime.truncate(DateTime.utc_now(), :second)
   end
 
   defp create_oauth2_user(email, provider, id_in_provider, provider_organization_id) do
@@ -1206,7 +1428,8 @@ defmodule Tuist.Accounts do
     case create_user(email,
            password: generate_random_string(16),
            confirmed_at: NaiveDateTime.utc_now(),
-           oauth2_identity: oauth2_attrs
+           oauth2_identity: oauth2_attrs,
+           email_verified_at: oauth_email_verified_at(provider)
          ) do
       {:ok, user} ->
         user
@@ -1218,7 +1441,8 @@ defmodule Tuist.Accounts do
             password: generate_random_string(16),
             confirmed_at: NaiveDateTime.utc_now(),
             suffix: "-#{:rand.uniform(9999)}",
-            oauth2_identity: oauth2_attrs
+            oauth2_identity: oauth2_attrs,
+            email_verified_at: oauth_email_verified_at(provider)
           )
 
         user
@@ -1883,7 +2107,10 @@ defmodule Tuist.Accounts do
   require the Google hosted-domain (`hd`) match. A self-hosted instance has no
   Tuist Google Workspace — operators there are whoever the instance configures
   via the operator email domain — so the Google check is skipped, not the whole
-  operator concept.
+  operator concept. A self-hosted instance has operators only once it sets the
+  domain explicitly, and only accounts that proved control of their address
+  (`email_verified_at`) qualify: an instance that auto-confirms sign-ups would
+  otherwise let anyone register an address in the domain.
 
   This is an eligibility heuristic, not an authorization boundary: it
   decides whether a non-member is routed to the ops.tuist.dev reason
@@ -1897,11 +2124,22 @@ defmodule Tuist.Accounts do
 
   def tuist_operator?(_), do: false
 
+  @doc """
+  Whether `email` belongs to the operator email domain. Holding such an address
+  is one of the conditions of `tuist_operator?/1`, so code that lets a third
+  party set a user's email must not assign one.
+  """
+  def operator_domain_email?(email) when is_binary(email) do
+    operator_domain_email?(email, Environment.operator_email_domain())
+  end
+
   defp operator_email?(%User{email: email} = user) when is_binary(email) do
     domain = Environment.operator_email_domain()
 
     operator_domain_email?(email, domain) and
-      (not Environment.tuist_hosted?() or google_workspace_member?(user, domain))
+      if Environment.tuist_hosted?(),
+        do: google_workspace_member?(user, domain),
+        else: Environment.operator_email_domain_configured?() and not is_nil(user.email_verified_at)
   end
 
   defp operator_email?(_), do: false
@@ -2227,9 +2465,46 @@ defmodule Tuist.Accounts do
   Generates a session token.
   """
   def generate_user_session_token(user, auth \\ %{}) do
-    {token, user_token} = UserToken.build_session_token(user, auth)
-    Repo.insert!(user_token)
+    {:ok, token} =
+      issue_user_credential(user, fn ->
+        {token, user_token} = UserToken.build_session_token(user, auth)
+        Repo.insert!(user_token)
+        {:ok, token}
+      end)
+
     token
+  end
+
+  @doc """
+  Runs `fun`, which issues a credential for `user` and returns `{:ok, _}` or
+  `{:error, _}`, while the account's row is share-locked and still has the
+  password `user` was read with. Returns what `fun` returns, or
+  `{:error, :credentials_revoked}` without running it when the password changed
+  since. `fun` should also check again, under the lock, any evidence it issues
+  against, such as a device code or refresh token.
+
+  A mailbox proof or reset that revokes the account's credentials changes its
+  password in the same transaction, so this orders the two: either the
+  revocation commits first and the stale `user` is refused, or `fun`'s
+  credential commits first and the revocation, which waits for the lock,
+  revokes it.
+  """
+  def issue_user_credential(%User{id: user_id, encrypted_password: encrypted_password}, fun) do
+    {:ok, result} =
+      Repo.transaction(fn ->
+        locked =
+          Repo.one(
+            from(u in User,
+              where: u.id == ^user_id and u.encrypted_password == ^encrypted_password,
+              select: u.id,
+              lock: "FOR SHARE"
+            )
+          )
+
+        if locked, do: fun.(), else: {:error, :credentials_revoked}
+      end)
+
+    result
   end
 
   @doc """
@@ -2387,6 +2662,142 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
+  Records that someone proved control of `user`'s address other than through
+  the confirmation link, such as by signing in with an instance-configured
+  provider or entering a one-time code, and confirms the account.
+
+  The first proof clears a password nobody proved the mailbox for, and ends the
+  sessions, CLI credentials and passkeys set up with it: on an unconfirmed
+  account, or, on a self-hosted instance, on an account in the operator domain
+  without proof, since such an instance may have confirmed sign-ups
+  automatically. Those came from whoever registered the address, who may not
+  own it.
+
+  The proof applies only while the account still has the address it proved;
+  if the address changed meanwhile, nothing is recorded.
+  """
+  def record_mailbox_proof(%User{} = user), do: prove_mailbox(user, records_mailbox_proof?(user))
+
+  # Confirms `user` on a proof of its address, ending the credentials nobody
+  # proved it for, and records the proof when `record?`.
+  defp prove_mailbox(%User{confirmed_at: confirmed_at, email_verified_at: verified_at} = user, record?)
+       when is_nil(confirmed_at) or is_nil(verified_at) do
+    proof =
+      [confirmed_at: confirmed_at || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)] ++
+        if(record?,
+          do: [email_verified_at: verified_at || DateTime.truncate(DateTime.utc_now(), :second)],
+          else: []
+        )
+
+    query = from(u in User, where: u.id == ^user.id and u.email == ^user.email)
+
+    if unproven_password?(user) do
+      # A reset that proved the address meanwhile set a password worth keeping.
+      write_mailbox_proof(
+        user,
+        from(u in query, where: is_nil(u.email_verified_at)),
+        proof ++ [encrypted_password: ""],
+        fn ->
+          live_socket_ids = revoke_unproven_credentials(user)
+          # Revocation covers whole seconds, and the owner's credentials are
+          # issued right after this proof, often in the same second. Issuance
+          # against the unproven account is already refused under the lock, so
+          # marking the previous second only spares a stateless access token
+          # issued earlier in this one.
+          Repo.update_all(from(u in User, where: u.id == ^user.id),
+            set: [credentials_revoked_at: DateTime.add(DateTime.truncate(DateTime.utc_now(), :second), -1)]
+          )
+
+          live_socket_ids
+        end
+      )
+    else
+      write_mailbox_proof(user, query, proof, fn -> [] end)
+    end
+  end
+
+  defp prove_mailbox(%User{} = user, _record?), do: {:ok, user}
+
+  defp unproven_password?(%User{email_verified_at: nil, confirmed_at: nil}), do: true
+
+  # A self-hosted instance may have confirmed sign-ups automatically, so an
+  # account that could become an operator holds credentials nobody proved the
+  # mailbox for until its first proof. Other accounts keep theirs: nothing
+  # they hold grants operator access.
+  defp unproven_password?(%User{email_verified_at: nil} = user),
+    do: not Environment.tuist_hosted?() and records_mailbox_proof?(user)
+
+  defp unproven_password?(_user), do: false
+
+  # On a self-hosted instance the proof is recorded only for an address in the
+  # operator domain, where it grants operator access, so the proof that grants
+  # it is always the one that ends the credentials set up before it. Recorded
+  # elsewhere, a domain configured later would make the account an operator
+  # with those credentials in place.
+  defp records_mailbox_proof?(%User{email: email}),
+    do: Environment.tuist_hosted?() or (Environment.operator_email_domain_configured?() and operator_domain_email?(email))
+
+  # Browser sessions, API credentials (see `revoke_user_api_credentials/1`),
+  # passkeys and organization sign-in identities set up while the password
+  # was unproven are as unproven as the password, so they end with it.
+  # Returns the live socket ids of the ended browser sessions to disconnect.
+  defp revoke_unproven_credentials(%User{id: user_id} = user) do
+    session_tokens = Repo.all(UserToken.by_user_and_contexts_query(user, ["session"]))
+    Repo.delete_all(UserToken.by_user_and_contexts_query(user, :all))
+    revoke_user_api_credentials(user)
+    # A passkey signs in on its own. An authenticator app is only a second
+    # factor, so one set up meanwhile can't sign anyone in and stays.
+    Repo.delete_all(from(p in Tuist.Accounts.UserPasskey, where: p.user_id == ^user_id))
+    # So does an identity at an organization's own provider, which a signed-in
+    # user can link without the provider asserting this address. Identities at
+    # instance providers are linked only by the address, so they are the owner's.
+    Repo.delete_all(from(i in Oauth2Identity, where: i.user_id == ^user_id and i.provider in [:okta, :oauth2]))
+    Enum.map(session_tokens, &UserToken.live_socket_id/1)
+  end
+
+  defp write_mailbox_proof(user, query, changes, on_write) do
+    result =
+      Repo.transaction(fn ->
+        case Repo.update_all(query, set: changes) do
+          {1, _} -> {struct(user, changes), on_write.()}
+          {0, _} -> {user, []}
+        end
+      end)
+
+    with {:ok, {user, live_socket_ids}} <- result do
+      disconnect_sessions(live_socket_ids)
+      {:ok, user}
+    end
+  end
+
+  # A revoked session's live socket is told to disconnect once the revocation
+  # is committed; a reconnect before that would still find the session. Inside
+  # a caller's transaction, the caller calls `disconnect_revoked_sessions/0`
+  # after it.
+  defp disconnect_sessions(live_socket_ids) do
+    if Repo.in_transaction?() do
+      Process.put(@revoked_sessions_key, Process.get(@revoked_sessions_key, []) ++ live_socket_ids)
+    else
+      Enum.each(live_socket_ids, &Tuist.Web.endpoint().broadcast(&1, "disconnect", %{}))
+    end
+  end
+
+  @doc """
+  Disconnects the live sockets of sessions that a mailbox proof made inside
+  the caller's transaction revoked. Call it after that transaction.
+  """
+  def disconnect_revoked_sessions do
+    disconnect_sessions(Process.delete(@revoked_sessions_key) || [])
+  end
+
+  @doc """
+  Whether `provider` is configured by the instance, so that its verified emails
+  prove control of the address. Organization-configured providers (Okta and
+  custom OAuth2) are not.
+  """
+  def instance_email_provider?(provider), do: provider in [:google, :github, :apple]
+
+  @doc """
   Confirms a user by the given token.
 
   If the token matches, the user account is marked as confirmed
@@ -2404,7 +2815,13 @@ defmodule Tuist.Accounts do
 
   defp confirm_user_multi(user) do
     Multi.new()
-    |> Multi.update(:user, User.confirm_changeset(user))
+    |> Multi.update(
+      :user,
+      if(records_mailbox_proof?(user),
+        do: User.confirm_changeset(user),
+        else: Changeset.delete_change(User.confirm_changeset(user), :email_verified_at)
+      )
+    )
     |> Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, ["confirm"]))
   end
 
@@ -2496,21 +2913,39 @@ defmodule Tuist.Accounts do
       # Rebuild the expiry query after waiting for the lock. A token may have
       # expired, been replaced or consumed while this request was waiting.
       user = get_user_by_reset_password_token(token) || Repo.rollback(:invalid_token)
+      unproven_password? = unproven_password?(user)
+
+      # The link proves the mailbox, so it confirms the account too.
+      changeset =
+        user
+        |> User.password_changeset(attrs)
+        |> Changeset.put_change(
+          :confirmed_at,
+          user.confirmed_at || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+        )
+
+      changeset =
+        if records_mailbox_proof?(user),
+          do: Changeset.put_change(changeset, :email_verified_at, DateTime.truncate(DateTime.utc_now(), :second)),
+          else: changeset
 
       user =
-        case Repo.update(User.password_changeset(user, attrs)) do
+        case Repo.update(changeset) do
           {:ok, user} -> user
           {:error, changeset} -> Repo.rollback(changeset)
         end
 
-      session_tokens = Repo.all(UserToken.by_user_and_contexts_query(user, ["session"]))
-      Repo.delete_all(UserToken.by_user_and_contexts_query(user, :all))
-      revoke_user_api_credentials(user)
+      revoked_session_live_socket_ids =
+        if unproven_password? do
+          revoke_unproven_credentials(user)
+        else
+          session_tokens = Repo.all(UserToken.by_user_and_contexts_query(user, ["session"]))
+          Repo.delete_all(UserToken.by_user_and_contexts_query(user, :all))
+          revoke_user_api_credentials(user)
+          Enum.map(session_tokens, &UserToken.live_socket_id/1)
+        end
 
-      %{
-        user: user,
-        revoked_session_live_socket_ids: Enum.map(session_tokens, &UserToken.live_socket_id/1)
-      }
+      %{user: user, revoked_session_live_socket_ids: revoked_session_live_socket_ids}
     end)
   end
 

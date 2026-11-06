@@ -4,7 +4,7 @@
     # config and devDependencies live here rather than in a package.
     node = "24.11.0"
     # Auto-bumped to the latest Tuist CLI release (incl. canary) by the update-tuist-cli workflow.
-    tuist = "4.217.0-canary.10"
+    tuist = "4.217.0-canary.28"
     swiftlint = "0.59.1"
     "elixir" = "1.20.2"
     "erlang" = "29.0.3"
@@ -139,6 +139,9 @@
 [settings]
     jobs = 6
     http_timeout = "60"
+    # GitHub release downloads return 504s for a minute or more at a time. The default
+    # 3 retries give up after about 5 seconds; 8 keep retrying for about a minute.
+    http_retries = 8
     experimental = true
     sops.age_key_file = "~/.config/mise/tuist-age.txt"
     sops.strict = false

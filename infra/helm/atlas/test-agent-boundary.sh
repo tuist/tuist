@@ -45,7 +45,13 @@ jq --exit-status '
                   .metadata.namespace == "atlas-agents") ] | length == 1) and
   ([ .[] | select(.kind == "Deployment" and .metadata.name == "atlas") |
       .spec.template.spec.volumes[]? | .projected.sources[]? |
-      select(has("serviceAccountToken")) | .serviceAccountToken.audience ] == ["tuist-server"]) and
+      select(has("serviceAccountToken")) | .serviceAccountToken.audience ] ==
+    ["tuist-server", "pulse.tuist.dev", "pulse-canary.tuist.dev"]) and
+  ([ .[] | select(.kind == "Deployment" and .metadata.name == "atlas") |
+      .spec.template.spec.volumes[]? | select(.name == "pulse-token") |
+      .projected.sources[]? | .serviceAccountToken ] ==
+    [{"path": "pulse", "audience": "pulse.tuist.dev", "expirationSeconds": 3600},
+     {"path": "pulse_canary", "audience": "pulse-canary.tuist.dev", "expirationSeconds": 3600}]) and
   ([ .[] | select(.kind == "Deployment" and .metadata.name == "atlas") |
       .spec.template.spec.containers[] | .env[] |
       select(.name == "TUIST_SERVER_TOKEN_PATH") | .value ] == ["/var/run/secrets/tuist/token"]) and

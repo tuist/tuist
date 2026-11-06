@@ -59,8 +59,9 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
         stubbedArchitecture
     }
 
+    public var currentWorkingDirectoryStub: AbsolutePath?
     public func currentWorkingDirectory() async throws -> AbsolutePath {
-        baseDirectory.appending(component: "current")
+        currentWorkingDirectoryStub ?? baseDirectory.appending(component: "current")
     }
 
     public var cacheDirectory: AbsolutePath
@@ -128,15 +129,12 @@ public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
         testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
-        let mockEnvironment = try await MockEnvironment()
-        mockEnvironment.variables = ProcessInfo.processInfo.environment.filter { inheritedVariables.contains($0.key) }
-        mockEnvironment.arguments = arguments
-        if legacyModuleCache {
-            mockEnvironment.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
-        }
-        try await Environment.$current.withValue(mockEnvironment) {
-            try await function()
-        }
+        try await TuistEnvironmentTesting.withMockedEnvironment(
+            inheritingVariables: inheritedVariables,
+            arguments: arguments,
+            legacyModuleCache: legacyModuleCache,
+            function
+        )
     }
 }
 
@@ -151,6 +149,24 @@ extension Trait where Self == EnvironmentTestingTrait {
             arguments: arguments,
             legacyModuleCache: legacyModuleCache
         )
+    }
+}
+
+/// What `.withMockedEnvironment(inheritingVariables:)` does, for tests that can't take traits, such as XCTest.
+public func withMockedEnvironment(
+    inheritingVariables inheritedVariables: [String],
+    arguments: [String] = [],
+    legacyModuleCache: Bool = false,
+    _ closure: () async throws -> Void
+) async throws {
+    let mockEnvironment = try await MockEnvironment()
+    mockEnvironment.variables = ProcessInfo.processInfo.environment.filter { inheritedVariables.contains($0.key) }
+    mockEnvironment.arguments = arguments
+    if legacyModuleCache {
+        mockEnvironment.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
+    }
+    try await Environment.$current.withValue(mockEnvironment) {
+        try await closure()
     }
 }
 
