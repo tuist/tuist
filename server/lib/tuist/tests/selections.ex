@@ -229,8 +229,8 @@ defmodule Tuist.Tests.Selections do
   A page of the project's impact runs selected in `period` (`{start, end}`)
   that a test run reported, newest first, each with the id of the latest test
   run that reported it (`test_run_id`). Options: `:search` (a commit SHA
-  prefix, or part of a branch, scheme or test plan name), `:fallback` (`true`
-  for the runs that fell back), `:page` and `:page_size`. Returns
+  prefix, or part of a branch, scheme or test plan name), `:page` and
+  `:page_size`. Returns
   `{rows, %{current_page, total_pages, total_count}}`.
   """
   def list_runs(project_id, {start_datetime, end_datetime}, opts \\ []) do
@@ -238,7 +238,6 @@ defmodule Tuist.Tests.Selections do
       project_id
       |> reported_runs(start_datetime, DateTime.add(end_datetime, 1, :second))
       |> filter_run_search(Keyword.get(opts, :search))
-      |> filter_fallback(Keyword.get(opts, :fallback))
       |> order_by([r], desc: r.inserted_at, desc: r.id)
       |> select([r, t], {r, t.test_run_id})
       |> paginate(opts)
@@ -285,9 +284,6 @@ defmodule Tuist.Tests.Selections do
         fragment("positionCaseInsensitive(?['test_plan'], ?) > 0", r.build_context, ^term)
     )
   end
-
-  defp filter_fallback(query, true), do: where(query, [r], r.outcome == "fallback")
-  defp filter_fallback(query, _fallback), do: query
 
   @doc "An impact run of the project, by its id."
   def get_run(project_id, id) do

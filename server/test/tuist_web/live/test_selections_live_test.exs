@@ -151,7 +151,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
              )
     end
 
-    test "filters the runs that fell back, counting modules for a fallback to selective testing", %{
+    test "counts modules for a fallback to selective testing that found no baseline", %{
       conn: conn,
       organization: organization,
       project: project
@@ -159,8 +159,9 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       selection(project, outcome: "fallback", reason: "history_unavailable")
 
       {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection?fallback=true")
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection")
 
+      refute has_element?(lv, "#test-selection-runs-fallback-dropdown")
       assert has_element?(lv, "#test-selection-runs-table", "History too shallow")
       assert has_element?(lv, "#test-selection-runs-table", "2 / 3 modules")
       assert has_element?(lv, "#test-selection-runs-table", "33.3%")

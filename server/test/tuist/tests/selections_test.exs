@@ -143,7 +143,6 @@ defmodule Tuist.Tests.SelectionsTest do
 
       assert meta.total_count == 2
       assert {[%{commit_sha: "older"}], _meta} = Selections.list_runs(project.id, period, search: "core")
-      assert {[%{commit_sha: "older"}], _meta} = Selections.list_runs(project.id, period, fallback: true)
     end
   end
 

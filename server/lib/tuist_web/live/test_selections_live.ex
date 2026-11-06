@@ -55,14 +55,12 @@ defmodule TuistWeb.TestSelectionsLive do
 
   defp assign_runs(%{assigns: %{selected_project: project}} = socket, period, params) do
     search = params["search"] || ""
-    fallback? = params["fallback"] == "true"
 
     {rows, meta} =
-      Selections.list_runs(project.id, period, search: search, fallback: fallback?, page: parse_page(params["page"]))
+      Selections.list_runs(project.id, period, search: search, page: parse_page(params["page"]))
 
     socket
     |> assign(:search, search)
-    |> assign(:fallback?, fallback?)
     |> assign(:runs, rows)
     |> assign(:runs_meta, meta)
   end
