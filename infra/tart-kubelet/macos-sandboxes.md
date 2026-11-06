@@ -43,7 +43,12 @@ Enabling the feature flag does not provision new hardware. No available grant
 means no placement. Disabling it stops new native creation, resumes, commands and
 Managed Agents admission. Pause, stop-worker and delete remain available.
 
-## Capacity and CI priority
+## Capacity and CI sharing
+
+macOS follows the Linux policy in
+[`fleet-sharing.md`](../sandboxd/fleet-sharing.md): queued CI jobs and sandbox
+work have equal priority for uncommitted host capacity, and each account's
+sandbox vCPU, memory and disk limits bound how much of it that account can take.
 
 The server reserves native CPU, RAM and one VM slot in a PostgreSQL transaction
 under a per-node advisory lock. It binds ownership to the Kubernetes Node UID;
@@ -52,9 +57,11 @@ Account sandbox concurrency quotas also apply to native creation and resume,
 including resident resume. Pausing releases the account's active concurrency
 quota; a retained VM still holds its full host reservation against CI capacity.
 
-The CI allocator publishes grants only with known, unqueued CI demand and a
-healthy, unreserved host. Grants expire after 15 seconds and are also bound to
-the current control Pod UID. Unknown or stale demand denies new native work.
+The CI allocator publishes grants for every healthy, unreserved host while fleet
+demand is known. CI queued elsewhere in the fleet does not revoke a grant; a
+host reservation for a waiting CI shape does. Grants expire after 15 seconds and
+are also bound to the current control Pod UID. Unknown or stale demand denies
+new native work.
 Each grant specifies CPU, RAM and VM slots remaining after non-reclaimable CI
 reservations. Placement subtracts existing native reservations from that allowance,
 so a host occupied by CI is not selected just because its queue is empty.
@@ -114,7 +121,7 @@ tart-kubelet's sandbox service, not the CI launch path, boots a warm Pod, and
 only on hosts advertising `tuist.dev/macos-sandbox-warm-host=v1`. The VM is
 named `sbw-<pod UID>`, holds no credential and is not journalled; it fails
 instead of waiting when the host lacks room, the template or disk. A create of
-the same template, image and shape claims a ready VM under the same CI-first
+the same template, image and shape claims a ready VM under the same
 grant as a cold create: the host creates the execution Pod, deletes the warm
 Pod, and the VM keeps its name for life. Other shapes and hosts without a
 ready VM cold-boot. Hosts report the shapes of ready VMs, placement tries those

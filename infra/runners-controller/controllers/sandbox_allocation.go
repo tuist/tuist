@@ -164,20 +164,9 @@ const MacosSandboxRoleLabel = "tuist.dev/macos-sandbox-role"
 const macosSandboxRole = MacosSandboxRoleLabel
 const macosSandboxGrant = "tuist.dev/macos-sandbox-grant"
 
-// macOS retains CI-first admission. Linux uses the independent shared-capacity
-// policy above; a native resident must yield when CI demand is queued or unknown.
-func macOSCIQueued(fleet *fleetAllocation) bool {
-	if fleet == nil {
-		return true
-	}
-	for _, member := range fleet.members {
-		if member.queued > 0 {
-			return true
-		}
-	}
-	return false
-}
-
+// macOS shares the Linux policy above: queued CI and native sandboxes compete
+// for uncommitted capacity, a host reservation still protects a waiting CI
+// shape, and unknown fleet demand denies every grant.
 func (r *AutoscalerReconciler) publishMacosGrants(ctx context.Context, nodes []corev1.Node, pods []corev1.Pod, fleet *fleetAllocation, observed time.Time) error {
 	for i := range nodes {
 		node := &nodes[i]
@@ -186,7 +175,7 @@ func (r *AutoscalerReconciler) publishMacosGrants(ctx context.Context, nodes []c
 			if pod.Namespace != r.SandboxesNamespace || pod.Spec.NodeName != node.Name || pod.Labels[macosSandboxRole] != "control" {
 				continue
 			}
-			allow := !macOSCIQueued(fleet) && nodeFilterReason(node) == "" && !isReserved(node) && pod.DeletionTimestamp.IsZero()
+			allow := fleet != nil && nodeFilterReason(node) == "" && !isReserved(node) && pod.DeletionTimestamp.IsZero()
 			for _, condition := range node.Status.Conditions {
 				if (condition.Type == corev1.NodeMemoryPressure || condition.Type == corev1.NodeDiskPressure || condition.Type == corev1.NodePIDPressure) && condition.Status != corev1.ConditionFalse {
 					allow = false
