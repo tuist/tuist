@@ -10,10 +10,23 @@ defmodule TuistWeb.LayoutComponents do
 
   def head_favicon_links(assigns) do
     ~H"""
-    <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link
+      :for={
+        {href, type, sizes} <- [
+          {~p"/favicon.ico", nil, "any"},
+          {~p"/favicon.svg", "image/svg+xml", nil},
+          {~p"/favicon-32x32.png", "image/png", "32x32"},
+          {~p"/favicon-16x16.png", "image/png", "16x16"}
+        ]
+      }
+      rel="icon"
+      href={href}
+      type={type}
+      sizes={sizes}
+      data-favicon-success={~p"/images/favicon-success.png"}
+      data-favicon-failure={~p"/images/favicon-failure.png"}
+      data-favicon-in-progress={~p"/images/favicon-in-progress.png"}
+    />
     """
   end
 
