@@ -1070,6 +1070,39 @@ Gradle custom metadata can also contain `tuist.cache_work_avoided_ms`, an automa
 
 ## Operational observability attribution
 
+Atlas offers disabled-by-default parallel collection of newly captured Sentry
+errors in Pulse; this does not change the server's SDK destination or any Grafana
+workload. Only operator-approved Atlas project/domain routes are copied, covering
+external envelopes and Atlas native logger capture at the shared recorder. Copies
+filter user/request/header objects, legacy Sentry User/Http interfaces and named
+credentials before bounded, volatile queueing; messages, exceptions, stack/source
+context, breadcrumbs, release/environment, tags, trace IDs and arbitrary extras
+can still contain personal data. Source Atlas project/domain UUIDs and normalized
+event ID/time are retained. No historical backfill or server database change occurs.
+
+If activated, Pulse's configured numeric project/key binds tenant/service, never
+SDK payload tenant claims. Copies are stored under
+`tenants/<tenant>/v4/signal=logs/` in Pulse's existing Parquet/manifest authority,
+plus any separately enabled error-index/evidence derivatives. Log retention is
+unlimited unless explicitly configured. Each Atlas replica queues at most 64
+128-KiB copies, including retries, expiring after 60 seconds plus in-flight cleanup;
+there is no durable spool. Drops/restarts and Pulse failures leave Atlas responses
+and primary capture unchanged. Neither Atlas acceptance nor a missing Pulse
+result proves durable receipt or absence of a source error.
+
+Include this separate backend in verified exports/erasure when approved routes
+cover the subject's events. Resolve the source → Pulse tenant/project mapping,
+query authorized `query_errors` in bounded occurrence-time windows and paginate
+all matching retained events, using event IDs and contextual selected/auth IDs
+or handles. Narrow windows on scan limits; a diagnostic page is not a complete
+export. Include retained derivatives separately. Disabling routes/deleting Atlas
+records does not erase Pulse objects/backups. Pulse has no per-event delete API;
+use coordinated retention or tenant purge under its existing procedure and redact
+unrelated subjects. No ingest/query credentials belong in exports. Activation
+requires explicit scope, endpoint/region, reader and retention approval; none is
+enabled here. See [Atlas's inventory](../atlas/data-export.md#optional-parallel-error-copies-in-pulse)
+and [the activation contract](../atlas/deploy/pulse-errors.md).
+
 Server logs, OpenTelemetry traces and Sentry error events can contain authenticated
 user/account/project IDs, selected account/project IDs and their existing account
 and project handles. Authentication identifies the caller; selected resources
