@@ -360,9 +360,9 @@ defmodule Tuist.Runners.BillingTest do
       session_fixture(account,
         fleet_name: "macos-standard",
         platform: :macos,
-        vcpus: 6,
-        memory_gb: 14,
-        billing_multiplier: Catalog.billing_multiplier(:macos, 6, 14),
+        vcpus: 8,
+        memory_gb: 24,
+        billing_multiplier: Catalog.billing_multiplier(:macos, 8, 24),
         started_at: ~U[2026-05-01 12:00:00.000000Z],
         ended_at: ~U[2026-05-01 12:05:00.000000Z]
       )

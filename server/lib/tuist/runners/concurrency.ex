@@ -24,7 +24,7 @@ defmodule Tuist.Runners.Concurrency do
   @platforms [:linux, :macos]
   @default_limits %{
     linux: %{vcpus: 32, memory_gb: 64},
-    macos: %{vcpus: 12, memory_gb: 28}
+    macos: %{vcpus: 16, memory_gb: 48}
   }
   @limit_form_fields [
     :runner_linux_vcpus_limit,

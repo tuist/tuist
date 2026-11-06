@@ -7,13 +7,13 @@ defmodule Tuist.Runners.CatalogTest do
   describe "billing_multiplier/3" do
     test "each platform's baseline machine is exactly one compute unit" do
       assert Catalog.billing_multiplier(:linux, 2, 8) == Catalog.compute_unit_basis_points()
-      assert Catalog.billing_multiplier(:macos, 6, 14) == Catalog.compute_unit_basis_points()
+      assert Catalog.billing_multiplier(:macos, 8, 24) == Catalog.compute_unit_basis_points()
     end
 
     test "doubling both resources doubles the multiplier" do
       assert Catalog.billing_multiplier(:linux, 4, 16) == 2 * Catalog.billing_multiplier(:linux, 2, 8)
       assert Catalog.billing_multiplier(:linux, 8, 32) == 4 * Catalog.billing_multiplier(:linux, 2, 8)
-      assert Catalog.billing_multiplier(:macos, 12, 28) == 2 * Catalog.billing_multiplier(:macos, 6, 14)
+      assert Catalog.billing_multiplier(:macos, 16, 48) == 2 * Catalog.billing_multiplier(:macos, 8, 24)
     end
 
     test "weights CPU more heavily than memory" do

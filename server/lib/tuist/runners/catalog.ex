@@ -49,7 +49,7 @@ defmodule Tuist.Runners.Catalog do
   # compute unit is one minute on that baseline:
   #
   #   Linux  2 vCPU /  8 GB = one Linux compute unit
-  #   macOS  6 vCPU / 14 GB = one macOS compute unit
+  #   macOS  8 vCPU / 24 GB = one macOS compute unit
   #
   # Within a platform, shapes are weighted by resources. On a cloud bill
   # roughly two thirds of a machine's cost is CPU and one third memory, so
@@ -68,7 +68,7 @@ defmodule Tuist.Runners.Catalog do
   # credit grant, discount, or contract to one platform.
   @compute_unit_bp 10_000
   @vcpu_weight 8
-  @platform_baseline_units %{linux: 8 * 2 + 8, macos: 8 * 6 + 14}
+  @platform_baseline_units %{linux: 8 * 2 + 8, macos: 8 * 8 + 24}
 
   @doc """
   Billing multiplier for a machine, in basis points, relative to its own
@@ -276,7 +276,7 @@ defmodule Tuist.Runners.Catalog do
     * `:macos` — `<macos-prefix>-<xcode-version-dashes>` for the
       catalog's default shape (e.g. `tuist-runner-pool-macos-26-5`),
       with `-<vcpus>vcpu-<memory_gb>gb` appended for any other shape
-      (e.g. `tuist-runner-pool-macos-26-5-12vcpu-28gb`). Prefix
+      (e.g. `tuist-runner-pool-macos-26-5-16vcpu-48gb`). Prefix
       injected via `TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX`.
 
   Accepts any map with the relevant fields — `%Profile{}` works, as

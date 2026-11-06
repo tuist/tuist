@@ -566,11 +566,11 @@ config :tuist, :runner_linux_shapes, [
 #
 # A macOS shape is only runnable on a host SKU whose advertised
 # `hostCPU`/`hostMemoryMB` fit it, so the catalog is per-environment on
-# the Helm side: the 12 vCPU shape needs an M4-XL and is not offered in
-# environments whose fleet is M2-L only.
+# the Helm side: the 16 vCPU shape needs a whole BER1 rack host and is not offered in
+# environments whose fleet cannot seat it.
 config :tuist, :runner_macos_shapes, [
-  %{vcpus: 6, memory_gb: 14, default: true},
-  %{vcpus: 12, memory_gb: 28}
+  %{vcpus: 8, memory_gb: 24, default: true},
+  %{vcpus: 16, memory_gb: 48}
 ]
 
 # macOS Xcode catalog. Each entry is a runnable Xcode version on the
