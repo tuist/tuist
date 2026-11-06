@@ -92,7 +92,7 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
             duration_ms: data["duration_ms"]
           )
 
-          delete_superseded(ready)
+          delete_superseded(ready, sandbox)
           {:ok, ready}
 
         {:error, reason} ->
@@ -114,10 +114,16 @@ defmodule Tuist.Sandboxes.DiskSnapshots do
     Repo.exists?(query)
   end
 
-  defp delete_superseded(%DiskSnapshot{} = snapshot) do
+  # Amp refreshes a project snapshot under a new identifier: it spawns an
+  # Orb from the current one and has it save the next. Once that save is
+  # ready Amp boots new Orbs from it, so copies of the identifier the Orb
+  # was spawned from are superseded too, not only older saves of this one.
+  defp delete_superseded(%DiskSnapshot{} = snapshot, %Sandbox{amp_base_snapshot_id: base}) do
+    superseded_ids = Enum.reject([snapshot.amp_snapshot_id, base], &is_nil/1)
+
     from(s in DiskSnapshot,
       where:
-        s.account_id == ^snapshot.account_id and s.amp_snapshot_id == ^snapshot.amp_snapshot_id and
+        s.account_id == ^snapshot.account_id and s.amp_snapshot_id in ^superseded_ids and
           s.id != ^snapshot.id and s.inserted_at <= ^snapshot.inserted_at
     )
     |> Repo.all()
