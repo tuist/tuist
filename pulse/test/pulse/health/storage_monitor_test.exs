@@ -166,23 +166,46 @@ defmodule Pulse.Health.StorageMonitorTest do
     }
 
     name = :"monitor_#{System.unique_integer([:positive])}"
-    start_supervised!({StorageMonitor, name: name, config: config, interval_ms: 50})
+    # Drive checks explicitly, outside the automatic timer, so slow HTTP
+    # requests or scheduling cannot turn a busy interval into an idle one.
+    monitor = start_supervised!({StorageMonitor, name: name, config: config, interval_ms: 60_000})
     assert await_status(name, :ok) == :ok
     lists = fn -> Agent.get(agent, & &1.lists) end
     assert lists.() == 1
 
-    # Busy: several probe intervals with successful requests in each, no LIST.
-    for n <- 1..40 do
+    # Busy: each check has a new successful request, so no LIST is needed.
+    for n <- 1..3 do
       assert {:ok, _} = Pulse.ObjectStore.put(config, "k#{n}", "v")
-      Process.sleep(10)
+      send(monitor, :probe)
+      await_probe(monitor)
+      assert lists.() == 1
+      assert StorageMonitor.status(name) == :ok
     end
 
-    assert lists.() == 1
-    assert StorageMonitor.status(name) == :ok
+    # Idle: list on each check. A probe's own LIST cannot justify skipping
+    # the next check, nor can an earlier successful PUT be reused.
+    for expected <- 2..3 do
+      send(monitor, :probe)
+      await_probe(monitor)
+      assert lists.() == expected
+      assert StorageMonitor.status(name) == :ok
+    end
 
-    # Idle: the probe lists again.
-    Process.sleep(250)
-    assert lists.() > 1
+    # Failed traffic does not stand in for a probe either.
+    assert {:error, :not_found} = Pulse.ObjectStore.get(config, "missing")
+    send(monitor, :probe)
+    await_probe(monitor)
+    assert lists.() == 4
+    assert StorageMonitor.status(name) == :ok
+  end
+
+  # A status call alone can still return the previous :ok while the async
+  # probe is running. Wait for completion before inspecting its effects.
+  defp await_probe(monitor) do
+    case :sys.get_state(monitor) do
+      %{task: nil} -> :ok
+      _ -> await_probe(monitor)
+    end
   end
 
   test "a crashing probe is reported and does not kill the monitor" do
