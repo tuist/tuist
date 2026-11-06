@@ -1102,9 +1102,13 @@ values are omitted so they do not override secrets-file configuration with "".
 {{- end }}
 - name: TUIST_MAILING_PROVIDER
   value: {{ .Values.server.mailing.provider | quote }}
-{{- if eq .Values.server.mailing.provider "ses" }}
+{{- if or (eq .Values.server.mailing.provider "ses") .Values.server.mailing.sesStartsAt }}
 - name: TUIST_SES_REGION
   value: {{ required "server.mailing.sesRegion is required for SES" .Values.server.mailing.sesRegion | quote }}
+{{- end }}
+{{- with .Values.server.mailing.sesStartsAt }}
+- name: TUIST_MAILING_SES_STARTS_AT
+  value: {{ . | quote }}
 {{- end }}
 {{- with .Values.server.mailing.domain }}
 - name: TUIST_MAILING_DOMAIN

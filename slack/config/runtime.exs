@@ -1,5 +1,7 @@
 import Config
 
+alias Swoosh.Adapters.AmazonSES
+
 if System.get_env("PHX_SERVER") do
   config :slack, SlackWeb.Endpoint, server: true
 end
@@ -58,13 +60,28 @@ if config_env() == :prod do
 
     "ses" ->
       config :slack, Slack.Mailer,
-        adapter: Swoosh.Adapters.AmazonSES,
+        adapter: AmazonSES,
         region: System.fetch_env!("SLACK_SES_REGION"),
         access_key: System.fetch_env!("SLACK_SES_ACCESS_KEY_ID"),
         secret: System.fetch_env!("SLACK_SES_SECRET_ACCESS_KEY")
 
     provider ->
       raise "unsupported mailing provider: #{inspect(provider)}"
+  end
+
+  # Slack.Mailer sends through SES from this instant on, without a restart.
+  if ses_starts_at = System.get_env("SLACK_SES_STARTS_AT") do
+    {:ok, ses_starts_at, _offset} = DateTime.from_iso8601(ses_starts_at)
+
+    config :slack, Slack.Mailer,
+      ses_cutover:
+        {ses_starts_at,
+         [
+           adapter: AmazonSES,
+           region: System.fetch_env!("SLACK_SES_REGION"),
+           access_key: System.fetch_env!("SLACK_SES_ACCESS_KEY_ID"),
+           secret: System.fetch_env!("SLACK_SES_SECRET_ACCESS_KEY")
+         ]}
   end
 
   config :slack, Slack.Repo,

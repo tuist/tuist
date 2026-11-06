@@ -265,6 +265,21 @@ case System.get_env("ATLAS_MAILER_PROVIDER", "mailgun") do
     raise "unsupported mailing provider: #{inspect(provider)}"
 end
 
+# Atlas.Mailer sends through SES from this instant on, without a restart.
+if ses_starts_at = System.get_env("ATLAS_SES_STARTS_AT") do
+  {:ok, ses_starts_at, _offset} = DateTime.from_iso8601(ses_starts_at)
+
+  config :atlas, Atlas.Mailer,
+    ses_cutover:
+      {ses_starts_at,
+       [
+         adapter: AmazonSES,
+         region: System.fetch_env!("ATLAS_SES_REGION"),
+         access_key: System.fetch_env!("ATLAS_SES_ACCESS_KEY_ID"),
+         secret: System.fetch_env!("ATLAS_SES_SECRET_ACCESS_KEY")
+       ]}
+end
+
 allowed_email_domain =
   case System.get_env("ATLAS_ALLOWED_EMAIL_DOMAIN") do
     nil ->
