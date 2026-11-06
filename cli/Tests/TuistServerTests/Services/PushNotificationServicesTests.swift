@@ -44,23 +44,18 @@ struct PushNotificationServicesTests {
         await #expect(throws: ListPushDevicesServiceError.unsupported) {
             try await ListPushDevicesService(makeClient: client(legacy)).listPushDevices(serverURL: serverURL)
         }
-        await #expect(throws: GetNotificationPreferencesServiceError.unsupported) {
-            try await getPreferences(legacy)
+        await #expect(throws: NotificationRulesServiceError.unsupported) {
+            try await NotificationRulesService(makeClient: client(legacy)).listRules(serverURL: serverURL)
         }
         // Nothing was ever registered with such a server, so signing out must not fail.
         try await UnregisterPushDeviceService(makeClient: client(legacy))
             .unregisterPushDevice(installationID: "install-1", serverURL: serverURL)
     }
 
-    @Test func kinds_the_server_does_not_offer_are_unsupported() async throws {
-        await #expect(throws: GetNotificationPreferencesServiceError.unsupported) {
-            try await getPreferences(StubTransport(status: 404, json: #"{"message":"Not found."}"#))
-        }
-    }
-
     @Test func authorization_and_server_failures_stay_errors() async throws {
-        await #expect(throws: GetNotificationPreferencesServiceError.forbidden("app only")) {
-            try await getPreferences(StubTransport(status: 403, json: #"{"message":"app only"}"#))
+        await #expect(throws: NotificationRulesServiceError.forbidden("app only")) {
+            try await NotificationRulesService(makeClient: client(StubTransport(status: 403, json: #"{"message":"app only"}"#)))
+                .listRules(serverURL: serverURL)
         }
         await #expect(throws: RegisterPushDeviceServiceError.tooManyRequests("slow down")) {
             try await register(StubTransport(status: 429, json: #"{"message":"slow down"}"#))
@@ -71,39 +66,58 @@ struct PushNotificationServicesTests {
         }
     }
 
-    @Test func project_settings_added_later_follow_the_account_without_failing_to_decode() async throws {
-        let json = #"""
-        {"kind":"new_preview","future_field":1,"accounts":[{"handle":"tuist","enabled":false,"projects":[
-          {"handle":"ios-app","setting":"on","enabled":true},
-          {"handle":"android-app","setting":"muted","enabled":false}
-        ]}]}
+    @Test func creating_a_rule_sends_its_conditions_and_reads_back_the_saved_rule() async throws {
+        let saved = #"""
+        {"id":"rule-1","event":"preview_published","enabled":true,"projects":["tuist/ios-app"],
+         "conditions":{"git_branch":{"operator":"contains","value":"release/"},"published_by":"me","future":1},
+         "actions":[{"type":"push"}],"inserted_at":"2026-11-06T10:00:00Z","updated_at":"2026-11-06T10:00:00Z"}
         """#
-
-        let preferences = try await getPreferences(StubTransport(status: 200, json: json))
-
-        #expect(preferences == ServerNotificationPreferences(kind: "new_preview", accounts: [
-            .init(handle: "tuist", enabled: false, projects: [
-                .init(handle: "ios-app", setting: .on, enabled: true),
-                .init(handle: "android-app", setting: .default, enabled: false),
-            ]),
-        ]))
-    }
-
-    @Test func following_the_account_again_sends_the_default_setting() async throws {
-        let transport = StubTransport(status: 200, json: #"{"kind":"new_preview","accounts":[]}"#) { request, body in
-            #expect(request.method == .put)
-            #expect(request.path == "/api/me/notification-preferences/new_preview/projects/tuist/ios-app")
-            let json = try #require(body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: String] })
-            #expect(json == ["setting": "default"])
+        let transport = StubTransport(status: 201, json: saved) { request, body in
+            #expect(request.method == .post)
+            #expect(request.path == "/api/me/notification-rules")
+            let json = try #require(body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? NSDictionary })
+            #expect(json == [
+                "event": "preview_published",
+                "enabled": true,
+                "projects": ["tuist/ios-app"],
+                "conditions": ["track": ["operator": "is", "value": "beta"], "published_by": "anyone"],
+                "actions": [["type": "push"]],
+            ] as NSDictionary)
         }
 
-        _ = try await UpdateProjectNotificationService(makeClient: client(transport)).updateProjectNotificationPreference(
-            kind: "new_preview",
-            accountHandle: "tuist",
-            projectHandle: "ios-app",
-            setting: .default,
+        let rule = try await NotificationRulesService(makeClient: client(transport)).createRule(
+            ServerNotificationRule(projects: ["tuist/ios-app"], track: .is("beta")),
             serverURL: serverURL
         )
+
+        #expect(rule == ServerNotificationRule(
+            id: "rule-1",
+            projects: ["tuist/ios-app"],
+            gitBranch: .contains("release/"),
+            publishedByMe: true
+        ))
+    }
+
+    @Test func updating_a_rule_leaves_its_event_out() async throws {
+        let saved = #"""
+        {"id":"rule-1","event":"preview_published","enabled":false,"projects":[],"conditions":{},
+         "actions":[{"type":"push"}],"inserted_at":"2026-11-06T10:00:00Z","updated_at":"2026-11-06T10:00:00Z"}
+        """#
+        let transport = StubTransport(status: 200, json: saved) { request, body in
+            #expect(request.method == .patch)
+            #expect(request.path == "/api/me/notification-rules/rule-1")
+            let json = try #require(body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
+            #expect(json["event"] == nil)
+            #expect(json["enabled"] as? Bool == false)
+        }
+
+        let rule = try await NotificationRulesService(makeClient: client(transport)).updateRule(
+            ServerNotificationRule(id: "rule-1", isEnabled: false),
+            serverURL: serverURL
+        )
+
+        #expect(rule.isEnabled == false)
+        #expect(rule.track == nil)
     }
 
     private func register(_ transport: StubTransport) async throws -> String {
@@ -114,11 +128,6 @@ struct PushNotificationServicesTests {
             name: "iPhone",
             serverURL: serverURL
         )
-    }
-
-    private func getPreferences(_ transport: StubTransport) async throws -> ServerNotificationPreferences {
-        try await GetNotificationPreferencesService(makeClient: client(transport))
-            .getNotificationPreferences(kind: "new_preview", serverURL: serverURL)
     }
 
     private func client(_ transport: StubTransport) -> @Sendable (URL) -> Client {

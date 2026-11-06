@@ -11,6 +11,12 @@
 # when BUILD_STANDALONE is true or the previous release published none for it.
 # Every other image keeps its previous release's image under the new version.
 #
+# Each stacked build runs on the macOS 27 builder whose runner label
+# stacked-builders.json gives its profile, so a builder clones the same few
+# bases release after release and keeps them cached instead of pulling a
+# 60 GB base for most builds. A profile the file does not name goes to the
+# label with the fewest profiles.
+#
 # Env:
 #   SHOULD_RELEASE       `release:check runner-image` verdict for HEAD
 #   NEXT_VERSION_NUMBER  `release:check runner-image` next version
@@ -21,6 +27,7 @@ set -euo pipefail
 
 profiles_file="infra/runner-image/profiles.json"
 base_versions_file="infra/runner-image/base-xcode-versions.json"
+builders_file="infra/runner-image/stacked-builders.json"
 base_repository="ghcr.io/tuist/macos-tahoe-xcode"
 runner_repository="ghcr.io/tuist/tuist-runner"
 
@@ -35,6 +42,7 @@ if [ -n "$latest_tag" ]; then
     infra/certificate-trust/policy.json infra/certificate-trust/pem-store.sh infra/certificate-trust/controls/ \
     ':(exclude)infra/runner-image/profiles.json' \
     ':(exclude)infra/runner-image/base-xcode-versions.json' \
+    ':(exclude)infra/runner-image/stacked-builders.json' \
     ':(exclude)infra/runner-image/cliff.toml' \
     ':(glob,exclude)infra/runner-image/**/*.md')"
   if [ "$SHOULD_RELEASE" != "true" ] || [ -z "$changed_sources" ]; then
@@ -85,17 +93,36 @@ fi
 matrix="$(jq -c --arg repository "$base_repository" \
   '{include: [.[] | select(.action == "build") | {xcode, base: "\($repository)@\(.base_digest)"}]}' <<< "$manifest")"
 carry="$(jq -c '[.[] | select(.action == "carry") | .xcode]' <<< "$manifest")"
-stacked_matrix="$(jq -c --arg repository "$base_repository" \
-  '{include: [.[] | select(.stacked_action == "build") | {xcode, base: "\($repository)@\(.base_digest)"}]}' <<< "$manifest")"
+# The macOS 27 builder label of every profile: the one stacked-builders.json
+# names it under, or else the label with the fewest profiles so far.
+builders="$(jq -c --slurpfile named "$builders_file" '
+  ($named[0] | keys_unsorted) as $labels
+  | if ($labels | length) == 0 then error("stacked-builders.json names no builder") else . end
+  | [.[].xcode] as $xcodes
+  | (reduce $xcodes[] as $xcode ({};
+      .[$xcode] = ([$labels[] | select(. as $label | $named[0][$label] | index([$xcode]))] | first))) as $assigned
+  | reduce ($xcodes[] | select($assigned[.] == null)) as $xcode ($assigned;
+      . as $so_far
+      | .[$xcode] = ($labels | min_by(. as $label | [$so_far[] | select(. == $label)] | length)))
+' <<< "$manifest")"
+# `keep` lists the build's base, then the bases of the builder's other
+# profiles, rebuilt or carried, which its disk reclaim keeps cached for this
+# and later releases.
+stacked_matrix="$(jq -c --arg repository "$base_repository" --argjson builders "$builders" '
+  map(.base = "\($repository)@\(.base_digest)" | .builder = $builders[.xcode]) as $profiles
+  | {include: [$profiles[] | select(.stacked_action == "build") | . as $build | {
+      xcode,
+      base,
+      builder,
+      keep: (reduce ([$build.base] + [$profiles[] | select(.builder == $build.builder) | .base])[] as $base
+        ([]; if index([$base]) then . else . + [$base] end) | join("\n"))
+    }]}' <<< "$manifest")"
 stacked_carry="$(jq -c '[.[] | select(.stacked_action == "carry") | .xcode]' <<< "$manifest")"
-# The bases of the stacked builds, which the stacked builder keeps cached
-# between them, in the order the builds run.
-stacked_bases="$(jq -r '.include[].base' <<< "$stacked_matrix")"
 build_manifest="$(jq -c '[.[] | {xcode, base_digest, standalone_base_digest, stacked: true}]' <<< "$manifest")"
 
 summary="$(
   echo "Runner image release: ${release} (${previous:-none} -> ${version})"
-  jq -r '.[] | "- \(.xcode): stacked \(.stacked_action) (\(.base_digest)), standalone \(.action) (\(.standalone_base_digest))"' <<< "$manifest"
+  jq -r --argjson builders "$builders" '.[] | "- \(.xcode): stacked \(.stacked_action) on \($builders[.xcode]) (\(.base_digest)), standalone \(.action) (\(.standalone_base_digest))"' <<< "$manifest"
 )"
 echo "$summary"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
@@ -113,9 +140,6 @@ if [ -n "${GITHUB_OUTPUT:-}" ]; then
     echo "stacked-build-count=${stacked_build_count}"
     echo "stacked-matrix=${stacked_matrix}"
     echo "stacked-carry=${stacked_carry}"
-    echo "stacked-bases<<EOF"
-    echo "$stacked_bases"
-    echo "EOF"
     echo "manifest=${build_manifest}"
   } >> "$GITHUB_OUTPUT"
 fi

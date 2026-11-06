@@ -19,7 +19,7 @@ Both use sample data; no coding work or pull-request creation runs.
 
 On normal launch, sign in to Tuist. The app loads the signed-in user's feature
 flags from the selected server. Users whose flags include `ai` can see Threads
-and **Profile → AI subscriptions**, including outside DEBUG builds. Threads uses
+and **Profile → AI → AI subscriptions**, including outside DEBUG builds. Threads uses
 account-scoped HTTP APIs and Phoenix revision notifications on that server;
 server access additionally requires account administration and private-thread
 ownership. New threads require a model selected from the owner's freshly

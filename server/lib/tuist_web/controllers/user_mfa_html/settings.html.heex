@@ -8,106 +8,24 @@
   }
 >
   <.alert :if={@error} type="secondary" status="error" size="small" title={@error} />
-  <%= if @enabled do %>
-    <p>
-      {dgettext(
-        "dashboard_auth",
-        "Enter an authentication or recovery code to confirm this change."
-      )}
-    </p>
-    <form
-      id={if @proof_action == :regenerate, do: "mfa-regenerate", else: "mfa-disable"}
-      method="post"
-      action={
-        if @proof_action == :regenerate,
-          do: ~p"/users/settings/mfa/recovery",
-          else: ~p"/users/settings/mfa/disable"
-      }
-      data-part="form"
-    >
-      <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
-      <.text_input
-        id="mfa-code"
-        name="mfa_code"
-        value=""
-        label={dgettext("dashboard_auth", "Authentication or recovery code")}
-        show_prefix={false}
-        autocomplete="one-time-code"
-        required
-      />
-    </form>
+  <%= if !@fresh_session? do %>
+    <.reauthentication_notice return_to={~p"/users/settings/mfa"} />
   <% else %>
-    <%= if @secret do %>
-      <div data-part="authenticator-setup">
-        <p>
-          {dgettext(
-            "dashboard_auth",
-            "Scan the QR code, then enter the six-digit code."
-          )}
-        </p>
-        <img
-          id="mfa-setup-qr"
-          src={enrollment_qr(@secret, @current_user.email)}
-          width="240"
-          height="240"
-          alt={dgettext("dashboard_auth", "Authenticator setup QR code")}
-        />
-        <details id="mfa-manual-setup">
-          <summary>{dgettext("dashboard_auth", "Can't scan the QR code?")}</summary>
-          <p>{dgettext("dashboard_auth", "Enter this setup key in your authenticator app.")}</p>
-          <.text_input
-            id="mfa-setup-key"
-            name="setup_key"
-            value={Base.encode32(@secret, padding: false)}
-            label={dgettext("dashboard_auth", "Setup key")}
-            readonly
-            autocomplete="off"
-            data-1p-ignore
-            dir="ltr"
-            show_prefix={false}
-          >
-            <:suffix>
-              <.button
-                type="button"
-                variant="secondary"
-                size="small"
-                icon_only
-                data-copy-setup-key
-                data-copy-success={dgettext("dashboard_auth", "Setup key copied")}
-                data-copy-failure={
-                  dgettext(
-                    "dashboard_auth",
-                    "Could not copy automatically. Select and copy the setup key."
-                  )
-                }
-                aria-label={dgettext("dashboard_auth", "Copy setup key")}
-              >
-                <.copy />
-              </.button>
-            </:suffix>
-          </.text_input>
-          <span data-copy-status role="status" class="auth-copy-status"></span>
-        </details>
-        <details id="mfa-password-manager-help">
-          <summary>{dgettext("dashboard_auth", "Using 1Password?")}</summary>
-          <p>
-            {dgettext(
-              "dashboard_auth",
-              "Open the browser extension, select your Tuist login, then choose Scan 2FA QR code from the three-dot menu. Save it, then enter the generated code."
-            )}
-          </p>
-          <p>
-            {dgettext(
-              "dashboard_auth",
-              "To use the setup key instead, edit your Tuist login in 1Password, add a One-Time Password field, paste the key, and save."
-            )}
-          </p>
-        </details>
-      </div>
+    <%= if @enabled do %>
+      <p>
+        {dgettext(
+          "dashboard_auth",
+          "Enter an authentication or recovery code to confirm this change."
+        )}
+      </p>
       <form
-        id="mfa-enrollment"
+        id={if @proof_action == :regenerate, do: "mfa-regenerate", else: "mfa-disable"}
         method="post"
-        action={~p"/users/settings/mfa/confirm"}
+        action={
+          if @proof_action == :regenerate,
+            do: ~p"/users/settings/mfa/recovery",
+            else: ~p"/users/settings/mfa/disable"
+        }
         data-part="form"
       >
         <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
@@ -115,70 +33,161 @@
           id="mfa-code"
           name="mfa_code"
           value=""
-          label={dgettext("dashboard_auth", "Authentication code")}
+          label={dgettext("dashboard_auth", "Authentication or recovery code")}
           show_prefix={false}
           autocomplete="one-time-code"
-          inputmode="numeric"
           required
         />
       </form>
-      <form
-        id="mfa-cancel"
-        method="post"
-        action={~p"/users/settings/mfa/cancel"}
-        data-part="form"
-      >
-        <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
-      </form>
     <% else %>
-      <form id="mfa-setup" method="post" action={~p"/users/settings/mfa/enroll"} data-part="form">
-        <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
-      </form>
+      <%= if @secret do %>
+        <div data-part="authenticator-setup">
+          <p>
+            {dgettext(
+              "dashboard_auth",
+              "Scan the QR code, then enter the six-digit code."
+            )}
+          </p>
+          <img
+            id="mfa-setup-qr"
+            src={enrollment_qr(@secret, @current_user.email)}
+            width="240"
+            height="240"
+            alt={dgettext("dashboard_auth", "Authenticator setup QR code")}
+          />
+          <details id="mfa-manual-setup">
+            <summary>{dgettext("dashboard_auth", "Can't scan the QR code?")}</summary>
+            <p>{dgettext("dashboard_auth", "Enter this setup key in your authenticator app.")}</p>
+            <.text_input
+              id="mfa-setup-key"
+              name="setup_key"
+              value={Base.encode32(@secret, padding: false)}
+              label={dgettext("dashboard_auth", "Setup key")}
+              readonly
+              autocomplete="off"
+              data-1p-ignore
+              dir="ltr"
+              show_prefix={false}
+            >
+              <:suffix>
+                <.button
+                  type="button"
+                  variant="secondary"
+                  size="small"
+                  icon_only
+                  data-copy-setup-key
+                  data-copy-success={dgettext("dashboard_auth", "Setup key copied")}
+                  data-copy-failure={
+                    dgettext(
+                      "dashboard_auth",
+                      "Could not copy automatically. Select and copy the setup key."
+                    )
+                  }
+                  aria-label={dgettext("dashboard_auth", "Copy setup key")}
+                >
+                  <.copy />
+                </.button>
+              </:suffix>
+            </.text_input>
+            <span data-copy-status role="status" class="auth-copy-status"></span>
+          </details>
+          <details id="mfa-password-manager-help">
+            <summary>{dgettext("dashboard_auth", "Using 1Password?")}</summary>
+            <p>
+              {dgettext(
+                "dashboard_auth",
+                "Open the browser extension, select your Tuist login, then choose Scan 2FA QR code from the three-dot menu. Save it, then enter the generated code."
+              )}
+            </p>
+            <p>
+              {dgettext(
+                "dashboard_auth",
+                "To use the setup key instead, edit your Tuist login in 1Password, add a One-Time Password field, paste the key, and save."
+              )}
+            </p>
+          </details>
+        </div>
+        <form
+          id="mfa-enrollment"
+          method="post"
+          action={~p"/users/settings/mfa/confirm"}
+          data-part="form"
+        >
+          <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+          <.text_input
+            id="mfa-code"
+            name="mfa_code"
+            value=""
+            label={dgettext("dashboard_auth", "Authentication code")}
+            show_prefix={false}
+            autocomplete="one-time-code"
+            inputmode="numeric"
+            required
+          />
+        </form>
+        <form
+          id="mfa-cancel"
+          method="post"
+          action={~p"/users/settings/mfa/cancel"}
+          data-part="form"
+        >
+          <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+        </form>
+      <% else %>
+        <form
+          id="mfa-setup"
+          method="post"
+          action={~p"/users/settings/mfa/enroll"}
+          data-part="form"
+        >
+          <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+        </form>
+      <% end %>
     <% end %>
+    <div data-part="actions">
+      <.button
+        type="submit"
+        form={
+          cond do
+            @enabled and @proof_action == :regenerate -> "mfa-regenerate"
+            @enabled -> "mfa-disable"
+            @secret -> "mfa-enrollment"
+            true -> "mfa-setup"
+          end
+        }
+        variant={if @enabled and @proof_action == :disable, do: "destructive", else: "primary"}
+        size="large"
+        label={
+          cond do
+            @enabled and @proof_action == :regenerate ->
+              dgettext("dashboard_auth", "Generate new recovery codes")
+
+            @enabled ->
+              dgettext("dashboard_auth", "Disable two-factor authentication")
+
+            @secret ->
+              dgettext("dashboard_auth", "Enable two-factor authentication")
+
+            true ->
+              dgettext("dashboard_auth", "Set up authenticator app")
+          end
+        }
+      />
+      <.button
+        :if={not @enabled and @secret}
+        type="submit"
+        form="mfa-cancel"
+        variant="secondary"
+        size="large"
+        label={dgettext("dashboard_auth", "Cancel setup")}
+      />
+      <.link_button
+        :if={@enabled or is_nil(@secret)}
+        href={~p"/users/settings/mfa"}
+        variant="primary"
+        size="large"
+        label={dgettext("dashboard_auth", "Cancel")}
+      />
+    </div>
   <% end %>
-  <div data-part="actions">
-    <.button
-      type="submit"
-      form={
-        cond do
-          @enabled and @proof_action == :regenerate -> "mfa-regenerate"
-          @enabled -> "mfa-disable"
-          @secret -> "mfa-enrollment"
-          true -> "mfa-setup"
-        end
-      }
-      variant={if @enabled and @proof_action == :disable, do: "destructive", else: "primary"}
-      size="large"
-      label={
-        cond do
-          @enabled and @proof_action == :regenerate ->
-            dgettext("dashboard_auth", "Generate new recovery codes")
-
-          @enabled ->
-            dgettext("dashboard_auth", "Disable two-factor authentication")
-
-          @secret ->
-            dgettext("dashboard_auth", "Enable two-factor authentication")
-
-          true ->
-            dgettext("dashboard_auth", "Set up authenticator app")
-        end
-      }
-    />
-    <.button
-      :if={not @enabled and @secret}
-      type="submit"
-      form="mfa-cancel"
-      variant="secondary"
-      size="large"
-      label={dgettext("dashboard_auth", "Cancel setup")}
-    />
-    <.link_button
-      :if={@enabled or is_nil(@secret)}
-      href={~p"/users/settings/mfa"}
-      variant="primary"
-      size="large"
-      label={dgettext("dashboard_auth", "Cancel")}
-    />
-  </div>
 </.security_settings_frame>

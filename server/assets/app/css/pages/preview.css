@@ -121,6 +121,7 @@
   & > [data-part="actions"] {
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
     justify-content: center;
     gap: var(--noora-spacing-4);
     padding-bottom: var(--noora-spacing-7);

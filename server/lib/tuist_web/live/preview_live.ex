@@ -33,6 +33,7 @@ defmodule TuistWeb.PreviewLive do
 
     can_delete_preview = Authorization.authorize(:preview_delete, current_user, preview.project) == :ok
     desktop_preview = AppBuilds.desktop_preview?(preview)
+    preview_path = path(%URI{}, ~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}")
 
     {
       :ok,
@@ -70,6 +71,10 @@ defmodule TuistWeb.PreviewLive do
       |> assign(
         :preview_url,
         url(~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}")
+      )
+      |> assign(
+        :mobile_app_href,
+        {:tuist, "//app#{preview_path}?#{URI.encode_query(%{"server" => String.trim_trailing(url(~p"/"), "/")})}"}
       )
       |> assign(:can_delete_preview, can_delete_preview),
       layout: layout

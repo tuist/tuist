@@ -5,9 +5,11 @@ defmodule TuistWeb.DocsLive do
 
   import TuistWeb.Docs.MarkdownComponents, warn: false
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Docs
   alias Tuist.Docs.Paths
   alias Tuist.Docs.Redirects
+  alias Tuist.Docs.ReleaseStatus
   alias Tuist.Docs.Sidebar
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.OpenGraph
@@ -34,6 +36,8 @@ defmodule TuistWeb.DocsLive do
     socket =
       socket
       |> assign(:locale, locale)
+      |> assign(:release_status, AsyncResult.loading())
+      |> assign(:release_refresh_timer, nil)
       |> attach_hook(:assign_current_path, :handle_params, fn _params, url, socket ->
         uri = URI.parse(url)
         current_path = if(is_nil(uri.query), do: uri.path, else: "#{uri.path}?#{uri.query}")
@@ -44,6 +48,13 @@ defmodule TuistWeb.DocsLive do
   end
 
   def handle_params(params, url, socket) do
+    if socket.assigns.release_refresh_timer, do: Process.cancel_timer(socket.assigns.release_refresh_timer)
+
+    socket =
+      socket
+      |> assign(:release_refresh_timer, nil)
+      |> assign(:release_status, AsyncResult.loading())
+
     case socket.assigns.live_action do
       :overview -> handle_overview(socket)
       :show -> handle_show(params, url, socket)
@@ -125,10 +136,36 @@ defmodule TuistWeb.DocsLive do
          |> assign(:head_image, head_image)
          |> assign(:head_twitter_card, "summary_large_image")
          |> assign(:head_markdown_path, Paths.markdown_path_from_slug(path))
+         |> load_release_status(path)
          |> StructuredMarkup.put_structured_data([
            StructuredMarkup.get_documentation_structured_data(page.title, page.description, public_path),
            StructuredMarkup.get_breadcrumbs_structured_data(docs_breadcrumbs(page.title, locale, public_path))
          ])}
+    end
+  end
+
+  def handle_info(:refresh_release_status, %{assigns: %{view: :show}} = socket) do
+    {:noreply, load_release_status(socket, socket.assigns.requested_slug)}
+  end
+
+  def handle_info(:refresh_release_status, socket), do: {:noreply, socket}
+
+  defp load_release_status(socket, path) do
+    components =
+      case path |> String.split("/", trim: true) |> Enum.drop(1) do
+        ["cli", "release", page] when page in ["channels", "calendar"] -> [:cli]
+        ["guides", "server", "self-host", "release", page] when page in ["channels", "calendar"] -> [:server, :kura]
+        _ -> []
+      end
+
+    if connected?(socket) && components != [] do
+      socket
+      |> assign(:release_refresh_timer, Process.send_after(self(), :refresh_release_status, to_timeout(minute: 1)))
+      |> assign_async(:release_status, fn ->
+        {:ok, %{release_status: Map.new(components, &{&1, ReleaseStatus.get(&1)})}}
+      end)
+    else
+      socket
     end
   end
 

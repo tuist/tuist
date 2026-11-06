@@ -15,6 +15,7 @@ defmodule TuistWeb.UserPasskeyController do
   """
   use TuistWeb, :controller
 
+  alias Tuist.Accounts.UserMFA
   alias Tuist.Accounts.UserPasskey
   alias Tuist.Environment
   alias TuistWeb.Authentication
@@ -34,6 +35,7 @@ defmodule TuistWeb.UserPasskeyController do
     conn
     |> put_view(TuistWeb.UserPasskeyHTML)
     |> render(:settings,
+      fresh_session?: UserMFA.fresh_session?(conn.assigns.current_user_session, conn.assigns.current_user),
       head_title: dgettext("dashboard_auth", "Add a passkey · Tuist")
     )
   end
@@ -46,7 +48,9 @@ defmodule TuistWeb.UserPasskeyController do
         json(conn, %{publicKey: options, token: encrypt_ceremony(conn, {:registration, user.id}, state)})
 
       {:error, reason} ->
-        conn |> put_status(:forbidden) |> json(%{error: error_message(reason)})
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: error_message(reason), reauthenticate: reason == :reauthentication_required})
     end
   end
 
@@ -97,6 +101,7 @@ defmodule TuistWeb.UserPasskeyController do
         |> render(:confirm_delete,
           passkey: passkey,
           last_passkey?: length(passkeys) == 1,
+          fresh_session?: UserMFA.fresh_session?(conn.assigns.current_user_session, conn.assigns.current_user),
           head_title: dgettext("dashboard_auth", "Remove passkey · Tuist")
         )
     end
@@ -168,7 +173,7 @@ defmodule TuistWeb.UserPasskeyController do
   def decrypt_ceremony(_conn, _purpose, _token), do: nil
 
   defp error_message(:reauthentication_required),
-    do: dgettext("dashboard_auth", "Sign out and sign in again before changing passkeys.")
+    do: dgettext("dashboard_auth", "Sign in again to continue changing passkeys.")
 
   defp error_message(:too_many_passkeys), do: dgettext("dashboard_auth", "Remove a passkey before adding another one.")
 

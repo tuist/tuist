@@ -195,16 +195,35 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   end
 
   test "displays SSO and SCIM sections for organizations", %{conn: conn, account: account} do
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
     assert html =~ "Single Sign-On"
     assert html =~ "Enable Single Sign-On"
     assert html =~ "SCIM provisioning"
     assert html =~ "/scim/v2"
+    refute has_element?(lv, "#passkeys-settings")
+    refute has_element?(lv, "#two-factor-settings")
+  end
+
+  test "personal authentication settings expose independent passkey and authenticator management", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
+
+    assert has_element?(view, "#passkeys-settings a[href='/users/settings/passkeys']", "Manage passkeys")
+    assert has_element?(view, "#passkeys-settings", "0 passkeys added")
+    assert has_element?(view, "#two-factor-settings a[href='/users/settings/mfa']", "Manage two-factor authentication")
+    assert has_element?(view, "#two-factor-settings", "Not enabled")
+    refute has_element?(view, "#two-factor-settings", "passkeys")
+
+    stub(Environment, :email_auth_enabled?, fn -> false end)
+    {:ok, view, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
+    refute has_element?(view, "#passkeys-settings")
+    assert has_element?(view, "#two-factor-settings")
   end
 
   test "shows workload identities directly for personal accounts without SSO or SCIM", %{conn: conn, user: user} do
     {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
-    assert has_element?(lv, ~s([data-part=mfa-card] a[href="/users/settings/mfa"]))
+    assert has_element?(lv, ~s(#two-factor-settings a[href="/users/settings/mfa"]))
     assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
     lv |> element("#oidc-configuration-toggle") |> render_click()
     refute has_element?(lv, "#oidc-trust-policy-form[hidden]")

@@ -1,7 +1,11 @@
 package executiongateway
 
 import (
+	"bytes"
+	"log"
 	"net/http"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +13,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -79,5 +87,36 @@ func TestExecutedActionPhasesAreAttributed(t *testing.T) {
 	}
 	if n := testutil.CollectAndCount(m.phases); n != 3 {
 		t.Fatalf("%d phase series; the reversed output upload must not be recorded", n)
+	}
+}
+
+func TestPhaseLogIncludesCASReadsOnlyForSlowInputFetches(t *testing.T) {
+	var out bytes.Buffer
+	log.SetOutput(&out)
+	defer log.SetOutput(os.Stderr)
+	reads, _ := structpb.NewStruct(map[string]any{"kind": "tuist.cas_reads", "slowest": []any{map[string]any{"rpc": "stream", "ms": 160000}}})
+	other, _ := structpb.NewStruct(map[string]any{"kind": "other"})
+	readsAny, _ := anypb.New(reads)
+	otherAny, _ := anypb.New(other)
+	delete(reads.Fields, "kind")
+	start := time.Unix(1_000, 0)
+	for _, fetch := range []time.Duration{slowInputFetch - time.Millisecond, slowInputFetch} {
+		out.Reset()
+		newMetrics(prometheus.NewRegistry()).observePhases(&re.ExecutedActionMetadata{
+			InputFetchStartTimestamp: timestamppb.New(start), InputFetchCompletedTimestamp: timestamppb.New(start.Add(fetch)),
+			AuxiliaryMetadata: []*anypb.Any{otherAny, readsAny},
+		})
+		line := strings.TrimSpace(out.String())
+		_, suffix, logged := strings.Cut(line, " cas_reads=")
+		if slow := fetch >= slowInputFetch; logged != slow {
+			t.Fatalf("input fetch %v logged %q; want CAS reads only from %v", fetch, line, slowInputFetch)
+		}
+		if !logged {
+			continue
+		}
+		var got structpb.Struct
+		if protojson.Unmarshal([]byte(suffix), &got) != nil || !proto.Equal(&got, reads) {
+			t.Fatalf("logged CAS reads %q; want %v", suffix, reads)
+		}
 	}
 }

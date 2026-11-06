@@ -9,7 +9,50 @@
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
 
-  & [data-part="mfa-card"],
+  & > [data-part="security-card-section"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    border-radius: var(--noora-radius-8);
+    padding: 0;
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-grow: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      padding: var(--noora-spacing-8);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="status"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-body-small);
+      }
+    }
+
+    & > [data-part="content"] {
+      padding: var(--noora-spacing-8);
+    }
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      align-items: stretch;
+
+      & > [data-part="content"] {
+        padding-top: 0;
+      }
+    }
+  }
+
   & [data-part="sso-card"],
   & [data-part="scim-card"] {
     display: flex;

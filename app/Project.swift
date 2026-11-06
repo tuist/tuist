@@ -139,6 +139,7 @@ let project = Project(
                 .external(name: "FluidMenuBarExtra", condition: .when([.macos])),
                 .external(name: "Sparkle", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
+                .target(name: "TuistNavigation", condition: .when([.ios])),
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
                 .target(name: "TuistProfile", condition: .when([.ios])),
@@ -187,6 +188,7 @@ let project = Project(
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistSimulator", path: "../"),
+                .target(name: "TuistNavigation"),
                 .target(name: "TuistErrorHandling"),
                 .target(name: "TuistNoora"),
                 .target(name: "TuistAppStorage"),
@@ -210,6 +212,25 @@ let project = Project(
                 .project(target: "TuistSimulator", path: "../"),
                 .external(name: "Mockable"),
             ]
+        ),
+        .target(
+            name: "TuistNavigation",
+            destinations: [.mac, .iPhone],
+            product: .staticFramework,
+            bundleId: "dev.tuist.navigation",
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0"),
+            sources: ["Sources/TuistNavigation/**"]
+        ),
+        .target(
+            name: "TuistNavigationTests",
+            destinations: [.mac, .iPhone],
+            product: .unitTests,
+            bundleId: "dev.tuist.navigation-tests",
+            deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0"),
+            infoPlist: .default,
+            sources: ["Tests/TuistNavigationTests/**"],
+            resources: ["Fixtures/Navigation/routes.json"],
+            dependencies: [.target(name: "TuistNavigation")]
         ),
         .target(
             name: "TuistNoora",
@@ -291,6 +312,8 @@ let project = Project(
             dependencies: [
                 .target(name: "TuistAuthentication"),
                 .target(name: "TuistAppStorage"),
+                .target(name: "TuistNoora"),
+                .target(name: "TuistErrorHandling"),
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
             ]
@@ -379,6 +402,11 @@ let project = Project(
         ),
     ],
     schemes: [
+        .scheme(
+            name: "TuistNavigation",
+            buildAction: .buildAction(targets: [.target("TuistNavigation")]),
+            testAction: .targets([.testableTarget(target: "TuistNavigationTests")])
+        ),
         .scheme(
             name: "TuistPreviews",
             buildAction: .buildAction(targets: [.target("TuistPreviews")]),

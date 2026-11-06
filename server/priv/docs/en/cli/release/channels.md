@@ -10,6 +10,12 @@
 
 The Tuist CLI ships through three channels with different stability guarantees. The recommended install is **stable** and moves slowly: it does not advance every time a feature merges, so upgrading no longer means absorbing a batch of unrelated changes. Early adopters can still run per-commit builds on **canary**, and the **release candidate** channel lets teams soak an upcoming line before it becomes stable.
 
+## Current releases {#live-release-status}
+
+Stable promotion is scheduled for Mondays at 06:00 UTC. After a successful scheduled promotion, the next release candidate is cut from `main`, and subsequent canaries move to the following minor. See the <.localized_link href="/cli/release/calendar">release calendar</.localized_link> for upcoming windows and recent releases, including patches and backports.
+
+<.release_status status={@release_status} components="cli" calendar_path="/cli/release/calendar" locale={@locale} />
+
 ## The channels {#the-channels}
 
 | Channel | Version format | Cadence | Resolved by default? |

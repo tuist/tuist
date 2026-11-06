@@ -127,7 +127,7 @@
                     guard let client, scenePhase == .active, selectedSession == nil else { return }
                     await load()
                     await client.watch(invalidate: { await load(preserveLoaded: true) }, disconnected: {
-                        error = String(localized: "Connection lost. Reconnecting…")
+                        if error == nil { error = String(localized: "Connection lost. Reconnecting…") }
                     })
                 }
                 .onDisappear { loadID = UUID() }

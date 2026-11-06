@@ -99,7 +99,12 @@ defmodule TuistWeb.UserLoginLiveTest do
 
       assert has_element?(lv, "input#email[autocomplete='username webauthn']")
       assert has_element?(lv, "input#password[autocomplete='current-password']")
-      assert has_element?(lv, "#passkey-login", "Log in with a passkey")
+
+      assert has_element?(
+               lv,
+               "#login_form ~ #passkey-login[hidden] > .noora-line-divider + button",
+               "Log in with a passkey"
+             )
     end
 
     test "hides the password form and sign-up link when email auth is disabled", %{conn: conn} do

@@ -594,10 +594,12 @@ but not boot it.
   triggers above, and when the previous release published none for it
   (its `build-manifest.json` entry lacks `stacked: true`). Otherwise
   `carry` re-tags it like the standalone tag. The `build-stacked` job
-  runs on the macOS 27 builders (`macos-27` label), and the release gate
+  runs on the macOS 27 builders (`macos-27` label), each profile on the
+  builder `stacked-builders.json` pins it to, and the release gate
   requires both tags of every profile. Pulling the base is most of a
-  stacked build, so its disk reclaim keeps the release's other bases
-  cached, evicting the ones later in `profiles.json` first.
+  stacked build, so its disk reclaim keeps the bases of the builder's
+  profiles cached across releases (`../vm-image-builder.md`, "Stacked
+  build labels").
 - **Where it runs.** `server-deployment.yml` resolves each published
   stacked tag's digest into `runnersFleet.runnerImageStackedDigests`.
   Rack pools run it when `rackFleet.runners.stackedImages` is on, which

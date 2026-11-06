@@ -1225,7 +1225,8 @@ defmodule TuistWeb.Router do
         NotificationRulesController,
         :condition_options
 
-    resources "/me/notification-rules", NotificationRulesController, only: [:index, :show, :create, :update, :delete]
+    resources "/me/notification-rules", NotificationRulesController, only: [:index, :show, :create, :delete]
+    patch "/me/notification-rules/:id", NotificationRulesController, :update
 
     get "/me/feature-flags", FeatureFlagsController, :index
     get "/me/ai-subscriptions", AISubscriptionsController, :index
