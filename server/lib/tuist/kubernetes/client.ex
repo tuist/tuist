@@ -148,6 +148,12 @@ defmodule Tuist.Kubernetes.Client do
     create_audience_token_review(token, "tuist-amp-orbs", opts)
   end
 
+  # Audience of the projected token a Claude Code orchestrator workload hands
+  # Tuist with each work order. Must match `Tuist.Sandboxes.ClaudeCodeRuntime`.
+  def create_claude_code_provider_token_review(token, opts \\ []) when is_binary(token) do
+    create_audience_token_review(token, "tuist-claude-code-runners", opts)
+  end
+
   # Audience of the token a macOS runner host mints for its own per-machine
   # ServiceAccount to list the cache masters it should prefetch. Distinct from
   # the dispatch audience, which every guest holds a token for: the list carries
@@ -197,7 +203,9 @@ defmodule Tuist.Kubernetes.Client do
         end
 
       {:ok, %{"status" => %{"authenticated" => true, "user" => user}}} ->
-        if audience == "tuist-amp-orbs", do: {:error, :unauthenticated}, else: parse_sa_principal(user)
+        if audience in ["tuist-amp-orbs", "tuist-claude-code-runners"],
+          do: {:error, :unauthenticated},
+          else: parse_sa_principal(user)
 
       {:ok, %{"status" => %{"authenticated" => false}}} ->
         {:error, :unauthenticated}

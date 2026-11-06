@@ -441,6 +441,14 @@ defmodule Tuist.Docs.Sidebar do
                 icon: "brand_once"
               }
             ]
+          },
+          %Item{
+            label: "Sandboxes",
+            slug: "/en/guides/features/sandboxes",
+            items: [
+              %Item{label: "Amp", slug: "/en/guides/features/sandboxes/amp"},
+              %Item{label: "Claude", slug: "/en/guides/features/sandboxes/claude"}
+            ]
           }
         ]
       },

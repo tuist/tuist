@@ -13,6 +13,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
 
     attrs = %{
       account_id: account.id,
+      kind: Keyword.get(opts, :kind, :managed_agents),
       anthropic_environment_id:
         Keyword.get(opts, :anthropic_environment_id, "env_#{TuistTestSupport.Utilities.unique_integer()}"),
       environment_key: Keyword.get(opts, :environment_key, "sk-ant-env-#{TuistTestSupport.Utilities.unique_integer()}"),
@@ -57,6 +58,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
       repository_ref: Keyword.get(opts, :repository_ref),
       model: Keyword.get(opts, :model, "claude-sonnet-5"),
       budget_cents: Keyword.get(opts, :budget_cents),
+      platform: Keyword.get(opts, :platform),
       last_status: Keyword.get(opts, :last_status, "running"),
       last_stop_reason: Keyword.get(opts, :last_stop_reason),
       created_by_user_id: Keyword.get(opts, :created_by_user_id)

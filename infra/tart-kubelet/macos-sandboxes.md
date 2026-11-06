@@ -3,7 +3,11 @@
 macOS sandboxes use the existing account API and Managed Agents session router.
 macOS sandboxes share the `sandboxes` account feature flag with Linux sandboxes;
 there is no separate macOS flag. Select `platform: "darwin"` when creating a sandbox
-or agent environment. Defaults are template `macos`, 8 vCPU, 8 GiB RAM and a
+or agent environment, or per Managed Agents session with `platform` on Tuist's
+agent-sessions API or the `tuist_platform` session metadata key (`macos` or
+`darwin`) on any agent environment. Claude Code (desktop, web, CLI) selects
+the OS by environment: connect a `claude_code` environment with
+`platform: "darwin"` (`infra/claude-code-runners/README.md`). Defaults are template `macos`, 8 vCPU, 8 GiB RAM and a
 10 GB workspace. The other native shapes are 8 vCPU with 16 or 24 GiB RAM.
 The workspace is `/Users/runner/work`; Linux requests retain their existing defaults.
 

@@ -9,6 +9,7 @@
     },
     "items": {
       "agentic-coding": { "text": "Agentic coding" },
+      "amp": { "text": "Amp" },
       "api": { "text": "API" },
       "bazel": { "text": "Bazel" },
       "bazel-cache": { "text": "Bazel cache" },
@@ -16,6 +17,7 @@
       "build-and-publish": { "text": "Build and publish" },
       "buildkite": { "text": "Buildkite" },
       "cache-volumes": { "text": "Cache volumes" },
+      "claude": { "text": "Claude" },
       "compatibility": { "text": "Compatibility" },
       "coverage": { "text": "Coverage" },
       "data-retention": { "text": "Data retention" },
@@ -43,6 +45,7 @@
       "rust": { "text": "Rust" },
       "rust-cache": { "text": "Rust cache" },
       "rust-project": { "text": "Rust project" },
+      "sandboxes": { "text": "Sandboxes" },
       "scim-provisioning": { "text": "SCIM provisioning" },
       "server-api": { "text": "Server API" },
       "single-sign-on": { "text": "Single Sign-On" },

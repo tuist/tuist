@@ -329,6 +329,9 @@ spec:
               value: {{ .Values.ampOrbProvider.url | quote }}
             - name: TUIST_AMP_PROVIDER_IMAGE
               value: {{ printf "%s:%s-provider" .Values.ampOrbProvider.image.repository .Values.sandboxes.templateImage.tag | quote }}
+            # Claude Code orchestrators share the provider namespace and identity review.
+            - name: TUIST_CLAUDE_CODE_PROVIDER_IMAGE
+              value: {{ printf "%s:%s-claude-code-provider" .Values.ampOrbProvider.image.repository .Values.sandboxes.templateImage.tag | quote }}
             - name: TUIST_AMP_PROVIDER_NODE_SELECTOR
               value: {{ .Values.ampOrbProvider.nodeSelector | toJson | quote }}
             {{- end }}
