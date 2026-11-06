@@ -42,16 +42,6 @@ The workspace disk is 10 GB by default and can grow up to 100 GB.
 
 macOS sandboxes share Apple silicon hosts with Tuist's macOS runners, and CI jobs come first. When the hosts are busy with CI, a new or resumed macOS sandbox waits until a host frees up, and it starts more slowly than a Linux one.
 
-## Lifecycle {#lifecycle}
-
-A sandbox is in one of these states:
-
-- **Running**: the agent is working, or just finished a turn.
-- **Paused**: the agent has been idle, so the sandbox was stopped with its disk kept. It resumes automatically when the agent's next turn arrives, with its files intact.
-- **Archived**: a paused Linux sandbox was moved to object storage, either because you archived it or, for Amp orbs, because it stayed paused for a long time. It resumes like a paused one, after a slower restore.
-
-A sandbox that stays paused, or in an error state, for 14 days is deleted. A session that comes back after that gets a fresh sandbox with its repository checked out again. <.localized_link href="/guides/features/sandboxes/amp">Amp orbs</.localized_link> follow Amp's own lifecycle instead. You can always pause, resume or delete a sandbox yourself with the [CLI](#cli).
-
 ## Get started with the CLI {#cli}
 
 Create a sandbox and run commands in it from your terminal with `tuist sandbox`.
