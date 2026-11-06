@@ -179,9 +179,11 @@ per-node collection turned them into an unbounded series count:
 - `UNSUPPORTED_L3_PROTOCOL`, whatever the L4 protocol. Cilium runs IPv4-only, so
   these are IPv6 packets, mostly router and neighbour discovery from the hosting
   network.
-- `POLICY_DENY`: Internet scanners turned away by the platform chart's
-  `cluster-ports-no-world` deny rule. Per-node volume remains in the agent's
-  `cilium_drop_count_total{reason="Policy denied by denylist"}`; use
+- `POLICY_DENY`: Internet scanners turned away by the `world` ingressDeny host
+  policies (the platform chart's `cluster-ports-no-world` and the tuist chart's
+  egress-tree-agent `*-metrics-no-world`). Per-agent volume remains in
+  `cilium_drop_count_total{reason="Policy denied by denylist"}`, keyed by Cilium
+  `pod`; join `kube_pod_info` on `pod` for the node. Use
   `hubble observe --verdict DROPPED` on the node for live senders.
 
 `POLICY_DENIED`, the allow-list denial used by the Kura runbook, is kept.

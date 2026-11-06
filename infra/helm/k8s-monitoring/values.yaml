@@ -2273,10 +2273,10 @@ k8s-monitoring:
           //   packet reaching a node is dropped, whatever its L4 protocol.
           //   Most of it is router and neighbour discovery from the hosting
           //   network.
-          // - POLICY_DENY: the platform chart's `cluster-ports-no-world`
-          //   ingressDeny turning away Internet scanners. The per-node count
-          //   stays in the agent's cilium_drop_count_total
-          //   ("Policy denied by denylist").
+          // - POLICY_DENY: the `world` ingressDeny host policies (platform
+          //   `cluster-ports-no-world`, tuist `*-metrics-no-world`) turning
+          //   away Internet scanners. The per-agent count stays in
+          //   cilium_drop_count_total ("Policy denied by denylist").
           // POLICY_DENIED, a different reason, is kept: it is the
           // allow-list denial the Kura runbook attributes by source.
           rule {
