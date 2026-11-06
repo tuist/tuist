@@ -82,6 +82,83 @@ class ThreadsViewModelTest {
         }
 
     @Test
+    fun `disjoint inbox refresh restarts pagination and load more reaches every thread`() =
+        runTest(dispatcher) {
+            val old = (1..25).map { thread.copy(id = "old-$it") }
+            val new = (1..30).map { thread.copy(id = "new-$it") }
+            coEvery { api.list("alice", null) } returns ThreadPage(old)
+            enabled.value = setOf(FeatureFlag.AI)
+            val vm = viewModel()
+            runCurrent()
+            coEvery { api.list("alice", null) } returns ThreadPage(new.take(25), "fresh")
+            coEvery { api.list("alice", "fresh") } returns
+                ThreadPage(new.drop(25) + old.take(20), "tail")
+            coEvery { api.list("alice", "tail") } returns ThreadPage(old.drop(20))
+
+            vm.refresh(quiet = false)
+            assertEquals(new.take(25), vm.state.value.threads)
+            assertEquals("fresh", vm.state.value.cursor)
+            vm.loadMore()
+            runCurrent()
+            vm.loadMore()
+            runCurrent()
+            assertEquals(new + old, vm.state.value.threads)
+            assertNull(vm.state.value.cursor)
+        }
+
+    @Test
+    fun `contiguous inbox refresh preserves loaded tail and its cursor`() =
+        runTest(dispatcher) {
+            val old = (1..50).map { thread.copy(id = "old-$it") }
+            val new = thread.copy(id = "new")
+            enabled.value = setOf(FeatureFlag.AI)
+            for (cursor in listOf(null, "older")) {
+                coEvery { api.list("alice", null) } returns ThreadPage(old.take(25), "second")
+                coEvery { api.list("alice", "second") } returns ThreadPage(old.drop(25), cursor)
+                val vm = viewModel()
+                runCurrent()
+                vm.loadMore()
+                runCurrent()
+                coEvery { api.list("alice", null) } returns
+                    ThreadPage(listOf(new) + old.take(24), "fresh")
+                vm.refresh(quiet = false)
+                assertEquals(listOf(new) + old, vm.state.value.threads)
+                assertEquals(cursor, vm.state.value.cursor)
+                val reordered = listOf(old[1].copy(revision = 2), new, old[0]) + old.drop(2)
+                coEvery { api.list("alice", null) } returns
+                    ThreadPage(reordered.take(25), "fresh")
+                vm.refresh(quiet = false)
+                assertEquals(reordered, vm.state.value.threads)
+                assertEquals(cursor, vm.state.value.cursor)
+            }
+        }
+
+    @Test
+    fun `moved overlap and changed boundary do not prove inbox continuity`() =
+        runTest(dispatcher) {
+            val old = (1..25).map { thread.copy(id = "old-$it") }
+            val new = (1..24).map { thread.copy(id = "new-$it") }
+            enabled.value = setOf(FeatureFlag.AI)
+            val pages =
+                listOf(
+                    new + old.last().copy(revision = 2),
+                    new + old.first().copy(revision = 2),
+                    new + old.last(),
+                    emptyList(),
+                )
+            for (fresh in pages) {
+                coEvery { api.list("alice", null) } returns ThreadPage(old, "old-cursor")
+                val vm = viewModel()
+                runCurrent()
+                coEvery { api.list("alice", null) } returns
+                    ThreadPage(fresh, if (fresh.isEmpty()) null else "fresh")
+                vm.refresh(quiet = false)
+                assertEquals(fresh, vm.state.value.threads)
+                assertEquals(if (fresh.isEmpty()) null else "fresh", vm.state.value.cursor)
+            }
+        }
+
+    @Test
     fun `flag off performs no requests and revocation discards private state`() =
         runTest(dispatcher) {
             val vm = viewModel()

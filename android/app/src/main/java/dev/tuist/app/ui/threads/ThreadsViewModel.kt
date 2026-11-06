@@ -145,15 +145,24 @@ constructor(
             val selected = old.selected?.let { api.history(old.account, it.id) }
             if (fence != generation) return
             _state.update { current ->
+                val boundary = page.threads.lastOrNull()
+                val boundaryIndex = current.threads.indexOfFirst { it.id == boundary?.id }
+                val incoming = page.threads.map { it.id }.toSet()
+                // A moved overlap alone does not prove that the two recency windows meet.
+                val contiguous =
+                    boundaryIndex >= 0 &&
+                        boundary?.revision != null &&
+                        boundary == current.threads[boundaryIndex] &&
+                        current.threads.take(boundaryIndex + 1).all { it.id in incoming }
                 current.copy(
                     threads =
                         (page.threads.map { fresh ->
                                 val existing = current.threads.find { it.id == fresh.id }
                                 if ((existing?.revision ?: 0) > (fresh.revision ?: 0)) existing!!
                                 else fresh
-                            } + current.threads)
+                            } + if (contiguous) current.threads else emptyList())
                             .distinctBy { it.id },
-                    cursor = if (current.threads.isEmpty()) page.nextCursor else current.cursor,
+                    cursor = if (contiguous) current.cursor else page.nextCursor,
                     selected =
                         if (current.selected?.id == selected?.id) merge(current.selected, selected)
                         else current.selected,

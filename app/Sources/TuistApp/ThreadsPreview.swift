@@ -197,8 +197,9 @@
                 if more {
                     sessions += page.threads.filter { value in !sessions.contains { $0.id == value.id } }
                 } else if preserving {
-                    let incoming = Set(page.threads.map(\.id))
-                    sessions = page.threads + sessions.filter { !incoming.contains($0.id) }
+                    let refreshed = ThreadPage(threads: sessions, nextCursor: nextCursor).mergingRefresh(page)
+                    sessions = refreshed.threads
+                    nextCursor = refreshed.nextCursor
                 } else { sessions = page.threads }
                 if !preserving { nextCursor = page.nextCursor == cursor ? nil : page.nextCursor }
                 error = nil

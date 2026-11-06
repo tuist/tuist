@@ -8,6 +8,26 @@ public struct ThreadPage: Decodable {
     public let threads: [DemoThread]
     public let nextCursor: String?
 
+    public init(threads: [DemoThread], nextCursor: String?) {
+        self.threads = threads
+        self.nextCursor = nextCursor
+    }
+
+    public func mergingRefresh(_ page: ThreadPage) -> ThreadPage {
+        guard let boundary = page.threads.last,
+              boundary.revision != nil,
+              let index = threads.firstIndex(where: { $0.id == boundary.id }),
+              threads[index] == boundary
+        else { return page }
+        let incoming = Set(page.threads.map(\.id))
+        // A moved overlap alone does not prove that the two recency windows meet.
+        guard threads[...index].allSatisfy({ incoming.contains($0.id) }) else { return page }
+        return ThreadPage(
+            threads: page.threads + threads.filter { !incoming.contains($0.id) },
+            nextCursor: nextCursor
+        )
+    }
+
     enum CodingKeys: String, CodingKey {
         case threads
         case nextCursor = "next_cursor"

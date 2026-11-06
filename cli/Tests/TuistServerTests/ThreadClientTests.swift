@@ -7,6 +7,46 @@
     struct ThreadClientTests {
         private let origin = URL(string: "https://self-hosted.example/prefix")!
 
+        @Test func disjointInboxRefreshRestartsAtTheFreshCursor() {
+            let old = (1 ... 25).map { thread(id: "old-\($0)") }
+            let new = (1 ... 30).map { thread(id: "new-\($0)") }
+            let loaded = ThreadPage(threads: old, nextCursor: nil)
+            let fresh = ThreadPage(threads: Array(new.prefix(25)), nextCursor: "fresh")
+            let refreshed = loaded.mergingRefresh(fresh)
+            #expect(refreshed.threads == fresh.threads)
+            #expect(refreshed.nextCursor == "fresh")
+        }
+
+        @Test(arguments: [nil, "older"] as [String?])
+        func contiguousInboxRefreshPreservesLoadedTailAndCursor(cursor: String?) {
+            let old = (1 ... 50).map { thread(id: "old-\($0)") }
+            let new = thread(id: "new")
+            let loaded = ThreadPage(threads: old, nextCursor: cursor)
+            let fresh = ThreadPage(threads: [new] + old.prefix(24), nextCursor: "fresh")
+            let refreshed = loaded.mergingRefresh(fresh)
+            #expect(refreshed.threads == [new] + old)
+            #expect(refreshed.nextCursor == cursor)
+            let reordered = [thread(id: "old-2", revision: 2), new, old[0]] + old.dropFirst(2)
+            let updated = refreshed.mergingRefresh(ThreadPage(threads: Array(reordered.prefix(25)), nextCursor: "fresh"))
+            #expect(updated.threads == reordered)
+            #expect(updated.nextCursor == cursor)
+        }
+
+        @Test func movedOverlapDoesNotProveInboxContinuity() {
+            let old = (1 ... 25).map { thread(id: "old-\($0)") }
+            let new = (1 ... 24).map { thread(id: "new-\($0)") }
+            let loaded = ThreadPage(threads: old, nextCursor: "old-cursor")
+            for overlap in [thread(id: "old-25", revision: 2), thread(id: "old-1", revision: 2), old[24]] {
+                let fresh = ThreadPage(threads: new + [overlap], nextCursor: "fresh")
+                let refreshed = loaded.mergingRefresh(fresh)
+                #expect(refreshed.threads == fresh.threads)
+                #expect(refreshed.nextCursor == "fresh")
+            }
+            let empty = loaded.mergingRefresh(ThreadPage(threads: [], nextCursor: nil))
+            #expect(empty.threads.isEmpty)
+            #expect(empty.nextCursor == nil)
+        }
+
         @Test func listsWithSelectedOriginBearerAndOpaqueCursor() async throws {
             let recorder = Recorder(response: Data(#"{"threads":[],"next_cursor":"next+/="}"#.utf8))
             let page = try await client(recorder).threads(cursor: "opaque+/=")
@@ -211,9 +251,9 @@
             return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         }
 
-        private func thread(positions: [Int] = [], revision: Int = 1, before: Int? = nil) -> DemoThread {
+        private func thread(id: String = "thread", positions: [Int] = [], revision: Int = 1, before: Int? = nil) -> DemoThread {
             var thread = DemoThread(
-                id: "thread",
+                id: id,
                 title: "Title",
                 repository: "",
                 profile: "linux",
