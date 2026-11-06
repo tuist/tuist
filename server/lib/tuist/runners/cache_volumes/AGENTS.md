@@ -18,8 +18,9 @@ these schemas persist volume identities and per-job uses.
   idle period, including a weekend. Two runs leave out keys one run made for
   itself (every `e2e-reuse-*` key). Hosts download only into free space. Each
   host gets only the repositories `VolumePlacement` places on it: every volume of
-  an account's repository goes to the same hosts, one more than the repository's
-  jobs ran on at once over the week and at least two, picked by rendezvous
+  an account's repository goes to the same hosts, half again as many as the
+  repository's jobs ran on at once over the week (rounded up) and at least two,
+  since holders also run other repositories' jobs, picked by rendezvous
   hashing weighted by advertised cache capacity, and the caps apply per host.
   Dispatch then leaves a young job to an idle holder (`VolumeAffinities`). A
   schedule learned per

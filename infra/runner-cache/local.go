@@ -357,7 +357,7 @@ func (b *LocalImages) reserveSpare(ctx context.Context, minimum uint64) error {
 		return err
 	}
 	if free < minimum {
-		return ErrCapacity
+		return fmt.Errorf("%w: needs %d bytes free, has %d", ErrCapacity, minimum, free)
 	}
 	return nil
 }

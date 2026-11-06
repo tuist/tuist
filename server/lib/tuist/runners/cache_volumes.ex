@@ -1121,7 +1121,7 @@ defmodule Tuist.Runners.CacheVolumes do
   With `node:`, the lists are those of that one of `node_names`: only the
   repositories `VolumePlacement` places on it, every volume of a repository on
   the same Nodes, and the caps apply to that Node's lists. A repository is held
-  by one more Node than its jobs ran on at once over the week
+  by half again as many Nodes as its jobs ran on at once over the week
   (`VolumePlacement.replicas/2`), chosen by `weights` (Node name to weight,
   equal when absent).
   """

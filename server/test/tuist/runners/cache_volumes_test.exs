@@ -717,7 +717,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
     end
   end
 
-  test "places a repository whose jobs ran concurrently on one more Node than they ran on", %{job: job} do
+  test "places a repository whose jobs ran concurrently on half again as many Nodes as they ran on", %{job: job} do
     now = DateTime.utc_now()
     [volume_id] = published_mac_volumes(job, ~w(xcode))
     start = now |> DateTime.add(-3 * 60 * 60, :second) |> DateTime.truncate(:second)
@@ -740,7 +740,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
       })
     end
 
-    assert Enum.count(@peers, &MapSet.member?(placed_volumes(&1, now), volume_id)) == 4
+    assert Enum.count(@peers, &MapSet.member?(placed_volumes(&1, now), volume_id)) == 5
   end
 
   test "records the older generation a host mounted, and only that", %{job: job} do
