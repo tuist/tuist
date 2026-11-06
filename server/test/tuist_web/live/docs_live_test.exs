@@ -20,6 +20,69 @@ defmodule TuistWeb.DocsLiveTest do
     :ok
   end
 
+  test "release pages load their own components and remain usable when GitHub is unavailable", %{conn: conn} do
+    stub(Tuist.Docs.ReleaseStatus, :get, fn component ->
+      %{
+        state: :unavailable,
+        checked_at: nil,
+        stable: nil,
+        rc: nil,
+        canary: nil,
+        promotion: nil,
+        schedule: [],
+        workflow_url: "https://github.com/tuist/tuist/actions/workflows/#{component}-promote.yml"
+      }
+    end)
+
+    {:ok, view, _html} = live(conn, "/en/docs/cli/release/channels")
+    render_async(view)
+    assert has_element?(view, ~s(#docs-release-status [data-component="cli"]), "Unavailable")
+
+    assert has_element?(
+             view,
+             ~s(#docs-release-status a[href="/en/docs/cli/release/calendar"]),
+             "View release calendar"
+           )
+
+    assert has_element?(view, "#the-channels")
+
+    render_patch(view, "/en/docs/cli/release/calendar")
+    render_async(view)
+    assert has_element?(view, "h1", "Release calendar")
+    assert has_element?(view, ~s(#docs-release-status [data-component="cli"]), "Unavailable")
+    assert has_element?(view, ~s(main a[href="/en/docs/cli/release/channels"]), "Release channels")
+    assert has_element?(view, ~s(#docs-release-status a), "View release workflow")
+    refute has_element?(view, "#the-channels")
+
+    render_patch(view, "/en/docs/guides/server/self-host/release/channels")
+    render_async(view)
+    refute has_element?(view, ~s(#docs-release-status [data-component="cli"]))
+
+    for component <- [:server, :kura] do
+      assert has_element?(view, ~s(#docs-release-status [data-component="#{component}"]), "Unavailable")
+    end
+
+    send(view.pid, :refresh_release_status)
+    render_async(view)
+
+    assert has_element?(
+             view,
+             ~s(#docs-release-status a[href="/en/docs/guides/server/self-host/release/calendar"]),
+             "View release calendar"
+           )
+
+    assert has_element?(view, "#the-channels")
+
+    render_patch(view, "/en/docs/guides/server/self-host/release/calendar")
+    render_async(view)
+    assert has_element?(view, "h1", "Release calendar")
+    assert has_element?(view, ~s(main a[href="/en/docs/guides/server/self-host/release/channels"]), "Release channels")
+
+    for component <- [:server, :kura] do
+      assert has_element?(view, ~s(#docs-release-status [data-component="#{component}"]), "Unavailable")
+    end
+  end
+
   describe "preview build-system guides" do
     test "overview separates artifact types, publication workflows, and running previews", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews")
