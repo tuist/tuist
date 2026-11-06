@@ -61,7 +61,7 @@ struct RetryInfo {
     retry_delay: Option<protobuf::Duration>,
 }
 
-fn write_admission_rejected(message: &str) -> Status {
+pub(super) fn write_admission_rejected(message: &str) -> Status {
     let retry = RetryInfo {
         retry_delay: Some(protobuf::Duration {
             seconds: crate::backpressure::retry_after_seconds(10) as i64,
