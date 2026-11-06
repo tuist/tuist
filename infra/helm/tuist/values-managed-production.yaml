@@ -2396,7 +2396,12 @@ runnersFleetLinux:
     volumeGB: 20
     provisioning:
       enabled: true
-      sizeGB: 200
+      # The fleet's /data is 889 GB, shared with containerd and kubelet, which
+      # evict Pods below 15% free (about 133 GB). With images collected after a
+      # day, everything else peaked near 330 GB, so 350 GB keeps about 200 GB
+      # free at peak. Existing hosts keep their image until they are rebuilt
+      # (cache-volumes.md, "Changing the cache size").
+      sizeGB: 350
     # Every Linux pool runs the dind supervisor; the per-account
     # `:runner_docker_cache` flag decides who gets an image cache. Turning this off
     # returns every Linux Pod to the plain dockerd sidecar.
