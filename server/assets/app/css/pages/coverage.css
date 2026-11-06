@@ -1,9 +1,10 @@
 /* The coverage pages — a branch's glance, one subject in
    detail, and a file — are page roots laid out like every other dashboard
-   page. */
+   page. The Test Selection page is laid out the same way. */
 #coverage,
 #coverage-detail,
-#coverage-file-page {
+#coverage-file-page,
+#test-selections {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);
