@@ -2,6 +2,357 @@
 components:
   responses: {}
   schemas:
+    NotificationRule:
+      properties:
+        actions:
+          items:
+            properties:
+              type:
+                description: "Known values: `push`, to the user's Tuist app devices."
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - type
+            title: NotificationRuleAction
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        conditions:
+          additionalProperties: true
+          description: Filters on the event. Their shape depends on the event; see `conditions_schema` in its event type.
+          type: object
+          x-struct:
+          x-validate:
+        enabled:
+          type: boolean
+          x-struct:
+          x-validate:
+        event:
+          description: The event type's ID, for example `preview_published`.
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        inserted_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        projects:
+          description: "`account/project` handles the rule covers. Empty means every project the user can get the event's notifications for, including later ones."
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        updated_at:
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - event
+        - enabled
+        - projects
+        - conditions
+        - actions
+        - inserted_at
+        - updated_at
+      title: NotificationRule
+      type: object
+      x-struct:
+      x-validate:
+    CreateNotificationRule:
+      properties:
+        actions:
+          items:
+            properties:
+              type:
+                description: "Known values: `push`, to the user's Tuist app devices."
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - type
+            title: NotificationRuleAction
+            type: object
+            x-struct:
+            x-validate:
+          minItems: 1
+          type: array
+          x-struct:
+          x-validate:
+        conditions:
+          additionalProperties: true
+          description: Filters on the event. Their shape depends on the event; see `conditions_schema` in its event type.
+          type: object
+          x-struct:
+          x-validate:
+        enabled:
+          default: true
+          type: boolean
+          x-struct:
+          x-validate:
+        event:
+          description: The event type's ID.
+          type: string
+          x-struct:
+          x-validate:
+        projects:
+          description: "`account/project` handles the rule covers. Empty means every project the user can get the event's notifications for, including later ones."
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - event
+        - actions
+      title: CreateNotificationRule
+      type: object
+      x-struct:
+      x-validate:
+    NotificationRuleAction:
+      properties:
+        type:
+          description: "Known values: `push`, to the user's Tuist app devices."
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - type
+      title: NotificationRuleAction
+      type: object
+      x-struct:
+      x-validate:
+    NotificationEvents:
+      properties:
+        events:
+          items:
+            properties:
+              conditions_schema:
+                description: A JSON Schema for the rule's conditions.
+                type: object
+                x-struct:
+                x-validate:
+              description:
+                type: string
+                x-struct:
+                x-validate:
+              id:
+                type: string
+                x-struct:
+                x-validate:
+              title:
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - title
+              - description
+              - conditions_schema
+            title: NotificationEvent
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - events
+      title: NotificationEvents
+      type: object
+      x-struct:
+      x-validate:
+    UpdateNotificationRule:
+      properties:
+        actions:
+          items:
+            properties:
+              type:
+                description: "Known values: `push`, to the user's Tuist app devices."
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - type
+            title: NotificationRuleAction
+            type: object
+            x-struct:
+            x-validate:
+          minItems: 1
+          type: array
+          x-struct:
+          x-validate:
+        conditions:
+          additionalProperties: true
+          description: Filters on the event. Their shape depends on the event; see `conditions_schema` in its event type.
+          type: object
+          x-struct:
+          x-validate:
+        enabled:
+          type: boolean
+          x-struct:
+          x-validate:
+        projects:
+          description: "`account/project` handles the rule covers. Empty means every project the user can get the event's notifications for, including later ones."
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      title: UpdateNotificationRule
+      type: object
+      x-struct:
+      x-validate:
+    NotificationConditionOptions:
+      properties:
+        options:
+          additionalProperties:
+            items:
+              type: string
+              x-struct:
+              x-validate:
+            type: array
+            x-struct:
+            x-validate:
+          description: Suggested values per condition, for example `track` and `git_branch`.
+          type: object
+          x-struct:
+          x-validate:
+      required:
+        - options
+      title: NotificationConditionOptions
+      type: object
+      x-struct:
+      x-validate:
+    NotificationEvent:
+      properties:
+        conditions_schema:
+          description: A JSON Schema for the rule's conditions.
+          type: object
+          x-struct:
+          x-validate:
+        description:
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          type: string
+          x-struct:
+          x-validate:
+        title:
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - title
+        - description
+        - conditions_schema
+      title: NotificationEvent
+      type: object
+      x-struct:
+      x-validate:
+    NotificationRules:
+      properties:
+        rules:
+          items:
+            properties:
+              actions:
+                items:
+                  properties:
+                    type:
+                      description: "Known values: `push`, to the user's Tuist app devices."
+                      type: string
+                      x-struct:
+                      x-validate:
+                  required:
+                    - type
+                  title: NotificationRuleAction
+                  type: object
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              conditions:
+                additionalProperties: true
+                description: Filters on the event. Their shape depends on the event; see `conditions_schema` in its event type.
+                type: object
+                x-struct:
+                x-validate:
+              enabled:
+                type: boolean
+                x-struct:
+                x-validate:
+              event:
+                description: The event type's ID, for example `preview_published`.
+                type: string
+                x-struct:
+                x-validate:
+              id:
+                format: uuid
+                type: string
+                x-struct:
+                x-validate:
+              inserted_at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+              projects:
+                description: "`account/project` handles the rule covers. Empty means every project the user can get the event's notifications for, including later ones."
+                items:
+                  type: string
+                  x-struct:
+                  x-validate:
+                type: array
+                x-struct:
+                x-validate:
+              updated_at:
+                format: date-time
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - event
+              - enabled
+              - projects
+              - conditions
+              - actions
+              - inserted_at
+              - updated_at
+            title: NotificationRule
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - rules
+      title: NotificationRules
+      type: object
+      x-struct:
+      x-validate:
     DeviceAuthorization:
       properties:
         device_code:
@@ -8499,73 +8850,6 @@ components:
       type: object
       x-struct:
       x-validate:
-    NotificationPreferences:
-      description: The signed-in user's own choices for one notification kind, per account (their personal account and organizations) with project overrides. The choices apply to every delivery channel.
-      properties:
-        accounts:
-          items:
-            properties:
-              enabled:
-                description: "The user's choice for the account's projects, including future ones."
-                type: boolean
-                x-struct:
-                x-validate:
-              handle:
-                description: The account handle.
-                type: string
-                x-struct:
-                x-validate:
-              projects:
-                items:
-                  properties:
-                    enabled:
-                      description: Whether the user is notified about this project.
-                      type: boolean
-                      x-struct:
-                      x-validate:
-                    handle:
-                      description: The project handle, without the account.
-                      type: string
-                      x-struct:
-                      x-validate:
-                    setting:
-                      description: '`default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.'
-                      type: string
-                      x-struct:
-                      x-validate:
-                  required:
-                    - handle
-                    - setting
-                    - enabled
-                  title: NotificationPreferencesProject
-                  type: object
-                  x-struct:
-                  x-validate:
-                type: array
-                x-struct:
-                x-validate:
-            required:
-              - handle
-              - enabled
-              - projects
-            title: NotificationPreferencesAccount
-            type: object
-            x-struct:
-            x-validate:
-          type: array
-          x-struct:
-          x-validate:
-        kind:
-          type: string
-          x-struct:
-          x-validate:
-      required:
-        - kind
-        - accounts
-      title: NotificationPreferences
-      type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.NotificationPreferences
-      x-validate:
     AccountToken:
       properties:
         all_projects:
@@ -10104,55 +10388,6 @@ components:
         - runs
         - pagination_metadata
       title: OnceRunList
-      type: object
-      x-struct:
-      x-validate:
-    NotificationPreferencesAccount:
-      properties:
-        enabled:
-          description: "The user's choice for the account's projects, including future ones."
-          type: boolean
-          x-struct:
-          x-validate:
-        handle:
-          description: The account handle.
-          type: string
-          x-struct:
-          x-validate:
-        projects:
-          items:
-            properties:
-              enabled:
-                description: Whether the user is notified about this project.
-                type: boolean
-                x-struct:
-                x-validate:
-              handle:
-                description: The project handle, without the account.
-                type: string
-                x-struct:
-                x-validate:
-              setting:
-                description: '`default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.'
-                type: string
-                x-struct:
-                x-validate:
-            required:
-              - handle
-              - setting
-              - enabled
-            title: NotificationPreferencesProject
-            type: object
-            x-struct:
-            x-validate:
-          type: array
-          x-struct:
-          x-validate:
-      required:
-        - handle
-        - enabled
-        - projects
-      title: NotificationPreferencesAccount
       type: object
       x-struct:
       x-validate:
@@ -14833,31 +15068,6 @@ components:
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.PreviewSupportedPlatform
       x-validate:
-    NotificationPreferencesProject:
-      properties:
-        enabled:
-          description: Whether the user is notified about this project.
-          type: boolean
-          x-struct:
-          x-validate:
-        handle:
-          description: The project handle, without the account.
-          type: string
-          x-struct:
-          x-validate:
-        setting:
-          description: '`default` follows the account; `on` and `off` override it. Treat other values as `default`; `enabled` is always the effective choice.'
-          type: string
-          x-struct:
-          x-validate:
-      required:
-        - handle
-        - setting
-        - enabled
-      title: NotificationPreferencesProject
-      type: object
-      x-struct:
-      x-validate:
     ArtifactMultipartUploadURL:
       description: The URL to upload a multipart part
       properties:
@@ -17896,6 +18106,773 @@ info:
     url: https://tuist.dev/images/open-graph/squared.png
 openapi: 3.0.0
 paths:
+  /api/me/notification-events:
+    get:
+      callbacks: {}
+      operationId: listNotificationEvents
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  events:
+                    items:
+                      properties:
+                        conditions_schema:
+                          description: A JSON Schema for the rule's conditions.
+                          type: object
+                          x-struct:
+                          x-validate:
+                        description:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        title:
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - title
+                        - description
+                        - conditions_schema
+                      title: NotificationEvent
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - events
+                title: NotificationEvents
+                type: object
+                x-struct:
+                x-validate:
+          description: The event types
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can manage notification rules
+      summary: Lists the event types notification rules can subscribe to
+      tags:
+        - Notification rules
+  /api/me/notification-rules/{id}:
+    delete:
+      callbacks: {}
+      operationId: deleteNotificationRule
+      parameters:
+        - description: The rule's ID.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The rule was deleted
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can manage notification rules
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The rule doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many changes from this user. Retry after the `retry-after` interval.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Deletes one of the signed-in user's notification rules
+      tags:
+        - Notification rules
+    get:
+      callbacks: {}
+      operationId: getNotificationRule
+      parameters:
+        - description: The rule's ID.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  actions:
+                    items:
+                      properties:
+                        type:
+                          description: "Known values: `push`, to the user's Tuist app devices."
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - type
+                      title: NotificationRuleAction
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  conditions:
+                    additionalProperties: true
+                    description: Filters on the event. Their shape depends on the event; see `conditions_schema` in its event type.
+                    type: object
+                    x-struct:
+                    x-validate:
+                  enabled:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  event:
+                    description: The event type's ID, for example `preview_published`.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  projects:
+                    description: "`account/project` handles the rule covers. Empty means every project the user can get the event's notifications for, including later ones."
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - event
+                  - enabled
+                  - projects
+                  - conditions
+                  - actions
+                  - inserted_at
+                  - updated_at
+                title: NotificationRule
+                type: object
+                x-struct:
+                x-validate:
+          description: The rule
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can manage notification rules
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The rule doesn't exist
+      summary: Gets one of the signed-in user's notification rules
+      tags:
+        - Notification rules
+    patch:
+      callbacks: {}
+      description: "Only the given fields change. Its event can't change, and `projects` replaces the rule's projects."
+      operationId: updateNotificationRule
+      parameters:
+        - description: The rule's ID.
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                actions:
+                  items:
+                    properties:
+                      type:
+                        description: "Known values: `push`, to the user's Tuist app devices."
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - type
+                    title: NotificationRuleAction
+                    type: object
+                    x-struct:
+                    x-validate:
+                  minItems: 1
+                  type: array
+                  x-struct:
+                  x-validate:
+                conditions:
+                  additionalProperties: true
+                  description: Filters on the event. Their shape depends on the event; see `conditions_schema` in its event type.
+                  type: object
+                  x-struct:
+                  x-validate:
+                enabled:
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                projects:
+                  description: "`account/project` handles the rule covers. Empty means every project the user can get the event's notifications for, including later ones."
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+              title: UpdateNotificationRule
+              type: object
+              x-struct:
+              x-validate:
+        description: The fields to change
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  actions:
+                    items:
+                      properties:
+                        type:
+                          description: "Known values: `push`, to the user's Tuist app devices."
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - type
+                      title: NotificationRuleAction
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  conditions:
+                    additionalProperties: true
+                    description: Filters on the event. Their shape depends on the event; see `conditions_schema` in its event type.
+                    type: object
+                    x-struct:
+                    x-validate:
+                  enabled:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  event:
+                    description: The event type's ID, for example `preview_published`.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  projects:
+                    description: "`account/project` handles the rule covers. Empty means every project the user can get the event's notifications for, including later ones."
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - event
+                  - enabled
+                  - projects
+                  - conditions
+                  - actions
+                  - inserted_at
+                  - updated_at
+                title: NotificationRule
+                type: object
+                x-struct:
+                x-validate:
+          description: The rule
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The rule is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can manage notification rules
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The rule doesn't exist
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many changes from this user. Retry after the `retry-after` interval.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Updates one of the signed-in user's notification rules
+      tags:
+        - Notification rules
+  /api/me/notification-events/{event}/projects/{account_handle}/{project_handle}/condition-options:
+    get:
+      callbacks: {}
+      description: "Returns values a client can offer for the event's conditions, for example the tracks and branches of the project's recent previews."
+      operationId: listNotificationConditionOptions
+      parameters:
+        - description: The event type's ID.
+          in: path
+          name: event
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  options:
+                    additionalProperties:
+                      items:
+                        type: string
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
+                    description: Suggested values per condition, for example `track` and `git_branch`.
+                    type: object
+                    x-struct:
+                    x-validate:
+                required:
+                  - options
+                title: NotificationConditionOptions
+                type: object
+                x-struct:
+                x-validate:
+          description: Suggested values per condition
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can manage notification rules
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: "The event or project doesn't exist, or the user can't subscribe to it"
+      summary: Suggests condition values for an event in a project
+      tags:
+        - Notification rules
+  /api/me/notification-rules:
+    get:
+      callbacks: {}
+      description: A user with no rules gets no notifications.
+      operationId: listNotificationRules
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  rules:
+                    items:
+                      properties:
+                        actions:
+                          items:
+                            properties:
+                              type:
+                                description: "Known values: `push`, to the user's Tuist app devices."
+                                type: string
+                                x-struct:
+                                x-validate:
+                            required:
+                              - type
+                            title: NotificationRuleAction
+                            type: object
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        conditions:
+                          additionalProperties: true
+                          description: Filters on the event. Their shape depends on the event; see `conditions_schema` in its event type.
+                          type: object
+                          x-struct:
+                          x-validate:
+                        enabled:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        event:
+                          description: The event type's ID, for example `preview_published`.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        projects:
+                          description: "`account/project` handles the rule covers. Empty means every project the user can get the event's notifications for, including later ones."
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        updated_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - event
+                        - enabled
+                        - projects
+                        - conditions
+                        - actions
+                        - inserted_at
+                        - updated_at
+                      title: NotificationRule
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - rules
+                title: NotificationRules
+                type: object
+                x-struct:
+                x-validate:
+          description: The rules, oldest first
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can manage notification rules
+      summary: Lists the signed-in user's notification rules
+      tags:
+        - Notification rules
+    post:
+      callbacks: {}
+      operationId: createNotificationRule
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                actions:
+                  items:
+                    properties:
+                      type:
+                        description: "Known values: `push`, to the user's Tuist app devices."
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - type
+                    title: NotificationRuleAction
+                    type: object
+                    x-struct:
+                    x-validate:
+                  minItems: 1
+                  type: array
+                  x-struct:
+                  x-validate:
+                conditions:
+                  additionalProperties: true
+                  description: Filters on the event. Their shape depends on the event; see `conditions_schema` in its event type.
+                  type: object
+                  x-struct:
+                  x-validate:
+                enabled:
+                  default: true
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                event:
+                  description: The event type's ID.
+                  type: string
+                  x-struct:
+                  x-validate:
+                projects:
+                  description: "`account/project` handles the rule covers. Empty means every project the user can get the event's notifications for, including later ones."
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - event
+                - actions
+              title: CreateNotificationRule
+              type: object
+              x-struct:
+              x-validate:
+        description: The rule
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                properties:
+                  actions:
+                    items:
+                      properties:
+                        type:
+                          description: "Known values: `push`, to the user's Tuist app devices."
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - type
+                      title: NotificationRuleAction
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  conditions:
+                    additionalProperties: true
+                    description: Filters on the event. Their shape depends on the event; see `conditions_schema` in its event type.
+                    type: object
+                    x-struct:
+                    x-validate:
+                  enabled:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  event:
+                    description: The event type's ID, for example `preview_published`.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  projects:
+                    description: "`account/project` handles the rule covers. Empty means every project the user can get the event's notifications for, including later ones."
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  updated_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - event
+                  - enabled
+                  - projects
+                  - conditions
+                  - actions
+                  - inserted_at
+                  - updated_at
+                title: NotificationRule
+                type: object
+                x-struct:
+                x-validate:
+          description: The rule
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The rule is invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Only the signed-in Tuist app can manage notification rules
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The user has too many rules
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many changes from this user. Retry after the `retry-after` interval.
+          headers:
+            retry-after:
+              description: Whole seconds to wait before retrying.
+              schema:
+                type: string
+                x-struct:
+                x-validate:
+              style: simple
+      summary: Creates a notification rule for the signed-in user
+      tags:
+        - Notification rules
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs:
     get:
       callbacks: {}
@@ -31661,47 +32638,6 @@ paths:
       summary: Send a message to an agent session.
       tags:
         - Sandboxes
-  /api/me/notification-preferences/{kind}:
-    get:
-      callbacks: {}
-      operationId: getNotificationPreferences
-      parameters:
-        - description: The notification kind. `new_preview` covers new previews of the user's projects.
-          in: path
-          name: kind
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationPreferences'
-          description: The user's preferences for the kind
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Only the signed-in Tuist app can manage notification preferences
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The kind, account or project was not found. Servers return 404 for kinds they don't offer.
-      summary: Gets the signed-in user's preferences for a notification kind
-      tags:
-        - Notification preferences
   /api/projects/{account_handle}/{project_handle}/tests/git-history/commits/missing:
     post:
       callbacks: {}
@@ -49427,98 +50363,6 @@ paths:
       summary: List tasks for a Gradle build.
       tags:
         - Gradle
-  /api/me/notification-preferences/{kind}/projects/{account_handle}/{project_handle}:
-    put:
-      callbacks: {}
-      operationId: updateProjectNotificationPreference
-      parameters:
-        - description: The notification kind. `new_preview` covers new previews of the user's projects.
-          in: path
-          name: kind
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The account handle.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The project handle.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                setting:
-                  description: '`default` follows the account; `on` and `off` override it.'
-                  enum:
-                    - default
-                    - 'on'
-                    - 'off'
-                  type: string
-                  x-struct:
-                  x-validate:
-              required:
-                - setting
-              type: object
-              x-struct:
-              x-validate:
-        description: Project preference
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationPreferences'
-          description: The user's preferences for the kind
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Only the signed-in Tuist app can manage notification preferences
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The kind, account or project was not found. Servers return 404 for kinds they don't offer.
-        '429':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Too many changes from this user. Retry after the `retry-after` interval.
-          headers:
-            retry-after:
-              description: Whole seconds to wait before retrying.
-              schema:
-                type: string
-                x-struct:
-                x-validate:
-              style: simple
-      summary: Overrides a notification kind for one project
-      tags:
-        - Notification preferences
   /api/runs/{run_id}/complete_artifacts_uploads:
     put:
       callbacks: {}
@@ -54705,85 +55549,6 @@ paths:
       summary: Get a webhook endpoint.
       tags:
         - Webhooks
-  /api/me/notification-preferences/{kind}/accounts/{account_handle}:
-    put:
-      callbacks: {}
-      operationId: updateAccountNotificationPreference
-      parameters:
-        - description: The notification kind. `new_preview` covers new previews of the user's projects.
-          in: path
-          name: kind
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The account handle.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                enabled:
-                  type: boolean
-                  x-struct:
-                  x-validate:
-              required:
-                - enabled
-              type: object
-              x-struct:
-              x-validate:
-        description: Account preference
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationPreferences'
-          description: The user's preferences for the kind
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Only the signed-in Tuist app can manage notification preferences
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The kind, account or project was not found. Servers return 404 for kinds they don't offer.
-        '429':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Too many changes from this user. Retry after the `retry-after` interval.
-          headers:
-            retry-after:
-              description: Whole seconds to wait before retrying.
-              schema:
-                type: string
-                x-struct:
-                x-validate:
-              style: simple
-      summary: Turns a notification kind on or off for an account's projects
-      tags:
-        - Notification preferences
   /api/projects/{account_handle}/{project_handle}/bazel/actions/{action_id}/executions:
     get:
       callbacks: {}

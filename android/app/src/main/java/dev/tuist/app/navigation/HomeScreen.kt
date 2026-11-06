@@ -25,6 +25,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.tuist.app.R
+import dev.tuist.app.ui.notifications.NotificationsScreen
 import dev.tuist.app.ui.previews.PreviewDetailScreen
 import dev.tuist.app.ui.previews.PreviewsScreen
 import dev.tuist.app.ui.profile.ProfileScreen
@@ -48,7 +49,8 @@ fun HomeScreen() {
         }
     }
 
-    val showBottomBar = currentDestination?.hasRoute<HomeTabs.PreviewDetail>() != true
+    val showBottomBar = currentDestination?.hasRoute<HomeTabs.PreviewDetail>() != true &&
+        currentDestination?.hasRoute<HomeTabs.Notifications>() != true
 
     Scaffold(
         bottomBar = {
@@ -119,7 +121,12 @@ fun HomeScreen() {
                 )
             }
             composable<HomeTabs.Profile> {
-                ProfileScreen()
+                ProfileScreen(
+                    onNotificationsClick = { navController.navigate(HomeTabs.Notifications) },
+                )
+            }
+            composable<HomeTabs.Notifications> {
+                NotificationsScreen(onBack = { navController.popBackStack() })
             }
             composable<HomeTabs.Threads> {
                 ThreadsScreen(threadsViewModel)

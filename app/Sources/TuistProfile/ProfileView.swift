@@ -55,6 +55,16 @@ public struct ProfileView: View {
             }
 
             Section {
+                NavigationLink {
+                    NotificationsView()
+                } label: {
+                    Text("Notifications")
+                        .font(.body)
+                        .foregroundColor(Noora.Colors.surfaceLabelPrimary)
+                }
+            }
+
+            Section {
                 ExternalLinkRow(
                     title: "Terms of Service",
                     url: URL(string: "https://tuist.dev/terms")!

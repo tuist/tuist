@@ -12,7 +12,7 @@ import dagger.hilt.components.SingletonComponent
 import dev.tuist.app.BuildConfig
 import dev.tuist.app.api.AISubscriptionsApi
 import dev.tuist.app.api.FeatureFlagsApi
-import dev.tuist.app.api.NotificationPreferencesApi
+import dev.tuist.app.api.NotificationRulesApi
 import dev.tuist.app.api.PreviewsApi
 import dev.tuist.app.api.ProjectsApi
 import dev.tuist.app.api.PushDevicesApi
@@ -22,6 +22,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.time.OffsetDateTime
+import java.util.UUID
 import javax.inject.Singleton
 
 @Module
@@ -32,6 +33,7 @@ object NetworkModule {
     @Singleton
     fun provideMoshi(): Moshi = Moshi.Builder()
         .add(OffsetDateTime::class.java, OffsetDateTimeAdapter.nullSafe())
+        .add(UUID::class.java, UUIDAdapter.nullSafe())
         .addLast(KotlinJsonAdapterFactory())
         .build()
 
@@ -109,8 +111,8 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideNotificationPreferencesApi(retrofit: Retrofit): NotificationPreferencesApi =
-        retrofit.create(NotificationPreferencesApi::class.java)
+    fun provideNotificationRulesApi(retrofit: Retrofit): NotificationRulesApi =
+        retrofit.create(NotificationRulesApi::class.java)
 }
 
 /** Generated models type `date-time` fields as [OffsetDateTime], which Moshi doesn't support out of the box. */
@@ -118,6 +120,15 @@ private object OffsetDateTimeAdapter : JsonAdapter<OffsetDateTime>() {
     override fun fromJson(reader: JsonReader): OffsetDateTime = OffsetDateTime.parse(reader.nextString())
 
     override fun toJson(writer: JsonWriter, value: OffsetDateTime?) {
+        writer.value(value?.toString())
+    }
+}
+
+/** Generated models type `uuid` fields as [UUID], which Moshi doesn't support out of the box. */
+private object UUIDAdapter : JsonAdapter<UUID>() {
+    override fun fromJson(reader: JsonReader): UUID = UUID.fromString(reader.nextString())
+
+    override fun toJson(writer: JsonWriter, value: UUID?) {
         writer.value(value?.toString())
     }
 }
