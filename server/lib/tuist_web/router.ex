@@ -1289,6 +1289,7 @@ defmodule TuistWeb.Router do
     post "/runners/jobs/cache/uploads/complete", RunnerJobCacheController, :complete_upload
     post "/runners/jobs/cache/uploads/abort", RunnerJobCacheController, :abort_upload
     post "/amp-orbs/:orb_id", AmpOrbsController, :dispatch
+    post "/claude-code-runners/spawn", ClaudeCodeRunnersController, :spawn
     get "/sandboxes/nodes/connect", SandboxNodesController, :connect
     post "/sandboxes/allocation", SandboxAllocationsController, :update
   end

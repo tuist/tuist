@@ -13,6 +13,7 @@ defmodule TuistTestSupport.Fixtures.SandboxesFixtures do
 
     attrs = %{
       account_id: account.id,
+      kind: Keyword.get(opts, :kind, :managed_agents),
       anthropic_environment_id:
         Keyword.get(opts, :anthropic_environment_id, "env_#{TuistTestSupport.Utilities.unique_integer()}"),
       environment_key: Keyword.get(opts, :environment_key, "sk-ant-env-#{TuistTestSupport.Utilities.unique_integer()}"),

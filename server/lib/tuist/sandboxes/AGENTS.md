@@ -131,6 +131,21 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   session metadata (which anyone with access to the Anthropic workspace
   can set) is cloned anonymously. A failed clone is logged and the
   worker still starts.
+- Claude Code cloud environments (`kind: :claude_code`, `ccpool_...`) are
+  agent environments the Managed Agents `Manager` skips. Users pick the OS
+  by picking the environment in Claude Code, so each runs its own platform.
+  `ClaudeCodeReconciler` (Oban cron, every minute, and on create/delete)
+  keeps one orchestrator Deployment per enabled environment
+  (`ClaudeCodeRuntime`, `infra/claude-code-runners`) in the Amp provider
+  namespace. Its spawn hook calls `ClaudeCodeRunnersController` with a
+  projected token (audience `tuist-claude-code-runners`) that names the
+  environment. `ClaudeCodeRunners.spawn/2` answers before the VM boots:
+  `:running` when the session's sandbox holds a residency, `:accepted` after
+  `Capacity.admissible?/2`, else `:no_capacity`. A supervised task then, under
+  the `claude-code:<env>:<session>` lock (`wait: false`), finds or creates
+  the sandbox, records the residency with `created:` like the router, and
+  starts `sbx-worker` with `SBX_CLAUDE_CODE_WORK_ORDER`. The work order is
+  the runner's credential: keep it out of rows and logs.
 - `Tuist.Sandboxes.Workers.PauseSandboxWorker`: Oban job scheduled by
   `end_residency/1`; `Sandboxes.pause_idle/2` pauses only when the
   sandbox is still running, has no residency and the epoch it was

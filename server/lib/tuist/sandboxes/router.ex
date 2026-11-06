@@ -105,7 +105,11 @@ defmodule Tuist.Sandboxes.Router do
 
   defp metadata(item), do: get_in(item, ["data", "metadata"]) || item["metadata"] || %{}
 
-  defp find_or_create_sandbox(agent_environment, session_id) do
+  @doc """
+  The session's sandbox, created from the environment when it has none or
+  only one that died, with whether this call created it.
+  """
+  def find_or_create_sandbox(agent_environment, session_id) do
     case Sandboxes.get_sandbox_for_session(agent_environment.id, session_id) do
       %Sandbox{state: state} = sandbox when state in [:running, :paused, :creating, :resuming] ->
         {:ok, sandbox, false}
@@ -265,7 +269,8 @@ defmodule Tuist.Sandboxes.Router do
   defp blank_to_nil(value) when is_binary(value) and value != "", do: value
   defp blank_to_nil(_value), do: nil
 
-  defp start_worker(sandbox, env) do
+  @doc "Starts `sbx-worker` with `env`, ending the residency when it does not start."
+  def start_worker(sandbox, env) do
     case Sandboxes.start_worker(sandbox, env) do
       {:ok, _data} = ok ->
         ok

@@ -40,6 +40,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker},
     {"* * * * *", Tuist.Sandboxes.AmpReconciler},
+    {"* * * * *", Tuist.Sandboxes.ClaudeCodeReconciler},
     {"0 5 * * *", Tuist.Sandboxes.Workers.RetentionWorker},
     {"@hourly", Tuist.Sandboxes.Workers.DiskSnapshotRetentionWorker},
     {"20 * * * *", Tuist.Sandboxes.Workers.ArchiveSandboxesWorker},

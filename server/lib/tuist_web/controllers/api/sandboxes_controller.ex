@@ -36,10 +36,12 @@ defmodule TuistWeb.API.SandboxesController do
 
   @agent_environment_schema %Schema{
     title: "SandboxAgentEnvironment",
-    description: "An Anthropic Managed Agents self-hosted environment served by the account's sandboxes.",
+    description:
+      "An Anthropic self-hosted environment served by the account's sandboxes: a Claude Managed Agents environment or a Claude Code cloud environment.",
     type: :object,
     properties: %{
       id: %Schema{type: :integer},
+      kind: %Schema{type: :string, enum: ["managed_agents", "claude_code"], default: "managed_agents"},
       anthropic_environment_id: %Schema{type: :string},
       name: %Schema{type: :string, nullable: true},
       platform: %Schema{type: :string, enum: ["linux", "darwin"], default: "linux"},
@@ -211,8 +213,22 @@ defmodule TuistWeb.API.SandboxesController do
            @shape_properties
            |> Map.merge(@agent_properties)
            |> Map.merge(%{
-             anthropic_environment_id: %Schema{type: :string, description: "The Anthropic environment identifier."},
-             environment_key: %Schema{type: :string, description: "The Anthropic environment key. Never returned."},
+             kind: %Schema{
+               type: :string,
+               enum: ["managed_agents", "claude_code"],
+               default: "managed_agents",
+               description:
+                 "managed_agents connects a Claude Managed Agents environment (env_...); claude_code connects a Claude Code cloud environment (ccpool_...), whose sessions started from Claude Code on the web, desktop, mobile or CLI run in the account's sandboxes on the environment's platform."
+             },
+             anthropic_environment_id: %Schema{
+               type: :string,
+               description: "The Anthropic environment identifier: env_... or, for claude_code, ccpool_..."
+             },
+             environment_key: %Schema{
+               type: :string,
+               description:
+                 "The environment key: the Managed Agents environment key, or the Claude Code environment secret. Never returned."
+             },
              name: %Schema{type: :string, maxLength: 100, nullable: true},
              max_idle_seconds: %Schema{type: :integer, minimum: 1, maximum: 3600},
              pause_grace_seconds: %Schema{type: :integer, minimum: 0, maximum: 3600}
@@ -229,6 +245,7 @@ defmodule TuistWeb.API.SandboxesController do
   def create_agent_environment(%{assigns: %{selected_account: account}, body_params: body_params} = conn, _params) do
     attrs =
       Map.take(body_params, [
+        :kind,
         :anthropic_environment_id,
         :environment_key,
         :anthropic_api_key,
@@ -567,6 +584,7 @@ defmodule TuistWeb.API.SandboxesController do
     agent_environment
     |> Map.take([
       :id,
+      :kind,
       :anthropic_environment_id,
       :name,
       :platform,

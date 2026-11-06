@@ -306,6 +306,13 @@ attaches to the session's event stream, executes tool calls and exits after
 `MaxIdle` following an `end_turn` idle. The work item was already claimed and
 acknowledged by the server's poller; the worker never polls.
 
+With `SBX_CLAUDE_CODE_WORK_ORDER` set, `sbx-worker` instead runs `claude
+self-hosted-runner` for one Claude Code session (capacity 1, Anthropic's git
+proxy, release after `SBX_CLAUDE_CODE_RELEASE_IDLE_MIN` idle minutes) under
+`<workdir>/claude-code`. The work order reaches the runner only as
+`SELF_HOSTED_RUNNER_ENVIRONMENT_SECRET`. On Linux it drops from root to `user`;
+a guest without the pinned binary downloads and checksums it first.
+
 ## Server side
 
 - A poller process per connected Anthropic environment long-polls the work

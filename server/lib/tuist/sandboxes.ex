@@ -74,10 +74,26 @@ defmodule Tuist.Sandboxes do
   # ----- Agent environments -----
 
   def create_agent_environment(%Account{id: account_id}, attrs) when is_map(attrs) do
-    %AgentEnvironment{}
-    |> AgentEnvironment.create_changeset(attrs |> platform_defaults() |> Map.put(:account_id, account_id))
-    |> Repo.insert()
+    attrs = attrs |> platform_defaults() |> kind_defaults() |> Map.put(:account_id, account_id)
+
+    with {:ok, agent_environment} <- %AgentEnvironment{} |> AgentEnvironment.create_changeset(attrs) |> Repo.insert() do
+      reconcile_claude_code(agent_environment)
+      {:ok, agent_environment}
+    end
   end
+
+  # A Claude Code session keeps its runner, and its sandbox running, for half
+  # an hour of idleness unless the environment says otherwise.
+  defp kind_defaults(attrs) do
+    if Map.get(attrs, :kind) in [:claude_code, "claude_code"],
+      do: Map.put_new(attrs, :max_idle_seconds, 1800),
+      else: attrs
+  end
+
+  defp reconcile_claude_code(%AgentEnvironment{kind: :claude_code}),
+    do: {:ok, _job} = Oban.insert(Tuist.Sandboxes.ClaudeCodeReconciler.new(%{}))
+
+  defp reconcile_claude_code(_agent_environment), do: :ok
 
   @doc "Fills the shape and template `attrs` leave out with the defaults of their platform."
   def platform_defaults(attrs) do
@@ -98,8 +114,13 @@ defmodule Tuist.Sandboxes do
     Repo.all(from e in AgentEnvironment, where: e.account_id == ^account_id, order_by: [asc: e.id])
   end
 
-  def list_enabled_agent_environments do
-    Repo.all(from e in AgentEnvironment, where: e.enabled == true, order_by: [asc: e.id], preload: [:account])
+  def list_enabled_agent_environments(kind) do
+    Repo.all(
+      from e in AgentEnvironment,
+        where: e.enabled == true and e.kind == ^kind,
+        order_by: [asc: e.id],
+        preload: [:account]
+    )
   end
 
   def get_agent_environment(%Account{id: account_id}, id) do
@@ -157,7 +178,10 @@ defmodule Tuist.Sandboxes do
       end
     end)
 
-    Repo.delete(agent_environment)
+    with {:ok, deleted} <- Repo.delete(agent_environment) do
+      reconcile_claude_code(deleted)
+      {:ok, deleted}
+    end
   end
 
   # ----- Sandboxes -----
