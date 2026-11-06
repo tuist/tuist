@@ -404,10 +404,14 @@ A listed test is removed, not marked skipped: it's absent from the result bundle
 - **The sharded test plans at module granularity.** A fresh project has no suite timings, and suite granularity would put every suite in the one catch-all shard.
 - **A target and scheme of their own, which CI only compiles until canary serves the selection endpoints.** `tuist-project-tests.yml` builds them for testing in a job of its own, which records no test results, selective testing hashes or coverage. The target then joins `TuistAcceptanceTests`, which collects coverage, so these tests record the evidence selection needs to skip them. Each test does two or three full iOS simulator runs, so they stay off the production deploy path. The scheme sets `coverage: false` so `Tuist.swift`'s `coverage` option doesn't turn it on.
 
-To run them against a dev server:
+Run them locally before pushing any change to coverage-based test selection, on the server, the CLI or both, against a dev server running the change:
 
 ```bash
 TUIST_EE=1 tuist generate --no-open TuistCoverageSelectionAcceptanceTests
 TEST_RUNNER_TUIST_URL=http://127.0.0.1:8080 xcodebuild test -workspace Tuist.xcworkspace \
   -scheme TuistCoverageSelectionAcceptanceTests -destination platform=macOS
 ```
+
+- **Use the dev server's own port.** A worktree's server listens on `$TUIST_SERVER_PORT`, not always 8080. The suite logs in as the seeded `tuistrocks@tuist.dev`, which `mise run db:seed` creates.
+- **`xcode-select` must point at the Xcode the build uses** (`.xcode-version`). The fixture's manifests compile with `/usr/bin/xcrun swift`, and the test harness's mocked environment hands manifest loading no `DEVELOPER_DIR`, so setting it doesn't help: a `ProjectDescription` built by a newer Xcode then fails to parse ("expected '{' in struct").
+- **Each test logs in once.** A dev server allows 10 logins per IP plus one a minute, so a second run soon after the first fails with `tooManyRequests`: start the server with `TUIST_AUTH_RATE_LIMIT_BUCKET_SIZE=1000`.
