@@ -1,9 +1,12 @@
 defmodule Tuist.Sandboxes.Anthropic.ControlPlane do
   @moduledoc """
   Client for the Managed Agents control plane (`/v1/agents`,
-  `/v1/sessions`), authenticated with the organization API key stored on
-  an agent environment. The work queue, which authenticates with the
-  environment key instead, lives in `Tuist.Sandboxes.Anthropic.Client`.
+  `/v1/sessions`). Every call takes a credential: `{:api_key, key}`, the
+  organization API key stored on an agent environment, sent as `x-api-key`,
+  or `{:bearer, token}`, a federated access token
+  (`Tuist.Sandboxes.Anthropic.Federation`), sent as `Authorization: Bearer`.
+  The work queue, which authenticates with the environment key instead,
+  lives in `Tuist.Sandboxes.Anthropic.Client`.
 
   Non-2xx answers become `{:error, %{status: status, message: message}}`
   with the message taken from the body's `error.message`.
@@ -16,7 +19,7 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlane do
   @default_tools [%{type: "agent_toolset_20260401"}]
   @default_events_limit 1000
 
-  def create_agent(api_key, attrs) when is_map(attrs) do
+  def create_agent(credential, attrs) when is_map(attrs) do
     body =
       put_present(
         %{
@@ -28,7 +31,7 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlane do
         Map.get(attrs, :system)
       )
 
-    api_key
+    credential
     |> request()
     |> Req.post(url: "/v1/agents", json: body)
     |> handle_response()
@@ -39,7 +42,7 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlane do
   optionally `title`, `metadata` (a string map), `initial_events` and
   `budget_cents`, which becomes a USD list-cost limit.
   """
-  def create_session(api_key, attrs) when is_map(attrs) do
+  def create_session(credential, attrs) when is_map(attrs) do
     body =
       %{agent: Map.fetch!(attrs, :agent), environment_id: Map.fetch!(attrs, :environment_id)}
       |> put_present(:title, Map.get(attrs, :title))
@@ -47,14 +50,14 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlane do
       |> put_present(:initial_events, Map.get(attrs, :initial_events))
       |> put_budget(Map.get(attrs, :budget_cents))
 
-    api_key
+    credential
     |> request()
     |> Req.post(url: "/v1/sessions", json: body)
     |> handle_response()
   end
 
-  def get_session(api_key, session_id) do
-    api_key
+  def get_session(credential, session_id) do
+    credential
     |> request()
     |> Req.get(url: session_path(session_id))
     |> handle_response()
@@ -68,7 +71,7 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlane do
   `{:ok, %{data: events, next_page: cursor}}` with `next_page` nil on
   the last page.
   """
-  def list_events(api_key, session_id, opts \\ []) do
+  def list_events(credential, session_id, opts \\ []) do
     params =
       [limit: Keyword.get(opts, :limit, @default_events_limit)]
       |> put_param(:order, Keyword.get(opts, :order))
@@ -76,7 +79,7 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlane do
       |> put_param(:"created_at[gte]", Keyword.get(opts, :created_at_gte))
       |> put_param(:"created_at[gt]", Keyword.get(opts, :created_at_gt))
 
-    api_key
+    credential
     |> request()
     |> Req.get(url: session_path(session_id, "events"), params: params)
     |> handle_response()
@@ -87,15 +90,15 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlane do
     end
   end
 
-  def send_message(api_key, session_id, text) when is_binary(text) do
-    api_key
+  def send_message(credential, session_id, text) when is_binary(text) do
+    credential
     |> request()
     |> Req.post(url: session_path(session_id, "events"), json: %{events: [user_message(text)]})
     |> handle_response()
   end
 
-  def archive_session(api_key, session_id) do
-    api_key
+  def archive_session(credential, session_id) do
+    credential
     |> request()
     |> Req.post(url: session_path(session_id, "archive"), json: %{})
     |> handle_response()
@@ -132,17 +135,20 @@ defmodule Tuist.Sandboxes.Anthropic.ControlPlane do
     Map.put(body, :budget, %{type: "limit", max_list_cost: %{amount: Integer.to_string(cents), currency: "USD"}})
   end
 
-  defp request(api_key) do
+  defp request(credential) do
     Req.new(
       base_url: Environment.anthropic_api_url(),
       headers: [
-        {"x-api-key", api_key},
+        auth_header(credential),
         {"anthropic-version", @anthropic_version},
         {"anthropic-beta", @anthropic_beta}
       ],
       retry: false
     )
   end
+
+  defp auth_header({:api_key, key}) when is_binary(key), do: {"x-api-key", key}
+  defp auth_header({:bearer, token}) when is_binary(token), do: {"authorization", "Bearer " <> token}
 
   defp session_path(session_id), do: "/v1/sessions/#{encode(session_id)}"
   defp session_path(session_id, suffix), do: session_path(session_id) <> "/" <> suffix

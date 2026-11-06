@@ -42,7 +42,7 @@ export TUIST_TOKEN=$(tuist auth token)
      }'
    ```
 
-   `anthropic_api_key` is optional. It lets you start sessions through Tuist's API, as described below. Tuist stores both keys encrypted and never returns them.
+   `anthropic_api_key` is optional. It lets you start sessions through Tuist's API, as described below. Tuist stores both keys encrypted and never returns them. To start sessions without giving Tuist an API key, see [Connect without an API key](#managed-agents-federation).
 
 Within a minute, Tuist starts serving the environment's sessions. The environment runs on Linux unless you pass `"platform": "darwin"`. You can also pass `vcpus`, `memory_mb` and `workspace_gb` to change the shape of its sandboxes; see <.localized_link href="/guides/features/sandboxes#platforms">Linux and macOS</.localized_link>.
 
@@ -89,6 +89,34 @@ The repository is checked out in `/workspace` on Linux and `/Users/runner/work` 
 
 > [!WARNING]
 > Anyone who can create sessions in the Claude workspace that owns the environment can run sessions on your Tuist account, and can ask for macOS with session metadata. Limit access to that workspace accordingly.
+
+### Connect without an API key {#managed-agents-federation}
+
+Instead of storing an Anthropic API key, Tuist can authenticate with Anthropic's [Workload Identity Federation](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation). Tuist then signs a short-lived token for the environment each time it calls Anthropic and exchanges it for an Anthropic access token that lasts a few minutes. Your account has its own OpenID Connect issuer at Tuist, so a federation rule that trusts it never accepts tokens Tuist signs for other accounts.
+
+1. Connect the environment as described above, without `anthropic_api_key`, and note `federation_issuer_url` and `federation_subject` in the response. They look like `https://tuist.dev/oidc/accounts/123` and `account:123:agent-environment:456`.
+2. In the Claude Console, open [Workload identity](https://platform.claude.com/settings/workload-identity-federation), click **Connect workload** and select **Custom OIDC**:
+   - **Issuer URL**: the `federation_issuer_url`, with the default discovery JWKS source.
+   - **Subject**: the `federation_subject` to admit only this environment, or `account:123:*` (your account's prefix with a trailing `*`) to admit every environment of the account. Always set a subject.
+   - **Scope**: `workspace:developer`.
+3. Note the IDs the Console shows: your organization ID (a UUID, on the [Organization](https://platform.claude.com/settings/organization) page), the workspace (`wrkspc_…`), the service account (`svac_…`) and the federation rule (`fdrl_…`). None of them is a secret.
+4. Send the four IDs to Tuist:
+
+   ```bash
+   curl -X PATCH "https://tuist.dev/api/accounts/my-org/sandboxes/agent-environments/456" \
+     -H "Authorization: Bearer $TUIST_TOKEN" -H "Content-Type: application/json" \
+     -d '{
+       "anthropic_organization_id": "00000000-0000-0000-0000-000000000000",
+       "anthropic_workspace_id": "wrkspc_...",
+       "anthropic_service_account_id": "svac_...",
+       "anthropic_federation_rule_id": "fdrl_..."
+     }'
+   ```
+
+Starting a session through Tuist's agent-sessions API completes the Console's connection test. When an environment has both the four IDs and an API key, Tuist uses federation; you can then remove the key from the Claude Console. If Anthropic rejects the exchange, the agent-sessions API answers with an error, and the Console's [authentication history](https://platform.claude.com/settings/workload-identity-federation?tab=history) shows why.
+
+> [!NOTE]
+> Anthropic fetches the issuer's keys over HTTPS on port 443 from a public hostname. If your self-hosted Tuist server is not reachable from the internet, choose the **inline** JWKS source in the Console and paste the key set your server serves at `<federation_issuer_url>/jwks.json`. Paste it again whenever Tuist's signing key changes, which happens when the server's `TUIST_SECRET_KEY_TOKENS` (or, when it is unset, `TUIST_SECRET_KEY_BASE`) changes.
 
 ## Claude Code {#claude-code}
 

@@ -769,6 +769,14 @@ defmodule TuistWeb.Router do
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
 
+  scope "/oidc/accounts/:account_id", TuistWeb do
+    pipe_through [:open_api, :non_authenticated_api]
+
+    get "/.well-known/openid-configuration", OIDCIssuerController, :openid_configuration, metadata: %{robots_txt: false}
+
+    get "/jwks.json", OIDCIssuerController, :jwks, metadata: %{robots_txt: false}
+  end
+
   scope "/.well-known", TuistWeb do
     pipe_through :open_api
 

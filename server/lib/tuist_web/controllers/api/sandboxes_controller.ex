@@ -5,6 +5,7 @@ defmodule TuistWeb.API.SandboxesController do
   alias OpenApiSpex.Schema
   alias Tuist.Sandboxes
   alias Tuist.Sandboxes.AgentEnvironment
+  alias Tuist.Sandboxes.Anthropic.Federation
   alias Tuist.Sandboxes.Query
   alias Tuist.Sandboxes.Schemas, as: SandboxSchemas
   alias TuistWeb.API.Authorization.AuthorizationPlug
@@ -54,7 +55,21 @@ defmodule TuistWeb.API.SandboxesController do
       enabled: %Schema{type: :boolean},
       has_api_key: %Schema{
         type: :boolean,
-        description: "Whether an Anthropic API key is stored, which is what lets Tuist start agent sessions."
+        description:
+          "Whether an Anthropic API key is stored. Tuist starts agent sessions with it unless the federation ids are set."
+      },
+      anthropic_organization_id: %Schema{type: :string, nullable: true},
+      anthropic_workspace_id: %Schema{type: :string, nullable: true},
+      anthropic_service_account_id: %Schema{type: :string, nullable: true},
+      anthropic_federation_rule_id: %Schema{type: :string, nullable: true},
+      federation_issuer_url: %Schema{
+        type: :string,
+        description:
+          "The account's OpenID Connect issuer to register as a Custom OIDC federation issuer in the Claude Console."
+      },
+      federation_subject: %Schema{
+        type: :string,
+        description: "The sub claim of the tokens Tuist signs for this environment."
       },
       anthropic_agent_id: %Schema{
         type: :string,
@@ -78,6 +93,12 @@ defmodule TuistWeb.API.SandboxesController do
       :pause_grace_seconds,
       :enabled,
       :has_api_key,
+      :anthropic_organization_id,
+      :anthropic_workspace_id,
+      :anthropic_service_account_id,
+      :anthropic_federation_rule_id,
+      :federation_issuer_url,
+      :federation_subject,
       :anthropic_agent_id,
       :agent_model,
       :agent_system_prompt,
@@ -90,6 +111,28 @@ defmodule TuistWeb.API.SandboxesController do
     anthropic_api_key: %Schema{
       type: :string,
       description: "An Anthropic API key with access to the environment's organization. Never returned."
+    },
+    anthropic_organization_id: %Schema{
+      type: :string,
+      nullable: true,
+      description:
+        "Workload Identity Federation: the Anthropic organization UUID. Set it with the other three federation ids to start sessions without an API key."
+    },
+    anthropic_workspace_id: %Schema{
+      type: :string,
+      nullable: true,
+      description: "Workload Identity Federation: the workspace (wrkspc_...) the minted tokens are scoped to."
+    },
+    anthropic_service_account_id: %Schema{
+      type: :string,
+      nullable: true,
+      description: "Workload Identity Federation: the service account (svac_...) the tokens act as."
+    },
+    anthropic_federation_rule_id: %Schema{
+      type: :string,
+      nullable: true,
+      description:
+        "Workload Identity Federation: the federation rule (fdrl_...) that maps Tuist's tokens to the service account."
     },
     agent_model: %Schema{type: :string, minLength: 1, maxLength: 255, description: "The model agent sessions run."},
     agent_system_prompt: %Schema{
@@ -251,6 +294,10 @@ defmodule TuistWeb.API.SandboxesController do
         :anthropic_api_key,
         :agent_model,
         :agent_system_prompt,
+        :anthropic_organization_id,
+        :anthropic_workspace_id,
+        :anthropic_service_account_id,
+        :anthropic_federation_rule_id,
         :name,
         :platform,
         :template,
@@ -273,7 +320,7 @@ defmodule TuistWeb.API.SandboxesController do
   operation(:update_agent_environment,
     summary: "Update the agent settings of a connected environment.",
     description:
-      "Sets the Anthropic API key Tuist uses to start agent sessions, the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
+      "Sets how Tuist authenticates to Anthropic to start agent sessions (an API key, or the four Workload Identity Federation ids, which take precedence), the model and the system prompt. Changing the model or the prompt drops the cached agent so the next session creates a new one.",
     operation_id: "updateSandboxAgentEnvironment",
     parameters:
       @account_parameters ++
@@ -297,7 +344,12 @@ defmodule TuistWeb.API.SandboxesController do
         } = conn,
         _params
       ) do
-    attrs = Map.take(body_params, [:anthropic_api_key, :agent_model, :agent_system_prompt])
+    attrs =
+      Map.take(body_params, [
+        :anthropic_api_key,
+        :agent_model,
+        :agent_system_prompt | AgentEnvironment.federation_fields()
+      ])
 
     with {:ok, agent_environment} <- Sandboxes.get_agent_environment(account, agent_environment_id),
          {:ok, agent_environment} <- Sandboxes.update_agent_environment(agent_environment, attrs) do
@@ -595,6 +647,10 @@ defmodule TuistWeb.API.SandboxesController do
       :max_idle_seconds,
       :pause_grace_seconds,
       :enabled,
+      :anthropic_organization_id,
+      :anthropic_workspace_id,
+      :anthropic_service_account_id,
+      :anthropic_federation_rule_id,
       :anthropic_agent_id,
       :agent_model,
       :agent_system_prompt,
@@ -602,5 +658,7 @@ defmodule TuistWeb.API.SandboxesController do
       :updated_at
     ])
     |> Map.put(:has_api_key, is_binary(agent_environment.anthropic_api_key))
+    |> Map.put(:federation_issuer_url, Federation.issuer(agent_environment.account_id))
+    |> Map.put(:federation_subject, Federation.subject(agent_environment))
   end
 end

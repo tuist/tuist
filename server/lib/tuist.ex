@@ -340,6 +340,7 @@ defmodule Tuist do
       Sandboxes.ClaudeCodeRunners,
       Sandboxes.ClaudeCodeRuntime,
       Sandboxes.Anthropic.Client,
+      Sandboxes.Anthropic.Federation,
       Sandboxes.Analytics,
       Sandboxes.Concurrency,
       Sandboxes.Nodes,
