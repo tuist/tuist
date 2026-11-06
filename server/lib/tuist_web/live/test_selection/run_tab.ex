@@ -460,10 +460,7 @@ defmodule TuistWeb.TestSelection.RunTab do
               <.decision_cell decision={test.decision} />
             </:col>
             <:col :let={test} label={dgettext("dashboard_tests", "Reason")}>
-              <.text_and_description_cell
-                label={reason_label(test.reason)}
-                description={if test.matched_path != "", do: Path.basename(test.matched_path)}
-              />
+              <.text_cell label={reason_label(test.reason)} />
             </:col>
             <:col
               :let={test}

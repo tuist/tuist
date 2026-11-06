@@ -357,7 +357,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "#test-selection-fallback")
       assert has_element?(lv, "#widget-selection-selected", "2 / 4")
       assert has_element?(lv, "#selection-tests-table", "Tracked file changed")
-      assert has_element?(lv, "#selection-tests-table", "Project.swift")
+      refute has_element?(lv, "#selection-tests-table", "Project.swift")
     end
 
     test "explains a fallback", %{conn: conn, organization: organization, project: project} do
