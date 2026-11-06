@@ -217,6 +217,7 @@
     "remove_public_holiday": "Employee leave and manager-review ownership require dedicated workflow adapters; do not infer approval authority from Automation scopes.",
     "get_signal": "Source authority, protected evidence and personal routing consent are not generic workflow capabilities. Use only the explicit opaque-result signals.decide adapter.",
     "create_mcp_server": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
+    "ovh_set_server_display_name": "Renames a production server through the caller's own OVH connection and makes a fleet adopt and wipe it; each call needs that person's approval of the exact arguments, so it is not a workflow capability.",
     "get_error_event_contexts": "Sensitive event context requires engineering read and production-systems access; keep published error workflow contracts unchanged until an explicit adapter is versioned.",
     "disconnect_llm_provider": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
     "get_mcp_connection_status": "Provider/network/agent or integration-specific operation is not enabled in the transactional executor; requires an explicit bounded adapter and conformance fixtures.",
