@@ -216,7 +216,11 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@has_selective_testing_data || @selection_run || @selection_expired?}
+      :if={
+        @has_selective_testing_data ||
+          (@selection_run && Tuist.Tests.Selections.selection?(@selection_run)) ||
+          @selection_expired?
+      }
       label={dgettext("dashboard_tests", "Selective Testing")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
@@ -474,7 +478,7 @@
     </.card>
 
     <.card
-      :if={@selection_run}
+      :if={@selection_run && Tuist.Tests.Selections.selection?(@selection_run)}
       title={dgettext("dashboard_tests", "Selected by coverage")}
       icon="filter"
       data-part="test-selection-card"
@@ -1839,13 +1843,15 @@
   <div
     :if={
       @selected_tab == "test-optimizations" &&
-        (@has_selective_testing_data || @selection_run || @selection_expired?)
+        (@has_selective_testing_data ||
+           (@selection_run && Tuist.Tests.Selections.selection?(@selection_run)) ||
+           @selection_expired?)
     }
     data-part="selective-testing"
   >
     <RunTab.expired_selection :if={@selection_expired?} />
     <RunTab.coverage_selection
-      :if={@selection_run}
+      :if={@selection_run && Tuist.Tests.Selections.selection?(@selection_run)}
       selection_run={@selection_run}
       summary={@selection_summary}
       diff={@selection_diff}

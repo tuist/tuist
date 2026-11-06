@@ -122,15 +122,6 @@ defmodule Tuist.Tests.SelectionsTest do
       newer = TestSelectionFixtures.run_fixture(project_id: project.id, commit_sha: "newer")
       TestSelectionFixtures.run_fixture(project_id: project.id, commit_sha: "orphan")
 
-      retired =
-        TestSelectionFixtures.run_fixture(
-          project_id: project.id,
-          commit_sha: "retired",
-          outcome: "fallback",
-          reason: "no_baseline_evidence",
-          baseline_sha: nil
-        )
-
       before_period =
         TestSelectionFixtures.run_fixture(
           project_id: project.id,
@@ -141,7 +132,6 @@ defmodule Tuist.Tests.SelectionsTest do
       {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: older.id)
       {:ok, newer_test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: newer.id)
       {:ok, _test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: before_period.id)
-      {:ok, _test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: retired.id)
       period = {DateTime.add(DateTime.utc_now(), -1, :day), DateTime.add(DateTime.utc_now(), 60, :second)}
 
       {rows, meta} = Selections.list_runs(project.id, period)
@@ -168,20 +158,6 @@ defmodule Tuist.Tests.SelectionsTest do
       assert {:ok, %{id: ^id}} = Selections.run_for_test_run(project.id, test_run)
       assert {:error, :none} = Selections.run_for_test_run(project.id, %{test_impact_run_id: nil})
       assert {:error, :expired} = Selections.run_for_test_run(project.id, %{test_impact_run_id: UUIDv7.generate()})
-    end
-
-    test "read a fallback for a reason the server no longer records as no impact run", %{project: project} do
-      run =
-        TestSelectionFixtures.run_fixture(
-          project_id: project.id,
-          outcome: "fallback",
-          reason: "no_baseline_evidence",
-          baseline_sha: nil
-        )
-
-      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: run.id)
-
-      assert {:error, :none} = Selections.run_for_test_run(project.id, test_run)
     end
   end
 
@@ -413,11 +389,6 @@ defmodule Tuist.Tests.SelectionsTest do
       fallback = TestSelectionFixtures.run_fixture(project_id: project.id, outcome: "fallback", reason: "no_baseline")
       RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: fallback.id)
       TestSelectionFixtures.run_fixture(project_id: project.id, skipped_count: 5, selected: [%{name: "test_orphan()"}])
-
-      retired =
-        TestSelectionFixtures.run_fixture(project_id: project.id, outcome: "fallback", reason: "no_baseline_evidence")
-
-      RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: retired.id)
 
       now = DateTime.utc_now()
       analytics = Selections.analytics(project.id, {DateTime.add(now, -7, :day), DateTime.add(now, 60, :second)})

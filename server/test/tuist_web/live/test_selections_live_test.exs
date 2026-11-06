@@ -374,12 +374,29 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "#selection-tests-table", "Project.swift")
     end
 
-    test "shows no Debug card for a fallback without a baseline", %{
+    test "shows only what selective testing hashed for an impact run without a baseline", %{
       conn: conn,
       organization: organization,
       project: project
     } do
       %{test_run: test_run} = selection(project, outcome: "fallback", reason: "no_baseline", baseline_sha: nil)
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
+
+      {:ok, overview, _html} = live(conn, path)
+      refute has_element?(overview, "[data-part='test-selection-card']")
+      refute has_element?(overview, "a[href*='tab=test-optimizations']")
+
+      {:ok, tab, _html} = live(conn, path <> "?tab=test-optimizations")
+      refute has_element?(tab, "[data-part='coverage-selection']")
+    end
+
+    test "shows only what selective testing hashed for a fallback that stopped before counting", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      %{test_run: test_run} =
+        selection(project, outcome: "fallback", reason: "diff_too_large", requested_count: 0, selected_count: 0)
 
       {:ok, lv, _html} =
         live(
@@ -387,9 +404,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
           ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
         )
 
-      assert has_element?(lv, "#test-selection-fallback", "No baseline")
-      refute has_element?(lv, "[data-part='selection-debug-card']")
-      refute has_element?(lv, "[data-part='selection-details-section']")
+      refute has_element?(lv, "[data-part='coverage-selection']")
     end
 
     test "hides the Debug tab from users who aren't Tuist operators", %{
@@ -408,7 +423,11 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "[data-part='selection-debug-card']")
     end
 
-    test "explains a fallback", %{conn: conn, organization: organization, project: project} do
+    test "shows a fallback after its baseline as a selection, with the rule trace in Debug", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
       stub(Tuist.Accounts, :tuist_operator?, fn _user -> true end)
 
       %{test_run: test_run} =
@@ -416,19 +435,21 @@ defmodule TuistWeb.TestSelectionsLiveTest do
           outcome: "fallback",
           reason: "tracked_file_changed",
           matched_path: "Package.resolved",
-          rule_trace: [%{rule: "tracked_files", selected: 0, skipped: 0, verdict: "abort"}]
+          rule_trace: [%{rule: "tracked_files", selected: 0, skipped: 0, verdict: "abort"}],
+          requested_count: 4,
+          selected_count: 2,
+          skipped_count: 2
         )
 
-      {:ok, lv, _html} =
-        live(
-          conn,
-          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
-        )
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
 
-      assert has_element?(lv, "#test-selection-fallback", "Tracked file changed")
-      assert has_element?(lv, "#test-selection-fallback", "Package.resolved")
+      {:ok, overview, _html} = live(conn, path)
+      assert has_element?(overview, "[data-part='test-selection-card']", "Fell back: Tracked file changed")
+
+      {:ok, lv, _html} = live(conn, path <> "?tab=test-optimizations&selection-tab=debug")
+      refute has_element?(lv, "#test-selection-fallback")
+      assert has_element?(lv, "#widget-selection-selected", "2 / 4")
       assert has_element?(lv, "#selection-rule-trace-table", "abort")
-      refute has_element?(lv, "#selection-tests-table")
     end
 
     test "says when the run's impact run expired", %{conn: conn, organization: organization, project: project} do
@@ -455,37 +476,6 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "[data-part='test-selection-card']", "Selected by coverage")
       assert has_element?(lv, "[data-part='test-selection-card'] a[href*='tab=test-optimizations']")
       assert has_element?(lv, "[data-part='test-selection-card']", "1 of 4 tests")
-    end
-
-    test "counts no test on the overview's card for a run that ran every test", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      %{test_run: test_run} = selection(project, outcome: "fallback", reason: "no_baseline", baseline_sha: nil)
-
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
-
-      assert has_element?(lv, "[data-part='test-selection-card']", "Run all: No baseline")
-      refute has_element?(lv, "[data-part='test-selection-card']", "0 of 0 tests")
-      refute has_element?(lv, "[data-part='test-selection-card']", "In skipped modules")
-    end
-
-    test "reads a fallback the server no longer records as no coverage selection", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      %{test_run: test_run} =
-        selection(project, outcome: "fallback", reason: "no_baseline_evidence", baseline_sha: nil)
-
-      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
-      {:ok, overview, _html} = live(conn, path)
-      {:ok, tab, _html} = live(conn, path <> "?tab=test-optimizations")
-
-      refute has_element?(overview, "[data-part='test-selection-card']")
-      refute has_element?(overview, "a[href*='tab=test-optimizations']")
-      refute has_element?(tab, "#test-selection-fallback")
     end
   end
 

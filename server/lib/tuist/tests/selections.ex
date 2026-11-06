@@ -3,9 +3,10 @@ defmodule Tuist.Tests.Selections do
   The reads behind coverage-based test selection's pages. Each `tuist test`
   invocation that asked for a selection has an impact run
   (`Tuist.TestImpactAnalysis.Run`): the diff it used against its baseline,
-  the nearest ancestor with a full run of the requested scope, the outcome
-  (`selected`, or `fallback` when it continued as default selective
-  testing), the trace of the rules that decided it and the counts. Only the tests it selected are stored
+  the nearest ancestor whose full run recorded per-test coverage evidence,
+  the outcome (`selected`, or `fallback` when it continued as default
+  selective testing), the trace of the rules that decided it and the
+  counts. Only the tests it selected are stored
   (`Tuist.TestImpactAnalysis.RunTest`); the skipped ones are the baseline
   run's tests in the requested modules, minus the selected ones. The test
   runs an invocation reported point to its impact run (`test_impact_run_id`).
@@ -33,11 +34,7 @@ defmodule Tuist.Tests.Selections do
   # The fallbacks after which the CLI runs every test in scope, hash hits
   # included (`TestImpactSelector.runAllReasons`).
   @run_all_reasons ~w(no_baseline baseline_too_old diff_too_large)
-  @fallback_reasons ~w(no_baseline baseline_too_old history_unavailable tracked_file_changed diff_too_large diff_unavailable history_unknown)
-  # Fallbacks the server no longer records. An impact run that carries one
-  # reads as no coverage selection: `no_baseline_evidence` ran exactly what
-  # hashing left, and a baseline without test-scoped evidence now selects.
-  @retired_reasons ~w(no_baseline_evidence)
+  @fallback_reasons ~w(no_baseline baseline_too_old no_baseline_evidence history_unavailable tracked_file_changed diff_too_large diff_unavailable history_unknown)
 
   @doc "Why an impact run selects a test (`RunTest.reason`), in the rules' order."
   def selected_reasons, do: @selected_reasons
@@ -72,8 +69,13 @@ defmodule Tuist.Tests.Selections do
   """
   def counted_fallback?(%Run{} = run), do: fallback?(run) and not run_all?(run) and run.requested_count > 0
 
-  @doc "Whether an impact run shows as a selection: one, or a fallback that found its baseline."
-  def selection?(%Run{} = run), do: not fallback?(run) or counted_fallback?(run)
+  @doc """
+  Whether an impact run shows as a coverage selection: it found its baseline
+  and counted the tests in scope, whether it then selected or fell back. One
+  without a baseline, or that stopped before counting (a diff too large or
+  unavailable), stored nothing to show beyond what selective testing hashed.
+  """
+  def selection?(%Run{} = run), do: has_baseline?(run) and run.requested_count > 0
 
   @doc """
   The test modules an impact run ran out of those requested: the ones hashing
@@ -301,8 +303,7 @@ defmodule Tuist.Tests.Selections do
     from(r in Run,
       join: t in subquery(test_runs),
       on: t.id == r.id,
-      where: r.project_id == ^project_id and r.inserted_at >= ^start_datetime and r.inserted_at < ^until,
-      where: r.reason not in ^@retired_reasons
+      where: r.project_id == ^project_id and r.inserted_at >= ^start_datetime and r.inserted_at < ^until
     )
   end
 
@@ -332,14 +333,12 @@ defmodule Tuist.Tests.Selections do
 
   @doc """
   The impact run a test run points to: `{:ok, run}`, `{:error, :expired}`
-  when it points to one past retention, or `{:error, :none}`, also for one
-  that fell back for a reason the server no longer records.
+  when it points to one past retention, or `{:error, :none}`.
   """
   def run_for_test_run(_project_id, %{test_impact_run_id: nil}), do: {:error, :none}
 
   def run_for_test_run(project_id, %{test_impact_run_id: id}) do
     case Storage.get_run(project_id, id) do
-      {:ok, %Run{reason: reason}} when reason in @retired_reasons -> {:error, :none}
       {:ok, run} -> {:ok, run}
       {:error, :not_found} -> {:error, :expired}
     end

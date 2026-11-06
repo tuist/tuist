@@ -18,7 +18,9 @@ defmodule TuistWeb.TestSelection.RunTab do
   - Debug, for Tuist operators only: the trace of the rules that decided it
     and the tracked files.
 
-  A fallback shows the outcome and, when it has a baseline, the Debug tab only.
+  It shows for an impact run that `Tuist.Tests.Selections.selection?/1`
+  accepts, a fallback after its baseline included; the test run page shows
+  only what selective testing hashed for any other.
 
   Its query parameters are prefixed with `selection-` so they don't clash
   with the test run page's own.
@@ -84,7 +86,7 @@ defmodule TuistWeb.TestSelection.RunTab do
 
     operator? = Accounts.tuist_operator?(socket.assigns[:current_user])
     socket = Phoenix.Component.assign(socket, :selection_operator?, operator?)
-    tabs = tabs(selection_run, socket.assigns.selection_plan, operator?)
+    tabs = tabs(socket.assigns.selection_plan, operator?)
     tab = if params["selection-tab"] in tabs, do: params["selection-tab"], else: List.first(tabs)
 
     socket
@@ -166,14 +168,8 @@ defmodule TuistWeb.TestSelection.RunTab do
   def search_query(uri, search), do: uri.query |> Query.put("selection-search", search) |> Query.drop("selection-page")
 
   # Debug is for Tuist operators only.
-  defp tabs(run, plan, operator?) do
-    tabs =
-      cond do
-        !Selections.selection?(run) and !has_baseline?(run) -> []
-        !Selections.selection?(run) -> ["debug"]
-        is_nil(plan) -> List.delete(@tabs, "shards")
-        true -> @tabs
-      end
+  defp tabs(plan, operator?) do
+    tabs = if is_nil(plan), do: List.delete(@tabs, "shards"), else: @tabs
 
     if operator?, do: tabs, else: List.delete(tabs, "debug")
   end
@@ -208,41 +204,7 @@ defmodule TuistWeb.TestSelection.RunTab do
         icon="filter"
         data-part="test-details"
       >
-        <.card_section
-          :if={!Selections.selection?(@selection_run)}
-          data-part="selection-verdict-section"
-        >
-          <.alert
-            id="test-selection-fallback"
-            type="secondary"
-            status="warning"
-            size="large"
-            title={
-              if Selections.run_all?(@selection_run),
-                do:
-                  dgettext("dashboard_tests", "Ran every test: %{reason}",
-                    reason: fallback_label(@selection_run.reason)
-                  ),
-                else:
-                  dgettext("dashboard_tests", "Fell back to default selective testing: %{reason}",
-                    reason: fallback_label(@selection_run.reason)
-                  )
-            }
-            description={
-              Enum.join(
-                Enum.reject(
-                  [fallback_description(@selection_run.reason), @selection_run.matched_path],
-                  &(&1 == "")
-                ),
-                " "
-              )
-            }
-          />
-        </.card_section>
-        <.card_section
-          :if={Selections.selection?(@selection_run)}
-          data-part="test-details-section"
-        >
+        <.card_section data-part="test-details-section">
           <div data-part="widgets">
             <.widget
               id="widget-selection-selected"
@@ -298,7 +260,7 @@ defmodule TuistWeb.TestSelection.RunTab do
             />
           </div>
         </.card_section>
-        <.card_section :if={has_baseline?(@selection_run)} data-part="selection-details-section">
+        <.card_section data-part="selection-details-section">
           <dl data-part="details">
             <div>
               <dt>{dgettext("dashboard_tests", "Baseline")}</dt>
@@ -322,9 +284,9 @@ defmodule TuistWeb.TestSelection.RunTab do
         </.card_section>
       </.card>
 
-      <.tab_menu_horizontal :if={Selections.selection?(@selection_run)}>
+      <.tab_menu_horizontal>
         <.tab_menu_horizontal_item
-          :for={tab <- tabs(@selection_run, @plan, @operator?)}
+          :for={tab <- tabs(@plan, @operator?)}
           selected={@tab == tab}
           label={tab_label(tab, assigns)}
           patch={"?#{@uri.query |> Query.put("selection-tab", tab) |> drop_tab_params()}"}
@@ -860,8 +822,6 @@ defmodule TuistWeb.TestSelection.RunTab do
       do: [run.reason | Selections.skipped_reasons()],
       else: Selections.selected_reasons() ++ Selections.skipped_reasons()
   end
-
-  defp has_baseline?(run), do: run.baseline_sha not in [nil, ""]
 
   defp decision_filter_label("any"), do: dgettext("dashboard_tests", "Any")
   defp decision_filter_label(decision), do: decision_label(decision)
