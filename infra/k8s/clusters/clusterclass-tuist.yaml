@@ -203,26 +203,28 @@ spec:
             name: tuist-stateful-machinetemplate
         rollout:
           strategy:
-            type: RollingUpdate
-            rollingUpdate:
-              # Delete-then-reprovision, for the same reason as
-              # `bare-metal-worker`: hosts are pre-ordered, so at steady
-              # state every HBM is claimed and a surge Machine has nowhere
-              # to land. caph parks it `NoAvailableHost`, `maxUnavailable: 0`
-              # then never permits deleting an old Machine, and the freed
-              # host that would unblock it never appears.
-              #
-              # The cost here is different from the runner pool's, and
-              # worth stating: rolling a stateful node destroys its local
-              # PV, because the reinstall wipes `/data`. The replica comes
-              # back empty and refills from its peer, roughly four hours
-              # for a production-sized copy over a 1 Gbit/s uplink. So a
-              # template change to this class is a real operation, not a
-              # routine roll, and it must never run against both replicas
-              # at once. `maxUnavailable: 1` plus the ClickHouse
-              # PodDisruptionBudget is what keeps that true.
-              maxSurge: 0
-              maxUnavailable: 1
+            # A person replaces each box by deleting its Machine; a template
+            # or version change rolls nothing on its own.
+            #
+            # Rolling a stateful node destroys its local PV, because the
+            # reinstall wipes `/data`, and the new box joins under a new
+            # node name, which `clickhouse.managed.persistence.localVolume.nodeNames`
+            # pins each replica to. The replica therefore stays Pending until
+            # that value is edited and deployed, and then refills from its
+            # peer, roughly four hours for a production-sized copy over a
+            # 1 Gbit/s uplink.
+            #
+            # RollingUpdate with `maxUnavailable: 1` did not protect that.
+            # It moves to the next box once the new Node is Ready, not once
+            # its replica has caught up, and the PodDisruptionBudget holds
+            # the next drain only for `nodeDrainTimeoutSeconds`, after which
+            # CAPI deletes the box anyway: both replicas wiped. A surge
+            # strategy is no alternative, since hosts are pre-ordered and a
+            # surge Machine has nowhere to land (`NoAvailableHost`).
+            #
+            # Replace one box, update `nodeNames`, deploy, and wait for the
+            # replica to report caught up before deleting the next Machine.
+            type: OnDelete
         deletion:
           # Finite, unlike the runner pool's unbounded drain. A ClickHouse
           # pod here is bound to a local PV pinned to this node, so it
@@ -907,6 +909,9 @@ spec:
               machineDeploymentClass:
                 names:
                   - hcloud-worker
+                  # Its template installs from the fixed v1.34 channel, so a
+                  # stateful box at another version gets its packages here.
+                  - stateful-worker
           jsonPatches:
             - op: add
               path: "/spec/template/spec/files/-"
