@@ -746,11 +746,18 @@ finalized, ranges over it read its grouped segments (below).
 ### The current hour
 
 Remote-write batches hold samples of every metric, so a metric-name filter
-cannot skip any of them. With finalization enabled, each maintenance pass also
+cannot skip any of them. With finalization enabled, an independent worker
 groups the settled raw segments (older than 15 seconds) of an unfinished hour by
-metric name into `-group-` segments of 500,000 to 1,000,000 rows, oldest first,
-up to eight per pass. A 1-hour panel then reads its metric's rows from each
+metric name in batches of 500,000 to 1,000,000 rows, up to eight per pass.
+It prioritizes the newest eligible hour, oldest segments first within that hour.
+A slow historical merge or finalization does not stop this worker. A 1-hour panel then reads its metric's rows from each
 group plus the last few unsettled batches, instead of every batch of the hour.
+Grouping can run alongside historical finalization, so size maintenance memory
+and object-store concurrency for one additional bounded batch per instance.
+Both workers keep their existing timeouts and input bounds; a grouping timeout
+withdraws only the grouping worker until its task finishes. Historical
+finalization continues oldest first. Neither query budgets nor retained data
+change, and backlog recovery is asynchronous, not guaranteed within one pass.
 
 An hour larger than about 3,000,000 rows (three quarters of the 4,000,000-row
 finalization ceiling) is finalized in passes over equal ranges of metric-name
