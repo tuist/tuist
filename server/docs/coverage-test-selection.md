@@ -18,7 +18,7 @@ Coverage is a second strategy for selective testing, chosen per project in the b
 - **Coverage runs on top of the default.** The client hashes and prunes test modules as today, and coverage decides the tests in the modules left. What coverage can't decide per test (tests without test-scoped evidence) keeps today's module-level behaviour. When every module's hash matched, nothing is left to decide: the client still records an impact run, with every module marked `skipped`, so its tests count as skipped, and the server records a selection of nothing without a diff or the rules.
 - **Hash decisions are reported as today.** Each build system already reports its module hashes and hits with the run, also when selective testing is off, and the run page and coverage carry read them. The runs request doesn't repeat them; it only sends the modules left.
 - **Turning it off** is the switch that already turns selective testing off for a run. There's no new flag or environment variable.
-- **Test-scoped evidence is the prerequisite.** A baseline without it reports `no_baseline_evidence` and the run falls back to the default. Which tests record it is up to each build system.
+- **Test-scoped evidence decides tests, not baselines.** A baseline needs none: each test's evidence comes from whichever run recorded it, and tests without any are selected by `no_evidence`. A scheme whose tests never record it (Swift Testing, targets without TestCoverageAttribution) gets a regular selection that runs every test hashing left. Which tests record it is up to each build system.
 
 ### Enabling it
 
@@ -79,17 +79,17 @@ A commit is a baseline when it has a **full run**, a run at the commit that:
 
 - ran the requested scheme (`xcode.scheme`), which the commit's measured set lists in `schemes` and not in `partial_schemes`, and which the run's `coverage_runs.scheme` names (a request without a scheme accepts any commit whose measured set lists one, and any of its runs);
 - ran it whole: its `coverage_runs` row isn't `partial`, so no filter narrowed it and every shard reported;
-- ran on the requested platform (`coverage_runs.platform`; see [Scope and platform](#scope-and-platform));
-- uploaded test-scoped evidence (`coverage_files` rows with `scope_kind = 'test'`). Not `coverage_test_sources`: it keeps one row per test version, naming that version's latest run, so once ClickHouse merges, a baseline's own rows can name a later run instead.
+- ran on the requested platform (`coverage_runs.platform`; see [Scope and platform](#scope-and-platform)).
+
+The run needn't have uploaded test-scoped evidence. The baseline supplies the tests in scope (its `test_case_runs`), the diff's base and its target-level evidence; each test's evidence comes from `coverage_test_sources`, whichever run recorded it, and a test without any is selected by `no_evidence`.
 
 A commit's measured set is only written once its runs' coverage is folded, so a run still being processed isn't eligible yet. The baseline isn't gated on `coverage_commits.complete`, which only exists where the pipeline runs `tuist coverage complete`.
 
-`Tuist.TestImpactAnalysis.Baselines` walks the commit graph itself instead of calling `Commits.nearest_measured_ancestor/5`, the search coverage's fold uses. That function returns a single commit, never the checked-out one, and filters only on what PostgreSQL holds (lines measured, a scheme in common). A baseline also has to pass ClickHouse checks (the run's platform, `partial` and test-scoped evidence), so the walk may have to look past the nearest measured commit. It also counts commits with coverage for the window, tells `baseline_too_old` from `no_baseline` and `no_baseline_evidence`, and starts from several commits at once (`parent_shas`, `ancestor_shas`).
+`Tuist.TestImpactAnalysis.Baselines` walks the commit graph itself instead of calling `Commits.nearest_measured_ancestor/5`, the search coverage's fold uses. That function returns a single commit, never the checked-out one, and filters only on what PostgreSQL holds (lines measured, a scheme in common). A baseline also has to pass ClickHouse checks (the run's platform and `partial`), so the walk may have to look past the nearest measured commit. It also counts commits with coverage for the window, tells `baseline_too_old` from `no_baseline`, and starts from several commits at once (`parent_shas`, `ancestor_shas`).
 
 | Result | When |
 | --- | --- |
-| The baseline, with its full runs (`run_ids`) and the window's commits (`window_shas`) | A full run with evidence within 20 commits with coverage |
-| `no_baseline_evidence` | A full run within the window would be the baseline, but uploaded no test-scoped evidence |
+| The baseline, with its full runs (`run_ids`) and the window's commits (`window_shas`) | A full run within 20 commits with coverage |
 | `baseline_too_old` | The nearest full run is more than 20 commits with coverage back |
 | `history_unknown` | The history has none of the checked-out commit and the parents and ancestors the client sent, so the walk can't start |
 | `no_baseline` | No full run on the platform in the history window, or the project has no coverage to walk from |
@@ -244,7 +244,6 @@ Selection fails open to default selective testing, as the quarantine fetch does.
 | The history has none of the checked-out commit, its parents and its ancestors, even after the client deepened by 100 commits and sent `ancestor_shas` | `history_unknown`, from the baseline request: default selective testing |
 | The nearest full run is more than 20 commits with coverage back | `baseline_too_old`, from the baseline request: every test in scope runs |
 | More than 5,000 changed files | `diff_too_large`: every test in scope runs |
-| The baseline has no test-scoped evidence | `no_baseline_evidence`, from the baseline request: default selective testing |
 | A tracked file changed | `tracked_file_changed` with the path, from rule 1: default selective testing |
 | The baseline isn't in the checkout and the single deepen of 100 commits didn't reach it, or couldn't run | `history_unavailable`, sent by the client: default selective testing |
 | The stored diff vanished, or a dirty checkout sent no changed files | `diff_unavailable`: default selective testing |
@@ -405,10 +404,14 @@ A listed test is removed, not marked skipped: it's absent from the result bundle
 - **The sharded test plans at module granularity.** A fresh project has no suite timings, and suite granularity would put every suite in the one catch-all shard.
 - **A target and scheme of their own, which CI only compiles until canary serves the selection endpoints.** `tuist-project-tests.yml` builds them for testing in a job of its own, which records no test results, selective testing hashes or coverage. The target then joins `TuistAcceptanceTests`, which collects coverage, so these tests record the evidence selection needs to skip them. Each test does two or three full iOS simulator runs, so they stay off the production deploy path. The scheme sets `coverage: false` so `Tuist.swift`'s `coverage` option doesn't turn it on.
 
-To run them against a dev server:
+Run them locally before pushing any change to coverage-based test selection, on the server, the CLI or both, against a dev server running the change:
 
 ```bash
 TUIST_EE=1 tuist generate --no-open TuistCoverageSelectionAcceptanceTests
 TEST_RUNNER_TUIST_URL=http://127.0.0.1:8080 xcodebuild test -workspace Tuist.xcworkspace \
   -scheme TuistCoverageSelectionAcceptanceTests -destination platform=macOS
 ```
+
+- **Use the dev server's own port.** A worktree's server listens on `$TUIST_SERVER_PORT`, not always 8080. The suite logs in as the seeded `tuistrocks@tuist.dev`, which `mise run db:seed` creates.
+- **`xcode-select` must point at the Xcode the build uses** (`.xcode-version`). The fixture's manifests compile with `/usr/bin/xcrun swift`, and the test harness's mocked environment hands manifest loading no `DEVELOPER_DIR`, so setting it doesn't help: a `ProjectDescription` built by a newer Xcode then fails to parse ("expected '{' in struct").
+- **Each test logs in once.** A dev server allows 10 logins per IP plus one a minute, so a second run soon after the first fails with `tooManyRequests`: start the server with `TUIST_AUTH_RATE_LIMIT_BUCKET_SIZE=1000`.
