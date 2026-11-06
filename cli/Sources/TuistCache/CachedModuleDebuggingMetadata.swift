@@ -107,7 +107,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
     ) throws -> Self {
         try recording(
             debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
-            compileUnits: compileUnits, emptyStaticBinary: false, resolvedDebugSources: [:], symlinkedSources: []
+            compileUnits: compileUnits, metadataOnlyStaticBinary: false, resolvedDebugSources: [:], symlinkedSources: []
         )
     }
 
@@ -120,11 +120,6 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         fileSystem: FileSysteming
     ) async throws -> Self {
         try Task.checkCancellation()
-        var emptyStaticBinary = false
-        if let staticBinary, !sources.isEmpty, debugSources.isEmpty, !linkedDebugSymbols {
-            emptyStaticBinary = try await EmptyStaticArchive.isEmpty(fileSystem.readFile(at: staticBinary))
-            try Task.checkCancellation()
-        }
         let declaredPaths = Set(sourcePaths.values)
         var resolvedDebugSources: [String: Set<String>] = [:]
         for source in debugSources.union(compileUnits).sorted() {
@@ -144,11 +139,25 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
                 }
             }
         }
-        return try recording(
-            debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
-            compileUnits: compileUnits, emptyStaticBinary: emptyStaticBinary,
-            resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
-        )
+        do {
+            return try recording(
+                debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
+                compileUnits: compileUnits, metadataOnlyStaticBinary: false,
+                resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
+            )
+        } catch DebuggingMetadataError.missingSources {
+            // Only inspect the archive when ordinary source/compile-unit matching failed. Generated version
+            // constants can have DWARF sources even when none of the target's declared sources emitted code.
+            guard let staticBinary, !linkedDebugSymbols,
+                  try await MetadataOnlyStaticArchive.verify(fileSystem.readFile(at: staticBinary), moduleName: moduleName)
+            else { throw DebuggingMetadataError.missingSources }
+            try Task.checkCancellation()
+            return try recording(
+                debugSources: debugSources, prefixMappings: prefixMappings, linkedDebugSymbols: linkedDebugSymbols,
+                compileUnits: compileUnits, metadataOnlyStaticBinary: true,
+                resolvedDebugSources: resolvedDebugSources, symlinkedSources: symlinkedSources
+            )
+        }
     }
 
     private func recording(
@@ -156,7 +165,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         prefixMappings: [[String: String]],
         linkedDebugSymbols: Bool,
         compileUnits: Set<String>,
-        emptyStaticBinary: Bool,
+        metadataOnlyStaticBinary: Bool,
         resolvedDebugSources: [String: Set<String>],
         symlinkedSources: Set<String>
     ) throws -> Self {
@@ -200,7 +209,7 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
         }
         if !sources.isEmpty, paths.isEmpty {
             let names = Set((Array(sources.keys) + Array(sourcePaths.values)).map(Self.lowercasedFileName))
-            let withoutCode = linkedDebugSymbols || emptyStaticBinary
+            let withoutCode = linkedDebugSymbols || metadataOnlyStaticBinary
                 || candidatesBySource.values.contains { !$0.isDisjoint(with: compileUnits) }
             guard withoutCode, !debugSources.contains(where: { names.contains(Self.lowercasedFileName($0)) }) else {
                 throw DebuggingMetadataError.missingSources
