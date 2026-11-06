@@ -75,8 +75,10 @@ import TuistServer
     }
 #else
     import ArgumentParser
+    import SafariServices
     import TuistErrorHandling
     import TuistFeatureFlags
+    import TuistNavigation
     import TuistNoora
     import TuistNotifications
     import TuistOnboarding
@@ -88,11 +90,12 @@ import TuistServer
     struct TuistApp: App {
         @UIApplicationDelegateAdaptor(PushNotificationsAppDelegate.self) private var appDelegate
         @StateObject private var bootstrapper = AppBootstrapper()
+        @State private var navigation = AppNavigation()
 
         var body: some Scene {
             WindowGroup {
-                if bootstrapper.isReady {
-                    Group {
+                Group {
+                    if bootstrapper.isReady {
                         #if DEBUG
                             if ProcessInfo.processInfo.arguments.contains("--layout-preview") ||
                                 Bundle.main.object(forInfoDictionaryKey: "TuistThreadsPreview") as? Bool == true
@@ -109,10 +112,23 @@ import TuistServer
                         #else
                             RootView()
                         #endif
+                    } else {
+                        ProgressView()
                     }
-                } else {
-                    ProgressView()
                 }
+                .environment(navigation)
+                .onOpenURL { navigation.receive($0) }
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    if let url = activity.webpageURL { navigation.receive(url) }
+                }
+                .environment(\.openURL, OpenURLAction { url in
+                    let isNativeLink = url.scheme?.lowercased() == "tuist" && url.host?.lowercased() == "app"
+                    guard isNativeLink || (try? AppRoute(url: url, serverURL: AppServerEnvironmentService().url())) != nil else {
+                        return .systemAction
+                    }
+                    navigation.receive(url)
+                    return .handled
+                })
             }
         }
     }
@@ -120,6 +136,7 @@ import TuistServer
     private struct RootView: View {
         @StateObject private var authenticationService = AuthenticationService()
         @State private var featureFlags = FeatureFlags()
+        @Environment(AppNavigation.self) private var navigation
         @Environment(\.scenePhase) private var scenePhase
 
         var body: some View {
@@ -127,6 +144,31 @@ import TuistServer
                 .environmentObject(authenticationService)
                 .environment(featureFlags)
                 .withErrorHandling()
+                .onChange(of: navigation.pendingURL) { _, _ in
+                    openPendingURL()
+                }
+                .onChange(of: authenticationService.authenticationState, initial: true) { _, state in
+                    navigation.reset()
+                    if case .loggedIn = state { openPendingURL() }
+                }
+                .sheet(isPresented: Binding(
+                    get: { navigation.webURL != nil },
+                    set: { if !$0 { navigation.webURL = nil } }
+                )) {
+                    if let url = navigation.webURL { AppWebView(url: url).id(url) }
+                }
+                .alert("Unable to open link", isPresented: Binding(
+                    get: { navigation.error != nil },
+                    set: { if !$0 { navigation.error = nil } }
+                )) {
+                    Button("OK", role: .cancel) { navigation.error = nil }
+                } message: {
+                    if navigation.error == .differentServer {
+                        Text("This link belongs to a different Tuist server. Sign in to that server and open the link again.")
+                    } else {
+                        Text("This navigation link is invalid or unsupported.")
+                    }
+                }
                 .task(id: authenticationService.authenticationState) {
                     await PushNotifications.shared.refresh()
                 }
@@ -162,6 +204,11 @@ import TuistServer
             }
         }
 
+        private func openPendingURL() {
+            guard case .loggedIn = authenticationService.authenticationState else { return }
+            navigation.openPendingURL(serverURL: AppServerEnvironmentService().url())
+        }
+
         /// When launch arguments with credentials are passed, such as when running QA tests, we can skip the log in and
         /// automatically log in
         private func checkForAutomaticLogin() async {
@@ -184,5 +231,15 @@ import TuistServer
                 // Skipping automatic log in, such as when the credentials are not passed
             }
         }
+    }
+
+    private struct AppWebView: UIViewControllerRepresentable {
+        let url: URL
+
+        func makeUIViewController(context _: Context) -> SFSafariViewController {
+            SFSafariViewController(url: url)
+        }
+
+        func updateUIViewController(_: SFSafariViewController, context _: Context) {}
     }
 #endif

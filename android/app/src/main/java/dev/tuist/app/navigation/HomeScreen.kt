@@ -25,6 +25,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.tuist.app.R
+import dev.tuist.app.data.model.AuthState
 import dev.tuist.app.ui.notifications.NotificationsScreen
 import dev.tuist.app.ui.previews.PreviewDetailScreen
 import dev.tuist.app.ui.previews.PreviewsScreen
@@ -33,12 +34,20 @@ import dev.tuist.app.ui.threads.ThreadsScreen
 import dev.tuist.app.ui.threads.ThreadsViewModel
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(navigation: AppNavigationViewModel, authState: AuthState) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val threadsViewModel: ThreadsViewModel = hiltViewModel()
     val threadsState by threadsViewModel.state.collectAsStateWithLifecycle()
+    val pendingUrl by navigation.pendingUrl.collectAsStateWithLifecycle()
+
+    LaunchedEffect(pendingUrl, authState) {
+        val url = pendingUrl ?: return@LaunchedEffect
+        val route = navigation.pendingRoute(authState) ?: return@LaunchedEffect
+        navController.navigateAppRoute(route)
+        navigation.consume(url)
+    }
 
     LaunchedEffect(threadsState.enabled) {
         if (!threadsState.enabled && currentDestination?.hasRoute<HomeTabs.Threads>() == true) {
@@ -60,12 +69,7 @@ fun HomeScreen() {
                     selected = currentDestination?.hierarchy?.any {
                         it.hasRoute<HomeTabs.Previews>()
                     } == true,
-                    onClick = {
-                        navController.navigate(HomeTabs.Previews) {
-                            popUpTo(HomeTabs.Previews) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    },
+                    onClick = { navigation.open(AppRoute.Previews) },
                     icon = {
                         Icon(
                             painter = painterResource(R.drawable.ic_device_mobile),
@@ -89,12 +93,7 @@ fun HomeScreen() {
                     selected = currentDestination?.hierarchy?.any {
                         it.hasRoute<HomeTabs.Profile>()
                     } == true,
-                    onClick = {
-                        navController.navigate(HomeTabs.Profile) {
-                            popUpTo(HomeTabs.Previews)
-                            launchSingleTop = true
-                        }
-                    },
+                    onClick = { navigation.open(AppRoute.Profile) },
                     icon = {
                         if (currentDestination?.hierarchy?.any { it.hasRoute<HomeTabs.Profile>() } == true) {
                             Icon(Icons.Filled.Person, contentDescription = null)
@@ -116,7 +115,7 @@ fun HomeScreen() {
             composable<HomeTabs.Previews> {
                 PreviewsScreen(
                     onPreviewClick = { previewId, fullHandle ->
-                        navController.navigate(HomeTabs.PreviewDetail(previewId, fullHandle))
+                        navigation.preview(previewId, fullHandle)
                     },
                 )
             }

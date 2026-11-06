@@ -83,6 +83,7 @@ android {
 
     sourceSets["main"].java.srcDir("${layout.buildDirectory.get()}/generated/openapi/src/main/kotlin")
     sourceSets["androidTest"].assets.srcDir("src/test/resources")
+    sourceSets["test"].resources.srcDir("../../app/Fixtures/Navigation")
 }
 
 kotlin {
@@ -149,6 +150,9 @@ dependencies {
     testImplementation(libs.okhttp.tls)
     testImplementation(libs.robolectric)
 
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation(libs.okhttp.mockwebserver)

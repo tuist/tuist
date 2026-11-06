@@ -91,6 +91,10 @@ Do not add README entries for internal operational details such as env var names
 - An `incident` tier is metadata, not a declaration. Signed webhook payloads include environment, window evidence and a stable rule/issue/environment grouping key. The Grafana IRM receiver must narrowly route intended production incident rules to an escalation chain with a Declare incident step. Atlas does not emit recovery webhooks; incident resolution remains separate. Webhooks require public HTTPS on port 443 and reuse `Moodboard.SafeHTTP.post/3` to validate all DNS answers, pin a public address with hostname verification and reject redirects. Never display saved receiver URLs/signing secrets or retain them in rule/tool audit metadata. See `data-export.md` for rule, notification and external-sharing data.
 - GitHub connector bootstrap serializes database writes with a transaction-scoped advisory lock so concurrent replica startup cannot race read-then-insert paths.
 
+## Email delivery
+
+- `Atlas.Mailer` sends through the configured provider until `ATLAS_SES_STARTS_AT` (ISO 8601), then merges the Amazon SES config into each delivery. This lets production stay on Mailgun until a subprocessor notice period ends without a redeploy. `runtime.exs` refuses to boot when the start time is set but SES credentials are missing. Once the cutover has passed, make SES the configured provider and remove the start time.
+
 ## Automation
 
 - Platform-domain behaviors come from the explicit frozen `Automations.DomainRegistry`, not automatic MCP discovery. Registered versions enforce domain authorization, input/output contracts, exact sensitive-action approvals and atomic local effects. CI compares contracts to the PR base, while domain MCP fixtures and published-workflow tests detect handler/schema drift. Captured domain data retains domain read scopes through web/API/MCP/native inspection. Never treat `automation:read` as a grant to read finance, notes or other domain payloads. See the Automation guide for versioning, excluded operations and adapter rules.

@@ -2,6 +2,7 @@
     import SwiftUI
     import TuistAuthentication
     import TuistFeatureFlags
+    import TuistNavigation
     import TuistNoora
     import TuistPreviews
     import TuistProfile
@@ -14,7 +15,7 @@
 
         @EnvironmentObject private var authenticationService: AuthenticationService
         @Environment(FeatureFlags.self) private var featureFlags
-        @State private var activeTab = "previews"
+        @Environment(AppNavigation.self) private var navigation
         @State private var selectedAccount = "Tuist"
         @State private var selectedThreadAccount: String?
         @State private var organizations: [String] = []
@@ -28,7 +29,8 @@
         }
 
         var body: some View {
-            TabView(selection: $activeTab) {
+            @Bindable var navigation = navigation
+            TabView(selection: $navigation.tab) {
                 if featureFlags.isEnabled(.ai) {
                     ThreadsPreview(
                         accountName: threadAccount,
@@ -37,29 +39,27 @@
                     )
                     .id("\(threadAccount)@\(AppServerEnvironmentService().url().absoluteString)")
                     .tabItem { Label("Threads", systemImage: "bubble.left.and.bubble.right.fill") }
-                    .tag("threads")
+                    .tag(AppNavigation.Tab.threads)
                 }
 
                 previews
                     .tabItem { Label("Previews", systemImage: "square.stack.3d.up.fill") }
-                    .tag("previews")
+                    .tag(AppNavigation.Tab.previews)
 
                 profile
                     .tabItem { Label("Profile", systemImage: "person.crop.circle.fill") }
-                    .tag("profile")
+                    .tag(AppNavigation.Tab.profile)
             }
             .background(ProfileTabContextMenu(menu: quickSwitchMenu))
             .tint(Noora.Colors.accent)
             .onAppear {
                 if isLayoutPreview, featureFlags.isEnabled(.ai) {
-                    activeTab = ProcessInfo.processInfo.arguments.contains("--show-previews") ? "previews" : "threads"
+                    navigation.tab = ProcessInfo.processInfo.arguments.contains("--show-previews") ? .previews : .threads
                 }
             }
             .onChange(of: featureFlags.isEnabled(.ai)) { _, enabled in
-                if !enabled, activeTab == "threads" { activeTab = "previews" }
+                if !enabled, navigation.tab == .threads { navigation.tab = .previews }
             }
-            .onOpenURL { _ in activeTab = "previews" }
-            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { _ in activeTab = "previews" }
             .sheet(isPresented: $showingAccounts) {
                 NavigationStack {
                     List {
@@ -210,7 +210,7 @@
             }
             actions.append(UIMenu(options: .displayInline, children: [
                 UIAction(title: "View profile", image: UIImage(systemName: "person.crop.circle")) { _ in
-                    activeTab = "profile"
+                    navigation.navigate(to: .profile)
                 },
                 UIAction(
                     title: "Sign out",

@@ -2,14 +2,15 @@ import Nuke
 import SwiftUI
 import TuistAuthentication
 import TuistErrorHandling
+import TuistNavigation
 import TuistNoora
 import TuistServer
 
 public struct PreviewsView: View {
     @EnvironmentObject var errorHandling: ErrorHandling
     @EnvironmentObject private var authenticationService: AuthenticationService
+    @Environment(AppNavigation.self) private var navigation
     @State var viewModel = PreviewsViewModel()
-    @State private var navigationPath = NavigationPath()
     @State private var pressedPreviewId: String?
     @State private var searchText = ""
     private let imagePrefetcher = ImagePrefetcher()
@@ -17,7 +18,8 @@ public struct PreviewsView: View {
     public init() {}
 
     public var body: some View {
-        NavigationStack(path: $navigationPath) {
+        @Bindable var navigation = navigation
+        NavigationStack(path: $navigation.previewPath) {
             Group {
                 if viewModel.isInitialLoading {
                     VStack {
@@ -116,11 +118,11 @@ public struct PreviewsView: View {
                                     ? "Try a different search or select another track."
                                     : "Pull down to refresh your previews."
                             )
-                        } else {
+                        } else if let selectedProject = viewModel.selectedProject {
                             ForEach(viewModel.previews) { preview in
                                 PreviewRowView(
                                     preview: preview,
-                                    navigationPath: $navigationPath,
+                                    fullHandle: selectedProject.fullName,
                                     pressedPreviewId: $pressedPreviewId
                                 )
                                 .listRowSeparator(.hidden)
@@ -196,18 +198,19 @@ public struct PreviewsView: View {
                 searchText = viewModel.searchQuery
             }
             .background(Noora.Colors.surfaceBackgroundPrimary)
-            .navigationDestination(for: ServerPreview.self) { preview in
-                PreviewView(preview: preview, fullHandle: viewModel.selectedProject!.fullName)
-            }
-            .navigationDestination(for: DeeplinkPreview.self) { deeplink in
-                PreviewView(previewId: deeplink.previewId, fullHandle: deeplink.fullHandle)
-            }
-            .onOpenURL { url in
-                handleOpenURL(url)
-            }
-            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
-                guard let url = userActivity.webpageURL else { return }
-                handleOpenURL(url)
+            .navigationDestination(for: AppRoute.self) { route in
+                if case let .preview(account, project, id) = route {
+                    Group {
+                        if viewModel.selectedProject?.fullName == "\(account)/\(project)",
+                           let preview = viewModel.previews.first(where: { $0.id == id })
+                        {
+                            PreviewView(preview: preview, fullHandle: "\(account)/\(project)")
+                        } else {
+                            PreviewView(previewId: id, fullHandle: "\(account)/\(project)")
+                        }
+                    }
+                    .id(route)
+                }
             }
         }
     }
@@ -250,19 +253,6 @@ public struct PreviewsView: View {
         errorHandling.fireAndHandleError {
             try await viewModel.selectTrack(track)
         }
-    }
-
-    private func handleOpenURL(_ url: URL) {
-        let pathComponents = url.pathComponents.filter { $0 != "/" }
-        guard pathComponents.count >= 4,
-              pathComponents[2] == "previews"
-        else { return }
-
-        let previewId = pathComponents[3]
-        let fullHandle = "\(pathComponents[0])/\(pathComponents[1])"
-
-        let deeplink = DeeplinkPreview(previewId: previewId, fullHandle: fullHandle)
-        navigationPath.append(deeplink)
     }
 
     private func preloadUpcomingImages(for currentPreview: ServerPreview) {
