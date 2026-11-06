@@ -66,6 +66,13 @@ registry:
       sentryDsn: SENTRY_DSN_REGISTRY_HIVE
 
 server:
+  # Production mail goes through Mailgun until sesStartsAt, then through SES
+  # without a restart: customers get 30 days' notice of the subprocessor change
+  # first. Once the date has passed, delete this block to inherit ses.
+  mailing:
+    provider: mailgun
+    sesStartsAt: "2026-12-06T00:00:00Z"
+
   replicaCount: 2
 
   # MCP agent feedback reaches Atlas with a projected ServiceAccount token

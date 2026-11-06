@@ -11,8 +11,11 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-cloudflare
 
+# Mailgun until sesStartsAt, then SES without a restart, after 30 days'
+# notice of the subprocessor change. Afterwards set provider: ses.
 mailer:
-  provider: ses
+  provider: mailgun
+  sesStartsAt: "2026-12-06T00:00:00Z"
   sesRegion: eu-west-1
 
 runtimeSecrets:

@@ -15,6 +15,23 @@ defmodule Tuist.Docs.SidebarTest do
     assert [_ | _] = tree
   end
 
+  test "groups channels and calendar under Release in CLI fallback and server navigation" do
+    stub(CLI, :sidebar_items, fn -> [] end)
+    [cli] = Sidebar.cli_tree()
+    server = Enum.find(Sidebar.guides_tree(), &(&1.label == "Server"))
+    self_hosting = Enum.find(server.items, &(&1.label == "Self-hosting"))
+
+    for {items, base} <- [{cli.items, "/en/cli"}, {self_hosting.items, "/en/guides/server/self-host"}] do
+      release = Enum.find(items, &(&1.label == "Release"))
+      assert is_nil(release.slug)
+
+      assert Enum.map(release.items, &{&1.label, &1.slug}) == [
+               {"Channels", "#{base}/release/channels"},
+               {"Calendar", "#{base}/release/calendar"}
+             ]
+    end
+  end
+
   test "every authored navigation label is available to the translation rule" do
     stub(CLI, :sidebar_items, fn -> [] end)
 
