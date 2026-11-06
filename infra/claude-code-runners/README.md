@@ -1,7 +1,7 @@
 # Claude Code cloud sessions on Tuist sandboxes
 
 Claude Code (web, desktop, mobile and the CLI) runs cloud sessions in a
-[self-hosted environment](https://code.claude.com/docs/en/self-hosted-runners)
+[self-hosted environment](https://code.claude.com/docs/en/self-hosted-environments)
 when one is selected. The environment fixes the OS: an account connects one
 environment per platform, and users pick Linux or macOS by picking the
 environment.
@@ -29,8 +29,10 @@ environment.
 
 - **Claude Desktop, web and mobile:** pick `Tuist Linux` or `Tuist macOS` in
   the environment selector of a new cloud session.
-- **Claude Code CLI:** `claude --cloud "<task>" --environment ccpool_...`, or set
-  the default with `/remote-env`.
+- **Claude Code CLI:** pick the environment by name with `/remote-env`; later
+  `claude --cloud "<task>"` runs on it. `--environment ccpool_...` picks one for
+  a single session, and `remote.defaultEnvironmentId` in Claude Code settings
+  sets a default for a repository or team.
 - **Managed Agents API:** Managed Agents environments are separate (`env_...`);
   see `infra/tart-kubelet/macos-sandboxes.md` for per-session `platform` and the
   `tuist_platform` metadata key.
