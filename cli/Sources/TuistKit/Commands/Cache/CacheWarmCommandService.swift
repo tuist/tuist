@@ -988,7 +988,9 @@ import XcodeGraph
                     do {
                         recorded = try await metadata.recording(
                             debugSources: debugSources, prefixMappings: prefixMappings,
-                            linkedDebugSymbols: linkedDebugSymbols, fileSystem: fileSystem
+                            linkedDebugSymbols: linkedDebugSymbols,
+                            staticBinary: target.target.product.isStatic && !linkedDebugSymbols ? inputs.first : nil,
+                            fileSystem: fileSystem
                         )
                     } catch DebuggingMetadataError.missingSources where !linkedDebugSymbols {
                         // An object compiled from sources without code keeps their compile unit but lists no
