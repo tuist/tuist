@@ -319,7 +319,7 @@ struct BinaryCacheStorageTests {
         )
         let remote = MemoryREAPICache()
         let sdk = fingerprints.filter { $0.key != "macos-device" }
-        let warm = item("warm", sdk, requiresSDKSlices: true)
+        let warm = item("warm", sdk, architectures: ["ios-simulator": ["arm64"]], requiresSDKSlices: true)
         #expect(try await subject(directory.appending(component: "producer"), remote: remote)
             .store([warm: [artifact]], cacheCategory: .binaries) == [warm])
         #expect(await remote.actions.count == 2)
@@ -348,7 +348,10 @@ struct BinaryCacheStorageTests {
         #expect(plan.map(\.variant) == [.iosSimulator])
         let artifact = directory.appending(component: "Shared.xcframework")
         try await makeArtifact(at: artifact, variants: ["ios-simulator"], architectures: ["ios-simulator": [.arm64]])
-        let warm = item("target-hash", ["ios-simulator": "simulator-inputs"], requiresSDKSlices: true)
+        let warm = item(
+            "target-hash", ["ios-simulator": "simulator-inputs"], architectures: ["ios-simulator": ["arm64"]],
+            requiresSDKSlices: true
+        )
         #expect(try await cache.store([warm: [artifact]], cacheCategory: .binaries) == [warm])
         #expect(try await CacheWarmPlan.make(
             targets: targets, fingerprints: inputs, architectures: architectures, sdkSelection: .simulators,
@@ -364,7 +367,9 @@ struct BinaryCacheStorageTests {
         let artifact = directory.appending(component: "Shared.xcframework")
         try await makeArtifact(at: artifact, variants: ["ios-simulator"], architectures: ["ios-simulator": [.arm64]])
         let remote = MemoryREAPICache()
-        let warm = item("warm", ["ios-simulator": "simulator-inputs"], requiresSDKSlices: true)
+        let warm = item(
+            "warm", ["ios-simulator": "simulator-inputs"], architectures: ["ios-simulator": ["arm64"]], requiresSDKSlices: true
+        )
         #expect(try await subject(directory.appending(component: "producer"), remote: remote)
             .store([warm: [artifact]], cacheCategory: .binaries) == [warm])
         let reader = subject(directory.appending(component: "reader"), remote: remote)
@@ -375,6 +380,29 @@ struct BinaryCacheStorageTests {
             cacheCategory: .binaries
         ).isEmpty)
         #expect(await remote.downloads.isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory) func undeclaredNarrowerSlicesKeepTheExactTargetAction() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: ["macos-device"], architectures: ["macos-device": [.arm64]])
+        let remote = MemoryREAPICache()
+        let target = item("undeclared", ["macos-device": "mac-inputs"])
+        #expect(try await subject(directory.appending(component: "producer"), remote: remote)
+            .store([target: [artifact]], cacheCategory: .binaries) == [target])
+        let exact = try BinaryCacheAction(name: target.name, targetHash: target.hash)
+        #expect(await remote.actions[exact.digest]?.outputDirectories.first?.path == "outputs")
+        #expect(await remote.actions.count == 1)
+        let restored = try #require(try await subject(directory.appending(component: "reader"), remote: remote)
+            .fetch([target], cacheCategory: .binaries).values.first)
+        #expect(try await XCFrameworkCoverageService().coverage(at: restored)["macos-device"] == ["arm64"])
+        await #expect(throws: CacheUploadError.self) {
+            try await subject(directory.appending(component: "sdk-producer"), remote: MemoryREAPICache())
+                .store(
+                    [item("sdk-warm", ["macos-device": "mac-inputs"], requiresSDKSlices: true): [artifact]],
+                    cacheCategory: .binaries
+                )
+        }
     }
 
     @Test(.inTemporaryDirectory) func arm64ConsumersFallBackToStandardSlices() async throws {

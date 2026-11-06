@@ -316,6 +316,7 @@ import XcodeGraph
                     configuration: configuration,
                     hashesByTargetToBeCached: batch.targets,
                     fingerprints: batch.fingerprints,
+                    architectures: hashedGraph.architectures,
                     cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
                     noUpload: noUpload,
                     isReleaseConfiguration: isReleaseConfiguration,
@@ -391,6 +392,7 @@ import XcodeGraph
             configuration: String,
             hashesByTargetToBeCached: [(GraphTarget, String)],
             fingerprints: [String: [String: String]],
+            architectures: [String: [String: [String]]],
             cacheStorage: CacheStoring,
             noUpload _: Bool,
             isReleaseConfiguration: Bool,
@@ -409,6 +411,7 @@ import XcodeGraph
                             configuration: configuration,
                             hashesByTargetToBeCached: hashesByTargetToBeCached,
                             fingerprints: fingerprints,
+                            architectures: architectures,
                             cacheStorage: cacheStorage,
                             isReleaseConfiguration: isReleaseConfiguration,
                             instrumentationSettings: instrumentationSettings,
@@ -428,6 +431,7 @@ import XcodeGraph
                         configuration: configuration,
                         hashesByTargetToBeCached: hashesByTargetToBeCached,
                         fingerprints: fingerprints,
+                        architectures: architectures,
                         cacheStorage: cacheStorage,
                         isReleaseConfiguration: isReleaseConfiguration,
                         instrumentationSettings: instrumentationSettings,
@@ -467,6 +471,7 @@ import XcodeGraph
             configuration: String,
             hashesByTargetToBeCached: [(GraphTarget, String)],
             fingerprints: [String: [String: String]],
+            architectures: [String: [String: [String]]],
             cacheStorage: CacheStoring,
             isReleaseConfiguration: Bool,
             instrumentationSettings: [String],
@@ -600,6 +605,7 @@ import XcodeGraph
                 successfullyStoredTargets = try await store(
                     artifactsToStore,
                     fingerprints: fingerprints,
+                    architectures: architectures,
                     cacheStorage: cacheStorage,
                     scratchDirectory: scratchDirectory,
                     requiresSDKSlices: variant != nil
@@ -1362,6 +1368,7 @@ import XcodeGraph
         private func store(
             _ artifacts: [CacheGraphTargetBuiltArtifact],
             fingerprints: [String: [String: String]],
+            architectures: [String: [String: [String]]],
             cacheStorage: CacheStoring,
             scratchDirectory: AbsolutePath,
             requiresSDKSlices: Bool
@@ -1375,7 +1382,9 @@ import XcodeGraph
                             hash: next.hash,
                             metadata: .init(
                                 binaryCacheFingerprints: fingerprints[next.hash] ?? [:],
-                                requiresSDKSlices: requiresSDKSlices
+                                requiresSDKSlices: requiresSDKSlices,
+                                binaryCacheArchitectures: (architectures[next.hash] ?? [:])
+                                    .filter { fingerprints[next.hash]?[$0.key] != nil }
                             )
                         )] = [next.path]
                     }.concurrentMap { storableTarget, paths in
