@@ -44,7 +44,9 @@ func policyCall(discards, whenFull string) call {
 	return call{cmd: lvmCmd("lvs", "--reportformat json -o lv_name,discards,lv_when_full "+prepareVG+"/kura-thin"), out: `{"report":[{"lv":[{"lv_name":"kura-thin","discards":"` + discards + `","lv_when_full":"` + whenFull + `"}]}]}`}
 }
 
-const createCall = "lvcreate --config " + lvmConfig + " --yes --type thin-pool --size 614400M --poolmetadatasize 1024M --chunksize 512K --zero y --discards passdown --errorwhenfull y --name kura-thin " + prepareVG
+const createCall = "lvcreate --config " + lvmConfig + " --yes --type thin-pool --size 614400M --poolmetadatasize 1024M --chunksize 512K --zero y --discards passdown --name kura-thin " + prepareVG
+
+var whenFullCall = call{cmd: lvmCmd("lvchange", "--errorwhenfull y "+prepareVG+"/kura-thin")}
 
 const wantConfig = `{"pool":"kura-thin","data_reserve_bytes":1073741824,"metadata_reserve_bytes":67108864,"max_volumes":128}`
 
@@ -52,7 +54,7 @@ func TestPreparePoolCreatesFreshPoolAndConfig(t *testing.T) {
 	o := prepareOptions(t)
 	r := &fakeRunner{t: t}
 	r.expect(prerequisiteCalls()...)
-	r.expect(inventoryCall(dataLVRow), call{cmd: createCall}, inventoryCall(dataLVRow, poolRow("524288")), policyCall("passdown", "error"))
+	r.expect(inventoryCall(dataLVRow), call{cmd: createCall}, whenFullCall, inventoryCall(dataLVRow, poolRow("524288")), policyCall("passdown", "error"))
 	result, err := PreparePool(context.Background(), r, o)
 	if err != nil {
 		t.Fatal(err)

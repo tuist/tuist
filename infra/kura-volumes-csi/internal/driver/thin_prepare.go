@@ -173,11 +173,16 @@ func PreparePool(ctx context.Context, runner Runner, o PreparePoolOptions) (*Pre
 		if _, err := d.lvm(ctx, "lvcreate", "--yes", "--type", "thin-pool",
 			"--size", strconv.FormatInt(o.DataBytes/mib, 10)+"M",
 			"--poolmetadatasize", strconv.FormatInt(o.MetadataBytes/mib, 10)+"M",
-			"--chunksize", "512K", "--zero", "y", "--discards", "passdown", "--errorwhenfull", "y",
+			"--chunksize", "512K", "--zero", "y", "--discards", "passdown",
 			"--name", o.Pool, o.VolumeGroup); err != nil {
 			return nil, err
 		}
 		result.Created = true
+		// lvcreate rejects --errorwhenfull for thin pools (LVM 2.03), so the
+		// policy is a separate step; the check below verifies both together.
+		if _, err := d.lvm(ctx, "lvchange", "--errorwhenfull", "y", o.VolumeGroup+"/"+o.Pool); err != nil {
+			return nil, fmt.Errorf("created %s/%s but could not set error-when-full, leaving it for inspection: %w", o.VolumeGroup, o.Pool, err)
+		}
 		if rows, err = d.thinLVs(ctx); err != nil {
 			return nil, err
 		}
