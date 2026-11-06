@@ -11,10 +11,13 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.NavHost
@@ -25,12 +28,25 @@ import dev.tuist.app.R
 import dev.tuist.app.ui.previews.PreviewDetailScreen
 import dev.tuist.app.ui.previews.PreviewsScreen
 import dev.tuist.app.ui.profile.ProfileScreen
+import dev.tuist.app.ui.threads.ThreadsScreen
+import dev.tuist.app.ui.threads.ThreadsViewModel
 
 @Composable
 fun HomeScreen() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val threadsViewModel: ThreadsViewModel = hiltViewModel()
+    val threadsState by threadsViewModel.state.collectAsStateWithLifecycle()
+
+    LaunchedEffect(threadsState.enabled) {
+        if (!threadsState.enabled && currentDestination?.hasRoute<HomeTabs.Threads>() == true) {
+            navController.navigate(HomeTabs.Previews) {
+                popUpTo(HomeTabs.Previews) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
 
     val showBottomBar = currentDestination?.hasRoute<HomeTabs.PreviewDetail>() != true
 
@@ -55,6 +71,17 @@ fun HomeScreen() {
                         )
                     },
                     label = { Text(stringResource(R.string.previews_title)) },
+                )
+                if (threadsState.enabled) NavigationBarItem(
+                    selected = currentDestination?.hasRoute<HomeTabs.Threads>() == true,
+                    onClick = {
+                        navController.navigate(HomeTabs.Threads) {
+                            popUpTo(HomeTabs.Previews)
+                            launchSingleTop = true
+                        }
+                    },
+                    icon = { Icon(painterResource(R.drawable.ic_message), contentDescription = null) },
+                    label = { Text(stringResource(R.string.threads_title)) },
                 )
                 NavigationBarItem(
                     selected = currentDestination?.hierarchy?.any {
@@ -93,6 +120,9 @@ fun HomeScreen() {
             }
             composable<HomeTabs.Profile> {
                 ProfileScreen()
+            }
+            composable<HomeTabs.Threads> {
+                ThreadsScreen(threadsViewModel)
             }
             composable<HomeTabs.PreviewDetail> {
                 PreviewDetailScreen(

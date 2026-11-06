@@ -78,6 +78,8 @@ let bundleId =
     default: "dev.tuist.app"
     }
 
+let threadRichUI = Environment.threadRichUi.getBoolean(default: false)
+
 let project = Project(
     name: "TuistApp",
     settings: .settings(
@@ -124,10 +126,10 @@ let project = Project(
                 ]
             ),
             sources: ["Sources/TuistApp/**"],
-            resources: [
+            resources: .resources([
                 .glob(pattern: "Resources/TuistApp/**", excluding: ["Resources/TuistApp/iOS/**"]),
                 .glob(pattern: "Resources/TuistApp/iOS/**", inclusionCondition: .when([.ios])),
-            ],
+            ] + (threadRichUI ? [.folderReference(path: "../.build/nsh-threads/ui", inclusionCondition: .when([.ios]))] : [])),
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
@@ -148,7 +150,10 @@ let project = Project(
                 // and leaves the macOS build unable to resolve the module.
                 .external(name: "ArgumentParser"),
                 .external(name: "TuistSDK"),
-            ],
+            ] + (threadRichUI ? [.xcframework(
+                path: "../.build/nsh-threads/nsh/embed/ios/NativeShell.xcframework",
+                condition: .when([.ios])
+            )] : []),
             settings: .settings(
                 base: [
                     "DEVELOPMENT_TEAM": "U6LC622NKF",

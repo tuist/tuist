@@ -381,6 +381,10 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
   end
 
+  pipeline :threads_no_store do
+    plug :put_threads_no_store
+  end
+
   pipeline :report_publishing_api do
     plug :put_request_kind, "api"
     plug :accepts, ["json"]
@@ -820,6 +824,22 @@ defmodule TuistWeb.Router do
   scope "/api", TuistWeb.API, assigns: %{auth_cache_default: true, cache_ttl: to_timeout(minute: 1)} do
     pipe_through [:open_api, :cache_endpoint_api, :on_premise_api]
     get "/cache/endpoint", CacheController, :endpoint
+  end
+
+  scope "/api/accounts/:account_handle/threads", TuistWeb.API do
+    pipe_through [:threads_no_store, :open_api, :authenticated_api, :on_premise_api]
+
+    # Phoenix's dispatch logs include request params, including private prompts.
+    get "/", ThreadsController, :index, log: false
+    post "/", ThreadsController, :create, log: false
+    get "/repositories", ThreadsController, :repositories, log: false
+    get "/models", ThreadsController, :models, log: false
+    get "/:id", ThreadsController, :show, log: false
+    post "/:id/messages", ThreadsController, :message, log: false
+    patch "/:id", ThreadsController, :update, log: false
+    post "/:id/ship-preview", ThreadsController, :ship_preview, log: false
+    post "/:id/ship", ThreadsController, :ship, log: false
+    post "/:id/ship-reconcile", ThreadsController, :reconcile_ship, log: false
   end
 
   scope path: "/api",
@@ -1904,6 +1924,8 @@ defmodule TuistWeb.Router do
   def assign_current_path(conn, _params) do
     assign(conn, :current_path, conn.request_path)
   end
+
+  defp put_threads_no_store(conn, _opts), do: put_resp_header(conn, "cache-control", "no-store")
 
   defp put_request_kind(conn, kind) when is_binary(kind) do
     assign(conn, :request_kind, kind)

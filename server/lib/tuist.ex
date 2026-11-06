@@ -11,6 +11,10 @@ defmodule Tuist do
     # that `Tuist.OnceEvents` projects from.
     deps: [Once],
     exports: [
+      Threads,
+      Threads.Checkpoints,
+      Threads.Thread,
+      Threads.RecoveryWorker,
       # Marketing
       # -----
       # These modules contain utilities that are used for the marketing-related

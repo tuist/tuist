@@ -749,6 +749,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # Coverage file deltas: a project's writes take turns on an advisory lock, so a
 # burst for one project would otherwise hold :default's slots while it waits.
 base_queues = [
+  threads: 10,
   remote_execution_maintenance: 1,
   runner_gitlab: 10,
   default: 10,
