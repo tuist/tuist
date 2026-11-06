@@ -19,7 +19,9 @@ Deploy all of the following before enabling an account:
    Pods, preventing an older kubelet from booting a control Pod as a CI VM.
 3. A **new runner image containing the `TUIST_SANDBOX` boot guard** from this
    change. An older image can halt when it finds no CI dispatch token. The chart
-   uses the configured, versioned Xcode 26.6 runner image by default;
+   uses the configured, versioned Xcode 26.6 runner image by default: the
+   stacked image when the rack pools run stacked images, since a release only
+   re-tags an unchanged standalone image, and then only on rack hosts.
    `sandboxes.macos.image` can pin an explicit compatible digest.
 4. Wait for the `tuist-macos-sandboxd` control Pod to become Ready, its host to
    appear in sandbox node presence with the `macos` template, and a fresh
