@@ -291,6 +291,8 @@ let project = Project(
             dependencies: [
                 .target(name: "TuistAuthentication"),
                 .target(name: "TuistAppStorage"),
+                .target(name: "TuistNoora"),
+                .target(name: "TuistErrorHandling"),
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
             ]
