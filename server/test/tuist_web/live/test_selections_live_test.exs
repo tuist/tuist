@@ -451,9 +451,15 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
       assert has_element?(lv, "a[href*='tab=test-optimizations']", "Selective Testing")
-      assert has_element?(lv, "[data-part='test-selection-card']", "Selected by coverage")
+      assert has_element?(lv, "[data-part='test-selection-card']", "Selective Testing")
       assert has_element?(lv, "[data-part='test-selection-card'] a[href*='tab=test-optimizations']")
+      assert has_element?(lv, "[data-part='test-selection-card'] [data-part='metadata']", "Selected tests")
       assert has_element?(lv, "[data-part='test-selection-card']", "1 of 4 tests")
+      assert has_element?(lv, "[data-part='test-selection-card'] [data-part='metadata']", ~r/Skipped tests\s*3/)
+      assert has_element?(lv, "[data-part='test-selection-card']", "75.0%")
+      assert has_element?(lv, "[data-part='test-selection-card']", "1 of 3 modules")
+      refute has_element?(lv, "[data-part='test-selection-card']", "Baseline")
+      refute has_element?(lv, "[data-part='test-selection-card']", "Not affected")
     end
 
     test "shows a fallback without a baseline as a fallback on the overview's card, counting no test", %{
@@ -468,7 +474,9 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "[data-part='test-selection-card']", "Coverage not applied: No baseline")
       refute has_element?(lv, "[data-part='test-selection-card']", "Run all")
       refute has_element?(lv, "[data-part='test-selection-card']", "0 of 0 tests")
-      refute has_element?(lv, "[data-part='test-selection-card']", "In skipped modules")
+      refute has_element?(lv, "[data-part='test-selection-card']", "Skipped tests")
+      assert has_element?(lv, "[data-part='test-selection-card']", "1 of 3 modules")
+      assert has_element?(lv, "[data-part='test-selection-card']", "33.3%")
     end
   end
 
