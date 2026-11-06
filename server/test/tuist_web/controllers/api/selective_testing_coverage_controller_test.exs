@@ -81,14 +81,11 @@ defmodule TuistWeb.API.SelectiveTestingCoverageControllerTest do
       stub(FeatureFlags, :test_impact_analysis_enabled?, fn _account, _project -> true end)
 
       repository_id = CoverageFixtures.seed_history(user.account, [CoverageFixtures.commit("base", [], 0)])
-      CoverageFixtures.commit_coverage(project, repository_id, "base", runs: [[platform: "macos"], [evidence: false]])
+      CoverageFixtures.commit_coverage(project, repository_id, "base", runs: [[platform: "macos"]])
       path = ~p"/api/projects/#{user.account.name}/#{project.name}/tests/selective-testing/coverage/baseline"
 
       assert conn |> post(path, %{build_system: "xcode", commit_sha: "base", platform: "tvos"}) |> json_response(:ok) ==
                %{"baseline_sha" => nil, "reason" => "no_baseline", "diff_cached" => false}
-
-      assert conn |> post(path, %{build_system: "xcode", commit_sha: "base", platform: "ios"}) |> json_response(:ok) ==
-               %{"baseline_sha" => nil, "reason" => "no_baseline_evidence", "diff_cached" => false}
 
       assert conn |> post(path, %{build_system: "xcode", commit_sha: "unknown", platform: "ios"}) |> json_response(:ok) ==
                %{"baseline_sha" => nil, "reason" => "history_unknown", "diff_cached" => false}

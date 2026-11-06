@@ -118,6 +118,47 @@ defmodule Tuist.TestImpactAnalysis.RunsTest do
       assert {:ok, %{changed_files_count: 1}} = Storage.get_diff(project.id, "c2", "c1")
     end
 
+    test "selects every test of the modules left when the baseline's tests recorded no evidence" do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      CoverageFixtures.seed_history(account, [
+        CoverageFixtures.commit("c1", [], 0),
+        CoverageFixtures.commit("c2", ["c1"], 1)
+      ])
+
+      CoverageFixtures.seed_listing(account, "c1", @sources)
+
+      baseline =
+        CoverageFixtures.run_with_coverage(project, account, Enum.map(@sources, &CoverageFixtures.file(&1, [1])), %{
+          git_commit_sha: "c1",
+          test_modules: [
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 1,
+              test_cases: [
+                %{name: "sum()", test_suite_name: "SumTests", status: "success", duration: 10},
+                %{name: "upper()", test_suite_name: "StringTests", status: "success", duration: 10}
+              ]
+            }
+          ]
+        })
+
+      assert {:ok, %{run: run, skipped_tests: []}} =
+               Runs.create(project, params(%{modules: [%{name: "AppTests", skipped: false}]}))
+
+      assert run.outcome == "selected"
+      assert run.baseline_sha == "c1"
+      assert run.baseline_run_ids == [baseline.id]
+      assert {run.requested_count, run.selected_count, run.skipped_count} == {2, 2, 0}
+
+      assert selected(project, run) == [
+               {"AppTests", "StringTests", "upper()", "no_evidence"},
+               {"AppTests", "SumTests", "sum()", "no_evidence"}
+             ]
+    end
+
     test "counts the tests of modules skipped by hash as requested and skipped", %{project: project} do
       modules = [
         %{name: "AppTests", skipped: false},
