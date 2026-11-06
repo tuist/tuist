@@ -33,6 +33,8 @@ const liveSocketFallbackMs = 10000;
 const NooraHooks = {
   NooraCollapsible,
   NooraDropdown: languageDropdown(NooraDropdown),
+  // Noora.Menu shares the dropdown hook, without the language picker wrapper.
+  NooraMenu: NooraDropdown,
   NooraIconTransition,
   NooraModal,
   NooraPopover,

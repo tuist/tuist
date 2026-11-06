@@ -34,6 +34,12 @@ defmodule TuistWeb.Noora.NooraLiveTest do
     assert redirected_to(conn, 301) == "/noora/badge"
   end
 
+  test "redirects the former inline and button dropdown pages to the dropdown page", %{conn: conn} do
+    for path <- ["/noora/inline-dropdown", "/noora/button-dropdown"] do
+      assert redirected_to(get(conn, path), 301) == "/noora/dropdown"
+    end
+  end
+
   test "documents the status badge on the badge page", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/noora/badge")
 

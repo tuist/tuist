@@ -1166,3 +1166,98 @@
 :where(.noora-docs) :is([data-part="brand"], h2 a, p a):focus-visible {
   border-radius: var(--noora-radius-2);
 }
+
+/* Dev only: the menu stress test (the "Worst case" example in
+   pages/menu.ex, which is compiled only in dev). Each dataset is a block,
+   shown by the radio toggle fixed to the bottom of the page. The toggle is
+   plain chrome, not part of the design under test. */
+.noora-docs-break {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-8);
+  width: 100%;
+
+  & > [data-state] {
+    display: none;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-8);
+  }
+
+  &[data-show="demo"] > [data-state="demo"],
+  &[data-show="worst"] > [data-state="worst"],
+  &[data-show="empty"] > [data-state="empty"],
+  &[data-show="one"] > [data-state="one"],
+  &[data-show="many"] > [data-state="many"] {
+    display: flex;
+  }
+
+  /* The same worst case in a 320px column, like a narrow sidebar. */
+  & [data-part="narrow"] {
+    width: 320px;
+  }
+
+  /* The data picker, fixed to the bottom of the page. The examples are
+     static, so the picked item sets `data-show` on the root with a JS
+     command, and the trigger label and check follow it here. */
+  & > [data-part="toggle"] {
+    position: fixed;
+    bottom: var(--noora-spacing-6);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: var(--noora-z-index-12);
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-primary);
+    width: 200px;
+
+    & [data-part="item"] [data-part="right-icon"] {
+      visibility: hidden;
+    }
+  }
+
+  &[data-show="demo"] > [data-part="toggle"] [data-part="trigger"] [data-part="label"]::after {
+    content: "Demo";
+  }
+
+  &[data-show="worst"] > [data-part="toggle"] [data-part="trigger"] [data-part="label"]::after {
+    content: "Worst case";
+  }
+
+  &[data-show="empty"] > [data-part="toggle"] [data-part="trigger"] [data-part="label"]::after {
+    content: "Empty";
+  }
+
+  &[data-show="one"] > [data-part="toggle"] [data-part="trigger"] [data-part="label"]::after {
+    content: "One";
+  }
+
+  &[data-show="many"] > [data-part="toggle"] [data-part="trigger"] [data-part="label"]::after {
+    content: "1,000 rows";
+  }
+
+  &[data-show="demo"] > [data-part="toggle"] [data-value="demo"] [data-part="right-icon"],
+  &[data-show="worst"] > [data-part="toggle"] [data-value="worst"] [data-part="right-icon"],
+  &[data-show="empty"] > [data-part="toggle"] [data-value="empty"] [data-part="right-icon"],
+  &[data-show="one"] > [data-part="toggle"] [data-value="one"] [data-part="right-icon"],
+  &[data-show="many"] > [data-part="toggle"] [data-value="many"] [data-part="right-icon"] {
+    visibility: visible;
+  }
+}
+
+/* A box the reader can resize, for components that respond to their width
+   (Middle truncate). */
+.noora-docs-resizable {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-4);
+  box-sizing: border-box;
+  box-shadow: var(--noora-border-small-default);
+  border-radius: var(--noora-radius-3);
+  padding: var(--noora-spacing-5);
+  width: 320px;
+  min-width: 120px;
+  max-width: 100%;
+  overflow: hidden;
+  resize: horizontal;
+  font: var(--noora-font-code-medium);
+}

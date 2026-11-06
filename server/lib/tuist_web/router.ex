@@ -567,6 +567,9 @@ defmodule TuistWeb.Router do
 
     # The status badge moved into the badge page.
     redirect("/noora/status-badge", "/noora/badge", :permanent)
+    # The inline and button dropdowns moved into the dropdown page.
+    redirect("/noora/inline-dropdown", "/noora/dropdown", :permanent)
+    redirect("/noora/button-dropdown", "/noora/dropdown", :permanent)
 
     live_session :noora do
       live "/noora", NooraLive, metadata: %{type: :marketing, robots_txt: false}
