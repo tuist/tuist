@@ -22,7 +22,7 @@ defmodule TuistWeb.API.Schemas.Tests.TestImpact.Run do
       outcome: %Schema{
         type: :string,
         description:
-          "`selected` or `fallback`. On `fallback` the client runs every test in scope or default selective testing, depending on `reason`. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`."
+          "`selected` or `fallback`. On `fallback` the client runs default selective testing: the tests in the modules hashing left. A plain string so new outcomes don't break older clients, which treat an unknown outcome as `fallback`."
       },
       reason: %Schema{
         type: :string,

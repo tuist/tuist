@@ -107,7 +107,7 @@
             description={
               dgettext(
                 "dashboard_tests",
-                "The average of the period's runs' skip rates. A run that ran every test counts as 0%."
+                "The average of the period's runs' skip rates. A run that fell back before finding its baseline counts the share of modules hashing skipped."
               )
             }
             value={if ready?, do: "#{@analytics.result.totals.skip_rate}%"}
@@ -255,7 +255,6 @@
             />
           </:col>
           <:col :let={run} label={dgettext("dashboard_tests", "Selected")}>
-            <.text_cell :if={Selections.run_all?(run)} label={dgettext("dashboard_tests", "All")} />
             <.text_cell
               :if={Selections.counted_by_module?(run)}
               label={
@@ -266,7 +265,7 @@
               }
             />
             <.text_cell
-              :if={!Selections.run_all?(run) and !Selections.counted_by_module?(run)}
+              :if={!Selections.counted_by_module?(run)}
               label={"#{format_number(run.selected_count)} / #{format_number(run.requested_count)}"}
             />
           </:col>

@@ -121,20 +121,19 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "#test-selection-runs-table", "Tracked file changed")
     end
 
-    test "shows a run that fell back to running every test as All, skipping none", %{
+    test "counts modules for a run that fell back for a diff too large, like any fallback without counts", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      selection(project, outcome: "fallback", reason: "no_baseline")
+      selection(project, outcome: "fallback", reason: "diff_too_large")
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection")
 
-      assert has_element?(lv, "#test-selection-runs-table", "All")
-      assert has_element?(lv, "#test-selection-runs-table", "0.0%")
-      refute has_element?(lv, "#test-selection-runs-table", "Run all")
-      refute has_element?(lv, "#test-selection-runs-table", "No baseline")
-      refute has_element?(lv, "#test-selection-runs-table", "modules")
+      assert has_element?(lv, "#test-selection-runs-table", "Diff too large")
+      assert has_element?(lv, "#test-selection-runs-table", "2 / 3 modules")
+      assert has_element?(lv, "#test-selection-runs-table", "33.3%")
+      refute has_element?(lv, "#test-selection-runs-table", "All")
     end
 
     test "opens a run's test run on its Selective Testing tab", %{
@@ -387,7 +386,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
           ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
         )
 
-      assert has_element?(lv, "#test-selection-fallback", "No baseline")
+      assert has_element?(lv, "#test-selection-fallback", "Fell back to default selective testing: No baseline")
       refute has_element?(lv, "[data-part='selection-debug-card']")
       refute has_element?(lv, "[data-part='selection-details-section']")
     end
@@ -457,7 +456,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "[data-part='test-selection-card']", "1 of 4 tests")
     end
 
-    test "counts no test on the overview's card for a run that ran every test", %{
+    test "shows a fallback without a baseline as a fallback on the overview's card, counting no test", %{
       conn: conn,
       organization: organization,
       project: project
@@ -466,7 +465,8 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
-      assert has_element?(lv, "[data-part='test-selection-card']", "Run all: No baseline")
+      assert has_element?(lv, "[data-part='test-selection-card']", "Fell back: No baseline")
+      refute has_element?(lv, "[data-part='test-selection-card']", "Run all")
       refute has_element?(lv, "[data-part='test-selection-card']", "0 of 0 tests")
       refute has_element?(lv, "[data-part='test-selection-card']", "In skipped modules")
     end

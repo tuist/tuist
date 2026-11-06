@@ -477,7 +477,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
         let testImpactOutcome = await testImpactSelector?.outcome
-        await RunMetadataStorage.current.update(testImpactRunId: await testImpactSelector?.runID)
+        await RunMetadataStorage.current.update(testImpactRunId: testImpactOutcome?.runID)
         let testImpactSkipList = testImpactOutcome?.skipList
         if !isSharding {
             await RunMetadataStorage.current.update(testImpactSkip: testImpactSkipList?.identifiers)
@@ -903,10 +903,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let skipped = skippedModules.isEmpty ? "" : " No test selected in: \(skippedModules.joined(separator: ", "))."
             Logger.current.notice("Coverage-based test selection: \(counts.isEmpty ? "tests selected" : counts).\(skipped)")
         case let .fallback(_, reason, matchedPath):
-            let action = reason.map(TestImpactSelector.runAllReasons.contains) == true
-                ? "runs every test" : "fell back to selective testing"
             let path = matchedPath.map { " (\($0))" } ?? ""
-            Logger.current.notice("Coverage-based test selection \(action): \(reason?.rawValue ?? "unknown reason")\(path).")
+            Logger.current.notice(
+                "Coverage-based test selection fell back to selective testing: \(reason?.rawValue ?? "unknown reason")\(path)."
+            )
         }
     }
 

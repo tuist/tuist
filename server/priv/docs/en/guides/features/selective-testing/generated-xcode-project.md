@@ -109,7 +109,7 @@ The strategy requires:
 
 With the strategy on, `tuist test` skips the targets whose hash already passed, then asks Tuist which tests of the remaining targets your change can affect. Targets with no affected test aren't built. New tests, tests that failed last time, tests in a changed test file, and tests without recorded coverage always run. Swift Testing tests run whenever their target runs.
 
-When coverage can't decide, the output says why. Without a recent baseline on the same platform, or when the change touches more than 5,000 files, every test runs so that the commit can become a baseline. When a file that can affect any test changed, such as `Package.resolved`, `Project.swift`, or an `.xcconfig`, the run uses the default selective testing. To run every test, pass `--no-selective-testing`.
+When coverage can't decide, the output says why and the run uses the default selective testing: every test of the targets whose hash didn't pass runs. That happens without a recent baseline on the same platform, when the change touches more than 5,000 files, or when a file that can affect any test changed, such as `Package.resolved`, `Project.swift`, or an `.xcconfig`. To run every test, pass `--no-selective-testing`.
 
 > [!NOTE]
 > **Test coverage**

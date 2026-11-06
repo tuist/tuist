@@ -271,22 +271,17 @@ defmodule Tuist.Tests.SelectionsTest do
     end
   end
 
-  describe "a fallback that ran every test" do
-    test "lists no test, as hashing skipped none", %{project: project} do
+  describe "a fallback for a diff too large" do
+    test "lists only the tests of the modules hashing skipped, like any fallback that stored no counts", %{
+      project: project
+    } do
       %{run: run, test_run: test_run} =
         run(project, outcome: "fallback", reason: "diff_too_large", selected: [], rule_trace: [])
 
-      [billing] =
-        Tuist.ClickHouseRepo.all(
-          Ecto.Query.from(c in Tuist.Tests.TestCaseRun,
-            where: c.project_id == ^project.id and c.module_name == "BillingTests",
-            select: c.test_case_id
-          )
-        )
+      {rows, _meta} = Selections.run_tests(run, test_run.id)
 
-      assert {[], _meta} = Selections.run_tests(run, test_run.id)
-      assert {:error, :not_found} = Selections.get_run_test(run, test_run.id, billing)
-      assert Selections.run_summary(run, test_run.id).skipped_duration == 0
+      assert Enum.map(rows, &{&1.name, &1.decision, &1.reason}) == [{"test_total()", "skipped", "module_skipped"}]
+      assert Selections.run_summary(run, test_run.id).skipped_duration == 1000
     end
   end
 
@@ -361,8 +356,8 @@ defmodule Tuist.Tests.SelectionsTest do
     end
   end
 
-  describe "run_all?/1, counted_by_module?/1 and module_counts/1" do
-    test "tell a fallback that runs every test from one to selective testing, and count its modules" do
+  describe "counted_by_module?/1 and module_counts/1" do
+    test "count the modules of a fallback that stored no test counts, whatever its reason" do
       run = %Tuist.TestImpactAnalysis.Run{
         outcome: "fallback",
         reason: "tracked_file_changed",
@@ -370,23 +365,36 @@ defmodule Tuist.Tests.SelectionsTest do
         skipped_modules: %{"D" => 0}
       }
 
-      refute Selections.run_all?(run)
-      assert Selections.run_all?(%{run | reason: "no_baseline"})
-      refute Selections.run_all?(%{run | outcome: "selected", reason: ""})
-      assert Selections.counted_by_module?(run)
+      for reason <- ~w(tracked_file_changed no_baseline baseline_too_old diff_too_large) do
+        run = %{run | reason: reason}
+
+        assert Selections.counted_by_module?(run)
+        refute Selections.counted_fallback?(run)
+        refute Selections.selection?(run)
+        assert Selections.skip_rate(run) == 25.0
+      end
+
       refute Selections.counted_by_module?(%{run | requested_count: 19})
-      refute Selections.counted_by_module?(%{run | reason: "no_baseline"})
+      assert Selections.counted_fallback?(%{run | reason: "no_baseline", requested_count: 19})
       assert Selections.module_counts(run) == %{ran: 3, total: 4}
       assert Selections.module_skip_rate(run) == 25.0
-      assert Selections.skip_rate(run) == 25.0
-      assert Selections.skip_rate(%{run | reason: "no_baseline"}) == 0.0
     end
   end
 
   describe "analytics/2" do
     test "adds up the period's impact runs that a test run reported", %{project: project} do
       run(project)
-      fallback = TestSelectionFixtures.run_fixture(project_id: project.id, outcome: "fallback", reason: "no_baseline")
+
+      fallback =
+        TestSelectionFixtures.run_fixture(
+          project_id: project.id,
+          outcome: "fallback",
+          reason: "no_baseline",
+          baseline_sha: nil,
+          requested_modules: ["A", "B", "C"],
+          skipped_modules: %{"D" => 0}
+        )
+
       RunsFixtures.test_fixture(project_id: project.id, test_impact_run_id: fallback.id)
       TestSelectionFixtures.run_fixture(project_id: project.id, skipped_count: 5, selected: [%{name: "test_orphan()"}])
 
@@ -397,9 +405,10 @@ defmodule Tuist.Tests.SelectionsTest do
       assert analytics.totals.fallbacks == 1
       assert analytics.totals.selected == 2
       assert analytics.totals.skipped == 6
-      # The mean of the runs' skip rates: 75% and the fallback's 0%, since it ran every test.
-      assert analytics.totals.skip_rate == 37.5
-      assert Enum.max(analytics.skip_rates) == 37.5
+      # The mean of the runs' skip rates: 75%, and 25% for the fallback, the
+      # share of its modules hashing skipped.
+      assert analytics.totals.skip_rate == 50.0
+      assert Enum.max(analytics.skip_rates) == 50.0
       assert Enum.sum(analytics.selected) == 2
       assert length(analytics.dates) == 8
     end

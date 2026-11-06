@@ -31,9 +31,6 @@ defmodule Tuist.Tests.Selections do
 
   @selected_reasons ~w(test_file_changed failed_last_run no_evidence impacted owned_without_evidence undecided)
   @skipped_reasons ~w(unaffected module_skipped)
-  # The fallbacks after which the CLI runs every test in scope, hash hits
-  # included (`TestImpactSelector.runAllReasons`).
-  @run_all_reasons ~w(no_baseline baseline_too_old diff_too_large)
   @fallback_reasons ~w(no_baseline baseline_too_old no_baseline_evidence history_unavailable tracked_file_changed diff_too_large diff_unavailable history_unknown)
 
   @doc "Why an impact run selects a test (`RunTest.reason`), in the rules' order."
@@ -45,12 +42,8 @@ defmodule Tuist.Tests.Selections do
   @doc "Why an impact run fell back to default selective testing (`Run.reason`)."
   def fallback_reasons, do: @fallback_reasons
 
-  @doc "Whether the impact run fell back, to running every test or to default selective testing."
+  @doc "Whether the impact run fell back to default selective testing."
   def fallback?(%{outcome: outcome}), do: outcome == "fallback"
-
-  @doc "Whether the impact run fell back to running every test in scope, hash hits included."
-  def run_all?(%{outcome: "fallback", reason: reason}), do: reason in @run_all_reasons
-  def run_all?(_run), do: false
 
   @doc """
   Whether an impact run reads by module rather than by test: one that stored
@@ -58,8 +51,7 @@ defmodule Tuist.Tests.Selections do
   before the baseline. One that found a baseline counts the tests in the
   modules hashing skipped and reads like any selection.
   """
-  def counted_by_module?(%Run{} = run),
-    do: not run_all?(run) and run.requested_count == 0 and module_counts(run).total > 0
+  def counted_by_module?(%Run{} = run), do: run.requested_count == 0 and module_counts(run).total > 0
 
   @doc """
   Whether an impact run fell back to default selective testing after finding
@@ -67,7 +59,7 @@ defmodule Tuist.Tests.Selections do
   left ran, and the run reads like a selection, its tests derived from the
   baseline.
   """
-  def counted_fallback?(%Run{} = run), do: fallback?(run) and not run_all?(run) and run.requested_count > 0
+  def counted_fallback?(%Run{} = run), do: fallback?(run) and run.requested_count > 0
 
   @doc "Whether an impact run shows as a selection: one, or a fallback that found its baseline."
   def selection?(%Run{} = run), do: not fallback?(run) or counted_fallback?(run)
@@ -91,10 +83,7 @@ defmodule Tuist.Tests.Selections do
   defmacrop run_skip_rate_avg(r) do
     quote do
       fragment(
-        "avg(multiIf(? = 'fallback' AND has(?, ?), 0, ? > 0, ? / ?, length(?) + length(mapKeys(?)) > 0, length(mapKeys(?)) / (length(?) + length(mapKeys(?))), 0))",
-        unquote(r).outcome,
-        ^unquote(@run_all_reasons),
-        unquote(r).reason,
+        "avg(multiIf(? > 0, ? / ?, length(?) + length(mapKeys(?)) > 0, length(mapKeys(?)) / (length(?) + length(mapKeys(?))), 0))",
         unquote(r).requested_count,
         unquote(r).skipped_count,
         unquote(r).requested_count,
@@ -201,16 +190,13 @@ defmodule Tuist.Tests.Selections do
 
   @doc """
   An impact run's skip rate: its skipped tests, those in the modules hashing
-  skipped included, out of its requested ones; 0 for a fallback that ran
-  every test, and the share of modules hashing skipped for a run that stored
-  no test counts.
+  skipped included, out of its requested ones, and the share of modules
+  hashing skipped for a run that stored no test counts.
   """
   def skip_rate(%Run{} = run) do
-    cond do
-      run_all?(run) -> 0.0
-      counted_by_module?(run) -> module_skip_rate(run)
-      true -> skip_rate(run.selected_count, run.skipped_count)
-    end
+    if counted_by_module?(run),
+      do: module_skip_rate(run),
+      else: skip_rate(run.selected_count, run.skipped_count)
   end
 
   @doc "The tests coverage skipped in the modules hashing left: the `unaffected` rule's skips."
@@ -599,10 +585,8 @@ defmodule Tuist.Tests.Selections do
       Keyword.get(opts, :reason) in [nil, "", "any", run.reason] and not is_integer(Keyword.get(opts, :shard))
   end
 
-  # A fallback that ran every test ran the modules hashing would have
-  # skipped too.
   defp skipped_branch?(run, opts, reason) do
-    has_baseline?(run) and not run_all?(run) and Keyword.get(opts, :decision) in [nil, "", "any", "skipped"] and
+    has_baseline?(run) and Keyword.get(opts, :decision) in [nil, "", "any", "skipped"] and
       Keyword.get(opts, :reason) in [nil, "", "any", reason] and
       not is_integer(Keyword.get(opts, :shard))
   end
