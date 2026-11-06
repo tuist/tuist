@@ -59,12 +59,13 @@ defmodule Noora.Menu do
 
   attr(:close_on_select, :boolean,
     default: true,
-    doc: "Whether choosing an item closes the menu"
+    doc: "Whether choosing an item closes the menu. Checkbox items always keep it open."
   )
 
   attr(:on_select, :string,
     default: nil,
-    doc: "Event pushed when an item is chosen, with its `value`"
+    doc:
+      "Event pushed when an item is chosen, with its `value`, and for a checkbox item the `checked` state it toggled to"
   )
 
   attr(:on_open_change, :string, default: nil, doc: "Event pushed when the menu opens or closes")
@@ -174,7 +175,11 @@ defmodule Noora.Menu do
     """
   end
 
-  attr(:value, :string, required: true, doc: "Identifies the item; sent with the menu's `on_select` event")
+  attr(:value, :string,
+    required: true,
+    doc: "Identifies the item, so it must be unique within the menu; sent with the menu's `on_select` event"
+  )
+
   attr(:label, :string, required: true, doc: "The item's text")
   attr(:sublabel, :string, default: nil, doc: "Secondary text shown in parentheses after the label")
   attr(:description, :string, default: nil, doc: "A second line under the label. The item grows to fit it.")
@@ -200,7 +205,7 @@ defmodule Noora.Menu do
   attr(:checked, :boolean,
     default: nil,
     doc:
-      "Makes the item a checkbox, checked or not, for choosing several options. The LiveView owns the state; toggling sends `on_select` and keeps the menu open."
+      "Makes the item a checkbox, checked or not, for choosing several options. Choosing it toggles it in place, keeps the menu open, and sends `on_select` with the new `checked`. Rendering it with a different `checked` overrides the toggle."
   )
 
   attr(:selected, :boolean,
@@ -211,7 +216,12 @@ defmodule Noora.Menu do
   attr(:href, :string, default: nil, doc: "Navigates to this URL with a full page load")
   attr(:navigate, :string, default: nil, doc: "Navigates to this LiveView")
   attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
-  attr(:on_click, :any, default: nil, doc: "Event or `JS` command run when the item is chosen")
+
+  attr(:on_click, :any,
+    default: nil,
+    doc:
+      "Event or `JS` command run when the item is chosen. It runs alongside the menu's `on_select`, so handle a choice in one of them."
+  )
 
   attr(:rest, :global, include: ~w(target rel download), doc: "Additional HTML attributes")
 

@@ -15,8 +15,8 @@ defmodule Noora.Breadcrumbs do
   use Phoenix.Component
 
   import Noora.Avatar
-  import Noora.Dropdown
   import Noora.Icon
+  import Noora.Menu, only: [menu_item: 1, menu_separator: 1]
   import Noora.Utils
 
   attr(:style, :string, values: ~w(slash arrow), default: "slash", doc: "The separator style between breadcrumbs")
@@ -135,10 +135,11 @@ defmodule Noora.Breadcrumbs do
         />
       </button>
       <div :if={has_slot_content?(@inner_block, assigns)} data-part="positioner">
-        <div class="noora-dropdown-content" data-part="content">
+        <div class="noora-menu-panel" data-part="content">
           <div data-part="items">
             {render_slot(@inner_block)}
           </div>
+          <.menu_separator :if={has_slot_content?(@footer, assigns)} />
           <div :if={has_slot_content?(@footer, assigns)} data-part="footer">
             {render_slot(@footer)}
           </div>
@@ -151,7 +152,7 @@ defmodule Noora.Breadcrumbs do
     """
   end
 
-  attr(:id, :string, required: false)
+  attr(:id, :string, default: nil)
   attr(:label, :string, required: true, doc: "Text displayed as the main content of the item")
   attr(:value, :string, required: true, doc: "Value associated with the breadcrumb item")
   attr(:selected, :boolean, default: false, doc: "Whether the item is selected")
@@ -171,32 +172,33 @@ defmodule Noora.Breadcrumbs do
     doc: "Color of the avatar when avatar is shown"
   )
 
+  # A breadcrumb's menu lists Noora.Menu items, so it looks like every other
+  # menu. The breadcrumb's own keyboard handling moves focus between them.
+  # Labels are account and project names, so they middle-truncate.
   def breadcrumb_item(assigns) do
     ~H"""
-    <.dropdown_item
+    <.menu_item
+      id={@id}
       value={@value}
       label={@label}
       href={@href}
-      data-selected={@selected}
+      selected={@selected}
+      truncate="middle"
       role="menuitem"
       tabindex="-1"
     >
-      <:left_icon :if={@show_avatar or not is_nil(@icon) or not is_nil(@image)}>
-        <img :if={@image} src={@image} alt="" width="20" height="20" data-part="image" />
+      <:image :if={@image}><img src={@image} alt="" width="20" height="20" /></:image>
+      <:image :if={@show_avatar and is_nil(@icon) and is_nil(@image)}>
         <.avatar
-          :if={@show_avatar and is_nil(@icon) and is_nil(@image)}
           id={(@id || @label) <> "-avatar"}
           name={@label}
           color={@avatar_color}
           size="2xsmall"
           data-part="avatar"
         />
-        <.icon :if={not is_nil(@icon) and is_nil(@image)} name={@icon} />
-      </:left_icon>
-      <:right_icon :if={@selected}>
-        <div data-part="check"><.icon name="check" /></div>
-      </:right_icon>
-    </.dropdown_item>
+      </:image>
+      <:icon :if={not is_nil(@icon) and is_nil(@image)}><.icon name={@icon} /></:icon>
+    </.menu_item>
     """
   end
 end

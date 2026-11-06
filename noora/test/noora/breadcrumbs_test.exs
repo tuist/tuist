@@ -48,4 +48,38 @@ defmodule Noora.BreadcrumbsTest do
     refute html =~ ~s(data-part="avatar")
     refute html =~ "icon-tabler-check"
   end
+
+  test "a menu item is a Noora.Menu item, focusable by the breadcrumb's keyboard handling" do
+    assigns = %{}
+
+    html =
+      rendered_to_string(~H"""
+      <Breadcrumbs.breadcrumb_item id="ios" value="ios" label="ios-app" href="/tuist/ios-app" selected />
+      """)
+
+    assert html =~ ~s(class="noora-menu-item")
+    assert html =~ ~s(href="/tuist/ios-app")
+    assert html =~ ~s(role="menuitem")
+    assert html =~ ~s(tabindex="-1")
+    assert html =~ "data-selected"
+    assert html =~ ~s(data-part="check")
+    assert html =~ ~s(data-truncate="middle")
+  end
+
+  test "the menu is a Noora.Menu panel with the footer after a separator" do
+    assigns = %{}
+
+    html =
+      rendered_to_string(~H"""
+      <Breadcrumbs.breadcrumb id="project" label="ios-app">
+        <Breadcrumbs.breadcrumb_item value="ios" label="ios-app" selected />
+        <:footer>
+          <Breadcrumbs.breadcrumb_item value="new" label="Create project" icon="plus" />
+        </:footer>
+      </Breadcrumbs.breadcrumb>
+      """)
+
+    assert html =~ ~s(class="noora-menu-panel" data-part="content")
+    assert html =~ ~r/data-part="separator".*data-part="footer"/s
+  end
 end

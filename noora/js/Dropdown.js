@@ -10,6 +10,17 @@ import {
 import { Component } from "./component.js";
 import { VanillaMachine } from "./machine.js";
 
+// Flips a Noora.Menu checkbox item: its state, which the next render reads,
+// what it announces, and its checkbox.
+const setMenuItemChecked = (item, checked) => {
+  const state = checked ? "checked" : "unchecked";
+  item.dataset.checked = String(checked);
+  item.dataset.state = state;
+  item.setAttribute("aria-checked", String(checked));
+  const control = item.querySelector(".noora-checkbox-control");
+  if (control) control.dataset.state = state;
+};
+
 class Menu extends Component {
   initMachine(context) {
     return new VanillaMachine(menu.machine, context);
@@ -90,11 +101,23 @@ class Menu extends Component {
     const content = this.el.querySelector('[data-part="content"]');
     if (!content) return;
 
+    const menuValues = new Set();
     for (const item of content.querySelectorAll('[data-part="item"]')) {
       const value = item.dataset.value;
       if (!value) {
         console.error("Missing `data-value` attribute on item.");
         return;
+      }
+
+      // Items are identified by value, so a repeated one would highlight and
+      // select the wrong item.
+      if (item.classList.contains("noora-menu-item")) {
+        if (menuValues.has(value)) {
+          console.warn(
+            `Noora.Menu "${this.el.id}" has more than one item with value "${value}". Values must be unique within a menu.`,
+          );
+        }
+        menuValues.add(value);
       }
 
       // Skip spreading props if item is inside breadcrumbs as that leads to issues on LiveView >= 1.1 due to conflicting state management between LiveView and JS layers.
@@ -103,9 +126,10 @@ class Menu extends Component {
       }
 
       const disabled = item.hasAttribute("data-disabled");
-      // Noora.Menu checkbox items announce their state and keep the menu
-      // open, so several can be toggled in a row. The LiveView owns
-      // `checked`. Dropdown checkbox items keep their own behavior.
+      // Noora.Menu checkbox items toggle in place and keep the menu open, so
+      // several can be toggled in a row. A re-render with a new `checked`
+      // from the LiveView still wins. Dropdown checkbox items keep their own
+      // behavior.
       const menuCheckbox =
         item.classList.contains("noora-menu-item") &&
         item.hasAttribute("data-checkbox");
@@ -116,6 +140,7 @@ class Menu extends Component {
             checked: item.dataset.checked === "true",
             disabled,
             closeOnSelect: false,
+            onCheckedChange: (checked) => setMenuItemChecked(item, checked),
           })
         : this.api.getItemProps({ value, disabled });
       spreadProps(item, props);
@@ -197,9 +222,15 @@ export default {
       },
       onSelect: (details) => {
         if (this.el.dataset.onSelect) {
+          // A Noora.Menu checkbox item also sends the state it's toggling
+          // to; the select fires just before the item flips.
+          const checkbox = this.el.querySelector(
+            `.noora-menu-item[data-checkbox][data-value="${CSS.escape(details.value)}"]`,
+          );
           this.pushEvent(this.el.dataset.onSelect, {
             ...this.metadata,
             ...details,
+            ...(checkbox && { checked: checkbox.dataset.checked !== "true" }),
           });
         }
       },
@@ -272,6 +303,10 @@ export default {
       // Capture phase so zag's content keydown handler doesn't consume the
       // arrow keys before we move focus.
       this.el.addEventListener("keydown", this.breadcrumbKeydown, true);
+      // The pointer takes over from the keyboard, so only one item looks
+      // highlighted at a time.
+      this.breadcrumbPointerMove = () => this.clearBreadcrumbHighlight();
+      this.el.addEventListener("pointermove", this.breadcrumbPointerMove);
     }
   },
 
@@ -292,8 +327,11 @@ export default {
         );
         (selected || items[0]).focus();
       });
-    } else if (this.el.contains(document.activeElement)) {
-      this.el.querySelector('[data-part="trigger"]')?.focus();
+    } else {
+      this.clearBreadcrumbHighlight();
+      if (this.el.contains(document.activeElement)) {
+        this.el.querySelector('[data-part="trigger"]')?.focus();
+      }
     }
   },
 
@@ -361,7 +399,24 @@ export default {
 
     event.preventDefault();
     event.stopPropagation();
-    items[next].focus();
+    this.highlightBreadcrumbItem(items[next]);
+  },
+
+  // Moves keyboard focus to an item and marks it highlighted, the way zag
+  // marks Noora.Menu items. Focus alone doesn't highlight: opening the menu
+  // focuses the selected item, which shows only its check.
+  highlightBreadcrumbItem(item) {
+    this.clearBreadcrumbHighlight();
+    item.setAttribute("data-highlighted", "");
+    item.focus();
+  },
+
+  clearBreadcrumbHighlight() {
+    for (const item of this.el.querySelectorAll(
+      '[data-part="item"][data-highlighted]',
+    )) {
+      item.removeAttribute("data-highlighted");
+    }
   },
 
   breadcrumbTypeahead(char, items) {
@@ -378,7 +433,7 @@ export default {
       items.find((item) => labelOf(item).startsWith(this.typeaheadQuery)) ||
       items.find((item) => labelOf(item).includes(this.typeaheadQuery));
 
-    if (match) match.focus();
+    if (match) this.highlightBreadcrumbItem(match);
   },
 
   applySearchFilter() {
@@ -430,6 +485,7 @@ export default {
     this.el.removeEventListener("keydown", this.handleSearchKeydown);
     if (this.breadcrumbKeydown) {
       this.el.removeEventListener("keydown", this.breadcrumbKeydown, true);
+      this.el.removeEventListener("pointermove", this.breadcrumbPointerMove);
     }
     clearTimeout(this.typeaheadTimer);
     window.removeEventListener("phx:open-dropdown", this.handleOpenDropdown);

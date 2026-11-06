@@ -251,6 +251,12 @@
     }
   }
 
+  /* The highlight is the item's only focus state: no outline, which a
+     page's own focus ring would otherwise draw around the item. */
+  &:focus-visible {
+    outline: none;
+  }
+
   /* Zag marks the item under the pointer or keyboard focus as highlighted. */
   &[data-highlighted] {
     background: var(--noora-surface-background-secondary);
