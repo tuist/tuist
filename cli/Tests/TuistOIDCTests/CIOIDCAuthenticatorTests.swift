@@ -254,12 +254,12 @@ struct CIOIDCAuthenticatorTests {
     }
 
     @Test(.withMockedEnvironment())
-    func fetchOIDCToken_mints_an_amp_orb_token_for_the_tuist_audience() async throws {
+    func fetchOIDCToken_mints_an_amp_orb_token_for_the_tuist_dev_audience() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.variables = ["AMP_ORB": "1"]
         given(oidcTokenFetcher)
-            .fetchAmpOrbToken(audience: .value("tuist"))
+            .fetchAmpOrbToken(audience: .value("https://tuist.dev"))
             .willReturn("amp-orb-token")
 
         // When

@@ -66,8 +66,9 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
             return try bitriseOIDCToken()
         }
 
+        // Amp recommends an audience that names the relying service.
         if Environment.current.isAmpOrb {
-            return try await oidcTokenFetcher.fetchAmpOrbToken(audience: "tuist")
+            return try await oidcTokenFetcher.fetchAmpOrbToken(audience: "https://tuist.dev")
         }
 
         throw CIOIDCAuthenticatorError.unsupportedCIEnvironment
