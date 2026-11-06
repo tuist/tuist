@@ -738,9 +738,6 @@ const NEGATIVE_TTL: Duration = Duration::from_secs(60);
 // A publication skipped because the remote refused the credential. Reported once
 // by the remote that refused it, not once per spooled record.
 const CREDENTIAL_REFUSED: &str = "remote refused the cache credential";
-/// A node of the record's value graph is not in the local store, so nothing
-/// can upload it: the store was pruned or wiped after the record was written.
-const LOCAL_GRAPH_MISSING: &str = "value graph missing from the local store";
 
 /// How long a path may go without a request before its in-memory caches are
 /// reclaimed and its store's handle released by the maintenance loop. Well
@@ -4608,15 +4605,6 @@ impl Proxy {
                 // armed it, and every publication queued behind it fails for the
                 // same reason. Saying so per record buries the line that
                 // explains them in thousands of copies of itself.
-                // No retry brings the graph back; only a rebuild does, and that
-                // spools a record of its own.
-                if reason == LOCAL_GRAPH_MISSING {
-                    self.remove_spooled(&record_path);
-                    crate::log_line(&format!(
-                        "proxy dropped a publication whose {reason}: {record_path}"
-                    ));
-                    return;
-                }
                 if reason != "remote shedding writes" && reason != CREDENTIAL_REFUSED {
                     crate::log_line(&format!("proxy publish failed ({reason}); record kept"));
                 }
@@ -7079,9 +7067,6 @@ unsafe fn read_node_frame(
     let result = (state.up.llcas_cas_load_object)(cas, id, &mut loaded, &mut load_error);
     if !load_error.is_null() {
         (state.up.llcas_string_dispose)(load_error);
-    }
-    if result == LLCAS_LOOKUP_RESULT_NOTFOUND {
-        return Err(LOCAL_GRAPH_MISSING.into());
     }
     if result != LLCAS_LOOKUP_RESULT_SUCCESS {
         return Err("local load".into());
@@ -13427,43 +13412,6 @@ mod tests {
         assert_eq!(remaining, 1, "the record is still owed");
         assert!(attempts.load(Ordering::SeqCst) >= 1, "and was published, not dropped");
         std::fs::remove_dir_all(&dir).ok();
-    }
-
-    // A record whose value graph left the store (a prune or wipe after it was
-    // written) can never upload, and retrying it cost one GetActionResult per
-    // record per tick. It is dropped on the first attempt.
-    #[test]
-    fn a_publication_whose_graph_left_the_store_drops_its_record() {
-        if run_in_cas_subprocess() {
-            return;
-        }
-        let cache = replay_cache::start();
-        let dir = TempCasDir::new("publish-graph-missing");
-        let proxy = Proxy::new(
-            cache.url.clone(),
-            TokenProvider::from_env(),
-            crate::upstream_path(),
-            Some(dir.0.join("registry")),
-            None,
-        );
-        let state = opened_path_state(proxy, &dir.path());
-        let elsewhere = TempCasDir::new("publish-graph-missing-elsewhere");
-        let missing = store_probe_object(opened_path_state(proxy, &elsewhere.path()), b"pruned");
-        let path = dir.0.join("publication");
-        let record = PublishRecord {
-            key: b"pruned-action".to_vec(),
-            value_digest: missing,
-            spool_path: Some(path.clone()),
-        };
-        std::fs::write(&path, record.encode_body()).unwrap();
-        let item = proxy
-            .publish_item_bytes(&dir.path(), "tuist/pruned", path.to_str().unwrap())
-            .unwrap();
-
-        proxy.publish_item(&item);
-
-        assert!(!path.exists(), "the record is dropped");
-        assert!(!state.graph_present(&record.value_digest));
     }
 
     // A warm stamps no use, so a store that went idle before its warm started
