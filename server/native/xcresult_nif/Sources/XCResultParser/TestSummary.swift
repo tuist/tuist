@@ -75,6 +75,10 @@ public struct TestSummary: Encodable, Sendable {
 /// `message` carries the recorded issue, so it can include a source path, a line
 /// number, and the asserted expression. They do not fail the run, matching
 /// xcodebuild's exit code.
+///
+/// Build errors come from the bundle's build results when no test ran, such as
+/// testing cancelled because the build failed. They are run-level and fail the
+/// run, as they do for xcodebuild.
 public struct TestRunError: Encodable, Sendable {
     /// The test target the error belongs to, or nil for a run-level error.
     public let target: String?
