@@ -42,14 +42,22 @@ The checked-in collector/storage configuration also leaves these gates open:
   stores**. The production PDC connection does not federate them. Provide
   private datasource access to each required store, or explicitly design and
   validate consolidated ingestion before using cross-cluster queries.
-- Management remains Cloud-only by design, and `cache/platform/alloy.nix`
-  configures an external Cloud-only sender. Confirm actual sender/retirement
-  status, including pentest, and give every required sender a replacement.
-- Cloud and Pulse destination processing are not identical: Cloud normalizes
-  Kura `instance` labels, drops more non-production metrics and tail-samples
-  traces. Cloud-generated `traces_service_graph_*` metrics do not traverse
-  Alloy at all. Preserve intentional label/query semantics and replace any
-  used derived metrics; do not assume that dual-write means identical data.
+- Prepared management configuration adds an independent management-local,
+  metrics-only Pulse store. Bootstrap its bucket/vault items, wait for Flux and
+  backend readiness, then reconcile monitoring and prove fresh management data.
+  Its workflow preserves Cloud-only collection while bootstrap is incomplete.
+- External NixOS cache configuration prepares independent Pulse queues for
+  metrics/logs/traces using the matching environment token and exact TLS ingest
+  paths. Deploy backend/ingress before hosts, then verify every active host.
+  Confirm pentest retirement; use its legacy backend/collector overlay only if
+  the existing cluster still requires monitoring, never recreate it.
+- Cloud/Pulse metrics now share the same destination relabel/drop policy,
+  including Kura identity. Pulse traces intentionally remain unsampled while
+  Cloud retains tail sampling. Alloy now prepares `traces_service_graph_*`
+  generation to Pulse only, independently of Cloud's generator. Compare actual
+  generated families, histogram buckets, labels and service relationships before
+  moving consumers; configured generation is not historical backfill or exact
+  Cloud equivalence. Direct external traces use the host-local generator.
 - Configured observe-mode retention does not prove historical samples exist.
   The replacement volume rules need a 7-day range offset by 12 hours (7.5 days
   of baseline); each other query needs its own range-plus-offset coverage.
@@ -60,6 +68,11 @@ The checked-in collector/storage configuration also leaves these gates open:
   S3 latency is not a Tigris acceptance run. The old p99-ingest-under-1-second
   gate also needs an explicit SLO decision with the current 2-second ingest
   coalescing window; do not quietly mark that threshold passed.
+
+Bootstrap order and credential boundaries are in the
+[managed Pulse prerequisites](../../infra/helm/pulse/README.md#bootstrap-prerequisites).
+All Cloud destinations remain enabled. None of these prepared changes switches
+Grafana datasources, rules, recordings or notifications.
 
 These are desired-state findings, not a fresh Kubernetes rollout check. The
 November 6 view-tier checks required interactive sign-in, so live fleet,

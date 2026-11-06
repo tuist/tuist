@@ -11,7 +11,9 @@ The production service is `pulse.observability.svc.cluster.local:4000`. The
 production `pdcAgent.permitRemoteOpen` list in the Tuist chart allows exactly
 this host and port alongside the existing database targets. Apply that change
 through the normal server deployment, or a narrowly scoped, human-elevated
-production operation. Do not expose Pulse publicly or widen the tunnel to `*`.
+production operation. Keep query APIs private and do not widen the tunnel to `*`.
+Managed workload ingress permits only exact authenticated MCP and ingest paths
+for Atlas and external senders; it is not the Grafana query connection.
 
 `pulse-datasources.json` contains three **Grafana HTTP API request bodies**, not
 a Helm resource or a file Grafana Cloud automatically imports. They use the

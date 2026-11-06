@@ -32,7 +32,8 @@ storage:
   bucket: tuist-pulso-staging
   region: auto
   endpoint: https://t3.storage.dev
-# Ingestion stays private; only the authenticated MCP endpoint is public.
+# Cluster collectors stay private. External cache hosts use TLS and tenant
+# authentication on the three exact ingest paths; query APIs stay private.
 service:
   type: ClusterIP
 # Atlas (atlas-production cluster) queries this Pulse over MCP only; see the
@@ -45,8 +46,15 @@ ingress:
   paths:
     - path: /mcp
       pathType: Exact
+    - path: /api/v1/write
+      pathType: Exact
+    - path: /loki/api/v1/push
+      pathType: Exact
+    - path: /v1/traces
+      pathType: Exact
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+    nginx.ingress.kubernetes.io/proxy-body-size: "4m"
   tls:
     - secretName: pulse-tls
       hosts: [pulse-staging.tuist.dev]
@@ -79,10 +87,12 @@ traceCompaction:
 # throughput (32 slots ≈ 50 req/s against ~6 req/s steady). Staging ran at
 # ~390Mi with 16 slots saturated, so 32 fits in 1.5Gi, plus Pulse's default
 # 64 MiB of pending bytes. Each signal gets its own reserve of slots (default
-# an eighth), so a remote-write replay can't starve logs or traces. 1.22.0
-# pipelines flushes, so a 20 ms coalescing window keeps latency low.
+# an eighth), so a remote-write replay can't starve logs or traces. Match
+# canary/production's 2 s batching to reduce small segment and manifest PUTs.
+# Coalescing adds up to 2 s before publication; acknowledgments still wait
+# for encoding and durable object-store publication afterward.
 ingestBatching:
-  flushIntervalMs: 20
+  flushIntervalMs: 2000
   maxConcurrentRequests: 32
 # Expiry stays non-destructive until an operator approves a retention policy.
 retention:

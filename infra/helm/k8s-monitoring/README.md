@@ -140,13 +140,19 @@ The rack's switches report through the Omada controller rather than a scrape of 
 
 ## Pulse
 
-The chart forwards to the independently released [Pulse](../pulse/README.md) (`pulse.observability.svc.cluster.local`, port 4000), backed by the per-environment bucket. It does not deploy the backend or own its credentials. Every feature sends to all compatible destinations, so the `pulse-metrics`, `pulse-logs`, and `pulse-traces` destinations receive the same metrics, pod and node logs, events, and traces as Grafana Cloud, each through its own write queue. Custom `extraConfig` scrapes forward to both explicitly.
+The chart forwards to the independently released [Pulse](../pulse/README.md) (`pulse.observability.svc.cluster.local`, port 4000), backed by the per-environment bucket. It does not deploy the backend or own its credentials. Compatible features and custom receivers fan out to Cloud and Pulse through separate write queues. Both metrics destinations share the same relabel/drop policy, including Kura instance normalization. Logs share source processing. Pulse traces remain unsampled, while Cloud retains its existing tail sampling; identical trace populations or costs are not expected.
 
-Staging, canary and production configure Pulse destinations; management and pentest keep their Grafana Cloud-only destinations. Data lives in the `tuist` tenant. Each cluster exposes only `/mcp`, at `pulse-staging.tuist.dev`, `pulse-canary.tuist.dev` and `pulse.tuist.dev`, for Atlas, which authenticates with its projected ServiceAccount token through Pulse's `workloadIdentity` trust (read-only, one token audience per host). Ingestion and the Prometheus/Loki query APIs stay in-cluster, where Alloy uses the `PULSE_TOKEN` tenant token through the backend-owned `pulse-credentials` Secret. Grafana Cloud scrapes Pulse's own `/metrics` through annotation autodiscovery, so its health is visible independently of Pulse.
+Staging, canary and production also generate `traces_service_graph_*` in a trace-ID-routed Alloy service-graph collector, writing derived metrics **only to Pulse**. Cloud's own generator is unchanged. Compare actual family names, labels and histogram buckets before migrating consumers; this is not a promise of Cloud generator equivalence. Direct external-cache traces use their host-local connector, not a second cluster generator.
+
+Management prepares metrics-only dual-write to an independent management-local Pulse. Its apply workflow keeps collectors Cloud-only until the backend and ExternalSecret report ready. Pentest includes a legacy dual-write overlay only for an existing cluster pending verified retirement: bootstrap its backend first, and never recreate the retired cluster for telemetry. See [bootstrap prerequisites](../pulse/README.md#bootstrap-prerequisites).
+
+All stores use the `tuist` tenant, but separate buckets are not a federated store. The workload hosts `pulse-staging.tuist.dev`, `pulse-canary.tuist.dev` and `pulse.tuist.dev` expose exact authenticated `/mcp`, `/api/v1/write`, `/loki/api/v1/push` and `/v1/traces` paths over TLS. External NixOS cache collectors use the ingest paths with an environment-specific opnix token. Query APIs and `/metrics` stay private; Grafana reads over PDC. Atlas retains read-only projected ServiceAccount authentication for MCP. Do not publish a `/` or `/api` prefix. Grafana Cloud still receives Pulse health scrapes independently through annotation autodiscovery; prove an outside-Pulse failure/no-data paging path before removing that storage.
+
+These are prepared configuration changes, not deployed acceptance. Run `bash infra/helm/k8s-monitoring/test-pulse-ingestion.sh` with Helm, yq, jq and Docker for all environment renders, bootstrap fallback, metric-policy equality and a real service-graph remote-write fixture. It writes only to disposable local containers.
 
 ## What gets deployed
 
-Seven Alloy instances, split by role (managed by the upstream `alloy-operator`):
+Eight Alloy roles in workload overlays (managed by the upstream `alloy-operator`):
 
 - `alloy-metrics` — scrapes metrics (cluster / node / app) ; runs clustered so replicas hash-partition targets
 - `alloy-logs` — DaemonSet tailing pod logs from `/var/log/pods`, plus host journald from `/var/log/journal` (node logs feature, scoped to `containerd` / `kubelet` / kernel)
@@ -154,6 +160,8 @@ Seven Alloy instances, split by role (managed by the upstream `alloy-operator`):
 - `alloy-receiver` — OTLP gRPC and HTTP receiver for managed workload traces
 - `grafana-cloud-traces-sampler` — keeps failed, slow, and sampled healthy
   traces before they are sent to Grafana Cloud
+- `pulse-traces-servicegraph` — pairs trace spans and writes derived service-graph
+  metrics only to Pulse, before the independent Cloud sampling branch
 - `alloy-control-plane` — one host-networked Pod per control-plane node,
   scraping the local Kubernetes and etcd endpoints without exposing etcd
   outside the machine

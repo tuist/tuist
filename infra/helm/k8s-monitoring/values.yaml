@@ -135,7 +135,7 @@ k8s-monitoring:
       # They carry no `cluster` / `job` / `instance` label, only span-derived
       # ones plus `source`. Turning them off is a stack-side setting
       # (Tempo -> Metrics generator -> service graphs), not a chart value.
-      metricProcessingRules: |
+      metricProcessingRules: &metricProcessingRules |
         // Opt-in, two-phase migration. Old runtimes have no marker and keep
         // every route bucket even when enabled, including on rollback.
         write_relabel_config {
@@ -316,6 +316,21 @@ k8s-monitoring:
           regex = "tuist_runs_duration_milliseconds_bucket;(200.0|800.0|3200.0|12800.0|51200.0|204800.0|819200.0)|tuist_http_request_duration_nanoseconds_bucket;(4.3e\\+06|1.9876749e\\+07|9.1880276e\\+07|4.24716579e\\+08|1.96325239e\\+09|9.075134174e\\+09|4.1949807721e\\+10)"
           action = "drop"
         }
+
+    # Share the exact write-time identity and filtering policy with Cloud.
+    # Environment overlays add env labels; the backend owns this Secret.
+    pulse-metrics:
+      type: prometheus
+      url: http://pulse.observability.svc.cluster.local:4000/api/v1/write
+      auth:
+        type: basic
+        usernameKey: pulse-username
+        passwordKey: pulse-password
+      secret:
+        create: false
+        name: pulse-credentials
+        namespace: observability
+      metricProcessingRules: *metricProcessingRules
 
     grafana-cloud-logs:
       type: loki
@@ -1475,7 +1490,7 @@ k8s-monitoring:
           }
           {{ end }}
 
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulse-metrics" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
         }
 
         prometheus.scrape "tuist_etcd" {
@@ -1496,7 +1511,7 @@ k8s-monitoring:
             action = "keep"
           }
 
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulse-metrics" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
         }
 
     # Clustering lets multiple alloy-metrics replicas hash-partition the
@@ -1698,7 +1713,7 @@ k8s-monitoring:
           // scope here. Forward straight to the concrete Grafana Cloud
           // and Pulse metrics destinations (match the `destinations` keys in
           // values.yaml, dashes to underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulse-metrics" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
         }
 
         // tart-kubelet's controller-runtime metrics endpoint. Carries
@@ -1725,7 +1740,7 @@ k8s-monitoring:
           // scope here. Forward straight to the concrete Grafana Cloud
           // and Pulse metrics destinations (match the `destinations` keys in
           // values.yaml — dashes → underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulse-metrics" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
           job_name = "tuist-macos-tart-kubelet"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -1777,7 +1792,7 @@ k8s-monitoring:
           // scope here. Forward straight to the concrete Grafana Cloud
           // metrics destination (matches the `destinations` key in
           // values.yaml — dashes → underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulse-metrics" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
           job_name = "tuist-macos-pod-metrics"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -1878,7 +1893,7 @@ k8s-monitoring:
             replacement = ""
           }
 
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulse-metrics" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
         }
 
         // PgBouncer pooler metrics for the processor's transaction-mode
@@ -1929,7 +1944,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_cnpg_pooler" {
           targets = discovery.relabel.tuist_cnpg_pooler.output
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulse-metrics" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
           job_name = "tuist-cnpg-pooler"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -1979,7 +1994,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_cnpg_operator" {
           targets = discovery.relabel.tuist_cnpg_operator.output
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulse-metrics" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
           job_name = "tuist-cnpg-operator"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -2053,7 +2068,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_kura_unready" {
           targets = discovery.relabel.tuist_kura_unready.output
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulse-metrics" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
           job_name = "kura"
           scrape_interval = "60s"
           scrape_timeout = "10s"
@@ -2140,7 +2155,7 @@ k8s-monitoring:
         }
 
         prometheus.relabel "tuist_kura_ingress_nginx" {
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulse-metrics" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
           rule {
             source_labels = ["__name__"]
             regex = "nginx_ingress_controller_requests|up|scrape_samples_scraped"
@@ -2206,7 +2221,7 @@ k8s-monitoring:
         }
 
         prometheus.relabel "tuist_hubble" {
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulse-metrics" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
           rule {
             source_labels = ["__name__"]
             regex = "hubble_drop_total|up|scrape_samples_scraped"
@@ -2685,7 +2700,7 @@ k8s-monitoring:
             listen_address = "0.0.0.0"
             listen_port = 9009
           }
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if hasKey .Values.destinations "pulse-metrics" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver{{ if eq (dig "pulse-metrics" "type" "" .Values.destinations) "prometheus" }}, prometheus.remote_write.pulse_metrics.receiver{{ end }}]
         }
 
         // Browser real user monitoring for tuist.dev. The Grafana Faro Web SDK

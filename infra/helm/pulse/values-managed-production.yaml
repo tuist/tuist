@@ -34,7 +34,8 @@ storage:
   bucket: tuist-pulso-production
   region: auto
   endpoint: https://t3.storage.dev
-# Ingestion stays private; only the authenticated MCP endpoint is public.
+# Cluster collectors stay private. External cache hosts use TLS and tenant
+# authentication on the three exact ingest paths; query APIs stay private.
 service:
   type: ClusterIP
 # Atlas runs in its own cluster and reaches Pulse over MCP only (see the
@@ -47,8 +48,15 @@ ingress:
   paths:
     - path: /mcp
       pathType: Exact
+    - path: /api/v1/write
+      pathType: Exact
+    - path: /loki/api/v1/push
+      pathType: Exact
+    - path: /v1/traces
+      pathType: Exact
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+    nginx.ingress.kubernetes.io/proxy-body-size: "4m"
   tls:
     - secretName: pulse-tls
       hosts: [pulse.tuist.dev]
