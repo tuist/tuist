@@ -3293,7 +3293,7 @@ msgstr ""
 msgid "Coverage not applied: %{reason}"
 msgstr ""
 
-#: lib/tuist_web/live/test_selection/run_tab.ex:231
+#: lib/tuist_web/live/test_selection/run_tab.ex:230
 #, elixir-autogen, elixir-format
 msgid "Every test in the modules selective testing left ran."
 msgstr ""

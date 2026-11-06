@@ -892,6 +892,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         case nil:
             return
         case let .selected(selection, skippedModules):
+            // A run that counted nothing (hashing skipped every module before the baseline was confirmed) has
+            // nothing to add to the selective testing line.
+            guard selection.requested != 0 else { return }
             // The server's counts include the tests in the modules hashing skipped.
             let counts = [
                 selection.selected

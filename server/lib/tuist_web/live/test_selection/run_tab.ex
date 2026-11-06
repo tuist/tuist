@@ -227,11 +227,11 @@ defmodule TuistWeb.TestSelection.RunTab do
                 Enum.reject(
                   [
                     fallback_description(@selection_run.reason),
-                    @selection_run.matched_path,
                     dgettext(
                       "dashboard_tests",
                       "Every test in the modules selective testing left ran."
-                    )
+                    ),
+                    @selection_run.matched_path
                   ],
                   &(&1 == "")
                 ),

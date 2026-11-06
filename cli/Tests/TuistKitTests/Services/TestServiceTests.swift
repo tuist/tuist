@@ -5076,7 +5076,7 @@ final class TestServiceTests: TuistUnitTestCase {
                         runID: testImpactRunID,
                         requested: 0,
                         selected: 0,
-                        skipped: 3,
+                        skipped: 0,
                         skippedTests: []
                     )))
             }
@@ -5151,6 +5151,7 @@ final class TestServiceTests: TuistUnitTestCase {
                     request: .matching { $0.modules.isEmpty && $0.skippedModules == ["AppTests"] }
                 )
                 .called(testImpactRunID != nil ? 1 : 0)
+            XCTAssertStandardOutputNotContains("Coverage-based test selection")
 
             let log = switch emptyScheme {
             case .removed, .noTargets: "The scheme ProjectSchemeOne's test action has no tests to run, finishing early."
