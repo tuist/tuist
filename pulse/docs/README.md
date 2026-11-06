@@ -83,6 +83,8 @@ stores raw records, indefinitely unless event-time expiry is configured.
   budgeted Decisions judgments, durable MCP signals and capped external handoff.
 - [Keyed ingestion](keyed-ingestion.md): conditional uploads, exact-byte retry
   verification, permanent conflicts, provider costs and all-writer upgrades.
+- [Historical backfill](backfill.md): offline Loki batch preparation, raw metric
+  export requirements, reconciliation and safe storage cutover gates.
 - [Retention](retention.md): experimental event-time retention for logs, metrics
   and traces, its irreversible rollout, policy changes, limits, and recovery.
 - [OpenTelemetry logs](logs.md): HTTP protobuf/JSON, typed metadata, collector
