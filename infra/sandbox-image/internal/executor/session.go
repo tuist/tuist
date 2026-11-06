@@ -19,6 +19,7 @@ type Session struct {
 	endpoint string
 	conn     *grpc.ClientConn
 	used     bool
+	reused   bool // the action took the prepared connection
 }
 
 // Prepare performs only the transport handshake, never an authenticated RPC.
@@ -74,6 +75,7 @@ func (s *Session) takeClient(endpoint string) (*grpc.ClientConn, error) {
 		conn := s.conn
 		s.conn = nil
 		if s.endpoint == endpoint {
+			s.reused = true
 			return conn, nil
 		}
 		// Settings may change after preparation. Never send a credential to the

@@ -6,6 +6,8 @@ import (
 
 	re "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -81,6 +83,24 @@ func (m *metrics) observePhases(md *re.ExecutedActionMetadata) {
 		line += " " + p.name + "=" + d.Round(time.Millisecond).String()
 	}
 	if line != "" {
-		log.Print("action phases:" + line)
+		log.Print("action phases:" + line + casReads(md))
 	}
+}
+
+// casReads returns the executor's CAS read summary (per-RPC totals and the
+// slowest reads, see executor.casReadTimings) as a log suffix.
+func casReads(md *re.ExecutedActionMetadata) string {
+	for _, a := range md.AuxiliaryMetadata {
+		var s structpb.Struct
+		if !a.MessageIs(&s) || a.UnmarshalTo(&s) != nil || s.Fields["kind"].GetStringValue() != "tuist.cas_reads" {
+			continue
+		}
+		delete(s.Fields, "kind")
+		b, err := protojson.Marshal(&s)
+		if err != nil {
+			return ""
+		}
+		return " cas_reads=" + string(b)
+	}
+	return ""
 }

@@ -1,7 +1,11 @@
 package executiongateway
 
 import (
+	"bytes"
+	"log"
 	"net/http"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +13,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -79,5 +87,30 @@ func TestExecutedActionPhasesAreAttributed(t *testing.T) {
 	}
 	if n := testutil.CollectAndCount(m.phases); n != 3 {
 		t.Fatalf("%d phase series; the reversed output upload must not be recorded", n)
+	}
+}
+
+func TestPhaseLogIncludesTheExecutorsCASReads(t *testing.T) {
+	var out bytes.Buffer
+	log.SetOutput(&out)
+	defer log.SetOutput(os.Stderr)
+	reads, _ := structpb.NewStruct(map[string]any{"kind": "tuist.cas_reads", "slowest": []any{map[string]any{"rpc": "stream", "ms": 160000}}})
+	other, _ := structpb.NewStruct(map[string]any{"kind": "other"})
+	readsAny, _ := anypb.New(reads)
+	otherAny, _ := anypb.New(other)
+	at := timestamppb.New(time.Unix(1_000, 0))
+	newMetrics(prometheus.NewRegistry()).observePhases(&re.ExecutedActionMetadata{
+		InputFetchStartTimestamp: at, InputFetchCompletedTimestamp: at,
+		AuxiliaryMetadata: []*anypb.Any{otherAny, readsAny},
+	})
+	line := strings.TrimSpace(out.String())
+	_, suffix, ok := strings.Cut(line, " cas_reads=")
+	var got structpb.Struct
+	if !ok || protojson.Unmarshal([]byte(suffix), &got) != nil {
+		t.Fatalf("phase log %q lacks the CAS reads", line)
+	}
+	delete(reads.Fields, "kind")
+	if !proto.Equal(&got, reads) {
+		t.Fatalf("logged CAS reads %v; want %v", &got, reads)
 	}
 }
