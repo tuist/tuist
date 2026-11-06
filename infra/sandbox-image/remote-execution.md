@@ -330,6 +330,10 @@ reads three sources, none labelled by account or project:
 - Gateways export `reapi_gateway_*` on port 9090: Execute calls by path (`lease`
   or `server`) and final status, Execute latency, how inputs were prefetched,
   action-cache publication outcomes and admitted streams.
+  `reapi_gateway_action_phase_seconds{phase}` splits each executed action into
+  `queued` (admission to worker start, including VM creation), `input_fetch`,
+  `execution` and `output_upload` from the executor's metadata; gateways also
+  log one `action phases:` line per action with the same durations.
 - The server exports `tuist_remote_execution_*` through PromEx: submissions
   (accepted, deduplicated, `queue_full`), operation outcomes, duration and queue
   time, VM preparation time by outcome, and lease outcomes. Leased executions
