@@ -13,8 +13,10 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
+  alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.Sites
   alias Tuist.Runners.Workers.FetchLogsWorker
   alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Runners.WorkflowJob
@@ -33,7 +35,7 @@ defmodule Tuist.Runners.DispatchTest do
     # resolution falls back to the legacy `owner == account.name`
     # convention the bulk of these cases exercise. The installation-first
     # path has its own case that overrides this stub.
-    stub(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:error, :not_found} end)
+    stub(VCS, :get_github_app_installation_by_installation_id, fn _, _ -> {:error, :not_found} end)
 
     # Disable the macOS protected-profile auto-bootstrap globally for
     # this suite. `Accounts.create_organization` and `Accounts.create_user`
@@ -179,7 +181,10 @@ defmodule Tuist.Runners.DispatchTest do
       # so the legacy name convention can't find them — but the App
       # installation maps straight to the account.
       stub(Accounts, :get_account_by_handle, fn _ -> nil end)
-      stub(VCS, :get_github_app_installation_by_installation_id, fn 123_975_483 -> {:ok, %{account_id: account.id}} end)
+
+      stub(VCS, :get_github_app_installation_by_installation_id, fn 123_975_483, [client_url: "https://github.com"] ->
+        {:ok, %{account_id: account.id}}
+      end)
 
       stub(Client, :list_runner_pools, fn _ns ->
         {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
@@ -202,7 +207,7 @@ defmodule Tuist.Runners.DispatchTest do
       # the account that actually connected the App.
       stub(Accounts, :get_account_by_handle, fn _ -> enabled_account() end)
 
-      stub(VCS, :get_github_app_installation_by_installation_id, fn _ ->
+      stub(VCS, :get_github_app_installation_by_installation_id, fn _, _ ->
         {:ok, %{account_id: installation_account.id}}
       end)
 
@@ -351,7 +356,7 @@ defmodule Tuist.Runners.DispatchTest do
     test "writes the workflow_job steps to runner_job_steps and skips nameless entries" do
       test_pid = self()
 
-      stub(Jobs, :complete, fn _id, conclusion ->
+      stub(Jobs, :complete, fn _id, conclusion, _opts ->
         send(test_pid, {:completed, conclusion})
         {:ok, %{account_id: 777}}
       end)
@@ -403,7 +408,7 @@ defmodule Tuist.Runners.DispatchTest do
 
     test "skips the steps write entirely when the payload carries no steps" do
       test_pid = self()
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: 1}} end)
 
       stub(JobSteps, :record, fn rows ->
         send(test_pid, {:steps, rows})
@@ -416,7 +421,7 @@ defmodule Tuist.Runners.DispatchTest do
     end
 
     test "enqueues the log fetch when the job actually ran steps" do
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: 1}} end)
       stub(JobSteps, :record, fn _rows -> :ok end)
 
       payload =
@@ -435,7 +440,7 @@ defmodule Tuist.Runners.DispatchTest do
       # `skipped` (an `if:` gate) and `cancelled`-while-queued jobs ship
       # no steps and have no log archive on GitHub's side, so fetching
       # one only burns every retry on a permanent 404.
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: 1}} end)
       stub(JobSteps, :record, fn _rows -> :ok end)
 
       for {id, conclusion} <- [{4320, "skipped"}, {4321, "cancelled"}] do
@@ -447,7 +452,7 @@ defmodule Tuist.Runners.DispatchTest do
     end
 
     test "propagates an unexpected error from the completion write so Oban retries" do
-      stub(Jobs, :complete, fn _id, _conclusion -> {:error, :rollback} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:error, :rollback} end)
 
       payload =
         completed_payload(
@@ -470,7 +475,7 @@ defmodule Tuist.Runners.DispatchTest do
         {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
       end)
 
-      stub(Jobs, :complete, fn _id, _conclusion -> {:error, :not_found} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:error, :not_found} end)
       stub(Jobs, :record_completed, fn _attrs, _conclusion -> {:error, :rollback} end)
 
       payload =
@@ -689,7 +694,7 @@ defmodule Tuist.Runners.DispatchTest do
       claim_running!(account, workflow_job_id, "pod-silent", "runner-silent")
 
       stub(RunnerSessions, :record_execution, fn _r, _j, _a, _w -> :matched end)
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account.id}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: account.id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
       assert {:ok, :completed} =
@@ -711,7 +716,7 @@ defmodule Tuist.Runners.DispatchTest do
 
       stub(RunnerSessions, :record_execution, fn _r, _j, _a -> :mismatch end)
       stub(RunnerSessions, :record_execution, fn _r, _j, _a, _w -> :matched end)
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account.id}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: account.id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
       assert {:ok, :mismatch} =
@@ -739,7 +744,7 @@ defmodule Tuist.Runners.DispatchTest do
       end)
 
       stub(Claims, :complete_by_runner_name, fn "runner-late", ^account_id, _job -> %{released: 1, requeued: []} end)
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: account_id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
       assert {:ok, :completed} =
@@ -781,7 +786,7 @@ defmodule Tuist.Runners.DispatchTest do
       end)
 
       stub(Claims, :complete_by_runner_name, fn "runner-window", ^account_id, _job -> %{released: 1, requeued: []} end)
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: account_id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
       assert {:ok, :completed} =
@@ -815,7 +820,7 @@ defmodule Tuist.Runners.DispatchTest do
         %{released: 1, requeued: []}
       end)
 
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: account_id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
       assert {:ok, :completed} =
@@ -828,7 +833,7 @@ defmodule Tuist.Runners.DispatchTest do
     end
 
     test "skips backstop attribution when the completed payload has no runner_name (cancelled-while-queued)" do
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(Jobs, :complete, fn _id, _conclusion, _opts -> {:ok, %{account_id: 1}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
       reject(&RunnerSessions.record_execution/3)
@@ -881,6 +886,18 @@ defmodule Tuist.Runners.DispatchTest do
                Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-default"])
     end
 
+    test "routes each OS version to its own pool", %{account: account} do
+      {:ok, _} =
+        Profiles.create(account, %{"name" => "jammy", "vcpus" => 4, "memory_gb" => 16, "os_version" => "ubuntu-22.04"})
+
+      assert {:ok,
+              %{pool_name: "tuist-runner-pool-linux-4vcpu-16gb-ubuntu-22-04", requested_dispatch_label: "tuist-jammy"}} =
+               Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-jammy"])
+
+      assert {:ok, %{pool_name: "tuist-runner-pool-linux-4vcpu-16gb"}} =
+               Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-default"])
+    end
+
     test "falls back to legacy pool match for non-Linux labels (macOS)", %{account: account} do
       stub(Client, :list_runner_pools, fn _ns ->
         {:ok,
@@ -909,6 +926,122 @@ defmodule Tuist.Runners.DispatchTest do
       # which trumps the profile-side miss.
       assert {:error, :no_pools} =
                Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-unknown"])
+    end
+  end
+
+  describe "Linux jobs share runner capacity" do
+    test "different accounts resolve to the same profile pool" do
+      account = enabled_account()
+      other = enabled_account()
+      {:ok, profile} = Profiles.create(account, %{name: "vrack-test", platform: :linux, vcpus: 2, memory_gb: 8})
+      {:ok, _} = Profiles.create(other, %{name: "vrack-test", platform: :linux, vcpus: 2, memory_gb: 8})
+
+      for actor <- [account, other] do
+        assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(actor, ["tuist-vrack-test"])
+        assert name == Catalog.pool_name(profile)
+      end
+    end
+
+    test "legacy labels keep their pool and retired internal labels stay hidden" do
+      account = enabled_account()
+      normal = [name: "linux-shared", label: "linux-legacy"] |> pool_cr() |> put_in(["spec", "os"], "linux")
+
+      retired = %{
+        "metadata" => %{"name" => "linux-vrack", "labels" => %{"tuist.dev/network-cohort" => "vrack"}},
+        "spec" => %{"dispatchLabel" => "linux-internal-vrack", "os" => "linux"}
+      }
+
+      stub(Client, :list_runner_pools, fn _ -> {:ok, [normal, retired]} end)
+      assert {:ok, %{pool_name: "linux-shared"}} = Dispatch.resolve_dispatch_target(account, ["linux-legacy"])
+      assert {:error, :no_matching_pool} = Dispatch.resolve_dispatch_target(account, ["linux-internal-vrack"])
+    end
+  end
+
+  describe "resolve_dispatch_target/2 — site routing" do
+    setup do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      prefix = Tuist.Environment.runners_macos_pool_name_prefix()
+
+      Repo.insert!(%Profile{
+        account_id: account.id,
+        name: "macos",
+        platform: :macos,
+        xcode_version: "26.6",
+        vcpus: Catalog.default_shape(:macos).vcpus,
+        memory_gb: Catalog.default_shape(:macos).memory_gb
+      })
+
+      Repo.insert!(%Profile{
+        account_id: account.id,
+        name: "old-xcode",
+        platform: :macos,
+        xcode_version: "26.5",
+        vcpus: Catalog.default_shape(:macos).vcpus,
+        memory_gb: Catalog.default_shape(:macos).memory_gb
+      })
+
+      stub(Tuist.Environment, :runners_site_pools, fn ->
+        %{"#{prefix}-ber1-26-6" => %{site: "ber1", platform: :macos}}
+      end)
+
+      %{account: account, prefix: prefix}
+    end
+
+    test "an account on the site flag runs at the site that racks its profile while it is up", %{
+      account: account,
+      prefix: prefix
+    } do
+      stub(FeatureFlags, :runner_site_enabled?, fn %{id: id} -> id == account.id end)
+      expect(Sites, :available?, fn site_pool -> site_pool == "#{prefix}-ber1-26-6" end)
+
+      assert {:ok, %{pool_name: pool_name, requested_dispatch_label: "tuist-macos", platform: :macos}} =
+               Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+
+      assert pool_name == "#{prefix}-ber1-26-6"
+    end
+
+    test "an account on the site flag runs on the rented fleet while the site is down", %{
+      account: account,
+      prefix: prefix
+    } do
+      stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+      expect(Sites, :available?, fn _site_pool -> false end)
+
+      assert {:ok, %{pool_name: pool_name, requested_dispatch_label: "tuist-macos"}} =
+               Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+
+      assert pool_name == "#{prefix}-26-6"
+    end
+
+    test "an account on the site flag stays on the rented fleet for a profile no site racks", %{
+      account: account,
+      prefix: prefix
+    } do
+      stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+      reject(&Sites.available?/1)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-old-xcode"])
+      assert pool_name == "#{prefix}-26-5"
+    end
+
+    test "an account off the site flag stays on the rented fleet", %{account: account, prefix: prefix} do
+      stub(FeatureFlags, :runner_site_enabled?, fn _ -> false end)
+      reject(&Sites.available?/1)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+      assert pool_name == "#{prefix}-26-6"
+    end
+
+    test "an account on the site flag waits at a site that is down when the env rents no macOS fleet", %{
+      account: account,
+      prefix: prefix
+    } do
+      stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+      stub(Tuist.Environment, :runners_rented_macos_fleet?, fn -> false end)
+      reject(&Sites.available?/1)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+      assert pool_name == "#{prefix}-ber1-26-6"
     end
   end
 
@@ -954,6 +1087,20 @@ defmodule Tuist.Runners.DispatchTest do
       end)
 
       assert {:error, :no_matching_pool} = Dispatch.match_pool(["ubuntu-latest"])
+    end
+
+    test "never routes a job to a warm macOS sandbox pool" do
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok,
+         [
+           %{
+             "metadata" => %{"name" => "macos-sandbox-warm", "labels" => %{"tuist.dev/macos-sandbox-warm" => "true"}},
+             "spec" => %{"dispatchLabel" => "tuist-macos-sandbox-warm"}
+           }
+         ]}
+      end)
+
+      assert {:error, :no_matching_pool} = Dispatch.match_pool(["tuist-macos-sandbox-warm"])
     end
 
     test "returns :no_pools when no RunnerPool CRs exist" do
@@ -1015,6 +1162,23 @@ defmodule Tuist.Runners.DispatchTest do
       end)
 
       assert {:ok, %{runner_labels: []}} = Dispatch.pool_summary_by_name("macos-pool")
+    end
+
+    test "returns the catalog Xcode version the pool is labelled with, or nil without one" do
+      stub(Client, :get_runner_pool, fn
+        _ns, "catalog-pool" ->
+          {:ok,
+           %{
+             "metadata" => %{"name" => "catalog-pool", "labels" => %{"tuist.dev/xcode-version" => "27.2-beta"}},
+             "spec" => %{"dispatchLabel" => "shape-macos-27-2-beta"}
+           }}
+
+        _ns, "explicit-pool" ->
+          {:ok, %{"metadata" => %{"name" => "explicit-pool"}, "spec" => %{"dispatchLabel" => "tuist-ber1-smoke"}}}
+      end)
+
+      assert {:ok, %{xcode_version: "27.2-beta"}} = Dispatch.pool_summary_by_name("catalog-pool")
+      assert {:ok, %{xcode_version: nil}} = Dispatch.pool_summary_by_name("explicit-pool")
     end
 
     test "returns [] when runnerLabels is empty" do

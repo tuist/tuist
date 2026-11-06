@@ -1,44 +1,211 @@
 # Kura
 
-This node covers the `kura/` workspace, a Rust service for low-latency cache meshes that replicate artifacts and metadata across peer nodes.
+Start with [the architecture overview](docs/architecture.md). Keep protocol,
+resource, and rollout constraints below intact when changing the cache mesh.
+
+## Certificate trust
+
+`src/certificate_trust.rs` and its Apple companion preserve native/enterprise
+trust and explicit peer anchors while restricting all twelve incident keys.
+Keep complete Apple evaluated paths, Unix native/extra roots, provider settings,
+PEM order/last-key behavior, hot identity snapshots, SNI, TLS versions and ALPN.
+Preconfigured reqwest TLS ignores its later root/identity/ALPN setters; do not
+reset the protected backend. Preserve origin resolver/redirect/header controls,
+terminal typed TLS failures, and mandatory inbound peer client authentication.
+Keep Sentry and blocking OTLP protected independently, including existing OTLP
+diagnostics. See [qualification and unresolved gates](README.md#outbound-certificate-distrust).
+Native-store tests use an owned child; never change the parent's trust environment.
+
+Production/E2E assembly uses `Dockerfile.release`, with the named
+`certificate-trust` context pointing at `../infra/certificate-trust`. Keep every
+build caller and Kura's release-change detection aligned. OS bundle filtering
+does not repair embedded/native verification or qualify running processes.
 
 ## Key Boundaries
-- High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact
-- Entry points: `src/main.rs`, `src/app.rs`
+- Experimental managed authority: `src/serving_authority.rs` and `src/handover.rs`.
+  See [the recovery runbook](../infra/kura-controller/serving-authority.md).
+  Never promote on timeout alone, reopen a dirty-primary volume, bypass the
+  publication permit on spawned work, or release a retained-corpus hold before
+  authoritative abort/completed transfer. Default-off legacy mode must remain
+  compatible with the preceding runtime.
+  Handover rejections must identify the verification stage and record on both
+  peers, with bounded reasons and no artifact bodies in logs. Preserve rejection
+  details across mixed runtime versions without weakening the retained-data barrier.
+  Live-writer resumption requires the same process's publication-mutex fencing
+  acknowledgment and drained mutations, then a new CAS epoch bound to that
+  acknowledgment. Keep the unclean marker and refuse restarted incarnations;
+  this acknowledgment never authorizes another replica. The one exception is
+  an exit resume: a restarted container in the same pod may reopen the volume
+  only through a grant whose `exit_resume` names the exact holder its marker
+  records, which kubelet attested as terminated through the incarnation the
+  runtime writes to the termination log. Every other grant, pod or legacy
+  start still refuses the marked volume. Handover batches must
+  negotiate support, bound descriptors and referenced bytes, preserve ordered
+  full-corpus verification, and retain the individual-record fallback.
+  A preparation-capable destination may first reconcile under the exact Serving
+  intent while the source continues writing. Keep its fixed deadline, source
+  epoch/incarnation binding, normal background bandwidth admission and shared
+  preparation mutex. Complete one retained walk without waiting for an eviction-free
+  window while the source is mutable. The final Quiescing repair still repeats on
+  eviction before atomically acquiring its hold. Live preparation takes no hold
+  and grants no receipt or serving rights.
+  Completion only schedules the unchanged bounded Quiescing barrier; cancellation,
+  expired grants, epoch/identity changes and drain must stop blocked peer I/O.
+  A named destination reconciles the source’s complete retained index before
+  taking its hold, unless the delta repair below applies. Keep this pass serialized, bounded by normal replication
+  resources and the intent deadline, cancellable on authoritative abort, and
+  subject to store capacity/version/tombstone rules. Repair outlives
+  the request: a disconnected begin caller must not cancel/restart the
+  serialized preparation. Runtime drain still cancels it, and retries never
+  extend the original authority intent deadline. Named repair bypasses
+  the recency selection cutoff at listing and dispatch: an old missing record
+  is still required by the barrier. Keep normal ring rotation and disk admission;
+  final verification must reject any retained holes caused by rotation.
+  A strictly newer destination version of a retained record (a cross-region
+  write the held source refused) satisfies verification; an older or missing
+  version is still a hole.
+  After its repair walk, a preparing destination pulls the serving source's
+  content descriptors (`/_internal/handover/descriptors`, named destination of
+  the current Serving intent only) and records the versions whose bytes match
+  in its bounded verified set. It requests up to eight ranges of the source's
+  index at once, cut at versions from its own index, so a source that hashes
+  one record at a time still serves the walk in parallel; the ranges must
+  cover the index exactly once. A same-version mismatch fails preparation, and
+  so does a walk that does not reach the end of the source's index (deadline,
+  refused route or unreachable source): never freeze a source with content left
+  to hash. The preparation report's `content_verified` says the walk finished;
+  the controller freezes only for it. Inside the barrier,
+  when begin advertises verified records, the source sends metadata-only
+  descriptors (`/_internal/handover/verify-descriptors`) and verifies in full
+  only the records the destination names. A version's bytes never change, and a
+  manifest exists only while its body does, so metadata proves held content.
+  Keep the full-verification fallback for peers that do not negotiate this.
+  Up to four metadata batches await answers at once; the destination looks
+  each up with one multi-get, and records named for full verification are still
+  sent one batch at a time in corpus order, before the next answer is used.
+  Before named repair, a complete source-index walk may reclaim sealed,
+  unpinned destination-only segments when bodies are missing. Track segment
+  identities rather than buffering the corpus; preserve every segment containing
+  a source-listed local record, including newer local versions. Failed/incomplete
+  listing must reclaim nothing. Durable retirements use supervised, resumable
+  cleanup; active segments, capacity limits and ordinary FIFO rotation stay intact.
+  While the source still serves, that walk also keeps a fixed 2 MiB filter of
+  listed ids, retained bytes per segment sealed before it began, the oldest
+  listed version and the missing bytes. When bodies are missing it then
+  compacts the least-retained of those segments (any whose reclaim frees at
+  least 64 MiB): it copies the filtered artifacts into the active segment
+  without a sibling hint and reclaims the segment only when none of them is
+  left. It copies a segment only while the store admits the copy plus 64 MiB
+  without rotating out anything at or after that version, and stops once the
+  bytes still missing fit with 1 GiB to spare. The applier repeats this before
+  every repair batch of that pass, against the missing bytes not yet applied.
+  Never compact under the frozen source.
+  Repeat the retained walk if eviction committed during it, including cascaded
+  action-cache removals. Publish the eviction generation from the blocking
+  commit and compare it under the same lock that acquires the destination hold.
+  Repeated walks share the original deadline; never unfreeze a held corpus to
+  retry or bypass storage admission to force convergence.
+  Ordinary backward catch-up and forward pages keep their recency cutoffs.
+  The source barrier settles seqs staged before its hold, then compares
+  committed feed rows, floor and mutations, never the head: a write the hold
+  refuses (a cross-region page, say) releases its seq without landing a row.
+  Repair completion never replaces
+  the final full-corpus verification or authorizes promotion.
+  The source's first descriptor page carries its oldest retained version. From
+  then on the destination counts capacity and pressure evictions of segments
+  whose newest record is not older (handover reclaims excluded). Preparation
+  fails while the source serves if one was counted, or if the records the walk
+  found missing exceed what the store admits without such an eviction. Under
+  the frozen source a counted eviction or a capacity-refused record ends the
+  attempt instead of revisiting, as does a hole found under the hold. Answer
+  those with 422 to that begin and every later one for the intent; the source
+  reports `barrier_failure` and the controller restores Serving before the
+  deadline. Every other rejection stays a retryable 409, and older peers
+  without the frontier keep the deadline-bounded behavior.
+  The walk lowers that watch to each page's oldest record before checking it,
+  and remembers its feed cursor on the source and up to 100,000 missing
+  records. When it reached the end of the index and nothing counted was evicted
+  since it began, the frozen repair fetches only those records plus the record
+  rows the source's feed added after that cursor, read once without waiting.
+  A different incarnation, a trimmed floor or too many rows runs the full walk.
+  The delta repair skips the revisit on uncounted evictions; the full-corpus
+  metadata verification still checks every retained record before a receipt,
+  so anything the delta missed fails the attempt rather than the transfer.
+  Qualification fixtures and their simulator limits are documented in
+  [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
+- `src/metrics.rs` exports route and transport-only public latency histograms with identical buckets. Cached and dynamic routes must observe each once. Resource qualification guidance lives in `docs/metrics-cost-controls.md`; record measurements in the pull request description. Hosted collector migration is staged in `../infra/helm/k8s-monitoring/README.md`; preserve route counts/sums and chunking diagnostics, and do not thin replication latency further.
 - Startup recovery: `src/startup.rs` owns the bootstrap health listener, progress watchdog and process signals. Keep cache and peer traffic disabled until exclusive store recovery completes; transfer the existing bound socket into the serving listener. Eviction scan pages and commits advance recovery progress, never a timer heartbeat. Keep interruption typed through cleanup so a requested shutdown exits successfully without reporting startup failure; preserve live reverse pointers until their targets are deleted in the same batch.
 - Bazel dependency fetching: [`src/reapi/asset/AGENTS.md`](src/reapi/asset/AGENTS.md), [protocol and rollout](docs/remote-assets.md).
-- `src/runtime.rs` exposes a race-safe drain notification for cancellable origin fetches. Cache hits bypass origin-download admission; active fetches release their gRPC guards when drain begins.
-- Public HTTP and gRPC surfaces: `src/http.rs`
+- `src/runtime.rs` exposes a race-safe drain notification for cancellable origin fetches. Cache hits bypass origin-download admission; active fetches release their gRPC guards when drain begins. The public listeners recycle (GOAWAY) the connections open when drain begins, not at SIGTERM, and keep accepting until termination; connections accepted during the drain are recycled at termination.
+- Public HTTP and gRPC surfaces: `src/http.rs`; upload coverage: [`src/http/AGENTS.md`](src/http/AGENTS.md). Bind public, HTTPS and gateway gRPC listeners through `accelerated_file_serving::bind_public_listener` (1024 backlog), never `TcpListener::bind`: tokio's 128 backlog overflows on one gateway upload burst, and the kernel's SYN-cookie fallback resets those connections before Kura sees them. Every queued connection holds up to its first request window in node kernel memory until accepted, so raise the backlog only against a measured stall. Tuist Cargo compilation caching uses the existing project-scoped Bazel Remote Execution API and SHA-256 CAS/Action Cache, not an additional HTTP cache protocol.
+- ByteStream upload coalescing (`src/reapi/service.rs`) fills only the remaining admitted staging window before flushing. Preserve borrowed large-chunk bypass, exact byte order and the same bounded path for zstd trailing bytes; ragged chunks must not grow the buffer beyond its reservation. Both the coalescer capacity and file-cache drop interval must respect the actual admitted window when decode buffers clamp it. Reject a window below the normal coalescer size (or the entire smaller blob), rather than doing a synchronous write-and-drop per tiny slice. Keep buffer-capacity and ordered-output tests alongside offset, digest, cancellation and stall coverage. Staging files are created with `create_new` as lease-tracked persistent files and written with positioned writes from the coalescing buffer through the shared `block_in_place` file-operation helper, so no second buffered copy or detached write outlives the upload's admission; persistent opens move their descriptor lease into the blocking open. Uploads stage in the budgeted temporary file (or admitted memory) and reach a segment only through the per-key locked persist, so rejected or abandoned uploads never consume ring space. `BatchUpdateBlobs` decodes compressed items only inside the bounded per-item window, after try-only admission of their declared size, and keeps that permit through the persist. That admission borrows ceiling headroom above a full floor like the rest of write decoding; the persist bounds the borrow, unlike a reply, which stays floor-only.
 - HTTP cache API definition: `openapi/cache.yml` describes the routes the Tuist CLI calls (module multipart and downloads, Xcode CAS, key-value, Gradle, project clean). The CLI's Swift client in `cli/Sources/TuistCache/OpenAPI` is generated from it with `mise run generate-cli-client`, so change it with the routes in `src/http.rs`, then regenerate. Keep new fields optional: older CLIs and the legacy cache service share the contract.
+- Shared REAPI cache analytics recognize RequestMetadata tool names `bazel` and `mix`; keep the same authentication, namespace, queue admission, signed outbox and webhook path for both. Mix uses its compile reporter's stable build ID, dependency target and an audited dependency bundle as the CAS output. Do not add a Mix-specific store or infer transfers from local client observations. Unknown tools remain excluded from analytics; the historical `skipped_no_bazel_metadata` metric name remains compatible.
+- Action-cache analytics may include one output identifier from a successful `ActionResult` for profile-description correlation. Inspect only the first file (or first directory when no file exists), cap it at 1,024 bytes, and allocate only after queue admission. Omit empty hints on the wire so older servers and ordinary CAS events retain their existing payload. Never label outputs as source files, scan all outputs, or change cache responses for presentation.
 - REAPI module clients send `x-tuist-artifact-kind: module` to attribute usage to the module cache. Only this bounded hint is recognized; absent/unknown hints remain `reapi`. It does not affect authentication, storage keys, or tenant selection.
-- Negotiated Xcode compilation-cache transfers: `docs/client-chunking.md`, `../cas-plugin/`. Reuse the existing split/splice protocol and reader-first rollout. The optional `tuist-inline-max-bytes` wildcard hint must preserve explicit inline requests and ordinary full-blob reads for existing clients.
+- `GetActionResult` with `x-tuist-lookup: presence` answers presence only: it neither promotes the entry nor extends the lifetime of the blobs it references (including the tree and chunk reads of its presence gate). Tuist module warms use it to republish evicted entries without keeping alive what only their local cache serves. Every other lookup keeps the REAPI lifetime guarantee.
+- Negotiated Xcode compilation-cache transfers: `docs/client-chunking.md`, `../cas-plugin/`. Reuse the existing split/splice protocol. The optional `tuist-inline-max-bytes` wildcard hint must preserve explicit inline requests and ordinary full-blob reads for existing clients.
 - Xcode compiler restore coverage lives in `spec/e2e/xcode_chunking_spec.sh`, with readable fixture assets in `spec/fixtures/xcode-chunking/`. Generate the fixture with Tuist's `Project.swift` and `Tuist.swift` manifests, not another project generator. It runs on Apple silicon with `KURA_E2E_XCODE=1` and local Kura; it must skip without starting processes on other hosts. Keep end-to-end coverage in ShellSpec rather than standalone Python drivers.
 - Xcode transfer analytics coverage lives in `spec/e2e/xcode_analytics_spec.sh`, using the same compiler fixture and local Kura as the chunking spec. Build the server's `xcactivitylog-parser` first (its own AGENTS.md describes the SwiftPM command), or set `KURA_E2E_XCODE_PARSER` to that executable. `KURA_E2E_CAS_BIN` selects the built plugin/proxy directory. The spec matches actual compiler output ids through the analytics database and validates the production parser's upload/download records; retain this boundary so a successful cache restore cannot hide empty analytics.
+- Xcode lookup concurrency coverage lives in `spec/e2e/xcode_lookups_spec.sh`, with the fixture in `spec/fixtures/xcode-lookups/` (two dependent Swift modules, an Objective-C translation unit, and several SDK framework imports, so a cold build has dozens of independent keys). It puts `cas-plugin`'s `chunking_fault_gate` in `delay-lookups=<ms>` mode in front of local Kura and asserts that cold-miss and cold-hit builds overlap their action lookups rather than issuing them one at a time; same `KURA_E2E_XCODE=1` gating as the chunking spec. Its repeated-wipe case drains the seed publications, then wipes fixture-private DerivedData and compilation-cache directories three times while keeping the same proxy alive, requiring complete compiler replay after every wipe. The helper guards deletions and moves its DerivedData out of the shared path on both success and failure. Portable cleanup and unsafe-path regressions live in `spec/e2e/xcode_lookups_lifecycle_spec.sh` and run in the clients CI shard without Xcode. When overriding `KURA_E2E_CAS_BIN`, include both plugin/proxy binaries and `examples/chunking_fault_gate` from the same build.
 - Clang fault coverage lives in `spec/e2e/clang_chunking_spec.sh` and `spec/fixtures/clang-chunking/`. Its loopback-only Rust request gate forwards to real Kura, interrupts uploads, or holds chunk reads while ShellSpec deletes only the test's isolated namespace. This proves client fallback after remote dependency loss, not a server retention lease. Keep fault injection out of production handlers and assert that the fault actually occurred.
 - Storage, metadata, and replication state: `src/store.rs`, `src/state.rs`
-  - Segment rotation only checks quota-visible free space and wakes the supervised reclamation worker. Cleanup runs outside writer locks, one sealed segment per pass, resumes a pending retirement before choosing another, and stops on no availability progress. Pin promotion sources and appended destinations through metadata commits, including detached blocking commits after cancellation. Preserve the active writer and five-segment floor, account for the next rotation when shrinking, and distinguish configured sizing telemetry from effective backfill capacity. Pressure events use `disk_pressure`, never capacity churn. No segment truncation or raw file deletion.
+  - Request WAL sequence publication and writer enrollment belong to the detached blocking commit, not its awaiting caller. Cancellation must not leave a visible client manifest untracked. Existing-blob acknowledgements and completed-upload status join the pending WAL prefix before they acknowledge; unrelated cursor, usage, and backfill writes must not trigger extra client flushes.
+  - `write_batch_deferring_durability` commits on the bounded `src/commit_threads.rs` lanes: a queued commit still runs after its caller is cancelled; one still waiting for queue room never runs, so nothing of it is visible. Opt-in relaxed durability (`KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS`, `ApplyDurability::Relaxed`) applies only to client uploads (server-stamped specs) and may skip only their acknowledgement barriers. Replicated applies, handover receipts, deletes and every other metadata write stay `Sync`; syncs before a page-cache drop, at rotation, past the unsynced-bytes cap and in backfill batches stay strict.
+  - Metadata SST full-key Bloom filters share the existing RocksDB block-cache budget; they only skip definite misses, never replace authoritative reads. Preserve old unfiltered SST and rollback compatibility, and measure pinned filter memory plus normal-compaction steady-state CPU before claiming a benefit.
+  - `FindMissingBlobs` resolves presence per batch of digests (`Store::artifacts_exist_extending_lifetime`): one manifest-cache lock, one RocksDB multi-get, one segment-state snapshot, no manifest-cache admission. Keep its answers identical to the per-digest `presence_keys` path, including promotion of present blobs in Old segments while the ring is aging; only digests with a stored recipe may fall back to the per-digest chunk walk.
+  - The manifest row cache uses exact LRU ordering in reusable page-indexed slots, not a second hash table. Recency touches preserve handles; sparse-page packing rewrites handles together with their cached rows under the owning cache mutex. Recycle only removed slots, release empty pages during trimming, and pack (then shrink the page index) whenever the index covers more than twice the live rows plus one page, so one hot row cannot pin every old page and released pages cannot keep a historical index peak. Rows are charged their slots and index share, and the fixed one-page slack is deducted from the cache limit before rows are admitted. Preserve recency-link byte accounting and test sustained eviction allocations, not only hit latency: hash tombstones can grow private memory at constant entry count.
+  - Segment rotation only checks quota-visible free space and wakes the supervised reclamation worker. Cleanup runs outside writer locks, one sealed segment per pass, resumes a pending retirement before choosing another, and stops on no availability progress. Segments a rotation drops from the ring are owned by a guard from that moment; if anything later fails or is cancelled (the caller's manifest commit, a hold-refused eviction, a dropped request), the rest are queued for the worker. Rotations also hand retired segments to the running worker while its queue holds at most `SEGMENT_RETIREMENT_HANDOFF_BACKLOG`; past that the request evicts inline, so retired disk stays bounded. Shutdown first evicts queued retired segments within half its remaining budget (an older binary's startup sweep is far slower after a rollback), then quiesces eviction before the backfill clean-shutdown stamp (no eviction chunk may start after it); the startup sweep finishes what quiesce interrupted. The worker drains that queue before retained segments and only while no handover hold is active. Eviction reads candidates in runs and drops the run at the next eviction commit; never stage from a read older than the latest commit, and with `protect_writes` never from one taken without the candidate's stripe. Requests evict only after releasing their own write locks, and without taking stripes (half are held under load). Pin promotion sources and appended destinations through metadata commits, including detached blocking commits after cancellation. Preserve the active writer and five-segment floor, account for the next rotation when shrinking, and distinguish configured sizing telemetry from effective backfill capacity. Pressure events use `disk_pressure`, never capacity churn. No segment truncation or raw file deletion.
 - Action-cache removal log: `src/action_cache_removals.rs` records the entries and blobs the store removes (after the deleting write commits, in one bounded log for all namespaces), so the snapshot serve path drops them from a cached index before encoding it (see the snapshot passage in `docs/architecture.md`). Record every new removal path there, or the served snapshot keeps advertising what it removed until the next reconcile.
 - Backfill catch-up passes (the pipeline every pull link runs on): `src/backfill/` — `claims.rs` (shared exclusive-claim set, owned by `AppState.backfill_claims`), `pass.rs` (one pass's pipelined list/fetch/apply stages), `window.rs` (horizon and capacity rules). Pass scheduling and the bootstrap failure budget live in the links themselves (`src/sync/`).
-- Pull replication (`docs/replication-design.md`): `src/sync/` — `feed.rs` (the bounded arrival feed a sibling reads forward), `replica.rs` (intra-region link: snapshot, backward pass, forward reads), `region.rs` (inter-region link: ascending origin-filtered reads from a per-region watermark, gateway only), `roles.rs` (who pulls from whom, from the membership view and published roles), `coordinator.rs` (opens/closes links, readiness and drain terms). Every present peer is pulled from; a peer that answers 404/405 to a pull route (or serves the region listing without `now`) runs a release that predates pull and settles its link as `unsupported` (a capability gap on `/status/rollout`, never `degraded`). Cross-region lag is `kura_region_sync_lag_seconds` (the remote gateway's newest listed version, sent as the additive `newest_version_ms` on each ascending page and kept in an atomic the store raises after each commit, minus the newest applied); the watermark age grows through idle periods and the per-pod byte counters follow the gateway role, so neither is lag on its own. The push path is gone: `src/replication/` holds only membership and the peer body streaming, the `outbox` column family stays declared but is swept at open, and the `/_internal/replicate/*` receivers in `src/http.rs` are kept solely so a pre-pull self-hosted peer can drain its outbox into this node — delete them once the oldest supported self-hosted release pulls.
+  Individually fetched inline records must preserve the same origin/checksum
+  metadata and feed-echo policy as batched records; losing metadata at the same
+  version can make a fully caught-up replica fail retained-corpus handover.
+- Pull replication (`docs/replication-design.md`): `src/sync/` — `feed.rs` (the bounded arrival feed a sibling reads forward), `replica.rs` (intra-region link: snapshot, backward pass, forward reads), `region.rs` (inter-region link: ascending origin-filtered reads from a per-region watermark, gateway only), `roles.rs` (who pulls from whom, from the membership view and published roles), `coordinator.rs` (opens/closes links, readiness and drain terms). A client-triggered promotion out of an Old segment stages a body-less `refresh` feed row; a sibling holding that version or newer promotes its own copy (trigger `sibling`) and never re-hints, so both rings age a record out together. Older siblings skip the unknown kind. Every present peer is pulled from; a peer that answers 404/405 to a pull route (or serves the region listing without `now`) runs a release that predates pull and settles its link as `unsupported` (a capability gap on `/status/rollout`, never `degraded`). Cross-region lag is `kura_region_sync_lag_seconds` (the remote gateway's newest listed version, sent as the additive `newest_version_ms` on each ascending page and kept in an atomic the store raises after each commit, minus the newest applied); the watermark age grows through idle periods and the per-pod byte counters follow the gateway role, so neither is lag on its own. The push path is gone: `src/replication/` holds only membership and the peer body streaming, the `outbox` column family stays declared but is swept at open, and the `/_internal/replicate/*` receivers in `src/http.rs` are kept solely so a pre-pull self-hosted peer can drain its outbox into this node — delete them once the oldest supported self-hosted release pulls.
 - Runtime configuration and limits: `src/config.rs`, `src/constants.rs`
+  - REAPI write decode/staging growth stays nonblocking while holding owned permits. Admission refusals in `src/reapi/admission.rs` carry a standard `google.rpc.RetryInfo` delay of 1–10 seconds; never introduce waiting on shared upload memory or HTTP/2 flow control while holding a partial reservation. Keep upload sizing guidance in `README.md` aligned with the staging/decode charges.
   - ByteStream response admission uses `src/memory/mod.rs` and `src/memory/pools.rs`: preserve FIFO order, cancellation cleanup, the bounded deadline, and lifetime-bound byte permits. Waiting requests do not own stream buffers; bound their aggregate requested bytes against effective serving capacity as well as their bookkeeping count. Preserve the retry-backoff scale independently of queue expansion. `spec/e2e/bytestream_admission_spec.sh` and `test/e2e/bytestream-admission/` exercise paced local readers and collect resource samples.
   - Multipart session admission follows `src/memory/mod.rs` headroom and pressure unless explicitly overridden; `src/store.rs` owns durable slot accounting and the one-second, capacity-bounded start queue. Use the FIFO admission turn and dedicated pressure-tier signal; preserve cancellation cleanup through blocking record writes and expose queue outcomes/depth. Keep occupied-slot and effective-capacity metrics aligned with admission.
 - Observability and analytics: `src/metrics.rs`, `src/telemetry.rs`, `src/request_observability.rs`, `src/analytics.rs`
   - Optional REAPI wildcard inlining that cannot acquire response memory increments `kura_reapi_inline_fallbacks_total` per omitted file, not the materialization rejection or capacity-shed counters. Explicit inline requests and failed required reads retain rejection accounting. Preserve this distinction when sharing materialization helpers.
   - Artifact upload readers (`src/utils.rs`, staged and inline handlers in `src/http.rs`) keep incoming-body failures separate from storage I/O. Classify typed disconnects as 499, malformed framing as 400, and incoming-body timeouts as 408; unknown body failures and storage faults remain 5xx. The peer backfill body-fetch request (`/_internal/backfill/bodies`), which both push-era and pull catch-up passes run on, classifies the same way. The push receivers kept for pre-pull peers still map every buffered read failure to 413; they go with those peers rather than being widened. Record rejected reads in domain error counters and preserve bounded causes in upload completion extensions; a size rejection is not a rejected read, so it stays out of the write counter. Client failures use a separate warning limiter from server faults. Protocol and cleanup coverage lives in `src/http/upload_tests.rs` and `spec/e2e/upload_errors_spec.sh` (CI clients shard). Public and peer HTTP entry points wrap concrete Hyper Incoming bodies to reject a swallowed reset without END_STREAM; generic body end-stream hints are not sufficient for this check. The HTTP/2 test must exercise Hyper Incoming to guard both the end-stream check and the typed h2 downcast across dependency upgrades. Ingest checksum verification is opt-in per request (the `tuist-checksum-sha256` header on single-request blob PUTs, `checksum_sha256` in the module-complete body), because these lanes' keys are input-derived cache keys, not content hashes; hash while the bytes stream (staging or assembly), never with a second read pass, and refuse a mismatch with 422 before persist (a `checksum_mismatch` write result). A refused multipart complete drops the whole session — a whole-object digest cannot say which part is wrong and the client's retry opens a fresh session, so kept parts would only hold multipart capacity until the TTL. A verified module digest is stored on the manifest (optional everywhere, carried like `origin_region` through replication and backfill) and served back as `tuist-checksum-sha256` on 200/206, always describing the WHOLE object. Requests that declare nothing stay unverified — old clients, old servers, and old rows must interoperate.
 - Optional fixed connectivity telemetry: [`src/connectivity/AGENTS.md`](src/connectivity/AGENTS.md); dedicated thread/runtime, no startup/readiness dependency, ordinary JSON logs.
-- Control-plane mesh membership (enrollment, mesh heartbeat, managed peers sync, recovery re-enrollment): `src/enrollment.rs`, `src/mesh_heartbeat.rs`
 - Mesh and usage HTTP timeout policy: `src/control_plane_http.rs`, used by `src/mesh_heartbeat.rs` and `src/usage.rs` — 3 seconds for connection setup including DNS, within a 5-second total request deadline. `src/telemetry.rs` builds the OTLP span exporter's HTTP client from the same two budgets; that client must stay blocking, because the batch span processor drives exports on a thread with no Tokio reactor. Enrollment, registration, analytics, and authentication configure their clients separately. Keep the initial peer-view serving gate intact.
-- Peer TLS support: `src/peer_tls.rs`
-- Peer sync bandwidth shaping: `src/bandwidth.rs`
+- Provider/domain-aware peer routing: `src/peer_topology.rs`. Private metadata is
+  a deployment attestation of the underlay, never inferred from a provider name.
+  Keep all pull body/listing/feed requests on `AppState::peer_request`, canonical
+  identities unchanged, and cross-provider/published replication coverage intact.
+  Keep local private-probe health separate from advertised serving/draining state
+  and out of the local gateway election. Only backward region passes may yield
+  to healthy remote-region private donors; sibling donors and forward pages must
+  never trigger this delay. Preserve legacy canonical discovery semantics.
+  Reuse a status response as private health only when discovery queried the actual
+  private origin; an equal advertised node URL behind a gateway is insufficient.
+  Analytics outbox delivery uses its own control-plane client, independent of
+  peer certificates, proxy suppression and redirect policy.
+  Rollout gates and unresolved provider setup are in
+  [`../infra/kura-controller/private-replication.md`](../infra/kura-controller/private-replication.md).
+  Keep durable regression coverage in the Rust tests and ShellSpec mTLS suite;
+  use `test/e2e/provider-topology/` for repeatable local resource comparisons.
+  Regional E2E private aliases must be isolated per domain. The fixture mTLS
+  proxies distinguish private body transfers from discovery probes; retain the
+  one-sided-approval negative case and independent suite lifecycles.
+  Keep run-specific manifests, credentials, captures and dated results out of
+  the repository; record deployment validation in the associated PR. Private-path
+  fault tests must observe a real blackhole: changing a Service port can leave
+  pooled connections alive. Scope fixture cleanup to its unique test label.
+  Preserve qualification limits: a single-host canary is not a physical host
+  pair, and Chicago does not qualify an ORD–SCL private interconnect.
+  Distinct same-provider domains require reciprocal exact-ID approval through
+  `canonical_networks` before using canonical mTLS. Same-domain traffic always
+  stays private-only. Canonically approved peers are not private donors. Roll
+  out policy-capable runtimes before advertising a newly qualified domain.
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - Account rename coverage uses ShellSpec and `test/e2e/account-rename/control_plane.mjs`, a loopback fixture using the Node.js toolchain pinned in `mise.toml`. Keep new test helpers aligned with existing repository languages; avoid introducing Python.
   - ByteStream admission uses the standard ShellSpec `support.sh` lifecycle and the Compose override in `test/e2e/bytestream-admission/`. The CI bytestream-admission shard runs it against the shared prebuilt Kura image and the existing Go load-client image. Optional resource captures use the same test path.
   - `test/e2e/multipart-admission/run.py` launches an isolated native server for the multipart admission ShellSpec.
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
-- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `.bazelrc`, `bazel/` (toolchains + vendored deps); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
 - Rust test targets use `rust_junit_test` from `bazel/rust_junit_test.bzl` instead of `rust_test`. Stable libtest does not write JUnit, so the macro wraps the compiled test binary in `bazel/tools/rust_libtest_junit.sh`, which parses libtest's text output and writes JUnit to `$XML_OUTPUT_FILE`. Without this, Bazel synthesizes a one-case-per-target report and Tuist collapses each target to a single row. Keep this in place when adding new `#[test]` modules; the macro is a drop-in for `rust_test`.
-- License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`
 
 ## Development
 - Install tools from `kura/mise.toml` with `mise install` (Rust toolchain + Bazel)
@@ -55,6 +222,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   location. Without access, skip it — Bazel builds fine against the local cache.
 - Synchronize inline write races with the test-only `FailpointAction::Pause` and explicit replicated versions; local versions are stamped at staging, so sleeps between request starts cannot guarantee distinct versions.
 - Synchronize cancellation tests with explicit blocking-commit hooks; fixed scheduler-yield counts cannot guarantee that disk work has started or finished on CI.
+- HTTP listener logging tests assert the rendered Display cause chain, not Debug-only protocol-code spellings. Keep the warning level and listener/peer/connection-age assertions alongside the concrete underlying cause.
 - The two-source backfill capacity E2E checks readiness, completion, full-ring retention, and bounded evictions. Exclusive claims and independent fetchers can leave holes in the retained recency band, so do not assert fixed artifact identities; ordered marginal-trade behavior is covered by the backfill Rust unit tests.
 - Consider Kura work incomplete until `mise run clippy` passes (fallback when Bazel is unavailable:
   `mise exec -- cargo clippy --all-targets -- -D warnings`)
@@ -87,6 +255,7 @@ Put the before/after numbers for all four axes in the pull request description, 
 - Keep `LICENSE.md`, `CLA.md`, and `cla/` aligned with root licensing and contribution policy changes
 - Keep `docs/architecture.md` in sync when changing how subsystems fit together (storage planes, replication model, traffic lifecycle, rollouts, observability surface)
 - When changing cache protocol behavior, update the relevant shellspec coverage under `spec/e2e/`
+- ByteStream partial staging is request-owned, not resumable session state. Missing completed-upload status signals `UNIMPLEMENTED` so Bazel can restart; keep this contract and completed-artifact queries covered by the real uploader fixture in `test/e2e/bytestream-recovery/`. A Write of an already stored direct blob is drained, not answered early: early answers reset streams the client is still sending on and exhaust h2's per-connection error-reset budget (GOAWAY `too_many_internal_resets`)
 - Keep Helm and local observability assets in `ops/` in sync with runtime configuration changes
 - When adding, renaming, or changing the meaning of a metric in `src/metrics.rs`, update
   `infra/grafana-dashboards/tuist-kura-details.json` (`Tuist Kura / Details`) in the same change. That
@@ -106,13 +275,90 @@ Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of 
 
 - Private runner Kura uses the ordinary managed StatefulSet rollout and account mesh. Both replicas continuously pull from each other over the arrival feed, with a bootstrap pass after a restart; the standby is not read-only. The stable private gateway pins reads and writes to the selected primary. Replication remains asynchronous; Kubernetes readiness alone does not prove a caught-up sibling. See `infra/kura-controller/private-runner-rollouts.md`.
 
+## Network-trusted Bazel reporting
+- No Authorization plus exactly one explicit network-reporting header uses uncached control-plane publishing authorization, never cache authorization entries. Keep marker parsing regressions for blank/duplicate credentials and malformed/duplicate markers; actor claims never select this mode. Missing auth-engine configuration, invalid/duplicate supplied credentials or disabled instance publishing configuration fail closed. The control-plane startup setting applies to all supported projects/accounts, and operators must restart its replicas after changes.
+- Unsigned streams mint server invocation IDs, ignore client lifecycle IDs, never deliver CAS/JUnit/profile/action artifacts, and carry network provenance through signed invocation telemetry. Inline target summaries are bounded telemetry, not trusted flakiness/quarantine evidence. The server rechecks policy before ingestion.
+- Keep unsigned admission separate from authenticated traffic: 16 pre-auth stream permits, four concurrent streams/retained invocation records per project, 8 MiB/20,000 retained-event and 256 MiB transport caps, five-minute idle/backpressure and six-hour lifetime bounds, cleanup, and deadline-bounded reads AND response/error sends. Authenticated records take precedence at the global cap. Never hold a permit indefinitely on HTTP/2 flow control.
+- Unsigned invocation analytics has its own bounded queue/runtime/circuit breaker. Cap serialized events at 128 KiB (including escaping) and inline summary state at 32 KiB so batches cannot exceed the webhook body cap or poison signed telemetry. Preserve the previous authenticated wire format by omitting empty optional fields.
+- `TUIST_ACTOR_ID` build metadata overrides Bazel's OS user, including empty/invalid suppression. Reserve the reported-user metadata key so custom metadata cannot undo an explicit opt-out. Generated per-machine configuration captures the environment override at setup; a direct Bazel `--build_metadata=TUIST_ACTOR_ID=...` can override it per invocation.
+
 ## Bazel timelines
 - `src/reapi/bep.rs` keeps its bounded invocation summary and separately delivers the `command.profile.gz` CAS reference and action diagnostics through `src/bazel_test_artifacts.rs`. The delivery worker reserves memory before reading artifacts. Profiles are limited to 32 MiB compressed; diagnostic streams use bounded range reads that retain their first and last 16 KiB. Only project-scoped CAS artifacts are read; arbitrary profile URLs and local paths are never fetched.
 - `tuist bazel setup` enables JSON profiles, disables profile event merging, includes target/output identifiers and uses the remote BEP artifact uploader. The server retains profile intervals and diagnostics for 90 days.
 - `spec/e2e/bazel_timeline_spec.sh` runs real C++ builds against configured local Kura and Tuist endpoints, compares every API interval to the original profile, verifies more than 32 compiler actions and native counters, and checks the failed-action log. Configure `TUIST_TIMELINE_SERVER_URL`, `TUIST_TIMELINE_KURA_URL`, `TUIST_TIMELINE_PROJECT`, and `TUIST_TIMELINE_TOKEN_FILE` to run it.
 
+- Authenticated BEP action delivery adds bounded target label (1024 bytes), mnemonic (128 bytes), optional measured duration and recorded git/CI context for the server's project-gated persistent Actions inventory. Never truncate identity fields into colliding prefixes: oversized identities omit inventory metadata while native diagnostics continue. Missing/invalid end times omit duration; measured zero remains zero, unlike the summary timeline's 1 ms display floor. Preserve single-action fallback, batch signing, bounded nonblocking queues, memory reservations and network-trusted artifact exclusion. REAPI cache traffic and trace-profile phases are not action execution observations.
 - Timeline action and profile admission uses separate bounded nonblocking queues, isolated from test delivery. Action diagnostics are batched by account/project, at most 32 per signed request; a missing batch endpoint falls back to the legacy single-action protocol during rollout. Overflow is best effort and increments source-specific dropped metrics. Profile/action delivery outcomes use `bazel_profile` / `bazel_action` analytics kinds, including size rejections.
 
 - Account renames separate immutable storage identity from a mesh-refreshed authorization handle. Preserve the configured tenant, workload and peer CA. Client endpoints follow the current name with 90-day DNS/TLS/HTTP/gRPC aliases only after the server's default-off per-account endpoint-migration gate is enabled. Pausing freezes deployed routing and clears redirect targets, including for already-renamed accounts, without gating authorization identity refresh or extending expiry deadlines. The server expires URL routing separately from permanent name reservations and runtime authorization/analytics identity. Snapshot the handle, aliases and ready redirect targets together; HTTP redirects require explicit client capability and gRPC remains an alias. See `docs/account-renames.md` for readiness gates and retirement policy. Missing optional identity fields preserve learned state during version overlap.
 
 - Linux builds keep content-addressed Bazel downloads and action outputs under `~/.cache/tuist/bazel`, configured in `.bazelrc`. CI mounts that directory directly; do not persist the output base or generated remote credentials. Disk-cache idle GC is a soft 12 GiB/seven-day target within the 20 GB volume.
+
+- Bazel failure analytics retain bounded structured failure codes as `tuist.detected_failure_category`, and the BuildStarted user as `tuist.reported_user` (128 bytes maximum), within the existing custom metadata limit. Classify compiler/test nonzero exits only with recognized action mnemonics; arbitrary commands remain unknown. Infrastructure evidence takes precedence. Never retain FailureDetail messages or stack traces for classification.
+
+Planned thin-storage migration retires public connection reuse before terminating
+its donor. `/_internal/connections/retire` is internal/mTLS only and requires the
+process's `connection_incarnation` from rollout status. It swaps a bounded
+connection cohort once, keeps serving/admission/replication unchanged, and makes
+HTTP/1 responses close after completion (including accelerated GETs). The receipt
+counts connections accepted before retirement, including TLS handshakes; newer
+health probes cannot keep that cohort alive. HTTP/2 connections in the retired
+cohort, on every public listener that leases into it, get a GOAWAY at retirement
+and close after their in-flight streams; the client's connection preface, not a
+request, identifies them. This is unit-tested with a real h2c client and not
+rehearsed on staging. Retirement is not draining or serving-authority permission.
+Never substitute a timer or Kubernetes readiness for an empty cohort receipt.
+An empty cohort is also not a data-transfer receipt: staging still observed
+fresh-write GET misses at handoff. Zero-error migration needs destination-bound
+write completion and serving coordination; do not claim asynchronous replication
+is synchronized by closing the donor's connections.
+
+The pending migration acknowledgment path in `src/migration.rs` binds a legacy
+storage move to one destination process. Preparation pins the source feed at its
+head and proves, on that peer, every write committed after the pin; armed
+HTTP/gRPC mutation completion checks committed feed records against actual
+destination content. Feed cursors alone never prove retention. Records retained
+from before the pin are not checked: ordinary replication copied them and each
+replica evicts on its own LRU schedule, so a miss on one is an acceptable cache
+miss and must never fail or stall preparation (a full-corpus walk could not pass
+on two full replicas). Do not reintroduce a retained walk as a readiness gate.
+A fixed deadline per preparation attempt, bounded verification batches and a
+single verification worker prevent unbounded work. A prepare for the same source
+process and destination process after a failed, unarmed attempt that advanced
+continues the feed proof under a new deadline; one that advanced nothing keeps
+returning its failure. Feed history trimmed below the pin of an unarmed attempt
+pins again at the head (those writes were ordinary asynchronous writes), and
+reset, rebind and another destination never inherit proof. Only the proof
+through the feed head plus the destination identity reports ready. Resumption is
+unit-tested, not rehearsed on staging. Acknowledgments group-commit:
+only a run whose feed head was taken after a write committed may prove it, and
+the bridge loop forces a run to probe an idle destination. Polling or resetting
+a preparation must tolerate the other clearing or restarting it, never panic.
+This is not a serving grant or permission to bypass cache capacity. Its
+implementation is still awaiting Linux tests, failure recovery qualification and
+live staging rehearsal.
+
+A ready migration bridge must survive the preparation deadline and controller
+pauses. Its bounded weak-reference task retains the feed pin until draining;
+release that pin on draining and on a failed preparation that made no progress.
+The pin is a snapshot consumer at the pin position (so a rebind can re-prove
+from it), which the feed cap and stale window still bound and the drain gate
+never waits for. The internal reset API may
+clear only a completed failed unarmed attempt and must serialize with write
+acknowledgments. Never use it to abandon a ready bridge after endpoint movement.
+The internal abort API clears the attempt for its exact target in any state:
+it disarms first (so acknowledgments waiting on the bridge complete as ordinary
+writes), then takes the gate, discards resume progress and releases the pin.
+Preparation, bridge-loop and re-proof tasks check their attempt or migration id
+and exit without writing state back. It is safe only while the source was never
+demoted, so routing never moved; the controller enforces that, the runtime
+cannot. Abort is unit-tested and not rehearsed on staging.
+A destination process restart is recovered with the internal rebind API: only an
+armed bridge may move to a new incarnation at the same URL, it stays armed, and
+it reports ready only after re-proving the feed from the pin on the new process;
+feed history trimmed below the pin keeps it unready. Never carry proof from one
+destination process to another.
+Bridge state is exported as `kura_migration_*` (armed, ready, last-proof age,
+re-proof failures) and drives the proposed
+armed-but-not-ready rule in `../infra/helm/k8s-monitoring/alerts.md`; a ready
+bridge whose destination dies shows only as a growing last-proof age.

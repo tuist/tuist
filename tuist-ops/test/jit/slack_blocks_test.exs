@@ -18,6 +18,25 @@ defmodule TuistOps.JIT.SlackBlocksTest do
     end
   end
 
+  describe "GitHub admin cards" do
+    test "name the target GitHub account instead of a cluster group" do
+      req = %Request{
+        id: 7,
+        requester_slack_id: "U123",
+        target_group: "github:org-admin",
+        github_login: "esnunes",
+        intent: "fix branch protection",
+        ttl_seconds: 900,
+        expires_at: ~U[2026-10-06 12:00:00Z]
+      }
+
+      [%{text: %{text: text}} | _] = SlackBlocks.pending(req)
+      assert text =~ "GitHub admin elevation request"
+      assert text =~ "<https://github.com/esnunes|esnunes>"
+      refute text =~ "Group:"
+    end
+  end
+
   describe "pending/1" do
     test "carries the requester slack id in the Approve button value" do
       req = sample_request()

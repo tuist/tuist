@@ -4,6 +4,9 @@
 # If you run "mix test --cover", coverage assets end up here.
 /cover/
 
+# Local Tuist test shard plans.
+/.tuist-shard-matrix.json
+
 # The directory Mix downloads your dependencies sources to.
 /deps/
 

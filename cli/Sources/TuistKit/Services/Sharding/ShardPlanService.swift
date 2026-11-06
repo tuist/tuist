@@ -29,7 +29,8 @@
             buildRunId: String?,
             requestedTestIdentifiers: [TestIdentifier],
             skipUpload: Bool,
-            archivePath: AbsolutePath?
+            archivePath: AbsolutePath?,
+            testImpactRunId: String?
         ) async throws -> Components.Schemas.ShardPlan
     }
 
@@ -120,7 +121,8 @@
             buildRunId: String?,
             requestedTestIdentifiers: [TestIdentifier] = [],
             skipUpload: Bool = false,
-            archivePath: AbsolutePath? = nil
+            archivePath: AbsolutePath? = nil,
+            testImpactRunId: String? = nil
         ) async throws -> Components.Schemas.ShardPlan {
             guard let reference = reference ?? ciController.ciInfo()?.shardReference else {
                 throw ShardPlanServiceError.cannotDeriveSessionId
@@ -185,7 +187,8 @@
                 shardMaxDuration: shardMaxDuration,
                 shardGranularity: shardGranularity,
                 buildRunId: buildRunId,
-                gitBranch: try await gitBranch(projectPath: projectPath)
+                gitBranch: try await gitBranch(projectPath: projectPath),
+                testImpactRunId: testImpactRunId
             )
 
             // The identifier is what a workflow passes to the shard jobs as `--shard-plan-id`, and

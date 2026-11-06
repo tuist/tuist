@@ -25,6 +25,21 @@ defmodule Tuist.Tests.PromExPlugin do
             measurement: :multiplicity_violation,
             description: "Corrected logical test case runs observed with more than two physical tuples."
           ),
+          distribution(
+            [:tuist, :tests, :coverage, :publish, :duration],
+            event_name: Telemetry.event_name_coverage_publish() ++ [:stop],
+            measurement: :duration,
+            unit: {:native, :millisecond},
+            description: "Time to insert a coverage report's files and publish the run's totals.",
+            reporter_options: [buckets: [50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000, 30_000, 60_000]]
+          ),
+          distribution(
+            [:tuist, :tests, :coverage, :publish, :files],
+            event_name: Telemetry.event_name_coverage_publish() ++ [:stop],
+            measurement: fn _measurements, metadata -> metadata.files end,
+            description: "Source files in a published coverage report.",
+            reporter_options: [buckets: [10, 100, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000]]
+          ),
           sum(
             [:tuist, :ingestion, :buffer, :dropped_bytes],
             event_name: Telemetry.event_name_ingestion_buffer_dropped(),

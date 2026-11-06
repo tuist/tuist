@@ -3,15 +3,20 @@ defmodule TuistWeb.RunnerVolumesLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Widget
 
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.DockerCache
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.RunnersLive
+
+  @volume_name_max_length 48
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: user}} = socket) do
@@ -24,12 +29,13 @@ defmodule TuistWeb.RunnerVolumesLive do
     {:ok,
      assign(socket,
        head_title: "#{dgettext("dashboard_runners", "Volumes")} · #{account.name} · Tuist",
-       can_manage: Authorization.authorize(:account_update, user, account) == :ok,
+       can_manage: Authorization.authorize(:runners_update, user, account) == :ok,
        pending_action: nil,
        selected: nil,
        selected_tab: "overview",
        storage_metric: "used_bytes",
        detail_metric: "used_bytes",
+       initialize_percentile: "avg",
        search: "",
        page: 1
      )}
@@ -58,7 +64,7 @@ defmodule TuistWeb.RunnerVolumesLive do
        analytics_preset: preset,
        analytics_period: period,
        selected: selected,
-       selected_tab: selected_tab(params["tab"]),
+       selected_tab: selected_tab(params["tab"], selected),
        search: String.slice(params["search"] || "", 0, 200),
        sort_by: sort_by,
        sort_order: sort_order,
@@ -109,8 +115,12 @@ defmodule TuistWeb.RunnerVolumesLive do
   end
 
   def handle_event("select_detail_metric", %{"widget" => metric}, socket)
-      when metric in ["used_bytes", "hit_rate", "uses"] do
+      when metric in ["used_bytes", "hit_rate", "uses", "initialize"] do
     {:noreply, assign(socket, :detail_metric, metric)}
+  end
+
+  def handle_event("select_initialize_percentile", %{"type" => type}, socket) when type in ["avg", "p50", "p90", "p99"] do
+    {:noreply, assign(socket, :initialize_percentile, type)}
   end
 
   def handle_event("request_delete", %{"id" => id}, socket), do: request_action(socket, id, :delete)
@@ -125,7 +135,7 @@ defmodule TuistWeb.RunnerVolumesLive do
   def handle_event("confirm", _, socket) do
     account = socket.assigns.selected_account
 
-    with :ok <- Authorization.authorize(:account_update, socket.assigns.current_user, account),
+    with :ok <- Authorization.authorize(:runners_update, socket.assigns.current_user, account),
          {:delete, id} <- socket.assigns.pending_action,
          volume when not is_nil(volume) <- CacheVolumes.get(account.id, id) do
       case CacheVolumes.delete(account.id, volume.id) do
@@ -136,9 +146,9 @@ defmodule TuistWeb.RunnerVolumesLive do
            |> push_event("close-modal", %{id: "volume-confirm-delete"})
            |> put_flash(
              :info,
-             dgettext("dashboard_runners", "Volume cleared. Running jobs can finish.")
+             dgettext("dashboard_runners", "Volume deleted. Running jobs can finish.")
            )
-           |> load()}
+           |> push_navigate(to: ~p"/#{account.name}/runners/volumes")}
 
         _ ->
           {:noreply, put_flash(socket, :error, dgettext("dashboard_runners", "Could not update volume. Please retry."))}
@@ -149,7 +159,9 @@ defmodule TuistWeb.RunnerVolumesLive do
   end
 
   defp request_action(socket, id, action) do
-    if socket.assigns.can_manage and CacheVolumes.get(socket.assigns.selected_account.id, id) do
+    volume = CacheVolumes.get(socket.assigns.selected_account.id, id)
+
+    if socket.assigns.can_manage and volume do
       {:noreply,
        socket |> assign(:pending_action, {action, id}) |> push_event("open-modal", %{id: "volume-confirm-#{action}"})}
     else
@@ -179,21 +191,26 @@ defmodule TuistWeb.RunnerVolumesLive do
                 "jobs" -> CacheVolumes.history(account.id, selected.id, page)
                 _ -> []
               end,
+            images: if(tab == "images", do: DockerCache.images(account.id, selected.id), else: []),
             analytics:
               if tab == "overview" do
-                %{
-                  storage: CacheVolumes.storage_history(account.id, period, selected.id),
-                  activity: CacheVolumes.usage_analytics(account.id, selected.id, period)
-                }
+                Map.merge(
+                  %{
+                    saved_size_history: CacheVolumes.saved_size_history(account.id, selected.id, period),
+                    activity: CacheVolumes.usage_analytics(account.id, selected.id, period),
+                    previous_activity: CacheVolumes.usage_analytics(account.id, selected.id, previous_period(period))
+                  },
+                  docker_steps(account.id, selected, period)
+                )
               end
           }
         else
           account.id
           |> CacheVolumes.list(search, page, sort_options)
           |> Map.put(:history, [])
-          |> Map.put(:activity, CacheVolumes.usage_analytics(account.id, period))
-          |> Map.put(:previous_activity, CacheVolumes.usage_analytics(account.id, previous_period(period)))
-          |> Map.put(:storage_history, CacheVolumes.storage_history(account.id, period))
+          |> Map.put(:activity, CacheVolumes.usage_analytics(account.id, nil, period))
+          |> Map.put(:previous_activity, CacheVolumes.usage_analytics(account.id, nil, previous_period(period)))
+          |> Map.put(:storage_history, CacheVolumes.storage_history(account.id, period, nil))
         end
 
       {:ok, %{data: data}}
@@ -292,14 +309,9 @@ defmodule TuistWeb.RunnerVolumesLive do
   end
 
   def hit_rate_trend(current, previous) when is_number(current) and is_number(previous) do
-    difference = Float.round((current - previous) * 1.0, 1)
-
     %{
-      value: difference,
-      value_label:
-        if(difference != 0,
-          do: dgettext("dashboard_runners", "%{change} pp", change: "#{if difference > 0, do: "+"}#{difference}")
-        ),
+      value: if(previous == 0, do: 0.0, else: Float.round(current / previous * 100 - 100, 1)),
+      value_label: nil,
       label: dgettext("dashboard_runners", "since last period")
     }
   end
@@ -309,18 +321,121 @@ defmodule TuistWeb.RunnerVolumesLive do
   def hit_rate_trend(_current, nil),
     do: %{value: 0, value_label: dgettext("dashboard_runners", "No previous data"), label: ""}
 
+  def uses_trend(current, previous) when is_integer(current) and is_integer(previous) do
+    label = dgettext("dashboard_runners", "since last period")
+
+    cond do
+      previous == 0 and current != 0 -> %{value: current, value_label: "+" <> count(current), label: label}
+      previous == 0 -> %{value: 0, value_label: nil, label: label}
+      true -> %{value: (current - previous) / previous * 100, value_label: nil, label: label}
+    end
+  end
+
+  def uses_trend(_current, _previous),
+    do: %{value: 0, value_label: nil, label: dgettext("dashboard_runners", "since last period")}
+
   def inventory_chart_data?(data, "hit_rate"), do: not is_nil(data.activity.hit_rate)
   def inventory_chart_data?(data, _metric), do: data.storage_history != []
 
   def inventory_chart_series(data, "hit_rate"), do: detail_chart_series(data, "hit_rate")
   def inventory_chart_series(data, metric), do: storage_chart_series(data.storage_history, metric)
 
-  def detail_chart_data?(analytics, "used_bytes"), do: analytics.storage != []
+  def detail_chart_data?(analytics, "used_bytes"),
+    do: Enum.any?(analytics.saved_size_history, &(not is_nil(&1.used_bytes)))
+
+  def detail_chart_data?(analytics, "initialize"),
+    do: is_map_key(analytics, :steps) and not is_nil(analytics.steps.reused.avg)
 
   def detail_chart_data?(analytics, "hit_rate"), do: not is_nil(analytics.activity.hit_rate)
   def detail_chart_data?(_analytics, "uses"), do: true
 
-  def detail_chart_series(analytics, "used_bytes"), do: storage_chart_series(analytics.storage, "used_bytes")
+  # An image cache volume's Initialize containers chart draws every statistic
+  # over the hours or days that had jobs; the widget's dropdown only picks its
+  # figure.
+  def volume_chart_series(analytics, "initialize", _percentile) do
+    points = Enum.reject(analytics.steps.points, &is_nil(&1.avg))
+
+    for {name, statistic} <- [
+          {dgettext("dashboard_runners", "Average"), "avg"},
+          {"p99", "p99"},
+          {"p90", "p90"},
+          {"p50", "p50"}
+        ] do
+      %{
+        name: name,
+        type: "line",
+        color: "var:noora-chart-" <> RunnersLive.legend_color_for_percentile(statistic),
+        smooth: 0.1,
+        symbol: "circle",
+        symbolSize: 4,
+        data: Enum.map(points, &[DateTime.to_iso8601(&1.at), RunnersLive.percentile_value(&1, statistic)])
+      }
+    end
+  end
+
+  def volume_chart_series(analytics, metric, _percentile), do: detail_chart_series(analytics, metric)
+
+  def volume_chart_options("initialize", {start, finish}, [%{data: data} | _]) do
+    hourly = DateTime.diff(finish, start) <= 2 * 86_400
+    times = Enum.map(data, &hd/1)
+
+    %{
+      grid: %{left: "0.4%", right: "24px", height: "78%", top: "8%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "category",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: if(hourly, do: "fn:toLocaleDateHour", else: "fn:toLocaleDate"),
+          customValues: Enum.uniq([List.first(times), List.last(times)]),
+          padding: [10, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "fn:formatMilliseconds"}
+      },
+      legend: RunnersLive.duration_chart_options(times, nil).legend,
+      tooltip: %{valueFormat: "fn:formatMilliseconds", dateFormat: if(hourly, do: "hour", else: "day")}
+    }
+  end
+
+  def volume_chart_options(metric, period, _series), do: detail_chart_options(metric, period)
+
+  def initialize_trend(analytics, percentile) do
+    current = RunnersLive.percentile_value(analytics.steps.reused, percentile)
+    previous = RunnersLive.percentile_value(analytics.previous_steps.reused, percentile)
+
+    cond do
+      is_nil(current) ->
+        %{value: 0, value_label: dgettext("dashboard_runners", "No data"), label: ""}
+
+      is_nil(previous) or previous == 0 ->
+        %{value: 0, value_label: dgettext("dashboard_runners", "No previous data"), label: ""}
+
+      true ->
+        %{
+          value: Float.round((current - previous) / previous * 100, 1),
+          value_label: nil,
+          label: dgettext("dashboard_runners", "since last period")
+        }
+    end
+  end
+
+  def initialize_title("p50"), do: dgettext("dashboard_runners", "p50 Initialize containers")
+  def initialize_title("p90"), do: dgettext("dashboard_runners", "p90 Initialize containers")
+  def initialize_title("p99"), do: dgettext("dashboard_runners", "p99 Initialize containers")
+  def initialize_title(_), do: dgettext("dashboard_runners", "Avg. Initialize containers")
+
+  def step_duration(nil), do: "—"
+  def step_duration(ms), do: DateFormatter.format_duration_from_milliseconds(ms)
+
+  def detail_chart_series(analytics, "used_bytes") do
+    analytics.saved_size_history
+    |> storage_chart_series("used_bytes")
+    |> Enum.map(&(&1 |> Map.delete(:smooth) |> Map.put(:step, "end")))
+  end
 
   def detail_chart_series(analytics, metric) do
     {field, label} =
@@ -332,7 +447,7 @@ defmodule TuistWeb.RunnerVolumesLive do
       %{
         name: label,
         type: if(metric == "uses", do: "bar", else: "line"),
-        color: "var:noora-chart-primary",
+        color: "var:noora-chart-" <> metric_color(metric),
         showSymbol: true,
         connectNulls: false,
         data: Enum.map(analytics.activity.points, &[DateTime.to_iso8601(&1.at), Map.fetch!(&1, field)])
@@ -352,8 +467,20 @@ defmodule TuistWeb.RunnerVolumesLive do
   def detail_chart_options("uses", period), do: storage_chart_options("volumes", period)
   def detail_chart_options(metric, period), do: storage_chart_options(metric, period)
 
-  def selected_tab("jobs"), do: "jobs"
-  def selected_tab(_), do: "overview"
+  def selected_tab("jobs", _volume), do: "jobs"
+  def selected_tab("images", %{key: "docker"}), do: "images"
+  def selected_tab(_tab, _volume), do: "overview"
+
+  # An image cache volume's page also shows how long its jobs took to start
+  # their containers.
+  defp docker_steps(account_id, %{key: "docker", id: id}, period) do
+    %{
+      steps: DockerCache.steps(account_id, id, period),
+      previous_steps: DockerCache.steps(account_id, id, previous_period(period))
+    }
+  end
+
+  defp docker_steps(_account_id, _volume, _period), do: %{}
 
   defp page(value) do
     case Integer.parse(value || "1") do
@@ -363,6 +490,53 @@ defmodule TuistWeb.RunnerVolumesLive do
   end
 
   def stats(data, volume), do: Map.get(data.stats, volume.id, %{})
+
+  # A saved snapshot is nearly full against the capacity the next job gets, so
+  # a larger requested size clears the warning.
+  def full_snapshot?(%{head_id: head_id} = volume, stats) when not is_nil(head_id),
+    do: CacheVolumes.full?(stats[:saved_bytes], next_volume_bytes(volume, stats))
+
+  def full_snapshot?(_volume, _stats), do: false
+
+  def full_snapshot_description(volume, stats) do
+    dgettext(
+      "dashboard_runners",
+      "The saved snapshot uses %{used} of %{capacity}. If a job runs out of space on it, the next job starts from an empty volume and saves a new snapshot.",
+      used: bytes(stats[:saved_bytes]),
+      capacity: bytes(next_volume_bytes(volume, stats))
+    )
+  end
+
+  defp next_volume_bytes(volume, stats), do: CacheVolumes.next_volume_bytes(volume, stats[:head_volume_bytes])
+
+  def volume_capacity(volume, stats), do: CacheVolumes.volume_bytes(volume, stats[:head_volume_bytes])
+
+  def pending_volume_bytes(volume, stats), do: CacheVolumes.pending_volume_bytes(volume, stats[:head_volume_bytes])
+
+  def pending_size_description(volume, stats) do
+    dgettext(
+      "dashboard_runners",
+      "Saved at %{capacity}. New contents will use %{pending} after the next clear.",
+      capacity: bytes(volume_capacity(volume, stats)),
+      pending: bytes(pending_volume_bytes(volume, stats))
+    )
+  end
+
+  # Managed caches show what they hold rather than their storage key.
+  def display_name(%{key: "tuist-xcode"}), do: dgettext("dashboard_runners", "Xcode cache")
+  def display_name(%{key: "tuist-module"}), do: dgettext("dashboard_runners", "Module cache")
+  def display_name(%{key: "tuist-gradle"}), do: dgettext("dashboard_runners", "Gradle cache")
+  def display_name(%{key: "docker"}), do: dgettext("dashboard_runners", "Image cache")
+  def display_name(%{key: key}), do: key
+
+  def volume_name(volume) do
+    name = display_name(volume)
+
+    if String.length(name) > @volume_name_max_length,
+      do: String.slice(name, 0, @volume_name_max_length - 1) <> "…",
+      else: name
+  end
+
   def bytes(nil), do: "—"
   def bytes(%Decimal{} = value), do: value |> Decimal.to_integer() |> bytes()
   def bytes(value), do: ByteFormatter.format_bytes(value)
@@ -370,9 +544,15 @@ defmodule TuistWeb.RunnerVolumesLive do
   def storage_bytes(%{retained_copies: 0}, _field), do: bytes(0)
   def storage_bytes(stats, field), do: bytes(stats[field])
 
-  def storage_capacity(%{retained_copies: 0}), do: bytes(0)
-  def storage_capacity(%{retained_capacity_bytes: capacity}) when not is_nil(capacity), do: bytes(capacity)
-  def storage_capacity(_stats), do: dgettext("dashboard_runners", "Not reported")
+  def storage_capacity(_volume, %{retained_copies: 0}), do: bytes(0)
+  def storage_capacity(_volume, %{retained_capacity_bytes: capacity}) when not is_nil(capacity), do: bytes(capacity)
+
+  def storage_capacity(volume, stats), do: bytes(volume_capacity(volume, stats))
+
+  def detail_capacity(volume, stats), do: bytes(volume_capacity(volume, stats))
+
+  def saved_space(%{head_id: nil}, _stats), do: bytes(0)
+  def saved_space(_volume, stats), do: bytes(stats[:saved_bytes])
 
   def used_space(%{head_id: nil, deleted_at: nil}, %{retained_bytes: nil}), do: bytes(0)
   def used_space(%{head_id: nil, deleted_at: nil}, stats) when map_size(stats) == 0, do: bytes(0)
@@ -385,11 +565,16 @@ defmodule TuistWeb.RunnerVolumesLive do
     dngettext("dashboard_runners", "%{count} copy unmeasured", "%{count} copies unmeasured", count)
   end
 
+  def metric_color("volumes"), do: "primary"
+  def metric_color("used_bytes"), do: "secondary"
+  def metric_color("hit_rate"), do: "tertiary"
+  def metric_color("uses"), do: "p50"
+
   def storage_chart_series(points, metric \\ nil) do
     for {field, label, color} <- [
-          {:volumes, dgettext("dashboard_runners", "Volumes"), "var:noora-chart-primary"},
-          {:used_bytes, dgettext("dashboard_runners", "Used space"), "var:noora-chart-primary"},
-          {:capacity_bytes, dgettext("dashboard_runners", "Capacity"), "var:noora-chart-secondary"}
+          {:volumes, dgettext("dashboard_runners", "Volumes"), "var:noora-chart-" <> metric_color("volumes")},
+          {:used_bytes, dgettext("dashboard_runners", "Used space"), "var:noora-chart-" <> metric_color("used_bytes")},
+          {:capacity_bytes, dgettext("dashboard_runners", "Capacity"), "var:noora-chart-quaternary"}
         ],
         is_nil(metric) or Atom.to_string(field) == metric do
       %{
@@ -411,30 +596,41 @@ defmodule TuistWeb.RunnerVolumesLive do
       if period, do: %{min: DateTime.to_iso8601(elem(period, 0)), max: DateTime.to_iso8601(elem(period, 1))}, else: %{}
 
     %{
-      grid: %{left: 12, right: 24, top: 20, bottom: 36, containLabel: true},
+      grid: %{left: 12, right: 24, top: 20, bottom: 4, containLabel: true},
       xAxis:
         Map.merge(
-          %{type: "time", boundaryGap: false, axisLabel: %{formatter: "fn:toLocaleDate", hideOverlap: true}},
+          %{
+            type: "time",
+            boundaryGap: false,
+            axisLabel: %{
+              color: "var:noora-surface-label-secondary",
+              formatter: "fn:toLocaleDate",
+              hideOverlap: true
+            }
+          },
           bounds
         ),
       yAxis: %{
         min: 0,
         splitNumber: 4,
         minInterval: if(metric == "volumes", do: 1, else: 0),
-        axisLabel: %{formatter: formatter}
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary", formatter: formatter}
       },
       tooltip: %{valueFormat: formatter, dateFormat: "hour"},
       legend: %{show: false}
     }
   end
 
-  def storage_period(params) do
+  def storage_period(params, default_days \\ 7) do
+    defaults = [default_preset: "last-#{default_days}-days", default_days: default_days]
+
     params =
       if params["analytics-date-range"] in ["last-24-hours", "last-7-days", "last-30-days", "custom"],
         do: params,
         else: Map.delete(params, "analytics-date-range")
 
-    selection = DatePicker.date_picker_params(params, "analytics", default_preset: "last-7-days", default_days: 7)
+    selection = DatePicker.date_picker_params(params, "analytics", defaults)
     {start, finish} = selection.period
     now = DateTime.truncate(DateTime.utc_now(), :second)
     earliest = DateTime.add(now, -90, :day)
@@ -443,7 +639,7 @@ defmodule TuistWeb.RunnerVolumesLive do
     if DateTime.before?(start, finish) and not DateTime.before?(start, earliest) and not DateTime.after?(finish, now) do
       %{selection | period: {start, finish}}
     else
-      DatePicker.date_picker_params(%{}, "analytics", default_preset: "last-7-days", default_days: 7)
+      DatePicker.date_picker_params(%{}, "analytics", defaults)
     end
   end
 
@@ -494,11 +690,6 @@ defmodule TuistWeb.RunnerVolumesLive do
   def workflow_label(%{workflow_name: name}) when is_binary(name) and name != "", do: name
   def workflow_label(_), do: dgettext("dashboard_runners", "Unknown")
 
-  def usage_badge_status("published"), do: "success"
-  def usage_badge_status("attached"), do: "in_progress"
-  def usage_badge_status("allocated"), do: "warning"
-  def usage_badge_status(_), do: "disabled"
-
   def storage_description(stats, field) do
     description =
       dgettext(
@@ -519,24 +710,6 @@ defmodule TuistWeb.RunnerVolumesLive do
   def hit_rate(_), do: "—"
   def latency(%Decimal{} = value), do: "#{value |> Decimal.to_float() |> Float.round(0)} ms"
   def latency(_), do: "—"
-  def usage_status("allocated"), do: dgettext("dashboard_runners", "Preparing")
-  def usage_status("attached"), do: dgettext("dashboard_runners", "Attached")
-  def usage_status("published"), do: dgettext("dashboard_runners", "Saved")
-  def usage_status("discarded"), do: dgettext("dashboard_runners", "Discarded")
-  def usage_status(_), do: "—"
-
-  def usage_description("allocated"), do: dgettext("dashboard_runners", "The volume is being prepared for this job.")
-
-  def usage_description("attached"),
-    do: dgettext("dashboard_runners", "The volume is mounted for this job. Changes have not been saved yet.")
-
-  def usage_description("published"),
-    do: dgettext("dashboard_runners", "Changes from this job were saved to the volume for future job runs.")
-
-  def usage_description("discarded"),
-    do: dgettext("dashboard_runners", "Changes from this job were not saved for future job runs.")
-
-  def usage_description(_), do: dgettext("dashboard_runners", "The cache status is unavailable.")
 
   def status(volume, stats) do
     cond do

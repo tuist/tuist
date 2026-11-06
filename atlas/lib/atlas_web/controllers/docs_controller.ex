@@ -14,7 +14,8 @@ defmodule AtlasWeb.DocsController do
         if conn.private[:docs_markdown_requested] do
           conn |> put_resp_content_type("text/markdown") |> send_resp(200, page.markdown)
         else
-          render(conn, :show, page: page, pages: DocsHTML.pages(), slug: slug, page_title: page.title)
+          pages = Enum.filter(DocsHTML.pages(), &(&1.category == page.category))
+          render(conn, :show, page: page, pages: pages, slug: slug, page_title: page.title)
         end
     end
   end

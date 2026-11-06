@@ -2158,7 +2158,7 @@
               "transformations": []
             }
           },
-          "description": "Capacity rejections by limit. reapi_materialization is a remote-execution read refused because the response memory pool stayed full (or memory pressure shrank the per-request budget); reapi_request_budget is one request asking for more response bytes than a single response may carry at normal pressure, and sheds on an idle pool. Optional wildcard inlining fallbacks are counted separately in kura_reapi_inline_fallbacks_total_total on current versions; older replicas still mix those fallbacks into this counter.\n\nPrometheus name: `kura_capacity_sheds_total_total` · labels: kind",
+          "description": "Capacity rejections by limit. reapi_materialization is a remote-execution read (BatchReadBlobs, GetActionResult, FindMissingBlobs, SplitBlob) refused because the response memory pool stayed full (or memory pressure shrank the per-request budget); a write whose reply the floor cannot cover is refused before it stores anything, and that refusal and a compressed BatchUpdateBlobs item the pool cannot decode count as reapi_write_decode; reapi_request_budget is one request asking for more response bytes than a single response may carry at normal pressure, and sheds on an idle pool. Optional wildcard inlining fallbacks are counted separately in kura_reapi_inline_fallbacks_total_total on current versions; older replicas still mix those fallbacks into this counter.\n\nPrometheus name: `kura_capacity_sheds_total_total` · labels: kind",
           "id": 12,
           "links": [],
           "title": "capacity_sheds_total (rate)",
@@ -2570,7 +2570,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (pod) (rate(kura_file_operation_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_file_operation_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "expr": "sum by (pod) (rate(kura_file_operation_duration_seconds_sum{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(kura_file_operations_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "mean {{pod}}",
                         "range": true
@@ -2591,7 +2591,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (pod) (rate(kura_file_operation_duration_seconds_count{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "expr": "sum by (pod) (rate(kura_file_operations_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "rate {{pod}}",
                         "range": true
@@ -10619,7 +10619,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "histogram_quantile(0.5, (sum by (pod, le) (rate(kura_public_request_latency_by_transport_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) or sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\", latency_aggregate!=\"true\"}[$__rate_interval]))))",
                         "instant": false,
                         "legendFormat": "p50 {{pod}}",
                         "range": true
@@ -10640,7 +10640,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "histogram_quantile(0.95, (sum by (pod, le) (rate(kura_public_request_latency_by_transport_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) or sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\", latency_aggregate!=\"true\"}[$__rate_interval]))))",
                         "instant": false,
                         "legendFormat": "p95 {{pod}}",
                         "range": true
@@ -10661,7 +10661,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.99, sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "histogram_quantile(0.99, (sum by (pod, le) (rate(kura_public_request_latency_by_transport_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) or sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\", latency_aggregate!=\"true\"}[$__rate_interval]))))",
                         "instant": false,
                         "legendFormat": "p99 {{pod}}",
                         "range": true
@@ -11509,7 +11509,7 @@
               "transformations": []
             }
           },
-          "description": "Artifact write throughput by producer and result. This is ingest, so a write that stored nothing books no bytes: `result=\"damped\"` and the failure results carry no series here.\n\nPrometheus name: `kura_artifact_write_bytes_total_total` · labels: producer, result",
+          "description": "Artifact write throughput by producer and result. This is ingest, so a write that stored nothing books no bytes: `result=\"damped\"`, `result=\"already_present\"`, and the failure results carry no series here.\n\nPrometheus name: `kura_artifact_write_bytes_total_total` · labels: producer, result",
           "id": 29,
           "links": [],
           "title": "artifact_write_bytes_total (rate)",
@@ -11719,7 +11719,7 @@
               "transformations": []
             }
           },
-          "description": "Artifact writes by producer and result.\n\n`result=\"damped\"` is a REAPI action-cache refresh that stored nothing because the entry already held those bytes inside the 24h damping window: no store write, no version bump, no replication feed row. Only `result=\"ok\"` is comparable with the counters that likewise see applied changes only (`kura_region_sync_entries_listed_total`, `kura_backfill_bodies_total{outcome=\"applied\"}`) -- comparing those against all REAPI writes shows a shortfall that looks exactly like replication losing entries. The damped share of the two is the damping rate.\n\nPrometheus name: `kura_artifact_writes_total_total` · labels: producer, result",
+          "description": "Artifact writes by producer and result.\n\n`result=\"damped\"` is a REAPI action-cache refresh that stored nothing because the entry already held those bytes inside the 24h damping window: no store write, no version bump, no replication feed row. `result=\"already_present\"` is a ByteStream Write of a CAS blob the node already stored: Kura read the upload without staging, storing, or billing it. Only `result=\"ok\"` is comparable with the counters that likewise see applied changes only (`kura_region_sync_entries_listed_total`, `kura_backfill_bodies_total{outcome=\"applied\"}`) -- comparing those against all REAPI writes shows a shortfall that looks exactly like replication losing entries. The damped share of the two is the damping rate.\n\nPrometheus name: `kura_artifact_writes_total_total` · labels: producer, result",
           "id": 30,
           "links": [],
           "title": "artifact_writes_total (rate)",
@@ -13204,7 +13204,7 @@
               "transformations": []
             }
           },
-          "description": "Bytes copied while refreshing artifacts out of old segments, by trigger\n\nPrometheus name: `kura_segment_refresh_bytes_total_total` · labels: producer, result, trigger",
+          "description": "Bytes copied while refreshing artifacts out of old segments, by trigger\n\n`sibling` copies follow a sibling's promotion hint, so a standby should roughly mirror its primary's client-triggered refreshes.\n\nPrometheus name: `kura_segment_refresh_bytes_total_total` · labels: producer, result, trigger",
           "id": 45,
           "links": [],
           "title": "segment_refresh_bytes_total (rate)",
@@ -20119,7 +20119,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (region, le) (\n  sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))\n  * on (pod) group_left(region) max by (pod, region) (kura_node_geo_info{cluster=~\"tuist-$env\", pod=~\"$pod\"})\n))",
+                        "expr": "histogram_quantile(0.95, sum by (region, le) (\n  (sum by (pod, le) (rate(kura_public_request_latency_by_transport_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval])) or sum by (pod, le) (rate(kura_public_request_latency_seconds_bucket{cluster=~\"tuist-$env\", pod=~\"$pod\", latency_aggregate!=\"true\"}[$__rate_interval])))\n  * on (pod) group_left(region) max by (pod, region) (kura_node_geo_info{cluster=~\"tuist-$env\", pod=~\"$pod\"})\n))",
                         "instant": false,
                         "legendFormat": "{{region}}",
                         "range": true
@@ -23618,6 +23618,487 @@
             "version": "12.0.0"
           }
         }
+      },
+      "panel-247": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_relaxed_durability_sync_failures_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Periodic relaxed-durability syncs (segment fsync, then synced WAL flush) that failed. Only nodes with `KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS` set run them; those nodes acknowledge client uploads before they are on disk, so any increase means acknowledged writes may not survive a kernel crash or power loss, and a later sync that succeeds does not prove the earlier pages reached disk. Investigate the volume, and consider unsetting the variable on the node.\n\nPrometheus name: `kura_relaxed_durability_sync_failures_total_total`",
+          "id": 247,
+          "links": [],
+          "title": "relaxed_durability_sync_failures_total (rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "ops"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "13.3.0-32457798232"
+          }
+        }
+      },
+      "panel-248": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_migration_bridge_armed{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "1 while this pod is the source of a planned storage move whose write bridge is armed: every HTTP/gRPC mutation it acknowledges was first verified on the named destination process. Armed is set once preparation has proven every write from its feed pin through the head and confirmed the destination identity, and stays set through controller pauses and destination rebinds until the pod drains or the bridge is aborted. Armed without ready (next panel) for long is what the `Kura - migration bridge armed but not ready` alert watches.\n\nPrometheus name: `kura_migration_bridge_armed`",
+          "id": 248,
+          "links": [],
+          "title": "migration_bridge_armed",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "none"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-249": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_migration_bridge_ready{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "1 once the bridge has proven its feed from the pin through the head on its current destination process (records retained from before the pin are not part of the proof); only then may the controller move routing. It drops to 0 when a rebind moves the bridge to a restarted destination and returns to 1 after the re-proof. It stays 1 if the destination later stops answering: use `migration_bridge_last_proof_age_seconds` for that case.\n\nPrometheus name: `kura_migration_bridge_ready`",
+          "id": 249,
+          "links": [],
+          "title": "migration_bridge_ready",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "none"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-250": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "max by (pod) (kura_migration_bridge_last_proof_age_seconds{cluster=~\"tuist-$env\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Seconds since an armed bridge last proved the feed through its head on the destination. The bridge loop probes once a second, so a healthy bridge stays near 0; a climbing line means acknowledgments are failing (destination down, restarted without a rebind, or missing records) and writes on this source are being refused. 0 while no bridge is armed.\n\nPrometheus name: `kura_migration_bridge_last_proof_age_seconds`",
+          "id": 250,
+          "links": [],
+          "title": "migration_bridge_last_proof_age_seconds",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "s"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
+      },
+      "panel-253": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "expr": "sum by (pod) (rate(kura_migration_reproof_failures_total_total{cluster=~\"tuist-$env\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{pod}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Failed attempts to re-prove a rebound destination. The re-proof retries every second without a deadline, so a steady non-zero rate means the restarted destination process is missing a post-pin write, the feed history below the pin was trimmed, or it is unreachable, and the bridge stays unready. The source's `kura.migration.reproof_failed` warning carries the cause.\n\nPrometheus name: `kura_migration_reproof_failures_total_total`",
+          "id": 253,
+          "links": [],
+          "title": "migration_reproof_failures_total (rate)",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "ops"
+                },
+                "overrides": []
+              },
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "12.0.0"
+          }
+        }
       }
     },
     "layout": {
@@ -24649,6 +25130,19 @@
                         "height": 8,
                         "width": 12,
                         "x": 0,
+                        "y": 42
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-247"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 12,
                         "y": 42
                       }
                     }
@@ -26997,6 +27491,72 @@
                 }
               },
               "title": "Egress tree agent (pod + hosting node)"
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "collapse": true,
+              "layout": {
+                "kind": "GridLayout",
+                "spec": {
+                  "items": [
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-248"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-249"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 8,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-250"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 16,
+                        "y": 0
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-253"
+                        },
+                        "height": 7,
+                        "width": 8,
+                        "x": 0,
+                        "y": 7
+                      }
+                    }
+                  ]
+                }
+              },
+              "title": "Storage migration bridge (4)"
             }
           }
         ]

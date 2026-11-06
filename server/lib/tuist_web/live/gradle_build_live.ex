@@ -16,6 +16,7 @@ defmodule TuistWeb.GradleBuildLive do
   alias Tuist.Utilities.ThroughputFormatter
   alias TuistWeb.BuildTimelineLoader
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 25
@@ -44,13 +45,13 @@ defmodule TuistWeb.GradleBuildLive do
     build = Repo.preload(build, :built_by_account)
 
     test_run =
-      case Tests.get_latest_test_by_gradle_build_id(build.id) do
+      case Tests.get_latest_test_by_gradle_build_id(build.id, build.project_id) do
         {:ok, test} -> test
         {:error, :not_found} -> nil
       end
 
-    build_started_at = Gradle.build_started_at(build.id)
-    aggregates = Gradle.task_cache_aggregates(build.id)
+    build_started_at = Gradle.build_started_at(build.id, build.project_id)
+    aggregates = Gradle.task_cache_aggregates(build.id, build.project_id)
 
     has_build_setup_data = has_build_setup_data?(build)
 
@@ -73,7 +74,9 @@ defmodule TuistWeb.GradleBuildLive do
     cacheable = build.cacheable_tasks_count || 0
 
     socket
+    |> assign(:cache_work_avoided, Tuist.BuildMetrics.cache_work_avoided(build))
     |> assign(:build, build)
+    |> assign(:failure_category, Tuist.BuildMetrics.failure_category(build.project_id, "gradle", build.id))
     |> assign(:test_run, test_run)
     |> assign(:build_started_at, build_started_at)
     |> assign(:from_cache, from_cache)
@@ -87,6 +90,18 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:has_build_setup_data, has_build_setup_data)
     |> assign(:title, title)
     |> assign(:head_title, "#{title} · #{slug} · Tuist")
+    |> assign_open_graph(build, title)
+  end
+
+  defp assign_open_graph(socket, build, title) do
+    assign(
+      socket,
+      OpenGraph.project_image_assigns(socket.assigns.selected_project,
+        title: title,
+        subtitle: Enum.join(Enum.reject([build.git_branch, build.gradle_version], &(&1 in [nil, ""])), " · "),
+        badge: build.status |> to_string() |> String.capitalize()
+      )
+    )
   end
 
   @doc """
@@ -112,8 +127,8 @@ defmodule TuistWeb.GradleBuildLive do
   end
 
   defp has_build_setup_data?(build) do
-    build.configuration_cache_status != "" or Gradle.has_configuration_operations?(build.id) or
-      Gradle.has_artifact_transforms?(build.id)
+    build.configuration_cache_status != "" or Gradle.has_configuration_operations?(build.id, build.project_id) or
+      Gradle.has_artifact_transforms?(build.id, build.project_id)
   end
 
   def handle_event("search-tasks", %{"search" => search}, socket) do
@@ -189,17 +204,17 @@ defmodule TuistWeb.GradleBuildLive do
     text_filters = build_text_flop_filters(params["tasks-filter"])
     dropdown_filters = build_task_flop_filters(filters)
     sort_by = ensure_allowed_sort_by(params["tasks-sort-by"])
-    sort_order = params["tasks-sort-order"] || "asc"
+    sort_order = Atom.to_string(Query.sort_order(params["tasks-sort-order"], :asc))
 
     flop_params = %{
       filters: text_filters ++ dropdown_filters,
       page: Query.bounded_page(params["tasks-page"]),
       page_size: @table_page_size,
       order_by: [sort_by],
-      order_directions: [String.to_atom(sort_order)]
+      order_directions: [Query.sort_order(sort_order, :asc)]
     }
 
-    {tasks, meta} = Gradle.list_tasks(build_id, flop_params)
+    {tasks, meta} = Gradle.list_tasks(build_id, flop_params, socket.assigns.selected_project.id)
 
     socket
     |> assign(:tasks, tasks)
@@ -221,7 +236,7 @@ defmodule TuistWeb.GradleBuildLive do
     text_filters = build_text_flop_filters(params["cacheable-tasks-filter"])
     dropdown_filters = build_cacheable_task_flop_filters(filters)
     sort_by = ensure_allowed_cacheable_sort_by(params["cacheable-tasks-sort-by"])
-    sort_order = params["cacheable-tasks-sort-order"] || "desc"
+    sort_order = Atom.to_string(Query.sort_order(params["cacheable-tasks-sort-order"], :desc))
 
     flop_params = %{
       filters:
@@ -232,10 +247,10 @@ defmodule TuistWeb.GradleBuildLive do
       page: Query.bounded_page(params["cacheable-tasks-page"]),
       page_size: @table_page_size,
       order_by: [sort_by],
-      order_directions: [String.to_atom(sort_order)]
+      order_directions: [Query.sort_order(sort_order, :desc)]
     }
 
-    {cacheable_tasks, meta} = Gradle.list_tasks(build_id, flop_params)
+    {cacheable_tasks, meta} = Gradle.list_tasks(build_id, flop_params, socket.assigns.selected_project.id)
 
     socket
     |> assign(:cacheable_tasks, cacheable_tasks)
@@ -253,8 +268,12 @@ defmodule TuistWeb.GradleBuildLive do
 
     socket =
       socket
-      |> assign_new(:configuration_operations, fn -> Gradle.list_configuration_operations(build_id) end)
-      |> assign_new(:artifact_transforms, fn -> Gradle.list_artifact_transforms(build_id) end)
+      |> assign_new(:configuration_operations, fn ->
+        Gradle.list_configuration_operations(build_id, 100, socket.assigns.selected_project.id)
+      end)
+      |> assign_new(:artifact_transforms, fn ->
+        Gradle.list_artifact_transforms(build_id, 100, socket.assigns.selected_project.id)
+      end)
 
     all_configuration_operations = socket.assigns.configuration_operations
     all_artifact_transforms = socket.assigns.artifact_transforms
@@ -839,13 +858,4 @@ defmodule TuistWeb.GradleBuildLive do
 
     Enum.join(parts, " ")
   end
-
-  defp url?(value) when is_binary(value) do
-    case URI.parse(value) do
-      %URI{scheme: scheme} when scheme in ["http", "https"] -> true
-      _ -> false
-    end
-  end
-
-  defp url?(_), do: false
 end

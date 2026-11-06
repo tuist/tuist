@@ -15,6 +15,8 @@ defmodule Tuist.OnceEvents.Analytics do
   alias Tuist.OnceEvents.Run
   alias Tuist.Repo
 
+  require Tuist.BuildMetrics
+
   @doc """
   List Once runs with pagination + sorting + filters, shaped like
   `Tuist.Bazel.list_invocations/3` so the same LiveView render can
@@ -29,6 +31,8 @@ defmodule Tuist.OnceEvents.Analytics do
       |> maybe_filter_kinds(commands)
       |> maybe_filter_period(opts)
       |> maybe_filter_environment(opts)
+      |> maybe_filter_status(opts)
+      |> maybe_with_failure_category(project_id, opts)
       |> apply_flop_filters(Map.get(flop_params, :filters, []))
 
     order_by = Map.get(flop_params, :order_by, [:finished_at])
@@ -80,6 +84,7 @@ defmodule Tuist.OnceEvents.Analytics do
       |> maybe_filter_kinds(commands)
       |> maybe_filter_period(opts)
       |> maybe_filter_environment(opts)
+      |> maybe_filter_status(opts)
       |> select([r], %{
         total: count(r.id),
         successful:
@@ -124,6 +129,7 @@ defmodule Tuist.OnceEvents.Analytics do
       |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
       |> maybe_filter_kinds(commands)
       |> maybe_filter_environment(opts)
+      |> maybe_filter_status(opts)
       |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
       |> where([r], not is_nil(r.wall_ms) and r.wall_ms > 0)
       |> order_by([r], desc: r.started_at)
@@ -186,6 +192,7 @@ defmodule Tuist.OnceEvents.Analytics do
       |> where([r], r.project_id == ^project_id and r.finalization == "finalized")
       |> maybe_filter_kinds(commands)
       |> maybe_filter_environment(opts)
+      |> maybe_filter_status(opts)
       |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
       |> group_by([r], fragment("date_trunc(?, ?)", ^to_string(granularity), r.started_at))
       |> select([r], %{
@@ -304,6 +311,7 @@ defmodule Tuist.OnceEvents.Analytics do
     |> maybe_filter_kinds(Keyword.get(opts, :commands))
     |> maybe_filter_period(opts)
     |> maybe_filter_environment(opts)
+    |> maybe_filter_status(opts)
   end
 
   defp insight_column(:host), do: :host_class
@@ -350,27 +358,57 @@ defmodule Tuist.OnceEvents.Analytics do
     end
   end
 
-  # Only two invocation-level filters land here: `:status` (mapped to
-  # exit_status) and `:command` (mapped to kind). Anything else is a
-  # no-op so a stale query string never crashes the page.
-  defp apply_flop_filters(query, filters) do
-    Enum.reduce(filters, query, fn filter, q ->
-      case {filter.field, filter.op, filter.value} do
-        {:status, :==, "success"} ->
-          where(q, [r], r.finalization == "finalized" and r.exit_status == 0)
-
-        {:status, :==, "failure"} ->
-          where(q, [r], r.finalization == "finalized" and r.exit_status != 0)
-
-        {:command, :=~, term} when is_binary(term) and term != "" ->
-          pattern = "%" <> String.replace(term, ~r/[\\%_]/, fn c -> "\\" <> c end) <> "%"
-          where(q, [r], ilike(r.command_display, ^pattern) or ilike(r.kind, ^pattern))
-
-        _ ->
-          q
-      end
-    end)
+  # `:status` selects the same runs as the listing's Status filter.
+  defp maybe_filter_status(query, opts) do
+    case Keyword.get(opts, :status) do
+      status when status in ["success", "failure"] -> apply_flop_filter(%{field: :status, op: :==, value: status}, query)
+      _ -> query
+    end
   end
+
+  defp maybe_with_failure_category(query, project_id, opts) do
+    if Keyword.get(opts, :failure_category, false),
+      do: Tuist.BuildMetrics.with_failure_category(query, "once", project_id),
+      else: query
+  end
+
+  # Status, command and the optional virtual failure category are filtered
+  # before pagination. Ignore stale or unsupported filter values.
+  defp apply_flop_filters(query, filters), do: Enum.reduce(filters, query, &apply_flop_filter/2)
+
+  defp apply_flop_filter(%{field: :status, op: :==, value: "success"}, query),
+    do: where(query, [r], r.finalization == "finalized" and r.exit_status == 0)
+
+  defp apply_flop_filter(%{field: :status, op: :==, value: "failure"}, query),
+    do:
+      where(
+        query,
+        [r],
+        r.finalization == "lost" or (r.finalization == "finalized" and (is_nil(r.exit_status) or r.exit_status != 0))
+      )
+
+  defp apply_flop_filter(%{field: :git_branch, op: :==, value: branch}, query) when is_binary(branch),
+    do: where(query, [r], r.git_branch == ^branch)
+
+  defp apply_flop_filter(%{field: :failure_category, op: op, value: category}, query),
+    do: filter_failure_category(query, op, category)
+
+  defp apply_flop_filter(%{field: :command, op: :=~, value: term}, query) when is_binary(term) and term != "" do
+    pattern = "%" <> String.replace(term, ~r/[\\%_]/, fn c -> "\\" <> c end) <> "%"
+    where(query, [r], ilike(r.command_display, ^pattern) or ilike(r.kind, ^pattern))
+  end
+
+  defp apply_flop_filter(_filter, query), do: query
+
+  defp filter_failure_category(query, :==, category)
+       when category in ["verification", "infrastructure_tooling", "unknown"],
+       do: where(query, [r], r.failure_category == ^category)
+
+  defp filter_failure_category(query, :!=, category)
+       when category in ["verification", "infrastructure_tooling", "unknown"],
+       do: where(query, [r], r.failure_category != ^category)
+
+  defp filter_failure_category(query, _op, _category), do: query
 
   defp apply_flop_order(query, order_by, order_directions) do
     order_by
@@ -395,7 +433,7 @@ defmodule Tuist.OnceEvents.Analytics do
   # invocation_id, command (kind), status, duration_ms, finished_at,
   # cache (nested with hit_rate/download/upload), plus a couple of
   # display helpers.
-  defp to_invocation(%Run{} = run) do
+  def to_invocation(%Run{} = run) do
     hits = run.cached_actions || 0
     total = run.total_actions || 0
 
@@ -406,11 +444,15 @@ defmodule Tuist.OnceEvents.Analytics do
 
     %{
       invocation_id: run.run_id,
+      kind: run.kind,
       command: display_command(run),
       target_patterns: [],
       status: run_status(run),
+      failure_category: run.failure_category,
       duration_ms: run.wall_ms || 0,
       finished_at: run.finalized_at || run.started_at,
+      started_at: run.started_at,
+      finalized_at: run.finalized_at,
       is_ci: run.is_ci || false,
       git_rev: run.git_rev,
       git_branch: run.git_branch,

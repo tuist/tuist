@@ -563,18 +563,16 @@
             end
           }
         >
-          <:col :let={test_run} label={dgettext("dashboard_tests", "Scheme")}>
-            <.text_cell label={
-              if test_run.scheme != "" and not is_nil(test_run.scheme),
-                do: test_run.scheme,
-                else: dgettext("dashboard_tests", "Unknown")
-            } />
+          <:col :let={test_run} label={scheme_label(@selected_project)}>
+            <.text_cell label={test_run_label(@selected_project, test_run.scheme)} />
           </:col>
           <:col :let={test_run} label={dgettext("dashboard_tests", "Granularity")}>
             <.text_cell label={
-              if test_run.shard_plan,
-                do: String.capitalize(test_run.shard_plan.granularity),
-                else: dgettext("dashboard_tests", "Unknown")
+              cond do
+                is_nil(test_run.shard_plan) -> dgettext("dashboard_tests", "Unknown")
+                @selected_project.build_system == :once -> dgettext("dashboard_tests", "Batch")
+                true -> String.capitalize(test_run.shard_plan.granularity)
+              end
             } />
           </:col>
           <:col :let={test_run} label={dgettext("dashboard_tests", "Status")}>

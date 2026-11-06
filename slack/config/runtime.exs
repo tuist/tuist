@@ -44,11 +44,28 @@ if config_env() == :prod do
     System.get_env("TURNSTILE_SECRET_KEY") ||
       raise "environment variable TURNSTILE_SECRET_KEY is missing"
 
-  config :slack, Slack.Mailer,
-    adapter: Swoosh.Adapters.Mailgun,
-    api_key: System.get_env("MAILGUN_API_KEY") || raise("environment variable MAILGUN_API_KEY is missing"),
-    domain: System.get_env("MAILGUN_DOMAIN") || "mail.tuist.dev",
-    base_url: System.get_env("MAILGUN_BASE_URL") || "https://api.eu.mailgun.net/v3"
+  # The release filesystem is read-only; /tmp is a writable volume in Kubernetes.
+  # Tzdata seeds this directory from its bundled database and keeps updates enabled.
+  config :tzdata, :data_dir, "/tmp/tzdata"
+
+  case System.get_env("SLACK_MAILER_PROVIDER", "mailgun") do
+    "mailgun" ->
+      config :slack, Slack.Mailer,
+        adapter: Swoosh.Adapters.Mailgun,
+        api_key: System.fetch_env!("MAILGUN_API_KEY"),
+        domain: System.get_env("MAILGUN_DOMAIN", "mail.tuist.dev"),
+        base_url: System.get_env("MAILGUN_BASE_URL", "https://api.eu.mailgun.net/v3")
+
+    "ses" ->
+      config :slack, Slack.Mailer,
+        adapter: Swoosh.Adapters.AmazonSES,
+        region: System.fetch_env!("SLACK_SES_REGION"),
+        access_key: System.fetch_env!("SLACK_SES_ACCESS_KEY_ID"),
+        secret: System.fetch_env!("SLACK_SES_SECRET_ACCESS_KEY")
+
+    provider ->
+      raise "unsupported mailing provider: #{inspect(provider)}"
+  end
 
   config :slack, Slack.Repo,
     database: database_path,

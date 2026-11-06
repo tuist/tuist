@@ -14,10 +14,18 @@ defmodule TuistWeb.BuildRunsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Runs")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("build-runs"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_builds", "Build Runs"),
+          fallback: "build-runs"
+        )
+      )
 
     socket =
       cond do
+        Project.cargo_project?(project) ->
+          TuistWeb.CargoBuildRunsLive.assign_mount(socket)
+
         Project.bazel_project?(project) ->
           params
           |> TuistWeb.BazelBuildRunsLive.mount(%{}, socket)
@@ -25,6 +33,9 @@ defmodule TuistWeb.BuildRunsLive do
 
         Project.gradle_project?(project) ->
           TuistWeb.GradleBuildRunsLive.assign_mount(socket)
+
+        Project.mix_project?(project) ->
+          TuistWeb.MixBuildRunsLive.assign_mount(socket)
 
         true ->
           TuistWeb.XcodeBuildRunsLive.assign_mount(socket)
@@ -41,11 +52,17 @@ defmodule TuistWeb.BuildRunsLive do
     params = Query.query_params(uri)
 
     cond do
+      Project.cargo_project?(project) ->
+        {:noreply, TuistWeb.CargoBuildRunsLive.assign_handle_params(socket, params)}
+
       Project.bazel_project?(project) ->
         TuistWeb.BazelBuildRunsLive.handle_params(params, uri, socket)
 
       Project.gradle_project?(project) ->
         {:noreply, TuistWeb.GradleBuildRunsLive.assign_handle_params(socket, params)}
+
+      Project.mix_project?(project) ->
+        {:noreply, TuistWeb.MixBuildRunsLive.assign_handle_params(socket, params)}
 
       true ->
         {:noreply, TuistWeb.XcodeBuildRunsLive.assign_handle_params(socket, params)}
@@ -66,6 +83,9 @@ defmodule TuistWeb.BuildRunsLive do
 
   def handle_event("add_filter", %{"value" => filter_id}, %{assigns: %{selected_project: project}} = socket) do
     cond do
+      Project.cargo_project?(project) ->
+        TuistWeb.CargoBuildRunsLive.handle_event("add_filter", %{"value" => filter_id}, socket)
+
       Project.bazel_project?(project) ->
         TuistWeb.BazelBuildRunsLive.handle_event("add_filter", %{"value" => filter_id}, socket)
 
@@ -79,6 +99,9 @@ defmodule TuistWeb.BuildRunsLive do
 
   def handle_event("update_filter", params, %{assigns: %{selected_project: project}} = socket) do
     cond do
+      Project.cargo_project?(project) ->
+        TuistWeb.CargoBuildRunsLive.handle_event("update_filter", params, socket)
+
       Project.bazel_project?(project) ->
         TuistWeb.BazelBuildRunsLive.handle_event("update_filter", params, socket)
 

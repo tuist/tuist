@@ -16,25 +16,27 @@ import (
 
 // reapIdlePodsOnCordonedNodes retires warm-pool Pods sitting on a node
 // that is on its way out, and is one half of making a node replacement
-// safe for customer jobs. The other half is the `MachineDrainRule` in
-// `infra/k8s/clusters/machinedrainrules.yaml`, which sets
-// `behavior: WaitCompleted` for runner Pods so Cluster API waits for
-// them to finish instead of evicting them.
+// safe for customer jobs. The other half waits for runner Pods to finish
+// instead of evicting them: the release wait in cluster-api-provider-tuist
+// (`holdReleaseForRunnerJobs`) for the in-cluster bare-metal fleets, and
+// the `WaitCompleted` `MachineDrainRule` in
+// `infra/k8s/clusters/machinedrainrules.yaml` for Machines Cluster API
+// drains on the management cluster.
 //
-// That drain rule alone would never converge. A runner Pod is
-// single-shot, so a Pod running a job reaches a terminal phase on its
-// own and satisfies `WaitCompleted` — but an *idle* Pod is a dispatch
-// poller with nothing to finish. It polls for as long as it exists, so
-// `WaitCompleted` would wait on it forever and the drain would never
-// complete. Nothing else clears it either: the cordon stops new Pods
-// landing but does not remove the ones already bound.
+// That wait alone would never converge. A runner Pod is single-shot,
+// so a Pod running a job reaches a terminal phase on its own and
+// satisfies the wait, but an *idle* Pod is a dispatch poller with
+// nothing to finish. It polls for as long as it exists, so the wait
+// would hold on it forever and the node would never be released.
+// Nothing else clears it either: the cordon stops new Pods landing but
+// does not remove the ones already bound.
 //
 // So the controller retires them here. An idle Pod is pure warm
 // capacity — no customer work is attached to it — so deleting it costs
 // nothing beyond a cold start, and the autoscaler replaces it on a node
 // that can still accept Pods. What remains on the draining node is only
 // Pods running jobs, each of which completes on its own, at which point
-// the drain finishes and Cluster API deletes the Machine.
+// the wait ends and the Machine is deleted.
 //
 // Idleness is read through `isIdle`, deliberately not through the
 // `tuist.dev/runner-pool-owner` label. A `PodDisruptionBudget` could
@@ -111,7 +113,8 @@ func drainingNodePredicate() predicate.Predicate {
 		if !ok {
 			return false
 		}
-		return node.Spec.Unschedulable || !node.DeletionTimestamp.IsZero()
+		return node.Spec.Unschedulable || !node.DeletionTimestamp.IsZero() || hasPowerBudgetTaint(node) ||
+			nodeNotReady(node)
 	})
 }
 
@@ -145,6 +148,17 @@ func (r *RunnerPoolReconciler) enqueueAllRunnerPools(ctx context.Context, _ clie
 // it drains, so `spec.unschedulable` is the signal that a Machine
 // replacement has started.
 //
+// A rack mini held by its power budget (powerBudgetTaintKey) counts too:
+// the runners it already holds are what would otherwise keep starting jobs on
+// a chain over its breaker's budget. Its jobs finish, and the autoscaler
+// replaces its idle runners on hosts that are not held.
+//
+// So does a node NotReady for nodeUnreachableRetireAfter, such as every mini
+// of a rack site that went dark: its idle runners cannot claim, and until they
+// are gone the autoscaler counts them as warm capacity instead of replacing
+// them at the sites still up. A runner that claimed a job is never idle, so it
+// is left to finish or to be lost with its node.
+//
 // A node that cannot be read is reported as not draining. Reaping is
 // destructive and an unreadable node is ambiguous — a transient read
 // failure must not be able to retire warm capacity fleet-wide. A Pod
@@ -158,5 +172,6 @@ func (r *RunnerPoolReconciler) nodeIsDraining(ctx context.Context, name string) 
 		}
 		return false, fmt.Errorf("get node %s: %w", name, err)
 	}
-	return node.Spec.Unschedulable || !node.DeletionTimestamp.IsZero(), nil
+	return node.Spec.Unschedulable || !node.DeletionTimestamp.IsZero() || hasPowerBudgetTaint(node) ||
+		nodeUnreachable(node, r.now()), nil
 }

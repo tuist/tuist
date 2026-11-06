@@ -50,17 +50,20 @@
 
     public struct CacheStorableItemMetadata: Hashable, Equatable, Codable {
         public var binaryCacheFingerprints: [String: String]
+        public var requiresSDKSlices: Bool
 
-        public init(binaryCacheFingerprints: [String: String] = [:]) {
+        public init(binaryCacheFingerprints: [String: String] = [:], requiresSDKSlices: Bool = false) {
             self.binaryCacheFingerprints = binaryCacheFingerprints
+            self.requiresSDKSlices = requiresSDKSlices
         }
 
-        private enum CodingKeys: String, CodingKey { case binaryCacheFingerprints }
+        private enum CodingKeys: String, CodingKey { case binaryCacheFingerprints, requiresSDKSlices }
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             binaryCacheFingerprints = try container
                 .decodeIfPresent([String: String].self, forKey: .binaryCacheFingerprints) ?? [:]
+            requiresSDKSlices = try container.decodeIfPresent(Bool.self, forKey: .requiresSDKSlices) ?? false
         }
     }
 
@@ -109,9 +112,21 @@
             _ items: [CacheStorableItem: [AbsolutePath]],
             cacheCategory: RemoteCacheCategory
         ) async throws -> [CacheStorableItem]
+        /// Uploads the items `fetch` served from the local cache, keyed by the path it returned for them,
+        /// that the remote cache no longer has.
+        func republishIfNeeded(
+            _ items: [CacheStorableItem: AbsolutePath],
+            cacheCategory: RemoteCacheCategory
+        ) async throws
     }
 
     extension CacheStoring {
+        /// A storage without a remote has nothing to republish.
+        public func republishIfNeeded(
+            _: [CacheStorableItem: AbsolutePath],
+            cacheCategory _: RemoteCacheCategory
+        ) async throws {}
+
         /// A storage that never evicts has nothing to preserve.
         public func fetch(
             _ items: Set<CacheStorableItem>,

@@ -11,13 +11,15 @@ public protocol MultipartUploadStartPreviewsServicing {
         buildVersion: String,
         bundleIdentifier: String?,
         supportedPlatforms: [Components.Schemas.PreviewSupportedPlatform],
+        supportedArchitectures: [String],
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
         binaryId: String?,
         fullHandle: String,
         serverURL: URL,
-        track: String?
+        track: String?,
+        releaseNotes: String?
     ) async throws -> AppBuildUpload
 }
 
@@ -60,13 +62,15 @@ public struct MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsS
         buildVersion: String,
         bundleIdentifier: String?,
         supportedPlatforms: [Components.Schemas.PreviewSupportedPlatform],
+        supportedArchitectures: [String],
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
         binaryId: String?,
         fullHandle: String,
         serverURL: URL,
-        track: String?
+        track: String?,
+        releaseNotes: String? = nil
     ) async throws -> AppBuildUpload {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -79,6 +83,8 @@ public struct MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsS
             .ipa
         case .apk:
             .apk
+        case .executable:
+            .executable
         }
         let response = try await client.startPreviewsMultipartUpload(
             .init(
@@ -95,6 +101,8 @@ public struct MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsS
                         git_branch: gitBranch,
                         git_commit_sha: gitCommitSHA,
                         git_ref: gitRef,
+                        release_notes: releaseNotes,
+                        supported_architectures: supportedArchitectures.isEmpty ? nil : supportedArchitectures,
                         supported_platforms: supportedPlatforms,
                         track: track,
                         _type: type,

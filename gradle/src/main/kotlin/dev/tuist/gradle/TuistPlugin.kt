@@ -1,7 +1,10 @@
 package dev.tuist.gradle
 
+import dev.tuist.gradle.api.model.Shard
 import org.gradle.api.Action
+import org.gradle.api.IsolatedAction
 import org.gradle.api.Plugin
+import org.gradle.api.Project
 import org.gradle.api.initialization.Settings
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
@@ -47,7 +50,12 @@ data class TuistGradleConfig(
     val testQuarantineEnabled: Boolean? = null,
     val stressNewTestsMode: String? = null,
     val stressRepetition: StressRepetitionContext? = null,
-    val customMetadata: BuildCustomMetadata = BuildCustomMetadata()
+    val customMetadata: BuildCustomMetadata = BuildCustomMetadata(),
+    val actorId: String? = null,
+    val rootProjectName: String = "",
+    val projectPaths: List<String> = listOf(":"),
+    val shard: Shard? = null,
+    val shardIndex: Int? = null
 ) {
     data class Network(val proxy: Boolean)
 
@@ -71,6 +79,7 @@ data class TuistGradleConfig(
                     )
                 ),
                 uploadInBackground = extension.uploadInBackground,
+                actorId = extension.buildInsights.actorId,
                 testQuarantineEnabled = extension.testQuarantine.enabled,
                 stressNewTestsMode = StressNewTestsMode.resolve(
                     environmentValue = System.getenv(STRESS_MODE_ENV),
@@ -80,8 +89,13 @@ data class TuistGradleConfig(
                 customMetadata = BuildCustomMetadata(
                     tags = extension.buildInsights.tags,
                     values = extension.buildInsights.values
-                )
+                ),
+                rootProjectName = settings.rootProject.name,
+                projectPaths = projectPaths(settings.rootProject)
             )
+
+        private fun projectPaths(project: org.gradle.api.initialization.ProjectDescriptor): List<String> =
+            listOf(project.path) + project.children.flatMap(::projectPaths)
 
         fun from(project: org.gradle.api.Project): TuistGradleConfig? =
             project.extensions.extraProperties.let {
@@ -118,42 +132,31 @@ class TuistPlugin : Plugin<Settings> {
     }
 
     private fun configure(settings: Settings, extension: TuistExtension) {
-        val config = TuistGradleConfig.from(settings, extension)
-        publishSharedConfig(settings, config)
+        val baseConfig = TuistGradleConfig.from(settings, extension)
+        val shardIndexValue = settings.providers.environmentVariable("TUIST_SHARD_INDEX").orNull
+        val shardIndex = shardIndexValue?.toIntOrNull()
+        if (shardIndexValue != null && shardIndex == null && baseConfig.stressRepetition == null) {
+            logger.warn("Tuist: TUIST_SHARD_INDEX is not a valid integer: $shardIndexValue")
+        }
+        val config = if (shardIndex != null && baseConfig.stressRepetition == null) {
+            val shard = settings.providers.of(TuistShardValueSource::class.java) {
+                parameters.serverUrl.set(baseConfig.url)
+                baseConfig.project?.let { parameters.tuistProject.set(it) }
+                parameters.useEnvironmentProxy.set(baseConfig.network.proxy)
+                parameters.projectDir.set(settings.settingsDir)
+                parameters.shardIndex.set(shardIndex)
+                parameters.shardReference.set(settings.providers.environmentVariable("TUIST_SHARD_REFERENCE"))
+            }.get()
+            baseConfig.copy(shard = shard, shardIndex = shardIndex)
+        } else baseConfig
         configureBuildCache(settings, config, extension.buildCache)
-        // A stress repetition is a nested build whose only job is to rerun a few
-        // test cases and write their results to a file: it reports no build of its
-        // own, and reruns nothing but the filters it was handed.
-        if (config.stressRepetition == null) {
-            configureBuildInsights(settings, config)
-        }
-        configureTestInsights(settings, config)
-    }
-
-    private fun publishSharedConfig(settings: Settings, config: TuistGradleConfig) {
-        settings.gradle.rootProject {
-            extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, config)
-        }
-    }
-
-    private fun configureBuildInsights(settings: Settings, config: TuistGradleConfig) {
-        settings.gradle.rootProject {
-            pluginManager.apply(TuistBuildInsightsPlugin::class.java)
-            val projectLabel = config.project ?: "(from tuist.toml)"
-            logger.lifecycle("Tuist: Build insights configured for $projectLabel")
-        }
-    }
-
-    private fun configureTestInsights(settings: Settings, config: TuistGradleConfig) {
-        settings.gradle.rootProject {
-            pluginManager.apply(TuistTestInsightsPlugin::class.java)
-            if (config.stressRepetition != null) return@rootProject
-            pluginManager.apply(TuistTestShardingPlugin::class.java)
-            val projectLabel = config.project ?: "(from tuist.toml)"
-            logger.lifecycle("Tuist: Test insights configured for $projectLabel")
-            config.stressNewTestsMode?.let { mode ->
-                logger.lifecycle("Tuist: Stress-testing new tests configured in $mode mode")
-            }
+        settings.gradle.lifecycle.beforeProject(ConfigureTuistProject(config))
+        settings.gradle.lifecycle.afterProject(PublishTuistTestModule())
+        val projectLabel = config.project ?: "(from tuist.toml)"
+        logger.lifecycle("Tuist: Build insights configured for $projectLabel")
+        logger.lifecycle("Tuist: Test insights configured for $projectLabel")
+        config.stressNewTestsMode?.let { mode ->
+            logger.lifecycle("Tuist: Stress-testing new tests configured in $mode mode")
         }
     }
 
@@ -178,9 +181,21 @@ class TuistPlugin : Plugin<Settings> {
             }
         }
 
-        settings.gradle.rootProject {
-            val projectLabel = config.project ?: "(from tuist.toml)"
-            logger.lifecycle("Tuist: Remote build cache configured for $projectLabel")
+        val projectLabel = config.project ?: "(from tuist.toml)"
+        logger.lifecycle("Tuist: Remote build cache configured for $projectLabel")
+    }
+}
+
+private class ConfigureTuistProject(private val config: TuistGradleConfig) : IsolatedAction<Project> {
+    override fun execute(project: Project) {
+        project.extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, config)
+        if (config.stressRepetition == null) {
+            project.pluginManager.apply(TuistBuildInsightsPlugin::class.java)
+            project.pluginManager.apply(TuistPreviewsPlugin::class.java)
+        }
+        project.pluginManager.apply(TuistTestInsightsPlugin::class.java)
+        if (config.stressRepetition == null) {
+            project.pluginManager.apply(TuistTestShardingPlugin::class.java)
         }
     }
 }
@@ -331,9 +346,14 @@ open class StressNewTestsExtension {
 }
 
 /**
- * Configuration for build insight tags and key-value metadata.
+ * Configuration for build insight tags, key-value metadata, and the shared build/test actor claim.
  */
 open class BuildInsightsExtension {
+    var actorId: String? = null
+
+    @Deprecated("Credential-free reporting is discovered automatically from the self-hosted server.")
+    var networkTrustedPublishing: Boolean = false
+
     private val configuredTags = mutableListOf<String>()
     private val configuredValues = mutableMapOf<String, String>()
 

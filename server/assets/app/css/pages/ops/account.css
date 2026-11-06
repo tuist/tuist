@@ -96,10 +96,8 @@
 
   & [data-part="runner-concurrency-description"],
   & [data-part="runner-trial-description"],
-  & [data-part="prepaid-description"],
   & [data-part="prepaid-empty"],
-  & [data-part="standing-prepaid-description"],
-  & [data-part="standing-prepaid-next"],
+  & [data-part="prepaid-pool-description"],
   & [data-part="free-tier-description"],
   & [data-part="kura-egress-limits-description"] {
     margin: var(--noora-spacing-0);
@@ -133,16 +131,15 @@
     }
   }
 
-  & #prepaid-minutes-form,
-  & #standing-prepaid-minutes-form {
+  & #prepaid-pool-form {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
     max-width: 480px;
   }
 
-  & [data-part="prepaid-quote"],
-  & [data-part="standing-prepaid-quote"],
+  & [data-part="prepaid-pool-quote"],
+  & [data-part="prepaid-pool-coverage"],
   & [data-part="free-tier-usage"] {
     display: flex;
     flex-direction: column;
@@ -168,7 +165,9 @@
     }
   }
 
-  & #runner-concurrency-form {
+  & #runner-concurrency-form,
+  & #sandbox-concurrency-form,
+  & #remote-execution-concurrency-form {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
@@ -252,6 +251,8 @@
     font-size: 12px;
     line-height: 1.5;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    direction: ltr;
+    unicode-bidi: isolate;
 
     & [data-part="line"] {
       white-space: pre-wrap;

@@ -6,7 +6,8 @@ defmodule TuistWeb.CldrHelpers do
   @default_format %{decimal: ".", group: ",", space: ""}
   @locale_formats %{
     "es" => %{decimal: ",", group: ".", space: "\u00A0"},
-    "ru" => %{decimal: ",", group: "\u00A0", space: "\u00A0"}
+    "ru" => %{decimal: ",", group: "\u00A0", space: "\u00A0"},
+    "tr" => %{decimal: ",", group: ".", space: ""}
   }
 
   def format_number(number, opts \\ []) do
@@ -29,6 +30,15 @@ defmodule TuistWeb.CldrHelpers do
       digits = if Decimal.equal?(scaled, Decimal.round(scaled)), do: 0, else: 1
       format_decimal(scaled, locale, digits) <> suffix
     end
+  end
+
+  @doc """
+  Formats a count as a whole number with locale grouping and no unit
+  abbreviation (658422 becomes "658,422" in English), for figures where the
+  exact value matters, such as live counters.
+  """
+  def format_count(number, opts \\ []) do
+    format_decimal(decimal(number), locale(Keyword.get(opts, :locale)), 0)
   end
 
   def format_money(%Money{} = money, opts \\ []) do

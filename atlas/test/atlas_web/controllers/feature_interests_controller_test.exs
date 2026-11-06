@@ -3,7 +3,6 @@ defmodule AtlasWeb.FeatureInterestsControllerTest do
 
   alias Atlas.Accounts.Account
   alias Atlas.Accounts.Event
-  alias Atlas.Guardian
   alias Atlas.Repo
 
   test "manages feature interests and account context through the API", %{conn: conn} do
@@ -92,8 +91,7 @@ defmodule AtlasWeb.FeatureInterestsControllerTest do
   end
 
   defp api_conn(user) do
-    {:ok, token, _claims} =
-      Guardian.encode_and_sign(user, %{"scopes" => ["mcp"]}, token_type: "access_token")
+    token = oauth_access_token_fixture(user)
 
     build_conn()
     |> put_req_header("authorization", "Bearer #{token}")

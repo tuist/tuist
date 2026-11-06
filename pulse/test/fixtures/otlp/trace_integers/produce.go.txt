@@ -1,0 +1,117 @@
+// File-only public oracle for quoted trace uint32/fixed32 and enum fields.
+package main
+
+import (
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	collector "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	common "go.opentelemetry.io/proto/otlp/common/v1"
+	resource "go.opentelemetry.io/proto/otlp/resource/v1"
+	trace "go.opentelemetry.io/proto/otlp/trace/v1"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+)
+
+func must(e error) {
+	if e != nil {
+		panic(e)
+	}
+}
+func write(dir, name string, b []byte) { must(os.WriteFile(filepath.Join(dir, name), b, 0600)) }
+func ids(value any) {
+	switch v := value.(type) {
+	case map[string]any:
+		for k, item := range v {
+			if k == "traceId" || k == "spanId" || k == "parentSpanId" {
+				raw, e := base64.StdEncoding.DecodeString(item.(string))
+				must(e)
+				v[k] = hex.EncodeToString(raw)
+			} else {
+				ids(item)
+			}
+		}
+	case []any:
+		for _, item := range v {
+			ids(item)
+		}
+	}
+}
+func main() {
+	dir := os.Args[1]
+	must(os.MkdirAll(dir, 0700))
+	literals := []string{"0", "-0", "0.0", "-0.0", "1", "1.0", "1.000", "1e3", "1E+3", "10e-1", "1e-1", "1.5", "1.00000000000000000001", "2", "3", "5", "6", "2147483647", "2147483648", "4294967295", "4294967295.0", "4294967296", "4294967296.0", "-1", "-1.0", "9007199254740993.0", "0e1000000", "1e1000000", "1e-1000000", "1e-99999999999999999999999", "01", "+1", ".0", "1.", " 1", "1 ", "NaN", "Infinity", "", "SPAN_KIND_SERVER", "STATUS_CODE_OK"}
+	cases := []map[string]any{}
+	for _, owner := range []string{"resource", "scope", "span", "event", "link", "status"} {
+		fields := []string{"droppedAttributesCount"}
+		switch owner {
+		case "span":
+			fields = append(fields, "flags", "droppedEventsCount", "droppedLinksCount", "kind")
+		case "link":
+			fields = append(fields, "flags")
+		case "status":
+			fields = []string{"code"}
+		}
+		for _, field := range fields {
+			for _, literal := range literals {
+				var out proto.Message
+				switch owner {
+				case "resource":
+					out = &resource.Resource{}
+				case "scope":
+					out = &common.InstrumentationScope{}
+				case "span":
+					out = &trace.Span{}
+				case "event":
+					out = &trace.Span_Event{}
+				case "link":
+					out = &trace.Span_Link{}
+				case "status":
+					out = &trace.Status{}
+				}
+				quoted, e := json.Marshal(literal)
+				must(e)
+				body := []byte(fmt.Sprintf(`{"%s":%s}`, field, quoted))
+				err := protojson.Unmarshal(body, out)
+				row := map[string]any{"owner": owner, "field": field, "literal": literal, "accepted": err == nil}
+				if err == nil {
+					descriptor := out.ProtoReflect().Descriptor().Fields().ByJSONName(field)
+					value := out.ProtoReflect().Get(descriptor)
+					if field == "kind" || field == "code" {
+						row["expected"] = fmt.Sprint(value.Enum())
+					} else {
+						row["expected"] = fmt.Sprint(value.Uint())
+					}
+				}
+				cases = append(cases, row)
+			}
+		}
+	}
+	encoded, e := json.Marshal(cases)
+	must(e)
+	write(dir, "cases.json", encoded)
+	input := `{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"quoted-integers"}}],"droppedAttributesCount":"1.0"},"scopeSpans":[{"scope":{"name":"quoted","droppedAttributesCount":"2e0"},"spans":[{"traceId":"MDEyMzQ1Njc4OWFiY2RlZg==","spanId":"YWJjZGVmZ2g=","name":"quoted","startTimeUnixNano":"1700000000123456789","endTimeUnixNano":"1700000000123457789","flags":"4294967295.0","kind":2,"status":{"code":1},"droppedAttributesCount":"3e0","droppedEventsCount":"-0.0","droppedLinksCount":"10e-1","events":[{"name":"event","timeUnixNano":"1700000000123456789","droppedAttributesCount":"4.0"}],"links":[{"traceId":"MDEyMzQ1Njc4OWFiY2RlZg==","spanId":"YWJjZGVmZ2g=","flags":"257.0","droppedAttributesCount":"5e0"}]}]}]}]}`
+	out := &collector.ExportTraceServiceRequest{}
+	must(protojson.Unmarshal([]byte(input), out))
+	write(dir, "traces-google-input.json", []byte(input))
+	adapted := strings.ReplaceAll(input, `"traceId":"MDEyMzQ1Njc4OWFiY2RlZg=="`, `"traceId":"30313233343536373839616263646566"`)
+	adapted = strings.ReplaceAll(adapted, `"spanId":"YWJjZGVmZ2g="`, `"spanId":"6162636465666768"`)
+	write(dir, "traces-input.json", []byte(adapted))
+	canonical, e := (protojson.MarshalOptions{UseEnumNumbers: true}).Marshal(out)
+	must(e)
+	write(dir, "traces-google.json", canonical)
+	var tree any
+	must(json.Unmarshal(canonical, &tree))
+	ids(tree)
+	canonical, e = json.Marshal(tree)
+	must(e)
+	write(dir, "traces-canonical.json", canonical)
+	wire, e := proto.Marshal(out)
+	must(e)
+	write(dir, "traces.protobuf", wire)
+}

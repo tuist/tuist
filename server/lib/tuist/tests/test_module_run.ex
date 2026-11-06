@@ -34,6 +34,7 @@ defmodule Tuist.Tests.TestModuleRun do
     field :test_suite_count, Ch, type: "Int32"
     field :test_case_count, Ch, type: "Int32"
     field :avg_test_case_duration, Ch, type: "Int32"
+    field :execution_mode, Ch, type: "LowCardinality(String)", default: ""
     field :shard_id, Ch, type: "Nullable(UUID)"
     field :shard_index, Ch, type: "Nullable(Int32)"
     field :project_id, Ch, type: "Nullable(Int64)"
@@ -42,6 +43,8 @@ defmodule Tuist.Tests.TestModuleRun do
     field :ran_at, Ch, type: "Nullable(DateTime64(6))"
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
+
+  def query, do: Ecto.Queryable.to_query({"reported_test_module_runs", __MODULE__})
 
   def create_changeset(test_module_run, attrs) do
     test_module_run

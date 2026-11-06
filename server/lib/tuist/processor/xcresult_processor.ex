@@ -42,15 +42,20 @@ defmodule Tuist.Processor.XCResultProcessor do
       try do
         result = process_archive(archive_path, temp_dir, Keyword.get(opts, :read_coverage, false))
 
-        with {:ok, parsed_data} <- result do
-          OpenTelemetry.Tracer.with_span "xcresult.upload_attachments" do
-            set_span_attribute("xcresult.attachment_count", count_attachments(parsed_data))
-            upload_attachments(parsed_data, bucket, opts)
-          end
+        with {:ok, parsed_data} <- result,
+             {:ok, parsed_data} <- upload_attachments_in_span(parsed_data, bucket, opts) do
+          relocate_coverage(parsed_data)
         end
       after
         cleanup_temp(temp_dir)
       end
+    end
+  end
+
+  defp upload_attachments_in_span(parsed_data, bucket, opts) do
+    OpenTelemetry.Tracer.with_span "xcresult.upload_attachments" do
+      set_span_attribute("xcresult.attachment_count", count_attachments(parsed_data))
+      upload_attachments(parsed_data, bucket, opts)
     end
   end
 
@@ -75,6 +80,25 @@ defmodule Tuist.Processor.XCResultProcessor do
       {:error, _} = error -> error
     end
   end
+
+  # The parser streams the coverage to a file beside the bundle, one JSON object
+  # per source file, rather than returning it as a term. The bundle's directory
+  # is removed on the way out, so the file moves to a place of its own; whoever
+  # gets `coverage_path` owns it from here (see `Tuist.Tests.Coverage.rows/2`).
+  defp relocate_coverage(%{"coverage_path" => path} = parsed_data) when is_binary(path) do
+    destination = Path.join(System.tmp_dir!(), "coverage_#{System.unique_integer([:positive])}.ndjson")
+
+    case File.rename(path, destination) do
+      :ok ->
+        {:ok, Map.put(parsed_data, "coverage_path", destination)}
+
+      {:error, reason} ->
+        Logger.warning("xcresult coverage could not be kept for publishing: #{inspect(reason)}")
+        {:ok, Map.drop(parsed_data, ["coverage_path", "coverage_partial", "coverage_file_count"])}
+    end
+  end
+
+  defp relocate_coverage(parsed_data), do: {:ok, parsed_data}
 
   defp parse_xcresult_with_telemetry(xcresult_path, root_dir) do
     with {:ok, parsed_data} <- parse_xcresult(xcresult_path, root_dir) do
@@ -187,26 +211,28 @@ defmodule Tuist.Processor.XCResultProcessor do
   defp normalize_parse_error({:ok, _} = result, _xcresult_path), do: result
 
   defp normalize_parse_error({:error, reason}, xcresult_path) do
-    message = parse_error_message(reason)
+    {code, message} = parse_error(reason)
     Logger.error("xcresult parse failed at #{xcresult_path}: #{message}")
-    {:error, stable_parse_error(message, xcresult_path)}
+    {:error, stable_parse_error(code, message, xcresult_path)}
   end
 
-  defp parse_error_message(reason) when is_binary(reason) do
+  defp parse_error(reason) when is_binary(reason) do
     case JSON.decode(reason) do
-      {:ok, %{"error" => message}} when is_binary(message) -> message
-      _ -> reason
+      {:ok, %{"error" => message} = error} when is_binary(message) -> {Map.get(error, "code"), message}
+      _ -> {nil, reason}
     end
   end
 
-  defp parse_error_message(reason), do: inspect(reason)
+  defp parse_error(reason), do: {nil, inspect(reason)}
 
-  # A dedicated atom rather than a sanitized string: the timeout is the one
-  # failure mode with its own alert, and an atom is what a queue-consumer
-  # rule and a `grep` can both key on unambiguously. The elapsed seconds it
-  # replaces are a compile-time constant in the NIF, not information.
-  defp stable_parse_error(message, xcresult_path) do
-    if String.starts_with?(message, "xcresult parsing timed out") do
+  # Replaying the same archive cannot supply an object missing from the bundle.
+  defp stable_parse_error("missing_object", _message, _xcresult_path), do: :bundle_invalid
+
+  defp stable_parse_error("parse_timeout", _message, _xcresult_path), do: :parse_timeout
+
+  defp stable_parse_error(code, message, xcresult_path) do
+    # Older native libraries report timeouts without a code during rolling upgrades.
+    if is_nil(code) && String.starts_with?(message, "xcresult parsing timed out") do
       :parse_timeout
     else
       {:parse_failed, String.replace(message, xcresult_path, "<xcresult>")}
@@ -279,6 +305,8 @@ defmodule Tuist.Processor.XCResultProcessor do
     if is_nil(account_handle) or is_nil(project_handle) or is_nil(test_run_id) do
       {:ok, parsed_data}
     else
+      parsed_data = identify_attachments(parsed_data, opts)
+
       all_attachments =
         parsed_data
         |> Map.get("test_modules", [])
@@ -296,7 +324,7 @@ defmodule Tuist.Processor.XCResultProcessor do
         |> Enum.zip(all_attachments)
         |> Enum.reduce(%{}, fn
           {{:ok, {:ok, uploaded}}, original}, acc ->
-            Map.put(acc, original["file_path"], uploaded)
+            Map.put(acc, original["attachment_id"], uploaded)
 
           {{:ok, :error}, original}, acc ->
             Logger.error("Failed to upload attachment: #{original["file_name"]}")
@@ -324,20 +352,91 @@ defmodule Tuist.Processor.XCResultProcessor do
   end
 
   defp replace_test_case_attachments(test_case, uploaded_map) do
-    Map.update(test_case, "attachments", [], fn attachments ->
+    attachments = Map.get(test_case, "attachments", [])
+
+    uploaded_attachments =
       Enum.flat_map(attachments, fn att ->
-        case Map.fetch(uploaded_map, att["file_path"]) do
+        case Map.fetch(uploaded_map, att["attachment_id"]) do
           {:ok, uploaded} -> [uploaded]
           :error -> []
         end
       end)
-    end)
+
+    test_case
+    |> Map.put("attachments", uploaded_attachments)
+    |> link_crash_report(attachments, uploaded_map)
+  end
+
+  # The parser names the `.ips` a crash report was read from by its path on
+  # disk, while a stored crash report references its attachment by id, so the
+  # report is kept only when that attachment was uploaded.
+  defp link_crash_report(
+         %{"crash_report" => %{"file_path" => file_path} = crash_report} = test_case,
+         attachments,
+         uploaded_map
+       ) do
+    with %{"attachment_id" => attachment_id} <- Enum.find(attachments, &(&1["file_path"] == file_path)),
+         true <- Map.has_key?(uploaded_map, attachment_id) do
+      crash_report = crash_report |> Map.delete("file_path") |> Map.put("attachment_id", attachment_id)
+      Map.put(test_case, "crash_report", crash_report)
+    else
+      _ -> Map.delete(test_case, "crash_report")
+    end
+  end
+
+  defp link_crash_report(test_case, _attachments, _uploaded_map), do: Map.delete(test_case, "crash_report")
+
+  defp identify_attachments(parsed_data, opts) do
+    scope = %{
+      test_run_id: Keyword.get(opts, :test_run_id),
+      source_test_run_id: Keyword.get(opts, :source_test_run_id) || Keyword.get(opts, :test_run_id),
+      shard_index: Keyword.get(opts, :shard_index),
+      shard_attempt: Keyword.get(opts, :shard_attempt) || 0,
+      shard_report_revision: Keyword.get(opts, :shard_report_revision) || 0,
+      artifact: Keyword.get(opts, :artifact, :main)
+    }
+
+    modules =
+      parsed_data
+      |> Map.get("test_modules", [])
+      |> Enum.map(fn module ->
+        cases =
+          module
+          |> Map.get("test_cases", [])
+          |> Enum.with_index()
+          |> Enum.map(fn {test_case, case_index} ->
+            attachments =
+              test_case
+              |> Map.get("attachments", [])
+              |> Enum.with_index()
+              |> Enum.map(fn {attachment, occurrence} ->
+                identity =
+                  {scope, module["name"], case_index, test_case["test_suite_name"], test_case["name"], occurrence,
+                   Map.drop(attachment, ["file_path", "attachment_id"])}
+
+                Map.put(attachment, "attachment_id", attachment_uuid(identity))
+              end)
+
+            Map.put(test_case, "attachments", attachments)
+          end)
+
+        Map.put(module, "test_cases", cases)
+      end)
+
+    Map.put(parsed_data, "test_modules", modules)
+  end
+
+  defp attachment_uuid(identity) do
+    namespace = Ecto.UUID.dump!("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
+    name = :erlang.term_to_binary({:tuist_xcresult_attachment, identity}, [:deterministic])
+    <<a::48, _::4, b::12, _::2, c::62, _::binary>> = :crypto.hash(:sha, namespace <> name)
+    Ecto.UUID.cast!(<<a::48, 5::4, b::12, 2::2, c::62>>)
   end
 
   defp upload_attachment(attachment, bucket, account_handle, project_handle, test_run_id) do
     file_path = Map.get(attachment, "file_path")
     file_name = Map.get(attachment, "file_name")
-    attachment_id = Ecto.UUID.generate()
+    attachment_id = Map.fetch!(attachment, "attachment_id")
 
     if file_path && File.exists?(file_path) do
       s3_key =

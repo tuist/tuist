@@ -25,7 +25,9 @@
 # The rule stays in git rather than being deleted, so that a rollback
 # is just flipping `enabled: true` again — `adopt.ruleId` and
 # `retainOnDelete` are preserved so the same Cloudflare rule id gets
-# re-armed without recreating it.
+# re-armed without recreating it. Re-arming also challenges the cached
+# public project roots for unverified social crawlers: the root exemption
+# in skip-sbfm-api-paths.yaml only skips SBFM, not custom firewall rules.
 apiVersion: cloudflare.tuist.dev/v1alpha1
 kind: CloudflareCustomRule
 metadata:

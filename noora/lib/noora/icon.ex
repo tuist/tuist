@@ -40,7 +40,17 @@ defmodule Noora.Icon do
   use Phoenix.Component
 
   @icons_path Path.join(File.cwd!(), "lib/noora/icons")
-  @external_resource @icons_path
+
+  # Recompiles when icons are added or removed. The directory itself is not an
+  # external resource: Mix can't digest it, so any checkout would recompile.
+  @icon_files @icons_path |> File.ls!() |> Enum.filter(&(Path.extname(&1) == ".svg")) |> Enum.sort()
+
+  def __mix_recompile__? do
+    case File.ls(@icons_path) do
+      {:ok, files} -> files |> Enum.filter(&(Path.extname(&1) == ".svg")) |> Enum.sort() != @icon_files
+      {:error, _} -> true
+    end
+  end
 
   # Noora icons must be filled paths (`fill="currentColor"`) so they render and
   # animate (morph) correctly. Stroked icons would render as solid blobs, so we
@@ -66,6 +76,38 @@ defmodule Noora.Icon do
                         into: MapSet.new() do
                       file |> Path.basename(".svg") |> String.replace("-", "_")
                     end)
+
+  # Icons that depict horizontal direction or reading order. Following the Apple HIG and Material
+  # bidirectionality guidance, these render with `data-rtl-mirror` so `icon.css` flips them in
+  # right-to-left documents. Real-world objects, media playback, clocks, checkmarks, and brand
+  # logos are intentionally absent: they keep their orientation in every direction.
+  @rtl_mirrored_icons MapSet.new(~w(
+                        arrow_left
+                        arrow_right
+                        arrow_narrow_right
+                        chevron_left
+                        chevron_right
+                        cube_send
+                        device_desktop_share
+                        device_mobile_share
+                        device_vision_pro_share
+                        device_watch_share
+                        external_link
+                        list_tree
+                        logout
+                        menu_3
+                        s_turn_down
+                        screen_share
+                        subtask
+                        trending_down
+                        trending_up
+                      ))
+
+  @doc """
+  Whether an icon depicts horizontal direction and mirrors in right-to-left documents.
+  """
+  def rtl_mirrored?(name) when is_binary(name), do: MapSet.member?(@rtl_mirrored_icons, name)
+  def rtl_mirrored?(name) when is_atom(name), do: rtl_mirrored?(Atom.to_string(name))
 
   def icon(%{active_name: active_name} = assigns) when is_binary(active_name) do
     assigns =
@@ -94,6 +136,11 @@ defmodule Noora.Icon do
     file_path = Path.join(@icons_path, file)
     @external_resource file_path
     content = File.read!(file_path)
+
+    content =
+      if MapSet.member?(@rtl_mirrored_icons, icon_name),
+        do: String.replace(content, "<svg", "<svg data-rtl-mirror", global: false),
+        else: content
 
     def unquote(String.to_atom(icon_name))(assigns) do
       assigns = assign(assigns, :content, unquote(content))
@@ -186,6 +233,7 @@ defmodule Noora.Icon do
       xmlns="http://www.w3.org/2000/svg"
       phx-hook="NooraIconTransition"
       phx-update="ignore"
+      data-rtl-mirror={rtl_mirrored?(@name)}
       data-transition="morph"
       data-watch={@watch}
       data-active-state={@active_state}

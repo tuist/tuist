@@ -143,9 +143,9 @@ extension ProjectAutomation.Target {
                 return .packageMacro(product: product)
             case .plugin:
                 return .packagePlugin(product: product)
-            case .runtime:
+            case .runtime, .runtimeDynamic:
                 return .package(product: product)
-            case .runtimeEmbedded:
+            case .runtimeEmbedded, .runtimeDynamicEmbedded:
                 return .package(product: product, embedded: true)
             }
         case let .sdk(name, status, _):

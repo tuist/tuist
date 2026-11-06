@@ -1,50 +1,101 @@
 defmodule TuistWeb.GitHubAppSetupController do
-  @moduledoc """
-  Handles the post-installation callback GitHub redirects to once a user
-  finishes installing the Tuist GitHub App. Two flows land here:
-
-  - **github.com**: the App is globally registered via the
-    `TUIST_GITHUB_APP_*` env vars, so we create a fresh
-    `GitHubAppInstallation` row keyed on `account_id` with the
-    `installation_id` GitHub assigned. Per-installation App credential
-    columns stay nil and Tuist falls back to those env vars.
-
-  - **GitHub Enterprise Server (manifest flow)**: a pending row already
-    exists — `TuistWeb.GitHubAppManifestController` created it when GHES
-    finished the App registration and handed Tuist the new App's
-    credentials. We just fill in the `installation_id` (and `html_url`
-    from the install webhook later) on that row.
-
-  Calling the setup endpoint twice for the same `(account, installation)`
-  is a no-op; reusing an installation that's already linked to a
-  *different* account is rejected.
-  """
-
+  @moduledoc "Completes Tuist- and provider-initiated GitHub App installations."
   use TuistWeb, :controller
 
   alias Tuist.Accounts
+  alias Tuist.Authorization
+  alias Tuist.Environment
+  alias Tuist.GitHub.InstallationAuthorization
+  alias Tuist.GitHub.Installations
   alias Tuist.VCS
-  alias Tuist.VCS.GitHubAppInstallation
+  alias TuistWeb.Authentication
   alias TuistWeb.Errors.BadRequestError
+  alias TuistWeb.IntegrationInstallationController
+
+  def setup(conn, %{"installation_id" => installation_id} = params)
+      when is_binary(installation_id) and not is_map_key(params, "state") do
+    start_authorization(conn, installation_id)
+  end
 
   def setup(conn, params) do
     with {:ok, installation_id} <- extract_installation_id(params),
          {:ok, %{account_id: account_id, client_url: client_url}} <- extract_state(params),
          {:ok, account} <- Accounts.get_account_by_id(account_id),
-         {:ok, _installation} <- attach_installation_id(account, client_url, installation_id) do
-      redirect(conn, to: ~p"/#{account.name}/settings/integrations")
+         :ok <- Authorization.authorize(:account_update, Authentication.current_user(conn), account) do
+      if client_url == VCS.default_client_url() do
+        start_authorization(conn, installation_id, account.id)
+      else
+        complete_setup(conn, account, client_url, installation_id)
+      end
     else
       {:error, :missing_installation_id} ->
         raise BadRequestError, dgettext("dashboard", "Invalid GitHub app installation. Please try again.")
 
-      {:error, :missing_state} ->
-        raise BadRequestError, dgettext("dashboard", "Invalid GitHub app installation. Please try again.")
+      _ ->
+        invalid_request!()
+    end
+  end
 
-      {:error, :invalid_state_token} ->
-        raise BadRequestError, dgettext("dashboard", "Invalid installation request. Please try again.")
+  def authorize(conn, %{"code" => code, "state" => state}) when is_binary(code) and is_binary(state) do
+    user = Authentication.current_user(conn)
+
+    with %{state: ^state, installation_id: installation_id, user_id: user_id, issued_at: issued_at} = pending <-
+           get_session(conn, :github_installation_authorization),
+         true <- user.id == user_id and (System.system_time(:second) - issued_at) in -60..600,
+         :ok <- InstallationAuthorization.verify(code, installation_id, authorization_callback_url()) do
+      conn = delete_session(conn, :github_installation_authorization)
+
+      case pending[:account_id] do
+        nil ->
+          IntegrationInstallationController.select(conn, :github, installation_id)
+
+        account_id ->
+          with {:ok, account} <- Accounts.get_account_by_id(account_id),
+               :ok <- Authorization.authorize(:account_update, user, account) do
+            complete_setup(conn, account, VCS.default_client_url(), installation_id)
+          else
+            _ -> invalid_request!()
+          end
+      end
+    else
+      _ -> invalid_request!()
+    end
+  end
+
+  def authorize(_conn, _params), do: invalid_request!()
+
+  defp start_authorization(conn, installation_id, account_id \\ nil) do
+    with {id, ""} when id > 0 <- Integer.parse(installation_id),
+         client_id when is_binary(client_id) and client_id != "" <- Environment.github_app_client_id() do
+      state = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+      user = Authentication.current_user(conn)
+      query = URI.encode_query(%{client_id: client_id, redirect_uri: authorization_callback_url(), state: state})
+
+      conn
+      |> put_session(:github_installation_authorization, %{
+        state: state,
+        installation_id: installation_id,
+        account_id: account_id,
+        user_id: user.id,
+        issued_at: System.system_time(:second)
+      })
+      |> redirect(external: "https://github.com/login/oauth/authorize?" <> query)
+    else
+      _ -> invalid_request!()
+    end
+  end
+
+  defp complete_setup(conn, account, client_url, installation_id) do
+    case Installations.attach(account, client_url, installation_id) do
+      {:ok, _installation} ->
+        redirect(conn, to: ~p"/#{account.name}/settings/integrations")
 
       {:error, :installation_already_connected} ->
         raise BadRequestError, dgettext("dashboard", "This GitHub app installation is already connected.")
+
+      {:error, :github_host_conflict} ->
+        raise BadRequestError,
+              dgettext("dashboard", "This account already has a GitHub App registered for a different GitHub host.")
 
       {:error, :ghes_setup_without_manifest} ->
         raise BadRequestError,
@@ -52,80 +103,32 @@ defmodule TuistWeb.GitHubAppSetupController do
                 "dashboard",
                 "GitHub Enterprise Server installations must go through the App registration flow first."
               )
-    end
-  end
 
-  defp attach_installation_id(account, client_url, installation_id) do
-    installation_id = to_string(installation_id)
-    client_url = client_url || VCS.default_client_url()
-    ghes? = client_url != VCS.default_client_url()
-
-    case VCS.get_github_app_installation_by_installation_id(installation_id, client_url: client_url) do
-      {:ok, %GitHubAppInstallation{account_id: account_id}} when account_id != account.id ->
-        {:error, :installation_already_connected}
-
-      {:ok, existing} ->
-        # Idempotent re-install for the same account.
-        {:ok, existing}
-
-      {:error, :not_found} ->
-        attach_to_pending_or_create(account, client_url, installation_id, ghes?)
-    end
-  end
-
-  defp attach_to_pending_or_create(account, client_url, installation_id, ghes?) do
-    case VCS.get_github_app_installation_for_account(account.id) do
-      {:ok, %GitHubAppInstallation{client_url: ^client_url} = pending} ->
-        # Pending manifest-flow row for this exact host — fill in the
-        # installation_id GitHub just assigned.
-        VCS.update_github_app_installation(pending, %{installation_id: installation_id})
-
-      {:ok, _other_host_pending} when ghes? ->
-        # The account has a pending row for a *different* host. Refuse
-        # rather than silently retarget it: the existing row carries
-        # credentials valid only for its own host, and overwriting
-        # `installation_id` would leave a row that fails every API
-        # call.
-        {:error, :ghes_setup_without_manifest}
-
-      {:ok, existing} ->
-        # github.com path: a pre-existing row for this account (no
-        # client_url constraint needed because github.com is the only
-        # other shape). Reuse.
-        VCS.update_github_app_installation(existing, %{installation_id: installation_id})
-
-      {:error, :not_found} when ghes? ->
-        # GHES setup callback without a prior manifest exchange means
-        # the row would land with no per-installation credentials and
-        # silently fall back to the github.com env vars at API call
-        # time. That's an unusable state; fail fast.
-        {:error, :ghes_setup_without_manifest}
-
-      {:error, :not_found} ->
-        VCS.create_github_app_installation(%{
-          account_id: account.id,
-          installation_id: installation_id,
-          client_url: client_url
-        })
+      _ ->
+        invalid_request!()
     end
   end
 
   defp extract_installation_id(%{"installation_id" => installation_id}) when is_binary(installation_id) do
-    {:ok, installation_id}
+    case Integer.parse(installation_id) do
+      {id, ""} when id > 0 -> {:ok, installation_id}
+      _ -> {:error, :missing_installation_id}
+    end
   end
 
-  defp extract_installation_id(_params) do
-    {:error, :missing_installation_id}
-  end
+  defp extract_installation_id(_params), do: {:error, :missing_installation_id}
 
   defp extract_state(%{"state" => state_token}) when is_binary(state_token) do
     case VCS.verify_github_state_token(state_token) do
       {:ok, %{account_id: _, client_url: _} = payload} -> {:ok, payload}
-      {:error, _reason} -> {:error, :invalid_state_token}
+      _ -> {:error, :invalid_state_token}
     end
   end
 
-  defp extract_state(_params) do
-    {:error, :missing_state}
+  defp extract_state(_params), do: {:error, :missing_state}
+  defp authorization_callback_url, do: Environment.app_url() <> "/integrations/github/authorize"
+
+  defp invalid_request! do
+    raise BadRequestError, dgettext("dashboard", "Invalid installation request. Please try again.")
   end
 end

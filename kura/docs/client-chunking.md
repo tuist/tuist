@@ -16,7 +16,7 @@ Small frames retain their original encoding without a capability request. Frames
 
 Uploads send missing chunks, splice the ordered recipe, and publish the action result last. Xcode reuses Kura's existing recipe-aware content store: no new routes, storage categories, or peer wire format. Ordinary blob reads reconstruct the full compressed node for existing clients. Missing splice dependencies fall back to a complete whole upload. Publication memoization pins encoding alongside digest, so capability changes cannot change an already-described blob. Compression and negotiation start after releasing the local compiler-store handle.
 
-Deploy recipe-aware readers before enabling writes, following the existing [reader-first rollout](architecture.md). This pull request does not make pre-recipe Kura binaries safe peers for recipe-only storage. The only new server behavior is the optional `tuist-inline-max-bytes:2097151` wildcard hint: small outputs remain inline, large ones wait for the client's chunk check, and explicit inline requests retain their semantics. Old servers ignore the hint safely, with less download reuse. Release the capability-aware client after readers support the existing split/splice protocol.
+This pull request does not make pre-recipe Kura binaries safe peers for recipe-only storage. The only new server behavior is the optional `tuist-inline-max-bytes:2097151` wildcard hint: small outputs remain inline, large ones wait for the client's chunk check, and explicit inline requests retain their semantics. Old servers ignore the hint safely, with less download reuse. Release the capability-aware client after readers support the existing split/splice protocol.
 
 ## Local download reuse
 
@@ -60,7 +60,7 @@ mise exec -- bazel test //:kura_lib_test --test_filter=inline --test_output=erro
 mise run clippy
 ```
 
-Run local Kura with `KURA_REAPI_BLOB_CHUNKING_ENABLED=true`. From `cas-plugin/`, export `TUIST_CHUNKING_TEST_URL=http://127.0.0.1:18765` and optional colon-separated compiled artifact paths as `TUIST_CHUNKING_ARTIFACTS`:
+Run local Kura. From `cas-plugin/`, export `TUIST_CHUNKING_TEST_URL=http://127.0.0.1:18765` and optional colon-separated compiled artifact paths as `TUIST_CHUNKING_ARTIFACTS`:
 
 ```sh
 mise exec -- cargo test --lib --test chunking_negotiation --test batch_read_backpressure --test publish_write_backpressure --test unbacked_local_hit

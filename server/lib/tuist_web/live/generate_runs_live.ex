@@ -20,7 +20,12 @@ defmodule TuistWeb.GenerateRunsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Generations")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("generate-runs"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_builds", "Generations"),
+          fallback: "generate-runs"
+        )
+      )
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
@@ -35,7 +40,7 @@ defmodule TuistWeb.GenerateRunsLive do
     uri = URI.new!("?" <> URI.encode_query(params))
 
     generate_runs_sort_by = params["generate_runs_sort_by"] || "ran_at"
-    generate_runs_sort_order = params["generate_runs_sort_order"] || "desc"
+    generate_runs_sort_order = Atom.to_string(Query.sort_order(params["generate_runs_sort_order"], :desc))
 
     {
       :noreply,
@@ -116,8 +121,8 @@ defmodule TuistWeb.GenerateRunsLive do
     filters =
       Filter.Operations.decode_filters_from_query(params, available_filters)
 
-    order_by = String.to_atom(generate_runs_sort_by)
-    order_direction = String.to_atom(generate_runs_sort_order)
+    order_by = ensure_allowed_sort_by(generate_runs_sort_by)
+    order_direction = Query.sort_order(generate_runs_sort_order, :desc)
 
     {generate_runs, generate_runs_meta} =
       list_generate_runs(project.id, params, order_by, order_direction, filters)
@@ -153,6 +158,9 @@ defmodule TuistWeb.GenerateRunsLive do
       filters: filters
     )
   end
+
+  defp ensure_allowed_sort_by("duration"), do: :duration
+  defp ensure_allowed_sort_by(_ran_at), do: :ran_at
 
   defp list_generate_runs(project_id, attrs) do
     options = %{

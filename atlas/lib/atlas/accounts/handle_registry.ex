@@ -1,6 +1,6 @@
 defmodule Atlas.Accounts.HandleRegistry do
   @moduledoc """
-  Authoritative in-process snapshot of the `handle -> account`
+  Rebuildable in-process snapshot of the `handle -> account`
   mapping. Backs the error-ingest hot path so resolving a Sentry
   event's `auth_account_handle` costs a single `:persistent_term`
   read instead of a Postgres roundtrip per event.
@@ -11,7 +11,9 @@ defmodule Atlas.Accounts.HandleRegistry do
   `"atlas:account_handles"` PubSub topic. Reads are lock-free and
   wait-free; writes are rare, and the module tolerates arbitrary
   `:reload` requests to fall back to a full reload when a broadcast
-  is missed or the payload cannot be applied incrementally.
+  is missed or the payload cannot be applied incrementally. A full reload every
+  30 seconds picks up changes made on other replicas without requiring clustered
+  PubSub. PostgreSQL, not this snapshot, is authoritative.
 
   ## Return shape
 
@@ -34,6 +36,7 @@ defmodule Atlas.Accounts.HandleRegistry do
   @topic "atlas:account_handles"
   @persistent_key {__MODULE__, :snapshot}
   @empty_snapshot %{}
+  @refresh_interval :timer.seconds(30)
 
   def topic, do: @topic
 
@@ -58,17 +61,22 @@ defmodule Atlas.Accounts.HandleRegistry do
   def lookup(_handle), do: :error
 
   @doc """
-  Broadcasts an account-handle change so every node with a running
-  registry patches its snapshot. Called from `Atlas.Accounts` after
-  successful writes; also safe to call from tests to prime state.
+  Broadcasts an account-handle change so the local registry patches its
+  snapshot immediately. Other replicas pick it up during their periodic reload.
+  Called from `Atlas.Accounts` after successful writes; also safe to call from
+  tests to prime state.
   """
   def broadcast_change(payload) do
-    Phoenix.PubSub.broadcast(Atlas.PubSub, @topic, {:account_handle_changed, payload})
+    # Transactional callers must not publish a snapshot that may still roll back.
+    # The authoritative periodic reload picks up their committed changes.
+    if Repo.in_transaction?(),
+      do: :ok,
+      else: Phoenix.PubSub.broadcast(Atlas.PubSub, @topic, {:account_handle_changed, payload})
   end
 
   @doc """
   Forces a full reload from Postgres. Reserved for tests and for
-  operational recovery — the PubSub incremental path handles the
+  operational recovery. Local PubSub updates and periodic reloads handle the
   steady-state case.
   """
   def reload(server \\ __MODULE__), do: GenServer.call(server, :reload)
@@ -77,6 +85,7 @@ defmodule Atlas.Accounts.HandleRegistry do
   def init(_opts) do
     :ok = Phoenix.PubSub.subscribe(Atlas.PubSub, @topic)
     put_snapshot(load_snapshot())
+    schedule_refresh()
     {:ok, %{}}
   end
 
@@ -92,7 +101,17 @@ defmodule Atlas.Accounts.HandleRegistry do
     {:noreply, state}
   end
 
+  def handle_info(:refresh, state) do
+    put_snapshot(load_snapshot())
+    schedule_refresh()
+    {:noreply, state}
+  end
+
   def handle_info(_other, state), do: {:noreply, state}
+
+  defp schedule_refresh do
+    Process.send_after(self(), :refresh, @refresh_interval)
+  end
 
   ## Snapshot helpers
 

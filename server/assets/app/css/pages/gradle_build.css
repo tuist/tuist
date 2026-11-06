@@ -11,7 +11,7 @@
 
   & [data-part="custom-metadata-link"] {
     display: block;
-    padding-left: var(--noora-spacing-7);
+    padding-inline-start: var(--noora-spacing-7);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
     text-decoration: underline;
@@ -97,14 +97,28 @@
     }
 
     & [data-part="metadata-grid"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-9);
-
       & [data-part="metadata-row"] {
-        display: flex;
-        flex-direction: row;
-        gap: var(--noora-spacing-7);
+        & > [data-field="requested-tasks"] {
+          overflow-wrap: anywhere;
+
+          & > ul {
+            display: flex;
+            flex-direction: column;
+            gap: var(--noora-spacing-2);
+            margin: 0;
+            padding: 0;
+            min-width: 0;
+            max-width: 100%;
+            color: var(--noora-surface-label-primary);
+            list-style: none;
+
+            & code {
+              font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+              direction: ltr;
+              unicode-bidi: isolate;
+            }
+          }
+        }
 
         & > [data-part="metadata"] {
           display: flex;
@@ -229,7 +243,7 @@
         flex-direction: column;
         gap: var(--noora-spacing-2);
         margin: 0;
-        padding-left: var(--noora-spacing-5);
+        padding-inline-start: var(--noora-spacing-5);
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
       }

@@ -13,6 +13,16 @@ export default {
     this.thumb = this.track?.querySelector('[data-part="thumb"]');
     if (!this.viewport || !this.track || !this.thumb) return;
 
+    this.persistKey = this.el.dataset.scrollPersistKey;
+    this.pendingScrollTop = this.readScrollTop();
+    this.saveScrollTop = this.saveScrollTop.bind(this);
+    this.cancelScrollRestore = () => {
+      this.pendingScrollTop = null;
+    };
+    this.onScroll = () => {
+      this.update();
+      this.saveScrollTop();
+    };
     this.update = this.update.bind(this);
     this.onThumbDown = this.onThumbDown.bind(this);
     this.onThumbMove = this.onThumbMove.bind(this);
@@ -20,7 +30,15 @@ export default {
     this.onTrackDown = this.onTrackDown.bind(this);
     this.onTrackWheel = this.onTrackWheel.bind(this);
 
-    this.viewport.addEventListener("scroll", this.update, { passive: true });
+    this.viewport.addEventListener("scroll", this.onScroll, { passive: true });
+    for (const event of ["wheel", "touchstart", "pointerdown", "keydown"]) {
+      this.el.addEventListener(event, this.cancelScrollRestore, {
+        capture: true,
+        passive: true,
+      });
+    }
+    this.el.addEventListener("click", this.saveScrollTop, true);
+    window.addEventListener("pagehide", this.saveScrollTop);
     // Group expand/collapse animations change scrollHeight over time.
     this.viewport.addEventListener("animationend", this.update);
     this.thumb.addEventListener("pointerdown", this.onThumbDown);
@@ -67,6 +85,14 @@ export default {
 
   update() {
     if (!this.viewport || !this.thumb) return;
+    // Child collapsibles hydrate after this hook. Keep a clamped restoration
+    // pending until their content is available, or the user starts scrolling.
+    if (this.pendingScrollTop != null && this.viewport.clientHeight > 0) {
+      this.viewport.scrollTop = this.pendingScrollTop;
+      if (Math.abs(this.viewport.scrollTop - this.pendingScrollTop) < 1) {
+        this.pendingScrollTop = null;
+      }
+    }
     const { scrollHeight, clientHeight, scrollTop } = this.viewport;
     const scrollable = scrollHeight > clientHeight + 1;
     this.el.toggleAttribute("data-scrollable", scrollable);
@@ -119,15 +145,50 @@ export default {
     this.viewport.scrollTop += event.deltaY;
   },
 
+  readScrollTop() {
+    if (!this.persistKey) return null;
+    try {
+      const stored = sessionStorage.getItem(`noora-scroll:${this.persistKey}`);
+      if (stored == null) return null;
+      const position = Number(stored);
+      return Number.isFinite(position) && position >= 0 ? position : null;
+    } catch {
+      return null;
+    }
+  },
+
+  saveScrollTop() {
+    if (
+      !this.persistKey ||
+      this.pendingScrollTop != null ||
+      !this.viewport?.clientHeight
+    )
+      return;
+    try {
+      sessionStorage.setItem(
+        `noora-scroll:${this.persistKey}`,
+        String(this.viewport.scrollTop),
+      );
+    } catch {
+      // Storage is optional; scrolling still works when it is unavailable.
+    }
+  },
+
   cleanup() {
     this.resizeObserver?.disconnect();
     this.mutationObserver?.disconnect();
-    this.viewport?.removeEventListener("scroll", this.update);
+    this.viewport?.removeEventListener("scroll", this.onScroll);
     this.viewport?.removeEventListener("animationend", this.update);
     this.track?.removeEventListener("wheel", this.onTrackWheel);
+    for (const event of ["wheel", "touchstart", "pointerdown", "keydown"]) {
+      this.el.removeEventListener(event, this.cancelScrollRestore, true);
+    }
+    this.el.removeEventListener("click", this.saveScrollTop, true);
+    window.removeEventListener("pagehide", this.saveScrollTop);
   },
 
   beforeDestroy() {
+    this.saveScrollTop();
     this.cleanup();
   },
 

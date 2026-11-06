@@ -1,4 +1,5 @@
 import Foundation
+import Path
 
 /// A cache category.
 public enum CacheCategory: String, CaseIterable, RawRepresentable {
@@ -30,6 +31,8 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     /// uploaded by the last `tuist generate`.
     case generationMetadata
 
+    case cargo
+
     public var directoryName: String {
         switch self {
         case .plugins:
@@ -50,6 +53,8 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             return "SelectiveTests"
         case .generationMetadata:
             return "GenerationMetadata"
+        case .cargo:
+            return "Cargo"
         }
     }
 
@@ -86,11 +91,21 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             // Recomputed from the sources they were derived from: a manifest reload, one swiftc
             // invocation, a project generation.
             return .support(maxAge: 7 * Self.day)
-        case .plugins, .selectiveTests, .generationMetadata:
+        case .plugins, .selectiveTests, .generationMetadata, .cargo:
             // Refetched over the network, or read long after the run that wrote them, so these are
             // kept for as long as they plausibly stay relevant.
             return .support(maxAge: 30 * Self.day)
         }
+    }
+
+    /// Cargo scopes action/blob entries by project. Evict the entries, not a perpetually hot project directory.
+    var entryGlob: String { self == .cargo ? "*/*/*" : "*" }
+
+    /// Cargo's hook client and read recorder are tools a running build starts by path, so they are never evicted.
+    /// Renewing their modification times instead would make Cargo probe the compiler again, since its probe cache is
+    /// keyed by the wrapper's.
+    func isEvictable(_ path: AbsolutePath) -> Bool {
+        self != .cargo || !["hook", "recorder"].contains(path.parentDirectory.basename)
     }
 
     /// The categories the shared support-cache budget bounds, in the order they are evicted:
@@ -101,6 +116,7 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
         .editProjects,
         .generatedAutomationProjects,
         .projectDescriptionHelpers,
+        .cargo,
         .selectiveTests,
         .generationMetadata,
         .plugins,

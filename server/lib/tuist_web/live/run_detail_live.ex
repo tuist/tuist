@@ -12,6 +12,7 @@ defmodule TuistWeb.RunDetailLive do
   alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Xcode
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -25,7 +26,11 @@ defmodule TuistWeb.RunDetailLive do
         _ -> nil
       end
 
-    run = Tuist.ClickHouseRepo.preload(run, xcode_targets: Xcode.xcode_targets_preload_query(run))
+    run =
+      run
+      |> Tuist.ReportActor.preload()
+      |> Tuist.ClickHouseRepo.preload(xcode_targets: Xcode.xcode_targets_preload_query(run))
+
     slug = Projects.get_project_slug_from_id(project.id)
 
     {:ok,
@@ -34,6 +39,13 @@ defmodule TuistWeb.RunDetailLive do
      |> assign(:user, user)
      |> assign(:project, project)
      |> assign(:head_title, "#{dgettext("dashboard_builds", "Run")} · #{slug} · Tuist")
+     |> assign(
+       OpenGraph.project_image_assigns(project,
+         title: "tuist #{run.name}",
+         subtitle: run.git_branch,
+         badge: run.status |> to_string() |> String.capitalize()
+       )
+     )
      |> assign_initial_analytics_state()
      |> assign(:binary_cache_available_filters, define_binary_cache_filters())
      |> assign(:selective_testing_available_filters, define_selective_testing_filters())
@@ -201,7 +213,10 @@ defmodule TuistWeb.RunDetailLive do
     |> assign(:selective_testing_active_filters, filters)
     |> assign(:selective_testing_page, Query.bounded_page(params["selective-testing-page"]))
     |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "name")
-    |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "asc")
+    |> assign(
+      :selective_testing_sort_order,
+      Atom.to_string(Query.sort_order(params["selective-testing-sort-order"], :asc))
+    )
   end
 
   defp assign_binary_cache_data(socket, analytics, meta, params) do
@@ -216,7 +231,7 @@ defmodule TuistWeb.RunDetailLive do
     |> assign(:binary_cache_active_filters, filters)
     |> assign(:binary_cache_page, Query.bounded_page(params["binary-cache-page"]))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
-    |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
+    |> assign(:binary_cache_sort_order, Atom.to_string(Query.sort_order(params["binary-cache-sort-order"], :asc)))
   end
 
   defp assign_selective_testing_defaults(socket) do
@@ -265,7 +280,7 @@ defmodule TuistWeb.RunDetailLive do
       page: Query.bounded_page(params["selective-testing-page"]),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("selective-testing-sort-by", params)],
-      order_directions: [String.to_atom(params["selective-testing-sort-order"] || "asc")]
+      order_directions: [Query.sort_order(params["selective-testing-sort-order"], :asc)]
     }
 
     {filtered_analytics, meta} = Xcode.selective_testing_analytics(run, flop_params)
@@ -287,7 +302,7 @@ defmodule TuistWeb.RunDetailLive do
       page: Query.bounded_page(params["binary-cache-page"]),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("binary-cache-sort-by", params)],
-      order_directions: [String.to_atom(params["binary-cache-sort-order"] || "asc")]
+      order_directions: [Query.sort_order(params["binary-cache-sort-order"], :asc)]
     }
 
     {filtered_analytics, meta} = Xcode.binary_cache_analytics(run, flop_params)

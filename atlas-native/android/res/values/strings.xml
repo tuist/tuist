@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Atlas</string>
+    <string name="welcome">Your workspace, on the go</string>
+    <string name="login_title">Welcome to Atlas</string>
+    <string name="login_subtitle">Sign in to access your workspace and\ncollaborate with your team</string>
+    <string name="sign_in">Sign in with Atlas</string>
+    <string name="self_hosted">Self-hosted server</string>
+    <string name="login_or">or</string>
+    <string name="signing_in">Signing in…</string>
+    <string name="no_browser">Install a browser to open Atlas.</string>
+</resources>

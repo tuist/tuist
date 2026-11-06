@@ -88,7 +88,7 @@ public class TrackableCommand {
     ) async throws {
         let timer = clock.startTimer()
         let ranAt = clock.now
-        let path = try await CommandArguments.path(in: commandArguments)
+        let path = try await CommandArguments.path(in: commandArguments, command: command)
         let runMetadataStorage = RunMetadataStorage()
 
         // Up front, so that the path holds this run's report or nothing at all. Writing it only
@@ -258,6 +258,8 @@ public class TrackableCommand {
                         fullHandle,
                         serverURL.absoluteString,
                         sessionDirectory.pathString,
+                        "--project-path",
+                        path.pathString,
                     ],
                     environment: ProcessInfo.processInfo.environment
                 )
@@ -310,6 +312,11 @@ public class TrackableCommand {
         from configuration: CommandConfiguration,
         runMetadataStorage: RunMetadataStorage
     ) async -> AnalyticsCommandMetadata {
+        // `tuist run` forwards app arguments, so only its name is reported. Match the top-level
+        // argument: `generate`, `test` and `build` run default subcommands also named "run".
+        if commandArguments.first == "run" {
+            return AnalyticsCommandMetadata(name: "run", subcommand: nil, commandArguments: ["run"])
+        }
         if let resolvedCommandMetadata = await runMetadataStorage.resolvedCommandMetadata {
             return resolvedCommandMetadata
         }

@@ -22,12 +22,14 @@ defmodule TuistWeb.DocsLive do
     %{id: "builds", text: "Builds", level: 2},
     %{id: "tests", text: "Tests", level: 2},
     %{id: "artifacts", text: "Artifacts", level: 2},
+    %{id: "compute", text: "Compute", level: 2},
     %{id: "see-tuist-in-action", text: "See Tuist in action", level: 2},
     %{id: "open-source-and-community", text: "Open source and community", level: 2}
   ]
 
   def mount(_params, _session, socket) do
     locale = Gettext.get_locale()
+    Gettext.put_locale(TuistWeb.Gettext, locale)
 
     socket =
       socket
@@ -52,7 +54,9 @@ defmodule TuistWeb.DocsLive do
     videos = fetch_latest_videos()
     locale = socket.assigns.locale
     root_path = Paths.root_path(locale)
-    description = "Build, test, and run Xcode and Gradle projects faster with Tuist's shared build infrastructure."
+
+    description =
+      "Build, test, and run Xcode, Gradle, Bazel, Elixir, Rust, and Once projects with Tuist's shared build infrastructure."
 
     {:noreply,
      socket
@@ -83,6 +87,10 @@ defmodule TuistWeb.DocsLive do
       nil ->
         redirect_or_not_found(socket, path, url)
 
+      %{slug: slug} when slug != path ->
+        target = %URI{path: Paths.public_path_from_slug(slug), query: URI.parse(url).query}
+        {:noreply, redirect(socket, to: URI.to_string(target))}
+
       page ->
         head_title =
           case page.title_template do
@@ -102,11 +110,6 @@ defmodule TuistWeb.DocsLive do
             Tuist.Environment.app_url(path: og_image_path)
           end
 
-        # Every URL below is derived from the requested slug, never from
-        # `page.slug`. `Docs.get_page/1` falls back to the English page when a
-        # locale has no translation, so `page.slug` would point the markup at
-        # `/en/...` while the canonical link still says `/es/...`, leaving the
-        # page claiming two identities.
         public_path = Paths.public_path_from_slug(path)
         locale = socket.assigns.locale
 
@@ -167,12 +170,17 @@ defmodule TuistWeb.DocsLive do
   end
 
   def render(%{view: :overview} = assigns) do
+    headings =
+      Enum.map(@overview_headings, fn heading ->
+        %{heading | text: Gettext.dgettext(TuistWeb.Gettext, "docs", heading.text)}
+      end)
+
     assigns =
       assigns
       |> assign(:install_path, docs_path("/#{assigns.locale}/guides/install-tuist"))
       |> assign(:get_started_path, docs_path("/#{assigns.locale}/guides/get-started"))
       |> assign(:copy_check_icon, @copy_check_icon)
-      |> assign(:headings, @overview_headings)
+      |> assign(:headings, headings)
 
     ~H"""
     <TuistWeb.Docs.Components.layout
@@ -189,7 +197,7 @@ defmodule TuistWeb.DocsLive do
           <p>
             {dgettext(
               "docs",
-              "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, and Bazel projects, providing the infrastructure that lets software integration and delivery keep pace."
+              "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, Rust, and Once projects, providing the infrastructure that lets software integration and delivery keep pace."
             )}
           </p>
         </section>
@@ -320,10 +328,10 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Reuse build artifacts across Xcode, Gradle, and Bazel so work completed in one environment speeds up every other environment."
+                    "Share Xcode, Gradle, Bazel, Rust, and Once build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
             <.link
@@ -341,7 +349,7 @@ defmodule TuistWeb.DocsLive do
                     "Understand build performance across local and continuous integration environments before slowdowns affect your team."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
           </div>
@@ -363,7 +371,7 @@ defmodule TuistWeb.DocsLive do
             >
               <div data-part="image">
                 <span data-part="icon"><.subtask /></span>
-                <span data-part="title">{dgettext("docs", "Selective Testing")}</span>
+                <span data-part="title">{dgettext("docs", "Selection")}</span>
               </div>
               <div data-part="body">
                 <p>
@@ -381,7 +389,7 @@ defmodule TuistWeb.DocsLive do
             >
               <div data-part="image">
                 <span data-part="icon"><.progress_x /></span>
-                <span data-part="title">{dgettext("docs", "Flaky Tests")}</span>
+                <span data-part="title">{dgettext("docs", "Flakiness")}</span>
               </div>
               <div data-part="body">
                 <p>
@@ -390,7 +398,7 @@ defmodule TuistWeb.DocsLive do
                     "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
             <.link
@@ -405,10 +413,10 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
+                    "Track test performance, catch slow tests early, and investigate continuous integration failures through reported results and test history."
                   )}
                 </p>
-                <.supported_for systems={~w(apple gradle bazel)} />
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
           </div>
@@ -436,7 +444,38 @@ defmodule TuistWeb.DocsLive do
                     "Share your app with a link so others can run it on their device or simulator without TestFlight setup."
                   )}
                 </p>
-                <.supported_for systems={~w(apple android)} />
+                <.supported_for systems={~w(apple android once)} />
+              </div>
+            </.link>
+          </div>
+        </section>
+
+        <%!-- Compute --%>
+        <section data-part="feature-section">
+          <h2 id="compute">{dgettext("docs", "Compute")}</h2>
+          <p>
+            {dgettext(
+              "docs",
+              "Run workflows on managed compute with cache infrastructure colocated for the best performance."
+            )}
+          </p>
+          <div data-part="feature-cards">
+            <.link
+              patch={docs_path("/#{@locale}/guides/features/runners")}
+              data-part="feature-card"
+            >
+              <div data-part="image">
+                <span data-part="icon"><.server /></span>
+                <span data-part="title">{dgettext("docs", "Runners")}</span>
+              </div>
+              <div data-part="body">
+                <p>
+                  {dgettext(
+                    "docs",
+                    "Run continuous integration workflows on managed macOS and Linux runners, with cache infrastructure colocated next to compute for the best results and shared with your developer machines."
+                  )}
+                </p>
+                <.supported_for systems={~w(apple gradle bazel elixir rust once)} />
               </div>
             </.link>
           </div>
@@ -650,6 +689,7 @@ defmodule TuistWeb.DocsLive do
     flaky_tests_path = docs_path("/#{locale}/guides/features/test-insights/flaky-tests")
     test_insights_path = docs_path("/#{locale}/guides/features/test-insights")
     previews_path = docs_path("/#{locale}/guides/features/previews")
+    runners_path = docs_path("/#{locale}/guides/features/runners")
     install_path = docs_path("/#{locale}/guides/install-tuist")
 
     get_started_path = docs_path("/#{locale}/guides/get-started")
@@ -678,7 +718,7 @@ defmodule TuistWeb.DocsLive do
         "",
         dgettext(
           "docs",
-          "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, and Bazel projects, providing the infrastructure that lets software integration and delivery keep pace."
+          "Code is being produced faster and at greater volume than ever. Tuist plugs into the build systems you already use, on Xcode, Gradle, Bazel, Elixir, Rust, and Once projects, providing the infrastructure that lets software integration and delivery keep pace."
         ),
         "",
         markdown_link(dgettext("docs", "Install Tuist"), install_path),
@@ -701,7 +741,7 @@ defmodule TuistWeb.DocsLive do
         "- #{markdown_link(dgettext("docs", "Cache"), cache_path)}: " <>
           dgettext(
             "docs",
-            "Reuse build artifacts across Xcode, Gradle, and Bazel so work completed in one environment speeds up every other environment."
+            "Share Xcode, Gradle, Bazel, Rust, and Once build artifacts and audited Elixir dependency bundles across machines and CI. Rust caching is experimental."
           ),
         "- #{markdown_link(dgettext("docs", "Insights"), build_insights_path)}: " <>
           dgettext(
@@ -716,12 +756,12 @@ defmodule TuistWeb.DocsLive do
           "Run the tests that matter, detect flaky behavior, and understand test performance locally and in continuous integration."
         ),
         "",
-        "- #{markdown_link(dgettext("docs", "Selective Testing"), selective_testing_path)}: " <>
+        "- #{markdown_link(dgettext("docs", "Selection"), selective_testing_path)}: " <>
           dgettext(
             "docs",
             "Run only impacted tests by detecting changes since your last successful run, both locally and in continuous integration."
           ),
-        "- #{markdown_link(dgettext("docs", "Flaky Tests"), flaky_tests_path)}: " <>
+        "- #{markdown_link(dgettext("docs", "Flakiness"), flaky_tests_path)}: " <>
           dgettext(
             "docs",
             "Automatically detect flaky tests that fail without code changes and save time spent investigating false failures."
@@ -729,7 +769,7 @@ defmodule TuistWeb.DocsLive do
         "- #{markdown_link(dgettext("docs", "Insights"), test_insights_path)}: " <>
           dgettext(
             "docs",
-            "Track test performance, catch slow tests early, and debug continuous integration failures through real-time logs."
+            "Track test performance, catch slow tests early, and investigate continuous integration failures through reported results and test history."
           ),
         "",
         "## " <> dgettext("docs", "Artifacts"),
@@ -743,6 +783,19 @@ defmodule TuistWeb.DocsLive do
           dgettext(
             "docs",
             "Share your app with a link so others can run it on their device or simulator without TestFlight setup."
+          ),
+        "",
+        "## " <> dgettext("docs", "Compute"),
+        "",
+        dgettext(
+          "docs",
+          "Run workflows on managed compute with cache infrastructure colocated for the best performance."
+        ),
+        "",
+        "- #{markdown_link(dgettext("docs", "Runners"), runners_path)}: " <>
+          dgettext(
+            "docs",
+            "Run continuous integration workflows on managed macOS and Linux runners, with cache infrastructure colocated next to compute for the best results and shared with your developer machines."
           ),
         ""
       ] ++

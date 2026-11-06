@@ -19,10 +19,13 @@ defmodule Tuist.OnceEvents do
 
   alias Ecto.Multi
   alias Phoenix.PubSub
+  alias Tuist.BuildEntities
   alias Tuist.OnceEvents.Action
   alias Tuist.OnceEvents.CacheEvent
   alias Tuist.OnceEvents.Run
   alias Tuist.OnceEvents.SystemSample
+  alias Tuist.OnceEvents.TargetExecution
+  alias Tuist.OnceEvents.TargetInstance
   alias Tuist.OnceEvents.TestCaseRun
   alias Tuist.OnceEvents.TestSuiteRun
   alias Tuist.Repo
@@ -59,11 +62,19 @@ defmodule Tuist.OnceEvents do
     cutoff = DateTime.add(DateTime.utc_now(), -stale_after_seconds, :second)
     now = DateTime.truncate(DateTime.utc_now(), :microsecond)
 
-    {count, _} =
+    {count, expired} =
       Run
       |> where([r], r.finalization in ["active", "finalizing", "finalization_pending"])
       |> where([r], coalesce(r.heartbeat_at, r.started_at) < ^cutoff)
+      |> select([r], %{project_id: r.project_id, run_id: r.run_id})
       |> Repo.update_all(set: [finalization: "lost", finalized_at: now, updated_at: now])
+
+    # Without this an open run page keeps showing the run as in progress,
+    # because an expired run sends nothing else that would refresh it.
+    for run <- expired do
+      broadcast_project(run.project_id, {:run_updated, run.run_id})
+      broadcast_run(run, {:run_updated, run.run_id})
+    end
 
     {:ok, count}
   end
@@ -215,18 +226,7 @@ defmodule Tuist.OnceEvents do
     # skip them in `total_actions` / `cached_actions` / roll-up so
     # the Overview card's counters keep their user-facing meaning.
     synthetic? = action_attrs[:capability] == "_phase"
-
-    delta =
-      if synthetic? do
-        %{}
-      else
-        %{
-          total_actions: 1,
-          cached_actions: if(action_attrs[:was_cached], do: 1, else: 0),
-          executed_actions: if(action_attrs[:was_cached], do: 0, else: 1),
-          failed_actions: if(action_attrs[:result] == "failed", do: 1, else: 0)
-        }
-      end
+    delta = if synthetic?, do: %{}, else: action_rollup_delta(action_attrs)
 
     multi =
       Multi.new()
@@ -265,6 +265,20 @@ defmodule Tuist.OnceEvents do
     end
   end
 
+  defp action_rollup_delta(action_attrs) do
+    duration_ms = action_attrs[:duration_ms] || 0
+    {cached, executed} = if action_attrs[:was_cached], do: {1, 0}, else: {0, 1}
+
+    %{
+      total_actions: 1,
+      cached_actions: cached,
+      executed_actions: executed,
+      failed_actions: if(action_attrs[:result] == "failed", do: 1, else: 0),
+      cached_action_ms_total: cached * duration_ms,
+      executed_action_ms_total: executed * duration_ms
+    }
+  end
+
   @doc """
   Mark a run finalized. Idempotent; a late `RunCompleted` after
   `FINALIZATION_PENDING` still transitions to `finalized` within the dedup
@@ -283,10 +297,165 @@ defmodule Tuist.OnceEvents do
       )
 
     with {:ok, updated} <- Repo.update(changeset) do
+      updated = recompute_cache_rollups(updated)
       broadcast_project(updated.project_id, {:run_updated, updated.run_id})
       broadcast_run(updated, {:run_updated, updated.run_id})
       {:ok, updated}
     end
+  end
+
+  defp recompute_cache_rollups(%Run{id: id} = run) do
+    {:ok, rollups} = recount_cache_rollups(id)
+    struct(run, rollups)
+  end
+
+  @doc """
+  Recount the duration and cache event roll-ups of runs that reached a
+  terminal state in the last `within_seconds`.
+
+  The roll-ups are incremented as events land and recounted when a run
+  finalizes, but a pod still running code from before they existed projects
+  events without maintaining them, and when such a pod also finalizes the run
+  the recount never happens. That is the window of a deploy. Sweeping the runs
+  that finished in the last day from the hourly `ExpireStaleRunsWorker`, which
+  also covers runs it marks `lost`, settles them on the exact value even when
+  the first sweep after a rollout is hours late. Each recount locks and reads
+  one run through the `once_run_id` indexes, a few milliseconds at most.
+  """
+  def recount_recent_cache_rollups(within_seconds \\ 86_400) do
+    cutoff = DateTime.add(DateTime.utc_now(), -within_seconds, :second)
+
+    ids =
+      Run
+      |> where([r], r.finalization in ["finalized", "lost"] and r.finalized_at >= ^cutoff)
+      |> select([r], r.id)
+      |> Repo.all()
+
+    Enum.each(ids, &recount_cache_rollups/1)
+
+    {:ok, length(ids)}
+  end
+
+  @doc """
+  Publish a terminal run once. A shared row lock serializes finalization and
+  recovery across replicas. Mark publication only after ClickHouse acknowledges
+  the synchronous batch; failures leave it retryable. A crash between the two
+  databases can still replay, so deterministic observation IDs remain required.
+  """
+  def publish_build_entities(%Run{id: id, project_id: project_id}) do
+    if BuildEntities.enabled?(project_id) do
+      Repo.transaction(
+        fn ->
+          from(r in Run, where: r.id == ^id and r.project_id == ^project_id, lock: "FOR UPDATE")
+          |> Repo.one()
+          |> publish_locked_build_entities()
+        end,
+        timeout: 60_000
+      )
+    else
+      {:ok, false}
+    end
+  end
+
+  defp publish_locked_build_entities(%Run{finalization: state, build_entities_published_at: nil} = run)
+       when state in ["finalized", "lost"] do
+    if BuildEntities.enabled?(run.project_id) do
+      case BuildEntities.Producers.once_run(run, list_action_slots(run), sync: true) do
+        :ok ->
+          Repo.update_all(from(r in Run, where: r.id == ^run.id), set: [build_entities_published_at: DateTime.utc_now()])
+          true
+
+        :disabled ->
+          false
+      end
+    else
+      false
+    end
+  end
+
+  defp publish_locked_build_entities(_run), do: false
+
+  @doc """
+  Index unpublished completed actions of recently terminal runs, including
+  abandoned runs that never sent `RunCompleted`. Successful publications are
+  not re-emitted by subsequent sweeps.
+
+  The cutoff is fixed for the sweep and runs are read in 100-row keyset batches
+  through the terminal-time index. This is bounded recovery, not a backfill.
+  """
+  def publish_recent_build_entities(within_seconds \\ 7_200) do
+    now = DateTime.truncate(DateTime.utc_now(), :microsecond)
+    cutoff = DateTime.add(now, -within_seconds, :second)
+
+    query =
+      from(r in Run,
+        where:
+          r.finalization in ["finalized", "lost"] and is_nil(r.build_entities_published_at) and
+            r.finalized_at >= ^cutoff and r.finalized_at <= ^now,
+        order_by: [asc: r.finalized_at, asc: r.id],
+        limit: 100
+      )
+
+    {:ok, publish_build_entity_batches(query, nil, 0)}
+  end
+
+  defp publish_build_entity_batches(query, cursor, count) do
+    page =
+      case cursor do
+        nil -> query
+        {at, id} -> where(query, [r], fragment("(?, ?) > (?, ?)", r.finalized_at, r.id, ^at, type(^id, :binary_id)))
+      end
+
+    case Repo.all(page) do
+      [] ->
+        count
+
+      runs ->
+        published =
+          Enum.count(runs, fn run ->
+            {:ok, published?} = publish_build_entities(run)
+            published?
+          end)
+
+        last = List.last(runs)
+
+        publish_build_entity_batches(query, {last.finalized_at, last.id}, count + published)
+    end
+  end
+
+  # Replaces a run's duration and cache event roll-ups with the sums over its
+  # own rows.
+  #
+  # The run row is locked before anything is read. Every ingest inserts its
+  # action or cache event and increments the run in one transaction, so an
+  # ingest that committed first is in the sums, and one still in flight waits
+  # on the lock and adds its increment on top of the recount. Reading first
+  # and then writing could overwrite an increment committed in between.
+  defp recount_cache_rollups(id) do
+    Repo.transaction(fn ->
+      Repo.one(from(r in Run, where: r.id == ^id, select: r.id, lock: "FOR UPDATE"))
+
+      {cached_ms, executed_ms} =
+        Repo.one(
+          from(a in Action,
+            where: a.once_run_id == ^id and a.capability != "_phase",
+            select: {
+              coalesce(sum(fragment("case when ? then ? else 0 end", a.was_cached, a.duration_ms)), 0),
+              coalesce(sum(fragment("case when ? then 0 else ? end", a.was_cached, a.duration_ms)), 0)
+            }
+          )
+        )
+
+      rollups = [
+        cached_action_ms_total: to_integer(cached_ms),
+        executed_action_ms_total: to_integer(executed_ms),
+        cache_event_count: Repo.aggregate(from(e in CacheEvent, where: e.once_run_id == ^id), :count)
+      ]
+
+      Repo.update_all(from(r in Run, where: r.id == ^id), set: rollups)
+
+      rollups
+    end)
   end
 
   @doc """
@@ -322,7 +491,7 @@ defmodule Tuist.OnceEvents do
     bytes = Map.get(event_attrs, :bytes_transferred, 0)
     duration = Map.get(event_attrs, :duration_ms, 0)
 
-    run_delta =
+    kind_delta =
       case kind do
         "download" ->
           %{
@@ -345,6 +514,8 @@ defmodule Tuist.OnceEvents do
           %{}
       end
 
+    run_delta = Map.put(kind_delta, :cache_event_count, 1)
+
     multi =
       Multi.new()
       |> Multi.run(:event, fn repo, _ ->
@@ -357,7 +528,7 @@ defmodule Tuist.OnceEvents do
         {:ok, count}
       end)
       |> Multi.run(:rollup, fn repo, %{event: count} ->
-        if count == 1 and run_delta != %{} do
+        if count == 1 do
           repo.update_all(
             from(r in Run, where: r.id == ^run.id),
             inc: Map.to_list(run_delta),
@@ -402,6 +573,83 @@ defmodule Tuist.OnceEvents do
     {_count, _} = Repo.insert_all(SystemSample, [row], on_conflict: :nothing)
     broadcast_run(run, {:system_sampled, run.run_id})
     :ok
+  end
+
+  @doc """
+  Record which stable `target_id` a run-local target instance resolves to.
+  Idempotent on `(once_run_id, target_instance_id)`.
+  """
+  def ingest_target_instance(%Run{} = run, attrs) do
+    row = %{
+      id: UUIDv7.generate(),
+      once_run_id: run.id,
+      target_instance_id: attrs.target_instance_id,
+      target_id: attrs.target_id,
+      configuration_digest: Map.get(attrs, :configuration_digest),
+      inserted_at: DateTime.truncate(DateTime.utc_now(), :second)
+    }
+
+    {_count, _} =
+      Repo.insert_all(TargetInstance, [row],
+        on_conflict: :nothing,
+        conflict_target: [:once_run_id, :target_instance_id]
+      )
+
+    :ok
+  end
+
+  @doc """
+  Record which target instance a run-local target execution runs. Idempotent
+  on `(once_run_id, target_execution_id)`.
+  """
+  def ingest_target_execution(%Run{} = run, attrs) do
+    row = %{
+      id: UUIDv7.generate(),
+      once_run_id: run.id,
+      target_execution_id: attrs.target_execution_id,
+      target_instance_id: attrs.target_instance_id,
+      attempt: Map.get(attrs, :attempt, 0),
+      inserted_at: DateTime.truncate(DateTime.utc_now(), :second)
+    }
+
+    {_count, _} =
+      Repo.insert_all(TargetExecution, [row],
+        on_conflict: :nothing,
+        conflict_target: [:once_run_id, :target_execution_id]
+      )
+
+    :ok
+  end
+
+  @doc """
+  A run's actions with the stable `target_id` of their target execution, or
+  `nil` when the client never reported the target mapping. One query per run.
+  """
+  def list_action_slots(%Run{} = run) do
+    Repo.all(
+      from(a in Action,
+        left_join: e in TargetExecution,
+        on: e.once_run_id == a.once_run_id and e.target_execution_id == a.target_execution_id,
+        left_join: i in TargetInstance,
+        on: i.once_run_id == e.once_run_id and i.target_instance_id == e.target_instance_id,
+        where: a.once_run_id == ^run.id,
+        select: %{
+          id: a.id,
+          target_execution_id: a.target_execution_id,
+          target_id: i.target_id,
+          capability: a.capability,
+          action_index: a.action_index,
+          identifier: a.identifier,
+          display_name: a.display_name,
+          result: a.result,
+          was_cached: a.was_cached,
+          cache_key: a.cache_key,
+          duration_ms: a.duration_ms,
+          started_at: a.started_at,
+          finished_at: a.finished_at
+        }
+      )
+    )
   end
 
   @doc """
@@ -754,15 +1002,20 @@ defmodule Tuist.OnceEvents do
 
     direction = if Keyword.get(opts, :sort_order) == "desc", do: :desc_nulls_last, else: :asc_nulls_last
 
+    sort_value =
+      if sort_field == :identifier,
+        do: dynamic([a], coalesce(fragment("NULLIF(?, '')", a.display_name), a.identifier)),
+        else: dynamic([a], field(a, ^sort_field))
+
     run
     |> actions_query(opts)
-    |> order_by([a], [
-      {^direction, field(a, ^sort_field)},
+    |> order_by(^[{direction, sort_value}])
+    |> order_by([a],
       asc: a.target_execution_id,
       asc: a.capability,
       asc: a.action_index,
       asc: a.id
-    ])
+    )
     |> limit(^Keyword.get(opts, :limit, 50))
     |> offset(^Keyword.get(opts, :offset, 0))
     |> Repo.all()
@@ -780,8 +1033,7 @@ defmodule Tuist.OnceEvents do
       if search == "" do
         query
       else
-        pattern = "%" <> String.replace(search, ~r/[\\%_]/, fn char -> "\\" <> char end) <> "%"
-        where(query, [a], ilike(a.identifier, ^pattern) or ilike(a.target_execution_id, ^pattern))
+        maybe_filter_action_search(query, search)
       end
 
     Enum.reduce(Keyword.get(opts, :filters, []), query, &filter_actions/2)
@@ -1047,7 +1299,13 @@ defmodule Tuist.OnceEvents do
 
   defp maybe_filter_action_search(query, search) do
     pattern = "%" <> String.replace(search, ~r/[\\%_]/, fn char -> "\\" <> char end) <> "%"
-    where(query, [a], ilike(a.target_execution_id, ^pattern) or ilike(a.identifier, ^pattern))
+
+    where(
+      query,
+      [a],
+      ilike(a.target_execution_id, ^pattern) or ilike(a.identifier, ^pattern) or ilike(a.display_name, ^pattern) or
+        fragment("EXISTS (SELECT 1 FROM unnest(?) AS source_file WHERE source_file ILIKE ?)", a.source_files, ^pattern)
+    )
   end
 
   # An action is either a cache hit or a miss. "stored" and "reused" describe
@@ -1061,11 +1319,23 @@ defmodule Tuist.OnceEvents do
     direction = if sort_order == "asc", do: :asc_nulls_last, else: :desc_nulls_last
 
     case sort_by do
-      "action" -> order_by(query, [a], [{^direction, a.identifier}, {:asc, a.id}])
-      "outcome" -> order_by(query, [a], [{^direction, a.was_cached}, {:asc, a.id}])
-      "target" -> order_by(query, [a], [{^direction, a.target_execution_id}, {:asc, a.id}])
-      "latency" -> order_by(query, [a], [{^direction, a.duration_ms}, {:asc, a.id}])
-      _ -> order_by(query, [a], [{^direction, a.finished_at}, {:asc, a.id}])
+      "action" ->
+        order_by(query, [a], [
+          {^direction, coalesce(fragment("NULLIF(?, '')", a.display_name), a.identifier)},
+          {:asc, a.id}
+        ])
+
+      "outcome" ->
+        order_by(query, [a], [{^direction, a.was_cached}, {:asc, a.id}])
+
+      "target" ->
+        order_by(query, [a], [{^direction, a.target_execution_id}, {:asc, a.id}])
+
+      "latency" ->
+        order_by(query, [a], [{^direction, a.duration_ms}, {:asc, a.id}])
+
+      _ ->
+        order_by(query, [a], [{^direction, a.finished_at}, {:asc, a.id}])
     end
   end
 
@@ -1080,6 +1350,8 @@ defmodule Tuist.OnceEvents do
       id: action.id,
       target_execution_id: action.target_execution_id,
       action_identifier: action.identifier,
+      action_display_name: action.display_name,
+      source_files: action.source_files,
       outcome: if(action.was_cached, do: "hit", else: "miss"),
       duration_ms: action.duration_ms || 0,
       observed_at: action.finished_at || action.started_at,

@@ -16,6 +16,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   setup :set_mimic_from_context
 
   setup do
+    stub(Tuist.FeatureFlags, :kura_positive_fence_enabled?, fn _account -> false end)
+    stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> false end)
+    stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> false end)
     stub(FunWithFlags, :enabled?, fn :kura_stable_hostname, _opts -> false end)
 
     stub(Identity, :endpoint_migration_enabled?, fn _account -> false end)
@@ -68,7 +71,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       expect(Client, :patch, fn "/apis/kura.tuist.dev/v1alpha1/namespaces/kura/kurainstances/instance",
                                 [guard | changes],
-                                [] ->
+                                [timeout: 3_000] ->
         assert guard == %{"op" => "test", "path" => "/metadata/resourceVersion", "value" => "42"}
 
         assert Map.new(changes, &{&1["path"], &1["value"]}) == %{
@@ -107,7 +110,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       expect(Client, :get_kura_instance, fn "kura", "instance", [timeout: 3_000] -> {:ok, instance} end)
 
-      expect(Client, :patch, fn _, [_guard, operation], [] ->
+      expect(Client, :patch, fn _, [_guard, operation], [timeout: 3_000] ->
         assert operation == %{"op" => "add", "path" => "/spec/stableAdvertise", "value" => false}
         {:ok, instance}
       end)
@@ -117,6 +120,19 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   end
 
   describe "manifest/6" do
+    test "positive fencing is opt-in and changes the manifest revision" do
+      account = %{name: "tuist"}
+      before = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})
+      refute Map.has_key?(before["spec"], "servingMode")
+      stub(Tuist.FeatureFlags, :kura_positive_fence_enabled?, fn ^account -> true end)
+      after_manifest = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})
+      assert after_manifest["spec"]["servingMode"] == "PositiveFenceV1"
+      revision = "tuist.dev/kura-manifest-revision"
+
+      assert after_manifest["metadata"]["annotations"][revision] ==
+               before["metadata"]["annotations"][revision] <> "+positive-fence-v1"
+    end
+
     test "renders a KuraInstance without a per-account compute spec" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
@@ -1109,6 +1125,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
 
     test "every registered region derives a budget Kura can honour" do
+      # This unpersisted account has no placement. Keep the catalog-wide
+      # capacity check independent of the placement database.
+      stub(StableEndpoint, :intent, fn server, region -> StableEndpoint.intent(server, region, []) end)
+
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
 
@@ -1946,6 +1966,26 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
+  describe "rollout_health/2" do
+    test "carries the controller's operator image hold with the aggregate" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-local-controller", _opts ->
+        {:ok, %{"status" => %{"imageHold" => "FencedReplacement", "rolloutHealth" => %{"ready" => true}}}}
+      end)
+
+      assert {:ok, %{ready: true, image_hold: "FencedReplacement"}} =
+               KubernetesController.rollout_health("kura-tuist-local-controller", local_controller_region())
+    end
+
+    test "reads no hold when the controller publishes none" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-local-controller", _opts ->
+        {:ok, %{"status" => %{"imageHold" => "", "rolloutHealth" => %{"ready" => true}}}}
+      end)
+
+      assert {:ok, %{image_hold: nil}} =
+               KubernetesController.rollout_health("kura-tuist-local-controller", local_controller_region())
+    end
+  end
+
   describe "image_tag_from_image/1" do
     test "extracts the tag from a normal image reference" do
       assert KubernetesController.image_tag_from_image("ghcr.io/tuist/kura:0.5.2") == "0.5.2"
@@ -2054,6 +2094,186 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     }
   end
 
+  describe "manifest/6 storage class" do
+    setup do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "00000000-0000-0000-0000-000000000001" end)
+      :ok
+    end
+
+    test "keeps the node-local NVMe class for accounts without encrypted volumes" do
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> false end)
+
+      assert storage_class_name(region_with_storage_class("scw-local-nvme")) == "scw-local-nvme"
+    end
+
+    test "builds node-local NVMe instances on encrypted volumes for flagged accounts" do
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn %{name: "tuist"} -> true end)
+
+      assert storage_class_name(region_with_storage_class("scw-local-nvme")) == "kura-encrypted-nvme"
+      assert storage_class_name(region_with_storage_class("scw-bssd")) == "scw-bssd"
+      assert storage_class_name(region_with_storage_class("hcloud-volumes")) == "hcloud-volumes"
+    end
+
+    test "re-applies a flagged account's node-local instance by moving its manifest revision" do
+      region = region_with_storage_class("scw-local-nvme")
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> false end)
+      before = revision(region)
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> true end)
+
+      assert revision(region) == before <> "+encrypted-volumes-v1"
+      refute revision(region_with_storage_class("hcloud-volumes")) =~ "+encrypted-volumes-v1"
+    end
+
+    test "gives the reconciler the revision it renders for a flagged account" do
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> true end)
+      region = region_with_storage_class("scw-local-nvme")
+
+      assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region) == revision(region)
+    end
+
+    test "keeps the node-local NVMe class on regions that opt out of encrypted volumes" do
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> true end)
+      region = region_with_storage_class("scw-local-nvme")
+      region = %{region | provisioner_config: Map.put(region.provisioner_config, :encrypted_volumes, false)}
+
+      assert storage_class_name(region) == "scw-local-nvme"
+      refute revision(region) =~ "+encrypted-volumes-v1"
+    end
+
+    test "LVM regions encrypt every account with matching revisions" do
+      legacy = region_with_storage_class("scw-local-nvme")
+
+      region = %{
+        legacy
+        | provisioner_config:
+            Map.merge(legacy.provisioner_config, %{storage_class: "kura-lvm-nvme", disk_resource: "tuist.dev/kura-disk"})
+      }
+
+      for encrypted <- [false, true] do
+        stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _ -> encrypted end)
+        manifest = render(region)
+        assert manifest["spec"]["storageClassName"] == "kura-encrypted-nvme"
+        assert manifest["spec"]["diskResource"] == "tuist.dev/kura-disk"
+
+        assert revision(region) ==
+                 String.replace_suffix(revision(legacy), "+encrypted-volumes-v1", "") <>
+                   "+encrypted-volumes-v1+lvm-volumes-v1"
+
+        assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region) == revision(region)
+      end
+    end
+
+    test "keeps BER1 unchanged until its LVM region is enrolled" do
+      assert %Regions{provisioner_config: %{encrypted_volumes: false}} = Regions.get("ber1-runners")
+    end
+
+    test "enrolled BER1 uses encrypted LVM without the account flag" do
+      stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ["ber1-runners"] end)
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _ -> false end)
+      region = Regions.get("ber1-runners")
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+      manifest = KubernetesController.manifest("kura-tuist-ber1", "0.5.2", account, region, %Server{})
+      assert manifest["spec"]["storageClassName"] == "kura-encrypted-nvme"
+      assert manifest["spec"]["diskResource"] == "tuist.dev/kura-disk"
+      assert manifest["spec"]["replicas"] == 2
+
+      assert KubernetesController.manifest_revision(%Server{account: account}, region) ==
+               manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"]
+    end
+
+    test "builds a selected account's instance in a thin region on the thin class" do
+      region = thin_region(region_with_storage_class("scw-local-nvme"))
+      before = revision(region)
+      stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn %{name: "tuist"} -> true end)
+
+      manifest = render(region)
+      assert manifest["spec"]["storageClassName"] == "kura-thin-encrypted-nvme"
+      assert manifest["spec"]["diskResource"] == "tuist.dev/kura-disk"
+      assert revision(region) == before <> "+thin-volumes-v1"
+      assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region) == revision(region)
+    end
+
+    test "selects the thin class over encrypted and LVM storage" do
+      stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> true end)
+      stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> true end)
+      legacy = region_with_storage_class("scw-local-nvme")
+
+      lvm = %{
+        legacy
+        | provisioner_config:
+            Map.merge(legacy.provisioner_config, %{storage_class: "kura-lvm-nvme", disk_resource: "tuist.dev/kura-disk"})
+      }
+
+      for region <- [thin_region(legacy), thin_region(lvm)] do
+        manifest = render(region)
+        assert manifest["spec"]["storageClassName"] == "kura-thin-encrypted-nvme"
+        assert manifest["spec"]["diskResource"] == "tuist.dev/kura-disk"
+        refute revision(region) =~ "+encrypted-volumes-v1"
+        refute revision(region) =~ "+lvm-volumes-v1"
+        assert String.ends_with?(revision(region), "+thin-volumes-v1")
+      end
+    end
+
+    test "renders unselected accounts in a thin region byte-identically" do
+      for {encrypted, storage_class} <- [{false, "scw-local-nvme"}, {true, "scw-local-nvme"}, {false, "kura-lvm-nvme"}] do
+        stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _account -> encrypted end)
+        stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> false end)
+        region = region_with_storage_class(storage_class)
+
+        assert render(thin_region(region)) == render(region)
+
+        assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, thin_region(region)) ==
+                 KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region)
+      end
+    end
+
+    test "ignores the account flag in regions that are not thin-capable" do
+      for storage_class <- ["scw-local-nvme", "hcloud-volumes"] do
+        region = region_with_storage_class(storage_class)
+        stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> false end)
+        unselected = render(region)
+        stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn _account -> true end)
+
+        assert render(region) == unselected
+      end
+    end
+
+    test "enrolls the account through the thin region list" do
+      stub(Tuist.Environment, :kura_thin_region_ids, fn -> ["eu-west"] end)
+      stub(Tuist.FeatureFlags, :kura_thin_volumes_enabled?, fn %Account{name: "tuist"} -> true end)
+      stub(StableEndpoint, :intent, fn server, region -> StableEndpoint.intent(server, region, []) end)
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+
+      manifest = KubernetesController.manifest("kura-tuist-eu-west", "0.5.2", account, Regions.get("eu-west"), %Server{})
+      assert manifest["spec"]["storageClassName"] == "kura-thin-encrypted-nvme"
+
+      other = KubernetesController.manifest("kura-tuist-us-east", "0.5.2", account, Regions.get("us-east"), %Server{})
+      assert other["spec"]["storageClassName"] == "scw-local-nvme"
+    end
+
+    defp thin_region(region) do
+      %{region | provisioner_config: Map.put(region.provisioner_config, :thin_volumes, true)}
+    end
+
+    defp region_with_storage_class(storage_class) do
+      region = scaleway_region()
+      %{region | provisioner_config: Map.put(region.provisioner_config, :storage_class, storage_class)}
+    end
+
+    defp storage_class_name(region) do
+      render(region)["spec"]["storageClassName"]
+    end
+
+    defp revision(region) do
+      render(region)["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"]
+    end
+
+    defp render(region) do
+      KubernetesController.manifest("kura-tuist-scw-fr-par", "0.5.2", %{name: "tuist"}, region, %Server{})
+    end
+  end
+
   describe "manifest/6 for a private runner-cache region" do
     test "marks the instance private and omits public/ingress fields" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
@@ -2153,6 +2373,48 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert KubernetesController.internal_url("tuist", region, "actual-ref") ==
                "http://actual-ref.kura.svc.cluster.local:4000"
+    end
+
+    test "places the BER1 rack's cache on its storage node, in the mesh on the cluster network" do
+      stub(Tuist.Environment, :env, fn -> :stag end)
+      stub(Tuist.Environment, :kura_tuist_base_url, fn -> "http://tuist.tuist.svc.cluster.local" end)
+      region = Regions.get("ber1-runners")
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+      spec = KubernetesController.manifest("kura-tuist-ber1", "0.5.2", account, region, %Server{})["spec"]
+
+      assert spec["replicas"] == 1
+      assert spec["mesh"]
+      assert spec["privateHost"] == "tuist-ber1-runners-staging.kura.tuist.dev"
+      assert spec["ingressClassName"] == "kura-ber1-runners"
+      assert spec["clientCIDRs"] == ["10.10.0.0/24"]
+      assert spec["nodeSelector"] == %{"node.cluster.x-k8s.io/pool" => "rack-storage-ber1"}
+
+      assert spec["tolerations"] == [
+               %{"key" => "tuist.dev/rack-storage", "operator" => "Exists", "effect" => "NoSchedule"}
+             ]
+
+      # The storage node runs Cilium, so the pod resolves and calls through
+      # the cluster like every other region's.
+      refute Map.has_key?(spec, "nodeLocalNetwork")
+      env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_CONTROL_PLANE_URL"] == "http://tuist.tuist.svc.cluster.local"
+      assert env["KURA_MESH_PEERS_SYNC"] == "true"
+      refute Map.has_key?(env, "KURA_ANALYTICS_SERVER_URL")
+      refute Map.has_key?(env, "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+    end
+
+    test "keeps cluster-routed private regions on the cluster network" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      region = Regions.get("scw-fr-par-runners")
+      account = %Account{id: 1, name: "tuist", subscriptions: []}
+      spec = KubernetesController.manifest("kura-tuist-scw-fr-par", "0.5.2", account, region, %Server{})["spec"]
+
+      refute Map.has_key?(spec, "nodeLocalNetwork")
+      assert spec["mesh"]
+      names = Enum.map(spec["extraEnv"], & &1["name"])
+      refute "KURA_ANALYTICS_SERVER_URL" in names
+      refute "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT" in names
     end
 
     test "reapplies existing private instances when their replica count or entrance changes" do

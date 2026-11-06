@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      additional_contexts:
+        certificate-trust: ../infra/certificate-trust
     hostname: kura-us
     domainname: kura.internal
     environment: &kura_env
@@ -55,6 +57,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      additional_contexts:
+        certificate-trust: ../infra/certificate-trust
     hostname: kura-eu
     domainname: kura.internal
     environment:
@@ -89,6 +93,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      additional_contexts:
+        certificate-trust: ../infra/certificate-trust
     hostname: kura-ap
     domainname: kura.internal
     environment:

@@ -52,6 +52,40 @@ defmodule TuistWeb.MCPControllerTest do
       assert is_map(response["result"]["capabilities"])
     end
 
+    test "calls a tool using modern metadata without initialization", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+
+      conn =
+        conn
+        |> authenticated_mcp_conn(user.token)
+        |> put_req_header("mcp-protocol-version", "2026-07-28")
+        |> put_req_header("mcp-method", "tools/call")
+        |> put_req_header("mcp-name", "list_accounts")
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 1,
+          "method" => "tools/call",
+          "params" => %{
+            "name" => "list_accounts",
+            "arguments" => %{},
+            "_meta" => %{
+              "io.modelcontextprotocol/protocolVersion" => "2026-07-28",
+              "io.modelcontextprotocol/clientCapabilities" => %{}
+            }
+          }
+        })
+
+      assert conn.status == 200
+      [_, json] = String.split(conn.resp_body, "data: ", parts: 2)
+      result = JSON.decode!(String.trim(json))["result"]
+      assert result["resultType"] == "complete"
+      refute result["isError"]
+      assert [%{"handle" => handle}] = result["structuredContent"]["accounts"]
+      assert handle == user.account.name
+      assert get_resp_header(conn, "mcp-session-id") == []
+    end
+
     test "negotiates the legacy protocol version when requested", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
@@ -110,11 +144,11 @@ defmodule TuistWeb.MCPControllerTest do
         })
 
       response = json_response(conn, 400)
-      assert response["error"] == "Unsupported MCP protocol version: 2099-01-01"
-      assert response["supported"] == ["2025-06-18", "2025-03-26"]
+      assert response["error"]["code"] == -32_022
+      assert response["error"]["data"]["supported"] == ["2026-07-28", "2025-06-18", "2025-03-26"]
     end
 
-    test "returns error when session is not initialized", %{conn: conn} do
+    test "serves tools without initialization", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
 
@@ -128,9 +162,7 @@ defmodule TuistWeb.MCPControllerTest do
           "params" => %{}
         })
 
-      assert conn.status == 400
-      response = json_response(conn, 400)
-      assert response["error"] == "Missing session ID"
+      assert is_list(json_response(conn, 200)["result"]["tools"])
     end
 
     test "returns 202 for notifications after initialize", %{conn: conn} do
@@ -148,7 +180,8 @@ defmodule TuistWeb.MCPControllerTest do
           "params" => @initialize_params
         })
 
-      [session_id] = get_resp_header(init_conn, "mcp-session-id")
+      assert get_resp_header(init_conn, "mcp-session-id") == []
+      session_id = "legacy-session-from-another-node"
 
       # Then send notification with the session ID
       notification_conn =
@@ -203,7 +236,7 @@ defmodule TuistWeb.MCPControllerTest do
       refute content_type =~ "text/event-stream"
     end
 
-    test "returns request responses inline when the session has a stale event stream registration", %{conn: conn} do
+    test "ignores stale session identifiers and returns tools inline", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
       # Pin the hosted-only tools so the advertised count is deterministic
@@ -220,12 +253,8 @@ defmodule TuistWeb.MCPControllerTest do
           "params" => @initialize_params
         })
 
-      [session_id] = get_resp_header(init_conn, "mcp-session-id")
-
-      stale_pid = spawn(fn -> :ok end)
-      ref = Process.monitor(stale_pid)
-      assert_receive {:DOWN, ^ref, :process, ^stale_pid, _reason}
-      EMCP.SessionStore.ETS.register(session_id, stale_pid)
+      assert get_resp_header(init_conn, "mcp-session-id") == []
+      session_id = "legacy-session-from-another-node"
 
       conn =
         build_conn()
@@ -268,7 +297,8 @@ defmodule TuistWeb.MCPControllerTest do
           "params" => @initialize_params
         })
 
-      [session_id] = get_resp_header(init_conn, "mcp-session-id")
+      assert get_resp_header(init_conn, "mcp-session-id") == []
+      session_id = "legacy-session-from-another-node"
 
       conn =
         build_conn()
@@ -287,7 +317,7 @@ defmodule TuistWeb.MCPControllerTest do
       assert is_list(response["result"]["prompts"])
     end
 
-    test "assigns a session ID on first request", %{conn: conn} do
+    test "does not assign a session identifier", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
 
@@ -301,12 +331,10 @@ defmodule TuistWeb.MCPControllerTest do
           "params" => @initialize_params
         })
 
-      assert [session_id] = get_resp_header(conn, "mcp-session-id")
-      assert is_binary(session_id)
-      assert session_id != ""
+      assert get_resp_header(conn, "mcp-session-id") == []
     end
 
-    test "returns error for request without session ID", %{conn: conn} do
+    test "rejects malformed requests", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
 
@@ -317,7 +345,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       assert conn.status == 400
       response = json_response(conn, 400)
-      assert response["error"] == "Missing session ID"
+      assert response["error"]["code"] == -32_600
     end
   end
 

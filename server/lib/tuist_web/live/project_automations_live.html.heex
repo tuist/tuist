@@ -10,6 +10,11 @@
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
     />
     <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "Integrations")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/integrations"}
+    />
+    <.tab_menu_horizontal_item
       :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
       label={dgettext("dashboard_projects", "Notifications")}
       selected={false}
@@ -18,7 +23,9 @@
     <.tab_menu_horizontal_item
       :if={
         Tuist.Projects.Project.xcode_project?(@selected_project) or
-          Tuist.Projects.Project.bazel_project?(@selected_project)
+          Tuist.Projects.Project.bazel_project?(@selected_project) or
+          Tuist.Projects.Project.mix_project?(@selected_project) or
+          Tuist.Projects.Project.cargo_project?(@selected_project)
       }
       label={dgettext("dashboard_projects", "Automations")}
       selected={true}
@@ -739,7 +746,40 @@
                       <div data-part="form-row-inline">
                         <div data-part="form-row" data-size="dropdown">
                           <label data-part="label">
-                            {dgettext("dashboard_projects", "Without trigger for")}
+                            {dgettext("dashboard_projects", "Recover when")}
+                          </label>
+                          <.dropdown
+                            id="create-automation-recovery-condition-dropdown"
+                            label={
+                              recovery_condition_label(
+                                @create_automation_form_recovery_condition,
+                                @create_automation_form_metric
+                              )
+                            }
+                          >
+                            <.dropdown_item
+                              :for={condition <- ["condition_clears", "no_new_matches"]}
+                              value={condition}
+                              label={
+                                recovery_condition_label(
+                                  condition,
+                                  @create_automation_form_metric
+                                )
+                              }
+                              on_click="update_create_automation_form_recovery_condition"
+                              data-selected={
+                                @create_automation_form_recovery_condition == condition
+                              }
+                            >
+                              <:right_icon><.check /></:right_icon>
+                            </.dropdown_item>
+                          </.dropdown>
+                        </div>
+                        <div data-part="form-row" data-size="dropdown">
+                          <label data-part="label">
+                            {if @create_automation_form_recovery_condition == "no_new_matches",
+                              do: dgettext("dashboard_projects", "For"),
+                              else: dgettext("dashboard_projects", "Without trigger for")}
                           </label>
                           <.dropdown
                             id="create-automation-recovery-window-type-dropdown"

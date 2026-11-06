@@ -11,6 +11,8 @@ import MermaidDiagramHook from "./hooks/mermaid-diagram-hook.js";
 import { initDocsSearch } from "./hooks/docs-search-hook.js";
 import { copyTextToClipboard } from "../shared/js/clipboard.js";
 import { initAnalytics } from "../shared/js/analytics.js";
+import { registerWebMCPTools } from "../shared/js/webmcp.mjs";
+import languageDropdown from "../shared/js/hooks/language-dropdown.js";
 
 import "./docs.css";
 
@@ -27,6 +29,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
   hooks: {
     ...Noora.Hooks,
+    NooraDropdown: languageDropdown(Noora.Hooks.NooraDropdown),
     DocsContent: DocsContentHook,
     DocsCopyPageButton: DocsCopyPageButtonHook,
     DocsInstallTabs: DocsInstallTabsHook,
@@ -112,6 +115,8 @@ window.addEventListener("phx:page-loading-stop", (info) => {
 liveSocket.connect();
 
 initAnalytics();
+
+registerWebMCPTools();
 
 window.liveSocket = liveSocket;
 

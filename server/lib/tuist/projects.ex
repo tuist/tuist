@@ -10,6 +10,7 @@ defmodule Tuist.Projects do
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Authentication.TokenVerificationCache
   alias Tuist.Automations
   alias Tuist.Base64
   alias Tuist.CommandEvents
@@ -18,11 +19,38 @@ defmodule Tuist.Projects do
   alias Tuist.Projects.ProjectToken
   alias Tuist.Projects.VCSConnection
   alias Tuist.Repo
+  alias Tuist.VCS.GitHubAppInstallation
 
   require Logger
 
   def get_projects_count do
     Repo.aggregate(Project, :count, :id)
+  end
+
+  def public_projects_count do
+    Repo.aggregate(public_projects_query(), :count, :id)
+  end
+
+  def public_project_handles(page, page_size) when page > 0 and page_size > 0 and page_size <= 1000 do
+    Repo.all(
+      from([p, a] in public_projects_query(),
+        order_by: p.id,
+        limit: ^page_size,
+        offset: ^((page - 1) * page_size),
+        select: %{account: a.name, project: p.name}
+      )
+    )
+  end
+
+  defp public_projects_query do
+    from(p in Project,
+      join: a in assoc(p, :account),
+      left_join: o in assoc(a, :organization),
+      where: p.visibility == :public,
+      where:
+        a.visibility == :public or is_nil(o.id) or not o.sso_enforced or
+          is_nil(o.sso_provider)
+    )
   end
 
   def get_project_count_for_account(%Account{id: account_id}, opts \\ []) do
@@ -76,6 +104,17 @@ defmodule Tuist.Projects do
     else
       {:error, :invalid_full_handle}
     end
+  end
+
+  @doc """
+  Tells the pages waiting for a project's first sign of life that the user
+  reached it from their machine. A report sent with a project token has no
+  user, and tells nobody.
+  """
+  def notify_connected(_project, nil), do: :ok
+
+  def notify_connected(%Project{id: id}, user) do
+    Tuist.PubSub.broadcast(%{user: user}, "projects.#{id}", :show)
   end
 
   def get_project_by_account_and_project_handles(account_handle, project_handle, opts \\ []) do
@@ -433,32 +472,21 @@ defmodule Tuist.Projects do
   end
 
   def get_project_token(full_token) do
-    full_token_components = String.split(full_token, "_")
-
-    if length(full_token_components) == 3 do
-      [_audience, token_id, token_hash] = full_token_components
-
-      token = Repo.one(from(t in ProjectToken, where: t.id == ^token_id))
-
-      cond do
-        is_nil(token) ->
-          {:error, :not_found}
-
-        verify_pass(token, token_hash) ->
-          {:ok, token}
-
-        true ->
-          {:error, :invalid_token}
-      end
+    with [_audience, token_id, token_hash] <- String.split(full_token, "_"),
+         {:ok, _} <- UUIDv7.cast(token_id),
+         token when not is_nil(token) <- Repo.one(from(t in ProjectToken, where: t.id == ^token_id)),
+         true <- verify_pass(token, token_hash) do
+      {:ok, token}
     else
-      {:error, :invalid_token}
+      nil -> {:error, :not_found}
+      _ -> {:error, :invalid_token}
     end
   end
 
   # Bcrypt does CPU-intensive operations and it can easily slow-down requests when
   # there are bursts of requests coming through the API.
   def verify_pass(token, token_hash) do
-    Bcrypt.verify_pass(
+    TokenVerificationCache.verify_pass(
       token_hash <> Tuist.Environment.secret_key_password(),
       token.encrypted_token_hash
     )
@@ -510,7 +538,7 @@ defmodule Tuist.Projects do
         content_type: content_type
       }
 
-      upload_token = Phoenix.Token.sign(TuistWeb.Endpoint, @logo_upload_salt, payload)
+      upload_token = Phoenix.Token.sign(Tuist.Web.endpoint(), @logo_upload_salt, payload)
 
       expires_at = DateTime.add(DateTime.utc_now(), @logo_upload_ttl_seconds, :second)
 
@@ -541,7 +569,7 @@ defmodule Tuist.Projects do
   end
 
   defp verify_logo_upload_token(token) do
-    case Phoenix.Token.verify(TuistWeb.Endpoint, @logo_upload_salt, token, max_age: @logo_upload_ttl_seconds) do
+    case Phoenix.Token.verify(Tuist.Web.endpoint(), @logo_upload_salt, token, max_age: @logo_upload_ttl_seconds) do
       {:ok, %{project_id: _, storage_key: _, content_type: _} = payload} -> {:ok, payload}
       {:ok, _} -> {:error, :invalid_logo_upload_token}
       {:error, _reason} -> {:error, :invalid_logo_upload_token}
@@ -623,6 +651,9 @@ defmodule Tuist.Projects do
     case project.vcs_connection do
       %VCSConnection{provider: :github, repository_full_handle: repository_full_handle} ->
         "https://github.com/#{repository_full_handle}"
+
+      %VCSConnection{provider: :origin, repository_full_handle: repository_full_handle} ->
+        "https://cursor.com/codebase/#{repository_full_handle}"
 
       nil ->
         nil
@@ -748,20 +779,41 @@ defmodule Tuist.Projects do
   end
 
   @doc """
-  Get all projects connected to a VCS repository. The handle is matched
-  case-insensitively, like GitHub matches owner and repository names.
+  Get all projects connected to a VCS repository, scoped to a provider
+  (GitHub by default). Never let a same-named repository on another forge
+  authorize CI tokens. The handle is matched case-insensitively.
+
+  Pass `:client_url` to keep only GitHub connections whose installation is on
+  that GitHub instance, so a github.com repository never matches a GitHub
+  Enterprise Server repository with the same handle.
   """
   def projects_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
+    provider = Keyword.get(opts, :provider, :github)
 
-    Repo.all(
+    query =
       from p in Project,
         join: pc in VCSConnection,
+        as: :vcs_connection,
         on: pc.project_id == p.id,
+        where: pc.provider == ^provider,
         where: fragment("lower(?) = lower(?)", pc.repository_full_handle, ^vcs_repository_full_handle),
         order_by: [asc: p.id],
         preload: ^preload
-    )
+
+    query =
+      case Keyword.fetch(opts, :client_url) do
+        {:ok, client_url} ->
+          from [vcs_connection: pc] in query,
+            join: i in GitHubAppInstallation,
+            on: i.id == pc.github_app_installation_id,
+            where: i.client_url == ^client_url
+
+        :error ->
+          query
+      end
+
+    Repo.all(query)
   end
 
   @doc """
@@ -769,12 +821,14 @@ defmodule Tuist.Projects do
   """
   def project_by_name_and_vcs_repository_full_handle(project_name, vcs_repository_full_handle, opts \\ []) do
     preload = Keyword.get(opts, :preload, [:account])
+    provider = Keyword.get(opts, :provider, :github)
 
     project =
       Repo.one(
         from p in Project,
           join: pc in VCSConnection,
           on: pc.project_id == p.id,
+          where: pc.provider == ^provider,
           where: pc.repository_full_handle == ^vcs_repository_full_handle and p.name == ^project_name,
           preload: ^preload
       )

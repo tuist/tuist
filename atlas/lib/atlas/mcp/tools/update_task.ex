@@ -40,7 +40,7 @@ defmodule Atlas.MCP.Tools.UpdateTask do
              task,
              Map.take(args, ["title", "description", "assignee_id", "account_id", "due_on", "remind_at"]),
              Tool.current_user(conn),
-             interface: "mcp"
+             interface: Tool.audit_interface(conn)
            ) do
       {:ok, %{task: TaskSerializer.task(updated)}}
     else

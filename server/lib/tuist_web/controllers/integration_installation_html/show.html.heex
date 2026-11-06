@@ -1,0 +1,56 @@
+<div id="integration-installation">
+  <div data-part="frame">
+    <div data-part="content">
+      <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_auth", "Tuist Logo")} />
+      <div data-part="dots">
+        <.dots_light />
+        <.dots_dark />
+      </div>
+      <div data-part="header">
+        <h1 data-part="title">{dgettext("dashboard_auth", "Choose an organization")}</h1>
+        <span data-part="subtitle">
+          {dgettext("dashboard_auth", "Select the Tuist organization to connect to %{provider}.",
+            provider: @provider
+          )}
+        </span>
+      </div>
+      <div data-part="organizations">
+        <form :for={account <- @accounts} method="post" action={~p"/integrations/installation"}>
+          <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+          <input type="hidden" name="account_id" value={account.id} />
+          <button type="submit" data-part="organization">
+            <.avatar id={"installation-account-#{account.id}"} name={account.name} size="medium" />
+            <span data-part="organization-details">
+              <span data-part="organization-name">{account.name}</span>
+              <span data-part="organization-type">
+                {if account.organization_id,
+                  do: dgettext("dashboard_auth", "Organization"),
+                  else: dgettext("dashboard_auth", "Personal account")}
+              </span>
+            </span>
+            <.chevron_right />
+          </button>
+        </form>
+      </div>
+      <span :if={@accounts == []} data-part="empty-state">
+        {dgettext("dashboard_auth", "You need administrator access to connect an integration.")}
+      </span>
+      <form method="post" action={~p"/integrations/installation"} data-part="form">
+        <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+        <input type="hidden" name="_method" value="delete" />
+        <.button
+          variant="secondary"
+          size="large"
+          type="submit"
+          label={dgettext("dashboard_auth", "Cancel")}
+        />
+      </form>
+    </div>
+  </div>
+  <div data-part="background">
+    <div data-part="top-right-gradient"></div>
+    <div data-part="bottom-left-gradient"></div>
+    <div data-part="shell"><.shell /></div>
+  </div>
+  <.terms_and_privacy />
+</div>

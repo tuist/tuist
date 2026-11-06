@@ -37,6 +37,87 @@ import (
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
 
+func TestKuraInstanceReconcileDeletionStopsPodsOnTeardownGrace(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	replicas := int32(2)
+	now := metav1.Now()
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "kura-tuist-eu-1",
+			Namespace:         "kura",
+			Finalizers:        []string{KuraInstanceFinalizer},
+			DeletionTimestamp: &now,
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.3",
+			Replicas:      &replicas,
+			StorageSize:   "20Gi",
+		},
+	}
+	sibling := instance.DeepCopy()
+	sibling.Name = "kura-tuist-eu-2"
+	statefulSet := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	pod := func(owner *kurav1alpha1.KuraInstance, ordinal int) *corev1.Pod {
+		return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%d", owner.Name, ordinal),
+			Namespace: owner.Namespace,
+			Labels:    selectorLabels(owner),
+		}}
+	}
+
+	graces := map[string]int64{}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(instance, statefulSet, pod(instance, 0), pod(instance, 1), pod(sibling, 0)).
+			WithStatusSubresource(instance).
+			WithInterceptorFuncs(interceptor.Funcs{
+				Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+					if _, ok := obj.(*corev1.Pod); ok {
+						options := &client.DeleteOptions{}
+						options.ApplyOptions(opts)
+						if options.GracePeriodSeconds == nil {
+							t.Fatalf("pod %s deleted without a grace period", obj.GetName())
+						}
+						graces[obj.GetName()] = *options.GracePeriodSeconds
+					}
+					return c.Delete(ctx, obj, opts...)
+				},
+			}).
+			Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := reconciler.Get(ctx, client.ObjectKeyFromObject(statefulSet), &appsv1.StatefulSet{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the StatefulSet to be deleted before its pods, got %v", err)
+	}
+	want := map[string]int64{
+		"kura-tuist-eu-1-0": teardownTerminationGraceSeconds,
+		"kura-tuist-eu-1-1": teardownTerminationGraceSeconds,
+	}
+	if !reflect.DeepEqual(graces, want) {
+		t.Fatalf("expected only the deleted instance's pods on the teardown grace, got %v", graces)
+	}
+	if err := reconciler.Get(ctx, client.ObjectKeyFromObject(pod(sibling, 0)), &corev1.Pod{}); err != nil {
+		t.Fatalf("expected the sibling instance's pod to survive, got %v", err)
+	}
+}
+
 func TestKuraInstanceDesiredStateChangedPredicate(t *testing.T) {
 	p := kuraInstanceDesiredStateChangedPredicate()
 	oldInstance := &kurav1alpha1.KuraInstance{ObjectMeta: metav1.ObjectMeta{Generation: 4}}
@@ -2023,6 +2104,15 @@ func TestReconcileDataStorageResize(t *testing.T) {
 			Status: corev1.PodStatus{Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: status}}},
 		}
 	}
+	// backfill reports each pod's initial catch-up on /status/rollout, in
+	// ordinal order.
+	backfill := func(cycles ...string) fakeRuntimeStatusClient {
+		statuses := map[string]runtimeStatus{}
+		for ordinal, cycle := range cycles {
+			statuses[fmt.Sprintf("%s-%d", instanceName, ordinal)] = runtimeStatus{Ready: true, State: "serving", BackfillInitialCycle: cycle}
+		}
+		return fakeRuntimeStatusClient{statuses: statuses}
+	}
 	exists := func(t *testing.T, c client.Client, obj client.Object) bool {
 		t.Helper()
 		err := c.Get(context.Background(), types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, obj)
@@ -2071,7 +2161,7 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
 			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pod(1, true),
 		).Build()
-		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
 
 		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
 		if err != nil {
@@ -2092,7 +2182,7 @@ func TestReconcileDataStorageResize(t *testing.T) {
 	// than joining it in being down.
 	t.Run("waits while a sibling is not serving", func(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
-			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pod(1, false),
+			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "40Gi"), pod(0, true), pod(1, false),
 		).Build()
 		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
 
@@ -2105,6 +2195,144 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		}
 		if !exists(t, c, claim(0, "20Gi")) || !exists(t, c, pod(0, true)) {
 			t.Fatal("expected ordinal 0 to be left alone while its sibling is down")
+		}
+	})
+
+	// A replica that is not serving can be stuck on the volume being replaced: a
+	// pod recreated at the grown ephemeral-storage request is pinned by its old
+	// local PV to a box that cannot fit it. Only rebuilding that volume unpins
+	// it, and it takes nothing out of service, so it goes first.
+	t.Run("rebuilds a replica that is not serving before one that is", func(t *testing.T) {
+		pinned := pod(1, false)
+		pinned.Status.Phase = corev1.PodPending
+		pinned.Status.Conditions = append(pinned.Status.Conditions, corev1.PodCondition{
+			Type:    corev1.PodScheduled,
+			Status:  corev1.ConditionFalse,
+			Reason:  corev1.PodReasonUnschedulable,
+			Message: "0/2 nodes are available: 1 Insufficient ephemeral-storage, 1 node(s) didn't match PersistentVolume's node affinity.",
+		})
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pinned,
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to report in flight")
+		}
+		if exists(t, c, claim(1, "20Gi")) || exists(t, c, pod(1, false)) {
+			t.Fatal("expected the replica that is not serving to be taken for rebuild")
+		}
+		if !exists(t, c, claim(0, "20Gi")) || !exists(t, c, pod(0, true)) {
+			t.Fatal("ordinal 0 must keep serving while ordinal 1 rebuilds")
+		}
+	})
+
+	t.Run("rebuilds the serving replica once the rebuilt one has caught up", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "40Gi"), pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to report in flight")
+		}
+		if exists(t, c, claim(0, "20Gi")) || exists(t, c, pod(0, true)) {
+			t.Fatal("expected ordinal 0 to be taken for rebuild")
+		}
+		if !exists(t, c, claim(1, "40Gi")) || !exists(t, c, pod(1, true)) {
+			t.Fatal("the rebuilt ordinal 1 must be left serving")
+		}
+	})
+
+	// A rebuilt replica turns Ready at a ring-fullness threshold, a fifth of its
+	// new ring by default, long before its pull from the sibling settles.
+	// Rebuilding the sibling then discards the only warm copy, and both replicas
+	// serve from that fifth.
+	t.Run("keeps the last warm replica while the rebuilt one catches up", func(t *testing.T) {
+		for name, statuses := range map[string]fakeRuntimeStatusClient{
+			"pending":    backfill(backfillCycleComplete, "pending"),
+			"degraded":   backfill(backfillCycleComplete, backfillCycleDegraded),
+			"unreadable": {err: fmt.Errorf("status endpoint unreachable")},
+		} {
+			t.Run(name, func(t *testing.T) {
+				c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+					instance("40Gi"), sts("40Gi"), claim(0, "20Gi"), claim(1, "40Gi"), pod(0, true), pod(1, true),
+				).Build()
+				r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: statuses}
+
+				inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !inProgress {
+					t.Fatal("expected the resize to keep requeuing while it waits")
+				}
+				if !exists(t, c, claim(0, "20Gi")) || !exists(t, c, pod(0, true)) {
+					t.Fatal("ordinal 0 must keep serving until the rebuilt ordinal 1 has caught up")
+				}
+			})
+		}
+	})
+
+	// With nothing serving, rebuilding a second volume while the first is still
+	// coming back would discard the copy that could have recovered first.
+	t.Run("rebuilds one replica that is not serving at a time", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), sts("40Gi"), claim(0, "40Gi"), claim(1, "20Gi"), pod(0, false), pod(1, false),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to keep requeuing while it waits")
+		}
+		if !exists(t, c, claim(1, "20Gi")) || !exists(t, c, pod(1, false)) {
+			t.Fatal("expected ordinal 1 to wait for the rebuilt ordinal 0")
+		}
+	})
+
+	// The re-template orphans the pods and claims and the next pass recreates
+	// the StatefulSet. Until it exists again the old claims are still below the
+	// claim, so the resize is in flight rather than finished.
+	t.Run("stays in flight while the re-templated StatefulSet is absent", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance("40Gi"), claim(0, "20Gi"), claim(1, "20Gi"), pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to report in flight")
+		}
+		if !exists(t, c, claim(0, "20Gi")) || !exists(t, c, claim(1, "20Gi")) {
+			t.Fatal("no volume is rebuilt before the StatefulSet exists again")
+		}
+	})
+
+	t.Run("is not in flight for a new instance", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance("40Gi")).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), instance("40Gi"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("a new instance has nothing to resize")
 		}
 	})
 
@@ -2138,6 +2366,226 @@ func TestReconcileDataStorageResize(t *testing.T) {
 		}
 		if inProgress {
 			t.Fatal("expected the resize to be finished")
+		}
+	})
+
+	onClass := func(class string, instance *kurav1alpha1.KuraInstance) *kurav1alpha1.KuraInstance {
+		instance.Spec.StorageClassName = class
+		return instance
+	}
+	stsOnClass := func(class, storage string) *appsv1.StatefulSet {
+		s := sts(storage)
+		s.Spec.VolumeClaimTemplates[0].Spec.StorageClassName = ptr(class)
+		return s
+	}
+	claimOnClass := func(class string, ordinal int, storage string) *corev1.PersistentVolumeClaim {
+		c := claim(ordinal, storage)
+		c.Spec.StorageClassName = ptr(class)
+		return c
+	}
+	encrypted := func() *kurav1alpha1.KuraInstance {
+		return onClass(encryptedLocalStorageClass, instance("40Gi"))
+	}
+
+	t.Run("re-templates for a changed storage class", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			encrypted(), stsOnClass(localPathStorageClass, "40Gi"),
+			claimOnClass(localPathStorageClass, 0, "40Gi"), claimOnClass(localPathStorageClass, 1, "40Gi"),
+			pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), encrypted())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the class move to report in flight")
+		}
+		if exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
+			t.Fatal("expected the StatefulSet to be replaced")
+		}
+		for ordinal := 0; ordinal < 2; ordinal++ {
+			if !exists(t, c, pod(ordinal, true)) || !exists(t, c, claim(ordinal, "40Gi")) {
+				t.Fatalf("ordinal %d must keep serving through the re-template", ordinal)
+			}
+		}
+		reason, err := r.staleDataStorageReason(context.Background(), encrypted())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reason != "" {
+			t.Fatalf("a class move must not read as stale storage, got %q", reason)
+		}
+	})
+
+	t.Run("stays in flight for claims on the old class while the StatefulSet is absent", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			encrypted(),
+			claimOnClass(localPathStorageClass, 0, "40Gi"), claimOnClass(localPathStorageClass, 1, "40Gi"),
+			pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), encrypted())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the class move to stay in flight until the StatefulSet is back")
+		}
+		if !exists(t, c, claim(0, "40Gi")) || !exists(t, c, claim(1, "40Gi")) {
+			t.Fatal("no volume is rebuilt before the StatefulSet exists again")
+		}
+		reason, err := r.staleDataStorageReason(context.Background(), encrypted())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reason != "" {
+			t.Fatalf("an absent StatefulSet during a class move is not stale storage, got %q", reason)
+		}
+	})
+
+	t.Run("moves one replica at a time to the declared class", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			encrypted(), stsOnClass(encryptedLocalStorageClass, "40Gi"),
+			claimOnClass(localPathStorageClass, 0, "40Gi"), claimOnClass(localPathStorageClass, 1, "40Gi"),
+			pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: backfill(backfillCycleComplete, backfillCycleComplete)}
+
+		if _, err := r.reconcileDataStorageResize(context.Background(), encrypted()); err != nil {
+			t.Fatal(err)
+		}
+		if exists(t, c, claim(0, "40Gi")) || exists(t, c, pod(0, true)) {
+			t.Fatal("expected ordinal 0 to be taken for rebuild")
+		}
+		if !exists(t, c, claim(1, "40Gi")) || !exists(t, c, pod(1, true)) {
+			t.Fatal("ordinal 1 must keep serving while ordinal 0 rebuilds")
+		}
+
+		// The StatefulSet brings ordinal 0 back on the declared class; until it
+		// serves, ordinal 1 is the only replica that does and stays untouched.
+		if err := c.Create(context.Background(), claimOnClass(encryptedLocalStorageClass, 0, "40Gi")); err != nil {
+			t.Fatal(err)
+		}
+		if err := c.Create(context.Background(), pod(0, false)); err != nil {
+			t.Fatal(err)
+		}
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), encrypted())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the class move to keep requeuing while ordinal 0 comes back")
+		}
+		moved := &corev1.PersistentVolumeClaim{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: claim(0, "40Gi").Name, Namespace: namespace}, moved); err != nil {
+			t.Fatal(err)
+		}
+		if pvcStorageClassName(moved) != encryptedLocalStorageClass {
+			t.Fatal("the rebuilt ordinal 0 must be left alone")
+		}
+		if !exists(t, c, claim(1, "40Gi")) || !exists(t, c, pod(1, true)) {
+			t.Fatal("ordinal 1 must not be taken while ordinal 0 is not serving")
+		}
+
+		ready := pod(0, true)
+		current := &corev1.Pod{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: ready.Name, Namespace: namespace}, current); err != nil {
+			t.Fatal(err)
+		}
+		current.Status = ready.Status
+		if err := c.Status().Update(context.Background(), current); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := r.reconcileDataStorageResize(context.Background(), encrypted()); err != nil {
+			t.Fatal(err)
+		}
+		if exists(t, c, claim(1, "40Gi")) || exists(t, c, pod(1, true)) {
+			t.Fatal("expected ordinal 1 to be taken once ordinal 0 serves")
+		}
+		if !exists(t, c, claim(0, "40Gi")) || !exists(t, c, pod(0, true)) {
+			t.Fatal("ordinal 0 must keep serving while ordinal 1 rebuilds")
+		}
+	})
+
+	t.Run("does nothing once every volume is on the declared class", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			encrypted(), stsOnClass(encryptedLocalStorageClass, "40Gi"),
+			claimOnClass(encryptedLocalStorageClass, 0, "40Gi"), claimOnClass(encryptedLocalStorageClass, 1, "40Gi"),
+			pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), encrypted())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("expected the class move to be finished")
+		}
+	})
+
+	// Re-templating under a claim that is still terminating would leave it
+	// terminating with no StatefulSet, which the stale path reads as its own
+	// teardown.
+	t.Run("waits for a terminating claim before re-templating", func(t *testing.T) {
+		terminating := claimOnClass(localPathStorageClass, 0, "40Gi")
+		terminating.DeletionTimestamp = ptr(metav1.NewTime(time.Now().Add(-time.Minute)))
+		terminating.Finalizers = []string{"kubernetes.io/pvc-protection"}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			encrypted(), stsOnClass(localPathStorageClass, "40Gi"),
+			terminating, claimOnClass(localPathStorageClass, 1, "40Gi"), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), encrypted())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected the resize to keep requeuing while a claim terminates")
+		}
+		if !exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
+			t.Fatal("the StatefulSet must not be replaced while a claim terminates")
+		}
+	})
+
+	t.Run("leaves a fenced instance's class change to the stale path", func(t *testing.T) {
+		fenced := func() *kurav1alpha1.KuraInstance {
+			instance := encrypted()
+			instance.Spec.ServingMode = servingMode
+			return instance
+		}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			fenced(), stsOnClass(localPathStorageClass, "40Gi"),
+			claimOnClass(localPathStorageClass, 0, "40Gi"), claimOnClass(localPathStorageClass, 1, "40Gi"),
+			pod(0, true), pod(1, true),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+		inProgress, err := r.reconcileDataStorageResize(context.Background(), fenced())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("a fenced instance's storage is not replaced by the resize path")
+		}
+		held, err := r.reconcileStaleDataStorage(context.Background(), fenced())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !held {
+			t.Fatal("expected the stale path to hold a fenced class change")
+		}
+		if !exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
+			t.Fatal("expected StatefulSet retained")
+		}
+		for ordinal := 0; ordinal < 2; ordinal++ {
+			if !exists(t, c, claim(ordinal, "40Gi")) || !exists(t, c, pod(ordinal, true)) {
+				t.Fatalf("ordinal %d must be retained for explicit recovery", ordinal)
+			}
 		}
 	})
 }
@@ -2325,7 +2773,7 @@ func legacyPeerServiceForTest(instance *kurav1alpha1.KuraInstance, host string) 
 	}}
 }
 
-func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
+func TestKuraInstanceReconcileStaleStoragePreservesOldVolume(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -2343,6 +2791,7 @@ func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 			Finalizers: []string{KuraInstanceFinalizer},
 		},
 		Spec: kurav1alpha1.KuraInstanceSpec{
+			ServingMode:      servingMode,
 			AccountHandle:    "tuist",
 			TenantID:         "tuist",
 			Region:           "eu",
@@ -2390,13 +2839,13 @@ func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: pv.Name}, updatedPV); err != nil {
 		t.Fatal(err)
 	}
-	if got := updatedPV.Spec.PersistentVolumeReclaimPolicy; got != corev1.PersistentVolumeReclaimDelete {
-		t.Fatalf("expected stale data PV to be reclaimed with Delete before recreation, got %q", got)
+	if got := updatedPV.Spec.PersistentVolumeReclaimPolicy; got != corev1.PersistentVolumeReclaimRetain {
+		t.Fatalf("expected stale data PV retained, got %q", got)
 	}
 	leftover := &corev1.PersistentVolumeClaim{}
 	err := reconciler.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, leftover)
-	if !apierrors.IsNotFound(err) {
-		t.Fatalf("expected stale data PVC to be deleted, got err=%v", err)
+	if err != nil {
+		t.Fatalf("expected stale data PVC to survive, got err=%v", err)
 	}
 }
 
@@ -3473,7 +3922,9 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 		return false
 	}
 
-	t.Run("recreates on storage class drift", func(t *testing.T) {
+	// A class change is the rolling path's to make, one replica at a time
+	// behind the standby; recreating here would take the cache offline at once.
+	t.Run("leaves storage class drift to the rolling path", func(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(scheme).
 			WithObjects(newInstance(), newSTS(), boundPVC("scw-bssd", "pv-old")).Build()
 		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
@@ -3481,11 +3932,38 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !inProgress {
-			t.Fatal("expected recreate in progress for storage-class drift")
+		if inProgress {
+			t.Fatal("storage-class drift must not recreate the StatefulSet")
 		}
-		if exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
-			t.Fatal("expected StatefulSet deleted")
+		if !exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
+			t.Fatal("expected StatefulSet retained")
+		}
+		if !exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
+			t.Fatal("expected data PVC retained")
+		}
+	})
+
+	t.Run("recreates on a node-orphaned encrypted volume", func(t *testing.T) {
+		pv := &corev1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{Name: "pv-1"},
+			Spec: corev1.PersistentVolumeSpec{NodeAffinity: &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key: encryptedLocalTopologyKey, Operator: corev1.NodeSelectorOpIn, Values: []string{"dead-node"},
+				}}}},
+			}}},
+		}
+		instance := newInstance()
+		instance.Spec.StorageClassName = encryptedLocalStorageClass
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			instance, newSTS(), boundPVC(encryptedLocalStorageClass, "pv-1"), pv,
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		inProgress, err := r.reconcileStaleDataStorage(context.Background(), instance)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected recreate in progress for an encrypted volume pinned to a missing node")
 		}
 		if exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
 			t.Fatal("expected data PVC deleted")
@@ -3586,13 +4064,13 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 	})
 
 	t.Run("reads a substantive reason through termination", func(t *testing.T) {
-		// Gating on the StatefulSet is only for the ambiguous signal. A wrong
-		// storage class is readable until the object is gone, so it keeps
-		// returning a reason without needing the gate.
-		terminating := boundPVC("scw-bssd", "pv-old")
+		// Gating on the StatefulSet is only for the ambiguous signal. A volume
+		// pinned to a missing node is readable until the object is gone, so it
+		// keeps returning a reason without needing the gate.
+		terminating := boundPVC("scw-local-nvme", "pv-1")
 		terminating.DeletionTimestamp = ptr(metav1.NewTime(time.Now().Add(-time.Minute)))
 		terminating.Finalizers = []string{"kubernetes.io/pvc-protection"}
-		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(newInstance(), newSTS(), terminating).Build()
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(newInstance(), newSTS(), terminating, pvPinnedTo("pv-1", "dead-node")).Build()
 		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
 
 		reason, err := r.staleDataStorageReason(context.Background(), newInstance())
@@ -3600,7 +4078,7 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 			t.Fatal(err)
 		}
 		if reason == "" {
-			t.Fatal("storage-class drift stays a reason while the PVC terminates")
+			t.Fatal("a missing pinned node stays a reason while the PVC terminates")
 		}
 	})
 
@@ -3612,7 +4090,7 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 		// a claim that can never finish terminating.
 		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: instanceName + "-0", Namespace: namespace}}
 		c := fake.NewClientBuilder().WithScheme(scheme).
-			WithObjects(newInstance(), newSTS(), boundPVC("scw-bssd", "pv-old"), pod).Build()
+			WithObjects(newInstance(), newSTS(), boundPVC("scw-local-nvme", "pv-1"), pvPinnedTo("pv-1", "dead-node"), pod).Build()
 		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
 
 		inProgress, err := r.reconcileStaleDataStorage(context.Background(), newInstance())
@@ -3620,7 +4098,7 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !inProgress {
-			t.Fatal("expected recreate in progress for storage-class drift")
+			t.Fatal("expected recreate in progress for a volume pinned to a missing node")
 		}
 		if exists(t, c, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: instanceName + "-0", Namespace: namespace}}) {
 			t.Fatal("expected the pod holding the stale PVC to be deleted")
@@ -3643,6 +4121,106 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 			t.Fatalf("a pending PVC on the desired storage class is not stale, got reason %q", reason)
 		}
 	})
+}
+
+func TestReconcileFencedStaleDataStorage(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	const (
+		instanceName = "kura-acme-scw-fr-par"
+		namespace    = "kura"
+	)
+	pvcName := "data-" + instanceName + "-0"
+
+	newInstance := func() *kurav1alpha1.KuraInstance {
+		return &kurav1alpha1.KuraInstance{
+			ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
+			Spec: kurav1alpha1.KuraInstanceSpec{
+				ServingMode:      servingMode,
+				Replicas:         ptr(int32(1)),
+				StorageClassName: "scw-local-nvme",
+			},
+		}
+	}
+	newSTS := func() *appsv1.StatefulSet {
+		return &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}
+	}
+	boundPVC := func(storageClass, volumeName string) *corev1.PersistentVolumeClaim {
+		sc := storageClass
+		return &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace},
+			Spec:       corev1.PersistentVolumeClaimSpec{StorageClassName: &sc, VolumeName: volumeName},
+			Status:     corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
+		}
+	}
+	pvPinnedTo := func(name, hostname string) *corev1.PersistentVolume {
+		return &corev1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec: corev1.PersistentVolumeSpec{NodeAffinity: &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key: corev1.LabelHostname, Operator: corev1.NodeSelectorOpIn, Values: []string{hostname},
+				}}}},
+			}}},
+		}
+	}
+
+	exists := func(t *testing.T, c interface {
+		Get(context.Context, types.NamespacedName, client.Object, ...client.GetOption) error
+	}, obj client.Object) bool {
+		t.Helper()
+		err := c.Get(context.Background(), types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, obj)
+		if err == nil {
+			return true
+		}
+		if apierrors.IsNotFound(err) {
+			return false
+		}
+		t.Fatalf("unexpected get error: %v", err)
+		return false
+	}
+
+	t.Run("holds on storage class drift", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(newInstance(), newSTS(), boundPVC("scw-bssd", "pv-old")).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		inProgress, err := r.reconcileStaleDataStorage(context.Background(), newInstance())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected recreate in progress for storage-class drift")
+		}
+		if !exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
+			t.Fatal("expected StatefulSet retained")
+		}
+		if !exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
+			t.Fatal("expected data PVC retained")
+		}
+	})
+
+	t.Run("holds on node-orphaned volume", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			newInstance(), newSTS(), boundPVC("scw-local-nvme", "pv-1"), pvPinnedTo("pv-1", "dead-node"),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		inProgress, err := r.reconcileStaleDataStorage(context.Background(), newInstance())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected recreate in progress for a volume pinned to a missing node")
+		}
+		if !exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
+			t.Fatal("expected data PVC retained")
+		}
+	})
+
 }
 
 func TestRuntimeStatusDecodesTheBackfillWireContract(t *testing.T) {
@@ -4007,7 +4585,7 @@ func TestKuraInstanceReconcilePinsPublicPeerServiceToGatewayPod(t *testing.T) {
 // and cordoned, so the replacement cannot land back on it.
 func evacuationNode(name string, retiring bool) *corev1.Node {
 	node := &corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{Name: name},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: defaultNodeSelector()},
 		Spec:       corev1.NodeSpec{Unschedulable: retiring},
 		Status: corev1.NodeStatus{
 			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
@@ -4159,7 +4737,7 @@ func TestKuraInstanceReconcileMovesThePeerPinThroughADataVolumeResize(t *testing
 			}},
 		},
 	}
-	serving := runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2}
+	serving := runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, BackfillInitialCycle: backfillCycleComplete}
 
 	reconciler := &KuraInstanceReconciler{
 		Client: fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(
@@ -4206,6 +4784,112 @@ func TestKuraInstanceReconcileMovesThePeerPinThroughADataVolumeResize(t *testing
 	assertServiceRoutesTo(t, reconciler, instance.Name, instance.Namespace, instance.Name+"-1")
 	assertServiceRoutesTo(t, reconciler, peerService, instance.Namespace, instance.Name+"-1")
 	assertPeerRoles(t, reconciler, instance, instance.Name+"-1", instance.Name+"-1")
+}
+
+// Moving an instance to the encrypted class goes through the same rolling path
+// as a grown claim: the StatefulSet is re-templated with its pods and claims
+// orphaned, recreated on the resize's hold, and then one volume is replaced at
+// a time. The whole StatefulSet and both claims are never dropped at once.
+func TestKuraInstanceReconcileMovesStorageClassOneReplicaAtATime(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	replicas := int32(2)
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	instance.Spec.Replicas = &replicas
+	instance.Spec.StorageSize = "200Gi"
+	instance.Spec.StorageClassName = encryptedLocalStorageClass
+
+	claim := func(ordinal int) *corev1.PersistentVolumeClaim {
+		return &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("data-%s-%d", instance.Name, ordinal),
+				Namespace: instance.Namespace,
+				Labels:    selectorLabels(instance),
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: ptr(localPathStorageClass),
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("200Gi")},
+				},
+			},
+		}
+	}
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace},
+		Spec: appsv1.StatefulSetSpec{
+			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{{
+				ObjectMeta: metav1.ObjectMeta{Name: "data"},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					StorageClassName: ptr(localPathStorageClass),
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("200Gi")},
+					},
+				},
+			}},
+		},
+	}
+	serving := runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, BackfillInitialCycle: backfillCycleComplete}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(
+			instance, sts, claim(0), claim(1),
+			kuraPod(instance.Name, instance.Namespace, 0, true),
+			kuraPod(instance.Name, instance.Namespace, 1, true),
+		).Build(),
+		Scheme: scheme,
+		RuntimeStatusClient: fakeRuntimeStatusClient{statuses: map[string]runtimeStatus{
+			instance.Name + "-0": serving,
+			instance.Name + "-1": serving,
+		}},
+	}
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+	present := func(obj client.Object) bool {
+		t.Helper()
+		err := reconciler.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+		if err != nil && !apierrors.IsNotFound(err) {
+			t.Fatal(err)
+		}
+		return err == nil
+	}
+	pod := func(ordinal int) *corev1.Pod {
+		return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("%s-%d", instance.Name, ordinal), Namespace: instance.Namespace}}
+	}
+
+	// Pass 1: the StatefulSet is replaced with an Orphan delete, which the fake
+	// client completes at once, so the same pass recreates it on the declared
+	// class and on the resize's hold. Both replicas keep their volumes.
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	recreated := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	if !present(recreated) {
+		t.Fatal("expected the StatefulSet to be recreated")
+	}
+	if class, _ := templateStorageClass(recreated); class != encryptedLocalStorageClass {
+		t.Fatalf("expected the recreated template on %q, got %q", encryptedLocalStorageClass, class)
+	}
+	if recreated.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType || recreated.Annotations[resizeRolloutHoldAnnotation] != "true" {
+		t.Fatal("expected the recreated StatefulSet on the resize's hold")
+	}
+	for ordinal := 0; ordinal < 2; ordinal++ {
+		if !present(claim(ordinal)) || !present(pod(ordinal)) {
+			t.Fatalf("ordinal %d must keep serving until its own rebuild", ordinal)
+		}
+	}
+
+	// Pass 2: exactly one replica is rebuilt.
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if present(claim(0)) || present(pod(0)) {
+		t.Fatal("expected ordinal 0 to be taken for rebuild")
+	}
+	if !present(claim(1)) || !present(pod(1)) {
+		t.Fatal("ordinal 1 must keep serving while ordinal 0 rebuilds")
+	}
+	if !present(&appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}) {
+		t.Fatal("the StatefulSet must survive a rolling class move")
+	}
 }
 
 func assertPeerRoles(t *testing.T, r *KuraInstanceReconciler, instance *kurav1alpha1.KuraInstance, primary, gateway string) {

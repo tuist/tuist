@@ -33,6 +33,16 @@ defmodule Tuist.Kura.ReconcilerTest do
     :ok
   end
 
+  test "boot reconciliation reuses the existing incomplete job" do
+    first = Kura.enqueue_reconcile_orphaned_deployments()
+    second = Kura.enqueue_reconcile_orphaned_deployments()
+
+    assert first.id == second.id
+    assert second.conflict?
+    assert first.worker == "Tuist.Kura.Reconciler"
+    assert first.queue == "default"
+  end
+
   test "routes version scheduling through the rollout orchestration by default" do
     expect(Tuist.Kura.Rollouts, :sync, fn -> :ok end)
     stub(Tuist.FeatureFlags, :kura_rollout_orchestration_enabled?, fn -> true end)
@@ -1099,6 +1109,41 @@ defmodule Tuist.Kura.ReconcilerTest do
       assert :ok = Reconciler.reconcile()
 
       assert Repo.get!(Server, server.id).peer_roles == [%{"url" => "https://kura-eu-0.peer:7443", "gateway" => true}]
+    end
+
+    test "refreshes the roles of a server whose rollout is still open" do
+      server = mesh_server(peer_roles: [%{"url" => "https://kura-eu-1.peer:7443", "gateway" => true}])
+      {:ok, deployment} = Kura.create_deployment(server, "sha-newimage123")
+      {:ok, _deployment} = Kura.mark_running(deployment)
+
+      expect(Provisioner, :peer_roles, fn %Server{id: id} ->
+        assert id == server.id
+
+        {:ok,
+         [%{url: "https://kura-eu-0.peer:7443", gateway: true}, %{url: "https://kura-eu-1.peer:7443", gateway: false}]}
+      end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert Repo.get!(Server, server.id).peer_roles == [
+               %{"url" => "https://kura-eu-0.peer:7443", "gateway" => true},
+               %{"url" => "https://kura-eu-1.peer:7443", "gateway" => false}
+             ]
+    end
+
+    test "does not read roles for a server that is still provisioning" do
+      {_account, server, _deployment} = create_server()
+
+      server
+      |> Ecto.Changeset.change(region: "eu-west")
+      |> Repo.update!()
+
+      stub(Provisioner, :current_image_tag, fn _ -> {:ok, nil} end)
+      stub(Provisioner, :rollout, fn _, _ -> :ok end)
+
+      reject(&Provisioner.peer_roles/1)
+
+      assert :ok = Reconciler.reconcile()
     end
 
     test "does not read roles for a region with no peer mesh" do

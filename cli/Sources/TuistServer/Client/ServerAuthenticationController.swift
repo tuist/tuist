@@ -92,6 +92,31 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
     }
 }
 
+private actor CredentialRefreshLock {
+    private var waiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+
+    func withLock<Value>(key: String, action: () async throws -> Value) async throws -> Value {
+        if waiters[key] != nil {
+            await withCheckedContinuation { continuation in
+                waiters[key, default: []].append(continuation)
+                #if canImport(TuistSupport)
+                    Logger.current.debug("Waiting for credential refresh lock \(key)")
+                #endif
+            }
+        } else {
+            waiters[key] = []
+        }
+        defer {
+            if waiters[key]?.isEmpty == false {
+                waiters[key]?.removeFirst().resume()
+            } else {
+                waiters[key] = nil
+            }
+        }
+        return try await action()
+    }
+}
+
 #if canImport(TuistSupport)
     /// Actor responsible for serializing file system lock operations to prevent race conditions
     private actor FileSystemLockActor {
@@ -200,6 +225,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private let refreshOAuthTokenService: RefreshOAuthTokenServicing
     private let fileSystem: FileSysteming
     private let cachedValueStore: CachedValueStoring
+    private static let credentialRefreshLock = CredentialRefreshLock()
     #if canImport(TuistSupport)
         /// Shared actor instance across all ServerAuthenticationController instances
         private static let fileSystemLockActor: FileSystemLockActor = .init(
@@ -302,7 +328,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         }
     }
 
-    private func deletingCredentialsOnUnauthorizedError<T>(
+    private func preservingCredentialsOnUnauthorizedError<T>(
         serverURL: URL, action: () async throws -> T
     ) async throws -> T {
         // Snapshot the refresh token before the action so we can detect a peer
@@ -330,10 +356,15 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                         )
                     #endif
                 } else {
-                    #if canImport(TuistSupport)
-                        Logger.current.debug("Deleting the credentials for \(serverURL)")
-                    #endif
-                    try? await ServerCredentialsStore.current.delete(serverURL: serverURL)
+                    if let credentials = try await ServerCredentialsStore.current.read(serverURL: serverURL),
+                       credentials.refreshToken == refreshTokenBeforeAction
+                    {
+                        try await ServerCredentialsStore.current.store(credentials: ServerCredentials(
+                            accessToken: credentials.accessToken, refreshToken: credentials.refreshToken,
+                            oauthClientID: credentials.oauthClientID, rejected: true
+                        ), serverURL: serverURL)
+                    }
+                    Logger.current.debug("Marked rejected credentials for \(serverURL); sign in again or sign out explicitly")
                 }
             }
             throw error
@@ -413,10 +444,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                         let token = try await fileSystemLocked(
                             serverURL: serverURL,
                             action: { deleteLockfile in
-                                _ = try await executeRefresh(
-                                    serverURL: serverURL, forceRefresh: forceRefresh
-                                )
-                                try await deleteLockfile()
+                                do {
+                                    _ = try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)
+                                    try await deleteLockfile()
+                                } catch {
+                                    try await deleteLockfile()
+                                    throw error
+                                }
                             }, fetchActionResult: fetchActionResult
                         )
                         switch token {
@@ -604,7 +638,26 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     func executeRefresh(serverURL: URL, forceRefresh: Bool) async throws -> (
         value: AuthenticationToken, expiresAt: Date?
     )? {
-        return try await deletingCredentialsOnUnauthorizedError(serverURL: serverURL) {
+        let credentialKey = try (ServerCredentialsStore.current as? ServerCredentialsStore)?
+            .storageKey(serverURL: serverURL) ?? serverURL.absoluteString
+
+        // Background helpers and forced refreshes use different outer locks, but must
+        // serialize rotation and credential cleanup against the same credential store.
+        // Serialize before entering the cache so a forced refresh cannot inherit an
+        // ordinary caller's in-flight result. The cache supplies cross-process locking.
+        let key = "credential-refresh-\(stableHash(credentialKey))"
+        return try await Self.credentialRefreshLock.withLock(key: key) {
+            try await cachedValueStore.getValue(key: key) {
+                let result = try await refreshCredentials(serverURL: serverURL, forceRefresh: forceRefresh)
+                return result.map { (value: $0, expiresAt: Date.distantPast) }
+            }
+        }
+    }
+
+    private func refreshCredentials(serverURL: URL, forceRefresh: Bool) async throws -> (
+        value: AuthenticationToken, expiresAt: Date?
+    )? {
+        return try await preservingCredentialsOnUnauthorizedError(serverURL: serverURL) {
             guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
                 return nil
             }
@@ -698,6 +751,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             serverURL: serverURL
         )
         return try credentials.map {
+            guard $0.rejected != true else { throw ServerReportPublishingError.invalidCredentials }
             let accessToken = try JWT.parse($0.accessToken)
             if accessToken.type == "account" {
                 // Account tokens issued by the OAuth authorization server, such as the ones the Tuist app
@@ -707,9 +761,12 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 else { return .account(accessToken) }
                 return .user(accessToken: accessToken, refreshToken: refreshToken)
             } else {
+                guard let refreshToken = $0.refreshToken else {
+                    throw ServerReportPublishingError.invalidCredentials
+                }
                 return .user(
                     accessToken: accessToken,
-                    refreshToken: try JWT.parse($0.refreshToken!)
+                    refreshToken: try JWT.parse(refreshToken)
                 )
             }
         }
@@ -770,6 +827,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         refreshToken: JWT
     ) async throws -> ServerAuthenticationTokens {
         do {
+            let credentials = try await ServerCredentialsStore.current.read(serverURL: serverURL)
             let newTokens = if refreshToken.type == "account" {
                 try await refreshOAuthTokenService.refreshTokens(
                     serverURL: serverURL,
@@ -781,11 +839,27 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     refreshToken: refreshToken.token
                 )
             }
+            // The server answers a refresh token spent within the last minute with the pair that first
+            // exchange minted, which a peer process may have rotated since. Storing it would replace the
+            // peer's live pair with a revoked one, so the stored pair wins once it no longer holds the
+            // refresh token this exchange spent.
+            if let storedCredentials = try await ServerCredentialsStore.current.read(serverURL: serverURL),
+               let storedRefreshToken = storedCredentials.refreshToken,
+               storedRefreshToken != refreshToken.token,
+               storedCredentials.rejected != true
+            {
+                Logger.current.debug("Refresh token for \(serverURL) was rotated by another process; keeping its credentials")
+                return ServerAuthenticationTokens(
+                    accessToken: storedCredentials.accessToken,
+                    refreshToken: storedRefreshToken
+                )
+            }
             try await ServerCredentialsStore.current
                 .store(
                     credentials: ServerCredentials(
                         accessToken: newTokens.accessToken,
-                        refreshToken: newTokens.refreshToken
+                        refreshToken: newTokens.refreshToken,
+                        oauthClientID: credentials?.oauthClientID
                     ),
                     serverURL: serverURL
                 )

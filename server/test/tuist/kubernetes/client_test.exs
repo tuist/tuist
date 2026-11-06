@@ -272,6 +272,22 @@ defmodule Tuist.Kubernetes.ClientTest do
                )
     end
 
+    test "patch bounds stable-intent writes and disables transport retries" do
+      expect(Req, :request, fn opts ->
+        assert opts[:method] == :patch
+        assert opts[:receive_timeout] == 3_000
+        assert opts[:retry] == false
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      assert {:ok, %{}} =
+               Client.patch("/apis/example.test/v1/widgets/one", [],
+                 mode: :kubeconfig,
+                 kubeconfig: kubeconfig(%{token: "region-token"}),
+                 timeout: 3_000
+               )
+    end
+
     @tag :tmp_dir
     test "get leaves Req's defaults alone when no timeout is given", %{tmp_dir: tmp_dir} do
       token_path = Path.join(tmp_dir, "token")
@@ -338,6 +354,98 @@ defmodule Tuist.Kubernetes.ClientTest do
       end)
 
       assert {:error, _} = Client.delete_runner("tuist-runners", "runner-x", opts)
+    end
+  end
+
+  describe "create_sandbox_node_token_review/2" do
+    @tag :tmp_dir
+    test "returns the node the token's pod is bound to", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      expect(Req, :request, fn request_opts ->
+        assert JSON.decode!(request_opts[:body])["spec"]["audiences"] == ["tuist-sandboxes"]
+
+        {:ok,
+         %Req.Response{
+           status: 201,
+           body: %{
+             "status" => %{
+               "authenticated" => true,
+               "audiences" => ["tuist-sandboxes"],
+               "user" => %{
+                 "username" => "system:serviceaccount:tuist-sandboxes:tuist-tuist-sandboxd",
+                 "uid" => "uid-2",
+                 "extra" => %{
+                   "authentication.kubernetes.io/node-name" => ["node-a"],
+                   "authentication.kubernetes.io/node-uid" => ["node-uid"],
+                   "authentication.kubernetes.io/pod-name" => ["control"],
+                   "authentication.kubernetes.io/pod-uid" => ["pod-uid"]
+                 }
+               }
+             }
+           }
+         }}
+      end)
+
+      assert {:ok,
+              %{
+                namespace: "tuist-sandboxes",
+                name: "tuist-tuist-sandboxd",
+                node_name: "node-a",
+                node_uid: "node-uid",
+                pod_name: "control",
+                pod_uid: "pod-uid"
+              }} =
+               Client.create_sandbox_node_token_review("node-token", opts)
+    end
+  end
+
+  describe "resize_sandbox_daemon_memory/4" do
+    @tag :tmp_dir
+    test "patches the daemon container's memory request and limit through the resize subresource", %{
+      tmp_dir: tmp_dir
+    } do
+      opts = in_cluster_opts(tmp_dir)
+
+      expect(Req, :request, fn request_opts ->
+        assert request_opts[:method] == :get
+
+        assert request_opts[:url] ==
+                 "https://kubernetes.default.svc:443/api/v1/namespaces/tuist-sandboxes/pods/sandboxd-abc"
+
+        assert request_opts[:retry] == false
+        {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"resourceVersion" => "42", "uid" => "pod-uid"}}}}
+      end)
+
+      expect(Req, :request, fn request_opts ->
+        assert request_opts[:method] == :patch
+        assert request_opts[:retry] == false
+
+        assert request_opts[:url] ==
+                 "https://kubernetes.default.svc:443/api/v1/namespaces/tuist-sandboxes/pods/sandboxd-abc/resize"
+
+        assert {"content-type", "application/strategic-merge-patch+json"} in request_opts[:headers]
+
+        assert JSON.decode!(request_opts[:body]) == %{
+                 "metadata" => %{"resourceVersion" => "42", "uid" => "pod-uid"},
+                 "spec" => %{
+                   "containers" => [
+                     %{
+                       "name" => "sandboxd",
+                       "resources" => %{
+                         "requests" => %{"memory" => "12884901888"},
+                         "limits" => %{"memory" => "12884901888"}
+                       }
+                     }
+                   ]
+                 }
+               }
+
+        {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"name" => "sandboxd-abc"}}}}
+      end)
+
+      assert {:ok, %{"metadata" => %{"name" => "sandboxd-abc"}}} =
+               Client.resize_sandbox_daemon_memory("tuist-sandboxes", "sandboxd-abc", 12_884_901_888, opts)
     end
   end
 
@@ -410,6 +518,105 @@ defmodule Tuist.Kubernetes.ClientTest do
       end)
 
       assert {:error, :unauthenticated} = Client.create_token_review("expired-token", opts)
+    end
+  end
+
+  describe "create_bound_token_review/3" do
+    @tag :tmp_dir
+    test "returns the user with its extra fields when the token claims the audience", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      expect(Req, :request, fn request_opts ->
+        assert request_opts[:method] == :post
+
+        assert request_opts[:url] ==
+                 "https://kubernetes.default.svc:443/apis/authentication.k8s.io/v1/tokenreviews"
+
+        body = JSON.decode!(request_opts[:body])
+        assert body["spec"] == %{"token" => "node-token", "audiences" => ["kura-volume-keys.tuist.dev"]}
+
+        {:ok,
+         %Req.Response{
+           status: 201,
+           body: %{
+             "status" => %{
+               "authenticated" => true,
+               "audiences" => ["kura-volume-keys.tuist.dev"],
+               "user" => %{
+                 "username" => "system:serviceaccount:kura-volumes:kura-volumes-csi-node",
+                 "uid" => "uid-1",
+                 "extra" => %{"authentication.kubernetes.io/node-name" => ["node-a"]}
+               }
+             }
+           }
+         }}
+      end)
+
+      assert Client.create_bound_token_review("node-token", "kura-volume-keys.tuist.dev", opts) ==
+               {:ok,
+                %{
+                  username: "system:serviceaccount:kura-volumes:kura-volumes-csi-node",
+                  uid: "uid-1",
+                  extra: %{"authentication.kubernetes.io/node-name" => ["node-a"]}
+                }}
+    end
+
+    @tag :tmp_dir
+    test "is unauthenticated when the token is rejected or validated for another audience", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      for status <- [
+            %{"authenticated" => false},
+            %{"error" => "service account token has expired"},
+            %{"authenticated" => true, "audiences" => ["other"], "user" => %{"username" => "system:node:a"}}
+          ] do
+        expect(Req, :request, fn _opts -> {:ok, %Req.Response{status: 201, body: %{"status" => status}}} end)
+
+        assert Client.create_bound_token_review("node-token", "kura-volume-keys.tuist.dev", opts) ==
+                 {:error, :unauthenticated}
+      end
+    end
+  end
+
+  describe "Amp provider workload identity" do
+    @tag :tmp_dir
+    test "requires explicit confirmation of the dedicated audience", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      for audiences <- [nil, ["tuist-sandboxes"], ["tuist-amp-orbs"]] do
+        expect(Req, :request, fn request ->
+          assert JSON.decode!(request[:body])["spec"]["audiences"] == ["tuist-amp-orbs"]
+
+          status = %{
+            "authenticated" => true,
+            "user" => %{"username" => "system:serviceaccount:amp:provider", "uid" => "sa-uid"}
+          }
+
+          status = if audiences, do: Map.put(status, "audiences", audiences), else: status
+          {:ok, %Req.Response{status: 200, body: %{"status" => status}}}
+        end)
+
+        if audiences == ["tuist-amp-orbs"] do
+          assert {:ok, %{name: "provider", namespace: "amp"}} = Client.create_amp_provider_token_review("projected", opts)
+        else
+          assert {:error, :unauthenticated} = Client.create_amp_provider_token_review("projected", opts)
+        end
+      end
+    end
+  end
+
+  describe "get_persistent_volume/2" do
+    @tag :tmp_dir
+    test "reads the cluster-scoped volume", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      expect(Req, :request, fn request_opts ->
+        assert request_opts[:method] == :get
+        assert request_opts[:url] == "https://kubernetes.default.svc:443/api/v1/persistentvolumes/pvc-a"
+        {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"name" => "pvc-a"}}}}
+      end)
+
+      assert Client.get_persistent_volume("pvc-a", opts) == {:ok, %{"metadata" => %{"name" => "pvc-a"}}}
     end
   end
 

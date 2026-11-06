@@ -5,6 +5,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Bazel
+  alias Tuist.Bazel.Profile
   alias Tuist.IngestRepo
   alias Tuist.ReapiCache
   alias Tuist.ReapiCache.CacheEvent
@@ -42,6 +43,71 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     %{conn: conn, organization: organization, project: project}
   end
 
+  @tag :build_environment
+  test "Bazel version belongs to the environment without attributing Kura host observations", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    attributes =
+      invocation_attributes(
+        project,
+        "environment-build",
+        "build",
+        NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+      )
+
+    Bazel.create_invocations([Map.put(attributes, :custom_values, %{"team" => "mobile"})])
+    path = "/#{organization.account.name}/#{project.name}/builds/invocations/environment-build"
+    {:ok, view, _} = live(conn, path)
+
+    assert has_element?(view, "#build-environment-content[hidden]", "Bazel version")
+    assert has_element?(view, "#build-environment-content", "8.1.0")
+    refute has_element?(view, "[data-part=build-details]", "Bazel version")
+    assert has_element?(view, "[data-part=build-details]", "Targets")
+    assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
+    refute has_element?(view, "[data-part=build-details] #build-environment")
+  end
+
+  test "the build Status filter scopes the summary and analytics", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    finished_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+    Bazel.create_invocations([
+      invocation_attributes(project, "passed-build", "build", finished_at),
+      project
+      |> invocation_attributes("failed-build", "build", finished_at)
+      |> Map.merge(%{status: "failure", exit_code: 1, duration_ms: 45_000})
+    ])
+
+    opts = [commands: ["build"]]
+    assert Bazel.summary(project.id, Keyword.put(opts, :status, "success")).average_duration_ms == 15_000.0
+    assert Bazel.summary(project.id, Keyword.put(opts, :status, "failure")).average_duration_ms == 45_000.0
+    assert Bazel.summary(project.id, opts).total == 2
+    assert Bazel.invocation_analytics(project.id, Keyword.put(opts, :status, "failure")).total == 1
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds?analytics-build-status=failure")
+    render_async(view, @render_async_timeout)
+    assert has_element?(view, "#bazel-builds-status-dropdown")
+  end
+
+  test "build and invocation pages only load the trend-aware summary", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    reject(&Bazel.summary/1)
+
+    for resource <- ["builds", "builds/build-runs"] do
+      {:ok, live_view, _html} = live(conn, "/#{organization.account.name}/#{project.name}/#{resource}")
+      render_async(live_view, @render_async_timeout)
+      assert render(live_view) =~ "bazel-invocations"
+    end
+  end
+
   test "empty invocations hide Timeline and direct links open Overview until a profile is published", %{
     conn: conn,
     project: project,
@@ -75,7 +141,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     refute has_element?(lv, "[data-part=tabs] a", "Timeline")
 
     assert :ok =
-             Bazel.Profile.ingest(
+             Profile.ingest(
                project,
                "no-timeline",
                :zlib.gzip(
@@ -121,7 +187,7 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     ])
 
     assert :ok =
-             Bazel.Profile.ingest(
+             Profile.ingest(
                project,
                "timeline",
                :zlib.gzip(
@@ -573,6 +639,54 @@ defmodule TuistWeb.BazelInvocationsLiveTest do
     |> render_change(%{"search" => "no-match"})
 
     assert has_element?(live_view, "#bazel-invocation-cache-events-table", "No matching cache requests")
+  end
+
+  test "cache actions prefer profile descriptions while retaining legacy mnemonic search", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    finished_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+    Bazel.create_invocations([invocation_attributes(project, "NAMED-CACHE", "build", finished_at)])
+    event = project |> cache_event_attributes("NAMED-CACHE") |> Map.put(:output_path, "bazel-out/bin/App/main.o")
+    ReapiCache.create_cache_events([event])
+
+    :ok =
+      Profile.ingest(
+        project,
+        "NAMED-CACHE",
+        :zlib.gzip(
+          JSON.encode!(%{
+            otherData: %{build_id: "NAMED-CACHE"},
+            traceEvents: [
+              %{
+                ph: "X",
+                name: "Compile Sources/App.swift",
+                ts: 0,
+                dur: 1000,
+                args: %{out: "bazel-out/bin/App/main.o", target: "//App:App", mnemonic: "SwiftCompile"}
+              }
+            ]
+          })
+        )
+      )
+
+    {:ok, view, _} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/invocations/NAMED-CACHE?tab=cache&cache-sort-by=action&cache-sort-order=asc"
+      )
+
+    assert has_element?(view, "#bazel-invocation-cache-events-table", "Compile Sources/App.swift")
+    refute has_element?(view, "#bazel-invocation-cache-events-table a[href*='/blob/']")
+
+    for search <- ["Sources/App.swift", "SwiftCompile"] do
+      view |> element("#bazel-invocation-cache-search-form") |> render_change(%{"search" => search})
+      assert has_element?(view, "#bazel-invocation-cache-events-table", "Compile Sources/App.swift")
+    end
+
+    view |> element("#bazel-invocation-cache-search-form") |> render_change(%{"search" => "no-match"})
+    assert has_element?(view, "#bazel-invocation-cache-events-table", "No matching cache requests")
   end
 
   test "uses the standard empty state when an invocation has no cache requests", %{

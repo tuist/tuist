@@ -1,5 +1,6 @@
 import Testing
 import TuistAcceptanceTesting
+import TuistAlert
 import TuistTesting
 
 @testable import TuistInspectCommand
@@ -10,10 +11,9 @@ struct LintAcceptanceTests {
     func ios_app_with_headers() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(InspectImplicitImportsCommand.self, ["--path", fixtureDirectory.pathString])
-        TuistTest.expectLogs(
-            "We did not find any dependency issues in your project (checked: implicit).",
-            at: .info,
-            <=
+        #expect(
+            AlertController.current.success().last?.message.plain()
+                == "We did not find any dependency issues in your project (checked: implicit)."
         )
     }
 
@@ -43,10 +43,9 @@ struct LintAcceptanceTests {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(InspectRedundantImportsCommand.self, ["--path", fixtureDirectory.pathString])
-        TuistTest.expectLogs(
-            "We did not find any dependency issues in your project (checked: redundant).",
-            at: .info,
-            <=
+        #expect(
+            AlertController.current.success().last?.message.plain()
+                == "We did not find any dependency issues in your project (checked: redundant)."
         )
     }
 }

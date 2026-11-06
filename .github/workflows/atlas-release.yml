@@ -8,12 +8,28 @@ on:
       - main
     paths:
       - atlas/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - infra/helm/atlas/**
       - infra/k8s/atlas/**
       - mise/tasks/release/components.json
+      - .github/scripts/atlas-patch-release*
       - .github/workflows/atlas-release.yml
       - .github/workflows/atlas-deployment-validation.yml
   workflow_dispatch:
+    inputs:
+      base_tag:
+        description: "Recovery only: latest stable atlas@ tag (blank for automatic scope policy)"
+        type: string
+        default: ""
+      patch_version:
+        description: "Recovery only: exact next patch, for example 0.76.3"
+        type: string
+        default: ""
+      reason:
+        description: "Recovery reason, publicly audited; never include credentials"
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -34,12 +50,15 @@ env:
 jobs:
   check:
     name: Check for releasable changes
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
     runs-on: tuist-linux
     timeout-minutes: 5
     outputs:
       should-release: ${{ steps.check.outputs.atlas-should-release }}
       next-version: ${{ steps.check.outputs.atlas-next-version }}
       next-version-number: ${{ steps.check.outputs.atlas-next-version-number }}
+      source-sha: ${{ steps.check.outputs.source-sha }}
+      base-sha: ${{ steps.check.outputs.base-sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,8 +68,20 @@ jobs:
           install_args: "--locked git-cliff jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Test manual recovery guard
+        run: bash .github/scripts/atlas-patch-release.test.sh
       - id: check
-        run: mise run --skip-tools release:check atlas
+        env:
+          BASE_TAG: ${{ inputs.base_tag }}
+          PATCH_VERSION: ${{ inputs.patch_version }}
+          RECOVERY_REASON: ${{ inputs.reason }}
+        run: |
+          if [[ -n "$BASE_TAG$PATCH_VERSION$RECOVERY_REASON" ]]; then
+            bash .github/scripts/atlas-patch-release.sh "$BASE_TAG" "$PATCH_VERSION" "$RECOVERY_REASON"
+          else
+            mise run --skip-tools release:check atlas
+          fi
+          echo "source-sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
 
   validation:
     needs: check
@@ -58,6 +89,7 @@ jobs:
     uses: ./.github/workflows/atlas-deployment-validation.yml
     with:
       version: ${{ needs.check.outputs.next-version-number }}
+      source-sha: ${{ needs.check.outputs.source-sha }}
 
   release:
     name: Release Atlas
@@ -71,9 +103,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ needs.check.outputs.source-sha }}
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked git-cliff helm"
+          install_args: "--locked git-cliff helm jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -110,6 +143,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Recheck recovery boundaries before publication
+        if: inputs.base_tag != ''
+        env:
+          BASE_TAG: ${{ inputs.base_tag }}
+          PATCH_VERSION: ${{ inputs.patch_version }}
+          RECOVERY_REASON: ${{ inputs.reason }}
+          APPROVED_BASE_SHA: ${{ needs.check.outputs.base-sha }}
+        run: |
+          # The workflow's release concurrency lock still covers this check and
+          # all publication. Refuse stale dispatches instead of replacing tags.
+          git fetch origin --prune 'refs/heads/main:refs/remotes/origin/main' 'refs/tags/*:refs/tags/*'
+          bash .github/scripts/atlas-patch-release.sh "$BASE_TAG" "$PATCH_VERSION" "$RECOVERY_REASON"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -121,10 +167,16 @@ jobs:
           platforms: linux/amd64
           build-args: |
             ATLAS_VERSION=${{ needs.check.outputs.next-version-number }}
+            APT_CACHE_BUST=${{ needs.check.outputs.next-version-number }}
             MIX_ENV=prod
           tags: |
             ghcr.io/tuist/atlas:${{ needs.check.outputs.next-version-number }}
             ghcr.io/tuist/atlas:latest
+          # Reuse layers from the previous release. The Dockerfile declares
+          # ATLAS_VERSION after compilation, so only the release step and the
+          # layers whose inputs changed rebuild.
+          cache-from: type=registry,ref=ghcr.io/tuist/tuist-buildcache:release-atlas
+          cache-to: type=registry,ref=ghcr.io/tuist/tuist-buildcache:release-atlas,mode=max
 
       - name: Publish matching Helm chart
         env:
@@ -150,7 +202,7 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ needs.check.outputs.source-sha }}
           name: Atlas ${{ needs.check.outputs.next-version-number }}
           tag_name: ${{ needs.check.outputs.next-version }}
           files: |
@@ -183,10 +235,12 @@ jobs:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check.outputs.source-sha }}
 
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked helm kubectl"
+          install_args: "--locked helm kubectl yq jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -227,6 +281,11 @@ jobs:
               helm rollback "$HELM_RELEASE_NAME" -n "$NAMESPACE" --wait --timeout 5m || true
               ;;
           esac
+
+      - name: Verify legacy sandbox namespace retention
+        # Recovery above can roll back the retention annotation. Check the live
+        # namespace immediately before any upgrade that disables legacy objects.
+        run: bash atlas/deploy/check-sandbox-retention.sh "$HELM_CHART_PATH/values-managed-production.yaml" "$HELM_RELEASE_NAME" "$NAMESPACE"
 
       - name: Authenticate Helm registry
         env:
@@ -285,3 +344,12 @@ jobs:
           kubectl -n "$NAMESPACE" rollout status deploy/atlas --timeout=10m
           kubectl -n "$NAMESPACE" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
             --command -- curl -fsS "http://atlas/ready"
+
+      - name: Verify public login redirect
+        run: |
+          response=$(curl --silent --show-error --max-time 30 --output /dev/null \
+            --write-out '%{http_code} %{redirect_url}' https://atlas.tuist.dev/)
+          if [ "$response" != '302 https://atlas.tuist.dev/login' ]; then
+            echo '::error::Atlas root must redirect signed-out visitors to /login.'
+            exit 1
+          fi

@@ -1,14 +1,17 @@
 # rack-switch-controller
 
-Kubernetes controller that adopts a rack's switches into the Omada SDN
-controller and writes their configuration through its Open API, from the
-`RackSwitch` objects (`tuist.dev/v1alpha1`) in the rack's namespace. It is the
+Kubernetes controller that converges a rack's switches from the `RackSwitch`
+objects (`tuist.dev/v1alpha1`) in the rack's namespace, through one of two
+drivers (`spec.driver`): `omada` adopts TP-Link switches into the Omada SDN
+controller and writes them through its Open API; `picos` reads PicOS switches
+over NETCONF and writes them over their CLI with commit confirmed (see
+[PicOS switches](#picos-switches)). The Omada driver is the
 reconciler [`rack-switch-fleet/omada-assessment.md`](../rack-switch-fleet/omada-assessment.md)
 sketches, and the Go form of `rack:omada controller`, `adopt` and `apply`
 ([`rack-switch-fleet/omada.sh`](../rack-switch-fleet/omada.sh)), whose calls
 against the real controller are the measured reference for everything here.
 
-It never opens SSH to a switch. SSH stays with
+The Omada driver never opens SSH to a switch. SSH stays with
 [`rack:fleet`](../rack-switch-fleet/AGENTS.md) for what the API cannot read
 back and for the console path.
 
@@ -69,6 +72,48 @@ state), `reachable` (connected), `observedRevision` and `observedGeneration`
 `Adopted`, `Converged`, `Ready`. `connectionsUsedSinceBoot` is only ever
 written by `rack:fleet publish`.
 
+## Telemetry
+
+`internal/telemetry` reads every managed switch from the Omada controller once a
+minute and exports it on the metrics port, which k8s-monitoring's annotation
+autodiscovery scrapes. It asks the controller rather than the switch for the
+same reason the rest of this controller does: a switch allows only a few SSH
+logins per boot, and SNMP is off site-wide. It runs on the leader only and
+shares the reconciler's client, so the controller sees one token and one reader.
+
+| Metric | Labels | Source |
+| --- | --- | --- |
+| `rack_switch_up` | `site`, `switch` | device list: 1 when connected |
+| `rack_switch_cpu_utilization_ratio` | `site`, `switch` | device list `cpuUtil` |
+| `rack_switch_memory_utilization_ratio` | `site`, `switch` | device list `memUtil` |
+| `rack_switch_temperature_celsius` | `site`, `switch` | `switches/{mac}/health/detail`, 10-minute average |
+| `rack_switch_optic_temperature_celsius` | `site`, `switch`, `port` | `switches/{mac}/ddm/info` |
+| `rack_switch_telemetry_last_success_timestamp_seconds` | | when a poll last completed |
+| `rack_switch_telemetry_errors_total` | `stage` | failed reads, by what was being read |
+
+`switch` is the `RackSwitch` name, not the controller's device name, which
+adoption resets to the MAC. `site` is the `RackSwitch`'s `spec.site`, the rack
+site, not the Omada site name the controller is configured with.
+
+What gets exported, and what does not:
+
+- **A disconnected switch exports `rack_switch_up 0` and nothing else.** The
+  controller keeps the last numbers of a switch it has lost, and they read as
+  current. Nothing per-switch is fetched for it either.
+- **A standalone object, or one the site does not list, exports nothing.** There
+  is no reading to take for it.
+- **A model without a temperature sensor exports no temperature**, rather than a
+  zero: the health detail says `support: false` for it.
+- **A port with a passive DAC has no optic reading.** Digital diagnostics come from
+  the transceiver, so only a real optic reports.
+- **When the controller cannot be read, every reading is dropped** and the last
+  success stays where it was. Alert on its age, not on a missing `rack_switch_up`.
+
+**The chassis temperature's unit is inferred.** The API documents the transceiver
+temperature as Celsius and the health detail's average only as "average value of
+common dimension, such as cpu, memory", as an integer. Compare it once against a
+reading taken on the switch before alerting on an absolute value.
+
 ## The API, and the gates
 
 Every call was measured on controller 6.3.0.45 and a real switch;
@@ -125,6 +170,85 @@ then `cli/configs/config-id/{id}/apply`, one configuration per device, devices
 named by `deviceMac`) run configuration lines the structured API does not
 model; they removed the ToRs' pre-adoption static route by hand.
 
+## PicOS switches
+
+`spec.driver: picos` is a switch running PicOS (FS S5860-24XMG, PicOS
+4.7.1M-EC1), reached at `spec.managementAddress` as `--picos-user` (`tuist`)
+with the key in `picos-ssh-key`. Zero-touch provisioning gives the switch that
+user and key, NETCONF and a random admin password; see
+[`rack-switch-fleet`](../rack-switch-fleet/AGENTS.md). Everything below was
+measured on a bench unit, and `internal/picos/bench_test.go` (build tag
+`bench`) replays it against a real switch.
+
+In a cluster the management address is on the rack's side of an edge, which
+advertises it to the tailnet, and only the Tailscale egress ProxyGroup's
+proxies route there. So with `--tailscale-egress-proxy-group` the controller
+keeps an ExternalName Service per switch, `rackswitch-<name>` in
+`--tailscale-egress-namespace`, annotated `tailscale.com/tailnet-ip` with the
+address and carrying ports 22 and 830, and dials its DNS name instead, the way
+the operator reaches the RackPDU and RackATS cards. A finalizer
+(`tuist.dev/rackswitch-egress`) deletes the Service with the RackSwitch, since
+one in another namespace cannot be owned. Without the flag it dials the
+address, as on a laptop or the bench.
+
+**Adoption** is the first connection, with `status.hostKey` empty: the
+controller accepts the host key the switch presents, sets admin's password to
+`picos-admin-password` with a confirmed commit, and pins the key's SHA-256
+fingerprint in `status.hostKey`. A switch that does not take the key yet (ZTP
+has not run) is `Adopted=False`, reason `NotProvisioned`, and is asked again
+every 15 seconds. A switch presenting another key is `HostKeyMismatch` and is
+never written to; after a factory reset or a replacement unit, clear
+`status.hostKey` once the switch is known to be ours.
+
+**Reads** are NETCONF `get-config` of the running configuration (system
+hostname, vlans, interface, lacp), on a connection of their own: the server
+closes the whole SSH connection when its NETCONF session ends. **Writes** are
+one `cli -c` with `configure`, the difference as `set`/`delete` lines, and
+`commit confirmed <--picos-confirm-after>`. The controller then reads the
+switch over new connections and confirms with `commit` only if it reads back
+as written; a change that cut the controller off, or one that did not take,
+undoes itself when the timer runs out. The engine remembers a write it could
+not confirm, since a read cannot tell a pending commit from a confirmed one,
+and confirms it on the next pass if the switch still matches. A controller
+restart in that window forgets it, and the rollback then shows as drift.
+
+What the controller owns, and deletes when the spec stops naming it: the
+hostname, VLANs (not VLAN 1), each port's description, VLAN membership
+(`family ethernet-switching`) and LAG membership, LAGs (`aggregate-ethernet`)
+with LACP, and each LAG member's LACP rate. A LAG's VLANs are its first member
+port's, written on the `aeN` interface. Everything else, the management port,
+users, NETCONF and port speeds, is left alone.
+
+What PicOS does that the code is shaped around:
+
+- **libssh 0.8.7 serves NETCONF (port 830)** and completes a handshake only
+  when the client offers exactly `curve25519-sha256`, so the client offers
+  nothing else. It also loses a packet that arrives right after NEWKEYS: about
+  half of all handshakes stalled until the server's 10-second deadline, until
+  the client held its first post-NEWKEYS packet back 200 ms.
+- **sshd (port 22) rejects a source after 20 new connections in 60 seconds**
+  (iptables `recent`, every attempt restarting the window) and above 20
+  concurrent ones. The CLI connection is kept and every command is a session
+  on it; port 830 is not limited.
+- Both servers present the same RSA host key; the client asks sshd for RSA
+  too, so one pin covers both.
+- **pica_sh echoes every line it runs**, passwords included, so the password
+  write returns nothing of what it printed.
+- **A trunk's VLANs come back as one entry**, `<members><id>10,4000</id>`, with
+  ranges such as `10-12`. An access port echoes `port-mode access` and its
+  native VLAN; a trunk without one echoes `native-vlan-id 1`. VLAN 1 untagged
+  is the default in both modes and is neither rendered nor read.
+- **LAG members run fast LACP.** At PicOS's default slow rate, a member whose
+  peer stopped without losing link (an admin-down bnxt port keeps its link)
+  stayed in the LAG with its share of traffic lost for the 90-second timeout;
+  at fast it left within 3 seconds and a continuous ping lost nothing.
+- A rollback of LAG membership bounces the members' links for about a second.
+- `commit confirmed <n>` takes seconds. The timer survives the session that
+  set it, and a plain `commit` from any later session confirms it.
+
+`internal/picos/picostest` is an in-process SSH server with the same CLI and
+NETCONF behaviour, which the controller's tests run against.
+
 ## Where it differs from the assessment's sketch
 
 - One leader lease for the controller, not one per site. `rack:fleet` and
@@ -137,8 +261,13 @@ model; they removed the ToRs' pre-adoption static route by hand.
 ## Where it runs
 
 `infra/helm/rack-switch-controller`, installed into the Omada controller's
-namespace (`omada`) by `.github/workflows/omada-deployment.yml`, watching the
-rack's namespace (`tuist-staging` for BER1). The pod has a required node
+namespace (`omada`) by `.github/workflows/omada-deployment.yml`, in the cluster
+the rack belongs to, watching the rack's namespace. Both, and the Omada site,
+the controller address and the 1Password items below, come from the site
+definitions of every rack in the env (`kubernetes.namespace`,
+`management.controller` and `management.picos`, merged by
+`mise run rack:fleet helm-values rack-switch-controller`), not from per-env
+chart values. The pod has a required node
 affinity away from rack nodes (`rackNodeLabels`: `kubernetes.io/os=darwin`,
 `tuist.dev/runtime=tart`, and `node.cluster.x-k8s.io/instance-type=rack` for the
 edge node), because a controller behind the switches it changes would be
@@ -153,18 +282,30 @@ Credentials are files in one directory (`--credentials-dir`): `client-id`,
 `client-secret`, `device-username`, `device-password`, and optionally
 `factory-username` and `factory-password`. They are read on every reconcile,
 so a rotated secret needs no restart. In the cluster two ExternalSecrets fill
-them from the `onepassword` ClusterSecretStore, whose vault is
-`tuist-k8s-staging`: items "omada staging open api" and "ber1 switch device
-account", which have to exist in that vault.
+them from the `onepassword` ClusterSecretStore, whose vault is the cluster's
+(`tuist-k8s-<env>`): the items `management.controller.credential_item` and
+`device_account_item` name, which have to exist in that vault.
+
+The Omada driver runs when `omada.site` is set (`--omada-site`), the PicOS
+driver when `picos.sshKeyItem` is: a third ExternalSecret then fills
+`picos-ssh-key` from that SSH key item's "private key" field and
+`picos-admin-password` from `picos.adminPasswordItem`. The key is read once at
+start, so rotating it is a restart; the admin password is read on every
+adoption. A site with PicOS switches only sets no `omada` values at all.
+`picos.egress` (the `tailscale-operator` namespace and the `macmini-egress`
+ProxyGroup by default) sets the egress flags and a Role for Services there.
 
 ## Running it once from a laptop
+
+The CA comes from a Secret, which no elevation reads, so the `kubectl` below
+runs with the env's admin kubeconfig.
 
 ```
 cd infra/rack-switch-controller
 go build -o rack-switch-controller ./cmd/manager
 ./rack-switch-controller apply --object <RackSwitch yaml> \
   --omada-url https://omada.<tailnet>.ts.net:8043 --site ber1 \
-  --controller-address 100.84.132.92 --credentials-dir <dir> \
+  --controller-address <management.controller.address> --credentials-dir <dir> \
   --omada-ca-file <(kubectl -n omada get secret omada-controller-tls -o jsonpath='{.data.ca\.crt}' | base64 -d)
 ```
 

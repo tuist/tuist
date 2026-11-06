@@ -5,16 +5,10 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
 
   import TuistWeb.AppAuthComponents
 
-  alias Tuist.Accounts
-  alias TuistWeb.Authentication
-
-  def mount(%{"device_code" => device_code, "type" => type} = _conn, _session, socket) do
-    Accounts.authenticate_device_code(
-      device_code,
-      Authentication.current_user(socket)
-    )
-
-    {:ok, assign(socket, type: type)}
+  # Shown after the confirmation POST in `TuistWeb.AuthController` approved the
+  # code; rendering this page approves nothing.
+  def mount(params, _session, socket) do
+    {:ok, assign(socket, type: params["type"])}
   end
 
   def render(assigns) do

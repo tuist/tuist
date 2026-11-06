@@ -97,6 +97,51 @@ defmodule Tuist.Runners.ProfilesTest do
     end
   end
 
+  describe "Linux OS version" do
+    test "a new Linux profile gets the default OS", %{account: account} do
+      assert {:ok, %Profile{os_version: "ubuntu-24.04"}} =
+               Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+    end
+
+    test "a Linux profile can pick another OS, and an unknown one is rejected", %{account: account} do
+      assert {:ok, %Profile{os_version: "ubuntu-22.04"}} =
+               Profiles.create(account, %{
+                 "name" => "jammy",
+                 "vcpus" => 4,
+                 "memory_gb" => 16,
+                 "os_version" => "ubuntu-22.04"
+               })
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Profiles.create(account, %{
+                 "name" => "trusty",
+                 "vcpus" => 4,
+                 "memory_gb" => 16,
+                 "os_version" => "ubuntu-14.04"
+               })
+
+      assert Profiles.error_message(changeset) =~ "os_version must be one of: ubuntu-24.04, ubuntu-22.04."
+    end
+
+    test "update/2 moves a profile between OS versions and keeps it on other edits", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+
+      assert {:ok, %Profile{os_version: "ubuntu-22.04"} = profile} =
+               Profiles.update(profile, %{"os_version" => "ubuntu-22.04"})
+
+      assert {:ok, %Profile{os_version: "ubuntu-22.04", vcpus: 8}} =
+               Profiles.update(profile, %{"vcpus" => 8, "memory_gb" => 32})
+    end
+
+    test "a Linux row without an OS picks up the default on a resource edit", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "legacy", "vcpus" => 4, "memory_gb" => 16})
+      {1, _} = Tuist.Repo.update_all(from(p in Profile, where: p.id == ^profile.id), set: [os_version: nil])
+
+      assert {:ok, %Profile{os_version: "ubuntu-24.04", vcpus: 8}} =
+               Profiles.update(Tuist.Repo.reload!(profile), %{"vcpus" => 8, "memory_gb" => 32})
+    end
+  end
+
   describe "update/2" do
     test "ignores attempts to change the name", %{account: account} do
       {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
@@ -107,6 +152,137 @@ defmodule Tuist.Runners.ProfilesTest do
       assert updated.name == "default"
       assert updated.vcpus == 1
       assert updated.memory_gb == 2
+    end
+
+    test "stores the default branch toggle and an ordered, deduplicated list of additional branches", %{
+      account: account
+    } do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.cache_writer_default_branch
+      assert profile.cache_writer_all_branches
+      assert is_nil(profile.cache_writer_branches)
+
+      assert {:ok, updated} =
+               Profiles.update(profile, %{"cache_writer_branches" => ["release/*", " main ", "main", "*"]})
+
+      assert updated.cache_writer_branches == ["release/*", "main", "*"]
+      assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => nil})
+      assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => []})
+
+      assert {:ok, %{cache_writer_default_branch: false, cache_writer_branches: ["release/*", "main", "*"]}} =
+               Profiles.update(updated, %{cache_writer_default_branch: false})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.update(updated, %{cache_writer_default_branch: nil})
+
+      assert errors[:cache_writer_default_branch]
+
+      assert {:ok, %{cache_writer_all_branches: false, cache_writer_branches: ["release/*", "main", "*"]}} =
+               Profiles.update(updated, %{cache_writer_all_branches: false})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} = Profiles.update(updated, %{cache_writer_all_branches: nil})
+      assert errors[:cache_writer_all_branches]
+    end
+
+    test "rejects invalid refs and more than the branch limit", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+
+      for value <- [
+            "main",
+            ["a b"],
+            ["a?b"],
+            ["a\nb"],
+            ["a..b"],
+            ["x.lock"],
+            [String.duplicate("a", 201)],
+            Enum.map(1..21, &"branch-#{&1}")
+          ] do
+        assert {:error, %Ecto.Changeset{errors: errors}} =
+                 Profiles.update(profile, %{"cache_writer_branches" => value})
+
+        assert errors[:cache_writer_branches]
+      end
+    end
+  end
+
+  describe "update/2 against a changed catalog" do
+    test "validates the shape only when the update changes it", %{account: account} do
+      profile =
+        Tuist.Repo.insert!(%Profile{account_id: account.id, name: "retired", platform: :linux, vcpus: 7, memory_gb: 13})
+
+      assert {:ok, %Profile{cache_writer_branches: ["develop"], vcpus: 7}} =
+               Profiles.update(profile, %{"cache_writer_branches" => ["develop"]})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.update(profile, %{"vcpus" => 7, "cache_writer_branches" => ["main"]})
+
+      assert errors[:vcpus]
+
+      assert {:ok, %Profile{vcpus: 8, memory_gb: 32}} = Profiles.update(profile, %{"vcpus" => 8, "memory_gb" => 32})
+    end
+  end
+
+  describe "error_message/1" do
+    test "lists the catalog's shapes for an unavailable shape", %{account: account} do
+      {:error, changeset} = Profiles.create(account, %{"name" => "weird", "vcpus" => 7, "memory_gb" => 13})
+
+      assert Profiles.error_message(changeset) ==
+               "vcpus and memory_gb must match an available linux shape: 1 vCPU / 2 GB, 4 vCPU / 16 GB, 8 vCPU / 32 GB."
+    end
+
+    test "describes other validation errors by field", %{account: account} do
+      {:error, changeset} = Profiles.create(account, %{"name" => "tuist", "vcpus" => 4})
+
+      message = Profiles.error_message(changeset)
+      assert message =~ "memory_gb can't be blank."
+      assert message =~ "name is reserved."
+    end
+
+    test "describes the profile limit and protected profiles" do
+      assert Profiles.error_message(:max_profiles_reached) =~ "maximum of 10 runner profiles"
+      assert Profiles.error_message(:protected) == "This profile is a default and can't be deleted."
+    end
+  end
+
+  describe "Profile.cache_writer_branch?/2" do
+    test "matches exact names and * across path segments" do
+      assert Profile.cache_writer_branch?(["main"], "main")
+      refute Profile.cache_writer_branch?(["main"], "main-2")
+      assert Profile.cache_writer_branch?(["release/*"], "release/1.0")
+      assert Profile.cache_writer_branch?(["release/*"], "release/a/b")
+      refute Profile.cache_writer_branch?(["release/*"], "releases/1.0")
+      assert Profile.cache_writer_branch?(["feature*"], "feature/x")
+      assert Profile.cache_writer_branch?(["*"], "anything/at/all")
+      refute Profile.cache_writer_branch?(["v1.0"], "v1x0")
+      refute Profile.cache_writer_branch?([], "main")
+      refute Profile.cache_writer_branch?(["*"], nil)
+    end
+  end
+
+  describe "cached checkouts" do
+    test "are on by default and turned off without validating the shape again", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.cached_checkouts
+
+      stub(Catalog, :shapes, fn _ -> [] end)
+      assert {:ok, %{cached_checkouts: false}} = Profiles.update(profile, %{"cached_checkouts" => false})
+      assert Profiles.get_for_dispatch_label(account.id, Profile.dispatch_label(profile)).id == profile.id
+      assert is_nil(Profiles.get_for_dispatch_label(account.id, "shape-linux-4vcpu-16gb"))
+    end
+  end
+
+  describe "lock_for_dispatch_label/2" do
+    test "resolves profile labels and ignores legacy pool and other account labels", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      other = AccountsFixtures.account_fixture()
+
+      Tuist.Repo.transaction(fn ->
+        assert Profiles.lock_for_dispatch_label(account.id, Profile.dispatch_label(profile)).id == profile.id
+        assert is_nil(Profiles.lock_for_dispatch_label(other.id, Profile.dispatch_label(profile)))
+        assert is_nil(Profiles.lock_for_dispatch_label(account.id, "shape-linux-4vcpu-16gb"))
+        assert is_nil(Profiles.lock_for_dispatch_label(account.id, ""))
+        assert is_nil(Profiles.lock_for_dispatch_label(account.id, nil))
+      end)
     end
   end
 
@@ -170,6 +346,7 @@ defmodule Tuist.Runners.ProfilesTest do
       assert profile.protected
       assert profile.vcpus == 4
       assert profile.memory_gb == 16
+      assert profile.cache_writer_all_branches
     end
 
     test "is idempotent — second call is a no-op on `(account_id, name)` conflict",

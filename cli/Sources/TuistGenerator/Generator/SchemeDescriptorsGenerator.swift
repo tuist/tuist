@@ -169,8 +169,8 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             rootPath: path,
             generatedProjects: generatedProjects
         )
-        let testPlanSideEffects: [SideEffectDescriptor] = scheme.testAction?.testPlans?.compactMap { plan in
-            TestPlanDescriptor.from(
+        let testPlanSideEffects: [SideEffectDescriptor] = try scheme.testAction?.testPlans?.compactMap { plan in
+            try TestPlanDescriptor.from(
                 testPlan: plan,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
@@ -244,10 +244,6 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ) throws -> XCScheme.BuildAction? {
         guard let buildAction = scheme.buildAction else { return nil }
 
-        let buildFor: [XCScheme.BuildAction.Entry.BuildFor] = [
-            .analyzing, .archiving, .profiling, .running, .testing,
-        ]
-
         var entries: [XCScheme.BuildAction.Entry] = []
         var preActions: [XCScheme.ExecutionAction] = []
         var postActions: [XCScheme.ExecutionAction] = []
@@ -266,6 +262,15 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             else {
                 continue
             }
+            let buildFor: [XCScheme.BuildAction.Entry.BuildFor]
+            if let selectedBuildForOptions = buildAction.buildFor[buildActionTarget] {
+                buildFor = BuildAction.BuildFor.allCases
+                    .filter(selectedBuildForOptions.contains)
+                    .map(\.xcodeProjBuildFor)
+            } else {
+                buildFor = BuildAction.BuildFor.allCases.map(\.xcodeProjBuildFor)
+            }
+
             entries.append(
                 XCScheme.BuildAction.Entry(
                     buildableReference: buildableReference, buildFor: buildFor
@@ -1177,6 +1182,23 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     }
 }
 
+extension BuildAction.BuildFor {
+    fileprivate var xcodeProjBuildFor: XCScheme.BuildAction.Entry.BuildFor {
+        switch self {
+        case .analyzing:
+            return .analyzing
+        case .archiving:
+            return .archiving
+        case .profiling:
+            return .profiling
+        case .running:
+            return .running
+        case .testing:
+            return .testing
+        }
+    }
+}
+
 extension TestAction {
     fileprivate static func empty(withConfigurationName configurationName: String) -> Self {
         .init(
@@ -1200,6 +1222,7 @@ extension TestAction {
 
 enum SchemeDescriptorsGeneratorError: FatalError, Equatable {
     case duplicateGeneratedTestPlanPath(AbsolutePath)
+    case unresolvedTestPlanCoverageTarget(plan: AbsolutePath, target: TargetReference)
 
     var type: ErrorType { .abort }
 
@@ -1209,6 +1232,12 @@ enum SchemeDescriptorsGeneratorError: FatalError, Equatable {
             """
             Multiple generated test plans resolve to the same path \(path.pathString). \
             Give each plan a distinct name or pin one of them to an explicit path.
+            """
+        case let .unresolvedTestPlanCoverageTarget(plan, target):
+            """
+            Cannot resolve coverage target '\(target.name)' at \(target.projectPath.pathString) \
+            for generated test plan \(plan.pathString). \
+            Use a workspace scheme to collect coverage from targets in other projects.
             """
         }
     }

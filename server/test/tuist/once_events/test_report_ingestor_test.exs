@@ -4,8 +4,12 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
 
   import Ecto.Query
 
+  alias Once.Events.V1.ActionCompleted
+  alias Once.Events.V1.RunCompleted
   alias Once.Events.V1.RunEvent
+  alias Once.Events.V1.RunStarted
   alias Once.Events.V1.TestCaseCompleted
+  alias Once.Events.V1.TestSuiteStarted
   alias Tuist.OnceEvents
   alias Tuist.OnceEvents.Projector
   alias Tuist.OnceEvents.TestReportIngestor
@@ -139,6 +143,130 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
 
   test "a build run with no test cases publishes nothing", %{run: run} do
     assert TestReportIngestor.publish(finalize(run)) == {:ok, :no_test_cases}
+  end
+
+  test "externally grouped native runs keep diagnostics but never publish a shared report", %{
+    project: project
+  } do
+    reject(Tuist.Tests, :create_test, 1)
+    reject(OnceEvents, :claim_test_report_publication, 1)
+
+    for context <- [
+          %{external_group_id: "workflow"},
+          %{external_group_id: "workflow", partition_index: 0, plan_id: "plan", batch_id: "batch"}
+        ] do
+      run_id = UUIDv7.generate()
+      started = Map.put(%RunStarted{}, :test_context, context)
+
+      for _ <- 1..2 do
+        project_event(project.id, run_id, :run_started, started)
+
+        project_event(project.id, run_id, :test_suite_started, %TestSuiteStarted{
+          target_execution_id: "tests"
+        })
+
+        project_event(project.id, run_id, :test_case_completed, %TestCaseCompleted{
+          test_case_execution_id: "tests#case#1",
+          case_id: "case",
+          suite_id: "unit",
+          name: "case",
+          result: :TEST_CASE_RESULT_PASSED,
+          duration_ms: 10
+        })
+
+        project_event(project.id, run_id, :action_completed, %ActionCompleted{
+          target_execution_id: "tests",
+          capability: "test",
+          result: :TARGET_RESULT_SUCCEEDED,
+          duration_ms: 10
+        })
+
+        # A missing context on a replay cannot switch native publication on.
+        project_event(project.id, run_id, :run_started, %RunStarted{})
+
+        project_event(project.id, run_id, :run_completed, %RunCompleted{
+          result: :RUN_RESULT_SUCCEEDED,
+          wall_ms: 10
+        })
+      end
+
+      run = OnceEvents.get_run(project.id, run_id)
+      assert run.finalization == "finalized"
+      assert run.test_case_count == 1
+      assert run.test_suite_count == 1
+      assert run.total_actions == 1
+      assert is_nil(run.test_report_published_at)
+
+      assert [%{case_id: "case", result: "passed", duration_ms: 10}] =
+               OnceEvents.list_test_case_runs(run)
+
+      assert [%{capability: "test", result: "succeeded", duration_ms: 10}] =
+               OnceEvents.list_actions(run)
+
+      assert TestReportIngestor.publish(run) == {:ok, :externally_grouped}
+
+      shared_id = OnceEvents.uuid_from_seed("once-test-run\0#{project.id}\0#{run_id}")
+      assert case_run_count(shared_id) == 0
+    end
+  end
+
+  test "externally grouped publication skips even staging reads when no native cases arrived", %{
+    project: project
+  } do
+    run_id = UUIDv7.generate()
+    started = Map.put(%RunStarted{}, :test_context, %{external_group_id: "workflow"})
+    project_event(project.id, run_id, :run_started, started)
+
+    reject(OnceEvents, :list_test_case_runs, 1)
+    reject(OnceEvents, :claim_test_report_publication, 1)
+    reject(Tuist.Tests, :create_test, 1)
+
+    assert TestReportIngestor.publish(OnceEvents.get_run(project.id, run_id)) ==
+             {:ok, :externally_grouped}
+  end
+
+  test "absent or empty external groups retain native publication and replay deduplication", %{
+    project: project
+  } do
+    for context <- [
+          nil,
+          %{},
+          %{external_group_id: "", partition_index: 0, plan_id: "plan", batch_id: "batch"}
+        ] do
+      run_id = UUIDv7.generate()
+      started = Map.put(%RunStarted{git_branch: "main", is_ci: true}, :test_context, context)
+      project_event(project.id, run_id, :run_started, started)
+
+      project_event(project.id, run_id, :test_case_completed, %TestCaseCompleted{
+        test_case_execution_id: "tests#case#1",
+        case_id: "case",
+        suite_id: "unit",
+        name: "case",
+        result: :TEST_CASE_RESULT_PASSED,
+        duration_ms: 10
+      })
+
+      # A replay cannot acquire a group either, even before publication.
+      grouped_replay = Map.put(started, :test_context, %{external_group_id: "too-late"})
+      project_event(project.id, run_id, :run_started, grouped_replay)
+
+      for _ <- 1..2 do
+        project_event(project.id, run_id, :run_completed, %RunCompleted{
+          result: :RUN_RESULT_SUCCEEDED,
+          wall_ms: 10
+        })
+      end
+
+      Buffer.flush()
+      shared_id = OnceEvents.uuid_from_seed("once-test-run\0#{project.id}\0#{run_id}")
+      assert {:ok, test} = Tuist.Tests.get_test(shared_id)
+      assert test.build_system == "once"
+      assert test.once_run_id == run_id
+      assert test.project_id == project.id
+      assert test.status == "success"
+      assert case_run_count(shared_id) == 1
+      assert OnceEvents.get_run(project.id, run_id).test_report_published_at
+    end
   end
 
   test "a finished test run lands in the shared store as a Once run", %{run: run, project: project} do
@@ -278,5 +406,14 @@ defmodule Tuist.OnceEvents.TestReportIngestorTest do
     assert {:ok, second} = TestReportIngestor.publish(finalize(other_run))
 
     refute first.id == second.id
+  end
+
+  defp project_event(project_id, run_id, kind, payload) do
+    assert :ok =
+             Projector.project(
+               %RunEvent{epoch_ms: System.system_time(:millisecond), payload: {kind, payload}},
+               project_id,
+               run_id
+             )
   end
 end

@@ -79,11 +79,11 @@ defmodule Atlas.MCP.Tools.CreateCrossDomainClaim do
                confidence: args["confidence"],
                sensitivity: args["sensitivity"],
                link_basis: args["link_basis"],
-               generated_by_agent: "mcp_agent"
+               generated_by_agent: if(Tool.audit_interface(conn) == "worker", do: "automation", else: "mcp_agent")
              },
              args["evidence"],
              actor: Tool.current_user(conn),
-             interface: "mcp"
+             interface: Tool.audit_interface(conn)
            ) do
       {:ok, BriefSerializer.claim(Claims.get(claim.id))}
     else

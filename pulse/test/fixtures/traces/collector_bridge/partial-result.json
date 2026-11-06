@@ -1,0 +1,5 @@
+{
+  "grpc_code": "OK",
+  "producer": "public OTLP protobuf client; malformed IDs cannot be emitted by an ordinary SDK",
+  "response": "partial_success:{}"
+}

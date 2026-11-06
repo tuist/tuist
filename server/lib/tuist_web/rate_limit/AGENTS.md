@@ -1,16 +1,14 @@
-# Rate Limit (Web Layer)
+# Rate Limiting
 
-This area owns request rate limiting helpers.
+`TuistWeb.RateLimit` is the web adapter: plugs, requester keys and response contracts. Backends and the shared-store failure mechanics live in `Tuist.RateLimit`; see `server/lib/tuist/rate_limit/AGENTS.md`.
 
-## Responsibilities
-- Apply all request rate limits through Valkey with a matching in-memory fallback.
-- Preserve fixed-window and token-bucket policies across both backends.
-- Compute rate limit keys using client addresses and authenticated subjects.
+## Failure policy by surface
 
-## Boundaries
-- Domain logic belongs in `server/lib/tuist` contexts.
-- Frontend assets are in `server/assets`.
+- Deny by default. Password login, agent authentication/registration, signup, the pre-authentication Once address guard, Atlas, SCIM, metrics, authorization-denial accounting and public-page challenge verification do not opt into fallback. SCIM and metrics deliberately remain strict even though authenticated.
+- Structured report publishing sets `fallback: false` so backend failures surface as HTTP 503 instead of quota exhaustion (HTTP 429).
+- Only dashboard checks (including anonymous per-scope aggregation) and authenticated MCP select `failure_policy: :local`. The `/mcp` router authenticates before this limiter; its anonymous branch, which denies when the backend is unavailable, rate limits the public WebMCP documentation endpoint by address and is not pre-authentication credential protection. WebMCP keys carry a `web` prefix, so a user's dashboard tool calls never share a bucket with their `/mcp` agents.
+- Preserve existing HTTP 429/gRPC resource-exhausted response contracts.
 
-## Related Context
-- Web layer overview: `server/lib/tuist_web/AGENTS.md`
-- Business logic: `server/lib/tuist/AGENTS.md`
+## Other responsibilities
+
+- Compute keys using trusted client addresses and authenticated subjects. Account subjects use `AuthenticatedAccount.account.id`, not a nonexistent wrapper `id`.

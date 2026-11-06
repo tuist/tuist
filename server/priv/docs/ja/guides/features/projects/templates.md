@@ -1,32 +1,26 @@
 ---
 {
-  "title": "Templates",
-  "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn how to create and use templates in Tuist to generate code in your projects."
+  "title": "テンプレート",
+  "titleTemplate": ":title · プロジェクト · 機能 · ガイド · Tuist",
+  "description": "Tuist でテンプレートを作成・使用してプロジェクトのコードを生成する方法を学びます。"
 }
 ---
-# テンプレート{#templates}
+# テンプレート {#templates}
 
-確立されたアーキテクチャを持つプロジェクトでは、開発者はプロジェクトと一貫性のある新しいコンポーネントや機能をブートストラップしたいかもしれません。`tuist
-scaffold`
-を使えば、テンプレートからファイルを生成することができます。独自のテンプレートを定義することも、Tuistで提供されているテンプレートを使用することもできます。これらはscaffoldが役に立つかもしれないいくつかのシナリオです：
+確立されたアーキテクチャを持つプロジェクトでは、開発者がプロジェクトと整合性のある新しいコンポーネントや機能をブートストラップしたい場合があります。`tuist scaffold` を使用すると、テンプレートからファイルを生成できます。独自のテンプレートを定義することも、Tuist に同梱されているテンプレートを使用することもできます。スキャフォールディングが役立つシナリオの例をいくつか挙げます:
 
-- `tuist scaffold viper --name MyFeature`.
-- 新規プロジェクトの作成:`tuist scaffold feature-project --name Home`
+- 指定されたアーキテクチャに従う新しい機能を作成する: `tuist scaffold viper --name MyFeature`。
+- 新しいプロジェクトを作成する: `tuist scaffold feature-project --name Home`
 
 > [!NOTE]
-> **Non-opinionated**
+> **意見非依存**
 >
-> Tuistはテンプレートの内容や使用目的については一切関知しません。特定のディレクトリにあることが要求されるだけです。
+> Tuist はテンプレートの内容や用途について特定の意見を押し付けません。テンプレートは特定のディレクトリに配置されていれば問題ありません。
 
 
-## テンプレートの定義{#defining-a-template}
+## テンプレートの定義 {#defining-a-template}
 
-テンプレートを定義するには、<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink>を実行し、`Tuist/Templates` の下に、`name_of_template`
-という、テンプレートを表すディレクトリを作成します。テンプレートには、`name_of_template.swift`
-という、テンプレートを説明するマニフェスト・ファイルが必要です。したがって、`framework`
-というテンプレートを作成する場合、`Tuist/Templates` に新しいディレクトリ`framework` を作成し、`framework.swift`
-というマニフェスト・ファイルを作成する必要があります：
+テンプレートを定義するには、<.localized_link href="/guides/features/projects/editing">`tuist edit`</.localized_link> を実行し、`Tuist/Templates` 配下にテンプレートを表す `name_of_template` という名前のディレクトリを作成します。テンプレートには、テンプレートを記述するマニフェストファイル `name_of_template.swift` が必要です。したがって、`framework` という名前のテンプレートを作成する場合、`Tuist/Templates` に `framework` という新しいディレクトリを作成し、`framework.swift` という名前のマニフェストファイルを用意します。このファイルは次のようになります:
 
 
 ```swift
@@ -57,31 +51,25 @@ let template = Template(
 )
 ```
 
-## テンプレートの使用{#using-a-template}
+## テンプレートの使用 {#using-a-template}
 
-テンプレートを定義したら、`scaffold` コマンドから使用することができます：
+テンプレートを定義した後、`scaffold` コマンドから使用できます:
 
 ```bash
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
 > [!NOTE]
-> プラットフォームはオプションの引数なので、`--platform macos` 引数なしでコマンドを呼び出すこともできる。
+> platform は省略可能な引数であるため、`--platform macos` 引数なしでコマンドを実行することもできます。
 
 
-`.string` や`.files` では柔軟性が足りない場合は、`.file` のケースで
-[Stencil](https://stencil.fuller.li/en/latest/)
-テンプレート言語を活用できます。それ以外にも、ここで定義された追加のフィルターを使うこともできます。
+`.string` と `.files` で十分な柔軟性が得られない場合は、`.file` ケースを通じて [Stencil](https://stencil.fuller.li/en/latest/) テンプレート言語を活用できます。さらに、ここで定義されている追加のフィルターを使用することもできます。
 
-文字列補間を使用すると、上記の`\(nameAttribute)` は`{{ name }}`
-に解決されます。テンプレート定義でステンシル・フィルターを使用したい場合は、手動でこの補間を使用し、好きなフィルターを追加することができます。例えば、`{ {
-名前 | 小文字 } } を使うことができます。name 属性の小文字の値を取得するには、`\(nameAttribute)` の代わりに` { { name
-| 小文字 } を使用します。
+文字列補間を使用すると、上記の `\(nameAttribute)` は `{{ name }}` に解決されます。テンプレート定義で Stencil フィルターを使用したい場合は、その補間を手動で使用し、任意のフィルターを追加できます。たとえば、name 属性の小文字値を取得するために、`\(nameAttribute)` の代わりに `{ { name | lowercase } }` を使用できます。
 
-また、`.directory` を使えば、指定したパスにフォルダ全体をコピーすることもできる。
+また、`.directory` を使用して、フォルダー全体を指定されたパスにコピーすることもできます。
 
 > [!TIP]
 > **Project Description Helpers**
 >
-> テンプレートは<LocalizedLink href="/guides/features/projects/code-sharing">プロジェクト記述ヘルパー</LocalizedLink>の使用をサポートし、テンプレート間でコードを再利用します。
-
+> テンプレートでは、<.localized_link href="/guides/features/projects/code-sharing">プロジェクト記述ヘルパー</.localized_link> を使用して、テンプレート間でコードを再利用できます。

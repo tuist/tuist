@@ -19,6 +19,21 @@ defmodule TuistWeb.API.PreviewsController do
   alias TuistWeb.API.Schemas.PreviewSupportedPlatform
   alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
+  alias TuistWeb.Helpers.PreviewInstallURLs
+
+  @legacy_build_types [:app_bundle, :ipa, :apk]
+  @legacy_platforms [
+    :ios,
+    :ios_simulator,
+    :tvos,
+    :tvos_simulator,
+    :watchos,
+    :watchos_simulator,
+    :visionos,
+    :visionos_simulator,
+    :macos,
+    :android
+  ]
 
   plug(TuistWeb.Plugs.API.TransformQueryArrayParamsPlug, [:supported_platforms])
 
@@ -58,7 +73,7 @@ defmodule TuistWeb.API.PreviewsController do
          properties: %{
            display_name: %Schema{type: :string, description: "The display name of the preview."},
            type: %Schema{
-             enum: ["app_bundle", "ipa", "apk"],
+             enum: ["app_bundle", "ipa", "apk", "executable"],
              type: :string,
              description: "The type of the preview to upload.",
              default: "app_bundle"
@@ -75,6 +90,14 @@ defmodule TuistWeb.API.PreviewsController do
              type: :array,
              items: PreviewSupportedPlatform,
              description: "The supported platforms of the preview."
+           },
+           supported_architectures: %Schema{
+             type: :array,
+             items: %Schema{type: :string, pattern: "^(arm64|x86_64)$"},
+             maxItems: 2,
+             uniqueItems: true,
+             description:
+               "CPU architectures read from the executable. Omit or send an empty array for unknown or interpreter-based builds."
            },
            git_branch: %Schema{
              type: :string,
@@ -95,6 +118,12 @@ defmodule TuistWeb.API.PreviewsController do
            track: %Schema{
              type: :string,
              description: "The track for the preview (e.g., 'beta', 'nightly')."
+           },
+           release_notes: %Schema{
+             type: :string,
+             nullable: true,
+             maxLength: 10_000,
+             description: "Optional plain-text release notes describing this preview build."
            },
            build_version: %Schema{
              type: :string,
@@ -167,7 +196,8 @@ defmodule TuistWeb.API.PreviewsController do
         git_branch: Map.get(body_params, :git_branch),
         git_ref: Map.get(body_params, :git_ref),
         supported_platforms: [],
-        track: Map.get(body_params, :track)
+        track: Map.get(body_params, :track),
+        release_notes: Map.get(body_params, :release_notes)
       })
 
     # `preview.created` fires here — at the moment the preview row is
@@ -192,6 +222,7 @@ defmodule TuistWeb.API.PreviewsController do
            git_commit_sha: Map.get(body_params, :git_commit_sha),
            created_by_account_id: account.id,
            supported_platforms: supported_platforms,
+           supported_architectures: Map.get(body_params, :supported_architectures, []),
            binary_id: binary_id,
            build_version: build_version
          }) do
@@ -277,26 +308,40 @@ defmodule TuistWeb.API.PreviewsController do
     expires_in = 120
     content_length = Map.get(multipart_upload_part, :content_length)
 
-    {:ok, app_build} = AppBuilds.app_build_by_id(app_build_id)
+    case AppBuilds.app_build_by_id(app_build_id, project_id: selected_project.id) do
+      {:ok, %{artifact_storage_key: key}} when is_binary(key) ->
+        conn |> put_status(:conflict) |> json(%{message: "Published artifact content is immutable."})
 
-    object_key =
-      AppBuilds.storage_key(%{
-        account_handle: account_handle,
-        project_handle: project_handle,
-        app_build: app_build
-      })
+      {:ok, app_build} ->
+        object_key =
+          AppBuilds.storage_key(%{
+            account_handle: account_handle,
+            project_handle: project_handle,
+            app_build: app_build
+          })
 
-    url =
-      Storage.multipart_generate_url(
-        object_key,
-        upload_id,
-        part_number,
-        selected_project.account,
-        expires_in: expires_in,
-        content_length: content_length
-      )
+        url =
+          Storage.multipart_generate_url(
+            object_key,
+            upload_id,
+            part_number,
+            selected_project.account,
+            expires_in: expires_in,
+            content_length: content_length
+          )
 
-    json(conn, %{status: "success", data: %{url: url}})
+        json(conn, %{status: "success", data: %{url: url}})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Preview not found."})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: reason})
+    end
   end
 
   operation(:multipart_complete,
@@ -360,7 +405,10 @@ defmodule TuistWeb.API.PreviewsController do
     # The preview_id is still used to support CLI version pre 4.54.0
     app_build_id = Map.get(body_params, :app_build_id, preview_id)
 
-    case AppBuilds.app_build_by_id(app_build_id, preload: [:preview]) do
+    case AppBuilds.app_build_by_id(app_build_id, project_id: selected_project.id, preload: [:preview]) do
+      {:ok, %{artifact_storage_key: key}} when is_binary(key) ->
+        conn |> put_status(:conflict) |> json(%{message: "Published artifact content is immutable."})
+
       {:ok, app_build} ->
         object_key =
           AppBuilds.storage_key(%{
@@ -417,6 +465,7 @@ defmodule TuistWeb.API.PreviewsController do
 
   defp complete_app_build_upload(conn, app_build, account_handle, project_handle, selected_project) do
     AppBuilds.update_preview_with_app_build(app_build.preview.id, app_build)
+    Tuist.Push.notify_new_preview(app_build.preview)
 
     Tuist.Analytics.preview_upload(Authentication.authenticated_subject(conn))
 
@@ -425,7 +474,7 @@ defmodule TuistWeb.API.PreviewsController do
 
     conn
     |> put_status(:ok)
-    |> json(map_preview(preview, account_handle, project_handle, selected_project.account))
+    |> json(map_preview(conn, preview, account_handle, project_handle, selected_project.account))
   end
 
   operation(:show,
@@ -474,21 +523,24 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _args
       ) do
-    case AppBuilds.preview_by_id(preview_id, preload: [:app_builds, :created_by_account]) do
+    case AppBuilds.preview_by_id(preview_id,
+           project_id: selected_project.id,
+           preload: [:app_builds, :created_by_account]
+         ) do
       {:ok, preview} ->
         Tuist.Analytics.preview_download(Authentication.authenticated_subject(conn))
 
-        response = map_preview(preview, account_handle, project_handle, selected_project.account)
+        response = map_preview(conn, preview, account_handle, project_handle, selected_project.account)
 
-        response =
-          if Enum.empty?(response.builds) do
-            response
-          else
-            # Note: the URL field is deprecated but we still need to return to cater for older CLI versions
-            %{response | url: hd(response.builds).url}
-          end
-
-        json(conn, response)
+        if response.builds == [] and preview.app_builds != [] do
+          conn
+          |> put_status(:bad_request)
+          |> json(%{message: "This preview requires a newer Tuist client with desktop preview support."})
+        else
+          # The URL field is deprecated but older CLI versions download it directly.
+          response = if response.builds == [], do: response, else: %{response | url: hd(response.builds).url}
+          json(conn, response)
+        end
 
       {:error, :not_found} ->
         conn
@@ -523,6 +575,18 @@ defmodule TuistWeb.API.PreviewsController do
         in: :query,
         type: :string,
         description: "The display name of previews."
+      ],
+      search: [
+        in: :query,
+        type: :string,
+        description:
+          "Match a literal substring of a preview's display name or full release notes, case-insensitively. Omit or pass an empty value for all previews."
+      ],
+      track: [
+        in: :query,
+        type: :string,
+        description:
+          "Only return previews on this track (case-insensitive). Omit or pass an empty value to return all tracks."
       ],
       specifier: [
         in: :query,
@@ -615,6 +679,7 @@ defmodule TuistWeb.API.PreviewsController do
           order_directions: [:desc]
         },
         distinct: distinct,
+        search: Map.get(params, :search),
         supported_platforms: Map.get(params, :supported_platforms),
         preload: [:app_builds, :created_by_account]
       )
@@ -623,7 +688,7 @@ defmodule TuistWeb.API.PreviewsController do
       previews:
         Enum.map(
           previews,
-          &map_preview(&1, account_handle, project_handle, selected_project.account)
+          &map_preview(conn, &1, account_handle, project_handle, selected_project.account)
         ),
       pagination_metadata: %{
         has_next_page: meta.has_next_page?,
@@ -634,6 +699,48 @@ defmodule TuistWeb.API.PreviewsController do
         total_pages: meta.total_pages
       }
     })
+  end
+
+  operation(:tracks,
+    summary: "List the available preview tracks for a project.",
+    description:
+      "Returns the total preview count and all nonempty tracks with their preview counts in the authorized project, independently of pagination, search, and active track filters. Track names are grouped case-insensitively and sorted. The total includes untracked previews.",
+    operation_id: "listPreviewTracks",
+    parameters: [
+      account_handle: [in: :path, type: :string, required: true, description: "The handle of the account."],
+      project_handle: [in: :path, type: :string, required: true, description: "The handle of the project."]
+    ],
+    responses: %{
+      ok:
+        {"Available preview tracks.", "application/json",
+         %Schema{
+           title: "PreviewTracks",
+           type: :object,
+           properties: %{
+             total_count: %Schema{type: :integer, minimum: 0},
+             tracks: %Schema{
+               type: :array,
+               items: %Schema{
+                 title: "PreviewTrack",
+                 type: :object,
+                 properties: %{
+                   name: %Schema{type: :string},
+                   count: %Schema{type: :integer, minimum: 0}
+                 },
+                 required: [:name, :count]
+               }
+             }
+           },
+           required: [:total_count, :tracks]
+         }},
+      unauthorized: {"Authentication is required.", "application/json", Error},
+      forbidden: {"The authenticated subject cannot read this project's previews.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def tracks(%{assigns: %{selected_project: project}} = conn, _params) do
+    json(conn, AppBuilds.list_preview_tracks(project))
   end
 
   operation(:latest,
@@ -692,11 +799,20 @@ defmodule TuistWeb.API.PreviewsController do
       ) do
     build_version = Map.get(params, :build_version)
 
-    case AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, selected_project,
-           preload: [:app_builds, :created_by_account]
+    compatibility =
+      if desktop_previews_supported?(conn),
+        do: [],
+        else: [supported_types: @legacy_build_types, supported_platforms: @legacy_platforms]
+
+    case AppBuilds.latest_preview_for_binary_id_and_build_version(
+           binary_id,
+           build_version,
+           selected_project,
+           [preload: [:app_builds, :created_by_account]] ++ compatibility
          ) do
       {:ok, preview} ->
-        json(conn, %{preview: map_preview(preview, account_handle, project_handle, selected_project.account)})
+        response = map_preview(conn, preview, account_handle, project_handle, selected_project.account)
+        json(conn, %{preview: response})
 
       {:error, :not_found} ->
         json(conn, %{preview: nil})
@@ -727,7 +843,10 @@ defmodule TuistWeb.API.PreviewsController do
         display_name -> [%{field: :display_name, op: :==, value: display_name} | filters]
       end
 
-    filters
+    case Map.get(params, :track) do
+      track when track in [nil, ""] -> filters
+      track -> [%{field: :track, op: :==, value: track} | filters]
+    end
   end
 
   operation(:upload_icon,
@@ -770,7 +889,7 @@ defmodule TuistWeb.API.PreviewsController do
         } = conn,
         _params
       ) do
-    case AppBuilds.preview_by_id(preview_id) do
+    case AppBuilds.preview_by_id(preview_id, project_id: selected_project.id) do
       {:ok, preview} ->
         expires_in = 3600
 
@@ -818,6 +937,7 @@ defmodule TuistWeb.API.PreviewsController do
       url: Storage.generate_download_url(key, account, expires_in: expires_in),
       type: app_build.type,
       supported_platforms: app_build.supported_platforms,
+      supported_architectures: app_build.supported_architectures,
       inserted_at: app_build.inserted_at,
       binary_id: app_build.binary_id,
       build_version: app_build.build_version
@@ -889,7 +1009,42 @@ defmodule TuistWeb.API.PreviewsController do
     end
   end
 
-  defp map_preview(preview, account_handle, project_handle, account, opts \\ []) do
+  defp desktop_previews_supported?(conn) do
+    conn
+    |> get_req_header("x-tuist-preview-capabilities")
+    |> Enum.flat_map(&String.split(&1, ",", trim: true))
+    |> Enum.any?(&(String.trim(&1) == "desktop"))
+  end
+
+  defp map_preview(conn, preview, account_handle, project_handle, account, opts \\ []) do
+    # Shipped clients decode these fields as closed enums. Only clients that
+    # explicitly opt in may receive new formats or platforms, including in a
+    # mixed preview's upload-completion and update-check responses.
+    preview =
+      if desktop_previews_supported?(conn) do
+        preview
+      else
+        builds =
+          preview.app_builds
+          |> Enum.filter(fn build ->
+            build.type in @legacy_build_types and
+              (build.supported_platforms == [] or Enum.any?(build.supported_platforms, &(&1 in @legacy_platforms)))
+          end)
+          |> Enum.map(fn build ->
+            %{build | supported_platforms: Enum.filter(build.supported_platforms, &(&1 in @legacy_platforms))}
+          end)
+
+        build_platforms = Enum.flat_map(builds, & &1.supported_platforms)
+        unknown_platforms? = Enum.any?(builds, &(&1.supported_platforms == []))
+
+        supported_platforms =
+          Enum.filter(preview.supported_platforms, fn platform ->
+            platform in @legacy_platforms and (unknown_platforms? or platform in build_platforms)
+          end)
+
+        %{preview | app_builds: builds, supported_platforms: supported_platforms}
+      end
+
     builds =
       preview.app_builds
       |> Enum.map(&map_app_build(&1, account_handle, project_handle, account, opts))
@@ -897,9 +1052,9 @@ defmodule TuistWeb.API.PreviewsController do
 
     device_url =
       if preview.supported_platforms == [:android] do
-        url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/app.apk")
+        PreviewInstallURLs.apk_url(account_handle, project_handle, preview)
       else
-        "itms-services://?action=download-manifest&url=#{url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/manifest.plist")}"
+        PreviewInstallURLs.itms_services_url(account_handle, project_handle, preview)
       end
 
     %{
@@ -914,6 +1069,7 @@ defmodule TuistWeb.API.PreviewsController do
       git_commit_sha: preview.git_commit_sha,
       git_branch: preview.git_branch,
       track: preview.track,
+      release_notes: preview.release_notes,
       builds: builds,
       supported_platforms: preview.supported_platforms,
       inserted_at: preview.inserted_at,

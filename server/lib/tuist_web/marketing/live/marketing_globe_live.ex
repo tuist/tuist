@@ -31,6 +31,7 @@ defmodule TuistWeb.Marketing.MarketingGlobeLive do
      socket
      |> assign(:current_path, URI.parse(url).path)
      |> assign(:demo, params["demo"] == "true")
+     |> assign(:demo_toggle?, Tuist.Environment.dev?())
      |> assign(:head_title, dgettext("marketing", "A world of faster builds · Tuist"))
      |> assign(:head_description, description)
      |> assign(:head_twitter_card, "summary_large_image")
@@ -60,6 +61,7 @@ defmodule TuistWeb.Marketing.MarketingGlobeLive do
 
     socket
     |> assign(:snapshot, snapshot)
+    |> assign(:server_now, DateTime.to_iso8601(DateTime.utc_now()))
     |> assign(:markers, JSON.encode!(markers))
   end
 end

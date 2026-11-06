@@ -127,7 +127,16 @@ async fn run_with_config(
 ) -> Result<(), String> {
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
     metrics.record_node_geo(&node_location);
-    let runtime = RuntimeState::new();
+    let inherited = crate::serving_authority::AuthorityConfig::validate_volume(
+        &config.data_dir,
+        config.serving_authority.as_ref(),
+    )?;
+    let runtime = match &config.serving_authority {
+        Some(authority) => {
+            RuntimeState::with_authority(authority.start(&config.data_dir, inherited)?)
+        }
+        None => RuntimeState::new(),
+    };
     let mut bootstrap = Bootstrap::start(
         SocketAddr::from((Ipv4Addr::UNSPECIFIED, config.port)),
         metrics.clone(),
@@ -343,7 +352,7 @@ async fn initialize_and_serve(
 
     bootstrap.recovery.check_running()?;
     spawn_membership_task(state.clone());
-    Usage::spawn_tasks(state.clone());
+    let usage_tasks = Usage::spawn_tasks(state.clone());
     // The analytics outbox forwarder drains the shared column family into
     // the server's webhook endpoints. In this release the pipeline is
     // empty because no producer routes through it yet, so the tasks idle
@@ -361,6 +370,8 @@ async fn initialize_and_serve(
     spawn_snapshot_task(state.clone());
     spawn_memory_pressure_tasks(state.clone());
     spawn_runtime_metrics_task(state.clone());
+    state.runtime.authority.bind_store(state.store.clone());
+    crate::handover::spawn(state.clone());
     spawn_multipart_janitor_task(state.clone());
     spawn_cache_reverse_refs_backfill_task(state.clone());
     spawn_action_cache_expiry_task(state.clone());
@@ -369,6 +380,9 @@ async fn initialize_and_serve(
     spawn_segment_promotion_task(state.clone());
     spawn_supervised("segment_reclamation", state.clone(), |state| async move {
         state.store.run_segment_reclamation_worker().await;
+    });
+    spawn_supervised("relaxed_durability", state.clone(), |state| async move {
+        state.store.run_relaxed_durability_worker().await;
     });
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
@@ -440,24 +454,8 @@ async fn initialize_and_serve(
             .internal_tls
             .clone()
             .expect("internal_tls is present whenever peer_tls is configured");
-        let mut internal_shutdown_rx = shutdown_rx.clone();
         let handle = Handle::new();
-        let shutdown_handle = handle.clone();
-        tokio::spawn(
-            async move {
-                if let Some(budget) = *internal_shutdown_rx.borrow() {
-                    shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-                    return;
-                }
-                while internal_shutdown_rx.changed().await.is_ok() {
-                    if let Some(budget) = *internal_shutdown_rx.borrow() {
-                        shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-                        return;
-                    }
-                }
-            }
-            .in_current_span(),
-        );
+        spawn_internal_shutdown(handle.clone(), shutdown_rx.clone());
         Some(tokio::spawn(
             async move {
                 // The identity acceptor wraps the plain rustls acceptor to
@@ -478,24 +476,8 @@ async fn initialize_and_serve(
             .in_current_span(),
         ))
     } else {
-        let mut internal_shutdown_rx = shutdown_rx.clone();
         let handle = Handle::new();
-        let shutdown_handle = handle.clone();
-        tokio::spawn(
-            async move {
-                if let Some(budget) = *internal_shutdown_rx.borrow() {
-                    shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-                    return;
-                }
-                while internal_shutdown_rx.changed().await.is_ok() {
-                    if let Some(budget) = *internal_shutdown_rx.borrow() {
-                        shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-                        return;
-                    }
-                }
-            }
-            .in_current_span(),
-        );
+        spawn_internal_shutdown(handle.clone(), shutdown_rx.clone());
         Some(tokio::spawn(
             async move {
                 if let Err(error) = axum_server::bind(internal_address)
@@ -514,6 +496,7 @@ async fn initialize_and_serve(
     let router = cohosted_router(state.clone(), reapi_routes.clone());
     let public_shutdown_state = state.clone();
     let (public_shutdown_tx, public_shutdown_rx) = watch::channel(false);
+    let public_drain_rx = public_drain_signal(state.runtime.clone());
     let mut termination = bootstrap.termination();
     tokio::spawn(
         async move {
@@ -537,17 +520,20 @@ async fn initialize_and_serve(
     let https_task = if let Some(public_tls) = state.config.public_tls.clone() {
         let tls_config = build_public_rustls_config(&public_tls).await?.get_inner();
         let https_router = cohosted_router(state.clone(), reapi_routes.clone());
-        let https_listener = tokio::net::TcpListener::bind(https_address)
-            .await
+        let https_listener = accelerated_file_serving::bind_public_listener(https_address)
             .map_err(|error| format!("failed to bind public HTTPS listener: {error}"))?;
         let https_shutdown_rx = public_shutdown_rx.clone();
+        let https_drain_rx = public_drain_rx.clone();
+        let https_runtime = state.runtime.clone();
         Some(tokio::spawn(
             async move {
                 if let Err(error) = accelerated_file_serving::serve_public_tls(
                     https_listener,
                     https_router,
                     tls_config,
+                    https_runtime,
                     https_shutdown_rx,
+                    https_drain_rx,
                     configure_http_builder,
                 )
                 .await
@@ -565,14 +551,16 @@ async fn initialize_and_serve(
     // here, so its h2c connections never share a pool with the HTTP/1.1
     // connections it opens to the co-hosted port.
     let gateway_grpc_task = if let Some(port) = state.config.gateway_grpc_port {
-        let grpc_listener =
-            tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, port)))
-                .await
-                .map_err(|error| format!("failed to bind gateway gRPC listener: {error}"))?;
+        let grpc_listener = accelerated_file_serving::bind_public_listener(SocketAddr::from((
+            Ipv4Addr::UNSPECIFIED,
+            port,
+        )))
+        .map_err(|error| format!("failed to bind gateway gRPC listener: {error}"))?;
         let grpc_router = gateway_grpc_router(reapi_routes.clone());
         let grpc_state = state.clone();
         let grpc_serving_config = gateway_grpc_serving_config(&state.config);
         let grpc_shutdown_rx = public_shutdown_rx.clone();
+        let grpc_drain_rx = public_drain_rx.clone();
         Some(tokio::spawn(
             async move {
                 if let Err(error) = accelerated_file_serving::serve_public_http(
@@ -581,7 +569,9 @@ async fn initialize_and_serve(
                     grpc_state,
                     grpc_serving_config,
                     grpc_shutdown_rx,
+                    grpc_drain_rx,
                     configure_http_builder,
+                    accelerated_file_serving::ConnectionErrorLog::Warn,
                 )
                 .await
                 {
@@ -609,7 +599,9 @@ async fn initialize_and_serve(
         state.clone(),
         state.config.accelerated_file_serving.clone(),
         public_shutdown_rx,
+        public_drain_rx,
         configure_http_builder,
+        accelerated_file_serving::ConnectionErrorLog::Debug,
     )
     .await
     .map_err(|error| format!("server error: {error}"))?;
@@ -617,6 +609,19 @@ async fn initialize_and_serve(
         warn!("shutdown budget channel closed before graceful shutdown completed");
         ShutdownBudget::new(drain_completion_timeout)
     });
+    // Leave local checkpoint time after producers stop; never spend the whole
+    // grace period waiting for a sibling or an unavailable control plane.
+    let checkpoint_reserve = if usage_tasks.is_some() {
+        Duration::from_secs(5).min(shutdown_budget.remaining())
+    } else {
+        Duration::ZERO
+    };
+    let producer_budget = ShutdownBudget {
+        deadline: shutdown_budget.deadline - checkpoint_reserve,
+    };
+    if let Some(tasks) = usage_tasks {
+        tasks.stop().await;
+    }
     // The departing node waits to be pulled (design §3.5): the sibling's
     // cursor reaching the head, bounded by what is left of the budget less
     // a margin for the process exit. It runs BEFORE the internal listener is
@@ -629,7 +634,7 @@ async fn initialize_and_serve(
     if state.store.sync_feed().enabled() {
         let stale = Duration::from_secs(state.config.sync_feed_stale_peer_secs);
         let margin = Duration::from_millis(state.config.sync_drain_margin_ms);
-        let deadline = Instant::now() + shutdown_budget.remaining().saturating_sub(margin);
+        let deadline = Instant::now() + producer_budget.remaining().saturating_sub(margin);
         let mut caught_up = state.store.sync_feed().consumers_caught_up(stale);
         while !caught_up && Instant::now() < deadline {
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -646,8 +651,8 @@ async fn initialize_and_serve(
         }
     }
     state.sync.shutdown();
-    let _ = shutdown_tx.send(Some(shutdown_budget));
-    let drained = wait_for_inflight_drain(state.clone(), shutdown_budget).await;
+    let _ = shutdown_tx.send(Some(producer_budget));
+    let drained = wait_for_inflight_drain(state.clone(), producer_budget).await;
     if !drained {
         warn!(
             http_inflight = state.runtime.http_inflight(),
@@ -657,13 +662,40 @@ async fn initialize_and_serve(
         );
     }
     if let Some(internal_handle) = internal_handle {
-        wait_for_task_shutdown(internal_handle, "internal", shutdown_budget).await;
+        wait_for_task_shutdown(internal_handle, "internal", producer_budget).await;
     }
     if let Some(https_task) = https_task {
-        wait_for_task_shutdown(https_task, "HTTPS", shutdown_budget).await;
+        wait_for_task_shutdown(https_task, "HTTPS", producer_budget).await;
     }
     if let Some(gateway_grpc_task) = gateway_grpc_task {
-        wait_for_task_shutdown(gateway_grpc_task, "gateway gRPC", shutdown_budget).await;
+        wait_for_task_shutdown(gateway_grpc_task, "gateway gRPC", producer_budget).await;
+    }
+    if state.usage.is_some() {
+        let checkpoint_state = state.clone();
+        match tokio::task::spawn_blocking(move || {
+            checkpoint_state
+                .usage
+                .as_ref()
+                .expect("usage should exist")
+                .checkpoint(&checkpoint_state.store, true)
+        })
+        .await
+        {
+            Ok(Ok(())) => {}
+            result => warn!("failed to checkpoint usage during shutdown: {result:?}"),
+        }
+    }
+    if !state
+        .store
+        .quiesce_segment_reclamation(producer_budget.remaining())
+        .await
+    {
+        warn!("segment eviction did not stop before the shutdown deadline");
+    }
+    if state.store.relaxed_durability_enabled()
+        && let Err(error) = state.store.sync_relaxed_durability().await
+    {
+        warn!("failed to sync relaxed durability writes during shutdown: {error}");
     }
     // Synchronous clean-shutdown stamp for backfill index staleness detection:
     // after it, any sequence gap the next boot observes means an index-unaware
@@ -1501,6 +1533,21 @@ fn parse_status_memory_kib(status: &str, field: &str) -> Option<u64> {
         .and_then(|value| value.parse::<u64>().ok())
 }
 
+// Flips when the runtime starts draining. preStop drains the pod (SIGUSR1) a
+// full delay before SIGTERM, and the public listeners recycle the connections
+// open at that moment so clients stop sending work a draining node refuses.
+fn public_drain_signal(runtime: Arc<RuntimeState>) -> watch::Receiver<bool> {
+    let (drain_tx, drain_rx) = watch::channel(runtime.is_draining());
+    tokio::spawn(
+        async move {
+            runtime.wait_for_drain().await;
+            drain_tx.send_replace(true);
+        }
+        .in_current_span(),
+    );
+    drain_rx
+}
+
 async fn wait_for_inflight_drain(state: Arc<AppState>, budget: ShutdownBudget) -> bool {
     loop {
         let inflight_changed = state.runtime.inflight_changed();
@@ -1520,6 +1567,50 @@ async fn wait_for_inflight_drain(state: Arc<AppState>, budget: ShutdownBudget) -
             return false;
         }
     }
+}
+
+fn spawn_internal_shutdown(
+    handle: Handle<SocketAddr>,
+    shutdown_rx: watch::Receiver<Option<ShutdownBudget>>,
+) {
+    spawn_internal_shutdown_within(
+        handle,
+        shutdown_rx,
+        Duration::from_secs(crate::constants::INTERNAL_SHUTDOWN_GRACE_SECS),
+    );
+}
+
+// Stops the internal listener when shutdown starts and gives its open
+// connections `grace`, never more than what is left of the budget.
+fn spawn_internal_shutdown_within(
+    handle: Handle<SocketAddr>,
+    mut shutdown_rx: watch::Receiver<Option<ShutdownBudget>>,
+    grace: Duration,
+) {
+    tokio::spawn(
+        async move {
+            let budget = loop {
+                if let Some(budget) = *shutdown_rx.borrow_and_update() {
+                    break budget;
+                }
+                if shutdown_rx.changed().await.is_err() {
+                    return;
+                }
+            };
+            let grace = grace.min(budget.remaining());
+            handle.graceful_shutdown(Some(grace));
+            sleep(grace).await;
+            let open = handle.connection_count();
+            if open > 0 {
+                warn!(
+                    connections = open,
+                    grace_ms = grace.as_millis(),
+                    "closing internal connections still open after the shutdown grace"
+                );
+            }
+        }
+        .in_current_span(),
+    );
 }
 
 async fn wait_for_task_shutdown<T>(
@@ -1553,6 +1644,54 @@ mod tests {
         constants::{RESPONSE_STREAM_MIN_CHUNK_BYTES, RESPONSE_STREAM_SEND_BUFFER_BYTES},
         test_support::test_context,
     };
+
+    #[tokio::test]
+    async fn internal_shutdown_closes_a_stream_no_peer_reads_after_the_grace() {
+        let router = axum::Router::new().route(
+            "/stream",
+            axum::routing::get(|| async {
+                axum::body::Body::from_stream(futures_util::stream::repeat_with(|| {
+                    Ok::<_, std::convert::Infallible>(bytes::Bytes::from(vec![0u8; 64 * 1024]))
+                }))
+            }),
+        );
+        let handle = Handle::new();
+        let (shutdown_tx, shutdown_rx) = watch::channel(None::<ShutdownBudget>);
+        let grace = Duration::from_millis(200);
+        spawn_internal_shutdown_within(handle.clone(), shutdown_rx, grace);
+        let server_handle = handle.clone();
+        let server = tokio::spawn(async move {
+            axum_server::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
+                .handle(server_handle)
+                .serve(router.into_make_service())
+                .await
+        });
+        let address = handle.listening().await.expect("internal listener bound");
+        let client = reqwest::Client::builder()
+            .http2_prior_knowledge()
+            .build()
+            .unwrap();
+        let unread = client
+            .get(format!("http://{address}/stream"))
+            .send()
+            .await
+            .unwrap();
+
+        let started = Instant::now();
+        shutdown_tx
+            .send(Some(ShutdownBudget::new(Duration::from_secs(240))))
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(5), server)
+            .await
+            .expect("the unread stream held the internal listener past its grace")
+            .unwrap()
+            .unwrap();
+        assert!(
+            started.elapsed() >= grace,
+            "the unread stream should hold the listener until the grace runs out"
+        );
+        drop(unread);
+    }
 
     #[tokio::test]
     async fn startup_cleanup_failure_does_not_activate_the_service() {
@@ -1962,7 +2101,9 @@ mod tests {
             state.clone(),
             state.config.accelerated_file_serving.clone(),
             shutdown_rx,
+            public_drain_signal(state.runtime.clone()),
             configure_http_builder,
+            accelerated_file_serving::ConnectionErrorLog::Debug,
         ));
 
         // HTTP cache surface answers on the co-hosted port.
@@ -2038,6 +2179,236 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn planned_retirement_finishes_http1_response_before_closing() {
+        use http_body_util::{BodyExt, Empty};
+        use hyper_util::rt::TokioIo;
+        let context = test_context(|_| {}).await;
+        let state = context.state.clone();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (shutdown, shutdown_rx) = watch::channel(false);
+        let server = tokio::spawn(accelerated_file_serving::serve_public_http(
+            listener,
+            crate::http::public_router(state.clone()),
+            state.clone(),
+            state.config.accelerated_file_serving.clone(),
+            shutdown_rx,
+            public_drain_signal(state.runtime.clone()),
+            configure_http_builder,
+            accelerated_file_serving::ConnectionErrorLog::Debug,
+        ));
+        let stream = tokio::net::TcpStream::connect(address).await.unwrap();
+        let (mut sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
+            .await
+            .unwrap();
+        let connection = tokio::spawn(connection);
+        let request = || {
+            hyper::Request::builder()
+                .uri("/up")
+                .header("host", "localhost")
+                .body(Empty::<bytes::Bytes>::new())
+                .unwrap()
+        };
+        let response = sender.send_request(request()).await.unwrap();
+        assert_eq!(response.status(), 200);
+        response.into_body().collect().await.unwrap();
+        assert_eq!(state.runtime.retire_public_connections(), 1);
+        let response = sender
+            .send_request(request())
+            .await
+            .expect("retirement must finish the next response, not reset it");
+        assert_eq!(response.status(), 200);
+        assert_eq!(response.headers()["connection"], "close");
+        response.into_body().collect().await.unwrap();
+        tokio::time::timeout(Duration::from_secs(2), connection)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(state.runtime.retire_public_connections(), 0);
+        assert!(!state.runtime.is_draining());
+        shutdown.send(true).unwrap();
+        server.await.unwrap().unwrap();
+    }
+
+    // Retirement must not wait for the five-minute connection age: an h2c
+    // connection in the retired cohort gets a GOAWAY, finishes the stream it
+    // is serving, and closes, on the co-hosted and gateway gRPC listeners.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn planned_retirement_recycles_http2_connections_after_in_flight_streams() {
+        use axum::{body::Body, http::Request, routing::get};
+        use hyper_util::rt::{TokioExecutor, TokioIo};
+
+        for gateway in [false, true] {
+            let context = test_context(|_| {}).await;
+            let state = context.state.clone();
+            let serving_config = if gateway {
+                gateway_grpc_serving_config(&state.config)
+            } else {
+                state.config.accelerated_file_serving.clone()
+            };
+            let (release_tx, release_rx) = watch::channel(false);
+            let router = axum::Router::new().route(
+                "/slow",
+                get(move || {
+                    let mut release = release_rx.clone();
+                    async move {
+                        let _ = release.wait_for(|released| *released).await;
+                        "done"
+                    }
+                }),
+            );
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let (shutdown, shutdown_rx) = watch::channel(false);
+            let server = tokio::spawn(accelerated_file_serving::serve_public_http(
+                listener,
+                router,
+                state.clone(),
+                serving_config,
+                shutdown_rx,
+                public_drain_signal(state.runtime.clone()),
+                configure_http_builder,
+                accelerated_file_serving::ConnectionErrorLog::Debug,
+            ));
+            let stream = tokio::net::TcpStream::connect(address).await.unwrap();
+            let (mut sender, connection) =
+                hyper::client::conn::http2::handshake(TokioExecutor::new(), TokioIo::new(stream))
+                    .await
+                    .unwrap();
+            let connection = tokio::spawn(connection);
+            let in_flight = tokio::spawn(
+                sender.send_request(
+                    Request::builder()
+                        .uri(format!("http://{address}/slow"))
+                        .body(Body::empty())
+                        .unwrap(),
+                ),
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            assert!(!in_flight.is_finished());
+
+            assert_eq!(state.runtime.retire_public_connections(), 1);
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            assert_eq!(
+                state.runtime.retire_public_connections(),
+                1,
+                "the in-flight stream keeps its connection open"
+            );
+            release_tx.send_replace(true);
+            let response = in_flight
+                .await
+                .unwrap()
+                .expect("the in-flight stream completes after the GOAWAY");
+            assert_eq!(response.status(), 200);
+            let body = http_body_util::BodyExt::collect(response.into_body())
+                .await
+                .unwrap()
+                .to_bytes();
+            assert_eq!(&body[..], b"done");
+            tokio::time::timeout(Duration::from_secs(5), async {
+                while state.runtime.retire_public_connections() != 0 {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .expect("the retired HTTP/2 cohort reaches zero before the connection age limit");
+            let closed = tokio::time::timeout(Duration::from_secs(5), connection)
+                .await
+                .expect("the client sees the connection close")
+                .unwrap();
+            assert!(closed.is_ok(), "clean GOAWAY close: {closed:?}");
+            assert!(!state.runtime.is_draining());
+            shutdown.send(true).unwrap();
+            server.await.unwrap().unwrap();
+        }
+    }
+
+    // A Kura pod drains (preStop's SIGUSR1) well before it terminates, and
+    // refuses every request in between. An HTTP/2 connection that was open
+    // when the drain began must get a GOAWAY right then, so the gRPC channel
+    // on it reconnects to a serving replica instead of spending the whole
+    // drain on refusals, while the listener keeps accepting until termination.
+    #[tokio::test]
+    async fn draining_recycles_open_connections_before_termination() {
+        use axum::{body::Body, http::Request};
+        use hyper_util::rt::{TokioExecutor, TokioIo};
+
+        let context = test_context(|_| {}).await;
+        let state = context.state.clone();
+
+        let listener = tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
+            .await
+            .expect("bind co-hosted test listener");
+        let addr = listener.local_addr().expect("co-hosted listener address");
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let server = tokio::spawn(accelerated_file_serving::serve_public_http(
+            listener,
+            cohosted_router(state.clone(), crate::reapi::routes(state.clone())),
+            state.clone(),
+            state.config.accelerated_file_serving.clone(),
+            shutdown_rx,
+            public_drain_signal(state.runtime.clone()),
+            configure_http_builder,
+            accelerated_file_serving::ConnectionErrorLog::Debug,
+        ));
+
+        let h2c = |addr: SocketAddr| async move {
+            let stream = tokio::net::TcpStream::connect(addr)
+                .await
+                .expect("connect to the co-hosted listener");
+            hyper::client::conn::http2::handshake(TokioExecutor::new(), TokioIo::new(stream))
+                .await
+                .expect("h2c handshake")
+        };
+        let up = |addr: SocketAddr| {
+            Request::builder()
+                .uri(format!("http://{addr}/up"))
+                .body(Body::empty())
+                .expect("build /up request")
+        };
+
+        let (mut open_before_drain, connection) = h2c(addr).await;
+        let open_before_drain_connection = tokio::spawn(connection);
+        let response = open_before_drain
+            .send_request(up(addr))
+            .await
+            .expect("request before the drain succeeds");
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        assert!(state.runtime.request_drain());
+
+        let closed = tokio::time::timeout(Duration::from_secs(5), open_before_drain_connection)
+            .await
+            .expect("a connection open when the drain began should get a GOAWAY")
+            .expect("client connection task");
+        assert!(
+            closed.is_ok(),
+            "the connection should close cleanly through GOAWAY: {closed:?}"
+        );
+
+        // A stale endpoint list can still route a new connection here during
+        // the drain. It is accepted and kept, so its requests are refused with
+        // a status rather than failing on a closed connection.
+        let (mut opened_during_drain, connection) = h2c(addr).await;
+        let opened_during_drain_connection = tokio::spawn(connection);
+        let response = opened_during_drain
+            .send_request(up(addr))
+            .await
+            .expect("a connection opened during the drain is still served");
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        assert!(!opened_during_drain_connection.is_finished());
+
+        shutdown_tx.send(true).expect("signal termination");
+        let closed = tokio::time::timeout(Duration::from_secs(5), opened_during_drain_connection)
+            .await
+            .expect("termination should recycle connections opened during the drain")
+            .expect("client connection task");
+        assert!(closed.is_ok(), "clean GOAWAY at termination: {closed:?}");
+        let _ = server.await;
+    }
+
+    #[tokio::test]
     async fn gateway_grpc_listener_serves_grpc_and_refuses_http() {
         use bazel_remote_apis::build::bazel::remote::execution::v2::{
             GetCapabilitiesRequest, capabilities_client::CapabilitiesClient,
@@ -2059,7 +2430,9 @@ mod tests {
             state.clone(),
             gateway_grpc_serving_config(&state.config),
             shutdown_rx,
+            public_drain_signal(state.runtime.clone()),
             configure_http_builder,
+            accelerated_file_serving::ConnectionErrorLog::Debug,
         ));
 
         let http = reqwest::Client::new()
@@ -2218,7 +2591,9 @@ mod tests {
             state.clone(),
             state.config.accelerated_file_serving.clone(),
             shutdown_rx,
+            public_drain_signal(state.runtime.clone()),
             configure_http_builder,
+            accelerated_file_serving::ConnectionErrorLog::Debug,
         ));
 
         let endpoint = format!("http://{addr}");
@@ -2393,7 +2768,9 @@ mod tests {
             listener,
             cohosted_router(state.clone(), crate::reapi::routes(state.clone())),
             tls_config,
+            state.runtime.clone(),
             shutdown_rx,
+            public_drain_signal(state.runtime.clone()),
             configure_http_builder,
         ));
 

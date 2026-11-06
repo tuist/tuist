@@ -567,11 +567,41 @@ public enum Build_Bazel_Remote_Execution_V2_ContentAddressableStorage: Sendable 
             )
         }
 
+        /// Namespace for "SplitBlob" metadata.
+        public enum SplitBlob: Sendable {
+            /// Request type for "SplitBlob".
+            public typealias Input = Build_Bazel_Remote_Execution_V2_SplitBlobRequest
+            /// Response type for "SplitBlob".
+            public typealias Output = Build_Bazel_Remote_Execution_V2_SplitBlobResponse
+            /// Descriptor for "SplitBlob".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore
+                    .ServiceDescriptor(fullyQualifiedService: "build.bazel.remote.execution.v2.ContentAddressableStorage"),
+                method: "SplitBlob"
+            )
+        }
+
+        /// Namespace for "SpliceBlob" metadata.
+        public enum SpliceBlob: Sendable {
+            /// Request type for "SpliceBlob".
+            public typealias Input = Build_Bazel_Remote_Execution_V2_SpliceBlobRequest
+            /// Response type for "SpliceBlob".
+            public typealias Output = Build_Bazel_Remote_Execution_V2_SpliceBlobResponse
+            /// Descriptor for "SpliceBlob".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore
+                    .ServiceDescriptor(fullyQualifiedService: "build.bazel.remote.execution.v2.ContentAddressableStorage"),
+                method: "SpliceBlob"
+            )
+        }
+
         /// Descriptors for all methods in the "build.bazel.remote.execution.v2.ContentAddressableStorage" service.
         public static let descriptors: [GRPCCore.MethodDescriptor] = [
             BatchReadBlobs.descriptor,
             BatchUpdateBlobs.descriptor,
             FindMissingBlobs.descriptor,
+            SplitBlob.descriptor,
+            SpliceBlob.descriptor,
         ]
     }
 }
@@ -640,6 +670,34 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage {
             request: GRPCCore.StreamingServerRequest<Build_Bazel_Remote_Execution_V2_FindMissingBlobsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Build_Bazel_Remote_Execution_V2_FindMissingBlobsResponse>
+
+        /// Handle the "SplitBlob" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Build_Bazel_Remote_Execution_V2_SplitBlobRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Build_Bazel_Remote_Execution_V2_SplitBlobResponse` messages.
+        func splitBlob(
+            request: GRPCCore.StreamingServerRequest<Build_Bazel_Remote_Execution_V2_SplitBlobRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Build_Bazel_Remote_Execution_V2_SplitBlobResponse>
+
+        /// Handle the "SpliceBlob" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Build_Bazel_Remote_Execution_V2_SpliceBlobRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Build_Bazel_Remote_Execution_V2_SpliceBlobResponse` messages.
+        func spliceBlob(
+            request: GRPCCore.StreamingServerRequest<Build_Bazel_Remote_Execution_V2_SpliceBlobRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Build_Bazel_Remote_Execution_V2_SpliceBlobResponse>
     }
 
     /// Service protocol for the "build.bazel.remote.execution.v2.ContentAddressableStorage" service.
@@ -691,6 +749,34 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage {
             request: GRPCCore.ServerRequest<Build_Bazel_Remote_Execution_V2_FindMissingBlobsRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_FindMissingBlobsResponse>
+
+        /// Handle the "SplitBlob" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_SplitBlobRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Build_Bazel_Remote_Execution_V2_SplitBlobResponse` message.
+        func splitBlob(
+            request: GRPCCore.ServerRequest<Build_Bazel_Remote_Execution_V2_SplitBlobRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_SplitBlobResponse>
+
+        /// Handle the "SpliceBlob" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_SpliceBlobRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Build_Bazel_Remote_Execution_V2_SpliceBlobResponse` message.
+        func spliceBlob(
+            request: GRPCCore.ServerRequest<Build_Bazel_Remote_Execution_V2_SpliceBlobRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_SpliceBlobResponse>
     }
 
     /// Simple service protocol for the "build.bazel.remote.execution.v2.ContentAddressableStorage" service.
@@ -740,6 +826,34 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage {
             request: Build_Bazel_Remote_Execution_V2_FindMissingBlobsRequest,
             context: GRPCCore.ServerContext
         ) async throws -> Build_Bazel_Remote_Execution_V2_FindMissingBlobsResponse
+
+        /// Handle the "SplitBlob" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Build_Bazel_Remote_Execution_V2_SplitBlobRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Build_Bazel_Remote_Execution_V2_SplitBlobResponse` to respond with.
+        func splitBlob(
+            request: Build_Bazel_Remote_Execution_V2_SplitBlobRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Build_Bazel_Remote_Execution_V2_SplitBlobResponse
+
+        /// Handle the "SpliceBlob" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Build_Bazel_Remote_Execution_V2_SpliceBlobRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Build_Bazel_Remote_Execution_V2_SpliceBlobResponse` to respond with.
+        func spliceBlob(
+            request: Build_Bazel_Remote_Execution_V2_SpliceBlobRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Build_Bazel_Remote_Execution_V2_SpliceBlobResponse
     }
 }
 
@@ -775,6 +889,28 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.StreamingSer
             serializer: GRPCProtobuf.ProtobufSerializer<Build_Bazel_Remote_Execution_V2_FindMissingBlobsResponse>(),
             handler: { request, context in
                 try await self.findMissingBlobs(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Method.SplitBlob.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Build_Bazel_Remote_Execution_V2_SplitBlobRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Build_Bazel_Remote_Execution_V2_SplitBlobResponse>(),
+            handler: { request, context in
+                try await self.splitBlob(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Method.SpliceBlob.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Build_Bazel_Remote_Execution_V2_SpliceBlobRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Build_Bazel_Remote_Execution_V2_SpliceBlobResponse>(),
+            handler: { request, context in
+                try await self.spliceBlob(
                     request: request,
                     context: context
                 )
@@ -818,6 +954,28 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.ServiceProto
         )
         return GRPCCore.StreamingServerResponse(single: response)
     }
+
+    public func splitBlob(
+        request: GRPCCore.StreamingServerRequest<Build_Bazel_Remote_Execution_V2_SplitBlobRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Build_Bazel_Remote_Execution_V2_SplitBlobResponse> {
+        let response = try await splitBlob(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    public func spliceBlob(
+        request: GRPCCore.StreamingServerRequest<Build_Bazel_Remote_Execution_V2_SpliceBlobRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Build_Bazel_Remote_Execution_V2_SpliceBlobResponse> {
+        let response = try await spliceBlob(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
 }
 
 /// Default implementation of methods from 'ServiceProtocol'.
@@ -855,6 +1013,32 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.SimpleServic
     ) async throws -> GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_FindMissingBlobsResponse> {
         return GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_FindMissingBlobsResponse>(
             message: try await findMissingBlobs(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func splitBlob(
+        request: GRPCCore.ServerRequest<Build_Bazel_Remote_Execution_V2_SplitBlobRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_SplitBlobResponse> {
+        return GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_SplitBlobResponse>(
+            message: try await splitBlob(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func spliceBlob(
+        request: GRPCCore.ServerRequest<Build_Bazel_Remote_Execution_V2_SpliceBlobRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_SpliceBlobResponse> {
+        return GRPCCore.ServerResponse<Build_Bazel_Remote_Execution_V2_SpliceBlobResponse>(
+            message: try await spliceBlob(
                 request: request.message,
                 context: context
             ),
@@ -930,6 +1114,46 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage {
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore
                 .ClientResponse<Build_Bazel_Remote_Execution_V2_FindMissingBlobsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "SplitBlob" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_SplitBlobRequest` message.
+        ///   - serializer: A serializer for `Build_Bazel_Remote_Execution_V2_SplitBlobRequest` messages.
+        ///   - deserializer: A deserializer for `Build_Bazel_Remote_Execution_V2_SplitBlobResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func splitBlob<Result>(
+            request: GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_SplitBlobRequest>,
+            serializer: some GRPCCore.MessageSerializer<Build_Bazel_Remote_Execution_V2_SplitBlobRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Build_Bazel_Remote_Execution_V2_SplitBlobResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<Build_Bazel_Remote_Execution_V2_SplitBlobResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "SpliceBlob" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_SpliceBlobRequest` message.
+        ///   - serializer: A serializer for `Build_Bazel_Remote_Execution_V2_SpliceBlobRequest` messages.
+        ///   - deserializer: A deserializer for `Build_Bazel_Remote_Execution_V2_SpliceBlobResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        func spliceBlob<Result>(
+            request: GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_SpliceBlobRequest>,
+            serializer: some GRPCCore.MessageSerializer<Build_Bazel_Remote_Execution_V2_SpliceBlobRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Build_Bazel_Remote_Execution_V2_SpliceBlobResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<Build_Bazel_Remote_Execution_V2_SpliceBlobResponse>) async throws -> Result
         ) async throws -> Result where Result: Sendable
     }
 
@@ -1041,6 +1265,68 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage {
                 onResponse: handleResponse
             )
         }
+
+        /// Call the "SplitBlob" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_SplitBlobRequest` message.
+        ///   - serializer: A serializer for `Build_Bazel_Remote_Execution_V2_SplitBlobRequest` messages.
+        ///   - deserializer: A deserializer for `Build_Bazel_Remote_Execution_V2_SplitBlobResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func splitBlob<Result>(
+            request: GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_SplitBlobRequest>,
+            serializer: some GRPCCore.MessageSerializer<Build_Bazel_Remote_Execution_V2_SplitBlobRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Build_Bazel_Remote_Execution_V2_SplitBlobResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<Build_Bazel_Remote_Execution_V2_SplitBlobResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await client.unary(
+                request: request,
+                descriptor: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Method.SplitBlob.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "SpliceBlob" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_SpliceBlobRequest` message.
+        ///   - serializer: A serializer for `Build_Bazel_Remote_Execution_V2_SpliceBlobRequest` messages.
+        ///   - deserializer: A deserializer for `Build_Bazel_Remote_Execution_V2_SpliceBlobResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response and returns its result to
+        ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+        ///       already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func spliceBlob<Result>(
+            request: GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_SpliceBlobRequest>,
+            serializer: some GRPCCore.MessageSerializer<Build_Bazel_Remote_Execution_V2_SpliceBlobRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Build_Bazel_Remote_Execution_V2_SpliceBlobResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore
+                .ClientResponse<Build_Bazel_Remote_Execution_V2_SpliceBlobResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await client.unary(
+                request: request,
+                descriptor: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Method.SpliceBlob.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
     }
 }
 
@@ -1120,6 +1406,58 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.ClientProtoc
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Build_Bazel_Remote_Execution_V2_FindMissingBlobsRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Build_Bazel_Remote_Execution_V2_FindMissingBlobsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SplitBlob" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_SplitBlobRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func splitBlob<Result>(
+        request: GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_SplitBlobRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<Build_Bazel_Remote_Execution_V2_SplitBlobResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await splitBlob(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Build_Bazel_Remote_Execution_V2_SplitBlobRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Build_Bazel_Remote_Execution_V2_SplitBlobResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SpliceBlob" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Build_Bazel_Remote_Execution_V2_SpliceBlobRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func spliceBlob<Result>(
+        request: GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_SpliceBlobRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<Build_Bazel_Remote_Execution_V2_SpliceBlobResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await spliceBlob(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Build_Bazel_Remote_Execution_V2_SpliceBlobRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Build_Bazel_Remote_Execution_V2_SpliceBlobResponse>(),
             options: options,
             onResponse: handleResponse
         )
@@ -1213,6 +1551,66 @@ extension Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.ClientProtoc
             metadata: metadata
         )
         return try await findMissingBlobs(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SplitBlob" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func splitBlob<Result>(
+        _ message: Build_Bazel_Remote_Execution_V2_SplitBlobRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<Build_Bazel_Remote_Execution_V2_SplitBlobResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_SplitBlobRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await splitBlob(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "SpliceBlob" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response and returns its result to
+    ///       the caller. Returning from the closure will cancel the RPC if it hasn't
+    ///       already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func spliceBlob<Result>(
+        _ message: Build_Bazel_Remote_Execution_V2_SpliceBlobRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore
+            .ClientResponse<Build_Bazel_Remote_Execution_V2_SpliceBlobResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Build_Bazel_Remote_Execution_V2_SpliceBlobRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await spliceBlob(
             request: request,
             options: options,
             onResponse: handleResponse

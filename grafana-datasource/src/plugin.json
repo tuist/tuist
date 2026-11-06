@@ -7,7 +7,7 @@
   "backend": true,
   "executable": "gpx_tuist_datasource",
   "info": {
-    "description": "Query Tuist build and test duration metrics (average, p50, p90, p99) as Grafana time series.",
+    "description": "Query Tuist build health, workloads, failures, and build and test durations across Bazel, Once, Gradle, and Xcode. Supports Grafana alerts.",
     "author": {
       "name": "Tuist",
       "url": "https://tuist.dev"
@@ -47,5 +47,6 @@
   "dependencies": {
     "grafanaDependency": ">=10.4.0",
     "plugins": []
-  }
+  },
+  "alerting": true
 }

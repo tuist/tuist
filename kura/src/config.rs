@@ -45,13 +45,16 @@ const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
 const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES";
 const KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED: &str =
     "KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED";
-const KURA_REAPI_BLOB_CHUNKING_ENABLED: &str = "KURA_REAPI_BLOB_CHUNKING_ENABLED";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
 const KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: &str = "KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS";
 const KURA_DRAIN_COMPLETION_TIMEOUT_MS: &str = "KURA_DRAIN_COMPLETION_TIMEOUT_MS";
+const KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS: &str = "KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS";
+const MAX_RELAXED_DURABILITY_SYNC_INTERVAL_MS: u64 = 60_000;
 const KURA_SEGMENT_HANDLE_CACHE_SIZE: &str = "KURA_SEGMENT_HANDLE_CACHE_SIZE";
+const KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY: &str =
+    "KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY";
 const KURA_MEMORY_SOFT_LIMIT_BYTES: &str = "KURA_MEMORY_SOFT_LIMIT_BYTES";
 const KURA_MEMORY_HARD_LIMIT_BYTES: &str = "KURA_MEMORY_HARD_LIMIT_BYTES";
 const KURA_SNAPSHOT_CACHE_MAX_BYTES: &str = "KURA_SNAPSHOT_CACHE_MAX_BYTES";
@@ -168,6 +171,7 @@ const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
 
 #[derive(Clone, Debug)]
 pub struct Config {
+    pub serving_authority: Option<crate::serving_authority::AuthorityConfig>,
     /// Plaintext port for the co-hosted HTTP cache API + h2c REAPI gRPC service,
     /// dispatching each request to the right subsystem by path. When `public_tls`
     /// is set the same surface is also served over TLS on `https_port`.
@@ -183,6 +187,7 @@ pub struct Config {
     pub cas_capacity_bytes: Option<u64>,
     pub node_url: String,
     pub peer_gateway_url: Option<String>,
+    pub peer_topology: Option<crate::peer_topology::PeerTopology>,
     pub peers: Vec<String>,
     pub discovery_dns_name: Option<String>,
     pub global_discovery_dns_name: Option<String>,
@@ -201,13 +206,18 @@ pub struct Config {
     /// being complete (an incomplete reverse map must not drive deletes). The
     /// serve-side presence gates stay on regardless as the backstop.
     pub action_cache_eviction_cascade_enabled: bool,
-    /// Advertises and accepts new content-defined chunk recipes. Existing
-    /// recipes remain readable when disabled so a rollback flag change cannot
-    /// strand data that is already stored.
-    pub reapi_blob_chunking_enabled: bool,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
+    /// Opt-in relaxed durability. When set, writes are acknowledged once they
+    /// reach the page cache and a background task fsyncs segments and the WAL
+    /// on this interval, so a kernel crash or power loss can lose up to one
+    /// interval of acknowledged writes. A process crash loses nothing. `None`
+    /// keeps the default: every acknowledged write is fsynced first.
+    pub relaxed_durability_sync_interval_ms: Option<u64>,
+    /// `SpliceBlob` verifications that may stream chunks at once. Further
+    /// splices wait for a slot instead of being refused.
+    pub reapi_splice_verification_concurrency: usize,
     pub segment_handle_cache_size: usize,
     pub memory_limit_bytes: u64,
     pub memory_soft_limit_bytes: u64,
@@ -385,6 +395,7 @@ struct DerivedRuntimeDefaults {
     file_descriptor_acquire_timeout_ms: u64,
     drain_completion_timeout_ms: u64,
     segment_handle_cache_size: usize,
+    reapi_splice_verification_concurrency: usize,
     memory_soft_limit_bytes: u64,
     memory_hard_limit_bytes: u64,
     manifest_cache_max_bytes: usize,
@@ -461,6 +472,9 @@ impl DerivedRuntimeDefaults {
             file_descriptor_acquire_timeout_ms: DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS,
             drain_completion_timeout_ms: DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS,
             segment_handle_cache_size,
+            // Each verification hashes chunks through one 256 KiB buffer, so
+            // the limit is CPU- and disk-bound rather than memory-bound.
+            reapi_splice_verification_concurrency: clamp_usize(host_resources.cpu_count, 4, 16),
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
             manifest_cache_max_bytes,
@@ -759,6 +773,13 @@ impl Config {
         let peer_gateway_url = lookup(KURA_PEER_GATEWAY_URL)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
+        let peer_topology =
+            optional_parsed_value(&mut lookup, "KURA_PEER_TOPOLOGY", &mut invalid, |value| {
+                let topology: crate::peer_topology::PeerTopology =
+                    serde_json::from_str(value).map_err(|e| format!("KURA_PEER_TOPOLOGY: {e}"))?;
+                topology.validate()?;
+                Ok(topology)
+            });
         let peers: Vec<String> = lookup(KURA_PEERS)
             .map(|value| {
                 value
@@ -845,17 +866,6 @@ impl Config {
                 value.parse::<bool>().map_err(|_| {
                     format!("{KURA_ACTION_CACHE_EVICTION_CASCADE_ENABLED} must be a valid bool")
                 })
-            },
-        )
-        .unwrap_or(true);
-        let reapi_blob_chunking_enabled = optional_parsed_value(
-            &mut lookup,
-            KURA_REAPI_BLOB_CHUNKING_ENABLED,
-            &mut invalid,
-            |value| {
-                value
-                    .parse::<bool>()
-                    .map_err(|_| format!("{KURA_REAPI_BLOB_CHUNKING_ENABLED} must be a valid bool"))
             },
         )
         .unwrap_or(true);
@@ -966,6 +976,24 @@ impl Config {
                 "{KURA_DRAIN_COMPLETION_TIMEOUT_MS} must be greater than 0"
             ));
         }
+        let relaxed_durability_sync_interval_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!("{KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS} must be a valid u64")
+                })
+            },
+        )
+        .filter(|interval| *interval > 0);
+        if relaxed_durability_sync_interval_ms
+            .is_some_and(|interval| interval > MAX_RELAXED_DURABILITY_SYNC_INTERVAL_MS)
+        {
+            invalid.push(format!(
+                "{KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS} must be at most {MAX_RELAXED_DURABILITY_SYNC_INTERVAL_MS}"
+            ));
+        }
         let segment_handle_cache_size = optional_parsed_value(
             &mut lookup,
             KURA_SEGMENT_HANDLE_CACHE_SIZE,
@@ -984,6 +1012,22 @@ impl Config {
         if segment_handle_cache_size >= file_descriptor_pool_size {
             invalid.push(format!(
                 "{KURA_SEGMENT_HANDLE_CACHE_SIZE} must be less than {KURA_FILE_DESCRIPTOR_POOL_SIZE} so transient file operations keep headroom"
+            ));
+        }
+        let reapi_splice_verification_concurrency = optional_parsed_value(
+            &mut lookup,
+            KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(derived_defaults.reapi_splice_verification_concurrency);
+        if reapi_splice_verification_concurrency == 0 {
+            invalid.push(format!(
+                "{KURA_REAPI_SPLICE_VERIFICATION_CONCURRENCY} must be greater than 0"
             ));
         }
         let memory_soft_limit_bytes_override = optional_parsed_value(
@@ -1923,6 +1967,10 @@ impl Config {
             }
         }
 
+        if peer_topology.is_some() && peer_tls.is_none() {
+            invalid.push("KURA_PEER_TOPOLOGY requires peer mTLS".into());
+        }
+
         // Fit the anon caches to the floor before the config is sealed. This runs
         // last because it has to see the final values, operator overrides
         // included: the orchestrator pins all four on managed instances, and
@@ -1982,6 +2030,7 @@ impl Config {
         }
 
         Ok(Self {
+            serving_authority: crate::serving_authority::AuthorityConfig::from_env()?,
             port: port.expect("port should be present when configuration is valid"),
             internal_port: internal_port
                 .expect("internal_port should be present when configuration is valid"),
@@ -1993,6 +2042,7 @@ impl Config {
             cas_capacity_bytes,
             node_url: node_url.expect("node_url should be present when configuration is valid"),
             peer_gateway_url,
+            peer_topology,
             peers,
             discovery_dns_name,
             global_discovery_dns_name,
@@ -2003,10 +2053,11 @@ impl Config {
             accelerated_file_serving: accelerated_file_serving
                 .expect("accelerated_file_serving should be present when configuration is valid"),
             action_cache_eviction_cascade_enabled,
-            reapi_blob_chunking_enabled,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
+            relaxed_durability_sync_interval_ms,
+            reapi_splice_verification_concurrency,
             segment_handle_cache_size,
             memory_limit_bytes,
             memory_soft_limit_bytes,
@@ -2853,7 +2904,6 @@ mod tests {
 
         assert_eq!(config.internal_port, 7443);
         assert!(config.peers.is_empty());
-        assert!(config.reapi_blob_chunking_enabled);
         assert_eq!(config.file_descriptor_pool_size, 1792);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.drain_completion_timeout_ms, 240_000);
@@ -3063,7 +3113,6 @@ mod tests {
             (KURA_ACCELERATED_FILE_SERVING_MODE, "sendfile"),
             (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "16"),
             (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "2097152"),
-            (KURA_REAPI_BLOB_CHUNKING_ENABLED, "false"),
             (
                 KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
                 "10485760",
@@ -3098,7 +3147,6 @@ mod tests {
             ]
         );
         assert_eq!(config.discovery_dns_name, None);
-        assert!(!config.reapi_blob_chunking_enabled);
         assert_eq!(config.peer_tls, None);
         assert_eq!(config.file_descriptor_pool_size, 64);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5000);
@@ -3315,7 +3363,6 @@ mod tests {
             (KURA_ACCELERATED_FILE_SERVING_MODE, "uring"),
             (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "invalid"),
             (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "invalid"),
-            (KURA_REAPI_BLOB_CHUNKING_ENABLED, "invalid"),
             (KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND, "invalid"),
             (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "invalid"),
             (
@@ -3349,9 +3396,32 @@ mod tests {
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MODE));
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT));
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
-        assert!(error.contains(KURA_REAPI_BLOB_CHUNKING_ENABLED));
         assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
         assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
+    }
+
+    #[test]
+    fn relaxed_durability_is_opt_in_and_bounded() {
+        let parse = |value: &str| {
+            config_from(&[(KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS, value)])
+                .map(|config| config.relaxed_durability_sync_interval_ms)
+        };
+        assert_eq!(
+            config_from(&[])
+                .unwrap()
+                .relaxed_durability_sync_interval_ms,
+            None
+        );
+        assert_eq!(parse("0"), Ok(None));
+        assert_eq!(parse("1000"), Ok(Some(1000)));
+        assert_eq!(parse("60000"), Ok(Some(60_000)));
+        for invalid in ["60001", "-1", "soon"] {
+            assert!(
+                parse(invalid)
+                    .expect_err("expected an invalid interval to fail")
+                    .contains(KURA_RELAXED_DURABILITY_SYNC_INTERVAL_MS)
+            );
+        }
     }
 
     #[test]
@@ -3417,6 +3487,42 @@ mod tests {
         assert_eq!(
             config.peer_gateway_url.as_deref(),
             Some("http://peer.kura.example.com:7443")
+        );
+    }
+
+    #[test]
+    fn peer_topology_is_opt_in_and_requires_mtls() {
+        assert!(config_from(&[]).unwrap().peer_topology.is_none());
+        assert!(
+            config_from(&[("KURA_PEER_TOPOLOGY", r#"{"provider":"ovh"}"#)])
+                .unwrap_err()
+                .contains("requires both private_network and private_url")
+        );
+        let topology = r#"{"provider":"ovh","private_network":"vrack-1","private_url":"https://node.private:7443"}"#;
+        assert!(
+            config_from(&[("KURA_PEER_TOPOLOGY", topology)])
+                .unwrap_err()
+                .contains("requires peer mTLS")
+        );
+        let config = config_from(&[
+            ("KURA_PEER_TOPOLOGY", topology),
+            (KURA_NODE_URL, "https://node.private:7443"),
+            (KURA_PEERS, "https://other.private:7443"),
+            (KURA_INTERNAL_TLS_CA_CERT_PATH, "/ca.pem"),
+            (KURA_INTERNAL_TLS_CERT_PATH, "/cert.pem"),
+            (KURA_INTERNAL_TLS_KEY_PATH, "/key.pem"),
+        ])
+        .unwrap();
+        assert_eq!(
+            config.peer_topology.unwrap().private_network.as_deref(),
+            Some("vrack-1")
+        );
+        assert!(
+            config_from(&[(
+                "KURA_PEER_TOPOLOGY",
+                r#"{"provider":"ovh","private_url":"http://public"}"#
+            )])
+            .is_err()
         );
     }
 

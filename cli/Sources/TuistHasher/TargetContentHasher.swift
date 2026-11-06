@@ -134,11 +134,7 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
         let embeddedProductReferencesHash: String? = embeddedProductReferences.isEmpty
             ? nil
             : try contentHasher.hash(embeddedProductReferences.sorted())
-        let projectHash: String? =
-            switch graphTarget.project.type {
-            case let .external(hash: hash): hash
-            case .local: nil
-            }
+        let projectHash = graphTarget.project.externalHash
         let settingsHash: String?
         if let settings = graphTarget.target.settings {
             settingsHash = try await settingsContentHasher.hash(settings: settings)
@@ -158,8 +154,19 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
         )
 
         if let projectHash {
+            // External packages use their revision instead of reading every header. The packaging
+            // contract still contributes to both exact-target hashes and the reused SDK subhashes.
+            let headersHash = try graphTarget.target.headers?.sourceLayout.map { layout in
+                try contentHasher.hash([
+                    HeadersContentHasher.swiftPackageLayoutVersion,
+                    layout.moduleName,
+                    layout.publicHeaders.relative(to: layout.root).pathString,
+                    String(layout.usesDirectoryModuleMap),
+                ])
+            }
             let subhashes = TargetContentHashSubhashes(
                 dependencies: dependenciesHash.hash,
+                headers: headersHash,
                 projectSettings: projectSettingsHash,
                 targetSettings: settingsHash,
                 additionalStrings: additionalStrings,
@@ -442,6 +449,7 @@ public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:t
                 projectHash, target.name, target.product.rawValue,
                 subhashes.projectSettings, subhashes.targetSettings,
                 dependencies ?? subhashes.dependencies, subhashes.embeddedProductReferences,
+                subhashes.headers,
             ].compactMap { $0 } + destinations + additionalStrings)
         }
         var strings = [

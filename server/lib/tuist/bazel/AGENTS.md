@@ -7,6 +7,7 @@ does not expose a second Build Event Service listener.
 
 ## Test artifacts
 
+- Profile/test processors bind observability to their already-loaded `Project`, not the run actor or unchecked job arguments. Leave that process-local target installed through Oban exception reporting; do not restore it before the reporter captures the error, and do not add a second resource query solely for attribution.
 - Kura recognizes only Bazel's conventional `test.xml` and `test.log` files
   referenced by Build Event Protocol test-result events.
 - Kura queues per-attempt facts, per-target summaries, and artifact digests,
@@ -54,6 +55,8 @@ does not expose a second Build Event Service listener.
   retained field, table, or retention period changes.
 
 - `Profile` ingests the complete Bazel JSON trace profile through Kura's signed profile webhook. `Timeline` uses that profile for the dashboard and preserves bounded BEP summaries for API/MCP compatibility with older builds. Profile times use the native profile origin; CPU is measured in cores, memory in MiB and network in megabits/s before conversion for the UI. Never manufacture missing counters or rank away short events.
+- `CacheActionNames` resolves optional cache labels from the published profile using a bounded action-result output hint, exact target and mnemonic, and project/invocation scope. Conflicting output hints or descriptions retain the mnemonic. Misses may reuse a hit/write hint for the same action digest and configuration; presentation never changes cache event identity or counts. Output paths are not source paths and must not become repository links.
+- Project-opted-in `Action.ingest/2` derives persistent Bazel actions through `BuildEntities.Producers.bazel_actions/2` after atomically validating native batches. Enhanced Kura payloads carry exact target label, mnemonic, configured primary output, optional measured duration and recorded environment/git context. Execution start distinguishes retries; digests and profile intervals never define logical inventory units. Missing identity/start leaves old payloads accepted but unindexed, and flag-off leaves native diagnostics intact. Complete execution coverage requires `--build_event_publish_all_actions`; best-effort delivery can still omit observations.
 - `Action` stores BEP outcomes and sanitized diagnostic output, keyed by project, invocation, primary output and execution start. Step lists exclude logs; details and the dashboard fetch them separately. Ambiguous repeated-output actions are not assigned a guessed outcome.
 - Profile and action rows expire after 90 days. Profile size limits reject the whole payload explicitly. Keep migration, data export and public retention documentation aligned.
 - Native resource counters are one-second interval aggregates, timestamped at the bucket start. Attach `duration_ms` to each bucket, clipped to the timeline end, including when reading older stored profiles. Preserve the original offset and value; do not backfill the interval before collection or interpolate between aggregates.
@@ -75,3 +78,5 @@ does not expose a second Build Event Service listener.
 - Native resource counters use explicit Bazel series keys (`system cpu`, `system memory`, and `system network up/down (Mbps)`); ignore additional metadata keys and unknown series. Count targets by project and target, consistent with the other timeline sources.
 
 - Timeline availability follows the published profile version and existing step rows or genuine machine samples, and requires a published profile. Retained BEP summaries remain available to API/MCP clients but never expose a dashboard Timeline by themselves. Staging states alone never imply timeline availability. The processor requires write access to `bazel_profile_uploads` in both release-time grants and the CNPG fallback SQL; exercise profile success and rejection with the deployed restricted role.
+
+- Native build listings opt into the virtual failure-category column from `BuildMetrics`. Use the shared classifier before database filtering, sorting and pagination, scope evidence to the selected project, and leave stored records and legacy listing defaults unchanged.

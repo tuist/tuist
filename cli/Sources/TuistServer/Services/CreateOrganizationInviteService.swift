@@ -7,6 +7,7 @@ public protocol CreateOrganizationInviteServicing {
     func createOrganizationInvite(
         organizationName: String,
         email: String,
+        role: Operations.createInvitation.Input.Body.jsonPayload.rolePayload?,
         serverURL: URL
     ) async throws -> ServerInvitation
 }
@@ -17,12 +18,14 @@ enum CreateOrganizationInviteServiceError: LocalizedError {
     case forbidden(String)
     case badRequest(String)
     case unauthorized(String)
+    case tooManyRequests(String)
 
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "The user could not be invited due to an unknown Tuist response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .badRequest(message), let .unauthorized(message):
+        case let .notFound(message), let .forbidden(message), let .badRequest(message), let .unauthorized(message),
+             let .tooManyRequests(message):
             return message
         }
     }
@@ -34,6 +37,7 @@ public struct CreateOrganizationInviteService: CreateOrganizationInviteServicing
     public func createOrganizationInvite(
         organizationName: String,
         email: String,
+        role: Operations.createInvitation.Input.Body.jsonPayload.rolePayload?,
         serverURL: URL
     ) async throws -> ServerInvitation {
         let client = Client.authenticated(serverURL: serverURL)
@@ -41,7 +45,7 @@ public struct CreateOrganizationInviteService: CreateOrganizationInviteServicing
         let response = try await client.createInvitation(
             .init(
                 path: .init(organization_name: organizationName),
-                body: .json(.init(invitee_email: email))
+                body: .json(.init(invitee_email: email, role: role))
             )
         )
         switch response {
@@ -64,6 +68,11 @@ public struct CreateOrganizationInviteService: CreateOrganizationInviteServicing
             switch badRequestResponse.body {
             case let .json(error):
                 throw CreateOrganizationInviteServiceError.badRequest(error.message)
+            }
+        case let .tooManyRequests(response):
+            switch response.body {
+            case let .json(error):
+                throw CreateOrganizationInviteServiceError.tooManyRequests(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
             throw CreateOrganizationInviteServiceError.unknownError(statusCode)

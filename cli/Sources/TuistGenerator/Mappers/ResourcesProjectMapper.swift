@@ -153,7 +153,15 @@ public struct ResourcesProjectMapper: ProjectMapping {
         for target: Target,
         bundleName: String
     ) -> CompanionBundleResult {
-        let partition = partitioner.partition(target.buildableFolders)
+        let partition = partitioner.partition(
+            target.buildableFolders,
+            explicitCatalogSources: Set(target.sources.compactMap {
+                ["xcassets", "xcstrings"].contains($0.path.extension?.lowercased() ?? "") ? $0.path : nil
+            }),
+            explicitCatalogResources: Set(target.resources.resources.compactMap {
+                ["xcassets", "xcstrings"].contains($0.path.extension?.lowercased() ?? "") ? $0.path : nil
+            })
+        )
 
         let bundleTarget = makeBundleTarget(
             for: target,
@@ -170,31 +178,33 @@ public struct ResourcesProjectMapper: ProjectMapping {
 
         // Asset catalogs (.xcassets) sit on the main target's Sources phase so Xcode generates
         // typed asset symbols, and on the companion bundle's Resources phase so the catalog is
-        // actually compiled. This applies both to explicit `resources` entries and to catalogs
-        // discovered inside buildable folders. Mirrors SwiftPM's PIF builder:
+        // actually compiled. Discovered catalogs keep synchronized membership in both targets:
+        // swift-build moves source-generating Resources entries into Sources for symbol generation.
+        // Explicit declarations take precedence over implicit membership to preserve per-file metadata.
+        // A catalog declared as a buildable root still needs its explicit Sources reference.
+        //   - https://github.com/swiftlang/swift-build/blob/89af69d6b4effc57993c35181b8726d292749b47/Sources/SWBTaskConstruction/TaskProducers/BuildPhaseTaskProducers/SourcesTaskProducer.swift#L263-L275
+        // Explicit `resources` entries mirror SwiftPM's PIF builder:
         //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L944-L952
         //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder.swift#L347-L353
         appendUniqueSourceFiles(
             paths: target.resources.resources.compactMap { resource in
                 guard resource.path.extension?.lowercased() == "xcassets" else { return nil }
                 return resource.path
-            } + buildableFolderAssetCatalogPaths(target.buildableFolders),
+            } + target.buildableFolders.compactMap { folder in
+                folder.path.extension?.lowercased() == "xcassets" ? folder.path : nil
+            },
             to: &modifiedTarget
         )
 
-        // String catalogs (.xcstrings) stay on the main target's Resources phase so Xcode runs
-        // localization extraction and stale-string detection in the same target where the Swift
-        // sources live. They are also kept on the companion bundle's Resources phase so the
-        // catalog is compiled to .strings for `Bundle.module` lookups at runtime.
+        // String catalogs (.xcstrings) stay on the main target's Resources phase, or in its
+        // synchronized membership, so swift-build can generate string symbols when enabled.
+        // Swift string extraction is independently controlled by SWIFT_EMIT_LOC_STRINGS.
+        // The companion bundle compiles the catalog to .strings for `Bundle.module` lookups.
         // `PACKAGE_RESOURCE_BUNDLE_NAME` (set on the main target below) makes swift-build's
         // `XCStringsCompiler.shouldCompileCatalog` skip catalog compilation here, so the catalog
         // is only compiled once, inside the companion bundle.
         //   - https://github.com/swiftlang/swift-build/blob/main/Sources/SWBApplePlatform/XCStringsCompiler.swift
-        var explicitResources = partition.originalTargetExplicitResources
-        explicitResources.append(
-            contentsOf: target.resources.resources.filter { $0.path.extension == "xcstrings" }
-        )
-        modifiedTarget.resources.resources = explicitResources
+        modifiedTarget.resources.resources = target.resources.resources.filter { $0.path.extension == "xcstrings" }
         modifiedTarget.copyFiles = []
         modifiedTarget.buildableFolders = partition.originalTargetFolders
         modifiedTarget.dependencies.append(.target(
@@ -209,9 +219,9 @@ public struct ResourcesProjectMapper: ProjectMapping {
         // `xcodebuild archive` fails for static targets because `LinkAssetCatalog` references an
         // `UninstalledProducts` path that doesn't exist during archiving.
         //
-        // `PACKAGE_RESOURCE_TARGET_KIND = "regular"` tells Xcode this is a normal compilation
-        // target (not a resource bundle) so string extraction runs here where the Swift source
-        // references live. Mirrors SwiftPM's PIF builder:
+        // `PACKAGE_RESOURCE_TARGET_KIND = "regular"` identifies the main compilation target,
+        // rather than its resource bundle. It does not enable Swift string extraction.
+        // Mirrors SwiftPM's PIF builder:
         //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/XCBuildSupport/PIFBuilder.swift#L642
         //   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder%2BModules.swift#L524
         var base = modifiedTarget.settings?.base ?? SettingsDictionary()
@@ -341,24 +351,5 @@ public struct ResourcesProjectMapper: ProjectMapping {
         for path in paths where existingPaths.insert(path).inserted {
             target.sources.append(SourceFile(path: path))
         }
-    }
-
-    private func buildableFolderAssetCatalogPaths(_ folders: [BuildableFolder]) -> [AbsolutePath] {
-        var assetCatalogPaths: [AbsolutePath] = []
-        var seenPaths = Set<AbsolutePath>()
-
-        for folder in folders {
-            if folder.path.extension?.lowercased() == "xcassets", seenPaths.insert(folder.path).inserted {
-                assetCatalogPaths.append(folder.path)
-            }
-
-            for resolvedFile in folder.resolvedFiles where resolvedFile.path.extension?.lowercased() == "xcassets" {
-                if seenPaths.insert(resolvedFile.path).inserted {
-                    assetCatalogPaths.append(resolvedFile.path)
-                }
-            }
-        }
-
-        return assetCatalogPaths
     }
 }

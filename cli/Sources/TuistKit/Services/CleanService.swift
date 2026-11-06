@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistAlert
 import TuistCache
+import TuistCAS
 import TuistConfigLoader
 import TuistConstants
 import TuistCore
@@ -55,7 +56,7 @@ struct CleanService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let cleanCacheService: CleanCacheServicing
     private let cleanProjectCacheService: CleanProjectCacheServicing
-    private let getCacheEndpointsService: GetCacheEndpointsServicing
+    private let cacheURLStore: CacheURLStoring
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator
     private let fileSystem: FileSystem
@@ -68,7 +69,7 @@ struct CleanService {
         serverEnvironmentService: ServerEnvironmentServicing,
         cleanCacheService: CleanCacheServicing,
         cleanProjectCacheService: CleanProjectCacheServicing,
-        getCacheEndpointsService: GetCacheEndpointsServicing,
+        cacheURLStore: CacheURLStoring,
         serverAuthenticationController: ServerAuthenticationControlling,
         swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator =
             SwiftPackageManagerScratchDirectoryLocator(),
@@ -81,7 +82,7 @@ struct CleanService {
         self.serverEnvironmentService = serverEnvironmentService
         self.cleanCacheService = cleanCacheService
         self.cleanProjectCacheService = cleanProjectCacheService
-        self.getCacheEndpointsService = getCacheEndpointsService
+        self.cacheURLStore = cacheURLStore
         self.serverAuthenticationController = serverAuthenticationController
         self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
         self.fileSystem = fileSystem
@@ -96,7 +97,7 @@ struct CleanService {
             serverEnvironmentService: ServerEnvironmentService(),
             cleanCacheService: CleanCacheService(),
             cleanProjectCacheService: CleanProjectCacheService(),
-            getCacheEndpointsService: GetCacheEndpointsService(),
+            cacheURLStore: CacheURLStore(),
             serverAuthenticationController: ServerAuthenticationController(),
             swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator(),
             fileSystem: FileSystem()
@@ -152,26 +153,14 @@ struct CleanService {
                 let accountHandle = handles[0]
                 let projectHandle = handles[1]
 
-                let endpoints = try await getCacheEndpointsService.getCacheEndpoints(
-                    serverURL: serverURL,
-                    accountHandle: accountHandle
-                ).endpoints
-
-                try await withThrowingTaskGroup(of: Void.self) { group in
-                    for endpoint in endpoints {
-                        guard let cacheURL = URL(string: endpoint) else { continue }
-                        group.addTask {
-                            try await cleanProjectCacheService.cleanProjectCache(
-                                accountHandle: accountHandle,
-                                projectHandle: projectHandle,
-                                serverURL: cacheURL,
-                                authenticationURL: serverURL,
-                                serverAuthenticationController: serverAuthenticationController
-                            )
-                        }
-                    }
-                    try await group.waitForAll()
-                }
+                let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+                try await cleanProjectCacheService.cleanProjectCache(
+                    accountHandle: accountHandle,
+                    projectHandle: projectHandle,
+                    serverURL: cacheURL,
+                    authenticationURL: serverURL,
+                    serverAuthenticationController: serverAuthenticationController
+                )
             }
 
             Logger.current.notice("Successfully cleaned the remote storage.")

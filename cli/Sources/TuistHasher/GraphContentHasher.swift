@@ -15,12 +15,12 @@ public protocol GraphContentHashing {
     /// - Parameters:
     ///     - graph: Graph to hash
     ///     - filter: If `true`, `TargetNode` is hashed, otherwise it is skipped
-    ///     - additionalStrings: Additional strings to be used when hashing graph
+    ///     - additionalStrings: Additional strings to be used when hashing each target
     func contentHashes(
         for graph: Graph,
         include: @escaping (GraphTarget) -> Bool,
         destination: SimulatorDeviceAndRuntime?,
-        additionalStrings: [String]
+        additionalStrings: @escaping (GraphTarget) -> [String]
     ) async throws -> [GraphTarget: TargetContentHash]
 }
 
@@ -61,14 +61,12 @@ public struct GraphContentHasher: GraphContentHashing {
         for graph: Graph,
         include: (GraphTarget) -> Bool,
         destination: SimulatorDeviceAndRuntime?,
-        additionalStrings: [String]
+        additionalStrings: @escaping (GraphTarget) -> [String]
     ) async throws -> [GraphTarget: TargetContentHash] {
         let graphTraverser = GraphTraverser(graph: graph)
         var visitedIsHasheableNodes: [GraphTarget: Bool] = [:]
         let hashedTargets: ThreadSafe<[GraphHashedTarget: String]> = ThreadSafe([:])
         let hashedPaths: ThreadSafe<[AbsolutePath: String]> = ThreadSafe([:])
-
-        let additionalStrings = additionalStrings
 
         let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
         let hashableTargets = sortedCacheableTargets.filter { target in
@@ -97,7 +95,7 @@ public struct GraphContentHasher: GraphContentHashing {
         hashedTargets: ThreadSafe<[GraphHashedTarget: String]>,
         hashedPaths: ThreadSafe<[AbsolutePath: String]>,
         destination: SimulatorDeviceAndRuntime?,
-        additionalStrings: [String]
+        additionalStrings: @escaping (GraphTarget) -> [String]
     ) async throws -> [TargetContentHash] {
         let targetContentHasher = targetContentHasher
         let tasks = ThreadSafe<[GraphHashedTarget: Task<TargetContentHash, Error>]>([:])
@@ -123,7 +121,7 @@ public struct GraphContentHasher: GraphContentHashing {
                     hashedPaths: hashedPaths.value,
                     destination: destination,
                     embeddedProductReferences: embeddedProductReferences,
-                    additionalStrings: additionalStrings
+                    additionalStrings: additionalStrings(target)
                 )
                 hashedPaths.mutate { $0.merge(hash.hashedPaths, uniquingKeysWith: { _, new in new }) }
                 hashedTargets.mutate { $0[key] = hash.hash }

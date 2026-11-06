@@ -11,12 +11,13 @@ defmodule Atlas.Engineering.Alerts.Destinations.Webhook do
 
   alias Atlas.Engineering.Alerts.Rule
   alias Atlas.Engineering.Errors.Issue
+  alias Atlas.Moodboard.SafeHTTP
   alias AtlasWeb.Endpoint
 
   @user_agent "Atlas-Alerts/1.0"
 
   def deliver(%Rule{} = rule, %Issue{} = issue, reason, opts \\ []) do
-    body = build_body(rule, issue, reason)
+    body = build_body(rule, issue, reason, opts)
     encoded = JSON.encode!(body)
     signature = sign(encoded, rule.webhook_signing_secret)
 
@@ -37,17 +38,22 @@ defmodule Atlas.Engineering.Alerts.Destinations.Webhook do
   end
 
   defp default_request(url, headers, body) do
-    case Req.post(url, headers: headers, body: body, receive_timeout: :timer.seconds(10)) do
-      {:ok, %Req.Response{status: status}} when status in 200..299 -> :ok
-      {:ok, %Req.Response{status: status}} -> {:error, {:webhook_http, status}}
+    case SafeHTTP.post(url, headers, body) do
+      {:ok, %{status: status}} when status in 200..299 -> :ok
+      {:ok, %{status: status}} -> {:error, {:webhook_http, status}}
       {:error, reason} -> {:error, {:webhook_transport, reason}}
     end
   end
 
-  defp build_body(%Rule{} = rule, %Issue{} = issue, reason) do
+  defp build_body(%Rule{} = rule, %Issue{} = issue, reason, opts) do
+    environment = Keyword.get(opts, :environment, rule.environment)
+
     %{
       "delivery_id" => Ecto.UUID.generate(),
       "event" => "alert.fired",
+      "grouping_key" => "atlas:#{rule.id}:#{issue.id}:#{environment}",
+      "environment" => environment,
+      "signal" => Keyword.get(opts, :signal, %{}),
       "rule" => %{
         "id" => rule.id,
         "name" => rule.name,

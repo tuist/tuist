@@ -4,6 +4,8 @@ defmodule TuistWeb.API.GradleControllerTest do
 
   import Ecto.Query
 
+  alias Tuist.BuildEntities
+  alias Tuist.BuildEntities.Identity
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -71,6 +73,68 @@ defmodule TuistWeb.API.GradleControllerTest do
 
       assert hd(tasks["tasks"])["execution"]["remote_cache_upload_duration_ms"] == 30
       assert hd(tasks["tasks"])["execution"]["build_path"] == ":included"
+    end
+
+    test "expanded metadata survives ingestion, REST and MCP without registry filtering", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      values = Map.new(1..64, &{"future.key.#{&1}", "unicode ✓ #{&1}"})
+      path = "/api/projects/#{user.account.name}/#{project.name}/gradle/builds"
+      body = %{duration_ms: 10, status: "success", tasks: [], custom_metadata: %{tags: ["ci"], values: values}}
+
+      id =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(path, JSON.encode!(body))
+        |> json_response(201)
+        |> Map.fetch!("id")
+
+      Buffer.flush()
+      response = conn |> get(path <> "/" <> id) |> json_response(200)
+      assert response["custom_metadata"] == %{"tags" => ["ci"], "values" => values}
+      mcp = %Plug.Conn{assigns: %{current_user: user}}
+      args = %{"build_run_id" => id}
+      assert %{"structuredContent" => detail} = Tuist.MCP.Components.Tools.GetGradleBuild.call(mcp, args)
+      assert detail["custom_metadata"] == response["custom_metadata"]
+    end
+
+    test "legacy task reports populate the persistent inventory without new fields", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      FunWithFlags.enable(:build_entities, for_actor: project)
+
+      body = %{
+        duration_ms: 100,
+        status: "success",
+        root_project_name: "app",
+        tasks: [%{task_path: ":app:compileJava", outcome: "executed", duration_ms: 80, cacheable: true}]
+      }
+
+      id =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{user.account.name}/#{project.name}/gradle/builds", JSON.encode!(body))
+        |> json_response(201)
+        |> Map.fetch!("id")
+
+      identity = %{
+        "root_project_name" => "app",
+        "build_path" => "",
+        "task_path" => ":app:compileJava",
+        "task_type" => ""
+      }
+
+      entity_id = Identity.id(project.id, :gradle, "task", identity)
+
+      assert {[%{id: ^entity_id, identity: ^identity, observations: 1}], _meta} =
+               BuildEntities.list(project.id, :gradle, "task")
+
+      assert {[%{parent_id: ^id, status: "success", cache_status: "none", duration_ms: 80}], _meta} =
+               BuildEntities.history(project.id, :gradle, "task", entity_id)
     end
 
     test "creates a build with tasks and returns the build ID", %{conn: conn, user: user, project: project} do

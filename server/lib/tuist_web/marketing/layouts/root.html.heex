@@ -1,10 +1,15 @@
 <!DOCTYPE html>
-<html lang={Gettext.get_locale()} class="[scrollbar-gutter:stable]">
+<html
+  lang={TuistWeb.Locale.language_tag(Gettext.get_locale())}
+  dir={TuistWeb.Locale.direction(Gettext.get_locale())}
+  class="[scrollbar-gutter:stable]"
+>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="csp-nonce" content={get_csp_nonce()} />
     <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="webmcp-endpoint" content={~p"/api/webmcp/public"} />
     <%!-- Prefetch marketing pages when a link is hovered (moderate
     eagerness), so the HTML is already in the cache by click time.
     Chromium-only; other engines ignore the script. Prefetch rather than
@@ -23,6 +28,7 @@
             "where": {
               "and": [
                 { "href_matches": "/*" },
+                { "not": { "selector_matches": "[data-language-switch]" } },
                 { "not": { "href_matches": "/users/*" } },
                 { "not": { "href_matches": "/docs*" } },
                 { "not": { "href_matches": "/api/*" } },
@@ -96,29 +102,53 @@
     <TuistWeb.LayoutComponents.head_favicon_links />
     <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
     <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
-    <!-- Language alternates for SEO -->
-    <%= for locale <- TuistWeb.Marketing.Localization.all_locales() do %>
+    <meta :if={assigns[:head_noindex]} name="robots" content="noindex, nofollow" />
+    <%= unless assigns[:head_noindex] do %>
       <link
+        :if={
+          TuistWeb.Utilities.MarketingMarkdown.alternate_path(
+            TuistWeb.Marketing.Localization.current_path(assigns)
+          )
+        }
         rel="alternate"
-        hreflang={locale}
+        type="text/markdown"
         href={
           Tuist.Environment.app_url(
             path:
-              TuistWeb.Marketing.Localization.localized_href(
-                TuistWeb.Marketing.Localization.current_path(assigns),
-                locale
+              TuistWeb.Utilities.MarketingMarkdown.alternate_path(
+                TuistWeb.Marketing.Localization.current_path(assigns)
               )
           )
         }
       />
+      <!-- Language alternates for SEO -->
+      <%= for locale <- TuistWeb.Marketing.Localization.all_locales() do %>
+        <link
+          rel="alternate"
+          hreflang={TuistWeb.Locale.language_tag(locale)}
+          href={
+            TuistWeb.Utilities.SEO.canonical_url(
+              TuistWeb.Marketing.Localization.localized_href(
+                TuistWeb.Marketing.Localization.current_path(assigns),
+                locale
+              )
+            )
+          }
+        />
+      <% end %>
+      <link
+        rel="alternate"
+        hreflang="x-default"
+        href={
+          TuistWeb.Utilities.SEO.canonical_url(
+            TuistWeb.Marketing.Localization.localized_href(
+              TuistWeb.Marketing.Localization.current_path(assigns),
+              "en"
+            )
+          )
+        }
+      />
     <% end %>
-    <link
-      rel="alternate"
-      hreflang="x-default"
-      href={
-        Tuist.Environment.app_url(path: TuistWeb.Marketing.Localization.current_path(assigns))
-      }
-    />
     <script
       :for={
         structured_data <-
@@ -220,7 +250,7 @@
     <script nonce={get_csp_nonce()} src="https://js.hcaptcha.com/1/api.js" async defer>
     </script>
     <TuistWeb.LayoutComponents.head_support_chat_script {assigns} />
-    <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
+    <TuistWeb.LayoutComponents.head_canonical_link :if={!assigns[:head_noindex]} {assigns} />
   </head>
   <body data-scrollable="true">
     <TuistWeb.GoogleOneTap.prompt current_user={assigns[:current_user]} />

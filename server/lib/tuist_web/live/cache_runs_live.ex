@@ -21,7 +21,12 @@ defmodule TuistWeb.CacheRunsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_cache", "Cache Runs")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("cache-runs"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_cache", "Cache Runs"),
+          fallback: "cache-runs"
+        )
+      )
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
@@ -117,7 +122,7 @@ defmodule TuistWeb.CacheRunsLive do
     uri = URI.new!("?" <> URI.encode_query(params))
 
     cache_runs_sort_by = params["cache_runs_sort_by"] || "ran_at"
-    cache_runs_sort_order = params["cache_runs_sort_order"] || "desc"
+    cache_runs_sort_order = Atom.to_string(Query.sort_order(params["cache_runs_sort_order"], :desc))
 
     {
       :noreply,
@@ -193,8 +198,8 @@ defmodule TuistWeb.CacheRunsLive do
     filters =
       Filter.Operations.decode_filters_from_query(params, available_filters)
 
-    order_by = String.to_atom(cache_runs_sort_by)
-    order_direction = String.to_atom(cache_runs_sort_order)
+    order_by = ensure_allowed_sort_by(cache_runs_sort_by)
+    order_direction = Query.sort_order(cache_runs_sort_order, :desc)
 
     {cache_runs, cache_runs_meta} =
       list_cache_runs(project.id, params, order_by, order_direction, filters)
@@ -245,6 +250,10 @@ defmodule TuistWeb.CacheRunsLive do
       :error -> false
     end
   end
+
+  defp ensure_allowed_sort_by("hit_rate"), do: :hit_rate
+  defp ensure_allowed_sort_by("duration"), do: :duration
+  defp ensure_allowed_sort_by(_ran_at), do: :ran_at
 
   defp list_cache_runs(project_id, attrs) do
     flop_filters = [

@@ -6,20 +6,27 @@ defmodule TuistWeb.API.RunnerVolumesControllerTest do
 
   alias OpenApiSpex.Plug.PutApiSpec
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.CacheVolumes.Query
   alias TuistWeb.API.RunnerVolumesController, as: Controller
 
   setup do
-    account = %{id: 1, name: "acme"}
+    account = %Account{id: 1, name: "acme", visibility: :private}
     stub(Accounts, :get_account_by_handle, fn "acme" -> account end)
     stub(FeatureFlags, :runners_enabled?, fn ^account -> true end)
     %{account: account, id: Ecto.UUID.generate()}
   end
 
   defp call(action, params \\ %{}) do
-    method = if action == :clear, do: :post, else: :get
+    method =
+      case action do
+        :delete -> :delete
+        :clear -> :post
+        _ -> :get
+      end
+
     path = Map.merge(%{"account_handle" => "acme"}, Map.take(params, ["volume_id", "workflow_job_id"]))
     query = Map.drop(params, ["volume_id", "workflow_job_id"])
     conn = Plug.Test.conn(method, "/?" <> URI.encode_query(query))
@@ -27,6 +34,7 @@ defmodule TuistWeb.API.RunnerVolumesControllerTest do
 
     conn
     |> assign(:current_subject, :subject)
+    |> assign(:caching, false)
     |> PutApiSpec.call(PutApiSpec.init(module: TuistWeb.API.Spec))
     |> Controller.call(action)
   end
@@ -52,8 +60,23 @@ defmodule TuistWeb.API.RunnerVolumesControllerTest do
     assert call(:list, %{"page_size" => "101"}).status == 400
   end
 
-  test "clearing uses administrative authorization and returns the shared result", %{account: account, id: id} do
-    expect(Authorization, :authorize, fn :account_update, :subject, ^account -> :ok end)
+  test "deleting uses administrative authorization and returns the shared result", %{account: account, id: id} do
+    expect(Authorization, :authorize, fn :runners_update, :subject, ^account -> :ok end)
+
+    expect(Query, :run, fn :delete, 1, %{"account_handle" => "acme", "volume_id" => ^id} ->
+      {:ok, %{id: id, deleted: true}}
+    end)
+
+    result = call(:delete, %{"volume_id" => id})
+    assert result.status == 200
+    assert JSON.decode!(result.resp_body) == %{"id" => id, "deleted" => true}
+  end
+
+  test "the deprecated clear action still uses administrative authorization and returns the shared result", %{
+    account: account,
+    id: id
+  } do
+    expect(Authorization, :authorize, fn :runners_update, :subject, ^account -> :ok end)
 
     expect(Query, :run, fn :clear, 1, %{"account_handle" => "acme", "volume_id" => ^id} ->
       {:ok, %{id: id, cleared: true}}
@@ -64,10 +87,11 @@ defmodule TuistWeb.API.RunnerVolumesControllerTest do
     assert JSON.decode!(result.resp_body) == %{"id" => id, "cleared" => true}
   end
 
-  test "readers cannot clear and denial never reaches storage", %{account: account, id: id} do
-    expect(Authorization, :authorize, fn :account_update, :subject, ^account -> {:error, :forbidden} end)
+  test "readers cannot delete or clear and denial never reaches storage", %{account: account, id: id} do
+    stub(Authorization, :authorize, fn :runners_update, :subject, ^account -> {:error, :forbidden} end)
     stub(TuistWeb.RateLimit.Authorization, :hit, fn _ -> {:allow, 1} end)
     reject(&Query.run/3)
+    assert call(:delete, %{"volume_id" => id}).status == 403
     assert call(:clear, %{"volume_id" => id}).status == 403
   end
 

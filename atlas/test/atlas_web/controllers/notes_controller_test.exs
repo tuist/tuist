@@ -1,7 +1,6 @@
 defmodule AtlasWeb.NotesControllerTest do
   use AtlasWeb.ConnCase, async: true
 
-  alias Atlas.Guardian
   alias Atlas.Notes
 
   test "authenticated API clients can create, search, and update notes", %{conn: conn} do
@@ -35,8 +34,7 @@ defmodule AtlasWeb.NotesControllerTest do
   end
 
   defp api_conn(user) do
-    {:ok, token, _claims} =
-      Guardian.encode_and_sign(user, %{"scopes" => ["mcp"]}, token_type: "access_token")
+    token = oauth_access_token_fixture(user)
 
     build_conn()
     |> put_req_header("authorization", "Bearer #{token}")

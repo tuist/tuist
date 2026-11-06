@@ -73,6 +73,65 @@ defmodule AtlasWeb.PostalLiveTest do
     assert has_element?(view, "#postal-letter-actions-#{ready_to_deliver.id}-button", "Open document")
   end
 
+  test "distinguishes each postal state and exposes failure details", %{conn: conn} do
+    {conn, executive} = log_in_user(conn, %{role: :executive})
+    account = insert_tax_certificate_account!()
+
+    letters =
+      Enum.map(
+        [
+          {"awaiting_signature", "Awaiting signature"},
+          {"collecting_delivery_details", "Preparing delivery"},
+          {"awaiting_delivery_confirmation", "Ready to send"},
+          {"queued", "Queued"},
+          {"sending", "Processing"},
+          {"sent", "Sent"},
+          {"delivered", "Delivered"},
+          {"undeliverable", "Undeliverable"},
+          {"failed", "Failed"}
+        ],
+        fn {status, label} ->
+          attrs = Map.put(request_attrs(), "certificate_purpose", "Status check #{System.unique_integer([:positive])}")
+          {:ok, letter} = Letters.prepare_tax_certificate(account, attrs, executive)
+          error = if status == "failed", do: "Pingen requires action before sending this letter."
+          letter = Repo.update!(Ecto.Changeset.change(letter, status: status, last_error: error))
+          {letter, label}
+        end
+      )
+
+    {:ok, view, _html} = live(conn, ~p"/outbound/postal")
+
+    for {letter, label} <- letters do
+      assert has_element?(view, "#postal-letter-status-#{letter.id}", label)
+
+      if letter.status == "failed" do
+        assert has_element?(view, "#postal-letter-status-#{letter.id}[title='#{letter.last_error}']")
+      end
+    end
+  end
+
+  test "reconciles stored status changes while the postal page is open", %{conn: conn} do
+    {conn, executive} = log_in_user(conn, %{role: :executive})
+    {:ok, letter} = Letters.prepare_tax_certificate(insert_tax_certificate_account!(), request_attrs(), executive)
+    letter = Repo.update!(Ecto.Changeset.change(letter, status: "sending", pingen_letter_id: "provider-#{letter.id}"))
+
+    {:ok, view, _html} = live(conn, ~p"/outbound/postal")
+    assert has_element?(view, "#postal-letter-status-#{letter.id}", "Processing")
+
+    assert view
+           |> render()
+           |> String.replace("<template", "<div")
+           |> String.replace("</template>", "</div>")
+           |> LazyHTML.from_fragment()
+           |> LazyHTML.query("#postal-letter-check-delivery-#{letter.id}")
+           |> Enum.any?()
+
+    Repo.update!(Ecto.Changeset.change(letter, status: "sent"))
+    send(view.pid, :refresh_letters)
+
+    assert has_element?(view, "#postal-letter-status-#{letter.id}", "Sent")
+  end
+
   test "renders the letter modal", %{conn: conn} do
     {conn, executive} =
       log_in_user(conn, %{

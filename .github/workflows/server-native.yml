@@ -1,0 +1,67 @@
+name: Server Native
+
+# The Swift packages under server/native build the parsers the server ships.
+# They depend only on their own sources and registry packages, so they run when
+# those change rather than on every server change, and keep macOS runners free
+# for the jobs that need them.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - server/native/xcactivitylog_nif/**
+      - server/native/xcresult_nif/**
+      - .github/workflows/server-native.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - server/native/xcactivitylog_nif/**
+      - server/native/xcresult_nif/**
+      - .github/workflows/server-native.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tuist-server-native-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  swift-test:
+    name: Swift Tests (XCActivityLogParser)
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    defaults:
+      run:
+        working-directory: server/native/xcactivitylog_nif
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore SwiftPM Cache
+        uses: actions/cache@v4
+        with:
+          path: server/native/xcactivitylog_nif/.build
+          key: xcactivitylog-nif-swiftpm-${{ hashFiles('server/native/xcactivitylog_nif/Package.resolved') }}
+      - name: Run tests
+        run: swift test --replace-scm-with-registry
+  # XCResultParser is not server-only: the CLI compiles these sources into its
+  # binary, so this job guards both.
+  swift-test-xcresult:
+    name: Swift Tests (XCResultParser)
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    defaults:
+      run:
+        working-directory: server/native/xcresult_nif
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore SwiftPM Cache
+        uses: actions/cache@v4
+        with:
+          path: server/native/xcresult_nif/.build
+          key: xcresult-nif-swiftpm-${{ hashFiles('server/native/xcresult_nif/Package.resolved') }}
+      - name: Run tests
+        run: swift test --replace-scm-with-registry
+      - name: Verify isolated process hosts
+        run: bash Tests/ProcessHost/test.sh

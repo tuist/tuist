@@ -20,6 +20,8 @@ defmodule AtlasWeb.ConnCase do
   alias Atlas.Authorization
   alias Atlas.Authorization.Roles
   alias Atlas.Authorization.UserRole
+  alias Atlas.OAuth.AccessTokens
+  alias Atlas.OAuth.Clients
   alias Atlas.Users.User
 
   using do
@@ -38,6 +40,13 @@ defmodule AtlasWeb.ConnCase do
 
   setup tags do
     Atlas.DataCase.setup_sandbox(tags)
+
+    # Lifecycle tests opt in and await cleanup while their sandbox is still owned.
+    # Unrelated LiveViews must not start cleanup tasks that outlive that sandbox.
+    if !tags[:presence_tracking] do
+      Mimic.stub(Atlas.Presence, :track, fn _user, _connection_id -> {:ok, self()} end)
+    end
+
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
@@ -69,6 +78,15 @@ defmodule AtlasWeb.ConnCase do
     {conn, user}
   end
 
+  @doc "Creates a persisted OAuth access token, including its client, for API/MCP tests."
+  def oauth_access_token_fixture(%User{} = user) do
+    {:ok, client} =
+      Clients.create_client(%{"name" => "Test OAuth client", "redirect_uris" => ["https://example.com/callback"]})
+
+    {:ok, token} = AccessTokens.create(%{client: client, scope: "mcp", sub: user.id}, refresh_token: true)
+    token.value
+  end
+
   @doc false
   def extract_role_and_scopes(attrs) do
     {role, attrs} = Map.pop(attrs, :role)
@@ -81,9 +99,8 @@ defmodule AtlasWeb.ConnCase do
   def assign_role_or_scopes(_user, :employee, nil), do: :ok
 
   def assign_role_or_scopes(user, :executive, _scopes) do
-    role = Roles.ensure_executive_role!()
-    %UserRole{} |> UserRole.changeset(%{user_id: user.id, role_id: role.id}) |> Atlas.Repo.insert!()
-    :ok
+    # Updating the shared builtin role can deadlock concurrent sandbox transactions.
+    assign_role_or_scopes(user, nil, Authorization.executive_scopes())
   end
 
   def assign_role_or_scopes(user, _role, scopes) when is_list(scopes) do

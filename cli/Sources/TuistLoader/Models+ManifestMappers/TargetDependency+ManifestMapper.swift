@@ -103,6 +103,14 @@ extension XcodeGraph.TargetDependency {
                         condition: condition?.asGraphCondition
                     ),
                 ]
+            case .runtimeDynamic:
+                return [
+                    .package(product: product, type: .runtimeDynamic, condition: condition?.asGraphCondition),
+                ]
+            case .runtimeDynamicEmbedded:
+                return [
+                    .package(product: product, type: .runtimeDynamicEmbedded, condition: condition?.asGraphCondition),
+                ]
             case .plugin:
                 return [
                     .package(

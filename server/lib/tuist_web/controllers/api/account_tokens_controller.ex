@@ -72,7 +72,7 @@ defmodule TuistWeb.API.AccountTokensController do
              type: :array,
              items: %Schema{
                type: :string,
-               enum: AccountToken.valid_scopes(),
+               enum: AccountToken.user_creatable_scopes(),
                description: "A scope string in format entity:object:access_level."
              },
              description: "The scopes for the new account token.",

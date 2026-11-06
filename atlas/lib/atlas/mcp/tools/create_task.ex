@@ -35,7 +35,7 @@ defmodule Atlas.MCP.Tools.CreateTask do
            args
            |> Map.take(["title", "description", "assignee_id", "account_id", "due_on", "remind_at"])
            |> Map.put_new("assignee_id", actor.id),
-         {:ok, task} <- Tasks.create_task(attrs, actor, interface: "mcp") do
+         {:ok, task} <- Tasks.create_task(attrs, actor, interface: Tool.audit_interface(conn)) do
       {:ok, %{task: TaskSerializer.task(task)}}
     else
       {:error, %Ecto.Changeset{} = changeset} ->

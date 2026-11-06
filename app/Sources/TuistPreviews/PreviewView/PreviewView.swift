@@ -10,6 +10,7 @@ import XcodeGraph
 public struct PreviewView: View {
     @EnvironmentObject private var errorHandler: ErrorHandling
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.layoutDirection) private var layoutDirection
     @State private var viewModel: PreviewViewModel
     @State private var showingDeleteAlert = false
 
@@ -64,6 +65,12 @@ public struct PreviewView: View {
                                 PreviewViewMetadataRowText(fullDateFormatter.string(from: preview.insertedAt))
                             }
                             NooraDivider()
+                            if let track = preview.track, !track.isEmpty {
+                                PreviewViewMetadataRow(title: "Track") {
+                                    PreviewViewMetadataRowText(track)
+                                }
+                                NooraDivider()
+                            }
                             if let bundleIdentifier = preview.bundleIdentifier {
                                 PreviewViewMetadataRow(title: "Bundle identifier") {
                                     PreviewViewMetadataRowText(bundleIdentifier)
@@ -87,6 +94,20 @@ public struct PreviewView: View {
                                 }
                             }
                         }
+                    }
+
+                    if let notes = preview.releaseNotes, !notes.isEmpty {
+                        VStack(alignment: .leading, spacing: Noora.Spacing.spacing4) {
+                            Text("Release notes")
+                                .font(.title2.weight(.medium))
+                            Text(notes)
+                                .font(.body)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .environment(\.layoutDirection, preview.releaseNotesLayoutDirection ?? layoutDirection)
+                        }
+                        .foregroundColor(Noora.Colors.surfaceLabelPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     Button(action: {

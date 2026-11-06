@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -366,14 +366,15 @@ func (erroringDriver) Set(context.Context, power.Outlet, bool) error {
 
 type credentialRecordingDriver struct {
 	username, password string
+	outlet             power.Outlet
 }
 
 func (d *credentialRecordingDriver) State(_ context.Context, o power.Outlet) (power.State, error) {
-	d.username, d.password = o.Username, o.Password
+	d.username, d.password, d.outlet = o.Username, o.Password, o
 	return power.StateOn, nil
 }
 func (d *credentialRecordingDriver) Set(_ context.Context, o power.Outlet, _ bool) error {
-	d.username, d.password = o.Username, o.Password
+	d.username, d.password, d.outlet = o.Username, o.Password, o
 	return nil
 }
 

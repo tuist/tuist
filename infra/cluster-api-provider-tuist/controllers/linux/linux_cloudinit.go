@@ -3,6 +3,7 @@ package linux
 import (
 	"context"
 	"fmt"
+	"path"
 	"strings"
 	"time"
 
@@ -10,6 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/sshd"
 )
 
 // linuxCloudInitOptions parameterizes the self-join bootstrap across the two
@@ -52,6 +55,9 @@ type linuxCloudInitOptions struct {
 
 	// Taints are rendered into kubelet's --register-with-taints.
 	Taints []corev1.Taint
+
+	// KuraLVM is an explicit install-time opt-in, independent of cache taints.
+	KuraLVM bool
 
 	// KataRuntime installs kata-static, registers the kata-qemu handler with
 	// containerd, and labels the node for the kata-qemu RuntimeClass. Off for
@@ -101,6 +107,7 @@ br_netfilter
 	sysctlContent = `net.bridge.bridge-nf-call-iptables  = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 net.ipv4.ip_forward                 = 1
+net.mptcp.enabled                   = 0
 `
 
 	// kernelHardeningSysctlContent turns a silent kernel lockup into an
@@ -128,6 +135,13 @@ RuntimeWatchdogSec=30s
 RebootWatchdogSec=5min
 `
 
+	// The sshd start-limit drop-ins (internal/sshd), which rack hosts' installs
+	// and converges write too.
+	sshServiceDropInPath    = sshd.ServiceDropInPath
+	sshServiceDropInContent = sshd.ServiceDropInContent
+	sshSocketDropInPath     = sshd.SocketDropInPath
+	sshSocketDropInContent  = sshd.SocketDropInContent
+
 	// dockerHubMirrorHostsContent is the containerd registry-host config that
 	// routes docker.io pulls through mirror.gcr.io, sidestepping Docker Hub's
 	// anonymous pull rate limit. Written to
@@ -145,6 +159,23 @@ RebootWatchdogSec=5min
 	// rather than a path the mount would shadow.
 	kubeletClientCAPath = "/var/lib/kubelet/ca.crt"
 )
+
+// kubeletImageGCBlock sets imageMaximumGCAge, which removes an image no
+// container on the node has used for a day, whatever the disk level. Without it the kubelet only collects images at
+// imageGCHighThresholdPercent (85% by default), which is also where
+// imagefs.available<15% starts evicting, so every runner image release stayed
+// on every box until the disk was full: on 2026-11-04 the Gravelines runners
+// held 51 linux-runner versions each, about 300 GB unpacked, and one crossed
+// the eviction threshold. A day matches tart-kubelet's idle retention for
+// macOS goldens. The percentage thresholds stay at their defaults because the
+// Kura cache boxes share this config and run /data near 80% by design: a lower
+// threshold would empty their image store on every GC pass. The kubelet keeps
+// last-use times in memory, so a restart (including this config's re-push)
+// starts every unused image's day over.
+// kubeletConfigContent writes it ahead of the reservations, where it sat before
+// they were split out, so non-Kata configs stay byte-identical.
+const kubeletImageGCBlock = `imageMaximumGCAge: 24h
+`
 
 // kubeletMemoryGovernanceBlock is the memory half of the self-join kubelet
 // config: how much of the box is held back from Pods, when the kubelet steps in
@@ -188,13 +219,10 @@ RebootWatchdogSec=5min
 // its hard watermark as normal steady state (Kura's own shedding deliberately
 // excludes them, keying off pressure_bytes instead), so early throttling would
 // stall a perfectly healthy cache node reclaiming cache it is supposed to hold.
-const kubeletMemoryGovernanceBlock = `systemReserved:
-  cpu: 500m
-  memory: 1Gi
-kubeReserved:
-  cpu: 500m
-  memory: 1Gi
-evictionHard:
+//
+// The reservations themselves are written just before this block, from
+// kubeletReservationBlock, because their CPU half differs on Kata runner hosts.
+const kubeletMemoryGovernanceBlock = `evictionHard:
   memory.available: 5%
   nodefs.available: 10%
   nodefs.inodesFree: 5%
@@ -204,6 +232,94 @@ featureGates:
   MemoryQoS: true
 memoryThrottlingFactor: 1.0
 `
+
+// reservedSystemCPUsPlaceholder stands in for the reserved CPU list in the
+// rendered config. Which logical CPUs share a physical core depends on the box
+// (cpu0's sibling is cpu16 on a 16-core Ryzen, cpu1 elsewhere), so
+// kubeletCPUManagerSetup substitutes it from the host's topology. Keeping the
+// placeholder in the rendered text keeps desiredKubeletConfigHash host-agnostic.
+const reservedSystemCPUsPlaceholder = "__TUIST_RESERVED_SYSTEM_CPUS__"
+
+// kubeletReservationBlock holds daemon CPU and memory back from allocatable.
+//
+// On Kata runner hosts (exclusiveCPUs) the kubelet runs the static CPU manager,
+// which gives each integer CPU request of a Guaranteed Pod its own cores and
+// keeps every other container on the shared pool. full-pcpus-only makes those
+// cores whole physical cores, so a runner never shares a hyperthread sibling,
+// and rejects a request that is not a multiple of the SMT level. The daemon CPU
+// reservation becomes one whole core (cpu0 and its sibling) instead of
+// 500m + 500m spread across the box: the static policy reserves CPUs by id, and
+// kubeletCPUManagerSetup pins system.slice to that core so kubelet, containerd
+// and sshd stay off the cores Pods get. Allocatable CPU drops by one on a box
+// with two threads per core.
+func kubeletReservationBlock(exclusiveCPUs bool) string {
+	if !exclusiveCPUs {
+		return `systemReserved:
+  cpu: 500m
+  memory: 1Gi
+kubeReserved:
+  cpu: 500m
+  memory: 1Gi
+`
+	}
+	return `systemReserved:
+  memory: 1Gi
+kubeReserved:
+  memory: 1Gi
+reservedSystemCPUs: "` + reservedSystemCPUsPlaceholder + `"
+cpuManagerPolicy: static
+cpuManagerPolicyOptions:
+  full-pcpus-only: "true"
+`
+}
+
+// kubeletCPUStatePath is the CPU manager checkpoint. The kubelet refuses to
+// start when it names a different policy than its config.
+const kubeletCPUStatePath = "/var/lib/kubelet/cpu_manager_state"
+
+// kubeletCPUManagerSetup finishes the static CPU manager config written to
+// /var/lib/kubelet/config.yaml just before it: it resolves the reserved core
+// from the host's topology and pins system.slice to it. It runs after the
+// self-join's config write and after the drift loop's re-push.
+//
+// The checkpoint guard is what makes the re-push safe on nodes that joined
+// under the default policy. Their checkpoint says "none", and a kubelet whose
+// config says "static" exits until someone drains the node and deletes the
+// file. The re-push restarts kubelet on every Kata node at once, so instead of
+// taking the Linux fleet down the guard writes sharedConfig (the same config
+// with the old CPU reservation and no CPU manager) and leaves the node as it
+// was. Moving such a node over is a human step: drain it, delete the
+// checkpoint, and clear its tuist.dev/kubelet-config-hash annotation so the
+// next re-push finds no checkpoint (docs/exclusive-runner-cpus.md).
+func kubeletCPUManagerSetup(sudo, sharedConfig string) string {
+	return fmt.Sprintf(`%[1]sbash -s <<'TUIST_KUBELET_CPUS'
+set -euo pipefail
+config=/var/lib/kubelet/config.yaml
+state=%[2]s
+if [ -e "$state" ] && ! grep -q '"policyName":"static"' "$state"; then
+  echo "tuist: $state was written by another CPU manager policy; keeping shared CPUs until the node is drained and the file removed" >&2
+  cat > "$config" <<'TUIST_KUBELET_SHARED_CPUS'
+%[3]sTUIST_KUBELET_SHARED_CPUS
+  exit 0
+fi
+reserved="$(cat /sys/devices/system/cpu/cpu0/topology/thread_siblings_list)"
+case "$reserved" in
+  ''|*[!0-9,-]*) echo "tuist: unexpected cpu0 siblings '$reserved'" >&2; exit 1 ;;
+esac
+sed -i "s/%[4]s/$reserved/" "$config"
+systemctl set-property system.slice AllowedCPUs="$reserved"
+TUIST_KUBELET_CPUS
+`, sudo, kubeletCPUStatePath, ensureTrailingNewline(sharedConfig), reservedSystemCPUsPlaceholder)
+}
+
+// kubeletCPUSetupFor renders kubeletCPUManagerSetup for hosts that run the
+// static CPU manager, and nothing for the rest.
+func kubeletCPUSetupFor(sudo string, opts linuxCloudInitOptions) string {
+	if !opts.KataRuntime {
+		return ""
+	}
+	return kubeletCPUManagerSetup(sudo, kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), false))
+}
 
 // kubeletConfigContent renders the KubeletConfiguration for the self-join
 // kubelet.
@@ -232,7 +348,10 @@ memoryThrottlingFactor: 1.0
 // clusterDNS, when non-empty, is appended as the kubelet's clusterDNS (a
 // single-entry list) so pods resolve in-cluster Services; empty omits it
 // (kubelet then logs MissingClusterDNS and falls back to host DNS).
-func kubeletConfigContent(clusterDNS, clientCAFile string) string {
+//
+// exclusiveCPUs selects the static CPU manager (kubeletReservationBlock). Kata
+// runner hosts pass true; every other fleet renders byte-identically to before.
+func kubeletConfigContent(clusterDNS, clientCAFile string, exclusiveCPUs bool) string {
 	x509Block := ""
 	if clientCAFile != "" {
 		x509Block = fmt.Sprintf("  x509:\n    clientCAFile: %s\n", clientCAFile)
@@ -249,7 +368,7 @@ authentication:
   mode: Webhook
 clusterDomain: cluster.local
 runtimeRequestTimeout: 5m
-` + kubeletMemoryGovernanceBlock
+` + kubeletImageGCBlock + kubeletReservationBlock(exclusiveCPUs) + kubeletMemoryGovernanceBlock
 	if clusterDNS != "" {
 		config += fmt.Sprintf("clusterDNS:\n  - %s\n", clusterDNS)
 	}
@@ -304,7 +423,7 @@ func instanceTypeOrDefault(t string) string {
 // brings the PN VLAN up first. The leading indent prefix is supplied by the
 // caller so it nests correctly under cloud-init's YAML block or stands alone in
 // a bare script.
-func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path string) string, vlanSetup, kataSetup, containerdQuota string) string {
+func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path string) string, vlanSetup, kataSetup, containerdQuota, kubeletCPUs string) string {
 	// Pipe `containerd config default` through sed so the rendered config sets
 	// the CRI registry config_path to /etc/containerd/certs.d. containerd v2
 	// emits an empty `[plugins."io.containerd.grpc.v1.cri".registry]` table, so
@@ -350,10 +469,10 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 %[8]s
 %[2]ssysctl -p /etc/sysctl.d/99-tuist-hardening.conf 2>/dev/null || true
 %[9]s
-%[2]ssystemctl daemon-reexec || true
+%[12]s%[2]ssystemctl daemon-reexec || true
 export DEBIAN_FRONTEND=noninteractive
 %[3]sapt-get update
-%[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs
+%[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs lvm2
 %[2]smkdir -p /etc/containerd /etc/containerd/certs.d/docker.io
 %[4]s
 %[6]s
@@ -382,10 +501,21 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --
 %[3]sapt-get update
 %[3]sapt-get install -y kubelet
 %[2]sapt-mark hold kubelet
-%[2]ssystemctl daemon-reload
+%[13]s%[2]ssystemctl daemon-reload
 %[2]ssystemctl enable --now kubelet`,
 		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, vlanSetup, hardeningSysctl, watchdogDropIn,
-		containerdQuota, kataSetup)
+		containerdQuota, kataSetup, sshStartLimitDropIns(sudo, writeFile), kubeletCPUs)
+}
+
+// sshStartLimitDropIns writes the sshd start-limit drop-ins. The caller reloads
+// systemd afterwards. Shared by the self-join and the kubelet config re-push,
+// which is how nodes joined before the drop-ins existed receive them.
+func sshStartLimitDropIns(sudo string, writeFile func(producer, path string) string) string {
+	return fmt.Sprintf("%[1]smkdir -p %[2]s %[3]s\n%[4]s\n%[5]s\n",
+		sudo, path.Dir(sshServiceDropInPath), path.Dir(sshSocketDropInPath),
+		writeFile("printf '%s' "+shellSingleQuote(sshServiceDropInContent), sshServiceDropInPath),
+		writeFile("printf '%s' "+shellSingleQuote(sshSocketDropInContent), sshSocketDropInPath),
+	)
 }
 
 // vlanBringUp renders the PN-VLAN setup prepended to the bootstrap body when a
@@ -526,7 +656,7 @@ func renderLinuxCloudInitWithOptions(opts linuxCloudInitOptions) string {
 	sudo, sudoE := escalation(opts.BootstrapUser)
 	writeFile := writeFileFunc(sudo)
 	vlanSetup := vlanBringUp(sudo, opts.PrivateNetworkVLAN)
-	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints))), "      ")
+	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts)), "      ")
 
 	// Optional cluster-CA write_files entry: written so the kubelet's
 	// clientCAFile can verify the apiserver's client cert (see
@@ -575,7 +705,7 @@ runcmd:
 		indent(modulesLoadContent, "      "),
 		indent(sysctlContent, "      "),
 		indent(kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime)), "      "),
-		indent(kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts)), "      "),
+		indent(kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.KataRuntime), "      "),
 		body,
 		caEntry,
 	)
@@ -591,7 +721,7 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 	sudo, sudoE := escalation(opts.BootstrapUser)
 	writeFile := writeFileFunc(sudo)
 	vlanSetup := vlanBringUp(sudo, opts.PrivateNetworkVLAN)
-	body := bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)))
+	body := bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup, kataSetup(sudo, sudoE, opts.KataRuntime), containerdQuotaSetup(sudo, writeFile, hostsKuraCacheVolumes(opts.Taints)), kubeletCPUSetupFor(sudo, opts))
 
 	heredoc := func(path, content string) string {
 		// `<<'EOF'` keeps the body literal (no shell expansion of $ or `).
@@ -610,11 +740,11 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euxo pipefail
-%[8]s%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
+%[8]s%[12]s%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
 # Turn project quotas on for /data before anything mounts off it: XFS only takes
 # quota accounting at mount time, and the bind below would pin the filesystem
 # busy. Aborts the join on a box whose /data cannot carry per-account quotas.
-%[11]s
+%[14]s%[11]s
 # Bring up the kubelet root's /data bind-mount BEFORE writing its config below, so
 # a box with a separate /data disk doesn't shadow config.yaml + kubeconfig once
 # the mount lands (which left the kubelet crash-looping on a missing config).
@@ -626,19 +756,48 @@ set -euxo pipefail
 %[5]s
 %[6]s
 %[7]s
-`,
+%[13]s`,
 		sudo,
 		heredoc("/var/lib/kubelet/kubeconfig", opts.KubeconfigYAML),
 		heredoc("/etc/modules-load.d/k8s.conf", modulesLoadContent),
 		heredoc("/etc/sysctl.d/99-k8s.conf", sysctlContent),
 		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType), kataNodeLabelsArg(opts.KataRuntime))),
-		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts))),
+		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts), opts.KataRuntime)),
 		body,
 		nopasswdSetup(opts.BootstrapUser, opts.SudoPassword),
 		dataKubeletMount(sudo),
 		caWrite,
 		dataProjectQuotaSetup(sudo, writeFile),
+		joinedGuard(sudo, opts.NodeName),
+		joinedMarker(sudo, opts.NodeName),
+		kuraLVMSetup(sudo, opts.KuraLVM && hostsKuraLVMVolumes(opts.Taints)),
 	)
+}
+
+// joinedMarkerPath records the node name a completed self-join registered as.
+const joinedMarkerPath = "/var/lib/tuist/joined-node"
+
+// joinedGuard makes the SSH self-join a no-op on a host that already joined as
+// this node. A controller only records a successful bootstrap in the Machine's
+// status patch, so a manager restart between the SSH run and that patch makes
+// the next reconcile dial the host again. Re-running the join on a live node
+// deletes Cilium's sysctl overrides, re-applies the distribution's rp_filter
+// defaults, and restarts containerd under the running pods. The marker is
+// keyed by node name, so a box re-adopted under a new Machine still joins, and
+// a run that failed before the marker was written still retries in full.
+func joinedGuard(sudo, nodeName string) string {
+	return fmt.Sprintf(`if [ "$(%[1]scat %[2]s 2>/dev/null || true)" = %[3]s ] && systemctl is-active --quiet kubelet; then
+  echo "already joined as "%[3]s"; skipping the self-join"
+  exit 0
+fi
+`, sudo, joinedMarkerPath, shellSingleQuote(nodeName))
+}
+
+// joinedMarker writes the marker joinedGuard reads, as the last step of a
+// successful self-join.
+func joinedMarker(sudo, nodeName string) string {
+	return fmt.Sprintf("%[1]smkdir -p %[2]s\nprintf '%%s\\n' %[3]s | %[1]stee %[4]s > /dev/null\n",
+		sudo, path.Dir(joinedMarkerPath), shellSingleQuote(nodeName), joinedMarkerPath)
 }
 
 // dataProjectQuotaPath is where the self-join drops the script that turns
@@ -922,17 +1081,13 @@ privileged_without_host_devices = true
 pod_annotations = ["io.katacontainers.*"]
 [plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.kata-qemu.options]
 ConfigPath = "/opt/kata/share/defaults/kata-containers/configuration-qemu.toml"
-# SystemdCgroup MUST be set on the handler itself. The SystemdCgroup rewrite
-# above only touches what the generated default emitted, and this block is
-# appended after it, so the kata handler would otherwise keep the false default
-# while kubelet runs cgroupDriver: systemd. Under that mismatch the shim creates
-# the slice name as a LITERAL directory at the cgroup root instead of nesting it
-# under kubepods.slice, nothing ever reclaims those, and the node eventually
-# fails every cgroup mkdir with ENOSPC while still reporting Ready. See the
-# same block in infra/k8s/clusters/bare-metal.yaml for the measured detail.
+# SystemdCgroup is set on the handler itself to match kubelet's
+# cgroupDriver: systemd, since the SystemdCgroup rewrite above only touches
+# what the generated default emitted. It does not stop the shim from leaking
+# cgroups at the root; sandbox_cgroup_only does (kataSandboxCgroupSetup).
 SystemdCgroup = true
 TUIST_KATA_EOF
-`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo))
+`, sudo, sudoE, kataVersion, kataVersionStampPath, kataSharedMemorySetup(sudo)+kataVirtiofsSetup(sudo)+kataSandboxCgroupSetup(sudo))
 }
 
 // kataNodeLabels are appended to the kubelet's --node-labels when the fleet runs

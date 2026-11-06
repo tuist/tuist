@@ -11,11 +11,12 @@ defmodule Tuist.Runners.Workers.FlushJobTransitionEventsWorker do
   the flushed rows — all inside one Postgres transaction per batch.
 
   This is how ClickHouse learns about lifecycle transitions — the
-  `runner_jobs` table is a replica fed from this outbox (plus the
-  CH-only `log_archived_at` stamp in `Tuist.Runners.Jobs`). Ordering
+  `runner_jobs` table is a replica fed from this outbox. Ordering
   inside a batch doesn't matter for correctness: each payload carries
-  the transition's own `updated_at`, and the RMT's
-  argMax-by-`updated_at` read resolves any interleaving.
+  an `updated_at` read from the database clock after its transition's
+  row write, so of two transitions to one job the later commit carries
+  the later version, and the RMT's argMax-by-`updated_at` read resolves
+  any interleaving.
 
   Crash safety: the CH INSERT happens before the PG DELETE, so a
   crash between the two re-flushes the batch next tick. Replayed

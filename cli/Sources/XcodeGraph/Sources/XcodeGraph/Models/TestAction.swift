@@ -11,6 +11,8 @@ public struct TestAction: Equatable, Codable, Sendable {
     public var attachDebugger: Bool
     public var customLLDBInitFile: AbsolutePath?
     public var coverage: Bool
+    /// Whether the manifest left `coverage` unset, so it follows the project's coverage option.
+    public var inheritsCoverage: Bool
     public var codeCoverageTargets: [TargetReference]
     public var expandVariableFromTarget: TargetReference?
     public var preActions: [ExecutionAction]
@@ -39,7 +41,8 @@ public struct TestAction: Equatable, Codable, Sendable {
         preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,
         testPlans: [TestPlan]? = nil,
         skippedTests: [String]? = nil,
-        customLLDBInitFile: AbsolutePath? = nil
+        customLLDBInitFile: AbsolutePath? = nil,
+        inheritsCoverage: Bool = false
     ) {
         self.testPlans = testPlans
         self.targets = targets
@@ -48,6 +51,7 @@ public struct TestAction: Equatable, Codable, Sendable {
         self.attachDebugger = attachDebugger
         self.customLLDBInitFile = customLLDBInitFile
         self.coverage = coverage
+        self.inheritsCoverage = inheritsCoverage
         self.preActions = preActions
         self.postActions = postActions
         self.codeCoverageTargets = codeCoverageTargets
@@ -80,7 +84,8 @@ public struct TestAction: Equatable, Codable, Sendable {
             preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,
             testPlans: [TestPlan]? = nil,
             skippedTests: [String]? = nil,
-            customLLDBInitFile: AbsolutePath? = nil
+            customLLDBInitFile: AbsolutePath? = nil,
+            inheritsCoverage: Bool = false
         ) -> TestAction {
             TestAction(
                 targets: targets,
@@ -98,7 +103,8 @@ public struct TestAction: Equatable, Codable, Sendable {
                 preferredScreenCaptureFormat: preferredScreenCaptureFormat,
                 testPlans: testPlans,
                 skippedTests: skippedTests,
-                customLLDBInitFile: customLLDBInitFile
+                customLLDBInitFile: customLLDBInitFile,
+                inheritsCoverage: inheritsCoverage
             )
         }
     #endif

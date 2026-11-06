@@ -3,7 +3,7 @@ import Foundation
 import TuistSupport
 import XcodeGraph
 
-public struct XcodeBuildArchiveCommand: AsyncParsableCommand, TrackableParsableCommand {
+public struct XcodeBuildArchiveCommand: AsyncParsableCommand, TrackableParsableCommand, XcodeBuildPassthroughCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "archive",
@@ -22,10 +22,12 @@ public struct XcodeBuildArchiveCommand: AsyncParsableCommand, TrackableParsableC
     )
     public var passthroughXcodebuildArguments: [String] = []
 
+    var xcodebuildActionIndex: Int = 0
+
     public func run() async throws {
         try await XcodeBuildBuildCommandService()
             .run(
-                passthroughXcodebuildArguments: ["archive"] + passthroughXcodebuildArguments
+                passthroughXcodebuildArguments: xcodebuildArguments
             )
     }
 }

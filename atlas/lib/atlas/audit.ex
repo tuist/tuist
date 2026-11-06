@@ -337,6 +337,8 @@ defmodule Atlas.Audit do
   def resource_path("mcp_oauth_session", target_id, _metadata) when is_binary(target_id) and target_id != "",
     do: "/admin/mcps"
 
+  def resource_path("user_connection", _target_id, _metadata), do: "/settings/connections"
+
   def resource_path("letter", _target_id, _metadata), do: "/outbound/postal"
 
   def resource_path("finance_transaction_attachment", _target_id, _metadata), do: "/commercial/finance"
@@ -363,6 +365,8 @@ defmodule Atlas.Audit do
     |> put_claim(claims, "slack_app")
     |> put_claim(claims, "slack_channel_id")
     |> put_claim(claims, "mcp_tool_groups")
+    |> put_claim(claims, "thread_id")
+    |> put_claim(claims, "orbit_run_id")
   end
 
   def claim_metadata(_claims), do: %{}

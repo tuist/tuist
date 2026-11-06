@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,11 +18,9 @@ const DriverShelly = "shelly"
 //
 // Scope: home and office prototypes only. This is the BER1 prototype's PDU
 // stand-in, validating the power path on a desk before a rack exists. It is not
-// a rack driver: a colo rack runs switched PDUs whose management interface is
-// nothing like this one, and those get their own driver rather than being
-// forced through this one. It is still implemented properly rather than
-// stubbed, because a stand-in that only half works proves nothing about the
-// path it stands in for.
+// a rack driver: the rack's switched PDUs are Eaton's, driven by Eaton. It is
+// still implemented properly rather than stubbed, because a stand-in that only
+// half works proves nothing about the path it stands in for.
 //
 // Two generations of firmware are in the wild and they share no endpoint:
 // Gen2+ (Plus/Pro, and everything Shelly currently sells) exposes a JSON-RPC
@@ -35,9 +34,12 @@ type Shelly struct {
 	HTTP *http.Client
 }
 
-// gen2Status is the subset of Switch.GetStatus we read.
+// gen2Status is the subset of Switch.GetStatus we read. apower and current
+// are present only on metered switches (the Plus Plug S, the PM models).
 type gen2Status struct {
-	Output *bool `json:"output"`
+	Output  *bool    `json:"output"`
+	APower  *float64 `json:"apower"`
+	Current *float64 `json:"current"`
 }
 
 // gen1Relay is the subset of /relay/<id> we read.
@@ -72,6 +74,24 @@ func (s *Shelly) State(ctx context.Context, o Outlet) (State, error) {
 		return StateUnknown, fmt.Errorf("shelly /relay/%s returned no ison field", channel)
 	}
 	return stateOf(*g1.IsOn), nil
+}
+
+// Measures implements Meter for a metered Gen2 switch. Shelly reports no
+// apparent power, so its outlets never classify as an off or empty load; Gen1
+// firmware and unmetered switches report ErrMeasuresUnsupported.
+func (s *Shelly) Measures(ctx context.Context, o Outlet) (Measures, error) {
+	channel := o.channel()
+	var g2 gen2Status
+	found, err := s.call(ctx, o, "/rpc/Switch.GetStatus", url.Values{"id": {channel}}, &g2)
+	switch {
+	case err != nil:
+		return Measures{}, err
+	case !found:
+		return Measures{}, fmt.Errorf("shelly at %s: %w: Gen1 firmware is not read", o.Host, ErrMeasuresUnsupported)
+	case g2.APower == nil:
+		return Measures{}, fmt.Errorf("shelly channel %s at %s: %w: the switch is not metered", channel, o.Host, ErrMeasuresUnsupported)
+	}
+	return Measures{ActivePower: g2.APower, Current: g2.Current}, nil
 }
 
 // Set implements Driver.
@@ -197,19 +217,41 @@ func (o Outlet) channel() string {
 // endpoint builds the absolute URL for a path on this outlet's host,
 // defaulting a bare host to plain HTTP.
 func (o Outlet) endpoint(path string, query url.Values) (string, error) {
+	return o.endpointWithScheme("http", path, query)
+}
+
+// origin parses Host, defaulting a bare value to scheme.
+func (o Outlet) origin(scheme string) (*url.URL, error) {
 	host := strings.TrimSpace(o.Host)
 	if host == "" {
-		return "", fmt.Errorf("power outlet has no host")
+		return nil, fmt.Errorf("power outlet has no host")
 	}
 	if !strings.Contains(host, "://") {
-		host = "http://" + host
+		host = scheme + "://" + host
 	}
 	base, err := url.Parse(host)
 	if err != nil {
-		return "", fmt.Errorf("parse power host %q: %w", o.Host, err)
+		return nil, fmt.Errorf("parse power host %q: %w", o.Host, err)
 	}
 	if base.Host == "" {
-		return "", fmt.Errorf("power host %q has no host part", o.Host)
+		return nil, fmt.Errorf("power host %q has no host part", o.Host)
+	}
+	return &url.URL{Scheme: base.Scheme, Host: base.Host}, nil
+}
+
+// endpointWithScheme builds the absolute URL for a path, dialling Dial in
+// place of Host's hostname when it is set.
+func (o Outlet) endpointWithScheme(scheme, path string, query url.Values) (string, error) {
+	base, err := o.origin(scheme)
+	if err != nil {
+		return "", err
+	}
+	if dial := strings.TrimSpace(o.Dial); dial != "" {
+		if port := base.Port(); port != "" {
+			base.Host = net.JoinHostPort(dial, port)
+		} else {
+			base.Host = dial
+		}
 	}
 	// Discard anything past the origin. The field is documented as an
 	// endpoint, and silently honouring a path someone put there would build

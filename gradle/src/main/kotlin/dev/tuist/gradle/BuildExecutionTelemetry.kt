@@ -9,7 +9,6 @@ import org.gradle.caching.internal.operations.BuildCacheRemoteLoadBuildOperation
 import org.gradle.caching.internal.operations.BuildCacheRemoteStoreBuildOperationType
 import org.gradle.internal.operations.BuildOperationDescriptor
 import org.gradle.internal.operations.OperationFinishEvent
-import org.gradle.internal.taskgraph.CalculateTaskGraphBuildOperationType
 import java.time.Instant
 
 data class TaskExecutionTelemetry(
@@ -48,8 +47,9 @@ internal class BuildExecutionTelemetry {
     }
 
     private val pending = mutableMapOf<Long, CacheWork>()
+    val failures = BuildFailureTelemetry()
+    val cacheSavings = BuildCacheSavingsTelemetry()
     val tasks = mutableListOf<TaskOutcomeData>()
-    val requestedTasks = linkedSetOf<String>()
     var lastTaskAt: Long? = null
         private set
 
@@ -57,6 +57,7 @@ internal class BuildExecutionTelemetry {
         val duration = (event.endTime - event.startTime).coerceAtLeast(0)
         val details = operation.details
         val result = event.result
+        failures.finished(details, event.failure)
         val operationId = operation.id?.id ?: return
         var work = pending.remove(operationId) ?: CacheWork()
         work = work.merge(when (details) {
@@ -95,6 +96,10 @@ internal class BuildExecutionTelemetry {
                 result.skipMessage != null -> TaskOutcome.SKIPPED
                 else -> TaskOutcome.EXECUTED
             }
+            if (outcome in listOf(TaskOutcome.REMOTE_HIT, TaskOutcome.LOCAL_HIT, TaskOutcome.CACHE_HIT)) {
+                val originalExecutionMs = try { result.originExecutionTime } catch (_: LinkageError) { null }
+                cacheSavings.cachedTask(originalExecutionMs, duration)
+            }
             val cacheability = when {
                 work.hit != null || work.key != null -> "cacheable"
                 result.cachingDisabledReasonCategory !in listOf(null, "UNKNOWN", "BUILD_CACHE_DISABLED") -> "disabled"
@@ -113,10 +118,6 @@ internal class BuildExecutionTelemetry {
             lastTaskAt = maxOf(lastTaskAt ?: event.endTime, event.endTime)
         } else if (work != CacheWork()) {
             operation.parentId?.id?.let { parent -> pending[parent] = (pending[parent] ?: CacheWork()).merge(work) }
-        }
-
-        if (result is CalculateTaskGraphBuildOperationType.Result) {
-            requestedTasks.addAll(result.requestedTaskPaths)
         }
     }
 }

@@ -1,0 +1,548 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Test inputs/oracles: Copyright Grafana Labs contributors; adjacent LICENSE applies.
+// Offline provenance only. No Loki/Pulse imports or parser execution.
+// Usage: producer /path/to/pinned/loki > http-parameters.json
+package main
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"go/ast"
+	"go/constant"
+	"go/parser"
+	"go/printer"
+	"go/token"
+	"math/big"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+)
+
+const revision = "5aa4b9212d64d723f63b2770452054aa23df114d"
+
+var sources = []struct{ file, hash string }{
+	{"query_test.go", "ed3ebc61ce82f3118955ecb70b5010687352c4a7e9ecb33ea3b698a8656af96c"},
+	{"params_test.go", "00ad859e9cb323df72f8c5b16b495f7e3dd64b9b918c2823ed2a36b6c25176be"},
+	{"labels_test.go", "a1c156f03b2b722b580522db64445ed87272fc61dbd0203c548439c0cc36f958"},
+	{"series_test.go", "a5b0b428c8b6d5f7987620c442472994904a7182c4f28d412852ec5cfbd9d48b"},
+	{"tail_test.go", "cd360528565522af9acbd35b22ad2d853033e6cad94d8ca231edb1fffd8cb7f0"},
+	{"patterns_test.go", "a04cf415adefb5a93488f5406d17ba9c2353865710f208287390a1fee89945df"},
+}
+
+var selected = map[string]bool{
+	"TestParseRangeQuery": true, "TestParseInstantQuery": true,
+	"Test_ParseVolumeInstantQuery": true, "Test_ParseVolumeRangeQuery": true,
+	"TestParseLabelQuery": true, "TestParseAndValidateSeriesQuery": true,
+	"TestParseTailQuery": true, "TestParsePatternsQuery": true,
+}
+
+type object map[string]any
+type typed struct {
+	name   string
+	fields object
+}
+type raw string
+type extractor struct {
+	fs          *token.FileSet
+	source      []byte
+	types       map[string]*ast.StructType
+	file, table string
+	rows        []object
+}
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+func (x *extractor) code(n ast.Node) string {
+	return string(x.source[x.fs.Position(n.Pos()).Offset:x.fs.Position(n.End()).Offset])
+}
+func printed(n ast.Node) string {
+	var b bytes.Buffer
+	must(printer.Fprint(&b, token.NewFileSet(), n))
+	return b.String()
+}
+func numeric(v any) constant.Value {
+	switch n := v.(type) {
+	case constant.Value:
+		return n
+	case time.Duration:
+		return constant.MakeInt64(int64(n))
+	}
+	panic(fmt.Sprintf("not numeric: %#v", v))
+}
+func integer(v any) int64 {
+	n, ok := constant.Int64Val(constant.ToInt(numeric(v)))
+	if !ok {
+		panic("not exact int64")
+	}
+	return n
+}
+
+// Interpret only expressions present in the pinned original wants and inputs.
+// Unknown syntax fails closed; no parser result is used as an oracle.
+func (x *extractor) value(e ast.Expr, env object) any {
+	switch n := e.(type) {
+	case *ast.BasicLit:
+		if n.Kind == token.STRING {
+			s, err := strconv.Unquote(n.Value)
+			must(err)
+			return s
+		}
+		return constant.MakeFromLiteral(n.Value, n.Kind, 0)
+	case *ast.Ident:
+		switch n.Name {
+		case "nil":
+			return nil
+		case "true":
+			return true
+		case "false":
+			return false
+		}
+		if v, ok := env[n.Name]; ok {
+			return v
+		}
+		panic("unbound identifier: " + n.Name)
+	case *ast.UnaryExpr:
+		v := x.value(n.X, env)
+		if n.Op == token.AND {
+			return v
+		}
+		return constant.UnaryOp(n.Op, numeric(v), 0)
+	case *ast.ParenExpr:
+		return x.value(n.X, env)
+	case *ast.BinaryExpr:
+		a, b := x.value(n.X, env), x.value(n.Y, env)
+		if s, ok := a.(string); ok && n.Op == token.ADD {
+			return s + b.(string)
+		}
+		return constant.BinaryOp(numeric(a), n.Op, numeric(b))
+	case *ast.SelectorExpr:
+		s := printed(n)
+		switch s {
+		case "time.Second":
+			return time.Second
+		case "time.Minute":
+			return time.Minute
+		case "time.Hour":
+			return time.Hour
+		case "time.Millisecond":
+			return time.Millisecond
+		case "time.UTC":
+			return time.UTC
+		case "math.MaxUint32":
+			return constant.MakeUint64(4294967295)
+		case "logproto.BACKWARD":
+			return "BACKWARD"
+		case "logproto.FORWARD":
+			return "FORWARD"
+		case "assert.NoError":
+			return object{"reject": false, "assertion": "assert.NoError"}
+		}
+		panic("unknown selector: " + s)
+	case *ast.FuncLit:
+		// uint32 component wrappers and determineBounds error callbacks.
+		var result any
+		ast.Inspect(n.Body, func(node ast.Node) bool {
+			if r, ok := node.(*ast.ReturnStmt); ok {
+				call := r.Results[0].(*ast.CallExpr)
+				if printed(call.Fun) == "assert.ErrorContains" {
+					result = object{"reject": true, "assertion": "assert.ErrorContains", "contains": x.value(call.Args[2], env)}
+				} else {
+					result = printed(call.Fun)
+				}
+			}
+			return true
+		})
+		if result == nil {
+			panic("unrecognized callback")
+		}
+		return result
+	case *ast.CallExpr:
+		fun := printed(n.Fun)
+		args := []any{}
+		for _, a := range n.Args {
+			args = append(args, x.value(a, env))
+		}
+		switch fun {
+		case "time.Now":
+			return time.Date(2022, 12, 18, 0, 0, 0, 0, time.UTC)
+		case "time.Unix":
+			return time.Unix(integer(args[0]), integer(args[1])).UTC()
+		case "time.Date":
+			return time.Date(int(integer(args[0])), time.Month(integer(args[1])), int(integer(args[2])), int(integer(args[3])), int(integer(args[4])), int(integer(args[5])), int(integer(args[6])), time.UTC)
+		case "timePtr", "mustParseURL", "withForm":
+			return args[0]
+		case "uint64":
+			return args[0]
+		case "fmt.Sprintf":
+			return fmt.Sprintf(args[0].(string), integer(args[1]))
+		case "requestWithVar":
+			req := args[0].(typed)
+			req.fields["path_variables"] = object{args[1].(string): args[2]}
+			return req
+		case "testutil.MustPlan":
+			return object{"expression": args[0], "constructor": fun}
+		case "mkSeriesRequest":
+			// The original helper calls bounds; its explicit decimal-second inputs
+			// here are converted with stdlib only, not by running Loki bounds.
+			from, err := strconv.ParseInt(args[1].(string), 10, 64)
+			must(err)
+			to, err := strconv.ParseInt(args[2].(string), 10, 64)
+			must(err)
+			return typed{"logproto.SeriesRequest", object{"Start": time.Unix(from, 0), "End": time.Unix(to, 0), "Groups": args[3]}}
+		}
+		if sel, ok := n.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Milliseconds" {
+			return constant.MakeInt64(integer(x.value(sel.X, env)) / int64(time.Millisecond))
+		}
+		panic("unknown call: " + fun)
+	case *ast.CompositeLit:
+		if _, ok := n.Type.(*ast.ArrayType); ok {
+			out := []any{}
+			for _, e := range n.Elts {
+				out = append(out, x.value(e, env))
+			}
+			return out
+		}
+		name := ""
+		if n.Type != nil {
+			name = printed(n.Type)
+		}
+		out := object{}
+		st, _ := n.Type.(*ast.StructType)
+		if id, ok := n.Type.(*ast.Ident); ok {
+			st = x.types[id.Name]
+		}
+		for i, e := range n.Elts {
+			if kv, ok := e.(*ast.KeyValueExpr); ok {
+				key := ""
+				if id, ok := kv.Key.(*ast.Ident); ok {
+					key = id.Name
+				} else {
+					key = x.value(kv.Key, env).(string)
+				}
+				out[key] = x.value(kv.Value, env)
+			} else {
+				if st == nil {
+					panic("positional composite without type")
+				}
+				out[st.Fields.List[i].Names[0].Name] = x.value(e, env)
+			}
+		}
+		if name == "url.Values" || name == "args" {
+			return out
+		}
+		if name == "time.Time" {
+			return time.Time{}
+		}
+		return typed{name, out}
+	}
+	panic(fmt.Sprintf("unsupported expression %T: %s", e, printed(e)))
+}
+
+func ns(t time.Time) string {
+	n := new(big.Int).Mul(big.NewInt(t.Unix()), big.NewInt(1000000000))
+	return n.Add(n, big.NewInt(int64(t.Nanosecond()))).String()
+}
+
+func normalize(v any) any {
+	switch n := v.(type) {
+	case constant.Value:
+		if i, ok := constant.Int64Val(constant.ToInt(n)); ok {
+			return i
+		}
+		panic("noninteger normalized constant")
+	case time.Time:
+		return ns(n)
+	case time.Duration:
+		return strconv.FormatInt(int64(n), 10)
+	case typed:
+		out := object{}
+		for k, v := range n.fields {
+			key := k
+			if _, ok := v.(time.Time); ok {
+				key += "_ns"
+			}
+			if k == "Step" || k == "Interval" {
+				factor := int64(1)
+				if n.name == "logproto.QueryPatternsRequest" {
+					factor = 1000000
+				}
+				out[k+"_ns"] = strconv.FormatInt(integer(v)*factor, 10)
+				continue
+			}
+			out[key] = normalize(v)
+		}
+		return object{"type": n.name, "fields": out}
+	case object:
+		out := object{}
+		for k, v := range n {
+			key := k
+			if _, ok := v.(time.Time); ok {
+				key += "_ns"
+			}
+			out[key] = normalize(v)
+		}
+		return out
+	case []any:
+		out := []any{}
+		for _, v := range n {
+			out = append(out, normalize(v))
+		}
+		return out
+	}
+	return v
+}
+
+func (x *extractor) base(n ast.Node, name string) object {
+	return object{"table": x.table, "name": name, "source": x.file,
+		"lines": []int{x.fs.Position(n.Pos()).Line, x.fs.Position(n.End()).Line}, "original_go": x.code(n)}
+}
+
+func (x *extractor) tableRows(lit *ast.CompositeLit, env object) {
+	var st *ast.StructType
+	switch typ := lit.Type.(type) {
+	case *ast.ArrayType:
+		st = typ.Elt.(*ast.StructType)
+	case *ast.MapType:
+		st = typ.Value.(*ast.StructType)
+	default:
+		panic("unknown table kind")
+	}
+	for _, elt := range lit.Elts {
+		name := ""
+		if kv, ok := elt.(*ast.KeyValueExpr); ok {
+			name = x.value(kv.Key, env).(string)
+			elt = kv.Value
+		}
+		rowLit := elt.(*ast.CompositeLit)
+		// Elided literal type is supplied by the actual original table declaration.
+		copyLit := *rowLit
+		copyLit.Type = st
+		data := x.value(&copyLit, env).(typed).fields
+		for _, k := range []string{"name", "desc"} {
+			if v, ok := data[k]; ok {
+				name = v.(string)
+			}
+		}
+		row := x.base(elt, name)
+		input := object{}
+		for _, k := range []string{"r", "input", "path", "reqPath", "value", "def", "args", "start", "end"} {
+			if v, ok := data[k]; ok {
+				input[k] = v
+			}
+		}
+		// determineBounds has output start/end, not input start/end.
+		if x.table == "Test_determineBounds" {
+			delete(input, "start")
+			delete(input, "end")
+		}
+		if v, ok := data["parse"]; ok {
+			row["component"] = v
+		}
+		row["input"] = normalize(input)
+		var expected any
+		if v, ok := data["want"]; ok {
+			expected = v
+		} else {
+			expected = data["expected"]
+		}
+		if x.table == "Test_determineBounds" {
+			expected = typed{"bounds", object{"Start": data["start"], "End": data["end"]}}
+		}
+		if x.table == "Test_interval" {
+			expected = strconv.FormatInt(integer(expected), 10)
+			row["expected_unit"] = "nanoseconds"
+		}
+		if x.table == "TestHttp_defaultQueryRangeStep" {
+			expected = strconv.FormatInt(integer(expected)*int64(time.Second), 10)
+			row["expected_unit"] = "nanoseconds (original integer seconds multiplied by 1e9)"
+		}
+		if x.table == "Test_parseTimestamp" {
+			row["expected_unit"] = "unix nanoseconds"
+		}
+		row["expected"] = normalize(expected)
+		row["expectation_scope"] = "original asserted value; omitted Go struct fields are zero values"
+		err := object{"reject": false, "assertion": "NoError"}
+		for _, k := range []string{"wantErr", "shouldErr"} {
+			if v, ok := data[k]; ok {
+				switch z := v.(type) {
+				case bool:
+					err = object{"reject": z, "assertion": "error presence only"}
+				case string:
+					err = object{"reject": true, "assertion": "require.Error + assert.ErrorContains", "contains": z}
+				case object:
+					err = z
+				default:
+					panic("unknown error expectation")
+				}
+			}
+		}
+		err["asserted"] = true
+		row["expected_asserted"] = true
+		if x.table == "Test_uint32QueryParamBounds" {
+			row["expected_asserted"] = false // Original invocation discards its value.
+		}
+		if x.table == "Test_interval" && err["reject"].(bool) {
+			row["expected_asserted"] = false // Keep the literal zero, but do not upgrade it to an oracle.
+		}
+		if x.table == "TestHttp_defaultQueryRangeStep" {
+			err["asserted"] = false
+			err["assertion"] = "not applicable: component returns no error"
+		}
+		// interval's success branch asserts only the value, not err == nil.
+		if x.table == "Test_interval" && !err["reject"].(bool) {
+			err["asserted"] = false
+			err["assertion"] = "not asserted on success branch"
+		}
+		row["error"] = err
+		if x.table == "Test_parseTimestamp" {
+			row["clock"] = object{"original": "now := time.Now()", "fixed_now_ns": ns(env["now"].(time.Time)), "substitution": "deterministic producer clock; original default/want alias preserved"}
+		}
+		x.rows = append(x.rows, row)
+	}
+}
+
+// The volume tests are imperative assertion groups, not Go table literals.
+// Walk original t.Run scopes and collect only the values actually asserted.
+func (x *extractor) volume(block *ast.BlockStmt, parent object, path string) {
+	env := object{}
+	for k, v := range parent {
+		env[k] = v
+	}
+	var reqNode ast.Node
+	var expected any
+	var errExpectation object
+	for _, stmt := range block.List {
+		switch s := stmt.(type) {
+		case *ast.AssignStmt:
+			id, ok := s.Lhs[0].(*ast.Ident)
+			if !ok {
+				continue
+			}
+			if id.Name == "req" || id.Name == "url" || id.Name == "expected" {
+				env[id.Name] = x.value(s.Rhs[0], env)
+				if id.Name == "req" {
+					reqNode = s
+				}
+			}
+		case *ast.ExprStmt:
+			call, ok := s.X.(*ast.CallExpr)
+			if !ok {
+				continue
+			}
+			fun := printed(call.Fun)
+			switch fun {
+			case "t.Run":
+				child := x.value(call.Args[0], env).(string)
+				if path != "" {
+					child = path + "/" + child
+				}
+				x.volume(call.Args[1].(*ast.FuncLit).Body, env, child)
+			case "require.Equal":
+				expected = x.value(call.Args[1], env)
+				if printed(call.Args[2]) == "actual.AggregateBy" {
+					expected = object{"AggregateBy": expected}
+				}
+				errExpectation = object{"reject": false, "assertion": "require.NoError"}
+			case "require.EqualError":
+				errExpectation = object{"reject": true, "assertion": "require.EqualError", "equals": x.value(call.Args[2], env)}
+			}
+		}
+	}
+	if reqNode != nil && errExpectation != nil {
+		// Empty path means the original top-level group has no subtest name.
+		row := x.base(block, path)
+		row["input"] = normalize(object{"r": env["req"]})
+		row["expected"] = normalize(expected)
+		row["expected_asserted"] = expected != nil
+		errExpectation["asserted"] = true
+		row["error"] = errExpectation
+		row["expectation_scope"] = "original assertions only; aggregate by/labels asserts AggregateBy only"
+		x.rows = append(x.rows, row)
+	}
+}
+
+func main() {
+	if len(os.Args) != 2 {
+		panic("usage: producer /path/to/pinned/loki")
+	}
+	x := &extractor{fs: token.NewFileSet(), rows: []object{}}
+	metadata := []object{}
+	selections := []object{}
+	for _, src := range sources {
+		x.file = "pkg/loghttp/" + src.file
+		b, err := os.ReadFile(filepath.Join(os.Args[1], x.file))
+		must(err)
+		if fmt.Sprintf("%x", sha256.Sum256(b)) != src.hash {
+			panic("source differs from pinned " + x.file)
+		}
+		x.source = b
+		metadata = append(metadata, object{"path": x.file, "sha256": src.hash})
+		f, err := parser.ParseFile(x.fs, x.file, b, 0)
+		must(err)
+		for _, decl := range f.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || !(selected[fn.Name.Name] || src.file == "params_test.go" && strings.HasPrefix(fn.Name.Name, "Test")) {
+				continue
+			}
+			x.table = fn.Name.Name
+			start := len(x.rows)
+			selection := x.code(fn) + "\n"
+			selections = append(selections, object{"table": x.table, "source": x.file, "lines": []int{x.fs.Position(fn.Pos()).Line, x.fs.Position(fn.End()).Line}, "sha256": fmt.Sprintf("%x", sha256.Sum256([]byte(selection))), "original_go": selection})
+			x.types = map[string]*ast.StructType{}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				if ts, ok := n.(*ast.TypeSpec); ok {
+					if st, ok := ts.Type.(*ast.StructType); ok {
+						x.types[ts.Name.Name] = st
+					}
+				}
+				return true
+			})
+			env := object{"t": raw("testing.T")}
+			if strings.HasPrefix(x.table, "Test_ParseVolume") {
+				x.volume(fn.Body, env, "")
+				// The walker discovers children first; restore source-order parent/children.
+				groups := x.rows[start:]
+				if len(groups) != 3 {
+					panic("expected three volume assertion groups")
+				}
+				groups[0], groups[1], groups[2] = groups[2], groups[0], groups[1]
+			} else {
+				for _, stmt := range fn.Body.List {
+					switch s := stmt.(type) {
+					case *ast.AssignStmt:
+						id := s.Lhs[0].(*ast.Ident).Name
+						if id == "now" {
+							env[id] = x.value(s.Rhs[0], env)
+						}
+						if id == "tests" {
+							x.tableRows(s.Rhs[0].(*ast.CompositeLit), env)
+						}
+					case *ast.RangeStmt:
+						if lit, ok := s.X.(*ast.CompositeLit); ok {
+							x.tableRows(lit, env)
+						}
+					}
+				}
+			}
+			if len(x.rows) == start {
+				panic("selected test yielded no rows: " + x.table)
+			}
+			selections[len(selections)-1]["rows"] = len(x.rows) - start
+		}
+	}
+	if len(selections) != 15 {
+		panic(fmt.Sprintf("expected 15 selected tests, got %d", len(selections)))
+	}
+	out := object{"schema_version": 1, "revision": revision, "sources": metadata, "selections": selections, "rows": x.rows}
+	e := json.NewEncoder(os.Stdout)
+	e.SetIndent("", "  ")
+	e.SetEscapeHTML(false)
+	must(e.Encode(out))
+}

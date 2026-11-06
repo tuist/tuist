@@ -10,6 +10,7 @@ defmodule TuistWeb.API.CacheController do
   alias Tuist.Billing
   alias Tuist.Cache
   alias Tuist.CacheActionItems
+  alias Tuist.CacheEndpoints
   alias Tuist.Kura
   alias Tuist.Kura.Identity
   alias Tuist.Storage
@@ -32,25 +33,60 @@ defmodule TuistWeb.API.CacheController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints, :token]
+  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoint, :endpoints, :token]
 
   plug TuistWeb.API.Authorization.AuthorizationPlug,
-       [
-         category: :cache,
-         caching: true,
-         cache_ttl: to_timeout(minute: 1)
-       ]
-       when action not in [:access, :endpoints, :token]
+       [category: :cache]
+       when action not in [:access, :endpoint, :endpoints, :token]
 
-  plug BillingPlug when action not in [:access, :endpoints, :token]
+  plug BillingPlug when action not in [:access, :endpoint, :endpoints, :token]
 
   plug :sign
 
   tags(["Cache"])
 
+  operation(:endpoint,
+    summary: "Get the main self-hosted cache endpoint.",
+    description:
+      "Returns one server-configured cache URL, or null when none is configured. The first configured URL is the main endpoint. This operation never records demand or provisions capacity. Tuist-hosted clients derive their stable hostname locally and do not call this operation.",
+    operation_id: "getCacheEndpoint",
+    responses: %{
+      ok: %OpenApiSpex.Response{
+        description: "Main cache endpoint",
+        headers: %{
+          "cache-control" => %OpenApiSpex.Header{
+            description: "How long the endpoint configuration can be cached.",
+            schema: %Schema{type: :string}
+          }
+        },
+        content: %{
+          "application/json" => %OpenApiSpex.MediaType{
+            schema: %Schema{
+              title: "CacheEndpoint",
+              type: :object,
+              required: [:endpoint],
+              properties: %{endpoint: %Schema{type: :string, nullable: true}}
+            }
+          }
+        }
+      }
+    }
+  )
+
+  def endpoint(conn, _params) do
+    endpoint = CacheEndpoints.primary_endpoint_url()
+    max_age = if endpoint, do: 60, else: 5
+
+    conn
+    |> put_resp_header("cache-control", "private, max-age=#{max_age}")
+    |> json(%{endpoint: endpoint})
+  end
+
   operation(:endpoints,
     summary: "Get cache endpoints.",
-    description: "Returns cache endpoints for the requested account.",
+    description:
+      "Deprecated for new clients. Hosted clients derive stable cache URLs locally. Self-hosted clients use GET /api/cache/endpoint to discover their main cache URL. This route retains legacy endpoint selection and provisioning behavior.",
+    deprecated: true,
     operation_id: "getCacheEndpoints",
     parameters: [
       {:account_handle,
@@ -253,7 +289,30 @@ defmodule TuistWeb.API.CacheController do
              },
              projects: %Schema{
                type: :array,
+               description:
+                 "Project handles whose cache the subject may read. Carries no action; cache_grants says which projects may also be written.",
                items: %Schema{type: :string}
+             },
+             cache_grants: %Schema{
+               type: :object,
+               description:
+                 "Handles by scope and action, as `{account|project: {read|write: [handle]}}`. Write implies read. Cache nodes authorize from these when present.",
+               properties: %{
+                 account: %Schema{
+                   type: :object,
+                   properties: %{
+                     read: %Schema{type: :array, items: %Schema{type: :string}},
+                     write: %Schema{type: :array, items: %Schema{type: :string}}
+                   }
+                 },
+                 project: %Schema{
+                   type: :object,
+                   properties: %{
+                     read: %Schema{type: :array, items: %Schema{type: :string}},
+                     write: %Schema{type: :array, items: %Schema{type: :string}}
+                   }
+                 }
+               }
              },
              payment_required: %Schema{
                type: :array,
@@ -315,6 +374,11 @@ defmodule TuistWeb.API.CacheController do
              expires_in: %Schema{
                type: :integer,
                description: "Seconds until the token expires."
+             },
+             writable: %Schema{
+               type: :boolean,
+               description:
+                 "Whether the token may write to the project in `full_handle`. Present only when `full_handle` is sent."
              }
            }
          }},
@@ -332,17 +396,30 @@ defmodule TuistWeb.API.CacheController do
          |> authorized_account_handle(conn)
          |> free_tier_exhausted_account() do
       nil ->
-        {:ok, token, _claims} =
+        {:ok, token, claims} =
           conn
           |> Authentication.authenticated_subject()
-          |> Cache.issue_cache_token(scope: params[:full_handle])
+          |> Cache.issue_cache_token(scope: params[:full_handle], origin: RemoteIp.origin(conn))
 
-        json(conn, %{token: token, expires_in: Cache.cache_token_ttl_seconds()})
+        json(
+          conn,
+          Map.merge(
+            %{token: token, expires_in: Cache.cache_token_ttl_seconds()},
+            writable(params[:full_handle], claims)
+          )
+        )
 
       account ->
         render_free_tier_exhausted(conn, account)
     end
   end
+
+  # Clients skip uploads the token cannot make. Only a project-scoped token
+  # answers for a single project.
+  defp writable(full_handle, %{"cache_grants" => %{"project" => %{"write" => write}}})
+       when is_binary(full_handle) and full_handle != "", do: %{writable: write != []}
+
+  defp writable(_full_handle, _claims), do: %{}
 
   defp scope_account_handle(nil), do: nil
 
@@ -411,6 +488,7 @@ defmodule TuistWeb.API.CacheController do
 
     if is_nil(cache_action_item) do
       conn
+      |> assign(:cache_outcome, :miss)
       |> put_status(:not_found)
       |> json(%{message: "The item doesn't exist in the cache."})
     else

@@ -1,0 +1,29 @@
+package distributor
+
+import (
+	"encoding/json"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"os"
+	"testing"
+)
+
+func TestPulseSpanTime(t *testing.T) {
+	s := &v1.Span{StartTimeUnixNano: 20_500_000_000, EndTimeUnixNano: 20_900_000_000}
+	start, end := startEndFromSpan(s)
+	result := struct {
+		StartNS uint64 `json:"start_ns"`
+		EndNS   uint64 `json:"end_ns"`
+		Start   uint32 `json:"start"`
+		End     uint32 `json:"end"`
+	}{s.StartTimeUnixNano, s.EndTimeUnixNano, start, end}
+	raw, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile("/tmp/pulse-windowed-discovery/span-time.json", append(raw, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if start != 20 || end != 20 {
+		t.Fatal(result)
+	}
+}

@@ -1,5 +1,7 @@
 defmodule Atlas.Release do
   alias Atlas.Authorization.Bootstrap
+  alias Atlas.Demo
+  alias Atlas.Demo.Seeds
   alias Atlas.Repo
 
   @app :atlas
@@ -29,6 +31,13 @@ defmodule Atlas.Release do
       {:error, _reason} ->
         raise "Atlas administrator initialization failed; no access was granted"
     end
+  end
+
+  def seed_demo do
+    load_app()
+    if !Demo.enabled?(), do: raise("Demo seeding requires ATLAS_DEMO_MODE=true")
+    {:ok, {:ok, :seeded}, _apps} = Ecto.Migrator.with_repo(Repo, fn _repo -> Seeds.run!() end)
+    IO.puts("Fictional Atlas demo data seeded.")
   end
 
   def migrate do

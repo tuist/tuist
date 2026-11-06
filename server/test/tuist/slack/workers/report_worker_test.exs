@@ -177,6 +177,133 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
       assert updated_project.slack_channel_name == nil
     end
 
+    for {delivery, response} <- [
+          {:bot_token, %Req.Response{status: 200, body: %{"ok" => false, "error" => "is_archived"}}},
+          {:webhook, %Req.Response{status: 410, body: "channel_is_archived"}}
+        ] do
+      test "discards archived #{delivery} report destinations without disconnecting other notifications", %{
+        project: project,
+        slack_installation: installation
+      } do
+        now = ~U[2025-01-15 09:00:00Z]
+        previous_report_at = ~U[2025-01-13 09:00:00Z]
+        webhook_url = "https://hooks.slack.com/services/T0/B0/abcd"
+
+        other_project = ProjectsFixtures.project_fixture(account_id: project.account_id)
+
+        {:ok, other_project} =
+          Projects.update_project(other_project, %{
+            slack_channel_id: "C_HEALTHY",
+            slack_channel_name: "healthy-channel"
+          })
+
+        {:ok, project} =
+          Projects.update_project(project, %{
+            slack_channel_id: "C_ARCHIVED",
+            slack_channel_name: "archived-channel",
+            slack_webhook_url: if(unquote(delivery) == :webhook, do: webhook_url),
+            flaky_test_alerts_slack_channel_id: "C_ALERTS",
+            flaky_test_alerts_slack_channel_name: "alerts"
+          })
+
+        project = Repo.update!(Ecto.Changeset.change(project, last_reported_at: previous_report_at))
+        stub_report_metrics(now)
+
+        expect(Req, :post, fn _url, _opts ->
+          {:ok, unquote(Macro.escape(response))}
+        end)
+
+        {:ok, job} = %{project_id: project.id} |> ReportWorker.new() |> Oban.insert()
+        assert %{discard: 1, failure: 0} = Oban.drain_queue(queue: :default)
+        assert Repo.reload!(job).state == "discarded"
+
+        updated_project = Repo.reload!(project)
+        assert updated_project.slack_channel_id == nil
+        assert updated_project.slack_channel_name == nil
+        assert updated_project.slack_webhook_url == nil
+        assert updated_project.last_reported_at == previous_report_at
+        assert updated_project.flaky_test_alerts_slack_channel_id == "C_ALERTS"
+        assert updated_project.flaky_test_alerts_slack_channel_name == "alerts"
+        assert Repo.get!(Installation, installation.id).access_token == installation.access_token
+        assert Repo.reload!(other_project).slack_channel_id == "C_HEALTHY"
+
+        reject(&Req.post/2)
+        assert :ok = ReportWorker.perform(%Oban.Job{args: %{"project_id" => project.id}})
+        assert Repo.reload!(project).last_reported_at == previous_report_at
+      end
+
+      for replacement <- [:channel, :webhook] do
+        test "preserves a replacement #{replacement} after an archived #{delivery} response", %{project: project} do
+          old_webhook_url = if(unquote(delivery) == :webhook, do: "https://hooks.slack.com/services/T0/B0/old")
+
+          new_webhook_url =
+            if(unquote(replacement) == :webhook, do: "https://hooks.slack.com/services/T0/B0/new", else: old_webhook_url)
+
+          new_channel_id = if(unquote(replacement) == :channel, do: "C_HEALTHY", else: "C_ARCHIVED")
+          previous_report_at = ~U[2025-01-13 09:00:00Z]
+
+          {:ok, project} =
+            Projects.update_project(project, %{
+              slack_channel_id: "C_ARCHIVED",
+              slack_channel_name: "archived-channel",
+              slack_webhook_url: old_webhook_url
+            })
+
+          project = Repo.update!(Ecto.Changeset.change(project, last_reported_at: previous_report_at))
+          stub_report_metrics(~U[2025-01-15 09:00:00Z])
+
+          expect(Req, :post, fn url, opts ->
+            if unquote(delivery) == :webhook do
+              assert url == old_webhook_url
+            else
+              assert url == "https://slack.com/api/chat.postMessage"
+              assert JSON.decode!(opts[:body])["channel"] == "C_ARCHIVED"
+            end
+
+            {:ok, _project} =
+              Projects.update_project(Repo.reload!(project), %{
+                slack_channel_id: new_channel_id,
+                slack_channel_name: "healthy-channel",
+                slack_webhook_url: new_webhook_url
+              })
+
+            {:ok, unquote(Macro.escape(response))}
+          end)
+
+          assert {:discard, _reason} = ReportWorker.perform(%Oban.Job{args: %{"project_id" => project.id}})
+
+          updated_project = Repo.reload!(project)
+          assert updated_project.slack_channel_id == new_channel_id
+          assert updated_project.slack_channel_name == "healthy-channel"
+          assert updated_project.slack_webhook_url == new_webhook_url
+          assert updated_project.last_reported_at == previous_report_at
+        end
+      end
+
+      test "retries failed cleanup after an archived #{delivery} response", %{project: project} do
+        project =
+          Repo.update!(
+            Ecto.Changeset.change(project,
+              slack_channel_id: "C_ARCHIVED",
+              slack_channel_name: "archived-channel",
+              slack_webhook_url: if(unquote(delivery) == :webhook, do: "https://hooks.slack.com/services/T0/B0/abcd")
+            )
+          )
+
+        stub_report_metrics(~U[2025-01-15 09:00:00Z])
+        expect(Req, :post, fn _url, _opts -> {:ok, unquote(Macro.escape(response))} end)
+        expect(Projects, :update_project, fn _project, _attrs -> {:error, :cleanup_unavailable} end)
+
+        assert {:error, :cleanup_unavailable} =
+                 ReportWorker.perform(%Oban.Job{args: %{"project_id" => project.id}})
+
+        updated_project = Repo.reload!(project)
+        assert updated_project.slack_channel_id == project.slack_channel_id
+        assert updated_project.slack_webhook_url == project.slack_webhook_url
+        assert updated_project.last_reported_at == project.last_reported_at
+      end
+    end
+
     test "clears the project webhook when Slack returns :webhook_revoked", %{project: project} do
       now = ~U[2025-01-15 09:00:00Z]
 

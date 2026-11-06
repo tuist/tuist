@@ -2,25 +2,27 @@ package linux
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/rackinstall"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/tailnet"
 )
 
@@ -81,6 +83,7 @@ type installHarness struct {
 	c      client.Client
 	api    *fakeTailnet
 	runner *fakeRunner
+	amt    *fakeAMTPower
 	now    time.Time
 }
 
@@ -92,7 +95,7 @@ func newInstallHarness(t *testing.T, objs ...runtime.Object) *installHarness {
 	})
 	c := fake.NewClientBuilder().WithScheme(rackTestScheme(t)).WithRuntimeObjects(objs...).
 		WithStatusSubresource(&infrav1.RackLinuxHost{}).Build()
-	h := &installHarness{c: c, api: &fakeTailnet{}, runner: &fakeRunner{}, now: installEpoch}
+	h := &installHarness{c: c, api: &fakeTailnet{}, runner: &fakeRunner{}, amt: &fakeAMTPower{state: rackPowerOn}, now: installEpoch}
 	h.r = &RackLinuxHostReconciler{
 		Client:             c,
 		Recorder:           record.NewFakeRecorder(50),
@@ -106,6 +109,7 @@ func newInstallHarness(t *testing.T, objs ...runtime.Object) *installHarness {
 		EgressNamespace:  "tailscale-operator",
 		EgressProxyGroup: "macmini-egress",
 		RunScript:        h.runner.run,
+		AMTPower:         h.amt.power,
 		ReadHostEK:       func(context.Context, *infrav1.RackLinuxHost) ([]byte, error) { return harnessEK, nil },
 		Now:              func() time.Time { return h.now },
 	}
@@ -277,6 +281,23 @@ func TestRackInstallPublishesAnInstallForAHostNotOnTheTailnet(t *testing.T) {
 	chpasswd := "        - name: tuist\n          password: \"" + string(console.Data[svcUUID]) + "\"\n          type: text\n"
 	if strings.Count(userData, string(console.Data[svcUUID])) != 1 || !strings.Contains(userData, chpasswd) || !strings.Contains(userData, "    password: \"!\"\n") {
 		t.Fatal("the console password reaches the seed other than as cloud-init's chpasswd, which the installed system hashes")
+	}
+}
+
+func TestRackInstallPublishesAStorageHostsInstallWithItsDataLayout(t *testing.T) {
+	storage := svcHost()
+	storage.Spec.Role = "storage"
+	h := newInstallHarness(t, storage)
+	host := h.reconcile(t, svcUUID)
+
+	if c := conditions.Get(host, InstalledCondition); c == nil || c.Reason != "WaitingForNetboot" {
+		t.Fatalf("Installed condition %+v, want the install published", c)
+	}
+	userData := string(h.boot(t)[svcMACPath+".user-data"])
+	for _, want := range []string{"fstype: xfs", "path: /data, options: \"defaults,prjquota\"", "/data/kubelet /var/lib/kubelet none bind,nofail 0 0"} {
+		if !strings.Contains(userData, want) {
+			t.Errorf("user-data lacks %q", want)
+		}
 	}
 }
 
@@ -489,6 +510,31 @@ func TestRackInstallPublishesForAnEdgeAnotherEdgeOfItsSiteServes(t *testing.T) {
 	}
 	if c := conditions.Get(got, InstalledCondition); c == nil || c.Reason != "WaitingForNetboot" {
 		t.Fatalf("Installed %+v", c)
+	}
+}
+
+// An edge that names its VRRP VLAN gets an install that goes out through the
+// other edge on its first boot, with no DHCP on its uplinks.
+func TestRackInstallPublishesAnEdgesWayOutThroughTheOtherEdge(t *testing.T) {
+	edge := installableEdge()
+	edge.Spec.Edge = ber1EdgeBSpec()
+	h := newInstallHarness(t, edge, otherEdge("ber1-edge-b", rackTestNamespace, "ber1", "edge", true))
+	h.reconcile(t, edgeUUID)
+
+	userData := string(h.boot(t)[svcMACPath+".user-data"])
+	for _, want := range []string{
+		"      vrrp0-1:\n        id: 4000\n        link: uplink-1\n",
+		"          name: enp2s0f0np0\n        dhcp4: false\n",
+		"          - 10.255.255.2/29\n",
+		"            via: 10.255.255.1\n            metric: 200\n",
+		"/target/etc/systemd/resolved.conf.d/10-tuist-edge.conf",
+	} {
+		if !strings.Contains(userData, want) {
+			t.Errorf("user-data lacks %q", want)
+		}
+	}
+	if strings.Contains(userData, "dhcp4: true") {
+		t.Error("the edge's install takes DHCP")
 	}
 }
 
@@ -866,10 +912,12 @@ func TestRackInstallRenewsAJoinKeyOnlyWhileNoHostHasIt(t *testing.T) {
 }
 
 // The operator trusts the new install by the host key it gave it, rather than
-// by whatever answers first on the new device.
+// by whatever answers first on the new device. The boot server handed
+// out its seed, so the new device can be the install's.
 func TestRackInstallTrustsTheNewInstallByTheHostKeyItGaveIt(t *testing.T) {
 	host := withInstall(svcHost(), "kMINT1CNTRL", "", installEpoch.Add(-30*time.Minute), nil)
 	host.Status.Install.HostKeyFingerprint = "SHA256:operatorgenerated"
+	handedOut(host, installEpoch.Add(-20*time.Minute))
 	h := newInstallHarness(t, host, publishedBoot("kMINT1CNTRL"))
 	h.api.devices = []tailnet.Device{svcDevice("new", "2026-09-24T07:50:00Z", true)}
 
@@ -889,5 +937,97 @@ func TestRackInstallTrustsTheNewInstallByTheHostKeyItGaveIt(t *testing.T) {
 	}
 	if _, ok := h.boot(t)[svcMACPath+".install"]; ok {
 		t.Fatal("the withdrawn install's key ID is still published")
+	}
+}
+
+// A host installed by another installer while an install is published for it,
+// as from its own stick, joins with a host key of its own: the boot server
+// never handed out the install's seed, so its device is trusted on first use
+// rather than held to the install's host key, which it does not carry.
+func TestRackInstallTrustsAHostItsOwnStickInstalledOnFirstUse(t *testing.T) {
+	host := withInstall(svcHost(), "kMINT1CNTRL", "", installEpoch.Add(-30*time.Minute), nil)
+	host.Status.Install.HostKeyFingerprint = "SHA256:operatorgenerated"
+	host.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: "kMINT1CNTRL", Servers: []infrav1.RackLinuxHostBootServer{
+		{Node: "ber1-edge-a", HoldsAddress: true, At: metav1.NewTime(installEpoch.Add(-29 * time.Minute))},
+	}}
+	h := newInstallHarness(t, host, publishedBoot("kMINT1CNTRL"))
+	h.api.devices = []tailnet.Device{svcDevice("stick", "2026-09-24T07:50:00Z", true)}
+
+	got := h.reconcile(t, svcUUID)
+
+	if got.Status.Install != nil || !conditions.IsTrue(got, InstalledCondition) || got.Status.Provisioning.State != infrav1.RackLinuxHostProvisioned {
+		t.Fatalf("install %+v provisioning %+v, want it withdrawn and the host provisioned", got.Status.Install, got.Status.Provisioning)
+	}
+	ctx := context.Background()
+	pin, err := h.r.CredentialsManager.GetMachineBootstrap(ctx, rackLinuxPinKey(svcUUID, "stick"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pin != nil && pin.HostFingerprint != "" {
+		t.Fatalf("pinned %q; the stick's install carries its own host key", pin.HostFingerprint)
+	}
+	if _, known, err := rackHostKnownKey(ctx, h.r.CredentialsManager, got); err != nil || known != "" {
+		t.Fatalf("known %q %v, want the first key the host presents", known, err)
+	}
+	if len(h.api.revoked) != 1 || h.api.revoked[0] != "kMINT1CNTRL" {
+		t.Fatalf("revoked %v, want the unused install's key", h.api.revoked)
+	}
+}
+
+// handedOut records the published install's seed as handed out at, as the boot
+// server does before it hands it out.
+func handedOut(host *infrav1.RackLinuxHost, at time.Time) {
+	served := metav1.NewTime(at)
+	host.Status.Boot = &infrav1.RackLinuxHostBootStatus{KeyID: host.Status.Install.KeyID, ServedTo: host.Spec.BootMAC, ServedAt: &served}
+}
+
+// The first edge of a site has no other edge to serve its netboot, but a
+// preinstalled one asks the internet boot server, which hands its seed only
+// to its pinned TPM: its install is published once the TPM is pinned.
+func TestRackInstallPublishesAPinnedFirstEdgeForTheInternetBootServer(t *testing.T) {
+	ek := testEK(t)
+	pinned := installableEdge()
+	pinned.Status.TPM = pinnedTPM(base64.StdEncoding.EncodeToString(ek), installEpoch)
+	for name, tc := range map[string]struct {
+		host     *infrav1.RackLinuxHost
+		internet string
+		publish  bool
+	}{
+		"pinned, with an internet boot server":     {pinned, "https://rack-boot.example.dev", true},
+		"not pinned, with an internet boot server": {installableEdge(), "https://rack-boot.example.dev", false},
+		"pinned, without one":                      {pinned, "", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newInstallHarness(t, tc.host.DeepCopy())
+			h.r.Install.InternetServerURL = tc.internet
+			got := h.reconcile(t, edgeUUID)
+			if published := got.Status.Install != nil && h.boot(t) != nil; published != tc.publish {
+				t.Fatalf("published %t, want %t: install %+v", published, tc.publish, got.Status.Install)
+			}
+		})
+	}
+}
+
+// A host of a model that arrives preinstalled is installed beside the
+// installer partition on its boot drive, which its install keeps; any other
+// takes the role's layout.
+func TestRackInstallKeepsAPreinstalledHostsInstaller(t *testing.T) {
+	const asus = "ASUSTeK COMPUTER INC. RS501A-E12-RS12U"
+	for product, keeps := range map[string]bool{asus: true, "Micro Computer (HK) Tech Limited Venus Series": false} {
+		t.Run(product, func(t *testing.T) {
+			host := svcHost()
+			pinned := metav1.NewTime(installEpoch)
+			host.Status.Hardware = &infrav1.RackLinuxHostHardware{Product: product, BootMAC: svcMAC, PinnedAt: &pinned}
+			h := newInstallHarness(t, host)
+			h.r.Install.PreinstalledProducts = []string{asus}
+			h.reconcile(t, svcUUID)
+			userData := string(h.boot(t)[svcMACPath+".user-data"])
+			if userData == "" {
+				t.Fatal("no install published")
+			}
+			if got := strings.Contains(userData, rackinstall.InstallerRestPlaceholder); got != keeps {
+				t.Fatalf("keeps the installer partition: %t, want %t", got, keeps)
+			}
+		})
 	}
 }

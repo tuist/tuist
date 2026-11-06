@@ -4,13 +4,23 @@ defmodule Tuist.Bazel.Invocation do
 
   @derive {
     Flop.Schema,
-    filterable: [:project_id, :status, :command, :is_ci, :inserted_at],
-    sortable: [:inserted_at, :started_at, :finished_at, :duration_ms, :status, :command],
+    filterable: [:failure_category, :project_id, :status, :command, :is_ci, :inserted_at],
+    sortable: [
+      :failure_category,
+      :invocation_id,
+      :inserted_at,
+      :started_at,
+      :finished_at,
+      :duration_ms,
+      :status,
+      :command
+    ],
     default_order: %{order_by: [:finished_at], order_directions: [:desc]}
   }
 
   @primary_key false
   schema "bazel_invocations" do
+    field :failure_category, :string, virtual: true, default: ""
     field :id, Ch, type: "UUID"
     field :invocation_id, Ch, type: "String"
     field :command, Ch, type: "LowCardinality(String)"
@@ -18,6 +28,7 @@ defmodule Tuist.Bazel.Invocation do
     field :git_branch, Ch, type: "String", default: ""
     field :git_commit_sha, Ch, type: "String", default: ""
     field :is_ci, :boolean, default: false
+    field :submission_auth, Ch, type: "LowCardinality(String)", default: ""
     field :custom_values, Ch, type: "Map(String, String)", default: %{}
     field :bazel_version, Ch, type: "LowCardinality(String)", default: ""
     field :cpu_time_ms, Ch, type: "UInt64", default: 0

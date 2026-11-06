@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tuist/tuist/infra/runners-controller/internal/cachevolumes"
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
 )
 
 func TestVolumeMetricsClassifyCancellationWithoutLeakingErrors(t *testing.T) {
@@ -33,13 +33,17 @@ func TestVolumeMetricsClassifyCancellationWithoutLeakingErrors(t *testing.T) {
 		t.Fatal(logs.String())
 	}
 }
-func TestTransferErrorsRetainCancellationWithoutURLs(t *testing.T) {
-	for _, err := range []error{context.Canceled, context.DeadlineExceeded} {
-		if !errors.Is(transferError(err), err) {
-			t.Fatal(err)
-		}
+
+func TestVolumeMetricsLogTheCauseWithoutSignedURLs(t *testing.T) {
+	var logs bytes.Buffer
+	m := newVolumeMetrics(slog.New(slog.NewJSONHandler(&logs, nil)), 40_000_000_000)
+	m.observe(cachevolumes.Observation{Operation: "maintenance", Source: "none", Err: errors.Join(errors.New("umount: target is busy"), errors.New(`Put "https://storage.example/image?X-Amz-Signature=private": EOF`))})
+	if !strings.Contains(logs.String(), `"error":"umount: target is busy\nPut \"<url>\": EOF"`) || strings.Contains(logs.String(), "private") {
+		t.Fatal(logs.String())
 	}
-	if strings.Contains(transferError(errors.New("https://secret")).Error(), "secret") {
-		t.Fatal("leaked URL")
+	logs.Reset()
+	m.observe(cachevolumes.Observation{Operation: "publish", Source: "none", Err: cachevolumes.ErrReleasePending})
+	if !strings.Contains(logs.String(), `"level":"INFO"`) || !strings.Contains(logs.String(), `"result":"release_pending"`) {
+		t.Fatal(logs.String())
 	}
 }

@@ -116,8 +116,11 @@ class BuildExecutionTelemetryIntegrationTest {
                 .first { it["task_path"].asString == ":app:compileJava" }
             assertEquals("remote_hit", cached["outcome"].asString)
             assertTrue(cached.getAsJsonObject("execution")["remote_cache_download_duration_ms"].asLong >= 0)
+            assertEquals(0, cold.getAsJsonObject("custom_metadata").getAsJsonObject("values")[BuildCacheSavingsTelemetry.KEY].asLong)
+            assertTrue(warm.getAsJsonObject("custom_metadata").getAsJsonObject("values")[BuildCacheSavingsTelemetry.KEY].asLong >= 0)
             assertTrue(cold["id"] != warm["id"], "Each configuration-cache reuse needs a fresh build identity")
             for (report in listOf(cold, warm)) {
+                assertEquals(listOf("clean", ":app:jar"), report.getAsJsonArray("requested_tasks").map { it.asString })
                 val startedAt = Instant.parse(report["started_at"].asString).toEpochMilli()
                 val finishedAt = startedAt + report["duration_ms"].asLong
                 val metrics = report.getAsJsonArray("machine_metrics").map { it.asJsonObject }
@@ -144,6 +147,7 @@ class BuildExecutionTelemetryIntegrationTest {
             assertTrue(executed["cacheable"].asBoolean)
 
             val (_, unchanged) = run("--no-build-cache", "-x", "clean")
+            assertEquals(listOf("clean", ":app:jar"), unchanged.getAsJsonArray("requested_tasks").map { it.asString })
             val upToDate = unchanged.getAsJsonArray("tasks").map { it.asJsonObject }
                 .first { it["task_path"].asString == ":app:compileJava" }
             assertEquals("up_to_date", upToDate["outcome"].asString)
@@ -160,8 +164,64 @@ class BuildExecutionTelemetryIntegrationTest {
             assertEquals("local_hit", local["outcome"].asString, localOutput)
             assertEquals("not_requested", local.getAsJsonObject("execution")["remote_cache_lookup_outcome"].asString)
             assertTrue(!local["remote_cache_miss"].asBoolean)
+            assertTrue(locallyCached.getAsJsonObject("custom_metadata").getAsJsonObject("values")[BuildCacheSavingsTelemetry.KEY].asLong >= 0)
         }
     }
+    @ParameterizedTest
+    @ValueSource(strings = ["8.14.3", "9.2.1"])
+    fun `preserves original selectors and does not infer requests from default tasks`(version: String) {
+        val reports = LinkedBlockingQueue<JsonObject>()
+        MockWebServer().use { server ->
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path.orEmpty().endsWith("/gradle/builds")) {
+                        val report = JsonParser.parseString(request.body.readUtf8()).asJsonObject
+                        reports.add(report)
+                        return MockResponse().setResponseCode(201).setBody("{\"id\":\"${report["id"].asString}\"}")
+                    }
+                    return MockResponse().setBody("{}")
+                }
+            }
+            server.start()
+            File(directory, "settings.gradle").writeText("""
+                plugins { id 'dev.tuist' }
+                tuist { project = 'test/telemetry'; url = '${server.url("/")}'; uploadInBackground = false; buildCache { enabled = false } }
+                rootProject.name = 'selectors'
+                include 'app', 'library'
+            """.trimIndent())
+            listOf("app", "library").forEach { File(directory, it).mkdirs() }
+            File(directory, "build.gradle").writeText("""
+                allprojects {
+                    apply plugin: 'base'
+                    tasks.register('compileDebug') {}
+                    tasks.register('assembleDebug') { dependsOn 'compileDebug' }
+                }
+                defaultTasks 'assembleDebug'
+            """.trimIndent())
+
+            for (requested in listOf(listOf("clean", "assD"), emptyList())) {
+                repeat(2) { iteration ->
+                    val result = GradleRunner.create().withProjectDir(directory).withPluginClasspath().withGradleVersion(version)
+                        .withEnvironment(System.getenv().filterKeys { it !in setOf("TUIST_URL", "TUIST_CACHE_ENDPOINT") } + ("TUIST_TOKEN" to "test-only-token"))
+                        .withArguments(requested + listOf("--configuration-cache", "--no-watch-fs", "--stacktrace"))
+                        .build()
+                    if (iteration == 1) assertTrue(result.output.contains("Reusing configuration cache"), result.output)
+                    val report = assertNotNull(reports.poll(20, TimeUnit.SECONDS), result.output)
+                    assertEquals(requested, report.getAsJsonArray("requested_tasks").map { it.asString })
+                    val executed = report.getAsJsonArray("tasks").map { it.asJsonObject["task_path"].asString }
+                    assertTrue(":assembleDebug" in executed)
+                    assertTrue(":compileDebug" in executed)
+                    if (requested.isNotEmpty()) {
+                        assertTrue(":app:assembleDebug" in executed)
+                        assertTrue(":library:assembleDebug" in executed)
+                        assertTrue(":app:clean" in executed)
+                        assertTrue(":library:clean" in executed)
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     fun `keeps identical task paths in composite builds distinct and records failure`() {
         val reports = LinkedBlockingQueue<JsonObject>()
@@ -198,6 +258,7 @@ class BuildExecutionTelemetryIntegrationTest {
                 .withArguments("verify", "--configuration-cache", "--parallel", "--no-watch-fs", "--stacktrace").buildAndFail()
             val report = assertNotNull(reports.poll(20, TimeUnit.SECONDS), result.output)
             assertEquals("failure", report["status"].asString, result.output)
+            assertEquals(listOf("verify"), report.getAsJsonArray("requested_tasks").map { it.asString })
             val tasks = report.getAsJsonArray("tasks").map { it.asJsonObject }
             val compile = tasks.filter { it["task_path"].asString == ":compile" }
             assertEquals(setOf(":", ":included&tools"), compile.map { it.getAsJsonObject("execution")["build_path"].asString }.toSet())

@@ -19,6 +19,7 @@ defmodule TuistWeb.API.BundlesController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :bundle)
+  plug(:validate_tags_query_shape when action in [:index])
 
   plug(
     TuistWeb.Plugs.CastAndValidate,
@@ -43,6 +44,17 @@ defmodule TuistWeb.API.BundlesController do
         type: :string,
         required: true,
         description: "The handle of the project."
+      ],
+      tags: [
+        in: :query,
+        schema: %Schema{
+          type: :array,
+          maxItems: 10,
+          items: %Schema{type: :string, maxLength: 50, pattern: "^[a-zA-Z0-9_-]+$"}
+        },
+        style: :form,
+        explode: false,
+        description: "Filter by tags. Returns bundles containing ALL specified tags."
       ],
       page: [
         in: :query,
@@ -77,11 +89,27 @@ defmodule TuistWeb.API.BundlesController do
            },
            required: [:bundles, :meta]
          }},
+      bad_request: {"Invalid bundle filters", "application/json", Error},
       unauthorized: {"You need to be authenticated to list bundles", "application/json", Error},
       forbidden: {"You are not authorized to list bundles", "application/json", Error},
       too_many_requests: Responses.authorization_throttled()
     }
   )
+
+  defp validate_tags_query_shape(conn, _opts) do
+    conn = fetch_query_params(conn)
+
+    case conn.query_params["tags"] do
+      value when is_nil(value) or is_binary(value) ->
+        conn
+
+      _ ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "tags must be a comma-separated string"})
+        |> halt()
+    end
+  end
 
   def index(%{assigns: %{selected_project: selected_project}} = conn, params) do
     filters = [
@@ -93,6 +121,9 @@ defmodule TuistWeb.API.BundlesController do
         nil -> filters
         branch -> [%{field: :git_branch, op: :==, value: branch} | filters]
       end
+
+    filters =
+      filters ++ Enum.map(Map.get(params, :tags, []), &%{field: :tag, op: :contains, value: &1})
 
     flop_params = %{
       filters: filters,
@@ -128,7 +159,7 @@ defmodule TuistWeb.API.BundlesController do
   operation(:show,
     summary: "Get a single bundle by ID",
     operation_id: "getBundle",
-    parameters: %{
+    parameters: [
       account_handle: [
         in: :path,
         type: :string,
@@ -147,7 +178,7 @@ defmodule TuistWeb.API.BundlesController do
         required: true,
         description: "The ID of the bundle."
       ]
-    },
+    ],
     responses: %{
       ok: {"Bundle details", "application/json", Bundle},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
@@ -228,6 +259,17 @@ defmodule TuistWeb.API.BundlesController do
                  description:
                    "Git reference of the repository. When run from CI in a pull request, this will be the remote reference to the pull request, such as `refs/pull/23958/merge`."
                },
+               custom_metadata: %Schema{
+                 type: :object,
+                 properties: %{
+                   tags: %Schema{
+                     type: :array,
+                     items: %Schema{type: :string, maxLength: 50, pattern: "^[a-zA-Z0-9_-]+$"},
+                     maxItems: 10,
+                     description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+                   }
+                 }
+               },
                type: %Schema{
                  type: :string,
                  enum: ["ipa", "app", "xcarchive", "aab", "apk"],
@@ -251,7 +293,7 @@ defmodule TuistWeb.API.BundlesController do
          },
          required: [:bundle]
        }},
-    parameters: %{
+    parameters: [
       account_handle: [
         in: :path,
         type: :string,
@@ -264,7 +306,7 @@ defmodule TuistWeb.API.BundlesController do
         required: true,
         description: "The handle of the project."
       ]
-    },
+    ],
     responses: %{
       ok: {"The bundle was created successfully", "application/json", Bundle},
       bad_request: {"Validation errors occurred", "application/json", ValidationError},
@@ -310,6 +352,7 @@ defmodule TuistWeb.API.BundlesController do
              git_branch: Map.get(bundle_params, :git_branch),
              git_commit_sha: Map.get(bundle_params, :git_commit_sha),
              git_ref: Map.get(bundle_params, :git_ref),
+             custom_tags: get_in(bundle_params, [:custom_metadata, :tags]) || [],
              type: type,
              uploaded_by_account_id: account_id
            },
@@ -358,6 +401,7 @@ defmodule TuistWeb.API.BundlesController do
       git_branch: bundle.git_branch,
       git_commit_sha: bundle.git_commit_sha,
       git_ref: bundle.git_ref,
+      custom_metadata: %{tags: bundle.custom_tags},
       type: bundle.type,
       inserted_at: bundle.inserted_at,
       uploaded_by_account: bundle.uploaded_by_account.name,
@@ -383,6 +427,7 @@ defmodule TuistWeb.API.BundlesController do
       git_branch: bundle.git_branch,
       git_commit_sha: bundle.git_commit_sha,
       git_ref: bundle.git_ref,
+      custom_metadata: %{tags: bundle.custom_tags},
       type: bundle.type,
       inserted_at: bundle.inserted_at,
       uploaded_by_account: bundle.uploaded_by_account.name,
@@ -400,7 +445,9 @@ defmodule TuistWeb.API.BundlesController do
         bundle_name: bundle.name,
         git_ref: bundle.git_ref,
         install_size: bundle.install_size,
-        download_size: bundle.download_size
+        download_size: bundle.download_size,
+        type: bundle.type,
+        supported_platforms: bundle.supported_platforms
       }
       |> Tuist.Bundles.Workers.BundleThresholdWorker.new()
       |> Oban.insert()

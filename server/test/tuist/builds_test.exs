@@ -1678,6 +1678,40 @@ defmodule Tuist.BuildsTest do
     end
   end
 
+  describe "ci_runs_with_remote_cache_hits/3" do
+    test "returns the given CI runs of the given projects whose builds hit the remote cache since the cutoff" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      since = DateTime.add(DateTime.utc_now(), -7 * 86_400, :second)
+
+      RunsFixtures.build_fixture(project_id: project.id, ci_run_id: "1", cacheable_task_remote_hits_count: 3)
+      RunsFixtures.build_fixture(project_id: project.id, ci_run_id: "1", cacheable_task_remote_hits_count: 5)
+      RunsFixtures.build_fixture(project_id: project.id, ci_run_id: "2", cacheable_task_remote_hits_count: 0)
+      RunsFixtures.build_fixture(project_id: project.id, ci_run_id: "3", cacheable_task_remote_hits_count: 3)
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        ci_run_id: "4",
+        cacheable_task_remote_hits_count: 3,
+        inserted_at: DateTime.add(since, -60, :second)
+      )
+
+      RunsFixtures.build_fixture(project_id: other_project.id, ci_run_id: "5", cacheable_task_remote_hits_count: 3)
+
+      # When
+      result = Builds.ci_runs_with_remote_cache_hits([project.id], ["1", "2", "4", "5"], since)
+
+      # Then
+      assert result == {:ok, [{project.id, "1"}]}
+    end
+
+    test "returns no runs without projects or run ids to look up" do
+      assert Builds.ci_runs_with_remote_cache_hits([], ["1"], DateTime.utc_now()) == {:ok, []}
+      assert Builds.ci_runs_with_remote_cache_hits([1], [], DateTime.utc_now()) == {:ok, []}
+    end
+  end
+
   describe "total_count/0" do
     test "returns the total number of builds" do
       # Given

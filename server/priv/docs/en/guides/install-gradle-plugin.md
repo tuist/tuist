@@ -9,6 +9,8 @@
 
 Tuist provides a Gradle plugin that integrates with your Gradle project to enable features like <.localized_link href="/guides/features/cache/gradle-cache">remote build caching</.localized_link> and <.localized_link href="/guides/features/build-insights/gradle">build insights</.localized_link>. This guide walks you through installing and configuring the plugin.
 
+The plugin requires Gradle 8.12.1 or later.
+
 ## 1. Initialize Tuist {#initialize-tuist}
 
 Run the following command in your Gradle project root:
@@ -31,11 +33,7 @@ The command will walk you through authenticating, creating or selecting a Tuist 
 
 After running `tuist init`, you'll need to add the Tuist plugin to your `settings.gradle.kts` as instructed by the command output:
 
-```kotlin
-plugins {
-    id("dev.tuist") version "0.10.0"
-}
-```
+<!-- @snippet: ./_gradle-plugin-block -->
 
 ## 3. Authenticate your team and continuous integration {#authenticate}
 
@@ -56,7 +54,30 @@ tuist auth whoami --url http://localhost:8080
 
 Keep the hostname spelling consistent. For example, a login stored for `localhost` is separate from one stored for `127.0.0.1`.
 
-For automated runners, follow the <.localized_link href="/guides/integrations/continuous-integration#authentication">continuous integration authentication guide</.localized_link> to configure authentication for your environment.
+For automated runners, follow the <.localized_link href="/guides/server/authentication#continuous-integration">continuous integration authentication guide</.localized_link> to configure authentication for your environment.
+
+## Configuration cache and Isolated Projects {#configuration-cache-and-isolated-projects}
+
+The plugin supports Gradle's configuration cache and [Isolated Projects](https://docs.gradle.org/current/userguide/isolated_projects.html). Keep the plugin in `settings.gradle.kts`; you do not need to apply it separately to each subproject.
+
+Tuist does not enable either feature automatically. To opt in, add the following to `gradle.properties`:
+
+```properties
+org.gradle.configuration-cache=true
+org.gradle.unsafe.isolated-projects=true
+```
+
+Your build scripts and other plugins must also support these features. Gradle reports compatibility problems when storing the configuration cache.
+
+## Publish previews {#publish-previews}
+
+For Android application modules, the plugin registers `tuistShare<Variant>` tasks:
+
+```bash
+./gradlew :app:tuistShareDebug --track nightly
+```
+
+The task builds and verifies a single signed APK, then publishes it with your existing Tuist authentication. Invoking the task is the opt-in: ordinary `assemble`, `build`, and test tasks do not publish previews. No CLI upload step is required. See <.localized_link href="/guides/features/previews/gradle">Gradle previews</.localized_link> for eligibility, cache replay, and failure behavior.
 
 ## Configuration reference {#configuration-reference}
 

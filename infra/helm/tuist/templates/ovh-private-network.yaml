@@ -1,0 +1,41 @@
+{{- if and .Values.capi.enabled .Values.capi.ovhPrivateNetwork.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "ovh-private-network") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "ovh-private-network") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+data:
+  vrackID: {{ required "capi.ovhPrivateNetwork.vrackID must name the provisioned vRack" .Values.capi.ovhPrivateNetwork.vrackID | quote }}
+  cidr: {{ required "capi.ovhPrivateNetwork.cidr must be an allocated private CIDR" .Values.capi.ovhPrivateNetwork.cidr | quote }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [{{ $name | quote }}, {{ printf "%s-reservations" $name | quote }}]
+    verbs: [get, update]
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon") }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

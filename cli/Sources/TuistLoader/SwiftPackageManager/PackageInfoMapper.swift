@@ -2,7 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
-import ProjectDescription
+@_spi(TuistLoader) import ProjectDescription
 import TSCUtility
 import TuistConstants
 import TuistCore
@@ -346,6 +346,18 @@ public struct PackageInfoMapper: PackageInfoMapping {
         return ResolvedExternalDependencies(products: externalDependencies, packageProducts: packageProducts)
     }
 
+    /// Returns the products of the package a product dependency names. A registry package overridden by a local package is
+    /// no longer part of the graph, so a `scope.name` reference to it falls back to the package that goes by `name`.
+    private static func products(
+        ofPackage package: String,
+        in packageProducts: [String: [String: [ProjectDescription.TargetDependency]]]
+    ) -> [String: [ProjectDescription.TargetDependency]]? {
+        let reference = package.lowercased()
+        if let products = packageProducts[reference] { return products }
+        guard let scopeSeparator = reference.firstIndex(of: ".") else { return nil }
+        return packageProducts[String(reference[reference.index(after: scopeSeparator)...])]
+    }
+
     /// Maps the manifest name and the name part of a registry identity of each package to its lowercased identity, skipping
     /// the ones that several packages share.
     private static func packageReferenceAliases(packageInfos: [(key: String, value: PackageInfo)]) -> [String: String] {
@@ -458,7 +470,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
         }
         let targetToProducts = mutableTargetToProducts
-        let prebuiltEligibleTargets = prebuiltEligibleTargets(packageInfo: packageInfo, packageType: packageType)
+        let prebuiltEligibleTargets = prebuiltEligibleTargets(
+            packageInfo: packageInfo,
+            packageType: packageType,
+            includeLocalPackageTestTargets: packageSettings.includeLocalPackageTestTargets
+        )
 
         let targets: [ProjectDescription.Target] = try await packageInfo.targets
             .concurrentCompactMap { target -> ProjectDescription.Target? in
@@ -673,11 +689,16 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
     private func prebuiltEligibleTargets(
         packageInfo: PackageInfo,
-        packageType: PackageType
+        packageType: PackageType,
+        includeLocalPackageTestTargets: Bool
     ) -> Set<String> {
         guard !packageType.packagePrebuilts.isEmpty else { return [] }
 
-        let targetsByName = Dictionary(uniqueKeysWithValues: packageInfo.targets.map { ($0.name, $0) })
+        let includesTestTargets = packageType.includesTestTargets(
+            includeLocalPackageTestTargets: includeLocalPackageTestTargets
+        )
+        let mappedTargets = packageInfo.targets.filter { includesTestTargets || $0.type != .test }
+        let targetsByName = Dictionary(uniqueKeysWithValues: mappedTargets.map { ($0.name, $0) })
         let allTargetNames = Set(targetsByName.keys)
 
         func isHostOnlyTarget(_ targetName: String) -> Bool {
@@ -727,7 +748,14 @@ public struct PackageInfoMapper: PackageInfoMapping {
             return visited
         }
 
-        let macroTargets = Set(packageInfo.targets.compactMap { target in
+        func dependsOnPrebuiltProduct(_ targetName: String) -> Bool {
+            targetsByName[targetName]?.dependencies.contains { dependency in
+                guard case let .product(name, package, _, _) = dependency else { return false }
+                return packageType.prebuilt(targetPackage: package, product: name) != nil
+            } ?? false
+        }
+
+        let macroTargets = Set(mappedTargets.compactMap { target in
             switch target.type {
             case .macro:
                 target.name
@@ -737,7 +765,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         })
 
         let macroClosure = dependencyClosure(from: macroTargets, includeHostOnlyTargets: true)
-        let macroTestTargets = Set<String>(packageInfo.targets.compactMap { target in
+        let macroTestTargets = Set<String>(mappedTargets.compactMap { target in
             guard target.type == .test else { return nil }
             return dependencyClosure(from: [target.name], includeHostOnlyTargets: true)
                 .isDisjoint(with: macroClosure) ? nil : target.name
@@ -750,11 +778,14 @@ public struct PackageInfoMapper: PackageInfoMapping {
             includeHostOnlyTargets: false
         )
 
-        guard hostReachableTargets.isDisjoint(with: nonHostReachableTargets) else {
+        // Targets reached from both sides are built for non-host platforms too, so they can only stay on
+        // source dependencies. That conflicts with the prebuilt only when they depend on a prebuilt product.
+        let sharedTargets = hostReachableTargets.intersection(nonHostReachableTargets)
+        guard !sharedTargets.contains(where: dependsOnPrebuiltProduct) else {
             return []
         }
 
-        return hostReachableTargets
+        return hostReachableTargets.subtracting(sharedTargets)
     }
 
     // swiftlint:disable:next function_body_length
@@ -917,7 +948,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 for: target,
                 moduleMap: moduleMap,
                 moduleName: moduleMapModuleName,
-                targetPath: targetPath
+                targetPath: targetPath,
+                publicHeadersPath: try await target.publicHeadersPath(packageFolder: path)
             )
         }
 
@@ -1083,148 +1115,43 @@ public struct PackageInfoMapper: PackageInfoMapping {
         )
     }
 
-    /// Surfaces every header in a C-family target in the generated project so they can be browsed and
-    /// indexed, matching the file discovery SwiftPM performs (including the recognized header extensions).
-    ///
-    /// How a header is classified depends on how the target's module is consumed:
-    ///
-    /// - `.custom` / `.header` targets carry an explicit or umbrella-header module map that defines the
-    ///   module, and are consumed as a Swift/Clang module (`import Module`). Tagging their headers `Public`
-    ///   is redundant and harmful: SwiftPM C targets generate as frameworks, and a `Public` header is copied
-    ///   into the framework bundle's `Headers` directory. That copy flips `__has_include(<Module/Header.h>)`
-    ///   checks in sibling shim targets (for example swift-nio-ssl's `CNIOBoringSSLShims.h`, which includes
-    ///   `<CNIOBoringSSL/CNIOBoringSSL.h>`), which re-homes the included declarations into the shim module and
-    ///   breaks consumers under the `MemberImportVisibility` upcoming feature. So they are surfaced as project
-    ///   headers only, which leaves the module composition untouched.
-    /// - `.directory` targets have no umbrella header; their public headers directory *is* the module's public
-    ///   surface, and consumers import individual headers as `<Module/Header.h>` (e.g. an ObjC framework). Those
-    ///   headers must stay `Public` so they are copied into the framework bundle and remain resolvable.
-    ///
-    /// Only targets with a module map (i.e. C-family targets) have headers. Swift targets resolve
-    /// to `ModuleMap.none` and keep `nil` headers.
+    /// SwiftPM headers remain compiler and cache inputs, but do not become Xcode header build files.
+    /// In particular, a directory module preserves its include hierarchy instead of flattening every
+    /// nested header into a framework. Custom and umbrella maps keep their original module composition.
+    /// `exclude` only removes project headers: everything under the public headers path stays includable
+    /// through its search path, as it does in SwiftPM.
     private func discoveredHeaders(
         for target: PackageInfo.Target,
         moduleMap: ModuleMap?,
         moduleName: String?,
-        targetPath: AbsolutePath
-    ) async throws -> ProjectDescription.Headers? {
-        guard let moduleMap else { return nil }
-
-        // Header extensions recognized by SwiftPM's `FileRuleDescription.header`.
-        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
-        // SwiftPM's `exclude` paths are relative to the target's directory; drop headers under them so
-        // the generated target matches SwiftPM's discovery. Mirrors `SourceFilesList.from`.
-        let excluding: [ProjectDescription.Path] = try target.exclude.map {
-            let excludePath = targetPath.appending(try RelativePath(validating: $0))
-            let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
-            return .path(excludeGlob.pathString)
-        }
-
-        switch moduleMap {
-        case .none:
-            return nil
-        case .custom, .header:
-            return .headers(
-                project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)])
-            )
-        case let .directory(_, publicHeadersPath):
-            let frameworkHeaders = try await frameworkPublicHeaders(
-                publicHeadersPath: publicHeadersPath,
-                targetPath: targetPath,
-                excluding: target.exclude,
-                moduleName: moduleName
-            )
-            return .headers(
-                public: frameworkHeaders.public,
-                project: .list([
-                    .glob(
-                        .path("\(targetPath.pathString)/\(headersGlob)"),
-                        excluding: excluding + frameworkHeaders.shadowedPublicHeaderExclusions
-                    ),
-                ]),
-                exclusionRule: .projectExcludesPrivateAndPublic
-            )
-        }
-    }
-
-    private struct FrameworkPublicHeaders {
-        let `public`: ProjectDescription.FileList?
-        let shadowedPublicHeaderExclusions: [ProjectDescription.Path]
-    }
-
-    private func frameworkPublicHeaders(
-        publicHeadersPath: AbsolutePath,
         targetPath: AbsolutePath,
-        excluding: [String],
-        moduleName: String?
-    ) async throws -> FrameworkPublicHeaders {
-        let headerExtensions = "h,hh,hpp,h++,hp,hxx,H,ipp,def"
-        let excludedPaths = try excluding.map {
-            targetPath.appending(try RelativePath(validating: $0))
+        publicHeadersPath: AbsolutePath
+    ) async throws -> ProjectDescription.Headers? {
+        guard let moduleMap, let moduleMapPath = moduleMap.moduleMapPath, let moduleName else { return nil }
+        let usesDirectoryModuleMap: Bool
+        switch moduleMap {
+        case .none: return nil
+        case .directory: usesDirectoryModuleMap = true
+        case .custom, .header: usesDirectoryModuleMap = false
         }
 
-        let headers = try await fileSystem
-            .glob(directory: publicHeadersPath, include: ["**/*.{\(headerExtensions)}", "*.{\(headerExtensions)}"])
-            .collect()
-            .uniqued()
-            .filter { header in
-                excludedPaths.allSatisfy { excludedPath in
-                    if excludedPath.extension == nil {
-                        !header.isDescendantOfOrEqual(to: excludedPath)
-                    } else {
-                        header != excludedPath
-                    }
-                }
-            }
-
-        let frameworkHeaders = uniqueFrameworkPublicHeaders(
-            headers,
-            publicHeadersPath: publicHeadersPath,
-            moduleName: moduleName
+        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
+        let excluding: [ProjectDescription.Path] = try await target.exclude.concurrentMap {
+            let path = targetPath.appending(try RelativePath(validating: $0))
+            let isDirectory = try await fileSystem.exists(path, isDirectory: true)
+            return .path(isDirectory ? path.appending(component: "**").pathString : path.pathString)
+        }
+        return .swiftPackageHeaders(
+            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(headersGlob)"))]),
+            project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)]),
+            sourceLayout: .init(
+                root: .path(targetPath.pathString),
+                publicHeaders: .path(publicHeadersPath.pathString),
+                moduleMap: .path(moduleMapPath.pathString),
+                moduleName: moduleName.sanitizedModuleName,
+                usesDirectoryModuleMap: usesDirectoryModuleMap
+            )
         )
-
-        let frameworkHeaderSet = Set(frameworkHeaders)
-        let shadowedPublicHeaderExclusions = headers
-            .filter { !frameworkHeaderSet.contains($0) }
-            .sorted()
-            .map { ProjectDescription.Path.path($0.pathString) }
-
-        return FrameworkPublicHeaders(
-            public: frameworkHeaders.isEmpty ? nil : .list(frameworkHeaders.map { .glob(.path($0.pathString)) }),
-            shadowedPublicHeaderExclusions: shadowedPublicHeaderExclusions
-        )
-    }
-
-    private func uniqueFrameworkPublicHeaders(
-        _ headers: [AbsolutePath],
-        publicHeadersPath: AbsolutePath,
-        moduleName: String?
-    ) -> [AbsolutePath] {
-        let moduleDirectory = moduleName.map { publicHeadersPath.appending(component: $0.sanitizedModuleName) }
-
-        return Dictionary(grouping: headers, by: \.basename)
-            .values
-            .compactMap { headers in
-                headers.sorted { lhs, rhs in
-                    if let moduleDirectory {
-                        let lhsIsModuleNested = lhs.isDescendant(of: moduleDirectory)
-                        let rhsIsModuleNested = rhs.isDescendant(of: moduleDirectory)
-                        if lhsIsModuleNested != rhsIsModuleNested {
-                            return lhsIsModuleNested
-                        }
-                    }
-
-                    let lhsDepth = lhs.relative(to: publicHeadersPath).components.count
-                    let rhsDepth = rhs.relative(to: publicHeadersPath).components.count
-                    if lhsDepth != rhsDepth {
-                        return lhsDepth > rhsDepth
-                    }
-
-                    return lhs.pathString < rhs.pathString
-                }
-                .first
-            }
-            .sorted()
     }
 
     private func prebuiltDependency(
@@ -1394,7 +1321,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         // Product names are only unique within a package, so a product dependency that names its package resolves against that
         // package's products.
         if let targetPackage, moduleAliases?[name] == nil,
-           let productDependencies = packageProducts[targetPackage.lowercased()]?[name]
+           let productDependencies = Self.products(ofPackage: targetPackage, in: packageProducts)?[name]
         {
             return productDependencies.map { $0.withCondition(platformCondition) }
         }
@@ -2410,19 +2337,30 @@ extension ProjectDescription.Settings {
             .compactMap(\.value.first)
             .sorted { $0.libraryName < $1.libraryName }
         for prebuilt in uniquePrebuilts {
+            // SwiftPM extracts prebuilts into the scratch directory and records absolute paths. Referencing them
+            // through `$(SRCROOT)` keeps the settings, and therefore the binary-cache hashes, independent of where
+            // the checkout lives.
+            //
+            // A macro cached from one checkout is then reused in others and keeps an LC_RPATH to the warming
+            // checkout's `lib` directory. That is harmless only while SwiftPM ships MacroSupport as a static
+            // library (`libMacroSupport.a`), so dyld never resolves anything through it. Revisit this if
+            // MacroSupport becomes dynamic.
+            let librarySearchPath = sourceRootRelativePath(prebuilt.librarySearchPath, packageFolder: packageFolder)
             settingsDictionary.appendArraySetting(
                 key: "OTHER_SWIFT_FLAGS",
-                values: prebuilt.includeSearchPaths.flatMap { ["-I", $0.quotedIfContainsSpaces] },
+                values: prebuilt.includeSearchPaths.flatMap {
+                    ["-I", sourceRootRelativePath($0, packageFolder: packageFolder).quotedIfContainsSpaces]
+                },
                 includeInherited: true
             )
             settingsDictionary.appendArraySetting(
                 key: "LIBRARY_SEARCH_PATHS",
-                values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
+                values: [librarySearchPath.quotedIfContainsSpaces],
                 includeInherited: true
             )
             settingsDictionary.appendArraySetting(
                 key: "LD_RUNPATH_SEARCH_PATHS",
-                values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
+                values: [librarySearchPath.quotedIfContainsSpaces],
                 includeInherited: true
             )
             settingsDictionary.appendArraySetting(
@@ -2607,20 +2545,24 @@ extension [String: XcodeGraph.SettingValue] {
     }
 }
 
+private func sourceRootRelativePath(_ path: AbsolutePath, packageFolder: AbsolutePath) -> String {
+    "$(SRCROOT)/\(path.relative(to: packageFolder).pathString)"
+}
+
 extension SwiftPackageManagerPrebuilt {
-    fileprivate var librarySearchPath: String {
-        path.appending(component: "lib").pathString
+    fileprivate var librarySearchPath: AbsolutePath {
+        path.appending(component: "lib")
     }
 
-    fileprivate var includeSearchPaths: [String] {
+    fileprivate var includeSearchPaths: [AbsolutePath] {
         var result = [
-            path.appending(component: "Modules").pathString,
+            path.appending(component: "Modules"),
         ]
 
         if let checkoutPath, let includePath {
-            result.append(contentsOf: includePath.map { checkoutPath.appending($0).pathString })
+            result.append(contentsOf: includePath.map { checkoutPath.appending($0) })
         } else {
-            result.append(contentsOf: cModules.map { path.appending(components: "include", $0).pathString })
+            result.append(contentsOf: cModules.map { path.appending(components: "include", $0) })
         }
 
         return result

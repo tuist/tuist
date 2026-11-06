@@ -3,12 +3,60 @@ defmodule Atlas.Users do
 
   alias Atlas.Audit
   alias Atlas.Authorization.Roles
+  alias Atlas.Demo
   alias Atlas.Repo
   alias Atlas.Users.User
 
   def get_user(id), do: Repo.get(User, id)
 
   def get_user_by_email(email), do: Repo.get_by(User, email: email)
+
+  def update_my_profile(%User{} = actor, description) when is_binary(description) do
+    with true <- String.valid?(description) and not String.contains?(description, <<0>>),
+         %User{} = current <- get_user(actor.id) do
+      current
+      |> User.profile_changeset(description)
+      |> Repo.update()
+      |> tap(fn
+        {:ok, user} ->
+          Audit.record("user.profile_updated", %{
+            actor_id: user.id,
+            actor_email: user.email,
+            actor_name: user.name,
+            target_type: "user",
+            target_id: user.id
+          })
+
+        _ ->
+          :ok
+      end)
+    else
+      nil -> {:error, :not_found}
+      _ -> {:error, :invalid_params}
+    end
+  end
+
+  def update_my_profile(_actor, _description), do: {:error, :invalid_params}
+
+  @doc """
+  Bounded, untrusted self-description for the acting user's private conversation.
+  Shared conversations must not receive private profile context. Reload on use so
+  a cleared or updated description is not taken from a stale authentication struct.
+  This is background data, never instructions or an authorization grant.
+  """
+  def profile_description_for(%User{id: id}, :private) do
+    case Repo.get(User, id) do
+      %User{description: description} when is_binary(description) and byte_size(description) <= 16_000 ->
+        if String.valid?(description) and description != "" and
+             length(String.codepoints(description)) <= 4000,
+           do: description
+
+      _ ->
+        nil
+    end
+  end
+
+  def profile_description_for(_actor, _visibility), do: nil
 
   def list_users do
     from(user in User,
@@ -24,11 +72,17 @@ defmodule Atlas.Users do
   All scope strings currently granted to a user, expanded so that any
   `<area>:write` scope also grants `<area>:read`.
   """
-  def scopes_for(%User{} = user), do: Roles.scopes_for_user(user)
+  def scopes_for(%User{} = user) do
+    if Demo.enabled?(), do: Demo.scopes(), else: Roles.scopes_for_user(user)
+  end
+
   def scopes_for(_user), do: []
 
   @doc "True if the user carries the required scope, either directly or via a write override."
-  def has_scope?(%User{} = user, scope) when is_binary(scope), do: Roles.has_scope?(user, scope)
+  def has_scope?(%User{} = user, scope) when is_binary(scope) do
+    if Demo.enabled?(), do: scope in Demo.scopes(), else: Roles.has_scope?(user, scope)
+  end
+
   def has_scope?(_user, _scope), do: false
 
   @doc """

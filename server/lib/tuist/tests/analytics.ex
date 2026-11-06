@@ -18,10 +18,19 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDailyAggregate
   alias Tuist.Tests.TestModuleRun
-  alias Tuist.Tests.XcodeCoverage
-  alias Tuist.Tests.XcodeCoverageRun
 
   @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at", TestCaseRun}
+
+  defmacrop measured_case_duration(duration, scheme) do
+    quote do
+      fragment(
+        "if(? = 'cargo test' OR startsWith(?, 'cargo test · '), NULL, toNullable(?))",
+        unquote(scheme),
+        unquote(scheme),
+        unquote(duration)
+      )
+    end
+  end
 
   def test_run_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -61,120 +70,10 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
-  @doc """
-  Line coverage of the project's test runs over time: the share of executable
-  lines covered across the runs in each bucket, with the period's figure and
-  its trend against the previous period. Runs that gathered no coverage are
-  left out rather than dragging the share down, and a bucket without any run
-  that did reads as a gap.
-  """
-  def test_run_coverage_analytics(project_id, opts \\ []) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
-    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
-
-    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
-    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
-
-    points =
-      project_id
-      |> coverage_by_bucket(start_datetime, end_datetime, clickhouse_time_bucket, opts)
-      |> fill_coverage_points(start_datetime, end_datetime, date_period)
-
-    previous = coverage_totals(project_id, DateTime.add(start_datetime, -days_delta, :day), start_datetime, opts)
-    current = coverage_totals(project_id, start_datetime, end_datetime, opts)
-
-    %{
-      coverage: coverage_percentage(current),
-      runs_count: current.runs_count,
-      trend: trend(previous_value: coverage_percentage(previous), current_value: coverage_percentage(current)),
-      values: Enum.map(points, & &1.coverage),
-      dates: Enum.map(points, & &1.date)
-    }
-  end
-
-  # A run's totals are published once per shard report; the highest version is
-  # the computation that included the most shards.
-  defp latest_coverage_rows(project_id, start_datetime, end_datetime, opts) do
-    runs =
-      apply_test_run_filters(
-        from(t in Test,
-          where: t.project_id == ^project_id,
-          where: t.ran_at >= ^start_datetime,
-          where: t.ran_at <= ^end_datetime,
-          group_by: t.id,
-          select: %{id: t.id, ran_at: min(t.ran_at)}
-        ),
-        opts
-      )
-
-    from(c in XcodeCoverageRun,
-      join: t in subquery(runs),
-      on: t.id == c.test_run_id,
-      where: c.project_id == ^project_id,
-      group_by: c.test_run_id,
-      having:
-        fragment("argMax(?, ?)", c.executable_lines, c.version) > 0 and
-          fragment("argMax(?, ?)", c.partial, c.version) == false,
-      select: %{
-        id: c.test_run_id,
-        ran_at: fragment("any(?)", t.ran_at),
-        covered_lines: fragment("argMax(?, ?)", c.covered_lines, c.version),
-        executable_lines: fragment("argMax(?, ?)", c.executable_lines, c.version)
-      }
-    )
-  end
-
-  defp coverage_by_bucket(project_id, start_datetime, end_datetime, time_bucket, opts) do
-    date_format = get_clickhouse_date_format(time_bucket)
-
-    ClickHouseRepo.all(
-      from(r in subquery(latest_coverage_rows(project_id, start_datetime, end_datetime, opts)),
-        group_by: fragment("formatDateTime(?, ?)", r.ran_at, ^date_format),
-        select: %{
-          date: fragment("formatDateTime(?, ?)", r.ran_at, ^date_format),
-          covered_lines: sum(r.covered_lines),
-          executable_lines: sum(r.executable_lines)
-        },
-        order_by: fragment("formatDateTime(?, ?)", r.ran_at, ^date_format)
-      )
-    )
-  end
-
-  defp coverage_totals(project_id, start_datetime, end_datetime, opts) do
-    from(r in subquery(latest_coverage_rows(project_id, start_datetime, end_datetime, opts)),
-      select: %{
-        covered_lines: sum(r.covered_lines),
-        executable_lines: sum(r.executable_lines),
-        runs_count: count(r.id)
-      }
-    )
-    |> ClickHouseRepo.one()
-    |> case do
-      nil -> %{covered_lines: 0, executable_lines: 0, runs_count: 0}
-      totals -> Map.new(totals, fn {key, value} -> {key, value || 0} end)
-    end
-  end
-
-  defp coverage_percentage(%{covered_lines: covered, executable_lines: executable}) do
-    XcodeCoverage.percentage(covered, executable)
-  end
-
-  defp fill_coverage_points(rows, start_datetime, end_datetime, date_period) do
-    by_date = Map.new(rows, &{normalise_date(&1.date, date_period), coverage_percentage(&1)})
-
-    date_period
-    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    |> Enum.map(fn date ->
-      %{date: date, coverage: Map.get(by_date, normalise_date(date, date_period))}
-    end)
-  end
-
   defp test_run_count(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
     date_format = get_clickhouse_date_format(time_bucket)
 
-    from(t in Test,
+    from(t in Test.query(),
       where: t.project_id == ^project_id,
       where: t.ran_at >= ^start_datetime,
       where: t.ran_at <= ^end_datetime,
@@ -190,7 +89,7 @@ defmodule Tuist.Tests.Analytics do
   end
 
   defp test_run_total_count(project_id, start_datetime, end_datetime, opts) do
-    from(t in Test,
+    from(t in Test.query(),
       where: t.project_id == ^project_id,
       where: t.ran_at >= ^start_datetime,
       where: t.ran_at <= ^end_datetime,
@@ -582,7 +481,7 @@ defmodule Tuist.Tests.Analytics do
 
     query =
       apply_test_run_filters(
-        from(t in Test,
+        from(t in Test.query(),
           where: t.project_id == ^project_id,
           where: t.ran_at >= ^start_datetime,
           where: t.ran_at <= ^end_datetime,
@@ -736,7 +635,7 @@ defmodule Tuist.Tests.Analytics do
     previous_start_datetime = DateTime.add(start_datetime, -days_delta, :day)
 
     result =
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id,
         where: t.ran_at >= ^previous_start_datetime,
         where: t.ran_at <= ^end_datetime,
@@ -782,7 +681,7 @@ defmodule Tuist.Tests.Analytics do
     scheme = Keyword.get(opts, :scheme)
 
     query =
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id,
         where: t.ran_at >= ^start_datetime,
         where: t.ran_at <= ^end_datetime,
@@ -815,7 +714,7 @@ defmodule Tuist.Tests.Analytics do
     scheme = Keyword.get(opts, :scheme)
 
     query =
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id,
         where: t.ran_at >= ^start_datetime,
         where: t.ran_at <= ^end_datetime,
@@ -844,7 +743,7 @@ defmodule Tuist.Tests.Analytics do
     scheme = Keyword.get(opts, :scheme)
 
     query =
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id,
         where: t.ran_at >= ^start_datetime,
         where: t.ran_at <= ^end_datetime,
@@ -886,7 +785,7 @@ defmodule Tuist.Tests.Analytics do
     scheme = Keyword.get(opts, :scheme)
 
     query =
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id,
         where: t.ran_at >= ^start_datetime,
         where: t.ran_at <= ^end_datetime,
@@ -922,7 +821,8 @@ defmodule Tuist.Tests.Analytics do
   end
 
   @doc """
-  Gets test run metrics for a specific test run.
+  Gets test run metrics for a specific test run. Pass an already-loaded `Test`
+  to avoid looking up its reporting version again; IDs remain supported.
 
   Returns a map with:
   - total_count: Total number of test cases
@@ -930,9 +830,11 @@ defmodule Tuist.Tests.Analytics do
   - flaky_count: Number of flaky test cases
   - avg_duration: Average test case duration in milliseconds
   """
-  def get_test_run_metrics(test_run_id) do
+  def get_test_run_metrics(%Test{id: test_run_id, reporting_version: reporting_version}) do
+    source = if reporting_version == 1, do: TestCaseRun.query(), else: TestCaseRunByTestRun
+
     query =
-      from t in TestCaseRunByTestRun,
+      from t in source,
         hints: ["FINAL"],
         where: t.test_run_id == ^test_run_id,
         select: %{
@@ -943,6 +845,13 @@ defmodule Tuist.Tests.Analytics do
         }
 
     ClickHouseRepo.one(query) || %{total_count: 0, failed_count: 0, flaky_count: 0, avg_duration: 0}
+  end
+
+  def get_test_run_metrics(test_run_id) do
+    case Tests.get_test(test_run_id) do
+      {:ok, test_run} -> get_test_run_metrics(test_run)
+      {:error, :not_found} -> get_test_run_metrics(%Test{id: test_run_id})
+    end
   end
 
   @doc """
@@ -966,8 +875,13 @@ defmodule Tuist.Tests.Analytics do
     # `(test_run_id, ran_at, id)`, giving an O(log N) seek per test_run_id.
     # It is ReplacingMergeTree, so re-inserts can duplicate rows per id;
     # `count(DISTINCT id)` gets the right count without paying for FINAL.
+    case_source =
+      if Enum.any?(test_runs, &(Map.get(&1, :reporting_version, 0) == 1)),
+        do: TestCaseRun.query(),
+        else: TestCaseRunByTestRun
+
     test_case_counts =
-      from(t in TestCaseRunByTestRun,
+      from(t in case_source,
         where: t.project_id == ^project_id and t.test_run_id in ^test_run_ids,
         group_by: t.test_run_id,
         select: %{
@@ -981,8 +895,8 @@ defmodule Tuist.Tests.Analytics do
 
     # Sharded runs report the same module once per shard, so count distinct names.
     ran_test_module_counts =
-      from(m in TestModuleRun,
-        where: m.test_run_id in ^test_run_ids,
+      from(m in TestModuleRun.query(),
+        where: m.project_id == ^project_id and m.test_run_id in ^test_run_ids,
         group_by: m.test_run_id,
         select: {m.test_run_id, fragment("uniqExact(?)", m.name)}
       )
@@ -1032,6 +946,44 @@ defmodule Tuist.Tests.Analytics do
         xcode_cache_hit_rate: xcode_cache_hit_rate(Map.get(builds_by_id, test_run.build_run_id))
       }
     end)
+  end
+
+  @doc """
+  Counts the distinct test cases across the given test runs, the way a
+  commit's coverage is the union of every run that measured it: a test case
+  run by several test runs counts once. It is failed when any run failed it
+  (a flaky failure does not count), passed when any run passed it, and
+  skipped otherwise.
+  """
+  def test_case_counts(_project_id, []), do: %{passed: 0, failed: 0, skipped: 0}
+
+  def test_case_counts(project_id, test_runs) when is_list(test_runs) do
+    test_run_ids = Enum.map(test_runs, & &1.id)
+
+    source =
+      if Enum.any?(test_runs, &(Map.get(&1, :reporting_version, 0) == 1)),
+        do: TestCaseRun.query(),
+        else: TestCaseRunByTestRun
+
+    outcomes =
+      from(t in source,
+        where: t.project_id == ^project_id and t.test_run_id in ^test_run_ids,
+        group_by: fragment("ifNull(toString(?), toString(?))", t.test_case_id, t.id),
+        select: %{
+          failed: fragment("countIf(? = 'failure' AND NOT ?) > 0", t.status, t.is_flaky),
+          passed: fragment("countIf(? != 'skipped') > 0", t.status)
+        }
+      )
+
+    from(o in subquery(outcomes),
+      select: %{
+        failed: fragment("countIf(?)", o.failed),
+        passed: fragment("countIf(NOT ? AND ?)", o.failed, o.passed),
+        skipped: fragment("countIf(NOT ? AND NOT ?)", o.failed, o.passed)
+      }
+    )
+    |> ClickHouseRepo.one()
+    |> Map.new(fn {key, count} -> {key, count || 0} end)
   end
 
   # A test run that reused a separate build reports its module cache lookups on
@@ -1376,7 +1328,7 @@ defmodule Tuist.Tests.Analytics do
         group_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
         select: %{
           date: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
-          value: avg(tcr.duration)
+          value: avg(measured_case_duration(tcr.duration, tcr.scheme))
         },
         order_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format)
       )
@@ -1414,9 +1366,9 @@ defmodule Tuist.Tests.Analytics do
         group_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
         select: %{
           date: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format),
-          p50: fragment("quantile(0.5)(?)", tcr.duration),
-          p90: fragment("quantile(0.9)(?)", tcr.duration),
-          p99: fragment("quantile(0.99)(?)", tcr.duration)
+          p50: fragment("quantile(0.5)(?)", measured_case_duration(tcr.duration, tcr.scheme)),
+          p90: fragment("quantile(0.9)(?)", measured_case_duration(tcr.duration, tcr.scheme)),
+          p99: fragment("quantile(0.99)(?)", measured_case_duration(tcr.duration, tcr.scheme))
         },
         order_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format)
       )
@@ -1554,10 +1506,10 @@ defmodule Tuist.Tests.Analytics do
                 tcr.is_flaky,
                 tcr.is_quarantined
               ),
-            avg_duration: avg(tcr.duration),
-            p50_duration: fragment("quantile(0.5)(?)", tcr.duration),
-            p90_duration: fragment("quantile(0.9)(?)", tcr.duration),
-            p99_duration: fragment("quantile(0.99)(?)", tcr.duration)
+            avg_duration: avg(measured_case_duration(tcr.duration, tcr.scheme)),
+            p50_duration: fragment("quantile(0.5)(?)", measured_case_duration(tcr.duration, tcr.scheme)),
+            p90_duration: fragment("quantile(0.9)(?)", measured_case_duration(tcr.duration, tcr.scheme)),
+            p99_duration: fragment("quantile(0.99)(?)", measured_case_duration(tcr.duration, tcr.scheme))
           }
         ),
         opts
@@ -1631,10 +1583,10 @@ defmodule Tuist.Tests.Analytics do
           group_by: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
           select: %{
             date: fragment("formatDateTime(?, ?)", tcr.ran_at, ^date_format),
-            avg: avg(tcr.duration),
-            p50: fragment("quantile(0.5)(?)", tcr.duration),
-            p90: fragment("quantile(0.9)(?)", tcr.duration),
-            p99: fragment("quantile(0.99)(?)", tcr.duration)
+            avg: avg(measured_case_duration(tcr.duration, tcr.scheme)),
+            p50: fragment("quantile(0.5)(?)", measured_case_duration(tcr.duration, tcr.scheme)),
+            p90: fragment("quantile(0.9)(?)", measured_case_duration(tcr.duration, tcr.scheme)),
+            p99: fragment("quantile(0.99)(?)", measured_case_duration(tcr.duration, tcr.scheme))
           }
         ),
         Keyword.merge(opts, start_datetime: start_datetime, end_datetime: end_datetime)
@@ -1889,11 +1841,12 @@ defmodule Tuist.Tests.Analytics do
     is_ci = Keyword.get(opts, :is_ci)
 
     query =
-      from(t in Test,
+      from(t in Test.query(),
         where: t.project_id == ^project_id,
         order_by: [desc: t.ran_at],
         limit: ^limit,
         offset: ^offset,
+        where: t.submission_auth != "network_trusted",
         select: t.duration
       )
 

@@ -6,6 +6,7 @@ import dev.tuist.gradle.api.model.ShardPlan
 import dev.tuist.gradle.api.model.ShardPlanShardsInner
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -38,7 +39,8 @@ class TuistTestShardingTest {
             baseUrl = baseUrl,
             token = "test-token",
             accountHandle = "test-account",
-            projectHandle = "test-project"
+            projectHandle = "test-project",
+            httpClients = TuistHttpClients(retryPolicy = RetryPolicy(sleeper = {}))
         )
     }
 
@@ -46,7 +48,9 @@ class TuistTestShardingTest {
         val project = org.gradle.testfixtures.ProjectBuilder.builder()
             .withProjectDir(projectDir)
             .build()
-        return project.tasks.register("testShards", TuistPrepareTestShardsTask::class.java).get()
+        return project.tasks.register("testShards", TuistPrepareTestShardsTask::class.java) {
+            outputDirectory.set(project.layout.projectDirectory)
+        }.get()
     }
 
     private fun shardPlan(shardCount: Int = 2) = ShardPlan(
@@ -87,7 +91,8 @@ class TuistTestShardingTest {
 
         val result = service.createShardPlan(
             reference = "github-123-1",
-            testSuites = listOf("com.example.LoginTest", "com.example.SignupTest"),
+            modules = listOf(":app", ":lib"),
+            gitBranch = "feature",
             shardMax = 2,
             shardMin = null,
             shardMaxDuration = null
@@ -100,6 +105,11 @@ class TuistTestShardingTest {
         assertEquals("POST", request.method)
         assertTrue(request.path!!.endsWith("/api/projects/test-account/test-project/tests/shards"))
         assertTrue(request.getHeader("Authorization") == "Bearer test-token")
+        val body = parseJson(request.body.readUtf8())
+        assertEquals(listOf(":app", ":lib"), body["modules"])
+        assertEquals("suite", body["granularity"])
+        assertEquals("feature", body["git_branch"])
+        assertNull(body["test_suites"])
     }
 
     @Test
@@ -110,7 +120,8 @@ class TuistTestShardingTest {
         assertThrows<org.gradle.api.GradleException> {
             service.createShardPlan(
                 reference = "plan-1",
-                testSuites = listOf("com.example.Test"),
+                modules = listOf(":app"),
+                gitBranch = null,
                 shardMax = 2,
                 shardMin = null,
                 shardMaxDuration = null
@@ -122,14 +133,20 @@ class TuistTestShardingTest {
 
     @Test
     fun `getShard returns shard with modules and suites`() {
-        val service = createService()
+        val service = TuistTestShardingService(
+            baseUrl = mockWebServer.url("/").toString().trimEnd('/'),
+            token = "test-token",
+            accountHandle = "test-account",
+            projectHandle = "test-project",
+            httpClients = TuistHttpClients(pluginVersion = "0.17.0")
+        )
 
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(Gson().toJson(
             Shard(
                 modules = listOf("AppModule"),
                 shardPlanId = java.util.UUID.randomUUID(),
                 suites = mapOf("AppModule" to listOf("com.example.LoginTest", "com.example.LogoutTest")),
-                downloadUrl = "https://download.example.com/bundle.zip"
+                downloadUrls = emptyList()
             )
         )))
 
@@ -137,6 +154,7 @@ class TuistTestShardingTest {
 
         assertEquals(listOf("AppModule"), result.modules)
         assertEquals(listOf("com.example.LoginTest", "com.example.LogoutTest"), result.suites["AppModule"])
+        assertEquals("0.17.0", mockWebServer.takeRequest().getHeader(PluginVersion.HEADER_NAME))
     }
 
     @Test
@@ -147,6 +165,46 @@ class TuistTestShardingTest {
         assertThrows<org.gradle.api.GradleException> {
             service.getShard("nonexistent", 0)
         }
+    }
+
+    @Test
+    fun `createShardPlan retries a 503 and a dropped connection`() {
+        val plan = Gson().toJson(shardPlan())
+        mockWebServer.enqueue(MockResponse().setResponseCode(503))
+        repeat(2) { mockWebServer.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)) }
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(plan))
+
+        val result = createService().createShardPlan(
+            reference = "test-ref",
+            modules = listOf(":app"),
+            gitBranch = null,
+            shardMax = 2,
+            shardMin = null,
+            shardMaxDuration = null
+        )
+
+        assertEquals(2, result.shardCount)
+        assertEquals(4, mockWebServer.requestCount)
+    }
+
+    @Test
+    fun `getShard retries a dropped connection and a 503`() {
+        val shard = Gson().toJson(
+            Shard(
+                modules = listOf("AppModule"),
+                shardPlanId = java.util.UUID.randomUUID(),
+                suites = mapOf("AppModule" to listOf("com.example.LoginTest")),
+                downloadUrls = emptyList()
+            )
+        )
+        repeat(2) { mockWebServer.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)) }
+        mockWebServer.enqueue(MockResponse().setResponseCode(503))
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(shard))
+
+        val result = createService().getShard("plan-1", 0)
+
+        assertEquals(listOf("AppModule"), result.modules)
+        assertEquals(4, mockWebServer.requestCount)
     }
 
     // MARK: - deriveReference
@@ -279,74 +337,5 @@ class TuistTestShardingTest {
         assertEquals(listOf("com.example.Test0"), shards[0]["test_targets"])
         assertEquals(1.0, shards[1]["index"])
         assertEquals(listOf("com.example.Test1"), shards[1]["test_targets"])
-    }
-}
-
-class DiscoverTestSuitesTest {
-
-    @Test
-    fun `discovers test classes from compiled output`(@TempDir tempDir: File) {
-        val classesDir = File(tempDir, "build/classes/kotlin/test")
-
-        File(classesDir, "com/example").mkdirs()
-        File(classesDir, "com/example/LoginTest.class").createNewFile()
-        File(classesDir, "com/example/SignupTest.class").createNewFile()
-
-        val suites = discoverTestSuitesFromDirs(listOf(classesDir))
-
-        assertEquals(listOf("com.example.LoginTest", "com.example.SignupTest"), suites)
-    }
-
-    @Test
-    fun `excludes inner classes`(@TempDir tempDir: File) {
-        val classesDir = File(tempDir, "build/classes/kotlin/test")
-
-        File(classesDir, "com/example").mkdirs()
-        File(classesDir, "com/example/LoginTest.class").createNewFile()
-        File(classesDir, "com/example/LoginTest\$Companion.class").createNewFile()
-        File(classesDir, "com/example/LoginTest\$nested.class").createNewFile()
-
-        val suites = discoverTestSuitesFromDirs(listOf(classesDir))
-
-        assertEquals(listOf("com.example.LoginTest"), suites)
-    }
-
-    @Test
-    fun `excludes non-class files`(@TempDir tempDir: File) {
-        val classesDir = File(tempDir, "build/classes/kotlin/test")
-
-        File(classesDir, "com/example").mkdirs()
-        File(classesDir, "com/example/LoginTest.class").createNewFile()
-        File(classesDir, "com/example/README.txt").createNewFile()
-        File(classesDir, "com/example/data.json").createNewFile()
-
-        val suites = discoverTestSuitesFromDirs(listOf(classesDir))
-
-        assertEquals(listOf("com.example.LoginTest"), suites)
-    }
-
-    @Test
-    fun `returns empty list for empty directory`(@TempDir tempDir: File) {
-        val classesDir = File(tempDir, "build/classes/kotlin/test")
-        classesDir.mkdirs()
-
-        val suites = discoverTestSuitesFromDirs(listOf(classesDir))
-
-        assertTrue(suites.isEmpty())
-    }
-
-    @Test
-    fun `handles multiple class directories`(@TempDir tempDir: File) {
-        val dir1 = File(tempDir, "module1/build/classes/kotlin/test")
-        val dir2 = File(tempDir, "module2/build/classes/kotlin/test")
-
-        File(dir1, "com/example").mkdirs()
-        File(dir1, "com/example/Test1.class").createNewFile()
-        File(dir2, "com/other").mkdirs()
-        File(dir2, "com/other/Test2.class").createNewFile()
-
-        val suites = discoverTestSuitesFromDirs(listOf(dir1, dir2))
-
-        assertEquals(listOf("com.example.Test1", "com.other.Test2"), suites)
     }
 }

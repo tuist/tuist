@@ -504,7 +504,7 @@ defmodule Noora.Filter do
         <div data-part="positioner">
           <div data-part="content">
             <span>Filter by {@filter.display_name}</span>
-            <form phx-submit="update_filter">
+            <form phx-submit="update_filter" autocomplete="off">
               <input type="hidden" name="type" value="change_value" />
               <input type="hidden" name="payload_filter_id" value={@filter.id} />
               <.text_input

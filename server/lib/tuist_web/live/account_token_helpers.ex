@@ -150,6 +150,8 @@ defmodule TuistWeb.AccountTokenHelpers do
   defp scope_label("registry", "write"), do: dgettext("dashboard_account", "Registry write")
   defp scope_label("runs", "read"), do: dgettext("dashboard_account", "Runs read")
   defp scope_label("runs", "write"), do: dgettext("dashboard_account", "Runs write")
+  defp scope_label("runners", "read"), do: dgettext("dashboard_account", "Runners read")
+  defp scope_label("runners", "write"), do: dgettext("dashboard_account", "Runners write")
   defp scope_label("tests", "read"), do: dgettext("dashboard_account", "Tests read")
   defp scope_label("tests", "write"), do: dgettext("dashboard_account", "Tests write")
   defp scope_label(subject, access), do: "#{String.capitalize(subject)} #{access}"
@@ -176,6 +178,14 @@ defmodule TuistWeb.AccountTokenHelpers do
 
   defp scope_description("account", "registry", "write") do
     dgettext("dashboard_account", "Publish packages to the account registry.")
+  end
+
+  defp scope_description("account", "runners", "read") do
+    dgettext("dashboard_account", "Read runner jobs, workflows, profiles, and volumes.")
+  end
+
+  defp scope_description("account", "runners", "write") do
+    dgettext("dashboard_account", "Manage runner profiles and clear runner volumes.")
   end
 
   defp scope_description("project", "admin", "read") do

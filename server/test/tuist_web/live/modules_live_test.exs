@@ -296,10 +296,10 @@ defmodule TuistWeb.ModulesLiveTest do
     # Every reason is wired to the event. The items render into a portal
     # template, which element/2 cannot reach, so the event goes straight to the
     # view and the markup is checked separately.
-    html = render(lv)
+    html = lv |> render() |> Floki.parse_document!()
 
     for reason <- ~w(all changed upstream cold evicted) do
-      assert html =~ ~s(phx-click="select_miss_reason" phx-value-type="#{reason}")
+      assert [_ | _] = Floki.find(html, ~s([phx-click="select_miss_reason"][phx-value-type="#{reason}"]))
     end
 
     render_click(lv, "select_miss_reason", %{"type" => "changed"})
@@ -357,7 +357,9 @@ defmodule TuistWeb.ModulesLiveTest do
     {:ok, lv, _html} =
       live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules")
 
-    assert lv |> render_async(2000) |> table_rows() == 25
+    # The initial render waits for real ClickHouse analytics; page patches below
+    # reuse that snapshot and do not need another database round trip.
+    assert lv |> render_async(5000) |> table_rows() == 25
 
     # Paging forward leaves the remaining five on the last page.
     html = render_patch(lv, "?after=Module25")

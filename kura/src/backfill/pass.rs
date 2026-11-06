@@ -9,6 +9,8 @@
 //! (Unit 8); a pass only reports a rich [`BackfillPassOutcome`] for it to
 //! consume.
 
+use sha2::{Digest, Sha256};
+use std::collections::{HashMap, VecDeque};
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -34,7 +36,7 @@ use crate::{
         BACKFILL_BATCH_FLUSH_INTERVAL_MS, BACKFILL_BODIES_BATCH_BYTES, BACKFILL_FETCH_QUEUE_TUPLES,
         BACKFILL_RETRY_BACKOFF_BASE_MS, BACKFILL_RETRY_BACKOFF_MAX_MS, MAX_BACKFILL_BODIES_ENTRIES,
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_PEER_PAGE_BYTES, MAX_PEER_PAGE_ITEMS,
-        MAX_REPLICATION_BODY_BYTES,
+        MAX_REPLICATION_BODY_BYTES, MAX_SEGMENT_BYTES,
     },
     failpoints::FailpointName,
     file_cache::FileCachePolicy,
@@ -144,6 +146,12 @@ pub enum PassSource {
     /// Walk the peer's index newest-first within the window (a backward
     /// pass).
     PeerIndex,
+    /// Repair the named source's retained index without the recency cutoff.
+    /// Store capacity and the subsequent full-corpus barrier still apply.
+    RetainedIndex,
+    /// Repair exactly these records of the named source, without the recency
+    /// cutoff: what a content-verified destination found missing.
+    RetainedEntries(Vec<BackfillEntry>),
     /// Apply exactly these entries — one forward page of the arrival feed
     /// or of the ascending region read (design §3.1, §4.1; implementation
     /// decision D-9).
@@ -176,6 +184,10 @@ pub struct BackfillPassTuning {
     /// not-capable cap watchdog (a 404 peer cannot heal without its own
     /// binary swap, so its waits convert to a capability charge much sooner).
     pub not_capable_wait_observer: Option<Arc<AtomicU64>>,
+    /// Whether a retained-index repair compacts sealed segments the source
+    /// mostly no longer retains before fetching what is missing. Only while
+    /// the source still serves: copying under a frozen source pauses writes.
+    pub compact_retained: bool,
 }
 
 impl BackfillPassTuning {
@@ -191,6 +203,7 @@ impl BackfillPassTuning {
             page_limit: MAX_PEER_PAGE_ITEMS,
             retryable_wait_observer: None,
             not_capable_wait_observer: None,
+            compact_retained: false,
         }
     }
 }
@@ -226,6 +239,7 @@ pub async fn run_backfill_pass_with_tuning(
         tuning: &tuning,
         capacity_fired: AtomicBool::new(false),
         stats: Mutex::new(BackfillPassStats::default()),
+        compaction: Mutex::new(None),
         _gauges: BackfillPassGauges::new(state, peer),
     };
 
@@ -244,11 +258,17 @@ pub async fn run_backfill_pass_with_tuning(
     // never blocks sending while the fetcher is blocked handing off a batch
     // (a bounded bounce channel could deadlock that cycle).
     let (bounce_tx, bounce_rx) = mpsc::unbounded_channel();
-    let result = tokio::try_join!(
-        list_entries(&context, queue_tx),
-        fetch_bodies(&context, queue_rx, apply_tx, bounce_rx),
-        apply_batches(&context, apply_rx, bounce_tx),
-    );
+    let result = async {
+        if matches!(tuning.source, PassSource::RetainedIndex) {
+            prepare_retained_space(&context).await?;
+        }
+        tokio::try_join!(
+            list_entries(&context, queue_tx),
+            fetch_bodies(&context, queue_rx, apply_tx, bounce_rx),
+            apply_batches(&context, apply_rx, bounce_tx),
+        )
+    }
+    .await;
 
     let capacity_completed = context.capacity_fired.load(Ordering::Relaxed);
     let stats = context.snapshot_stats();
@@ -302,15 +322,30 @@ struct PassContext<'a> {
     tuning: &'a BackfillPassTuning,
     capacity_fired: AtomicBool,
     stats: Mutex<BackfillPassStats>,
+    compaction: Mutex<Option<Compaction>>,
     _gauges: BackfillPassGauges,
 }
 
 impl PassContext<'_> {
-    fn arrival_ordered(&self) -> bool {
-        matches!(&self.tuning.source, PassSource::Entries(_))
+    fn capacity_is_per_entry(&self) -> bool {
+        matches!(
+            &self.tuning.source,
+            PassSource::Entries(_) | PassSource::RetainedEntries(_) | PassSource::RetainedIndex
+        )
     }
 
     fn capacity_declines(&self, version_ms: u64) -> bool {
+        // Recency is a cache-selection policy, not a storage admission limit.
+        // A named handover must attempt older missing records too: they may
+        // fit in the active segment, or replace data the source already evicted.
+        // Normal ring rotation/disk admission still bound every apply, and the
+        // frozen full-corpus verification rejects any holes caused by rotation.
+        if matches!(
+            self.tuning.source,
+            PassSource::RetainedIndex | PassSource::RetainedEntries(_)
+        ) {
+            return false;
+        }
         let inputs = self.state.store.backfill_capacity_inputs();
         capacity_complete(
             inputs.segment_count,
@@ -385,11 +420,292 @@ struct QueuedFetch {
 
 // ---- Listing walk ----------------------------------------------------------
 
+async fn prepare_retained_space(context: &PassContext<'_>) -> Result<(), PassAbort> {
+    let mut candidates = cancellable(context, context.state.store.handover_reclaim_candidates())
+        .await?
+        .map_err(PassAbort::Hard)?;
+    if candidates.is_empty() {
+        return Ok(());
+    }
+    // Keep only segment identities, not the source's complete manifest set.
+    // A sealed, unpinned segment cannot gain a newly committed artifact while
+    // this walk proves that none of its current records belong to the source.
+    // Compaction keeps a fixed-size filter of the listed ids and the retained
+    // bytes per segment instead, for the segments sealed before the walk.
+    let mut layout = context.tuning.compact_retained.then(|| RetainedLayout {
+        ids: RetainedIds::new(),
+        retained: candidates
+            .iter()
+            .map(|segment| (segment.clone(), 0))
+            .collect(),
+        frontier_ms: u64::MAX,
+        missing_bytes: 0,
+    });
+    let mut missing = false;
+    let mut after = None;
+    loop {
+        let page = fetch_listing_page(context, after.as_deref()).await?;
+        context.state.metrics.record_backfill_listing_page();
+        context.update_stats(|stats| stats.pages_listed += 1);
+        for entry in page.entries {
+            let kind = BackfillRecordKind::from_wire_name(&entry.record_kind)
+                .ok_or_else(|| PassAbort::Hard("unknown retained record kind".into()))?;
+            if let Some(manifest) = context
+                .state
+                .store
+                .manifest(&entry.record_id)
+                .map_err(PassAbort::Hard)?
+                && let Some(segment) = manifest.segment_id
+            {
+                candidates.remove(&segment);
+                if let Some(retained) = layout
+                    .as_mut()
+                    .and_then(|layout| layout.retained.get_mut(&segment))
+                {
+                    *retained = retained.saturating_add(manifest.size);
+                }
+            }
+            if let Some(layout) = layout.as_mut() {
+                layout.ids.insert(&entry.record_id);
+                layout.frontier_ms = layout.frontier_ms.min(entry.version_ms);
+            } else if candidates.is_empty() {
+                return Ok(());
+            }
+            if kind == BackfillRecordKind::SegmentArtifact
+                && !context
+                    .state
+                    .store
+                    .backfill_locally_covered(kind, &entry.record_id, entry.version_ms)
+                    .map_err(PassAbort::Hard)?
+            {
+                missing = true;
+                if let Some(layout) = layout.as_mut() {
+                    layout.missing_bytes =
+                        layout.missing_bytes.saturating_add(entry.size.unwrap_or(0));
+                }
+            }
+        }
+        match page.next_after {
+            Some(next) => after = Some(next),
+            None => break,
+        }
+    }
+    if missing {
+        for segment in candidates {
+            if let Some(layout) = layout.as_mut() {
+                layout.retained.remove(&segment);
+            }
+            cancellable(
+                context,
+                context.state.store.reclaim_handover_segment(&segment),
+            )
+            .await?
+            .map_err(PassAbort::Hard)?;
+        }
+        if let Some(layout) = layout {
+            let mut compaction = Compaction::from(layout);
+            compact_retained_segments(context, &mut compaction, "before_repair").await?;
+            *context
+                .compaction
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(compaction);
+        }
+    }
+    Ok(())
+}
+
+// A fixed 2 MiB Bloom filter of the record ids a source lists. A false
+// positive only keeps a destination-only record during compaction.
+const RETAINED_ID_FILTER_BITS: u64 = 1 << 24;
+const RETAINED_ID_FILTER_HASHES: u64 = 4;
+// Only segments whose reclaim frees at least this much are worth copying out of.
+const COMPACTION_MIN_GAIN_BYTES: u64 = MAX_SEGMENT_BYTES / 8;
+// Room the missing bytes must leave once compaction stops, for the feed
+// writes that keep arriving until the barrier.
+const COMPACTION_TARGET_MARGIN_BYTES: u64 = 2 * MAX_SEGMENT_BYTES;
+// Room kept free while one segment is copied, for the feed writes arriving
+// meanwhile. A rotation that still happens is counted and fails preparation.
+const COMPACTION_COPY_RESERVE_BYTES: u64 = MAX_SEGMENT_BYTES / 8;
+
+struct RetainedIds {
+    bits: Vec<u64>,
+}
+
+impl RetainedIds {
+    fn new() -> Self {
+        Self {
+            bits: vec![0; (RETAINED_ID_FILTER_BITS / 64) as usize],
+        }
+    }
+
+    fn positions(id: &str) -> impl Iterator<Item = u64> {
+        let digest = Sha256::digest(id.as_bytes());
+        let first = u64::from_be_bytes(digest[..8].try_into().expect("eight bytes"));
+        let step = u64::from_be_bytes(digest[8..16].try_into().expect("eight bytes")) | 1;
+        (0..RETAINED_ID_FILTER_HASHES).map(move |index| {
+            first.wrapping_add(index.wrapping_mul(step)) % RETAINED_ID_FILTER_BITS
+        })
+    }
+
+    fn insert(&mut self, id: &str) {
+        for position in Self::positions(id) {
+            self.bits[(position / 64) as usize] |= 1 << (position % 64);
+        }
+    }
+
+    fn contains(&self, id: &str) -> bool {
+        Self::positions(id)
+            .all(|position| self.bits[(position / 64) as usize] & (1 << (position % 64)) != 0)
+    }
+}
+
+/// What a complete retained-index walk learned about this destination's
+/// sealed segments: the source's listed ids, the bytes each segment holds of
+/// them, the oldest listed version and the bytes still missing.
+struct RetainedLayout {
+    ids: RetainedIds,
+    retained: HashMap<String, u64>,
+    frontier_ms: u64,
+    missing_bytes: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CompactionStep {
+    /// The missing bytes already fit, with the margin to spare.
+    Enough,
+    /// Copying this segment's retained bytes could rotate out retained data.
+    NoRoom,
+    Copy,
+}
+
+fn compaction_step(admissible: u64, missing_bytes: u64, retained: u64) -> CompactionStep {
+    if admissible >= missing_bytes.saturating_add(COMPACTION_TARGET_MARGIN_BYTES) {
+        CompactionStep::Enough
+    } else if admissible < retained.saturating_add(COMPACTION_COPY_RESERVE_BYTES) {
+        CompactionStep::NoRoom
+    } else {
+        CompactionStep::Copy
+    }
+}
+
+/// The compaction a retained-index repair carries from its walk into its
+/// applies: the listed ids, the sealed segments still worth copying out of
+/// (least retained first), the oldest listed version and the bytes the walk
+/// found missing.
+struct Compaction {
+    ids: RetainedIds,
+    candidates: VecDeque<(String, u64)>,
+    frontier_ms: u64,
+    missing_bytes: u64,
+}
+
+impl From<RetainedLayout> for Compaction {
+    fn from(layout: RetainedLayout) -> Self {
+        Self {
+            ids: layout.ids,
+            candidates: compaction_candidates(layout.retained),
+            frontier_ms: layout.frontier_ms,
+            missing_bytes: layout.missing_bytes,
+        }
+    }
+}
+
+fn compaction_candidates(retained: HashMap<String, u64>) -> VecDeque<(String, u64)> {
+    let mut segments: Vec<_> = retained
+        .into_iter()
+        .filter(|(_, bytes)| MAX_SEGMENT_BYTES.saturating_sub(*bytes) >= COMPACTION_MIN_GAIN_BYTES)
+        .collect();
+    segments.sort_by_key(|(_, bytes)| *bytes);
+    segments.into()
+}
+
+/// Makes room for the records the destination still lacks by copying the
+/// retained records out of the sealed segments that hold the least of them
+/// and reclaiming those segments. Copies only while the store can write them
+/// without rotating out anything the source may retain, and stops once what
+/// is still missing fits.
+async fn compact_retained_segments(
+    context: &PassContext<'_>,
+    compaction: &mut Compaction,
+    phase: &'static str,
+) -> Result<(), PassAbort> {
+    let store = &context.state.store;
+    let missing_bytes = compaction
+        .missing_bytes
+        .saturating_sub(context.snapshot_stats().bytes_applied);
+    let (candidates, least_retained_bytes) = (
+        compaction.candidates.len(),
+        compaction.candidates.front().map(|(_, bytes)| *bytes),
+    );
+    let (mut reclaimed, mut copied) = (0u64, 0u64);
+    let mut stopped = None;
+    while let Some((_, bytes)) = compaction.candidates.front() {
+        let step = compaction_step(
+            store.handover_admissible_bytes(compaction.frontier_ms),
+            missing_bytes,
+            *bytes,
+        );
+        stopped = Some(step);
+        if step != CompactionStep::Copy {
+            break;
+        }
+        let Some((segment, _)) = compaction.candidates.pop_front() else {
+            break;
+        };
+        let ids = &compaction.ids;
+        let (moved, left) = cancellable(
+            context,
+            store.compact_handover_segment(&segment, |id| ids.contains(id)),
+        )
+        .await?
+        .map_err(PassAbort::Hard)?;
+        copied = copied.saturating_add(moved);
+        if left == 0 {
+            cancellable(context, store.reclaim_handover_segment(&segment))
+                .await?
+                .map_err(PassAbort::Hard)?;
+            reclaimed += 1;
+        }
+    }
+    if phase == "before_repair" || copied > 0 {
+        tracing::info!(event.name = "kura.handover.compacted", peer = context.peer, phase,
+            candidates, least_retained_bytes = ?least_retained_bytes, reclaimed,
+            last_step = ?stopped, copied_bytes = copied, missing_bytes,
+            admissible_bytes = store.handover_admissible_bytes(compaction.frontier_ms),
+            "Compacted segments the source mostly no longer retains");
+    }
+    Ok(())
+}
+
+/// Compacts again before a repair batch applies, once the feed writes and
+/// repairs since the last compaction leave too little room for what is
+/// still missing.
+async fn compact_while_repairing(context: &PassContext<'_>) -> Result<(), PassAbort> {
+    let taken = context
+        .compaction
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .take();
+    let Some(mut compaction) = taken else {
+        return Ok(());
+    };
+    let outcome = compact_retained_segments(context, &mut compaction, "during_repair").await;
+    if !compaction.candidates.is_empty() {
+        *context
+            .compaction
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(compaction);
+    }
+    outcome
+}
+
 async fn list_entries(
     context: &PassContext<'_>,
     queue: mpsc::Sender<QueuedFetch>,
 ) -> Result<BackfillPassEnd, PassAbort> {
-    if let PassSource::Entries(entries) = &context.tuning.source {
+    if let PassSource::Entries(entries) | PassSource::RetainedEntries(entries) =
+        &context.tuning.source
+    {
         context.update_stats(|stats| stats.pages_listed += 1);
         for entry in entries {
             if context.cancel.is_cancelled() {
@@ -450,11 +766,14 @@ async fn list_entry(
     // Evaluate the marginal trade as the cursor descends. Inputs are re-read
     // per segmented tuple: applies rotate segments underneath the pass.
     if kind == BackfillRecordKind::SegmentArtifact {
-        if context.arrival_ordered() && context.capacity_declines(entry.version_ms) {
+        if context.capacity_is_per_entry() && context.capacity_declines(entry.version_ms) {
             context.note_capacity_skipped();
             return Ok(());
         }
-        if !context.capacity_fired() && context.capacity_declines(entry.version_ms) {
+        if !context.capacity_is_per_entry()
+            && !context.capacity_fired()
+            && context.capacity_declines(entry.version_ms)
+        {
             // Synchronously strips held segmented claims that are not in an
             // in-flight batch; the fetcher drops the same tuples from its
             // composed batch before dispatching.
@@ -563,11 +882,16 @@ async fn fetch_listing_page(
             url.push_str(&url_encode(after));
         }
         let started = Instant::now();
-        let response = cancellable(context, context.state.client().get(&url).send())
-            .await?
-            .map_err(|error| {
-                PassAbort::Hard(format!("backfill entries request failed: {error:?}"))
-            })?;
+        let response = cancellable(
+            context,
+            context
+                .state
+                .peer_request(reqwest::Method::GET, context.peer, &url)
+                .map_err(PassAbort::Hard)?
+                .send(),
+        )
+        .await?
+        .map_err(|error| PassAbort::Hard(format!("backfill entries request failed: {error:?}")))?;
         match classify_backfill_response(response, "backfill entries")
             .await
             .map_err(PassAbort::Hard)?
@@ -716,12 +1040,15 @@ async fn admit(
         // #12047 eviction churn the trade exists to stop, with overshoot
         // bounded only by dataset size. With it, overshoot is bounded by the
         // one in-flight batch per pass, as designed.
-        if context.arrival_ordered() && context.capacity_declines(item.key.version_ms) {
+        if context.capacity_is_per_entry() && context.capacity_declines(item.key.version_ms) {
             context.guard.resolve_capacity_declined(&item.key);
             context.note_capacity_skipped();
             return Ok(());
         }
-        if !context.capacity_fired() && context.capacity_declines(item.key.version_ms) {
+        if !context.capacity_is_per_entry()
+            && !context.capacity_fired()
+            && context.capacity_declines(item.key.version_ms)
+        {
             context.guard.mark_capacity_complete();
             context.capacity_fired.store(true, Ordering::Relaxed);
             tracing::info!(
@@ -812,6 +1139,7 @@ async fn apply_batches(
     bounces: mpsc::UnboundedSender<ClaimKey>,
 ) -> Result<(), PassAbort> {
     while let Some(batch) = cancellable(context, batches.recv()).await? {
+        compact_while_repairing(context).await?;
         apply_spooled_batch(context, &batch.items, &batch.spool, &bounces).await?;
     }
     Ok(())
@@ -846,8 +1174,8 @@ async fn send_bodies_request(
             context,
             context
                 .state
-                .client()
-                .post(&url)
+                .peer_request(reqwest::Method::POST, context.peer, &url)
+                .map_err(PassAbort::Hard)?
                 .header(reqwest::header::CONTENT_TYPE, "application/json")
                 .body(body.clone())
                 .send(),
@@ -1263,7 +1591,12 @@ where
                 None => {
                     state
                         .store
-                        .apply_replicated_inline_artifact_from_bytes(
+                        .apply_replicated_inline_artifact_from_bytes_with(
+                            ApplyProvenance {
+                                origin_region: meta.origin_region.as_deref(),
+                                content_sha256: meta.content_sha256.as_deref(),
+                                sync_feed_row: context.tuning.feed_rows,
+                            },
                             producer,
                             &meta.namespace_id,
                             &meta.key,
@@ -1371,11 +1704,16 @@ async fn fetch_individual(context: &PassContext<'_>, key: &ClaimKey) -> Result<(
     let mut attempt = 0_u32;
     loop {
         let started = Instant::now();
-        let response = cancellable(context, context.state.client().get(&url).send())
-            .await?
-            .map_err(|error| {
-                PassAbort::Hard(format!("backfill artifact request failed: {error:?}"))
-            })?;
+        let response = cancellable(
+            context,
+            context
+                .state
+                .peer_request(reqwest::Method::GET, context.peer, &url)
+                .map_err(PassAbort::Hard)?
+                .send(),
+        )
+        .await?
+        .map_err(|error| PassAbort::Hard(format!("backfill artifact request failed: {error:?}")))?;
         // Unlike the listing/bodies routes, a 404 here is the record being
         // gone, not a pre-AB peer: the pass only reaches this endpoint after
         // the same peer served backfill listings.
@@ -1707,6 +2045,67 @@ mod tests {
         (format!("http://{address}"), handle)
     }
 
+    #[test]
+    fn compaction_copies_only_while_what_is_missing_does_not_fit_and_the_copy_does() {
+        let (target, reserve) = (
+            COMPACTION_TARGET_MARGIN_BYTES,
+            COMPACTION_COPY_RESERVE_BYTES,
+        );
+        assert_eq!(compaction_step(10 + target, 10, 1), CompactionStep::Enough);
+        assert_eq!(compaction_step(9 + target, 10, 9), CompactionStep::Copy);
+        assert_eq!(
+            compaction_step(9 + reserve, 10 + target, 9),
+            CompactionStep::Copy
+        );
+        assert_eq!(
+            compaction_step(9 + reserve, 10 + target, 10),
+            CompactionStep::NoRoom
+        );
+        assert_eq!(compaction_step(0, 10, 0), CompactionStep::NoRoom);
+    }
+
+    #[test]
+    fn compaction_candidates_are_every_segment_whose_reclaim_frees_enough_least_retained_first() {
+        let mib = 1024 * 1024;
+        let retained = HashMap::from([
+            ("mostly-retained".to_owned(), 410 * mib),
+            ("nearly-full".to_owned(), 460 * mib),
+            ("half".to_owned(), 256 * mib),
+            ("full".to_owned(), MAX_SEGMENT_BYTES),
+        ]);
+        let candidates: Vec<_> = compaction_candidates(retained)
+            .into_iter()
+            .map(|(segment, _)| segment)
+            .collect();
+        assert_eq!(candidates, ["half", "mostly-retained"]);
+    }
+
+    #[test]
+    fn compaction_starts_in_a_full_ring_with_only_the_active_segment_left() {
+        let mib = 1024 * 1024;
+        assert_eq!(
+            compaction_step(236 * mib, 1439 * mib, 128 * mib),
+            CompactionStep::Copy
+        );
+        assert_eq!(
+            compaction_step(236 * mib, 1439 * mib, 200 * mib),
+            CompactionStep::NoRoom
+        );
+    }
+
+    #[test]
+    fn retained_id_filter_never_forgets_a_listed_id() {
+        let mut ids = RetainedIds::new();
+        for index in 0..10_000 {
+            ids.insert(&format!("listed-{index}"));
+        }
+        assert!((0..10_000).all(|index| ids.contains(&format!("listed-{index}"))));
+        let false_positives = (0..10_000)
+            .filter(|index| ids.contains(&format!("unlisted-{index}")))
+            .count();
+        assert!(false_positives < 10, "{false_positives}");
+    }
+
     fn tuning() -> BackfillPassTuning {
         BackfillPassTuning {
             source: PassSource::PeerIndex,
@@ -1719,6 +2118,7 @@ mod tests {
             page_limit: MAX_PEER_PAGE_ITEMS,
             retryable_wait_observer: None,
             not_capable_wait_observer: None,
+            compact_retained: false,
         }
     }
 
@@ -2170,6 +2570,54 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn individual_inline_fetch_preserves_provenance_without_echoing_feed_rows() {
+        let peer = test_context(|_| {}).await;
+        let body = vec![0xAB; 4096];
+        peer.state
+            .store
+            .apply_replicated_inline_artifact_from_bytes_with(
+                ApplyProvenance {
+                    origin_region: Some("source-region"),
+                    content_sha256: Some("source-checksum"),
+                    sync_feed_row: true,
+                },
+                ArtifactProducer::Xcode,
+                "ios",
+                "individual-inline",
+                "application/octet-stream",
+                &body,
+                1000,
+                Some("main"),
+                None,
+            )
+            .await
+            .unwrap();
+        build_index(&peer);
+        let (peer_url, server) = spawn_server(router(peer.state.clone())).await;
+        let local = test_context(|_| {}).await;
+        local.state.store.sync_feed_activate().await.unwrap();
+        let before = local.state.store.sync_feed().head();
+        let mut individual = tuning();
+        individual.batch_bytes = 1024;
+        individual.feed_rows = false;
+        let (outcome, claims) = run_pass(&local, &peer_url, individual).await;
+        server.abort();
+        let BackfillPassOutcome::Completed { stats, .. } = outcome else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert_eq!(stats.individual_fetches, 1);
+        assert!(claims.is_empty());
+        let applied = fetch_manifest(&local, ArtifactProducer::Xcode, "individual-inline")
+            .await
+            .unwrap();
+        assert_eq!(read_body(&local, &applied).await, body);
+        assert_eq!(applied.origin_region.as_deref(), Some("source-region"));
+        assert_eq!(applied.content_sha256.as_deref(), Some("source-checksum"));
+        assert_eq!(applied.branch.as_deref(), Some("main"));
+        assert_eq!(local.state.store.sync_feed().head(), before);
+    }
+
+    #[tokio::test]
     async fn oversized_entries_route_to_the_per_artifact_endpoint_up_front() {
         let peer = test_context(|_| {}).await;
         let big_body = vec![0xAB_u8; 4_096];
@@ -2373,6 +2821,90 @@ mod tests {
                 .is_none()
         );
         // Non-ring kinds continued past capacity completion to the bound.
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Xcode, "inl")
+                .await
+                .is_some()
+        );
+        assert!(
+            local
+                .state
+                .store
+                .backfill_locally_covered(BackfillRecordKind::NamespaceTombstone, "dead-ns", 250)
+                .expect("tombstone check should succeed")
+        );
+    }
+
+    #[tokio::test]
+    async fn retained_index_repairs_both_sides_of_the_recency_cutoff() {
+        let peer = test_context(|_| {}).await;
+        seed_segmented(&peer, "newer", b"newer-body", 1_000).await;
+        seed_segmented(&peer, "older", b"older-body", 400).await;
+        seed_inline(&peer, "inl", b"inline-body", 300).await;
+        seed_tombstone(&peer, "dead-ns", 250).await;
+        build_index(&peer);
+        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+
+        // A tiny configured capacity resolves to the legacy 1:2:2 floor of 5
+        // segments; fabricate a full ring whose next evictee holds data newer
+        // than the older peer entry, so the marginal trade fires mid-pass.
+        let local = test_context(|config| {
+            config.cas_capacity_bytes = Some(1);
+        })
+        .await;
+        let mut ring = SegmentState::default();
+        for (band, id, created_at_ms, stat) in [
+            ("old", "evictee", 1, 500_u64),
+            ("current", "c1", 2, 600),
+            ("current", "c2", 3, 650),
+            ("new", "n1", 4, 700),
+            ("new", "n2", 5, 750),
+        ] {
+            let mut reference = SegmentReference::new(id.into(), created_at_ms);
+            reference.max_version_ms = Some(stat);
+            match band {
+                "old" => ring.old.push(reference),
+                "current" => ring.current.push(reference),
+                _ => ring.new.push(reference),
+            }
+        }
+        local
+            .state
+            .store
+            .install_segment_state_for_testing(ring)
+            .await
+            .expect("ring state should install");
+
+        let mut paced = tuning();
+        paced.source = PassSource::RetainedIndex;
+        paced.flush_interval = Duration::from_secs(10);
+        let (outcome, claim_set) = run_pass(&local, &peer_url, paced).await;
+
+        let BackfillPassOutcome::Completed {
+            end,
+            capacity_completed,
+            stats,
+        } = outcome
+        else {
+            panic!("expected completion, got {outcome:?}");
+        };
+        assert_eq!(end, BackfillPassEnd::PeerExhausted);
+        assert!(!capacity_completed);
+        assert_eq!(stats.tuples_capacity_skipped, 0);
+        assert!(claim_set.is_empty());
+
+        // Both the older and newer missing bodies are required by handover.
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Gradle, "newer")
+                .await
+                .is_some()
+        );
+        assert!(
+            fetch_manifest(&local, ArtifactProducer::Gradle, "older")
+                .await
+                .is_some()
+        );
+        // Non-ring kinds still use the same complete retained-index walk.
         assert!(
             fetch_manifest(&local, ArtifactProducer::Xcode, "inl")
                 .await
@@ -2646,12 +3178,28 @@ mod tests {
     async fn index_building_peer_is_retried_without_failing_the_pass() {
         let peer = test_context(|_| {}).await;
         seed_inline(&peer, "inl-a", b"inline-body", 900).await;
-        // No index build yet: the listing endpoint answers 503 index_building
-        // until the delayed build lands.
-        let (peer_url, _server) = spawn_server(router(peer.state.clone())).await;
+        // Observe an actual retryable response before building the index; a
+        // timer can elapse while the local store is still initializing.
+        let index_building = Arc::new(tokio::sync::Notify::new());
+        let observed = index_building.clone();
+        let app = router(peer.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let observed = observed.clone();
+                async move {
+                    let response = next.run(request).await;
+                    if response.status() == StatusCode::SERVICE_UNAVAILABLE {
+                        observed.notify_one();
+                    }
+                    response
+                }
+            },
+        ));
+        let (peer_url, _server) = spawn_server(app).await;
         let peer_state = peer.state.clone();
         let builder = tokio::spawn(async move {
-            sleep(Duration::from_millis(150)).await;
+            tokio::time::timeout(Duration::from_secs(30), index_building.notified())
+                .await
+                .expect("listing should produce an index-building response");
             peer_state
                 .store
                 .run_backfill_index_build()

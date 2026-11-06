@@ -27,6 +27,9 @@ onepass = { type = "1password", vault = "Development" }
 # No license here: dev runs unhosted (TUIST_HOSTED=0), so the Keygen license
 # check is skipped and the decrypted dev blob never carried one.
 [secrets]
+# Development-only Origin app identity. Keep its private key out of source control.
+TUIST_ORIGIN_APP_ID = { provider = "onepass", value = "ORIGIN_APP/app_id" }
+TUIST_ORIGIN_APP_PRIVATE_KEY = { provider = "onepass", value = "ORIGIN_APP/private_key" }
 TUIST_SLACK_CLIENT_ID = { provider = "onepass", value = "SLACK/client_id" }
 TUIST_SLACK_CLIENT_SECRET = { provider = "onepass", value = "SLACK/client_secret" }
 TUIST_SLACK_TUIST_TOKEN = { provider = "onepass", value = "SLACK/tuist_token" }

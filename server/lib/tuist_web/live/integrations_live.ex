@@ -3,14 +3,23 @@ defmodule TuistWeb.IntegrationsLive do
   use TuistWeb, :live_view
   use Noora
 
+  alias Phoenix.LiveView.AsyncResult
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
+  alias Tuist.EntireTrails
   alias Tuist.FeatureFlags
+  alias Tuist.Origin
+  alias Tuist.Origin.Client, as: OriginClient
   alias Tuist.Projects
+  alias Tuist.Runners.Bitrise
   alias Tuist.Runners.Buildkite
   alias Tuist.Runners.GitLab
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
+  alias Tuist.VCS.GitHubAppInstallation
+  alias TuistWeb.Errors.UnauthorizedError
 
   # The fields the Buildkite modal renders an input for.
   @buildkite_form_fields [:organization_slug, :agent_token]
@@ -18,7 +27,7 @@ defmodule TuistWeb.IntegrationsLive do
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:account_update, current_user, selected_account) != :ok do
-      raise TuistWeb.Errors.UnauthorizedError,
+      raise UnauthorizedError,
             dgettext("dashboard_integrations", "You are not authorized to perform this action.")
     end
 
@@ -44,10 +53,20 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(selected_account: selected_account)
       |> assign(github_app_installation: github_installation)
       |> assign(vcs_connections: vcs_connections)
+      |> assign(origin_configured?: OriginClient.configured?())
+      |> assign(origin_installations: Origin.list_installations(selected_account.id))
+      |> assign(origin_error: nil)
+      |> assign(selected_origin_installation_id: nil)
+      |> assign(selected_origin_project_id: nil)
+      |> assign(selected_origin_repository_full_handle: nil)
+      |> select_default_origin_installation()
+      |> assign_origin_details()
       |> assign(selected_project_id: nil)
       |> assign(selected_repository_full_handle: nil)
       |> assign(github_client_url: if(default_to_enterprise?, do: "", else: VCS.default_client_url()))
       |> assign(github_client_url_error: nil)
+      |> assign(github_api_url: if(github_installation, do: github_installation.api_url || "", else: ""))
+      |> assign(github_api_url_error: nil)
       |> assign(github_app_owner: "")
       |> assign(github_app_owner_error: nil)
       |> assign(show_github_enterprise_input: default_to_enterprise?)
@@ -61,6 +80,15 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(buildkite_has_changes: false)
       |> assign_buildkite_installation()
       |> assign(gitlab_connections: GitLab.list_connections(selected_account.id), gitlab_error: nil)
+      |> assign(
+        bitrise_error: nil,
+        bitrise_pool_error: nil,
+        bitrise_flash: nil,
+        bitrise_workspace_choices: nil,
+        bitrise_pending_token: nil
+      )
+      |> assign_bitrise()
+      |> assign_entire_integration(selected_account)
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
@@ -72,8 +100,141 @@ defmodule TuistWeb.IntegrationsLive do
           assign(socket, github_repositories: %{ok?: true, result: [], loading: false})
         end
       end)
+      |> load_entire_repositories()
 
     {:ok, socket}
+  end
+
+  def handle_event("select-entire-project", %{"project_id" => id}, socket) do
+    {:noreply, assign(socket, entire_project_id: id)}
+  end
+
+  def handle_event("select-entire-repository", %{"repository" => key}, socket) do
+    {:noreply, assign(socket, entire_repository_key: key)}
+  end
+
+  def handle_event("close-entire-connection-modal", _params, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: "entire-connection-modal"})}
+  end
+
+  def handle_event("retry-entire-repositories", _params, socket) do
+    {:noreply, load_entire_repositories(socket)}
+  end
+
+  def handle_event("create-entire-connection", _params, %{assigns: assigns} = socket) do
+    with :ok <- Authorization.authorize(:account_update, assigns.current_user, assigns.selected_account),
+         project when not is_nil(project) <- entire_selected_project(assigns),
+         repository when not is_nil(repository) <- entire_selected_repository(assigns),
+         {:ok, _} <-
+           EntireTrails.connect(assigns.selected_account, %{
+             project_id: project.id,
+             installation_id: repository.installation_id,
+             repository_id: repository.id
+           }) do
+      {:noreply,
+       socket
+       |> assign(entire_connections: EntireTrails.connections(assigns.selected_account))
+       |> assign(entire_project_id: nil, entire_repository_key: nil)
+       |> push_event("close-modal", %{id: "entire-connection-modal"})}
+    else
+      _ ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("dashboard_integrations", "Could not connect the Entire repository."))}
+    end
+  end
+
+  def handle_event("delete-entire-connection", %{"connection_id" => id}, %{assigns: assigns} = socket) do
+    with :ok <- Authorization.authorize(:account_update, assigns.current_user, assigns.selected_account),
+         {:ok, _} <- EntireTrails.disconnect(assigns.selected_account, id) do
+      {:noreply, assign(socket, entire_connections: EntireTrails.connections(assigns.selected_account))}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("select-origin-installation", %{"installation_id" => id}, socket) do
+    if Enum.any?(socket.assigns.origin_installations, &(&1.id == id)) do
+      {:noreply,
+       assign(socket,
+         selected_origin_installation_id: id,
+         selected_origin_repository_full_handle: nil,
+         origin_error: nil
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("select-origin-project", %{"project_id" => id}, socket) do
+    project = Enum.find(get_available_projects(socket.assigns), &(to_string(&1.id) == id))
+    {:noreply, assign(socket, selected_origin_project_id: project && project.id, origin_error: nil)}
+  end
+
+  @impl true
+  def handle_event("select-origin-repository", %{"repository" => handle}, socket) do
+    repository = Enum.find(get_available_origin_repositories(socket.assigns), &(&1.full_name == handle))
+
+    {:noreply,
+     assign(socket,
+       selected_origin_repository_full_handle: repository && repository.full_name,
+       origin_error: nil
+     )}
+  end
+
+  @impl true
+  def handle_event("close-add-origin-connection-modal", _params, socket) do
+    {:noreply,
+     socket
+     |> reset_origin_selection()
+     |> push_event("close-modal", %{id: "add-origin-connection-modal"})}
+  end
+
+  @impl true
+  def handle_event("retry-origin-details", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(selected_origin_repository_full_handle: nil)
+     |> assign_origin_details()}
+  end
+
+  @impl true
+  def handle_event(
+        "connect-origin-project",
+        _params,
+        %{assigns: %{selected_account: account, current_user: user} = assigns} = socket
+      ) do
+    with %{} = project <- get_selected_origin_project(assigns),
+         %{} = repository <-
+           Enum.find(
+             get_available_origin_repositories(assigns),
+             &(&1.full_name == assigns.selected_origin_repository_full_handle)
+           ),
+         {:ok, _} <-
+           Origin.connect_project(
+             account,
+             user,
+             assigns.selected_origin_installation_id,
+             project.id,
+             repository.full_name
+           ) do
+      {:noreply,
+       socket
+       |> assign(vcs_connections: vcs_connections(account, force: true))
+       |> reset_origin_selection()
+       |> push_event("close-modal", %{id: "add-origin-connection-modal"})}
+    else
+      _ ->
+        {:noreply,
+         assign(socket,
+           origin_error:
+             dgettext(
+               "dashboard_integrations",
+               "Could not connect this Origin repository. Check the installation's access and choose an unconnected project."
+             )
+         )}
+    end
   end
 
   @impl true
@@ -81,7 +242,7 @@ defmodule TuistWeb.IntegrationsLive do
     if FeatureFlags.runners_enabled?(account) do
       attrs =
         params
-        |> Map.take(["_id", "url", "runner_token"])
+        |> Map.take(["_id", "url", "runner_token", "api_token"])
         |> Map.new(fn
           {"_id", value} -> {:id, String.trim(value)}
           {key, value} -> {String.to_existing_atom(key), String.trim(value)}
@@ -119,6 +280,135 @@ defmodule TuistWeb.IntegrationsLive do
   @impl true
   def handle_event("close-connect-gitlab-modal", _params, socket) do
     {:noreply, push_event(socket, "close-modal", %{id: "connect-gitlab-modal"})}
+  end
+
+  @impl true
+  # The token is the only thing a customer pastes: Tuist reads the
+  # workspace from it. A token that sees several workspaces is held in
+  # the socket while the customer picks one.
+  def handle_event("connect-bitrise", params, %{assigns: %{selected_account: account}} = socket) do
+    if FeatureFlags.runners_enabled?(account) do
+      api_token =
+        case Map.get(params, "api_token") do
+          token when token in [nil, ""] -> socket.assigns.bitrise_pending_token
+          token -> token
+        end
+
+      case Bitrise.connect(account.id, api_token, Map.get(params, "workspace_slug")) do
+        {:ok, _connection} ->
+          {:noreply,
+           socket
+           |> assign(bitrise_error: nil, bitrise_workspace_choices: nil, bitrise_pending_token: nil)
+           |> assign_bitrise()
+           |> push_event("close-modal", %{id: "connect-bitrise-modal"})}
+
+        {:choose_workspace, workspaces} ->
+          {:noreply,
+           assign(socket,
+             bitrise_error: nil,
+             bitrise_workspace_choices: workspaces,
+             bitrise_pending_token: String.trim(api_token)
+           )}
+
+        {:error, reason} ->
+          {:noreply, assign(socket, bitrise_error: bitrise_connect_error(reason))}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("rotate-bitrise-token", %{"api_token" => api_token}, %{assigns: %{selected_account: account}} = socket) do
+    case Bitrise.connect(account.id, api_token) do
+      {:ok, _connection} ->
+        {:noreply,
+         socket
+         |> assign(
+           bitrise_error: nil,
+           bitrise_flash: {"success", dgettext("dashboard_integrations", "Bitrise API token updated.")}
+         )
+         |> assign_bitrise()}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, bitrise_error: bitrise_connect_error(reason), bitrise_flash: nil)}
+    end
+  end
+
+  @impl true
+  def handle_event("disconnect-bitrise", _params, %{assigns: %{selected_account: account}} = socket) do
+    :ok = Bitrise.delete_connection(account.id)
+    {:noreply, socket |> assign(bitrise_error: nil, bitrise_flash: nil) |> assign_bitrise()}
+  end
+
+  @impl true
+  def handle_event("add-bitrise-pool", params, %{assigns: %{selected_account: account}} = socket) do
+    if FeatureFlags.runners_enabled?(account) do
+      attrs =
+        params
+        |> Map.take(["stack_identifier", "profile_label", "intro_secret"])
+        |> Map.new(fn {key, value} -> {String.to_existing_atom(key), String.trim(value)} end)
+        |> then(&Map.put(&1, :name, available_pool_name(socket, Map.get(&1, :stack_identifier))))
+
+      case Bitrise.save_pool(account.id, attrs) do
+        {:ok, _pool} ->
+          {:noreply,
+           socket
+           |> assign(bitrise_pool_error: nil, bitrise_flash: nil)
+           |> assign_bitrise()
+           |> push_event("close-modal", %{id: "add-bitrise-pool-modal"})}
+
+        {:error, :no_connection} ->
+          {:noreply,
+           socket
+           |> assign(bitrise_pool_error: nil)
+           |> assign_bitrise()
+           |> push_event("close-modal", %{id: "add-bitrise-pool-modal"})}
+
+        {:error, :unknown_profile} ->
+          {:noreply,
+           assign(socket, bitrise_pool_error: dgettext("dashboard_integrations", "Choose one of your Tuist profiles."))}
+
+        {:error, _reason} ->
+          {:noreply,
+           assign(socket,
+             bitrise_pool_error: dgettext("dashboard_integrations", "Choose a runner pool and paste its pool token.")
+           )}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("remove-bitrise-pool", %{"id" => id}, %{assigns: %{selected_account: account}} = socket) do
+    case Integer.parse(id) do
+      {pool_id, ""} -> :ok = Bitrise.delete_pool(account.id, pool_id)
+      _ -> :ok
+    end
+
+    {:noreply, assign_bitrise(socket)}
+  end
+
+  @impl true
+  def handle_event("reload-bitrise-pools", _params, socket) do
+    {:noreply, assign_bitrise(socket)}
+  end
+
+  @impl true
+  def handle_event("close-add-bitrise-pool-modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(bitrise_pool_error: nil)
+     |> push_event("close-modal", %{id: "add-bitrise-pool-modal"})}
+  end
+
+  @impl true
+  def handle_event("close-connect-bitrise-modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(bitrise_error: nil, bitrise_workspace_choices: nil, bitrise_pending_token: nil)
+     |> push_event("close-modal", %{id: "connect-bitrise-modal"})}
   end
 
   @impl true
@@ -219,17 +509,52 @@ defmodule TuistWeb.IntegrationsLive do
   def handle_event("update-github-client-url", params, socket) do
     raw_url = Map.get(params, "github_client_url", socket.assigns.github_client_url)
     raw_owner = Map.get(params, "github_app_owner", socket.assigns.github_app_owner)
+    raw_api_url = Map.get(params, "github_api_url", socket.assigns.github_api_url)
     {url, error} = validate_github_client_url(raw_url, socket.assigns.show_github_enterprise_input)
+    {api_url, api_error} = validate_github_api_url(raw_api_url, socket.assigns.show_github_enterprise_input)
     {github_app_owner, github_app_owner_error} = validate_github_app_owner(raw_owner)
 
     socket =
       socket
       |> assign(github_client_url: url)
       |> assign(github_client_url_error: error)
+      |> assign(github_api_url: api_url, github_api_url_error: api_error)
       |> assign(github_app_owner: github_app_owner)
       |> assign(github_app_owner_error: github_app_owner_error)
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("validate-github-api-url", params, socket) do
+    {url, error} = validate_github_api_url(Map.get(params, "github_api_url", ""), true)
+    {:noreply, assign(socket, github_api_url: url, github_api_url_error: error)}
+  end
+
+  @impl true
+  def handle_event("save-github-api-url", params, socket) do
+    account = socket.assigns.selected_account
+
+    if Authorization.authorize(:account_update, socket.assigns.current_user, account) != :ok do
+      raise UnauthorizedError,
+            dgettext("dashboard_integrations", "You are not authorized to perform this action.")
+    end
+
+    with {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
+         true <- GitHubAppInstallation.enterprise?(installation),
+         {:ok, updated} <- VCS.update_github_app_api_url(installation, Map.get(params, "github_api_url", "")) do
+      {:noreply,
+       socket
+       |> assign(github_app_installation: updated, github_api_url: updated.api_url || "", github_api_url_error: nil)
+       |> put_flash(:info, dgettext("dashboard_integrations", "GitHub API URL updated."))}
+    else
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply, assign(socket, github_api_url_error: dgettext("dashboard_integrations", "Invalid URL"))}
+
+      _ ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("dashboard_integrations", "GitHub Enterprise integration not found."))}
+    end
   end
 
   @impl true
@@ -239,6 +564,7 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(show_github_enterprise_input: false)
       |> assign(github_client_url: VCS.default_client_url())
       |> assign(github_client_url_error: nil)
+      |> assign(github_api_url: "", github_api_url_error: nil)
       |> assign(github_app_owner: "")
       |> assign(github_app_owner_error: nil)
 
@@ -257,6 +583,7 @@ defmodule TuistWeb.IntegrationsLive do
         # github.com App, which is exactly the wrong target.
         |> assign(github_client_url: "")
         |> assign(github_client_url_error: nil)
+        |> assign(github_api_url: "", github_api_url_error: nil)
         |> assign(github_app_owner: "")
         |> assign(github_app_owner_error: nil)
 
@@ -394,6 +721,145 @@ defmodule TuistWeb.IntegrationsLive do
     |> Enum.sort_by(& &1.name, :asc)
   end
 
+  attr(:connection, :map, required: true)
+  attr(:actions_id, :string, required: true)
+  slot(:repository_icon, required: true)
+
+  defp project_connection(assigns) do
+    ~H"""
+    <.card_section data-part="connection-card-section" data-value={@connection.id}>
+      <div data-part="header">
+        <div data-part="item">
+          <div data-part="icon"><.brand_tuist /></div>
+          <span data-part="label">{@connection.project.name}</span>
+        </div>
+        <div data-part="icon"><.arrows_exchange /></div>
+        <div data-part="item">
+          <div data-part="icon">{render_slot(@repository_icon)}</div>
+          <span data-part="label">{@connection.repository_full_handle}</span>
+        </div>
+      </div>
+      <div data-part="footer">
+        <span data-part="subtitle">{get_connection_info(@connection)}</span>
+        <.inline_dropdown
+          id={@actions_id}
+          label={dgettext("dashboard_integrations", "Manage")}
+        >
+          <.dropdown_item
+            label={dgettext("dashboard_integrations", "Remove connection")}
+            value="remove"
+            phx-click="delete-connection"
+            phx-value-connection_id={@connection.id}
+          >
+            <:left_icon><.trash /></:left_icon>
+          </.dropdown_item>
+        </.inline_dropdown>
+      </div>
+    </.card_section>
+    """
+  end
+
+  attr(:result, AsyncResult, required: true)
+
+  defp origin_repository_status(assigns) do
+    ~H"""
+    <.alert
+      :if={@result.loading}
+      status="information"
+      type="secondary"
+      size="small"
+      title={dgettext("dashboard_integrations", "Loading repositories...")}
+    />
+    <.alert
+      :if={@result.failed}
+      status="error"
+      type="secondary"
+      size="large"
+      title={dgettext("dashboard_integrations", "Could not load Origin repositories")}
+      description={
+        dgettext(
+          "dashboard_integrations",
+          "Try again or manage the integration to check its repository access."
+        )
+      }
+    >
+      <:action>
+        <.button
+          label={dgettext("dashboard_integrations", "Retry")}
+          variant="secondary"
+          phx-click="retry-origin-details"
+        />
+      </:action>
+    </.alert>
+    """
+  end
+
+  defp assign_origin_details(socket) do
+    %{selected_account: account, current_user: user, origin_installations: installations} = socket.assigns
+
+    assign_async(
+      socket,
+      :origin_details,
+      fn ->
+        installations
+        |> Enum.reduce_while({:ok, %{}}, fn installation, {:ok, details} ->
+          case Origin.installation_details(account, user, installation.id) do
+            {:ok, detail} -> {:cont, {:ok, Map.put(details, installation.id, detail)}}
+            {:error, _} -> {:halt, {:error, :origin_unavailable}}
+          end
+        end)
+        |> case do
+          {:ok, details} -> {:ok, %{origin_details: details}}
+          {:error, _} = error -> error
+        end
+      end,
+      reset: true
+    )
+  end
+
+  defp select_default_origin_installation(socket) do
+    installation = List.first(socket.assigns.origin_installations)
+    assign(socket, selected_origin_installation_id: installation && installation.id)
+  end
+
+  defp reset_origin_selection(socket) do
+    assign(socket,
+      selected_origin_project_id: nil,
+      selected_origin_repository_full_handle: nil,
+      origin_error: nil
+    )
+  end
+
+  defp origin_installation_detail(assigns, id) do
+    case assigns.origin_details do
+      %{ok?: true, loading: nil, result: details} -> Map.get(details, id)
+      _ -> nil
+    end
+  end
+
+  defp origin_namespace_label(assigns, id) do
+    case origin_installation_detail(assigns, id) do
+      %{namespace: namespace} when is_binary(namespace) and namespace != "" -> namespace
+      _ -> dgettext("dashboard_integrations", "Origin account")
+    end
+  end
+
+  defp get_available_origin_repositories(assigns) do
+    case origin_installation_detail(assigns, assigns.selected_origin_installation_id) do
+      %{repositories: repositories} -> repositories
+      _ -> []
+    end
+  end
+
+  defp get_selected_origin_project(assigns) do
+    projects = get_available_projects(assigns)
+
+    case {assigns.selected_origin_project_id, projects} do
+      {nil, [project]} -> project
+      {id, _} -> Enum.find(projects, &(&1.id == id))
+    end
+  end
+
   defp get_available_repositories(%{github_repositories: github_repositories_async}) do
     repositories =
       if github_repositories_async.ok? do
@@ -420,7 +886,7 @@ defmodule TuistWeb.IntegrationsLive do
   defp get_connection_info(vcs_connection) do
     time_ago = DateFormatter.from_now(vcs_connection.inserted_at)
 
-    if is_nil(vcs_connection.created_by) do
+    if is_nil(Map.get(vcs_connection, :created_by)) do
       dgettext("dashboard_integrations", "Connected %{time_ago}", time_ago: time_ago)
     else
       dgettext("dashboard_integrations", "Connected %{time_ago} by %{name}",
@@ -441,6 +907,7 @@ defmodule TuistWeb.IntegrationsLive do
   #     to `https://github.com/apps//installations/new`, which 404s.
   defp install_button_disabled?(assigns) do
     not is_nil(assigns.github_client_url_error) or
+      not is_nil(assigns.github_api_url_error) or
       not is_nil(assigns.github_app_owner_error) or
       (assigns.show_github_enterprise_input and
          (assigns.github_client_url in ["", nil] or
@@ -494,6 +961,15 @@ defmodule TuistWeb.IntegrationsLive do
 
   defp validate_enterprise_github_client_url(url, false) do
     {url, nil}
+  end
+
+  defp validate_github_api_url(_raw_url, false), do: {"", nil}
+
+  defp validate_github_api_url(raw_url, true) do
+    case VCS.validate_api_url(raw_url) do
+      {:ok, url} -> {url || "", nil}
+      {:error, _} -> {to_string(raw_url), dgettext("dashboard_integrations", "Invalid URL")}
+    end
   end
 
   defp validate_github_app_owner(raw_owner) do
@@ -557,6 +1033,229 @@ defmodule TuistWeb.IntegrationsLive do
     """
   end
 
+  attr :any_pools?, :boolean, required: true
+  attr :paired?, :boolean, required: true
+
+  defp bitrise_pools_status(%{any_pools?: false} = assigns) do
+    ~H"""
+    <div data-part="empty">
+      <span data-part="hint">
+        {dgettext(
+          "dashboard_integrations",
+          "This workspace has no self-hosted runner pools yet. Create one in Bitrise under Workspace settings, then Infrastructure."
+        )}
+      </span>
+      <.button
+        type="button"
+        label={dgettext("dashboard_integrations", "Reload pools")}
+        variant="secondary"
+        size="small"
+        phx-click="reload-bitrise-pools"
+      />
+    </div>
+    """
+  end
+
+  defp bitrise_pools_status(assigns) do
+    ~H"""
+    <span :if={not @paired?} data-part="hint">
+      {dgettext("dashboard_integrations", "No runner pools are paired yet.")}
+    </span>
+    """
+  end
+
+  # `pools` is nil when Bitrise could not list the workspace's pools, and
+  # the stack ID is typed instead.
+  attr :pools, :any, default: nil
+  attr :profile_labels, :list, required: true
+  attr :error, :string, default: nil
+
+  defp bitrise_pool_modal(assigns) do
+    ~H"""
+    <form id="add-bitrise-pool-form" phx-submit="add-bitrise-pool">
+      <.modal
+        id="add-bitrise-pool-modal"
+        title={dgettext("dashboard_integrations", "Add a runner pool")}
+        description={
+          dgettext(
+            "dashboard_integrations",
+            "Pair a Bitrise runner pool with the Tuist profile its builds should run on."
+          )
+        }
+        header_size="large"
+        on_dismiss="close-add-bitrise-pool-modal"
+      >
+        <:trigger :let={attrs}>
+          <.button
+            label={dgettext("dashboard_integrations", "Add pool")}
+            variant="secondary"
+            size="small"
+            {attrs}
+          />
+        </:trigger>
+        <.line_divider />
+        <div data-part="add-bitrise-pool">
+          <.alert :if={@error} status="error" type="secondary" size="small" title={@error} />
+          <.bitrise_pool_fields pools={@pools} profile_labels={@profile_labels} />
+          <div data-part="actions">
+            <.button
+              type="submit"
+              label={dgettext("dashboard_integrations", "Add pool")}
+              variant="primary"
+            />
+          </div>
+        </div>
+      </.modal>
+    </form>
+    """
+  end
+
+  attr :pools, :any, required: true
+  attr :profile_labels, :list, required: true
+
+  defp bitrise_pool_fields(assigns) do
+    ~H"""
+    <div data-part="fields">
+      <div :if={@pools} data-part="field">
+        <.label label={dgettext("dashboard_integrations", "Runner pool")} required />
+        <.select
+          id="bitrise-pool-stack"
+          name="stack_identifier"
+          label={dgettext("dashboard_integrations", "Runner pool")}
+          value={List.first(@pools).stack_identifier}
+        >
+          <:item :for={pool <- @pools} value={pool.stack_identifier} label={pool.name} />
+        </.select>
+      </div>
+      <.text_input
+        :if={is_nil(@pools)}
+        id="bitrise-pool-stack"
+        name="stack_identifier"
+        type="basic"
+        label={dgettext("dashboard_integrations", "Stack ID")}
+        hint={
+          dgettext(
+            "dashboard_integrations",
+            "Tuist couldn't load your runner pools from Bitrise. Enter the pool's stack ID, which starts with agent-pool-."
+          )
+        }
+        value=""
+        required
+        show_required
+      />
+      <div data-part="field">
+        <.label
+          label={dgettext("dashboard_integrations", "Tuist profile")}
+          required
+          tooltip={dgettext("dashboard_integrations", "The machine this pool's builds run on.")}
+          tooltip_id="bitrise-pool-profile-tooltip"
+        />
+        <.select
+          id="bitrise-pool-profile"
+          name="profile_label"
+          label={dgettext("dashboard_integrations", "Tuist profile")}
+          value={TuistWeb.IntegrationsLive.default_bitrise_profile(@pools, @profile_labels)}
+        >
+          <:item :for={label <- @profile_labels} value={label} label={label} />
+        </.select>
+      </div>
+      <.text_input
+        id="bitrise-pool-secret"
+        name="intro_secret"
+        type="password"
+        input_type="password"
+        label={dgettext("dashboard_integrations", "Pool token")}
+        label_tooltip={
+          dgettext(
+            "dashboard_integrations",
+            "Bitrise shows a pool's token once, when you create the pool. If you didn't save it, create the pool again."
+          )
+        }
+        value=""
+        required
+        show_required
+      />
+    </div>
+    """
+  end
+
+  defp assign_bitrise(%{assigns: %{runner_integrations_visible?: false}} = socket) do
+    assign(socket,
+      bitrise_connection: nil,
+      bitrise_pools: [],
+      bitrise_profile_labels: [],
+      bitrise_available_pools: AsyncResult.ok([])
+    )
+  end
+
+  defp assign_bitrise(%{assigns: %{selected_account: account}} = socket) do
+    connection = Bitrise.get_connection(account.id)
+
+    socket =
+      assign(socket,
+        bitrise_connection: connection,
+        bitrise_pools: if(connection, do: Bitrise.list_pools(account.id), else: []),
+        bitrise_profile_labels:
+          if(connection, do: Enum.map(Profiles.list_for_account(account), &Profile.dispatch_label/1), else: [])
+      )
+
+    # The pool picker reads the workspace's pools from Bitrise, which must
+    # not hold up the page.
+    if connection do
+      account_id = account.id
+
+      assign_async(socket, :bitrise_available_pools, fn ->
+        case Bitrise.available_pools(account_id) do
+          {:ok, pools} -> {:ok, %{bitrise_available_pools: pools}}
+          {:error, reason} -> {:error, reason}
+        end
+      end)
+    else
+      assign(socket, bitrise_available_pools: AsyncResult.ok([]))
+    end
+  end
+
+  defp available_pool_name(%{assigns: %{bitrise_available_pools: %AsyncResult{ok?: true, result: pools}}}, stack)
+       when is_list(pools) do
+    Enum.find_value(pools, &(&1.stack_identifier == stack && &1.name))
+  end
+
+  defp available_pool_name(_socket, _stack), do: nil
+
+  defp bitrise_connect_error(reason) when reason in [:invalid_token, :unauthorized, :forbidden],
+    do: dgettext("dashboard_integrations", "Bitrise rejected this API token.")
+
+  defp bitrise_connect_error(:no_workspace),
+    do: dgettext("dashboard_integrations", "This API token can't see any Bitrise workspace.")
+
+  defp bitrise_connect_error(:workspace_not_visible),
+    do:
+      dgettext(
+        "dashboard_integrations",
+        "This API token can't see the connected workspace. Disconnect first to switch workspaces."
+      )
+
+  defp bitrise_connect_error(_reason),
+    do: dgettext("dashboard_integrations", "Tuist couldn't reach Bitrise. Try again in a moment.")
+
+  @doc """
+  The profile the pool form starts on: the one named like the first pool
+  offered, as the setup guide suggests naming pools, or the first profile.
+  """
+  def default_bitrise_profile([%{name: name} | _pools], profile_labels) do
+    if name in profile_labels, do: name, else: List.first(profile_labels)
+  end
+
+  def default_bitrise_profile(_pools, profile_labels), do: List.first(profile_labels)
+
+  @doc """
+  The connected workspace's pools that are not bound to a profile yet.
+  """
+  def unconnected_bitrise_pools(available, connected) do
+    connected_stacks = MapSet.new(connected, & &1.stack_identifier)
+    Enum.reject(available, &MapSet.member?(connected_stacks, &1.stack_identifier))
+  end
+
   defp assign_buildkite_installation(%{assigns: %{selected_account: account}} = socket) do
     installation = Buildkite.get_installation(account.id)
 
@@ -593,6 +1292,54 @@ defmodule TuistWeb.IntegrationsLive do
 
     {field_errors, form_error}
   end
+
+  defp assign_entire_integration(socket, account) do
+    enabled? = EntireTrails.enabled?(account)
+
+    assign(socket,
+      entire_enabled?: enabled?,
+      entire_installed?: enabled? and EntireTrails.installations(account) != [],
+      entire_connections: if(enabled?, do: EntireTrails.connections(account), else: []),
+      entire_project_id: nil,
+      entire_repository_key: nil
+    )
+  end
+
+  defp load_entire_repositories(socket) do
+    account = socket.assigns.selected_account
+
+    if socket.assigns.entire_enabled? do
+      assign_async(socket, :entire_repositories, fn ->
+        with {:ok, repositories} <- EntireTrails.repositories(account) do
+          {:ok, %{entire_repositories: Enum.sort_by(repositories, & &1.name)}}
+        end
+      end)
+    else
+      assign(socket, entire_repositories: %{ok?: true, result: [], loading: false, failed: nil})
+    end
+  end
+
+  defp entire_available_projects(assigns) do
+    connected = MapSet.new(assigns.entire_connections, & &1.project_id)
+    assigns.selected_account.projects |> Enum.reject(&MapSet.member?(connected, &1.id)) |> Enum.sort_by(& &1.name)
+  end
+
+  defp entire_selected_project(assigns) do
+    case entire_available_projects(assigns) do
+      [project] -> project
+      projects -> Enum.find(projects, &(to_string(&1.id) == assigns.entire_project_id))
+    end
+  end
+
+  defp entire_available_repositories(assigns) do
+    if assigns.entire_repositories.ok?, do: assigns.entire_repositories.result, else: []
+  end
+
+  defp entire_selected_repository(assigns) do
+    Enum.find(entire_available_repositories(assigns), &(entire_repository_key(&1) == assigns.entire_repository_key))
+  end
+
+  defp entire_repository_key(repository), do: repository.installation_id <> ":" <> repository.id
 
   defp vcs_connections(account, opts \\ []) do
     force = Keyword.get(opts, :force, false)

@@ -12,6 +12,17 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlugTest do
 
   setup :set_mimic_from_context
 
+  setup do
+    parent = self()
+
+    stub(OpenTelemetry.Tracer, :set_attribute, fn key, value ->
+      send(parent, {:trace_attribute, key, value})
+      :ok
+    end)
+
+    :ok
+  end
+
   describe "call/2" do
     test "records the client address so an unauthenticated request has a source" do
       # A failed authentication carries no account, so the address is the only
@@ -42,13 +53,6 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlugTest do
     test "sets auth context for authenticated user" do
       user = AccountsFixtures.user_fixture(preload: [:account])
 
-      expect(OpenTelemetry.Tracer, :set_attribute, fn "client.address", _ -> :ok end)
-
-      expect(OpenTelemetry.Tracer, :set_attribute, fn "auth_account_handle", value ->
-        assert value == user.account.name
-        :ok
-      end)
-
       conn =
         :get
         |> conn("/")
@@ -57,17 +61,14 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlugTest do
 
       assert conn
       assert Logger.metadata()[:auth_account_handle] == user.account.name
+      assert Logger.metadata()[:auth_account_id] == user.account.id
+      assert Logger.metadata()[:auth_user_id] == user.id
+      assert_receive {:trace_attribute, "auth_account_id", _}
+      assert_receive {:trace_attribute, "auth_user_id", _}
     end
 
     test "sets auth context for authenticated project" do
       project = ProjectsFixtures.project_fixture(preload: [:account])
-
-      expect(OpenTelemetry.Tracer, :set_attribute, fn "client.address", _ -> :ok end)
-
-      expect(OpenTelemetry.Tracer, :set_attribute, fn "auth_account_handle", value ->
-        assert value == project.account.name
-        :ok
-      end)
 
       conn =
         :get
@@ -77,18 +78,13 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlugTest do
 
       assert conn
       assert Logger.metadata()[:auth_account_handle] == project.account.name
+      assert Logger.metadata()[:auth_project_id] == project.id
+      assert_receive {:trace_attribute, "auth_project_id", _}
     end
 
     test "sets auth context for authenticated account" do
       account = AccountsFixtures.account_fixture()
       authenticated_account = %AuthenticatedAccount{account: account, scopes: [:registry_read]}
-
-      expect(OpenTelemetry.Tracer, :set_attribute, fn "client.address", _ -> :ok end)
-
-      expect(OpenTelemetry.Tracer, :set_attribute, fn "auth_account_handle", value ->
-        assert value == account.name
-        :ok
-      end)
 
       conn =
         :get
@@ -98,6 +94,7 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlugTest do
 
       assert conn
       assert Logger.metadata()[:auth_account_handle] == account.name
+      assert Logger.metadata()[:auth_account_id] == account.id
     end
 
     test "does not set auth context when no authentication" do
@@ -118,13 +115,7 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlugTest do
 
   describe "set_selection_context/1" do
     test "sets selection context for selected project and account" do
-      parent = self()
       project = ProjectsFixtures.project_fixture(preload: [:account])
-
-      expect(OpenTelemetry.Tracer, :set_attribute, 2, fn key, value ->
-        send(parent, {:trace_attribute, key, value})
-        :ok
-      end)
 
       conn =
         :get
@@ -136,17 +127,16 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlugTest do
       assert conn
       assert Logger.metadata()[:selected_account_handle] == project.account.name
       assert Logger.metadata()[:selected_project_handle] == project.name
+      assert Logger.metadata()[:selected_account_id] == project.account.id
+      assert Logger.metadata()[:selected_project_id] == project.id
       assert_receive {:trace_attribute, "selected_account_handle", _}
       assert_receive {:trace_attribute, "selected_project_handle", _}
+      assert_receive {:trace_attribute, "selected_account_id", _}
+      assert_receive {:trace_attribute, "selected_project_id", _}
     end
 
     test "sets selection context for only selected account" do
       account = AccountsFixtures.account_fixture()
-
-      expect(OpenTelemetry.Tracer, :set_attribute, fn "selected_account_handle", value ->
-        assert value == account.name
-        :ok
-      end)
 
       conn =
         :get

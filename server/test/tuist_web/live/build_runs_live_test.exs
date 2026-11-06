@@ -32,6 +32,41 @@ defmodule TuistWeb.BuildRunsLiveTest do
     assert has_element?(lv, "span", "AppTests")
   end
 
+  test "keeps Ran by accounts distinct from the Reported name filter", %{
+    conn: conn,
+    organization: organization,
+    project: project,
+    user: user
+  } do
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      scheme: "ReportedApp",
+      claimed_actor_id: "review-laptop",
+      submission_auth: "token"
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      scheme: "VerifiedApp",
+      actor_account_id: user.account.id,
+      submission_auth: "token"
+    )
+
+    {:ok, view, _} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs?filter_claimed_actor_id_op===&filter_claimed_actor_id_val=review-laptop"
+      )
+
+    html = render(view)
+    assert html =~ "Ran by"
+    assert html =~ "Reported name"
+    refute html =~ "Verified user / CI"
+    refute html =~ "Reported identifier (unverified)"
+    assert has_element?(view, "[data-part=build-runs-table]", "ReportedApp")
+    refute has_element?(view, "[data-part=build-runs-table]", "VerifiedApp")
+  end
+
   test "handles cursor mismatch when sort order changes", %{
     conn: conn,
     organization: organization,
@@ -150,5 +185,29 @@ defmodule TuistWeb.BuildRunsLiveTest do
     assert html =~ "does not contain"
     assert has_element?(lv, "[data-part='build-runs-table'] span", "Regular")
     refute has_element?(lv, "[data-part='build-runs-table'] span", "Queued")
+  end
+
+  test "filters build runs by tag without turning tags into atoms", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    nightly = "nightly_#{System.unique_integer([:positive])}"
+    release = "release_#{System.unique_integer([:positive])}"
+    RunsFixtures.build_fixture(project_id: project.id, scheme: "NightlyApp", custom_tags: [nightly])
+    RunsFixtures.build_fixture(project_id: project.id, scheme: "ReleaseApp", custom_tags: [release])
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs?filter_custom_tags_op=contains&filter_custom_tags_val=#{nightly}"
+      )
+
+    assert has_element?(lv, "span", "NightlyApp")
+    refute has_element?(lv, "span", "ReleaseApp")
+
+    for tag <- [nightly, release] do
+      assert_raise ArgumentError, fn -> String.to_existing_atom(tag) end
+    end
   end
 end

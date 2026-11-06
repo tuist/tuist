@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -65,6 +66,9 @@ const (
 // unreachable region, which is strictly worse than the box staying up until its
 // replacement joins the pool.
 func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if fencedServing(instance) || (instance.Status.ReplicaRecovery != nil && instance.Status.ReplicaRecovery.Phase != "Verified") {
+		return nil
+	}
 	logger := log.FromContext(ctx)
 
 	pods := &corev1.PodList{}
@@ -93,7 +97,11 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 		}
 	}
 
-	stranded := podsOnNodes(pods.Items, leaving)
+	placed, err := r.podPlacements(ctx, pods.Items)
+	if err != nil {
+		return err
+	}
+	stranded := podsOnNodes(pods.Items, placed, leaving)
 	if len(stranded) == 0 {
 		return nil
 	}
@@ -106,14 +114,24 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 	// deletes and rebuilds the same volume forever, burning its cache on every
 	// turn and never converging, so refuse rather than start it.
 	for _, pod := range stranded {
-		if stillSchedulable[pod.Spec.NodeName] {
+		if stillSchedulable[placed[pod.Name]] {
 			logger.Info("node is marked for evacuation but still schedulable; cordon it first or the replacement lands back on it",
-				"instance", instance.Name, "node", pod.Spec.NodeName)
+				"instance", instance.Name, "node", placed[pod.Name])
 			return nil
 		}
 	}
 
-	if !hasLandingNode(nodes.Items, leaving, instance) {
+	selector := nodeSelector(instance)
+	sts := &appsv1.StatefulSet{}
+	switch err := r.Get(ctx, client.ObjectKeyFromObject(instance), sts); {
+	case apierrors.IsNotFound(err):
+		// Before the StatefulSet exists, use the same defaults as its renderer.
+	case err != nil:
+		return err
+	default:
+		selector = sts.Spec.Template.Spec.NodeSelector
+	}
+	if !hasLandingNode(nodes.Items, leaving, selector) {
 		logger.Info("cache pods sit on a node marked for evacuation but no other node can take them; leaving them in place",
 			"instance", instance.Name, "pods", len(stranded))
 		return nil
@@ -122,7 +140,7 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 	// Anything already moved has to be serving AND caught up before the next
 	// replica goes, or the move that follows destroys the peer it would have
 	// refilled from.
-	if settling, reason := r.movesStillSettling(ctx, pods.Items, leaving); settling {
+	if settling, reason := r.movesStillSettling(ctx, instance, pods.Items, placed, leaving); settling {
 		logger.V(1).Info("waiting for the previous move to settle before evacuating another replica",
 			"instance", instance.Name, "reason", reason)
 		return nil
@@ -181,7 +199,7 @@ func (r *KuraInstanceReconciler) evacuateMarkedNodes(ctx context.Context, instan
 		return err
 	}
 	logger.Info("evacuating a cache pod off a node marked for retirement",
-		"instance", instance.Name, "pod", next.Name, "node", next.Spec.NodeName, "wasPrimary", next.Name == primary)
+		"instance", instance.Name, "pod", next.Name, "node", placed[next.Name], "wasPrimary", next.Name == primary)
 	return nil
 }
 
@@ -252,15 +270,51 @@ func (r *KuraInstanceReconciler) endpointServedByAnotherPod(ctx context.Context,
 	return false, nil
 }
 
-// podsOnNodes returns the pods sitting on any of the given nodes, ordered by
+// podPlacements maps each pod to the node it runs on or, while unscheduled, the
+// node its data volume pins it to. A re-templated StatefulSet can restart a
+// replica on a claim that lives on the cordoned box being evacuated; that pod
+// stays Pending forever and must be moved like a running one.
+func (r *KuraInstanceReconciler) podPlacements(ctx context.Context, pods []corev1.Pod) (map[string]string, error) {
+	placed := make(map[string]string, len(pods))
+	for i := range pods {
+		pod := &pods[i]
+		if pod.Spec.NodeName != "" {
+			placed[pod.Name] = pod.Spec.NodeName
+			continue
+		}
+		claim := &corev1.PersistentVolumeClaim{}
+		if err := r.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: fmt.Sprintf("data-%s", pod.Name)}, claim); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		if claim.Spec.VolumeName == "" {
+			continue
+		}
+		pv := &corev1.PersistentVolume{}
+		if err := r.Get(ctx, client.ObjectKey{Name: claim.Spec.VolumeName}, pv); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return nil, err
+		}
+		if hosts := pvRequiredHostnames(pv); len(hosts) == 1 {
+			placed[pod.Name] = hosts[0]
+		}
+	}
+	return placed, nil
+}
+
+// podsOnNodes returns the pods placed on any of the given nodes, ordered by
 // name so a pass picks the same pod every time it runs against the same state.
-func podsOnNodes(pods []corev1.Pod, nodes map[string]bool) []*corev1.Pod {
+func podsOnNodes(pods []corev1.Pod, placed map[string]string, nodes map[string]bool) []*corev1.Pod {
 	out := []*corev1.Pod{}
 	for i := range pods {
 		if pods[i].DeletionTimestamp != nil {
 			continue
 		}
-		if nodes[pods[i].Spec.NodeName] {
+		if nodes[placed[pods[i].Name]] {
 			out = append(out, &pods[i])
 		}
 	}
@@ -270,8 +324,8 @@ func podsOnNodes(pods []corev1.Pod, nodes map[string]bool) []*corev1.Pod {
 
 // hasLandingNode reports whether some node that is not being evacuated could
 // actually take this instance's pods: Ready, schedulable, and matching whatever
-// nodeSelector pins the instance to its region's pool.
-func hasLandingNode(nodes []corev1.Node, leaving map[string]bool, instance *kurav1alpha1.KuraInstance) bool {
+// nodeSelector constrains the replacement, including its private network.
+func hasLandingNode(nodes []corev1.Node, leaving map[string]bool, selector map[string]string) bool {
 	for i := range nodes {
 		node := &nodes[i]
 		if leaving[node.Name] || node.Spec.Unschedulable || node.DeletionTimestamp != nil {
@@ -281,7 +335,7 @@ func hasLandingNode(nodes []corev1.Node, leaving map[string]bool, instance *kura
 			continue
 		}
 		matches := true
-		for key, value := range instance.Spec.NodeSelector {
+		for key, value := range selector {
 			if node.Labels[key] != value {
 				matches = false
 				break
@@ -316,15 +370,12 @@ func nodeReady(node *corev1.Node) bool {
 // When the runtime status cannot be read at all, this reports settling rather
 // than proceeding. An unreachable pod is not evidence that a move finished, and
 // guessing wrong costs the region's cache rather than a requeue.
-func (r *KuraInstanceReconciler) movesStillSettling(ctx context.Context, pods []corev1.Pod, leaving map[string]bool) (bool, string) {
-	statusClient := r.RuntimeStatusClient
-	if statusClient == nil {
-		statusClient = defaultRuntimeStatusClient()
-	}
+func (r *KuraInstanceReconciler) movesStillSettling(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod, placed map[string]string, leaving map[string]bool) (bool, string) {
+	statusClient := r.runtimeStatusClient(instance)
 
 	for i := range pods {
 		pod := &pods[i]
-		if leaving[pod.Spec.NodeName] {
+		if leaving[placed[pod.Name]] {
 			// Still on its way out; it is what this pass exists to move.
 			continue
 		}

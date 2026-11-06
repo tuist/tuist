@@ -95,6 +95,19 @@ struct CommandEnvironmentVariableTests {
         #expect(buildCommandWithArgs.buildOptions.passthroughXcodeBuildArguments == ["-configuration", "Debug"])
     }
 
+    @Test(.withMockedEnvironment()) func optionalOptionWithEnvVarRejectsInvalidArgument() throws {
+        setVariable(.buildOptionsPlatform, value: "ios")
+
+        let error = #expect(throws: (any Error).self) {
+            try BuildRunCommand.parse(["--platform", "android"])
+        }
+        #expect(
+            BuildRunCommand.message(for: try #require(error)) ==
+                "The value 'android' is invalid for '--platform <platform>': " +
+                "Please provide one of 'ios', 'macos', 'tvos', 'watchos', 'visionos'."
+        )
+    }
+
     @Test(.withMockedEnvironment()) func cleanCommandUsesEnvVars() throws {
         setVariable(.cleanCleanCategories, value: "dependencies")
         setVariable(.cleanPath, value: "/path/to/clean")
@@ -470,6 +483,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.testDevice, value: "iPhone")
         setVariable(.testPlatform, value: "iOS")
         setVariable(.testOS, value: "14.5")
+        setVariable(.testDestination, value: "simulator")
         setVariable(.testRosetta, value: "true")
         setVariable(.testConfiguration, value: "Debug")
         setVariable(.testSkipUITests, value: "true")
@@ -500,6 +514,7 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithEnvVars.device == "iPhone")
         #expect(testCommandWithEnvVars.platform == "iOS")
         #expect(testCommandWithEnvVars.os == "14.5")
+        #expect(testCommandWithEnvVars.destination == .simulator)
         #expect(testCommandWithEnvVars.rosetta == true)
         #expect(testCommandWithEnvVars.configuration == "Debug")
         #expect(testCommandWithEnvVars.skipUITests == true)
@@ -533,6 +548,7 @@ struct CommandEnvironmentVariableTests {
             "--device", "iPad",
             "--platform", "macOS",
             "--os", "15.0",
+            "--destination", "device",
             "--no-rosetta",
             "--configuration", "Release",
             "--no-skip-ui-tests",
@@ -560,6 +576,7 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithArgs.device == "iPad")
         #expect(testCommandWithArgs.platform == "macOS")
         #expect(testCommandWithArgs.os == "15.0")
+        #expect(testCommandWithArgs.destination == .device)
         #expect(testCommandWithArgs.rosetta == false)
         #expect(testCommandWithArgs.configuration == "Release")
         #expect(testCommandWithArgs.skipUITests == false)
@@ -582,6 +599,14 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithArgs.shardIndex == 3)
         #expect(testCommandWithArgs.shardSkipUpload == false)
         #expect(testCommandWithArgs.shardArchivePath == "/new/shards/bundle.aar")
+    }
+
+    @Test(.withMockedEnvironment()) func destinationOptionOfTestCommandDefaultsToAll() throws {
+        #expect(try TestRunCommand.parse([]).destination == .all)
+        #expect(try TestRunCommand.parse(["--destination", "simulator"]).destination == .simulator)
+        #expect(throws: (any Error).self) {
+            try TestRunCommand.parse(["--destination", "platform=iOS Simulator,name=iPhone 17"])
+        }
     }
 
     @Test(.withMockedEnvironment()) func xcodeBuildShardCommandsUseEnvVars() throws {
@@ -837,21 +862,31 @@ struct CommandEnvironmentVariableTests {
     @Test(.withMockedEnvironment()) func organizationInviteCommandUsesEnvVars() throws {
         setVariable(.organizationInviteOrganizationName, value: "InviteOrganization")
         setVariable(.organizationInviteEmail, value: "email@example.com")
+        setVariable(.organizationInviteRole, value: "viewer")
         setVariable(.organizationInvitePath, value: "/path/to/invite")
 
         let commandWithEnvVars = try OrganizationInviteCommand.parse([])
         #expect(commandWithEnvVars.organizationName == "InviteOrganization")
         #expect(commandWithEnvVars.email == "email@example.com")
+        #expect(commandWithEnvVars.role == .viewer)
         #expect(commandWithEnvVars.path == "/path/to/invite")
 
         let commandWithArgs = try OrganizationInviteCommand.parse([
             "NewInviteOrganization",
             "newemail@example.com",
+            "--role", "admin",
             "--path", "/new/invite/path",
         ])
         #expect(commandWithArgs.organizationName == "NewInviteOrganization")
         #expect(commandWithArgs.email == "newemail@example.com")
+        #expect(commandWithArgs.role == .admin)
         #expect(commandWithArgs.path == "/new/invite/path")
+    }
+
+    @Test(.withMockedEnvironment()) func organizationInviteCommandRejectsUnknownRoles() throws {
+        #expect(throws: (any Error).self) {
+            try OrganizationInviteCommand.parse(["InviteOrganization", "email@example.com", "--role", "owner"])
+        }
     }
 
     @Test(.withMockedEnvironment()) func organizationShowCommandUsesEnvVars() throws {
@@ -936,6 +971,22 @@ struct CommandEnvironmentVariableTests {
             "--path", "/new/logout/path",
         ])
         #expect(commandWithArgs.path == "/new/logout/path")
+    }
+
+    @Test(.withMockedEnvironment()) func hashCacheCommandUsesEnvVars() throws {
+        setVariable(.hashCachePath, value: "/hash/path")
+        setVariable(.hashCacheConfiguration, value: "Debug")
+
+        let commandWithEnvVars = try HashCacheCommand.parse([])
+        #expect(commandWithEnvVars.path == "/hash/path")
+        #expect(commandWithEnvVars.configuration == "Debug")
+
+        let commandWithArgs = try HashCacheCommand.parse([
+            "--path", "/other/path",
+            "--configuration", "Release",
+        ])
+        #expect(commandWithArgs.path == "/other/path")
+        #expect(commandWithArgs.configuration == "Release")
     }
 
     @Test(.withMockedEnvironment()) func cacheWarmCommandUsesEnvVars() throws {

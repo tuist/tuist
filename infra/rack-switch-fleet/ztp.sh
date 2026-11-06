@@ -303,7 +303,7 @@ if [ -n "$unicast_rules" ]; then
 fi
 echo ""
 echo "the switch would fetch (login line redacted):"
-tr -d '\000' < "$served" | tr -d '\r' | sed "s/secret 0 .*/secret 0 <redacted>/" | head -20 | sed 's/^/  /'
+tr -d '\000' < "$served" | tr -d '\r' | sed "s/secret 0 .*/secret 0 <redacted>/" | sed -n '1,20p' | sed 's/^/  /'
 echo "  ... $(tr -d '\000' < "$served" | grep -c '' ) lines"
 
 cleanup() {

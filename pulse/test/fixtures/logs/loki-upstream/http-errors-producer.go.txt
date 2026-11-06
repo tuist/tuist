@@ -1,0 +1,256 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Test inputs/oracles: Copyright Grafana Labs contributors; adjacent LICENSE applies.
+// Offline provenance only: standard library, no Loki/Pulse execution or imports.
+// Usage: producer /path/to/pinned/loki > http-errors.json
+package main
+
+import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+)
+
+const revision = "5aa4b9212d64d723f63b2770452054aa23df114d"
+const testSource = "pkg/util/server/error_test.go"
+
+var sources = []struct{ path, hash string }{
+	{testSource, "d250f31887b80c5ded25a7ea04630192ee3701b1ca53ec4265cf8ffb20c7caca"},
+	{"pkg/util/server/error.go", "5ada39308f1f1a5f7c43918d92e13e854a50d3dbe35c08348a39db29ffd7f85e"},
+	{"pkg/logqlmodel/error.go", "21816c4294243f16157f6408d92fb0907612a3258333288ab39b3f84bf7a4db5"},
+	{"pkg/storage/errors/errors.go", "c413c44b1dbc8f3842ae897193351088027c96674eec90d94137b591c9e5b1a0"},
+	{"vendor/github.com/grafana/dskit/user/id.go", "ed142d00dabb6581aead5a42ddf06024c775a1f3f5f6436db5940243d3284464"},
+}
+
+type object map[string]any
+type source struct {
+	path string
+	data []byte
+	fs   *token.FileSet
+	file *ast.File
+}
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+func check(ok bool, message string) {
+	if !ok {
+		panic(message)
+	}
+}
+func hash(b []byte) string { return fmt.Sprintf("%x", sha256.Sum256(b)) }
+func (s source) code(n ast.Node) string {
+	return string(s.data[s.fs.Position(n.Pos()).Offset:s.fs.Position(n.End()).Offset])
+}
+func (s source) provenance(n ast.Node) object {
+	return object{"source": s.path, "lines": []int{s.fs.Position(n.Pos()).Line, s.fs.Position(n.End()).Line}, "original_go": s.code(n)}
+}
+func load(root, path, want string) source {
+	b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+	if os.IsNotExist(err) {
+		// Sparse librarian checkouts may omit vendored files. Read the same
+		// pinned Git blob, never the network or another revision, in that case.
+		b, err = exec.Command("git", "-C", root, "show", revision+":"+path).Output()
+	}
+	must(err)
+	check(hash(b) == want, "source SHA-256 mismatch: "+path)
+	fs := token.NewFileSet()
+	f, err := parser.ParseFile(fs, path, b, parser.ParseComments)
+	must(err)
+	return source{path, b, fs, f}
+}
+
+// Resolve only the actual original expectation grammar. Inputs are retained
+// symbolically, not converted into surrogate Go/Pulse error implementations.
+type resolver struct {
+	values      map[string]any
+	resolutions []object
+}
+
+func (r *resolver) value(s source, e ast.Expr) any {
+	switch n := e.(type) {
+	case *ast.BasicLit:
+		switch n.Kind {
+		case token.STRING:
+			v, err := strconv.Unquote(n.Value)
+			must(err)
+			return v
+		case token.INT:
+			v, err := strconv.Atoi(n.Value)
+			must(err)
+			return v
+		}
+	case *ast.Ident, *ast.SelectorExpr:
+		if v, ok := r.values[s.code(e)]; ok {
+			return v
+		}
+	case *ast.BinaryExpr:
+		check(n.Op == token.ADD, "unknown expectation operator")
+		return r.value(s, n.X).(string) + r.value(s, n.Y).(string)
+	case *ast.CallExpr:
+		// These pinned error declarations carry a string literal, and their
+		// Error methods expose that same string. No formatter/parser is run.
+		if name := s.code(n.Fun); name == "errors.New" || name == "QueryError" {
+			check(len(n.Args) == 1, "unexpected error constructor arity")
+			return r.value(s, n.Args[0]).(string)
+		}
+		if sel, ok := n.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Error" && len(n.Args) == 0 {
+			return r.value(s, sel.X).(string)
+		}
+	}
+	panic("unknown expectation: " + s.code(e))
+}
+
+func (r *resolver) bind(s source, name, symbol string) {
+	found := 0
+	for _, decl := range s.file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			vs, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for i, id := range vs.Names {
+				if id.Name != name {
+					continue
+				}
+				check(len(vs.Values) == len(vs.Names), "implicit or unknown declaration values")
+				v := r.value(s, vs.Values[i])
+				r.values[symbol] = v
+				p := s.provenance(vs)
+				p["symbol"], p["value"], p["source_sha256"] = symbol, v, hash(s.data)
+				r.resolutions = append(r.resolutions, p)
+				found++
+			}
+		}
+	}
+	check(found == 1, "missing or duplicate declaration: "+symbol)
+}
+
+func main() {
+	check(len(os.Args) == 2, "usage: producer /path/to/pinned/loki")
+	files := map[string]source{}
+	provenance := []object{}
+	for _, spec := range sources {
+		s := load(os.Args[1], spec.path, spec.hash)
+		files[spec.path] = s
+		provenance = append(provenance, object{"source": spec.path, "sha256": hash(s.data)})
+	}
+	r := resolver{values: map[string]any{}, resolutions: []object{}}
+	for _, spec := range []struct{ path, name, symbol string }{
+		{"pkg/util/server/error.go", "ErrClientCanceled", "ErrClientCanceled"},
+		{"pkg/util/server/error.go", "ErrDeadlineExceeded", "ErrDeadlineExceeded"},
+		{"pkg/util/server/error.go", "StatusClientClosedRequest", "StatusClientClosedRequest"},
+		{"pkg/logqlmodel/error.go", "ErrIntervalLimit", "logqlmodel.ErrIntervalLimit"},
+		{"pkg/storage/errors/errors.go", "ErrQueryMustContainMetricName", "storage_errors.ErrQueryMustContainMetricName"},
+		{"vendor/github.com/grafana/dskit/user/id.go", "ErrNoOrgID", "user.ErrNoOrgID"},
+	} {
+		r.bind(files[spec.path], spec.name, spec.symbol)
+	}
+	// Integers come from the standard-library public constants named by the
+	// original test. No status is inferred from the error or its message.
+	stdlib := object{"http.StatusBadRequest": http.StatusBadRequest, "http.StatusInternalServerError": http.StatusInternalServerError, "http.StatusGatewayTimeout": http.StatusGatewayTimeout}
+	for k, v := range stdlib {
+		r.values[k] = v
+	}
+	s := files[testSource]
+	var fn *ast.FuncDecl
+	support := []object{}
+	for _, decl := range s.file.Decls {
+		if f, ok := decl.(*ast.FuncDecl); ok {
+			if f.Name.Name == "Test_writeError" {
+				check(fn == nil, "duplicate selected function")
+				fn = f
+			} else {
+				// Preserve all three methods of the original typed gRPC wrapper.
+				check(f.Recv != nil, "unexpected supporting function")
+				support = append(support, s.provenance(f))
+			}
+		}
+		if g, ok := decl.(*ast.GenDecl); ok && g.Tok == token.TYPE {
+			support = append(support, s.provenance(g))
+		}
+	}
+	check(fn != nil && len(support) == 4, "missing selected function or wrapper declarations")
+	check(len(fn.Body.List) == 1, "unexpected test body")
+	loop, ok := fn.Body.List[0].(*ast.RangeStmt)
+	check(ok, "missing table range")
+	table, ok := loop.X.(*ast.CompositeLit)
+	check(ok && len(table.Elts) == 25 && len(loop.Body.List) == 2, "incomplete table or execution paths")
+	st := table.Type.(*ast.ArrayType).Elt.(*ast.StructType)
+	check(len(st.Fields.List) == 4, "unexpected table fields")
+	for i, want := range []string{"name", "err", "msg", "expectedStatus"} {
+		check(len(st.Fields.List[i].Names) == 1 && st.Fields.List[i].Names[0].Name == want, "unexpected table field order")
+	}
+	paths := []object{}
+	for i, stmt := range loop.Body.List {
+		call := stmt.(*ast.ExprStmt).X.(*ast.CallExpr)
+		check(s.code(call.Fun) == "t.Run" && len(call.Args) == 2, "unknown execution path")
+		callback := call.Args[1].(*ast.FuncLit)
+		// Assert that both callbacks really contain all three original
+		// assertions, rather than declaring 50 executions from row count alone.
+		assertions := []object{}
+		ast.Inspect(callback.Body, func(n ast.Node) bool {
+			c, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			switch s.code(c.Fun) {
+			case "require.Equal", "require.NoError", "require.EqualValues":
+				assertions = append(assertions, s.provenance(c))
+			}
+			return true
+		})
+		check(len(assertions) == 3, "missing original assertions")
+		mode := []string{"direct", "roundtrip"}[i]
+		p := s.provenance(stmt)
+		p["mode"], p["name_expression"], p["assertions"] = mode, s.code(call.Args[0]), assertions
+		paths = append(paths, p)
+	}
+	rows := []object{}
+	names := map[string]bool{}
+	for _, elt := range table.Elts {
+		lit := elt.(*ast.CompositeLit)
+		check(len(lit.Elts) == 4, "unexpected row arity")
+		name := r.value(s, lit.Elts[0]).(string)
+		check(!names[name], "duplicate row: "+name)
+		names[name] = true
+		body := r.value(s, lit.Elts[2]).(string)
+		status := r.value(s, lit.Elts[3]).(int)
+		expected := object{"status": status, "body": body}
+		row := s.provenance(lit)
+		row["table"], row["name"] = fn.Name.Name, name
+		row["input"] = object{"error_expression": s.code(lit.Elts[1])}
+		row["expected"] = expected
+		row["expected_expressions"] = object{"body": s.code(lit.Elts[2]), "status": s.code(lit.Elts[3])}
+		executions := []object{}
+		for i, stmt := range loop.Body.List {
+			call := stmt.(*ast.ExprStmt).X.(*ast.CallExpr)
+			r.values["tt.name"] = name
+			executions = append(executions, object{"mode": paths[i]["mode"], "name": r.value(s, call.Args[0]), "expected": expected})
+		}
+		row["executions"] = executions
+		rows = append(rows, row)
+	}
+	selection := s.provenance(fn)
+	original := s.code(fn) + "\n"
+	selection["original_go"], selection["sha256"] = original, hash([]byte(original))
+	selection["table"], selection["row_count"], selection["upstream_execution_count"] = fn.Name.Name, len(rows), len(rows)*len(paths)
+	out := object{"schema_version": 1, "revision": revision, "sources": provenance, "selections": []object{selection}, "supporting_declarations": support, "resolved_constants": r.resolutions, "standard_library_status_constants": stdlib, "execution_paths": paths, "rows": rows, "row_count": len(rows), "upstream_execution_count": len(rows) * len(paths)}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(false)
+	must(enc.Encode(out))
+}

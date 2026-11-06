@@ -1,14 +1,14 @@
 defmodule TuistWeb.RunnerCacheMastersController do
   @moduledoc """
-  `GET /api/internal/runners/cache-masters`: the cache-volume masters a macOS
-  runner host should prefetch, for its converge worker.
+  `GET /api/internal/runners/cache-masters`: the custom cache-volume HEADs a
+  macOS runner host should prefetch.
 
   Authentication: the host presents a token for its own per-machine
   `tart-kubelet-<machine>` ServiceAccount, minted for the `tuist-runner-host`
   audience. The server validates it with a TokenReview and answers for the Node
   the ServiceAccount names, never one the request names. A runner Pod's token
-  carries the dispatch audience and is refused here, because the response holds
-  download URLs for every account on the host's fleet.
+  carries the dispatch audience and is refused here, because the response names
+  saved HEADs of every account on the host's fleet.
   """
   use TuistWeb, :controller
 
@@ -20,8 +20,24 @@ defmodule TuistWeb.RunnerCacheMastersController do
          {:ok, %{namespace: namespace, name: name}} <- K8sClient.create_runner_host_token_review(token),
          {:ok, node_name} <- VolumePrefetch.node_for_service_account(namespace, name) do
       masters =
-        Enum.map(VolumePrefetch.for_node(node_name), fn master ->
-          Map.take(master, [:account_id, :volume, :generation, :digest, :content_digest, :download_url])
+        Enum.map(VolumePrefetch.for_node(node_name, :macos), fn master ->
+          Map.take(master, [
+            :kind,
+            :id,
+            :account_id,
+            :scope,
+            :generation,
+            :image_digest,
+            :content_digest,
+            :volume_bytes,
+            :head_size_bytes,
+            :reason,
+            :checkout_generation,
+            :clone_url,
+            :default_branch,
+            :uid,
+            :volume_key
+          ])
         end)
 
       json(conn, %{masters: masters})

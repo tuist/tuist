@@ -44,13 +44,18 @@ defmodule TuistWeb.RunsController do
     end
   end
 
+  defp download_bundle_ids(%{reporting_version: 1} = test_run, _requested_id), do: Tests.result_bundle_run_ids(test_run)
+
+  defp download_bundle_ids(test_run, requested_id), do: Enum.uniq([requested_id, test_run.id])
+
   defp test_run_bundle_url(run_id, user) do
     with {:ok, test_run} <- Tests.get_test(run_id),
          %Projects.Project{} = project <- Projects.get_project_by_id(test_run.project_id),
          project = Repo.preload(project, :account),
          :ok <- Authorization.authorize(:run_read, user, project),
-         true <- CommandEvents.has_result_bundle?(run_id, project) do
-      {:ok, CommandEvents.generate_result_bundle_url(run_id, project)}
+         bundle_id when is_binary(bundle_id) <-
+           Enum.find(download_bundle_ids(test_run, run_id), &CommandEvents.has_result_bundle?(&1, project)) do
+      {:ok, CommandEvents.generate_result_bundle_url(bundle_id, project)}
     else
       _ -> :error
     end

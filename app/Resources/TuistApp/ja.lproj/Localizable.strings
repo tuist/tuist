@@ -1,0 +1,311 @@
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"%@ simulator" = "%@ シミュレータ";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Access token or refresh token missing from response" = "レスポンスにアクセストークンまたはリフレッシュトークンが含まれていません";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All" = "すべて";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"All tracks" = "すべてのトラック";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Device" = "Android デバイス";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift */
+"Android Emulator" = "Android エミュレータ";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Android Emulators" = "Android エミュレータ";
+
+/* TuistPreviews/PreviewView/PreviewViewHeader.swift, TuistPreviews/PreviewsView/PreviewRowView.swift */
+"App" = "アプリ";
+
+/* TuistProfile/ProfileView.swift */
+"App version" = "アプリバージョン";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Apple Sign In failed" = "Appleサインインに失敗しました";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Apps in" = "アプリ内";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Are you sure you want to delete this preview? This action cannot be undone." = "このプレビューを削除してもよろしいですか？この操作は元に戻せません。";
+
+/* TuistProfile/ProfileView.swift */
+"Are you sure you want to delete your account? This action cannot be undone." = "アカウントを削除してもよろしいですか？この操作は元に戻せません。";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Authorization code not found" = "認証コードが見つかりません";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Branch" = "ブランチ";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Bundle identifier" = "バンドル識別子";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift, TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Cancel" = "キャンセル";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Check for updates" = "アップデートを確認";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Commit SHA" = "コミットSHA";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Connected" = "接続済み";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy identifier" = "識別子をコピー";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Copy name" = "名前をコピー";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find APK file in the downloaded archive" = "ダウンロードしたアーカイブ内にAPKファイルが見つかりませんでした";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Could not find app bundle in the downloaded archive" = "ダウンロードしたアーカイブ内にアプリバンドルが見つかりませんでした";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@ as it doesn't include any valid app builds." = "%@のアプリをインストールできませんでした。有効なアプリビルドが含まれていません。";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"Couldn't install the app for %@. The %@'s platform is %@ and the app includes only the following platforms: %@" = "%@のアプリをインストールできませんでした。%@のプラットフォームは%@ですが、アプリには次のプラットフォームのみが含まれています: %@";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created at" = "作成日時";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Created by" = "作成者";
+
+/* TuistPreviews/PreviewView/PreviewView.swift, TuistProfile/ProfileView.swift */
+"Delete" = "削除";
+
+/* TuistProfile/ProfileView.swift */
+"Delete Account" = "アカウントを削除";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete Preview" = "プレビューを削除";
+
+/* TuistProfile/ProfileView.swift */
+"Delete account" = "アカウントを削除";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Delete preview" = "プレビューを削除";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Details" = "詳細";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Devices" = "デバイス";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Disconnected" = "切断済み";
+
+/* TuistProfile/ProfileView.swift */
+"Email" = "メール";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"Enter a valid HTTPS server URL without credentials, a query, or a fragment." = "認証情報、クエリ、フラグメントを含まない有効なHTTPSサーバーURLを入力してください。";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Error" = "エラー";
+
+/* TuistMenuBar/StatusView.swift */
+"Finished" = "完了";
+
+/* TuistProfile/ProfileView.swift */
+"Get help" = "ヘルプを見る";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"Install latest previews with one click." = "最新のプレビューをワンクリックでインストール。";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installation failed" = "インストールに失敗しました";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@" = "%@ をインストール済み";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installed %@@%@" = "%@ を %@ にインストール済み";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Installing preview" = "プレビューをインストール中";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid callback URL received" = "無効なコールバックURLを受信しました";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Invalid response format" = "無効なレスポンス形式です";
+
+/* TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Launch" = "起動";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"Launching preview" = "プレビューを起動中";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Log out" = "ログアウト";
+
+/* TuistMenuBar/Views/MenuBarView/MenuHeader.swift */
+"Logged out" = "ログアウトしました";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Missing Apple credentials from authorization" = "認証にAppleの認証情報がありません";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsEmptyStateView.swift */
+"No Previews" = "プレビューなし";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No Tuist projects found" = "Tuistプロジェクトが見つかりません";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews found" = "プレビューが見つかりません";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"No previews match your filters" = "フィルターに一致するプレビューはありません";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Ok" = "OK";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Other devices" = "その他のデバイス";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Pin" = "ピン留め";
+
+/* TuistApp/TuistApp.swift, TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews" = "プレビュー";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Previews: %lld" = "プレビュー: %lld";
+
+/* TuistProfile/ProfileView.swift */
+"Privacy Policy" = "プライバシーポリシー";
+
+/* TuistApp/TuistApp.swift */
+"Profile" = "プロフィール";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your previews." = "プルダウンしてプレビューを更新";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Pull down to refresh your projects." = "プルダウンしてプロジェクトを更新";
+
+/* TuistMenuBar/Views/MenuBarView/MenuBarView.swift */
+"Quit Tuist" = "Tuistを終了";
+
+/* TuistMenuBar/StatusView.swift */
+"Ready" = "準備完了";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Release notes" = "リリースノート";
+
+/* TuistNoora/NooraButton.swift, TuistPreviews/PreviewRunButton.swift */
+"Run" = "実行";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Search" = "検索";
+
+/* TuistOnboarding/SelfHostedServerAlert.swift */
+"Self-hosted" = "セルフホスト";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Self-hosted server" = "セルフホストサーバー";
+
+/* TuistErrorHandling/ErrorHandling.swift */
+"Share logs" = "ログを共有";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Sign in" = "サインイン";
+
+/* TuistOnboarding/LogInView.swift */
+"Sign in to access your projects and\ncollaborate with your team" = "プロジェクトにアクセスし、チームと協力するために\nサインインしてください";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift */
+"Sign in to run previews" = "プレビューを実行するにはサインインしてください";
+
+/* TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Apple" = "Appleでサインイン";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with GitHub" = "GitHubでサインイン";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Google" = "Googleでサインイン";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift, TuistOnboarding/SocialButton.swift */
+"Sign in with Tuist" = "Tuistでサインイン";
+
+/* TuistProfile/ProfileView.swift */
+"Sign out" = "サインアウト";
+
+/* TuistMenuBar/Views/DevicesView/DevicesView.swift */
+"Simulators" = "シミュレーター";
+
+/* TuistPreviews/PreviewView/PreviewViewSupportedPlatforms.swift */
+"Supported platforms" = "対応プラットフォーム";
+
+/* TuistProfile/ProfileView.swift */
+"Terms of Service" = "利用規約";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The app preview %@ was not found." = "アプリプレビュー%@が見つかりませんでした。";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The latest preview for %@ was not found. Has any preview been published?" = "%@の最新のプレビューが見つかりませんでした。プレビューが公開されていますか？";
+
+/* TuistMenuBar/Services/DeviceService.swift */
+"The preview %@ does not have a package name set." = "プレビュー%@にパッケージ名が設定されていません。";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"The preview deeplink %@ is invalid." = "プレビューのディープリンク %@ は無効です。";
+
+/* TuistMenuBar/Views/AppPreviews/AppPreviewsViewModel.swift */
+"The server returned a preview page that did not advance. Update your server or try again." = "サーバーが進行しないプレビューページを返しました。サーバーを更新するか、もう一度お試しください。";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support filtering previews by track. Update your self-hosted Tuist server, or select All tracks." = "このサーバーはトラックによるプレビューのフィルタリングをサポートしていません。セルフホスト型 Tuist サーバーを更新するか、「すべてのトラック」を選択してください。";
+
+/* TuistPreviews/PreviewsView/PreviewsViewModel.swift */
+"This server does not support searching previews. Update your self-hosted Tuist server, or clear the search." = "このサーバーはプレビューの検索をサポートしていません。セルフホスト型 Tuist サーバーを更新するか、検索をクリアしてください。";
+
+/* TuistAuthentication/AppServerEnvironmentService.swift */
+"This server doesn't support signing in from the Tuist app. Ask your administrator to update it." = "このサーバーは Tuist アプリからのサインインをサポートしていません。管理者に更新を依頼してください。";
+
+/* TuistMenuBar/Views/DevicesView/DevicesViewModel.swift */
+"To run a preview, you must have a simulator selected." = "プレビューを実行するには、シミュレーターを選択する必要があります。";
+
+/* TuistAuthentication/AuthenticationService.swift */
+"Token exchange failed with status code: %lld" = "ステータスコード %lld でトークン交換に失敗しました";
+
+/* TuistPreviews/PreviewView/PreviewView.swift */
+"Track" = "トラック";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Tracks" = "トラック";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Try a different search or select another track." = "別の検索を試すか、他のトラックを選択してください。";
+
+/* TuistPreviews/PreviewView/PreviewViewCreatedByBadge.swift */
+"Unknown" = "不明";
+
+/* TuistMenuBar/Views/AndroidDeviceRow/AndroidDeviceRow.swift, TuistMenuBar/Views/SimulatorRow/SimulatorRow.swift */
+"Unpin" = "ピン留め解除";
+
+/* TuistPreviews/PreviewsView/PreviewsView.swift */
+"Update your self-hosted Tuist server to select a track." = "トラックを選択するには、セルフホストのTuistサーバーを更新してください。";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/SelfHostedServerAlert.swift */
+"Use the root address of your Tuist server" = "Tuistサーバーのルートアドレスを使用してください";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"Welcome to Tuist" = "Tuistへようこそ";
+
+/* TuistMenuBar/Views/MenuBarLoginView.swift, TuistOnboarding/LogInView.swift */
+"or" = "または";

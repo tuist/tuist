@@ -241,6 +241,68 @@ defmodule TuistWeb.OnceRunsLiveTest do
     assert has_element?(view, "#once-configuration-insights-type-dropdown")
   end
 
+  test "the build Status filter scopes the analytics and is offered on build pages only", %{
+    conn: conn,
+    path: path,
+    organization: organization,
+    project: project
+  } do
+    started_at = DateTime.add(DateTime.utc_now(), -3600, :second)
+
+    {:ok, run} =
+      OnceEvents.upsert_run(%{
+        project_id: project.id,
+        run_id: UUIDv7.generate(),
+        kind: "build",
+        command_display: "once build broken",
+        started_at: started_at
+      })
+
+    {:ok, _} =
+      OnceEvents.finalize_run(run, %{finalization: "finalized", exit_status: 1, wall_ms: 9000, finalized_at: started_at})
+
+    opts = [commands: ["build"]]
+    assert Analytics.summary(project.id, Keyword.put(opts, :status, "success")).average_duration_ms == 2000.0
+    assert Analytics.summary(project.id, Keyword.put(opts, :status, "failure")).average_duration_ms == 9000.0
+    assert Analytics.summary(project.id, opts).total == 4
+
+    {:ok, view, _} = live(conn, path <> "?analytics-build-status=success")
+    render_async(view, 2_000)
+    assert has_element?(view, "#once-analytics-status-dropdown")
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/once/test-runs")
+    refute has_element?(view, "#once-analytics-status-dropdown")
+  end
+
+  test "run broadcasts coalesce into one reload of the listing", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/once/build-runs")
+    render_async(view, 2_000)
+
+    for index <- 1..3 do
+      {:ok, _} =
+        OnceEvents.upsert_run(%{
+          project_id: project.id,
+          run_id: UUIDv7.generate(),
+          kind: "build",
+          command_display: "once build burst#{index}"
+        })
+    end
+
+    # Each start broadcasts, but none of them reloads the page by itself.
+    refute render(view) =~ "burst"
+
+    # The window's single reload brings every run in at once. It is driven
+    # here rather than waiting on the timer.
+    send(view.pid, :refresh)
+    html = render(view)
+    assert html =~ "burst1"
+    assert html =~ "burst3"
+  end
+
   test "the Build Runs listing has no date picker and is not period scoped", %{
     conn: conn,
     path: path,
@@ -317,7 +379,7 @@ defmodule TuistWeb.OnceRunsLiveTest do
     html = render(view)
 
     # Sort by, the control Xcode's Build Runs leads with, offering the same
-    # two columns it does.
+    # duration, run date and failure category.
     assert html =~ "Sort by:"
     assert has_element?(view, "#once-invocations-sort-by")
     assert html =~ "invocations-sort-by=duration"

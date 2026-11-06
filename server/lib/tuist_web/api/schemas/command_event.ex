@@ -11,6 +11,7 @@ defmodule TuistWeb.API.Schemas.CommandEvent do
     description: "A command event.",
     type: :object,
     properties: %{
+      actor: TuistWeb.API.Schemas.ReportActor,
       id: %Schema{
         type: :string,
         format: :uuid,

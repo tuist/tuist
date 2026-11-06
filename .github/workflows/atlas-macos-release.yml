@@ -1,0 +1,127 @@
+name: Atlas macOS Release
+
+on:
+  workflow_call:
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atlas-macos-release
+  cancel-in-progress: false
+
+env:
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  MISE_GITHUB_ATTESTATIONS: "0"
+  MISE_AUTO_INSTALL: "0"
+
+jobs:
+  sign:
+    name: Sign and notarize Atlas
+    # Called only after the native build/test/lint/packaging jobs succeed.
+    # Repeat the trust gate here so no PR caller can receive signing secrets.
+    if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 35
+    environment: atlas-macos-releases
+    outputs:
+      build: ${{ steps.version.outputs.build }}
+    defaults:
+      run:
+        working-directory: atlas-native
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-mobile-macos
+          path: atlas-native/delivery/macos-input
+      - uses: ./.github/actions/mise-install
+        with:
+          working-directory: atlas-native
+          install: 1password-cli
+      - name: Validate the credential-free build and prepare publishing tools
+        run: |
+          ditto -x -k delivery/macos-input/Atlas-macos-unsigned.zip delivery/macos-input
+          bash macos/distribution/validate.sh delivery/macos-input/Atlas.app
+          bash macos/distribution/fetch-sparkle.sh delivery/sparkle-sdk
+      - name: Allocate an epoch build and load the live Atlas feed
+        id: version
+        run: |
+          echo "build=$(date +%s)" >> "$GITHUB_OUTPUT"
+          status=$(curl --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --output delivery/previous-appcast.xml --write-out '%{http_code}' \
+            https://github.com/tuist/tuist/releases/download/atlas-appcast/atlas-appcast.xml)
+          case "$status" in
+            200) /usr/bin/xmllint --noout delivery/previous-appcast.xml ;;
+            404) rm delivery/previous-appcast.xml ;;
+            *) echo "Could not read the live Atlas feed (HTTP $status)" >&2; exit 1 ;;
+          esac
+      # bundle.sh requires the separate Push-enabled Atlas macOS Developer ID
+      # profile documented in macos/distribution/AGENTS.md. Missing/invalid
+      # provisioning fails this job before release artifacts can be uploaded.
+      - name: Provision push, sign, notarize and staple the delivery copy
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          ATLAS_BUILD: ${{ steps.version.outputs.build }}
+        run: mise exec -- bash macos/distribution/bundle.sh delivery/macos-input/Atlas.app delivery/macos-release "$ATLAS_BUILD"
+      - name: Generate the signed Atlas appcast from a disposable archive copy
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          ATLAS_BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          previous=()
+          if [[ -f delivery/previous-appcast.xml ]]; then previous+=(delivery/previous-appcast.xml); fi
+          mise exec -- bash macos/distribution/appcast.sh delivery/sparkle-sdk delivery/macos-release \
+            "$ATLAS_BUILD" delivery/macos-release/atlas-appcast.xml ${previous[@]+"${previous[@]}"}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atlas-macos-release
+          path: |
+            atlas-native/delivery/macos-release/Atlas-macos.zip
+            atlas-native/delivery/macos-release/SHASUMS256.txt
+            atlas-native/delivery/macos-release/atlas-appcast.xml
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish payload before live feed
+    needs: sign
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: atlas-macos-release
+          path: release
+      - name: Publish the immutable notarized update
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: tuist/tuist
+          ATLAS_BUILD: ${{ needs.sign.outputs.build }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          cd release
+          sha256sum --check SHASUMS256.txt
+          # create (not upload --clobber) refuses to replace an existing payload.
+          gh release create "atlas-macos@$ATLAS_BUILD" Atlas-macos.zip SHASUMS256.txt \
+            --target "$SOURCE_COMMIT" --title "Atlas macOS $ATLAS_BUILD" --latest=false \
+            --notes "Atlas for Apple silicon, macOS 14 or later. Source: $SOURCE_COMMIT. Signed with Developer ID and notarized by Apple."
+      - name: Replace the stable Atlas-only Sparkle feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: tuist/tuist
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          if ! gh release view atlas-appcast >/dev/null 2>&1; then
+            gh release create atlas-appcast --target "$SOURCE_COMMIT" --latest=false \
+              --title 'Atlas Sparkle appcast feed' \
+              --notes 'Live signed update feed for Atlas macOS. Not a product release.'
+          fi
+          gh release upload atlas-appcast release/atlas-appcast.xml --clobber

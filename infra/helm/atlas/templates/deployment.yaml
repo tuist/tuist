@@ -1,5 +1,16 @@
 {{- $appSecret := include "atlas.appSecretName" . -}}
 {{- $pgSecret := include "atlas.postgresAppSecret" . -}}
+{{- if ne (toString .Values.env.ATLAS_DEMO_MODE) (toString .Values.demo.enabled) -}}
+{{- fail "Atlas env.ATLAS_DEMO_MODE must match demo.enabled (true or false)" -}}
+{{- end -}}
+{{- if .Values.demo.enabled -}}
+{{- if or .Values.postgres.enabled .Values.tuistServer.enabled .Values.externalSecrets.enabled .Values.clickhouse.enabled .Values.vector.enabled .Values.agentSandboxes.enabled -}}
+{{- fail "Atlas demo must use isolated external PostgreSQL and no managed integrations" -}}
+{{- end -}}
+{{- if or (not .Values.migrationJob.appSecretName) (eq .Values.migrationJob.appSecretName $appSecret) -}}
+{{- fail "Atlas demo requires a separate migrationJob.appSecretName and a read-only application Secret" -}}
+{{- end -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -26,7 +37,12 @@ spec:
         {{- include "atlas.webSelectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "atlas.fullname" . }}
-      automountServiceAccountToken: {{ .Values.agentSandboxes.enabled }}
+      # In-process agents need no Kubernetes API credentials. The optional
+      # Tuist-audience token below is a separate, explicitly projected identity.
+      automountServiceAccountToken: false
+      {{- if .Values.demo.enabled }}
+      enableServiceLinks: false
+      {{- end }}
       {{- if .Values.image.pullSecretName }}
       imagePullSecrets:
         - name: {{ .Values.image.pullSecretName }}
@@ -55,7 +71,11 @@ spec:
               until (echo > /dev/tcp/$PGHOST/$PGPORT) >/dev/null 2>&1; do sleep 2; done
               export DATABASE_URL="ecto://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${PGDATABASE}"
               {{- end }}
+              {{- if .Values.demo.enabled }}
+              exec /app/bin/atlas eval "Atlas.Release.migrate(); Atlas.Release.seed_demo()"
+              {{- else }}
               exec /app/bin/atlas eval "Atlas.Release.migrate"
+              {{- end }}
           env:
             - name: PHX_HOST
               value: {{ .Values.host | quote }}
@@ -93,7 +113,7 @@ spec:
             {{- include "atlas.clickhouseEnv" . | nindent 12 }}
           envFrom:
             - secretRef:
-                name: {{ $appSecret }}
+                name: {{ .Values.migrationJob.appSecretName | default $appSecret }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- end }}
@@ -130,6 +150,12 @@ spec:
               value: {{ .Values.tuistServer.internalUrl | quote }}
             - name: TUIST_SERVER_TOKEN_PATH
               value: {{ printf "%s/token" .Values.tuistServer.tokenMountPath | quote }}
+            {{- end }}
+            {{- with .Values.pulse.upstreams }}
+            # One proxied MCP upstream per Pulse, each reading its own
+            # audience-scoped token from the pulse-token volume below.
+            - name: PULSE_MCP_UPSTREAMS
+              value: {{ $upstreams := list }}{{ range . }}{{ $upstreams = append $upstreams (dict "name" .name "url" .mcpUrl "token_path" (printf "%s/%s" $.Values.pulse.tokenMountPath .name)) }}{{ end }}{{ $upstreams | toJson | quote }}
             {{- end }}
             {{- if .Values.postgres.enabled }}
             - name: PGUSER
@@ -194,14 +220,22 @@ spec:
                 command: ["sh", "-c", "sleep 10"]
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if .Values.tuistServer.enabled }}
+          {{- if or .Values.tuistServer.enabled .Values.pulse.upstreams }}
           volumeMounts:
+            {{- if .Values.tuistServer.enabled }}
             - name: tuist-server-token
               mountPath: {{ .Values.tuistServer.tokenMountPath }}
               readOnly: true
+            {{- end }}
+            {{- if .Values.pulse.upstreams }}
+            - name: pulse-token
+              mountPath: {{ .Values.pulse.tokenMountPath }}
+              readOnly: true
+            {{- end }}
           {{- end }}
-      {{- if .Values.tuistServer.enabled }}
+      {{- if or .Values.tuistServer.enabled .Values.pulse.upstreams }}
       volumes:
+        {{- if .Values.tuistServer.enabled }}
         # Projected ServiceAccount token scoped to the Tuist server audience.
         # The Tuist server verifies it offline against Atlas' pinned JWKS
         # (InternalAtlasAuthPlug); the kubelet rotates the file in place.
@@ -212,4 +246,19 @@ spec:
                   path: token
                   audience: {{ .Values.tuistServer.tokenAudience | quote }}
                   expirationSeconds: {{ .Values.tuistServer.tokenExpirationSeconds }}
+        {{- end }}
+        {{- with .Values.pulse.upstreams }}
+        # Same mechanism for Pulse's MCP endpoints: one token per Pulse, each
+        # with that host as its audience, so a token sent to one Pulse is
+        # never accepted by another (or by the Tuist server).
+        - name: pulse-token
+          projected:
+            sources:
+              {{- range . }}
+              - serviceAccountToken:
+                  path: {{ .name }}
+                  audience: {{ .audience | quote }}
+                  expirationSeconds: {{ $.Values.pulse.tokenExpirationSeconds }}
+              {{- end }}
+        {{- end }}
       {{- end }}

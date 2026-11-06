@@ -1,0 +1,32 @@
+name: App Release Tests
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/app-release*.yml
+      - .github/scripts/app-hotfix-plan*.sh
+      - .github/scripts/app-release.test.sh
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/app-release*.yml
+      - .github/scripts/app-hotfix-plan*.sh
+      - .github/scripts/app-release.test.sh
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked yq jq"
+          cache: "false"
+      - run: bash .github/scripts/app-hotfix-plan.test.sh
+      - run: bash .github/scripts/app-release.test.sh

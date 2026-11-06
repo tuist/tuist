@@ -50,6 +50,7 @@ defmodule Tuist.Kubernetes.Client do
   def patch(path, operations, opts \\ []) when is_binary(path) and is_list(operations) do
     request(:patch, path,
       opts: opts,
+      timeout: opts[:timeout],
       body: JSON.encode!(operations),
       headers: [{"content-type", "application/json-patch+json"}]
     )
@@ -127,6 +128,26 @@ defmodule Tuist.Kubernetes.Client do
     create_audience_token_review(token, @dispatch_audience, opts)
   end
 
+  # Audience the sandboxd DaemonSet's projected SA token carries when it
+  # dials the node WebSocket endpoint. Same single-purpose reasoning as
+  # the dispatch audience: the token validates here and nowhere else.
+  @sandbox_node_audience "tuist-sandboxes"
+
+  def sandbox_node_audience, do: @sandbox_node_audience
+
+  @doc """
+  TokenReview for the sandboxd node connection. Same contract as
+  `create_token_review/2` but validated against the `tuist-sandboxes`
+  audience.
+  """
+  def create_sandbox_node_token_review(token, opts \\ []) when is_binary(token) do
+    create_audience_token_review(token, @sandbox_node_audience, opts)
+  end
+
+  def create_amp_provider_token_review(token, opts \\ []) when is_binary(token) do
+    create_audience_token_review(token, "tuist-amp-orbs", opts)
+  end
+
   # Audience of the token a macOS runner host mints for its own per-machine
   # ServiceAccount to list the cache masters it should prefetch. Distinct from
   # the dispatch audience, which every guest holds a token for: the list carries
@@ -176,7 +197,7 @@ defmodule Tuist.Kubernetes.Client do
         end
 
       {:ok, %{"status" => %{"authenticated" => true, "user" => user}}} ->
-        parse_sa_principal(user)
+        if audience == "tuist-amp-orbs", do: {:error, :unauthenticated}, else: parse_sa_principal(user)
 
       {:ok, %{"status" => %{"authenticated" => false}}} ->
         {:error, :unauthenticated}
@@ -189,6 +210,47 @@ defmodule Tuist.Kubernetes.Client do
 
       {:error, _} = err ->
         err
+    end
+  end
+
+  @doc """
+  TokenReview for a token that must claim `audience`, returning the
+  authenticated user's `username`, `uid`, and `extra` (for a pod-bound
+  ServiceAccount token, `extra` carries the node it was issued on under
+  `authentication.kubernetes.io/node-name`). Unlike `create_token_review/2`,
+  this does not narrow the principal to a ServiceAccount; the caller compares
+  the username itself.
+
+  Returns `{:error, :unauthenticated}` when the token is rejected or does not
+  claim `audience`.
+  """
+  def create_bound_token_review(token, audience, opts \\ []) when is_binary(token) and is_binary(audience) do
+    body =
+      JSON.encode!(%{
+        "apiVersion" => "authentication.k8s.io/v1",
+        "kind" => "TokenReview",
+        "spec" => %{"token" => token, "audiences" => [audience]}
+      })
+
+    case request(:post, "/apis/authentication.k8s.io/v1/tokenreviews",
+           opts: opts,
+           body: body,
+           headers: [{"content-type", "application/json"}],
+           timeout: opts[:timeout]
+         ) do
+      {:ok, %{"status" => %{"authenticated" => true, "user" => %{"username" => username} = user} = status}}
+      when is_binary(username) ->
+        if audience in (status["audiences"] || [audience]) do
+          {:ok, %{username: username, uid: user["uid"], extra: Map.get(user, "extra") || %{}}}
+        else
+          {:error, :unauthenticated}
+        end
+
+      {:ok, %{"status" => _status}} ->
+        {:error, :unauthenticated}
+
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -316,9 +378,42 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
-  Reads a Node. Dispatch uses this to read the cache-master labels
-  tart-kubelet advertises on each macOS host, so it can hand a polling
-  runner a job whose account's cache is already resident there. The
+  GETs a PersistentVolumeClaim by name from `namespace`. Kura capacity reads a
+  replica's data claim to tell a volume a resize will replace from one large
+  enough to keep, which keeps its replica on the node it is bound to. The
+  server SA is granted `persistentvolumeclaims: [get]` in the Kura namespace.
+  """
+  def get_persistent_volume_claim(namespace, name, opts \\ []) when is_binary(namespace) and is_binary(name) do
+    get("/api/v1/namespaces/#{namespace}/persistentvolumeclaims/#{name}", opts)
+  end
+
+  @doc """
+  GETs a PersistentVolume by name. The Kura volume key endpoint reads a
+  volume's CSI driver, node affinity, and claim to decide whether the calling
+  node may open it. The server SA needs `persistentvolumes: [get]`.
+  """
+  def get_persistent_volume(name, opts \\ []) when is_binary(name) do
+    get("/api/v1/persistentvolumes/#{name}", opts)
+  end
+
+  @doc """
+  LISTs PersistentVolumes, which are cluster-scoped. Kura capacity reads them to
+  find node-local volumes no pod requests any more, such as a quarantined
+  replica's retained volume, whose bytes still sit on a cache node's disk. The
+  server SA is granted `persistentvolumes: [list]` by its cluster-reads
+  ClusterRole.
+  """
+  def list_persistent_volumes(opts \\ []) do
+    case request(:get, "/api/v1/persistentvolumes", timeout: opts[:timeout]) do
+      {:ok, %{"items" => items}} -> {:ok, items}
+      {:error, _} = err -> err
+    end
+  end
+
+  @doc """
+  Reads a Node. Dispatch uses this to read the cache-volume labels
+  runner hosts advertise, so it can hand a polling runner a job whose
+  cache volumes are already resident there. The
   server SA is granted `nodes: [get, list]` by the runners-fleet-reader
   ClusterRole.
   """
@@ -348,6 +443,46 @@ defmodule Tuist.Kubernetes.Client do
       body: JSON.encode!(patch_body),
       headers: [{"content-type", "application/strategic-merge-patch+json"}]
     )
+  end
+
+  @doc """
+  Resizes a sandboxd Pod's memory in place through the Pod's `resize`
+  subresource, request and limit together so the Pod keeps its QoS class.
+  The kubelet applies a resize that fits the node at once and defers one
+  that does not until room frees; the scheduler counts the requested size
+  either way, so no runner Pod is placed into memory a pending growth
+  claims. The server SA is granted `pods/resize: [get, patch]` in the
+  sandboxes namespace.
+  """
+  def resize_sandbox_daemon_memory(namespace, name, bytes, opts \\ [])
+      when is_binary(namespace) and is_binary(name) and is_integer(bytes) and bytes > 0 do
+    quantity = Integer.to_string(bytes)
+    resources = %{requests: %{memory: quantity}, limits: %{memory: quantity}}
+    path = "/api/v1/namespaces/#{namespace}/pods/#{name}"
+
+    # Fence delayed requests at the API server too. A timeout can leave a
+    # PATCH in flight after the caller released its database lock; that write
+    # must conflict if a newer resize or Pod replacement has already landed.
+    case request(:get, path, opts: opts, timeout: 5_000) do
+      {:ok, %{"metadata" => %{"resourceVersion" => version, "uid" => uid}}}
+      when is_binary(version) and is_binary(uid) ->
+        request(:patch, path <> "/resize",
+          opts: opts,
+          timeout: 5_000,
+          body:
+            JSON.encode!(%{
+              metadata: %{resourceVersion: version, uid: uid},
+              spec: %{containers: [%{name: "sandboxd", resources: resources}]}
+            }),
+          headers: [{"content-type", "application/strategic-merge-patch+json"}]
+        )
+
+      {:error, reason} ->
+        {:error, reason}
+
+      {:ok, _invalid_pod} ->
+        {:error, :invalid_pod}
+    end
   end
 
   @doc """
@@ -394,6 +529,22 @@ defmodule Tuist.Kubernetes.Client do
          "metadata" => %{"namespace" => namespace, "name" => name}
        }) do
     {:ok, "/api/v1/namespaces/#{namespace}/secrets/#{name}"}
+  end
+
+  defp manifest_path(%{
+         "apiVersion" => "v1",
+         "kind" => "ServiceAccount",
+         "metadata" => %{"namespace" => namespace, "name" => name}
+       }) do
+    {:ok, "/api/v1/namespaces/#{namespace}/serviceaccounts/#{name}"}
+  end
+
+  defp manifest_path(%{
+         "apiVersion" => "apps/v1",
+         "kind" => "Deployment",
+         "metadata" => %{"namespace" => namespace, "name" => name}
+       }) do
+    {:ok, "/apis/apps/v1/namespaces/#{namespace}/deployments/#{name}"}
   end
 
   defp manifest_path(%{"kind" => kind}), do: {:error, "unsupported Kubernetes manifest kind #{kind}"}
@@ -661,10 +812,19 @@ defmodule Tuist.Kubernetes.Client do
   defp format_body(body) when is_binary(body), do: String.slice(body, 0, 500)
   defp format_body(body), do: inspect(body, limit: 20)
 
-  defp parse_sa_principal(%{"username" => "system:serviceaccount:" <> rest, "uid" => uid}) do
+  defp parse_sa_principal(%{"username" => "system:serviceaccount:" <> rest, "uid" => uid} = user) do
     case String.split(rest, ":", parts: 2) do
       [namespace, name] when namespace != "" and name != "" ->
-        {:ok, %{namespace: namespace, name: name, uid: uid}}
+        {:ok,
+         %{
+           namespace: namespace,
+           name: name,
+           uid: uid,
+           node_name: bound_node_name(user),
+           node_uid: bound_extra(user, "node-uid"),
+           pod_uid: bound_extra(user, "pod-uid"),
+           pod_name: bound_extra(user, "pod-name")
+         }}
 
       _ ->
         {:error, :not_service_account}
@@ -672,4 +832,18 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   defp parse_sa_principal(_), do: {:error, :not_service_account}
+
+  # A token projected into a pod carries the node the pod runs on; the
+  # TokenReview reports it under this extra key.
+  defp bound_node_name(%{"extra" => %{"authentication.kubernetes.io/node-name" => [node_name | _]}})
+       when is_binary(node_name), do: node_name
+
+  defp bound_node_name(_user), do: nil
+
+  defp bound_extra(user, key) do
+    case get_in(user, ["extra", "authentication.kubernetes.io/" <> key]) do
+      [value | _] when is_binary(value) -> value
+      _ -> nil
+    end
+  end
 end

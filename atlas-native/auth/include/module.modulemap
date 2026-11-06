@@ -1,0 +1,4 @@
+module AtlasAuthFFI {
+    header "atlas_auth.h"
+    export *
+}

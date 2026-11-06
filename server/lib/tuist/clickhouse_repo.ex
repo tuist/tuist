@@ -11,7 +11,6 @@ defmodule Tuist.ClickHouseRepo do
 
   use Tuist.ClickHouse.ArrayInParams
 
-  alias Tuist.ClickHouse.ReadRoute
   alias Tuist.ClickHouseRetry
 
   # `query/3` and `query!/3` are injected by `Ecto.Adapters.ClickHouse`'s
@@ -33,24 +32,21 @@ defmodule Tuist.ClickHouseRepo do
                  preload: 2,
                  preload: 3
 
-  def all(queryable, opts \\ []),
-    do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(queryable, opts) end) end)
+  def all(queryable, opts \\ []), do: ClickHouseRetry.with_retry(fn -> super(queryable, opts) end)
 
-  def one(queryable, opts \\ []),
-    do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(queryable, opts) end) end)
+  def one(queryable, opts \\ []), do: ClickHouseRetry.with_retry(fn -> super(queryable, opts) end)
 
-  def exists?(queryable, opts \\ []),
-    do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(queryable, opts) end) end)
+  def exists?(queryable, opts \\ []), do: ClickHouseRetry.with_retry(fn -> super(queryable, opts) end)
 
   def preload(structs_or_struct_or_nil, preloads, opts \\ []),
-    do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(structs_or_struct_or_nil, preloads, opts) end) end)
+    do: ClickHouseRetry.with_retry(fn -> super(structs_or_struct_or_nil, preloads, opts) end)
 
   # Ecto.Repo `aggregate/3` is overloaded: third arg is `opts` for `:count`
   # and `field` for `:avg/:max/:min/:sum`. Pass through whatever the caller
   # gives us; super dispatches on the original guarded clauses.
   def aggregate(queryable, type, opts_or_field \\ []),
-    do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(queryable, type, opts_or_field) end) end)
+    do: ClickHouseRetry.with_retry(fn -> super(queryable, type, opts_or_field) end)
 
   def aggregate(queryable, type, field, opts),
-    do: ReadRoute.route(fn -> ClickHouseRetry.with_retry(fn -> super(queryable, type, field, opts) end) end)
+    do: ClickHouseRetry.with_retry(fn -> super(queryable, type, field, opts) end)
 end

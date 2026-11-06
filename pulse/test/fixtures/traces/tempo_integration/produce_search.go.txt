@@ -1,0 +1,108 @@
+package vparquet4
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"sort"
+	"testing"
+
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/tempopb"
+	cv "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	tv "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+)
+
+func TestPulseUnscoped(t *testing.T) {
+	dir := os.Getenv("PULSE_ORACLE_DIR")
+	if dir == "" {
+		t.Fatal("PULSE_ORACLE_DIR required")
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	all := &tempopb.Trace{}
+	var rows []*Trace
+	for i := 1; i <= 6; i++ {
+		r := batch(i, "frontend", "request", 1, 0, uint64(100+i)*1000000000, uint64(100+i)*1000000000+1000000)
+		s := r.ScopeSpans[0].Spans[0]
+		s.Status = &tv.Status{}
+		if i != 2 && i != 6 {
+			r.Resource.Attributes = append(r.Resource.Attributes, value("shared", "resource"))
+		}
+		if i == 2 || i == 3 {
+			s.Attributes = append(s.Attributes, value("shared", "span"))
+		}
+		if i == 4 {
+			s.Attributes = append(s.Attributes, &cv.KeyValue{Key: "shared", Value: &cv.AnyValue{Value: &cv.AnyValue_IntValue{IntValue: 7}}})
+		}
+		if i == 5 {
+			s.Attributes = append(s.Attributes, value("shared", "resource"))
+		}
+		s.Attributes = append(s.Attributes, value("other", "yes"))
+		tr := &tempopb.Trace{ResourceSpans: []*tv.ResourceSpans{r}}
+		all.ResourceSpans = append(all.ResourceSpans, r)
+		row, _ := traceToParquet(&backend.BlockMeta{}, s.TraceId, tr, nil)
+		rows = append(rows, row)
+	}
+	block := makeBackendBlockWithTraces(t, rows)
+	type Case struct {
+		Query      string `json:"query"`
+		Start, End uint32
+		Response   json.RawMessage `json:"response"`
+	}
+	queries := []string{
+		`{ .shared = "resource" }`,
+		`{ .shared = "span" }`,
+		`{ .shared = "resource" && span.other = "yes" }`,
+		`{ .shared = "resource" || span.other = "yes" }`,
+		`{ .shared =~ "resource" }`,
+		`{ .shared != "span" }`,
+		`{ .shared !~ "span" }`,
+		`{ .shared = 7 }`,
+	}
+	cases := []Case{}
+	for _, q := range queries {
+		for _, bounds := range [][2]uint32{{99, 200}, {0, 0}} {
+			q := q + " with (most_recent=true)"
+			response, err := traceql.NewEngine().ExecuteSearch(context.Background(), &tempopb.SearchRequest{Query: q, Start: bounds[0], End: bounds[1], Limit: 100, SpansPerSpanSet: 3}, traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+				return block.Fetch(ctx, req, common.DefaultSearchOptions())
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			response.Metrics = nil
+			for _, tr := range response.Traces {
+				for _, ss := range tr.SpanSets {
+					for _, sp := range ss.Spans {
+						sort.Slice(sp.Attributes, func(i, j int) bool { return sp.Attributes[i].Key < sp.Attributes[j].Key })
+					}
+				}
+			}
+			out, err := (&jsonpb.Marshaler{}).MarshalToString(response)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cases = append(cases, Case{q, bounds[0], bounds[1], json.RawMessage(out)})
+		}
+	}
+	wire, err := proto.Marshal(all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(dir+"/input.protobuf", wire, 0644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := json.MarshalIndent(cases, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(dir+"/oracle.json", append(out, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("cases=%d", len(cases))
+}

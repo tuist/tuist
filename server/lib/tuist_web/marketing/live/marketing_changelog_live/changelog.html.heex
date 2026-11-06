@@ -6,7 +6,7 @@
       <div data-part="filters-bar">
         <div data-part="categories">
           <.link
-            patch={~p"/changelog"}
+            patch={Localization.localized_href(~p"/changelog")}
             data-selected={is_nil(@category)}
             aria-current={if is_nil(@category), do: "page"}
             data-part="category"
@@ -15,7 +15,7 @@
           </.link>
           <.link
             :for={category <- @categories}
-            patch={~p"/changelog?#{%{category: category}}"}
+            patch={Localization.localized_href(~p"/changelog?#{%{category: category}}")}
             data-selected={@category == category}
             aria-current={if @category == category, do: "page"}
             data-part="category"
@@ -32,12 +32,16 @@
           size="large"
           label={@category || dgettext("marketing", "All")}
         >
-          <.dropdown_item value="all" label={dgettext("marketing", "All")} patch={~p"/changelog"} />
+          <.dropdown_item
+            value="all"
+            label={dgettext("marketing", "All")}
+            patch={Localization.localized_href(~p"/changelog")}
+          />
           <.dropdown_item
             :for={category <- @categories}
             value={category}
             label={category}
-            patch={~p"/changelog?#{%{category: category}}"}
+            patch={Localization.localized_href(~p"/changelog?#{%{category: category}}")}
           />
         </.dropdown>
 
@@ -80,7 +84,7 @@
         </div>
         <article data-part="entry" id={entry.id}>
           <h2 data-part="title">
-            <a href={~p"/changelog/#{entry.id}"}>{entry.title}</a>
+            <a href={Localization.localized_href(~p"/changelog/#{entry.id}")}>{entry.title}</a>
           </h2>
           <div :if={not is_nil(entry.pull_request)} data-part="pr">
             <.button

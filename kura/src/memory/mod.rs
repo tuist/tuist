@@ -545,6 +545,31 @@ impl MemoryController {
         }))
     }
 
+    /// Admission for decoding an upload in memory, under the same per-request
+    /// limit as `try_acquire_reapi_materialization`. Write decoding borrows
+    /// the ceiling headroom above a full floor while pressure is normal: the
+    /// permit lives until the upload persists, which the server bounds, unlike
+    /// a response a slow client holds.
+    pub fn try_acquire_reapi_write_decode(
+        &self,
+        requested_bytes: usize,
+    ) -> Result<Option<MemoryPermit>, ()> {
+        if requested_bytes == 0 {
+            return Ok(None);
+        }
+        if requested_bytes > self.reapi_materialization_limit_bytes() {
+            return Err(());
+        }
+        let transient = self.try_reserve_transient_with(
+            requested_bytes as u64,
+            AdmissionClass::Foreground,
+            TransientElasticity::MayBorrowCeilingHeadroom,
+        )?;
+        Ok(Some(MemoryPermit {
+            _transient: transient,
+        }))
+    }
+
     pub fn try_acquire_response_materialization(
         &self,
         content_bytes: usize,
@@ -1692,6 +1717,54 @@ mod tests {
         assert!(elastic.try_resize(0).is_ok());
         assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
         assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+        assert!(held.try_resize(0).is_ok());
+    }
+
+    // A reply's permit outlives its request for as long as the client takes to
+    // read it, so it holds floor memory only and the headroom the request
+    // borrowed goes back with the request, however long the reply is held.
+    #[test]
+    fn a_reply_reservation_holds_floor_memory_only() {
+        let (controller, anon_budget, _) = elastic_controller(None);
+        let mebibyte = 1024 * 1024_u64;
+
+        // The request holds 1 MiB of floor and 3 MiB borrowed above it, and
+        // the floor pool has 1 MiB left.
+        let mut held = controller
+            .try_reserve_foreground_memory(anon_budget - 2 * mebibyte)
+            .unwrap();
+        let mut request = controller.try_reserve_elastic_foreground_memory(0).unwrap();
+        request.try_resize(mebibyte).unwrap();
+        request.try_resize(4 * mebibyte).unwrap();
+        assert_eq!(
+            controller.transient_reserved_bytes(),
+            anon_budget - mebibyte
+        );
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 3 * mebibyte);
+
+        // More than the request's floor bytes and the pool's remainder is
+        // refused, and the request keeps what it held.
+        assert!(request.try_reserve_reply(3 * mebibyte).is_err());
+        assert_eq!(
+            controller.transient_reserved_bytes(),
+            anon_budget - mebibyte
+        );
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 3 * mebibyte);
+
+        let reply = request
+            .try_reserve_reply(2 * mebibyte)
+            .unwrap()
+            .expect("a non-empty reply holds a permit");
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+        drop(request);
+        assert_eq!(controller.elastic_transient_reserved_bytes(), 0);
+        assert_eq!(controller.transient_reserved_bytes(), anon_budget);
+
+        drop(reply);
+        assert_eq!(
+            controller.transient_reserved_bytes(),
+            anon_budget - 2 * mebibyte
+        );
         assert!(held.try_resize(0).is_ok());
     }
 

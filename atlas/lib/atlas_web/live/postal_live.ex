@@ -12,9 +12,12 @@ defmodule AtlasWeb.PostalLive do
   alias Noora.Filter
 
   @page_size 100
+  @refresh_interval :timer.seconds(15)
   @sortable_fields ~w(inserted_at sent_at delivered_at)
 
   def mount(_params, _session, socket) do
+    if connected?(socket), do: Process.send_after(self(), :refresh_letters, @refresh_interval)
+
     {:ok,
      socket
      |> assign(:page_title, gettext("Postal"))
@@ -48,6 +51,11 @@ defmodule AtlasWeb.PostalLive do
      |> assign(:sort_order, sort_order)
      |> assign(:search_form, to_form(%{"query" => query}, as: :search))
      |> load_letters()}
+  end
+
+  def handle_info(:refresh_letters, socket) do
+    Process.send_after(self(), :refresh_letters, @refresh_interval)
+    {:noreply, load_letters(socket)}
   end
 
   def handle_event("search", %{"search" => %{"query" => query}}, socket) do
@@ -302,11 +310,13 @@ defmodule AtlasWeb.PostalLive do
                 </div>
               </:col>
               <:col :let={letter} label={gettext("Status")}>
-                <.badge_cell
-                  label={status_label(letter.status)}
-                  color={status_color(letter.status)}
-                  style="light-fill"
-                />
+                <div id={"postal-letter-status-#{letter.id}"} title={letter.last_error}>
+                  <.badge_cell
+                    label={status_label(letter.status)}
+                    color={status_color(letter.status)}
+                    style="light-fill"
+                  />
+                </div>
               </:col>
               <:col
                 :let={letter}
@@ -344,6 +354,16 @@ defmodule AtlasWeb.PostalLive do
                       phx-value-id={letter.id}
                     >
                       <:left_icon><.cube_send /></:left_icon>
+                    </.dropdown_item>
+                    <.dropdown_item
+                      :if={letter.pingen_letter_id}
+                      id={"postal-letter-check-delivery-#{letter.id}"}
+                      value="check_delivery"
+                      label={gettext("Refresh delivery status")}
+                      on_click="check_letter_delivery"
+                      phx-value-id={letter.id}
+                    >
+                      <:left_icon><.reload /></:left_icon>
                     </.dropdown_item>
                   </.button_dropdown>
                   <.button
@@ -472,7 +492,7 @@ defmodule AtlasWeb.PostalLive do
     socket
     |> assign(:letters, letters)
     |> assign(:letter_count, meta.total_count)
-    |> assign(:letter_delivery_form, to_form(%{"confirmed" => false}, as: "letter_delivery"))
+    |> assign_new(:letter_delivery_form, fn -> to_form(%{"confirmed" => false}, as: "letter_delivery") end)
   end
 
   defp clear_letter_action(socket) do
@@ -570,12 +590,20 @@ defmodule AtlasWeb.PostalLive do
     "#{letter.recipient_name} · #{letter.recipient_postal_code} #{letter.recipient_city}"
   end
 
+  defp status_label("awaiting_signature"), do: gettext("Awaiting signature")
+  defp status_label("collecting_delivery_details"), do: gettext("Preparing delivery")
   defp status_label("awaiting_delivery_confirmation"), do: gettext("Ready to send")
-  defp status_label(status) when status in ["sent", "delivered", "undeliverable"], do: gettext("Sent")
-  defp status_label(_status), do: gettext("Processing")
+  defp status_label("queued"), do: gettext("Queued")
+  defp status_label("sending"), do: gettext("Processing")
+  defp status_label("sent"), do: gettext("Sent")
+  defp status_label("delivered"), do: gettext("Delivered")
+  defp status_label("undeliverable"), do: gettext("Undeliverable")
+  defp status_label("failed"), do: gettext("Failed")
+  defp status_label(_status), do: gettext("Unknown")
 
-  defp status_color("awaiting_delivery_confirmation"), do: "attention"
-  defp status_color(status) when status in ["sent", "delivered", "undeliverable"], do: "success"
+  defp status_color(status) when status in ["awaiting_signature", "awaiting_delivery_confirmation"], do: "attention"
+  defp status_color(status) when status in ["sent", "delivered"], do: "success"
+  defp status_color(status) when status in ["failed", "undeliverable"], do: "destructive"
   defp status_color(_status), do: "neutral"
 
   defp empty_title(""), do: gettext("No letters")
@@ -618,6 +646,7 @@ defmodule AtlasWeb.PostalLive do
   defp letter_document_label(_letter), do: gettext("Open document")
 
   defp letter_action_available?(%Letter{status: "awaiting_delivery_confirmation"}), do: true
+  defp letter_action_available?(%Letter{pingen_letter_id: id}) when is_binary(id), do: true
   defp letter_action_available?(%Letter{}), do: false
 
   defp format_datetime(nil), do: "—"

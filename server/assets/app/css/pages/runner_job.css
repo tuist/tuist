@@ -164,6 +164,8 @@
           & > [data-part="command-label"] {
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+            direction: ltr;
+            unicode-bidi: isolate;
           }
         }
       }
@@ -455,7 +457,8 @@
             box-shadow: var(--noora-border-light-default);
             border-radius: var(--noora-radius-3);
             background: var(--noora-surface-background-primary);
-            padding: var(--noora-spacing-1) var(--noora-spacing-3) var(--noora-spacing-1) var(--noora-spacing-2);
+            padding-inline: var(--noora-spacing-2) var(--noora-spacing-3);
+            padding-block: var(--noora-spacing-1);
             max-width: 100%;
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-medium) var(--noora-font-body-small);
@@ -504,8 +507,8 @@
           }
 
           & [data-part="step-insight-chip"] > [data-part="step-insight-chip-meta"] > span + span {
-            border-left: 1px solid var(--noora-surface-border-primary);
-            padding-left: var(--noora-spacing-2);
+            border-inline-start: 1px solid var(--noora-surface-border-primary);
+            padding-inline-start: var(--noora-spacing-2);
           }
         }
 
@@ -533,8 +536,8 @@
 
             &::before {
               position: absolute;
-              right: -4px;
-              left: -4px;
+              inset-inline-end: -4px;
+              inset-inline-start: -4px;
               background: var(--noora-surface-border-primary);
               height: 1px;
               content: "";
@@ -582,7 +585,7 @@
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
           font-variant-numeric: tabular-nums;
-          text-align: right;
+          text-align: end;
           white-space: nowrap;
 
           @media (max-width: 900px) {
@@ -658,6 +661,9 @@
     padding: var(--noora-spacing-5) var(--noora-spacing-7);
     max-height: 480px;
     overflow: auto;
+    overscroll-behavior-y: contain;
+    direction: ltr;
+    unicode-bidi: isolate;
   }
 
   /* Two attribute selectors so this beats the `display: flex` above —
@@ -671,7 +677,14 @@
     flex-direction: column;
   }
 
-  & [data-part="load-older"] {
+  & [data-part="step-logs-loading"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="load-older"],
+  & [data-part="step-logs-load-earlier"] {
     align-self: center;
     cursor: pointer;
     margin-bottom: var(--noora-spacing-3);
@@ -702,7 +715,7 @@
       font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
       line-height: inherit;
       user-select: none;
-      text-align: right;
+      text-align: end;
     }
 
     & > [data-part="log-ts"] {
@@ -720,6 +733,37 @@
       line-height: inherit;
       white-space: pre-wrap;
       word-break: break-word;
+
+      & .log-annotation-label {
+        font-weight: var(--noora-font-weight-bold);
+      }
+    }
+
+    /* `##[error]` / `##[warning]` / `##[notice]` lines: a tinted row
+       with a coloured "Error:" / "Warning:" / "Notice:" label, as in
+       GitHub's log view. */
+    &[data-annotation="error"] {
+      background: var(--noora-badge-light-fill-destructive-background);
+
+      & .log-annotation-label {
+        color: var(--noora-badge-light-fill-destructive-label);
+      }
+    }
+
+    &[data-annotation="warning"] {
+      background: var(--noora-badge-light-fill-warning-background);
+
+      & .log-annotation-label {
+        color: var(--noora-badge-light-fill-warning-label);
+      }
+    }
+
+    &[data-annotation="notice"] {
+      background: var(--noora-badge-light-fill-information-background);
+
+      & .log-annotation-label {
+        color: var(--noora-badge-light-fill-information-label);
+      }
     }
   }
 
@@ -727,6 +771,11 @@
     padding: var(--noora-spacing-4);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+    & > [data-part="log-empty-link"] {
+      color: var(--noora-link-button-primary-label);
+      text-decoration: underline;
+    }
   }
 
   & [data-part="log-group"] {
@@ -750,7 +799,7 @@
         min-width: 3ch;
         color: var(--noora-surface-label-tertiary);
         user-select: none;
-        text-align: right;
+        text-align: end;
       }
 
       & > [data-part="log-ts"] {
@@ -771,7 +820,7 @@
           flex-shrink: 0;
           align-items: center;
           transition: transform 0.15s ease;
-          margin-right: var(--noora-spacing-2);
+          margin-inline-end: var(--noora-spacing-2);
           color: var(--noora-surface-label-primary);
 
           /* Noora's chevron renders as a 24×24 SVG by default;
@@ -789,6 +838,52 @@
       transform: rotate(90deg);
     }
 
+    /* A composite action's step: status icon, name, and duration, like
+       GitHub's nested step header. A skipped step has no body, so its
+       chevron keeps the column but isn't drawn. */
+    & > [data-part="log-group-summary"] [data-part="log-group-chevron"][data-empty="true"] {
+      visibility: hidden;
+    }
+
+    & > [data-part="log-group-summary"] [data-part="log-action-icon"] {
+      display: inline-flex;
+      flex-shrink: 0;
+      align-items: center;
+      margin-inline-end: var(--noora-spacing-3);
+
+      & svg {
+        width: 1em;
+        height: 1em;
+      }
+
+      &[data-status="success"] {
+        color: var(--noora-icon-success-label);
+      }
+
+      &[data-status="failure"] {
+        color: var(--noora-icon-destructive-label);
+      }
+
+      &[data-status="warning"] {
+        color: var(--noora-icon-warning-label);
+      }
+
+      &[data-status="processing"] {
+        color: var(--noora-surface-label-secondary);
+      }
+    }
+
+    & > [data-part="log-group-summary"] [data-part="log-action-name"] {
+      font-weight: var(--noora-font-weight-medium);
+    }
+
+    & > [data-part="log-group-summary"] [data-part="log-action-duration"] {
+      flex-shrink: 0;
+      margin-inline-start: auto;
+      padding-inline-start: var(--noora-spacing-5);
+      color: var(--noora-surface-label-secondary);
+    }
+
     /* Indent only the message text of group children, not their
        line-number gutter. The gutter stays in the same column as
        its parent's so the user can scan numbers vertically; the
@@ -802,7 +897,7 @@
       > [data-part="log-group"]
       > [data-part="log-group-summary"]
       > [data-part="log-group-label"] {
-      padding-left: var(--noora-spacing-9);
+      padding-inline-start: var(--noora-spacing-9);
     }
   }
 
@@ -982,6 +1077,8 @@
   }
 
   & [data-part="interactive-terminal"] {
+    direction: ltr;
+    unicode-bidi: isolate;
     --runner-terminal-background: light-dark(var(--noora-neutral-light-200), var(--noora-neutral-dark-1200));
     --runner-terminal-text: light-dark(var(--noora-neutral-light-1100), var(--noora-neutral-light-300));
     --runner-terminal-cursor-background: light-dark(var(--noora-neutral-light-1100), var(--noora-neutral-light-300));

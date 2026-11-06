@@ -9,6 +9,7 @@ defmodule TuistWeb.ProjectAutomationLive do
   alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Automations
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.ProjectAutomationsLive
 
   @history_page_size 5
@@ -37,7 +38,8 @@ defmodule TuistWeb.ProjectAutomationLive do
        |> assign(
          :head_title,
          "#{automation.name} · #{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist"
-       )}
+       )
+       |> assign(OpenGraph.og_image_assigns("settings"))}
     else
       _ ->
         raise TuistWeb.Errors.NotFoundError,
@@ -59,6 +61,15 @@ defmodule TuistWeb.ProjectAutomationLive do
   def automation_actions_summary(%{trigger_actions: actions}), do: actions_summary(actions)
 
   def recovery_summary(%{recovery_enabled: false}), do: dgettext("dashboard_projects", "Disabled")
+
+  def recovery_summary(%{recovery_config: %{"condition" => "no_new_matches"} = recovery_config} = automation) do
+    dgettext(
+      "dashboard_projects",
+      "Enabled after %{window} %{without_matches}",
+      window: window_summary(recovery_config),
+      without_matches: ProjectAutomationsLive.without_new_matches_summary(automation.monitor_type)
+    )
+  end
 
   def recovery_summary(%{recovery_config: recovery_config}) do
     dgettext(

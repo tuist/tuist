@@ -1,0 +1,20 @@
+[Unit]
+Description=Amp Orb provider on Tuist Linux sandboxes
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=amp-provider
+EnvironmentFile=/etc/tuist-amp-orbs/provider.env
+ExecStart=/usr/local/bin/amp orb provider /opt/tuist-amp-orbs/dispatch.sh
+Restart=always
+RestartSec=5
+TimeoutStopSec=270
+KillMode=mixed
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

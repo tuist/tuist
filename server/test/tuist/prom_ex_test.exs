@@ -29,6 +29,36 @@ defmodule Tuist.PromExTest do
     end
   end
 
+  describe "control-plane pollers" do
+    @web_only_plugins [
+      Tuist.Accounts.PromExPlugin,
+      Tuist.Projects.PromExPlugin,
+      Tuist.Kura.PromExPlugin,
+      Tuist.Runners.PromExPlugin,
+      Tuist.Kura.Rollouts.PromExPlugin
+    ]
+
+    for mode <- [:processor, :xcresult_processor, :swift_registry_sync] do
+      @mode mode
+      test "are left out in #{@mode} mode" do
+        stub(Tuist.Environment, :mode, fn -> @mode end)
+
+        plugins = Tuist.PromEx.plugins()
+
+        assert Enum.filter(@web_only_plugins, &(&1 in plugins)) == []
+        assert Tuist.Oban.PromExPlugin in plugins
+      end
+    end
+
+    test "run in web mode" do
+      stub(Tuist.Environment, :mode, fn -> :web end)
+
+      plugins = Tuist.PromEx.plugins()
+
+      assert Enum.reject(@web_only_plugins, &(&1 in plugins)) == []
+    end
+  end
+
   defp phoenix_http_metrics do
     {plugin, opts} =
       Enum.find(Tuist.PromEx.plugins(), &match?({PromExPhoenixPlugin, _}, &1))

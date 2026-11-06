@@ -6,6 +6,7 @@ defmodule Tuist.Kura.Workers.AwaitActivationWorkerTest do
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StableEndpoint
   alias Tuist.Kura.Workers.AwaitActivationWorker
   alias Tuist.Repo
 
@@ -13,12 +14,20 @@ defmodule Tuist.Kura.Workers.AwaitActivationWorkerTest do
 
   setup do
     stub(Tuist.Environment, :kura_control_plane?, fn -> true end)
+    stub(StableEndpoint, :await_ready, fn _ -> :done end)
     %{server: %Server{id: UUIDv7.generate()}}
   end
 
   test "checks twice a second within a run, then snoozes, while the instance is coming up", %{server: server} do
     # A snooze alone runs the job again only after Oban's stager and fetch,
     # 2.5 to 3 seconds later on staging, so each run checks on its own clock.
+    # The clock is held still so the run is capped by its check count rather
+    # than by how much of the budget a loaded machine spends on each check.
+    stub(System, :monotonic_time, fn
+      :millisecond -> 0
+      unit -> call_original(System, :monotonic_time, [unit])
+    end)
+
     expect(Reconciler, :activate_when_ready, 14, fn id ->
       assert id == server.id
       {:waiting, %Deployment{inserted_at: DateTime.utc_now()}}
@@ -86,6 +95,40 @@ defmodule Tuist.Kura.Workers.AwaitActivationWorkerTest do
     assert {:ok, %Oban.Job{id: id}} = AwaitActivationWorker.enqueue(server)
     assert id == first.id
     assert Repo.get!(Oban.Job, first.id).state == "executing"
+  end
+
+  test "keeps polling after regional activation until stable routing is ready", %{server: server} do
+    expect(Reconciler, :activate_when_ready, 3, fn _ -> :done end)
+
+    expect(StableEndpoint, :await_ready, 2, fn id ->
+      assert id == server.id
+      :pending
+    end)
+
+    expect(StableEndpoint, :await_ready, fn _ -> :done end)
+
+    assert :ok = perform_job(AwaitActivationWorker, %{"server_id" => server.id})
+  end
+
+  test "does not start a stable API check after regional activation consumed the run budget", %{server: server} do
+    expect(System, :monotonic_time, fn :millisecond -> 0 end)
+    stub(System, :monotonic_time, fn :millisecond -> 10_000 end)
+    expect(Reconciler, :activate_when_ready, fn _ -> :done end)
+    reject(&StableEndpoint.await_ready/1)
+
+    assert {:snooze, 0} = perform_job(AwaitActivationWorker, %{"server_id" => server.id})
+  end
+
+  test "stable readiness polling stops at the original job's stall budget", %{server: server} do
+    expect(Reconciler, :activate_when_ready, fn _ -> :done end)
+    expect(StableEndpoint, :await_ready, fn _ -> :pending end)
+    started_at = DateTime.add(DateTime.utc_now(), -Kura.provisioning_stall_seconds() - 1, :second)
+
+    assert :ok =
+             AwaitActivationWorker.perform(%Oban.Job{
+               args: %{"server_id" => server.id},
+               inserted_at: started_at
+             })
   end
 
   defp orphan(job, attempted_seconds_ago: seconds) do

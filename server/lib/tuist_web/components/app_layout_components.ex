@@ -10,7 +10,10 @@ defmodule TuistWeb.AppLayoutComponents do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
+  alias Tuist.MCP.WebMCP
   alias Tuist.Projects.Project
+  alias TuistWeb.API.BuildEntityResources
+  alias TuistWeb.Helpers.BuildEntityLabels
 
   attr(:selected_project, :map, required: true)
   attr(:selected_account, :map, required: true)
@@ -18,10 +21,13 @@ defmodule TuistWeb.AppLayoutComponents do
   attr(:current_path, :string, required: true)
   attr(:current_user, :map, required: true)
 
+  attr(:previews_available, :boolean, default: false)
+
   def project_sidebar(assigns) do
     ~H"""
     <.sidebar>
       <% overview_path = ~p"/#{@selected_account.name}/#{@selected_project.name}" %>
+      <% entity_resources = BuildEntityResources.for_project(@selected_project) %>
       <.sidebar_item
         label={dgettext("dashboard", "Overview")}
         icon="smart_home"
@@ -48,6 +54,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <.sidebar_group
         :if={
           Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project) or
+            Project.mix_project?(@selected_project) or Project.cargo_project?(@selected_project) or
             once?
         }
         id="sidebar-builds"
@@ -55,7 +62,10 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="versions"
         navigate={builds_root}
         selected={@current_path == builds_root}
-        default_open={String.starts_with?(@current_path, builds_root)}
+        default_open={
+          String.starts_with?(@current_path, builds_root) or
+            Enum.any?(entity_resources, &String.starts_with?(@current_path, overview_path <> &1.path))
+        }
         phx-update="ignore"
       >
         <.sidebar_item
@@ -64,16 +74,29 @@ defmodule TuistWeb.AppLayoutComponents do
           navigate={build_runs_path}
           selected={
             String.starts_with?(@current_path, build_runs_path) or
+              (Project.cargo_project?(@selected_project) and
+                 String.starts_with?(
+                   @current_path,
+                   "/#{@selected_account.name}/#{@selected_project.name}/builds/cargo-builds/"
+                 )) or
               String.starts_with?(
                 @current_path,
                 "/#{@selected_account.name}/#{@selected_project.name}/builds/invocations"
               )
           }
         />
+        <.sidebar_item
+          :for={resource <- entity_resources}
+          label={BuildEntityLabels.plural(resource.system, resource.kind)}
+          icon="subtask"
+          navigate={overview_path <> resource.path}
+          selected={String.starts_with?(@current_path, overview_path <> resource.path)}
+        />
       </.sidebar_group>
       <.sidebar_group
         :if={
           Project.xcode_project?(@selected_project) or Project.bazel_project?(@selected_project) or
+            Project.mix_project?(@selected_project) or Project.cargo_project?(@selected_project) or
             once?
         }
         id="sidebar-tests"
@@ -112,6 +135,33 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
+          :if={
+            (Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project)) and
+              Tuist.FeatureFlags.coverage_enabled?(@selected_account, @selected_project)
+          }
+          label={dgettext("dashboard", "Code Coverage")}
+          icon="umbrella"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/coverage"
+            )
+          }
+        />
+        <.sidebar_item
+          :if={TuistWeb.TestSelectionsLive.enabled?(@selected_account, @selected_project)}
+          label={dgettext("dashboard", "Test Selection")}
+          icon="filter"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-selection"
+            )
+          }
+        />
+        <.sidebar_item
           label={dgettext("dashboard", "Flaky Tests")}
           icon="progress_x"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
@@ -134,7 +184,10 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Project.xcode_project?(@selected_project)}
+          :if={
+            Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project) or
+              Project.cargo_project?(@selected_project) or Project.once_project?(@selected_project)
+          }
           label={dgettext("dashboard", "Shards")}
           icon="stack_2"
           navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/shards"}
@@ -169,6 +222,22 @@ defmodule TuistWeb.AppLayoutComponents do
             ~p"/#{@selected_account.name}/#{@selected_project.name}/once-cache"
           )
         }
+      />
+      <.sidebar_item
+        :if={Project.cargo_project?(@selected_project)}
+        label={dgettext("dashboard", "Cargo Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/cargo-cache"}
+        selected={
+          @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/cargo-cache"
+        }
+      />
+      <.sidebar_item
+        :if={Project.mix_project?(@selected_project)}
+        label={dgettext("dashboard", "Mix Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/mix-cache"}
+        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/mix-cache"}
       />
       <.sidebar_group
         :if={Project.xcode_project?(@selected_project)}
@@ -265,12 +334,16 @@ defmodule TuistWeb.AppLayoutComponents do
         <.sidebar_item
           label={dgettext("dashboard", "Tasks")}
           icon="subtask"
-          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"}
+          navigate={
+            if Enum.any?(entity_resources, &(&1.key == :gradle_tasks)),
+              do: overview_path <> "/builds/gradle/tasks",
+              else: ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"
+          }
           selected={
             String.starts_with?(
               @current_path,
               ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/tasks"
-            )
+            ) or String.starts_with?(@current_path, overview_path <> "/builds/gradle/tasks")
           }
         />
       </.sidebar_group>
@@ -363,7 +436,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        :if={Project.supports_previews?(@selected_project)}
+        :if={Project.supports_previews?(@selected_project) or @previews_available}
         label={dgettext("dashboard", "Previews")}
         icon="devices"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
@@ -414,6 +487,8 @@ defmodule TuistWeb.AppLayoutComponents do
       <% runner_workflows_path = ~p"/#{@selected_account.name}/runners/workflows" %>
       <% runner_jobs_path = ~p"/#{@selected_account.name}/runners/jobs" %>
       <% runner_profiles_path = ~p"/#{@selected_account.name}/runners/profiles" %>
+      <% sandboxes_path = ~p"/#{@selected_account.name}/sandboxes" %>
+      <% sandbox_instances_path = ~p"/#{@selected_account.name}/sandboxes/instances" %>
       <.sidebar_item
         label={dgettext("dashboard", "Projects")}
         icon="folders"
@@ -454,11 +529,31 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
+          :if={Authorization.authorize(:runners_update, @current_user, @selected_account) == :ok}
           label={dgettext("dashboard", "Profiles")}
           icon="category"
           navigate={runner_profiles_path}
           selected={String.starts_with?(@current_path, runner_profiles_path)}
+        />
+      </.sidebar_group>
+      <.sidebar_group
+        :if={
+          FeatureFlags.sandboxes_enabled?(@selected_account) and
+            Authorization.authorize(:sandboxes_read, @current_user, @selected_account) == :ok
+        }
+        id="sidebar-sandboxes"
+        label={dgettext("dashboard_sandboxes", "Sandboxes")}
+        icon="box_model_2"
+        navigate={sandboxes_path}
+        selected={@current_path == sandboxes_path}
+        default_open={String.starts_with?(@current_path, sandboxes_path)}
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={dgettext("dashboard_sandboxes", "Instances")}
+          icon="stack_2"
+          navigate={sandbox_instances_path}
+          selected={String.starts_with?(@current_path, sandboxes_path <> "/")}
         />
       </.sidebar_group>
       <.sidebar_item
@@ -520,6 +615,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% tokens_path = ~p"/#{@selected_account.name}/settings/tokens" %>
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
+      <% ai_path = ~p"/#{@selected_account.name}/settings/ai" %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
@@ -538,13 +634,19 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={integrations_path}
       />
       <.tab_menu_horizontal_item
-        :if={
-          Accounts.organization?(@selected_account) and
-            Authorization.authorize(:account_update, @current_user, @selected_account) == :ok
-        }
+        :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
         label={dgettext("dashboard", "Authentication")}
         selected={String.starts_with?(@current_path, authentication_path)}
         navigate={authentication_path}
+      />
+      <.tab_menu_horizontal_item
+        :if={
+          @selected_account.user_id == @current_user.id and
+            FeatureFlags.ai_enabled?(@current_user)
+        }
+        label={dgettext("dashboard", "AI")}
+        selected={String.starts_with?(@current_path, ai_path)}
+        navigate={ai_path}
       />
     </.tab_menu_horizontal>
     """
@@ -646,9 +748,26 @@ defmodule TuistWeb.AppLayoutComponents do
   attr(:latest_app_release, :map, required: true)
   attr(:title, :string, default: nil)
 
+  attr(:webmcp, :boolean,
+    default: true,
+    doc: "Whether the page registers the selected account's WebMCP tools; pages that are not that account's turn it off."
+  )
+
+  attr(:current_path, :string, default: nil, doc: "The page's path, which picks its WebMCP tools.")
+  attr(:selected_project, :map, default: nil, doc: "The page's project, on project pages.")
+
   def headerbar(assigns) do
     ~H"""
-    <header class="headerbar">
+    <%!-- The WebMCP tools for this page of the account it belongs to; see
+    assets/shared/js/webmcp.mjs. It changes with live navigation, unlike the
+    root layout's endpoint for other pages. --%>
+    <header
+      class="headerbar"
+      data-webmcp-endpoint={
+        @webmcp && @current_user &&
+          webmcp_endpoint(@selected_account, @selected_project, @current_path)
+      }
+    >
       <div data-part="left-section">
         <.link navigate={~p"/#{@selected_account.name}/projects"}>
           <.tuist_mark class="headerbar__logo" aria-label={dgettext("dashboard", "Tuist Icon")} />
@@ -710,6 +829,18 @@ defmodule TuistWeb.AppLayoutComponents do
       </div>
     </header>
     """
+  end
+
+  # Names the page rather than its full path, so the endpoint, and with it the
+  # registered tools, only changes when navigation reaches a different page.
+  defp webmcp_endpoint(account, project, path) do
+    query =
+      Enum.reject(
+        [page: WebMCP.dashboard_page(path, account, project), build_system: project && project.build_system],
+        fn {_key, value} -> is_nil(value) end
+      )
+
+    ~p"/api/webmcp/accounts/#{account.name}?#{query}"
   end
 
   attr(:id, :string, required: true)

@@ -136,14 +136,25 @@ func validate(t *testing.T, validator validation.SchemaValidator, raw []byte) []
 func TestTheCommittedObjectsFitTheTypesAndTheSchema(t *testing.T) {
 	validator := schemaValidator(t)
 	paths, err := filepath.Glob(objectsGlob)
-	if err != nil || len(paths) == 0 {
-		t.Fatalf("no committed RackSwitch objects at %s", objectsGlob)
+	if err != nil {
+		t.Fatal(err)
 	}
+	switches := 0
 	for _, path := range paths {
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
+		var meta struct {
+			Kind string `json:"kind"`
+		}
+		if err := yaml.Unmarshal(raw, &meta); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		if meta.Kind != "RackSwitch" {
+			continue
+		}
+		switches++
 		var rs v1alpha1.RackSwitch
 		if err := yaml.UnmarshalStrict(raw, &rs); err != nil {
 			t.Errorf("%s does not fit the Go types: %v", path, err)
@@ -151,6 +162,9 @@ func TestTheCommittedObjectsFitTheTypesAndTheSchema(t *testing.T) {
 		if errs := validate(t, validator, raw); len(errs) > 0 {
 			t.Errorf("%s does not fit the CRD: %v", path, errs)
 		}
+	}
+	if switches == 0 {
+		t.Fatalf("no committed RackSwitch objects at %s", objectsGlob)
 	}
 }
 

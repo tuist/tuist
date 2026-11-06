@@ -1,10 +1,76 @@
 import Path
 import Testing
 import TuistREAPI
-
+import TuistServer
 @testable import TuistBazelCommand
 
 struct BazelrcFileTests {
+    @Test func remote_execution_is_opt_in_and_survives_cache_migration() throws {
+        let image = "sha-" + String(repeating: "a", count: 40)
+        let capabilities = RemoteExecutionCapabilities(endpoint: "grpcs://execution.example", image: image)
+        let execution = try #require(BazelExecutionConfiguration.parse(capabilities))
+        let contents = BazelrcFile.render(
+            endpoint: GRPCEndpoint(host: "cache.example", explicitPort: nil, isTLS: true),
+            accountHandle: "tuist", projectHandle: "app",
+            credentialHelperPath: try AbsolutePath(validating: "/tmp/helper"), execution: execution
+        )
+        #expect(contents.contains("build --remote_executor=grpcs://execution.example"))
+        #expect(contents.contains("build --remote_timeout=15m"))
+        #expect(contents.contains("build --remote_default_exec_properties=tuist-image=\(image)"))
+        #expect(contents.contains("build --noremote_local_fallback"))
+        let refreshed = try #require(BazelrcFile.replacingRemoteCache(in: contents, with: moved))
+        #expect(refreshed.contains("build --credential_helper=execution.example=/tmp/helper"))
+        #expect(refreshed.contains("build --remote_executor=grpcs://execution.example"))
+        #expect(!rendered().contains("--remote_executor"))
+    }
+
+    @Test func cache_migration_preserves_a_helper_shared_with_the_executor() throws {
+        let existing = rendered() + "build --remote_executor=grpcs://acme-eu-west-1.kura.tuist.dev:8443\n"
+        let refreshed = try #require(BazelrcFile.replacingRemoteCache(in: existing, with: moved))
+        #expect(refreshed.contains("--credential_helper=acme-eu-west-1.kura.tuist.dev="))
+        #expect(refreshed.contains("--credential_helper=acme-ca-east-1.kura.tuist.dev="))
+        #expect(BazelrcFile.replacingRemoteCache(in: refreshed, with: moved) == nil)
+    }
+
+    @Test func rejects_mutable_or_credentialed_execution_configuration() {
+        for (endpoint, image) in [
+            ("https://execution.example", "latest"),
+            ("grpcs://execution.example", "latest"),
+            ("grpcs://user:password@execution.example", "sha-" + String(repeating: "a", count: 40)),
+        ] {
+            #expect(BazelExecutionConfiguration.parse(.init(endpoint: endpoint, image: image)) == nil)
+        }
+    }
+
+    @Test func network_reports_quote_actor_overrides_and_preserve_explicit_suppression() {
+        let endpoint = GRPCEndpoint(host: "bes.example", explicitPort: nil, isTLS: true)
+        let contents = BazelrcFile.renderNetworkTrustedReports(
+            endpoint: endpoint,
+            accountHandle: "acme",
+            projectHandle: "app",
+            actorOverride: "employee-123"
+        )
+        #expect(contents.contains("build --build_metadata=\"TUIST_ACTOR_ID=employee-123\""))
+        #expect(!contents.contains("publish_all_actions"))
+        #expect(!contents.contains("remote_cache"))
+        for invalid in ["", "has spaces", "line\nbreak", String(repeating: "a", count: 129)] {
+            let contents = BazelrcFile.renderNetworkTrustedReports(
+                endpoint: endpoint,
+                accountHandle: "acme",
+                projectHandle: "app",
+                actorOverride: invalid
+            )
+            #expect(contents.contains("build --build_metadata=\"TUIST_ACTOR_ID=\""))
+        }
+        let quoted = BazelrcFile.renderNetworkTrustedReports(
+            endpoint: endpoint,
+            accountHandle: "acme",
+            projectHandle: "app",
+            actorOverride: "employee\"id"
+        )
+        #expect(quoted.contains("TUIST_ACTOR_ID=employee\\\"id"))
+    }
+
     @Test func enables_remote_asset_downloads_with_local_fallback_by_default() throws {
         let contents = BazelrcFile.render(
             endpoint: GRPCEndpoint(host: "acme-eu-west-1.kura.tuist.dev", explicitPort: nil, isTLS: true),

@@ -14,10 +14,10 @@ defmodule Tuist.SCIM do
   when SCIM POSTs an email that already exists globally. Attached users
   receive an email notification so they can audit/leave if unexpected.
 
-  A provisioning request that names a role gets that role. One that does not
-  gets the organization's configured SSO enrollment role, so the setting
-  applies whether a member arrives through the identity provider or by signing
-  in.
+  A provisioning request that names a recognized role gets that role, including
+  explicit downgrades. Without a recognized role, existing members keep their
+  stored role and new memberships get the organization's configured SSO
+  enrollment role.
 
   Groups are synthetic: each organization exposes one group per organization
   role, "Tuist Admins", "Tuist Users", and "Tuist Viewers", which mirror the
@@ -31,8 +31,11 @@ defmodule Tuist.SCIM do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.AgentRegistration
+  alias Tuist.Accounts.Oauth2Identity
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
+  alias Tuist.Accounts.SSOLoginDomainTrust
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserRole
   alias Tuist.Base64
@@ -228,9 +231,12 @@ defmodule Tuist.SCIM do
   Provisions a user from a SCIM `POST /Users` request.
 
   Behavior:
-    * Email matches a member of the calling org → idempotent, role updated if needed.
-    * Email matches a global Tuist user not yet in the org → user is attached and notified.
+    * Email matches a member of the calling org → role updated only when a recognized role is supplied.
+    * Email matches a Tuist user not yet in the org → attached and notified, unless another org's
+      SCIM provisioned the account, which is refused with `{:error, :email_taken}`.
     * Email is unknown → a new Tuist user is created and attached.
+    * Email is unknown and in a reserved domain (another organization's verified login domain, or the operator email domain on tuist.dev) → refused with `{:error, :reserved_email}`.
+    * Email is unknown and in the operator email domain of a self-hosted instance that the org hasn't DNS-verified → refused with an `:email` changeset error.
 
   Attaching pre-existing users keeps SCIM POST idempotent and unblocks IdP-driven
   rollouts where members predate SSO. The notification email gives attached users
@@ -238,7 +244,7 @@ defmodule Tuist.SCIM do
   """
   def provision_user(%Organization{} = organization, attrs) do
     email = attrs |> Map.fetch!(:user_name) |> String.downcase()
-    role = attrs |> Map.get(:role) |> normalize_role(organization)
+    role = attrs |> Map.get(:role) |> normalize_role()
     active = Map.get(attrs, :active, true)
 
     case Repo.transaction(fn -> apply_provision(organization, email, role, active) end) do
@@ -285,7 +291,7 @@ defmodule Tuist.SCIM do
       enqueue_attachment_notification(user, organization)
     end
 
-    :ok = Accounts.add_user_to_organization(user, organization, role: role)
+    :ok = Accounts.add_user_to_organization(user, organization, role: role || enrollment_role(organization))
 
     case update_user_role_if_needed(user, organization, role) do
       {:ok, _} -> user
@@ -308,31 +314,60 @@ defmodule Tuist.SCIM do
 
     case Accounts.get_user_by_email(email) do
       {:ok, %User{} = user} ->
-        {:ok, user, :existing}
+        # An account another organization's SCIM created stays that
+        # organization's: attaching it would let this organization's provider
+        # sign in to it.
+        if user.provisioned_by_organization_id in [nil, organization.id] or
+             Accounts.belongs_to_organization?(user, organization),
+           do: {:ok, user, :existing},
+           else: {:error, :email_taken}
 
       {:error, :not_found} ->
-        # Recorded so the organization's identity provider can link the
-        # account it created without a verified login email domain.
-        case Accounts.create_user(email,
-               confirmed_at: default_confirmed_at(),
-               provisioned_by_organization_id: organization.id
-             ) do
-          {:ok, user} ->
-            {:ok, user, :created}
-
-          {:error, :email_taken} when retry_after_email_taken ->
-            provisionable_user(email, organization, retry_after_email_taken: false)
-
-          {:error, :email_taken} ->
-            {:error, :email_taken}
-
-          {:error, %Ecto.Changeset{} = changeset} ->
-            if email_taken?(changeset), do: {:error, :email_taken}, else: {:error, changeset}
-
-          {:error, reason} ->
-            {:error, reason}
+        cond do
+          operator_email_refused?(organization, email) -> {:error, operator_email_error(%User{}, email)}
+          reserved_email?(email, organization) -> {:error, :reserved_email}
+          true -> create_provisioned_user(email, organization, retry_after_email_taken)
         end
     end
+  end
+
+  defp create_provisioned_user(email, organization, retry_after_email_taken) do
+    # Recorded so the organization's identity provider can link the
+    # account it created without a verified login email domain.
+    case Accounts.create_user(email,
+           confirmed_at: default_confirmed_at(),
+           provisioned_by_organization_id: organization.id
+         ) do
+      {:ok, user} ->
+        {:ok, user, :created}
+
+      {:error, :email_taken} when retry_after_email_taken ->
+        provisionable_user(email, organization, retry_after_email_taken: false)
+
+      {:error, :email_taken} ->
+        {:error, :email_taken}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        if email_taken?(changeset), do: {:error, :email_taken}, else: {:error, changeset}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # An address in the operator domain makes its account a Tuist operator on
+  # self-hosted instances, so an organization's IdP may assign one only after
+  # the organization proved it owns that domain through DNS.
+  defp operator_email_refused?(organization, email) do
+    Accounts.operator_email_address?(email) and
+      not (SSOLoginDomainTrust.trust(organization) == :dns_verified and
+             SSOLoginDomainTrust.email_domain(email) == organization.sso_login_domain)
+  end
+
+  defp operator_email_error(user, email) do
+    user
+    |> Ecto.Changeset.change(email: email)
+    |> Ecto.Changeset.add_error(:email, "is reserved for Tuist operators")
   end
 
   defp email_taken?(%Ecto.Changeset{errors: errors}) do
@@ -345,6 +380,8 @@ defmodule Tuist.SCIM do
   defp default_confirmed_at do
     NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
   end
+
+  defp update_user_role_if_needed(_user, _organization, nil), do: {:ok, :unchanged}
 
   defp update_user_role_if_needed(user, organization, role) do
     case Accounts.get_user_role_in_organization(user, organization) do
@@ -376,16 +413,20 @@ defmodule Tuist.SCIM do
     end
   end
 
+  # Deprovisioning goes through even when the rest of the request is refused,
+  # so an unrelated rejected attribute never keeps someone's access.
   defp apply_attrs(%User{} = user, organization, %{active: false} = attrs) do
-    with {:ok, updated_user} <- apply_attrs(user, organization, Map.delete(attrs, :active)),
-         :ok <- remove_user_role_from_organization(updated_user, organization) do
+    result = apply_attrs(user, organization, Map.delete(attrs, :active))
+    :ok = remove_user_role_from_organization(user, organization)
+
+    with {:ok, updated_user} <- result do
       {:ok, %{updated_user | active: false}}
     end
   end
 
   defp apply_attrs(%User{} = user, organization, attrs) do
     Multi.new()
-    |> maybe_update_email(user, attrs)
+    |> maybe_update_email(user, organization, attrs)
     |> maybe_update_role(user, organization, attrs)
     |> Repo.transaction()
     |> case do
@@ -397,17 +438,78 @@ defmodule Tuist.SCIM do
     end
   end
 
-  defp maybe_update_email(multi, user, %{user_name: new_email}) when is_binary(new_email) do
+  # Renaming an account sends its password resets to the new address, so an
+  # organization may rename only accounts it still manages on its own (see
+  # `managed_only_by?/2`). The new address is unproven until its owner confirms
+  # it.
+  defp maybe_update_email(multi, user, organization, %{user_name: new_email}) when is_binary(new_email) do
     downcased = String.downcase(new_email)
 
     if downcased == user.email do
       multi
     else
-      Multi.update(multi, :email, User.email_changeset(user, %{email: downcased}))
+      Multi.run(multi, :email, fn repo, _changes ->
+        # The row lock makes concurrent SCIM requests for the account check and
+        # rename one at a time. A sign-in that proves the old address while the
+        # rename commits records nothing (`Accounts.record_mailbox_proof/1`
+        # checks the address it proved).
+        locked = repo.one!(from(u in User, where: u.id == ^user.id, lock: "FOR UPDATE"))
+
+        cond do
+          not managed_only_by?(locked, organization) ->
+            {:error, :email_not_managed}
+
+          operator_email_refused?(organization, downcased) ->
+            {:error, operator_email_error(locked, downcased)}
+
+          reserved_email?(downcased, organization) ->
+            {:error, :reserved_email}
+
+          true ->
+            locked
+            |> User.email_changeset(%{email: downcased})
+            |> Ecto.Changeset.put_change(:email_verified_at, nil)
+            |> repo.update()
+        end
+      end)
     end
   end
 
-  defp maybe_update_email(multi, _user, _attrs), do: multi
+  defp maybe_update_email(multi, _user, _organization, _attrs), do: multi
+
+  # Addresses an identity provider never gets to assign: on tuist.dev, the
+  # operator email domain, and a login domain another organization verified,
+  # which that organization's SCIM would attach. On self-hosted instances,
+  # `operator_email_refused?/2` covers the operator domain.
+  defp reserved_email?(email, %Organization{id: organization_id}) do
+    domain = SSOLoginDomainTrust.email_domain(email)
+
+    (Environment.tuist_hosted?() and Accounts.operator_domain_email?(email)) or
+      (is_binary(domain) and
+         Repo.exists?(
+           from(o in Organization,
+             where:
+               o.sso_login_domain == ^domain and not is_nil(o.sso_login_domain_verified_at) and
+                 o.id != ^organization_id
+           )
+         ))
+  end
+
+  # The organization created the account, and nobody has claimed it outside the
+  # organization since: no password, no sign-in identity other than the
+  # organization's own provider, no agent registration, and no other
+  # organization. Someone who proved the address some other way owns the
+  # account even if the organization created it first.
+  defp managed_only_by?(%User{id: user_id} = user, %Organization{id: organization_id} = organization) do
+    organization_identity = {organization.sso_provider, organization.sso_organization_id}
+
+    user.provisioned_by_organization_id == organization_id and not User.password_set?(user) and
+      from(i in Oauth2Identity, where: i.user_id == ^user_id, select: {i.provider, i.provider_organization_id})
+      |> Repo.all()
+      |> Enum.all?(&(&1 == organization_identity)) and
+      not Repo.exists?(from(r in AgentRegistration, where: r.claimed_by_user_id == ^user_id)) and
+      Enum.all?(Accounts.get_user_organization_accounts(user), &(&1.organization.id == organization_id))
+  end
 
   defp maybe_update_role(multi, user, organization, %{role: role}) when role in [:admin, :user, :viewer] do
     Multi.run(multi, :role, fn _repo, _ ->
@@ -521,17 +623,9 @@ defmodule Tuist.SCIM do
     end
   end
 
-  # An identity provider that names a role decides it. One that says nothing, or
-  # names something this server does not recognise, falls back to the role the
-  # organization enrolls SSO members at rather than to `user`, so the setting
-  # governs provisioning the same way it governs signing in.
-  defp normalize_role(role, _organization) when role in [:admin, :user, :viewer], do: role
-
-  defp normalize_role(other, organization) when is_binary(other) do
-    normalize_role_string(other) || enrollment_role(organization)
-  end
-
-  defp normalize_role(_other, organization), do: enrollment_role(organization)
+  defp normalize_role(role) when role in [:admin, :user, :viewer], do: role
+  defp normalize_role(role) when is_binary(role), do: normalize_role_string(role)
+  defp normalize_role(_role), do: nil
 
   defp enrollment_role(%Organization{} = organization) do
     organization |> Accounts.sso_default_role() |> String.to_existing_atom()

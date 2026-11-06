@@ -1,3 +1,29 @@
+## Tags {#tags}
+
+Attach tags when uploading a bundle to distinguish build flavors, environments, or release channels. Bundle tags follow the same convention as Build Insights tags:
+
+```bash
+tuist inspect bundle App.ipa --tags paid production
+```
+
+In CI, you can also set comma-separated tags with `TUIST_BUNDLE_TAGS`:
+
+```bash
+TUIST_BUNDLE_TAGS="paid,production" tuist inspect bundle App.ipa
+```
+
+Explicit `--tags` replace the environment variable's tags. Tags may contain letters, numbers, hyphens, and underscores, with up to 10 tags per bundle and 50 characters per tag. The same options work for Android bundles. `--json` remains local-only and does not upload tags or the bundle.
+
+Tags appear beside bundle names and in bundle details. Use the dashboard's **Tags** filter and enter a tag to include or exclude it in the bundle list. Matching is exact and case-sensitive, even though the filter operators are labelled **contains** and **does not contain**: `paid` does not match `paid-extra`. To filter from the CLI:
+
+```bash
+tuist bundle list --tags paid production
+```
+
+The CLI, API (`?tags=paid,production`), and MCP `list_bundles` tool (`tags: ["paid", "production"]`) return bundles containing **all** specified tags. API uploads accept `bundle.custom_metadata.tags`; list and detail responses return `custom_metadata.tags`. Existing bundles without tags remain available as before. Tags filter the bundle list; they do not change size charts or automatic comparison and threshold baselines.
+
+Existing clients can continue uploading and reading bundles without tags. Updated clients can also read responses from older servers that omit `custom_metadata`. Storing and filtering tags requires a server version that supports bundle tags: older servers ignore upload metadata and reject tag filters. Updated clients omit both upload metadata and tag query parameters when no tags are supplied.
+
 ## Understanding bundle sizes {#understanding-sizes}
 
 For every analyzed bundle, Tuist reports two values:
@@ -9,7 +35,7 @@ Sizes are stored in bytes and displayed using the decimal convention, where 1 MB
 
 ## Continuous integration {#continuous-integration}
 
-To track bundle size over time, analyze the bundle on CI. First, make sure your CI is <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
+To track bundle size over time, analyze the bundle on CI. First, make sure your CI is <.localized_link href="/guides/server/authentication#continuous-integration">authenticated</.localized_link>.
 
 Tuist also needs to know which project to report the bundle to. If you have not connected the project yet, run `tuist init`, or declare the handle yourself:
 
@@ -63,9 +89,9 @@ Once set up, you can see how your bundle size evolves over time:
 ## Pull/merge request comments {#pullmerge-request-comments}
 
 > [!WARNING]
-> **Integration With Git Platform Required**
+> **Git forge integration required**
 >
-> To get automatic pull/merge request comments, integrate your <.localized_link href="/guides/server/accounts-and-projects">Tuist project</.localized_link> with a <.localized_link href="/guides/server/authentication">Git platform</.localized_link>.
+> To get automatic pull/merge request comments, integrate your <.localized_link href="/guides/server/accounts-and-projects">Tuist project</.localized_link> with a <.localized_link href="/guides/integrations/gitforge/github">Git forge</.localized_link>.
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), Tuist will post a comment directly in your pull/merge requests whenever you run `tuist inspect bundle`:
 
@@ -74,15 +100,15 @@ Once your Tuist project is connected with your Git platform such as [GitHub](htt
 ## Size thresholds {#size-thresholds}
 
 > [!WARNING]
-> **Integration With Git Forge Required**
+> **Git forge integration required**
 >
 > To use size thresholds, connect the [Tuist GitHub App](https://github.com/apps/tuist) to your project. You can do this from your project's integrations page.
 
-Size thresholds let you block pull requests when the bundle size increases beyond a configured percentage compared to a baseline branch. When a threshold is violated, Tuist creates a GitHub Check Run on the PR commit, blocking the merge until the size increase is resolved:
+Size thresholds let you block pull requests when the bundle size increases beyond a configured percentage or absolute size compared to a baseline branch. When a threshold is violated, Tuist creates a GitHub Check Run on the PR commit, blocking the merge until the size increase is resolved:
 
 ![PR status check showing bundle size threshold exceeded](/images/guides/features/bundle-size/github-pr-check-status.png)
 
-The check run shows the baseline size, current size, and percentage change. If the increase is intentional, you can accept it directly from the GitHub UI by clicking the **Accept** button:
+The check run shows the baseline size, current size, and change in the configured unit. If the increase is intentional, you can accept it directly from the GitHub UI by clicking the **Accept** button:
 
 ![GitHub check run showing threshold violation](/images/guides/features/bundle-size/github-check-run-threshold.png)
 
@@ -91,6 +117,15 @@ The check run shows the baseline size, current size, and percentage change. If t
 To configure thresholds, go to your project's **Settings > Bundles** tab:
 
 ![Bundle size thresholds settings](/images/guides/features/bundle-size/bundle-size-thresholds.png)
+
+Choose **Install size** or **Download size**, then select a **Threshold type**:
+
+- **Percentage (%)**: limit growth relative to the baseline size. Fractional percentages such as `0.47` are supported. Existing percentage thresholds keep their configured values and behavior.
+- **Absolute size (MB)**: limit growth by a fixed amount, independent of the baseline size. Enter `1.5` to allow up to 1.5 MB of growth. MB uses decimal units: 1 MB = 1,000,000 bytes. Values must resolve to a positive whole number of bytes.
+
+![Absolute bundle size growth threshold configuration](/images/guides/features/bundle-size/absolute-size-threshold.png)
+
+Both types compare against the latest bundle on the configured **Baseline branch** with the same name, the same bundle type (for example `.app` or `.ipa`), and at least one platform in common, so a simulator `.app` is only compared with simulator `.app` uploads. The optional **Bundle name** restricts a rule to that bundle. A check fails only when growth is **more than** the limit; equal growth, unchanged sizes, and decreases pass. Without a matching baseline or a recorded size for the chosen metric, the rule is skipped. A zero-size baseline is supported for absolute limits; percentage limits keep skipping it because percentage growth is undefined.
 
 ### Restricting who can accept {#size-thresholds-approvals}
 

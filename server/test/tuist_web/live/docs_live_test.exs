@@ -7,6 +7,8 @@ defmodule TuistWeb.DocsLiveTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
+  alias Tuist.Docs.CLI
+  alias TuistWeb.Helpers.OpenGraph
 
   setup do
     stub(Req, :get, fn _url, _opts ->
@@ -16,6 +18,139 @@ defmodule TuistWeb.DocsLiveTest do
     stub(Accounts, :tuist_operator?, fn _ -> false end)
 
     :ok
+  end
+
+  describe "preview build-system guides" do
+    test "overview separates artifact types, publication workflows, and running previews", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews")
+
+      for {system, name} <- [{"xcode", "Xcode"}, {"gradle", "Gradle"}, {"bazel", "Bazel"}, {"once", "Once"}] do
+        assert has_element?(
+                 view,
+                 ~s(a[data-part="feature-card"][href="/en/docs/guides/features/previews/#{system}"]),
+                 name
+               )
+      end
+
+      for anchor <- ["what-you-can-preview", "publish-a-preview", "run-a-preview"] do
+        assert has_element?(view, "main ##{anchor}")
+      end
+
+      assert has_element?(view, ~s(main a[href="/en/docs/guides/features/previews/types"]), "Supported types")
+
+      for {client, label} <- [{"cli", "CLI"}, {"macos", "macOS app"}, {"ios", "iPhone app"}] do
+        assert has_element?(
+                 view,
+                 ~s(main a[data-part="feature-card"][href="/en/docs/guides/features/previews/run/#{client}"]),
+                 label
+               )
+      end
+    end
+
+    test "keeps the Once guide accessible through Bazel", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews/bazel")
+
+      assert has_element?(view, "#publish-from-once")
+      assert has_element?(view, ~s(main a[href="/en/docs/guides/features/previews/once"]))
+    end
+
+    test "publication guides link to common recipient guidance instead of repeating it", %{conn: conn} do
+      {:ok, overview, _html} = live(conn, "/en/docs/guides/features/previews")
+
+      for anchor <- ["run-a-preview", "visibility", "tracks", "readme-badge"] do
+        assert has_element?(overview, "main ##{anchor}")
+      end
+
+      for system <- ["xcode", "gradle", "bazel", "once"] do
+        {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews/" <> system)
+
+        for anchor <- ["run-a-preview", "visibility", "tracks", "readme-badge"] do
+          refute has_element?(view, "main ##{anchor}")
+        end
+
+        assert has_element?(view, ~s(main a[href="/en/docs/guides/features/previews#run-a-preview"]))
+      end
+    end
+
+    test "GitHub integration links to the relocated preview comment instructions", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/en/docs/guides/integrations/gitforge/github")
+
+      assert has_element?(
+               view,
+               ~s(main a[href="/en/docs/guides/features/previews/xcode#pullmerge-request-comments"])
+             )
+
+      {:ok, view, _html} = live(conn, "/en/docs/guides/features/previews/xcode")
+      assert has_element?(view, "main #pullmerge-request-comments")
+    end
+
+    test "serves build, type, and recipient guides", %{conn: conn} do
+      for {system, title, command} <- [
+            {"xcode", "Xcode previews", "tuist share App"},
+            {"gradle", "Gradle previews", "./gradlew :app:tuistShareDebug"},
+            {"bazel", "Bazel previews", "--publish --project acme/app"},
+            {"once", "Once previews", "--allow-on-build"},
+            {"types", "Supported preview types", "--executable bin/my-tool"},
+            {"run/cli", "Run previews with the CLI", "tuist run {url} -- --help"},
+            {"run/macos", "Run previews with the macOS app", "brew install --cask tuist/tuist/tuist"},
+            {"run/ios", "Run previews with the iPhone app", "monitorPreviewUpdates"}
+          ] do
+        {:ok, view, html} = live(conn, "/en/docs/guides/features/previews/" <> system)
+        assert has_element?(view, "h1", title)
+        assert html |> Floki.parse_document!() |> Floki.find("main") |> Floki.text() =~ command
+      end
+    end
+  end
+
+  describe "Rust documentation" do
+    test "feature overviews link to Rust guides", %{conn: conn} do
+      for path <- [
+            "/guides/features/build-insights",
+            "/guides/features/test-insights",
+            "/guides/features/test-insights/flaky-tests",
+            "/guides/features/test-sharding"
+          ] do
+        {:ok, view, _html} = live(conn, "/en/docs" <> path)
+        assert has_element?(view, ~s(a[data-part="feature-card"][href="/en/docs#{path}/rust"]), "Rust")
+      end
+    end
+
+    test "Rust feature pages render with a Rust sidebar logo", %{conn: conn} do
+      for {path, heading} <- [
+            {"build-insights/rust", "Rust build insights"},
+            {"test-insights/rust", "Rust test insights"},
+            {"test-insights/flaky-tests/rust", "Rust flaky tests"},
+            {"test-sharding/rust", "Rust test sharding"}
+          ] do
+        {:ok, view, _html} = live(conn, "/en/docs/guides/features/" <> path)
+        assert has_element?(view, "h1", heading)
+
+        assert has_element?(
+                 view,
+                 ~s(a[href="/en/docs/guides/get-started/rust-project"] svg[fill="currentColor"])
+               )
+      end
+    end
+  end
+
+  describe "Once documentation" do
+    test "feature overviews link to served Once guides", %{conn: conn} do
+      for {path, heading} <- [
+            {"cache", "Once cache"},
+            {"build-insights", "Once build insights"},
+            {"test-insights", "Once test insights"},
+            {"test-insights/flaky-tests", "Once flaky tests"},
+            {"test-sharding", "Once test sharding"}
+          ] do
+        {:ok, overview, _html} = live(conn, "/en/docs/guides/features/" <> path)
+        href = "/en/docs/guides/features/#{path}/once"
+        assert has_element?(overview, ~s(a[data-part="feature-card"][href="#{href}"]), "Once")
+
+        {:ok, view, _html} = live(conn, href)
+        assert has_element?(view, "h1", heading)
+        assert has_element?(view, ~s(a[href="/en/docs/guides/get-started/once-project"] svg))
+      end
+    end
   end
 
   describe "docs overview" do
@@ -36,11 +171,93 @@ defmodule TuistWeb.DocsLiveTest do
              )
     end
 
-    test "positions Tuist as build infrastructure for Xcode, Gradle, and Bazel", %{conn: conn} do
+    test "labels the test cards Selection, Flakiness, and Insights", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/en/docs")
+      {:ok, document} = Floki.parse_document(html)
+
+      titles =
+        document
+        |> Floki.find(~s(#tests + p + [data-part="feature-cards"] [data-part="title"]))
+        |> Enum.map(&Floki.text/1)
+
+      assert titles == ["Selection", "Flakiness", "Insights"]
+    end
+
+    test "keeps the markdown overview's test card labels aligned", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/en/docs")
+      {:ok, document} = Floki.parse_document(html)
+      markdown = document |> Floki.find("#docs-page-markdown") |> Floki.text()
+
+      assert markdown =~ "[Selection](/en/docs/guides/features/selective-testing)"
+      assert markdown =~ "[Flakiness](/en/docs/guides/features/test-insights/flaky-tests)"
+      assert markdown =~ "[Insights](/en/docs/guides/features/test-insights)"
+    end
+
+    test "shows the supported build systems on every feature card", %{conn: conn} do
+      {:ok, lv, html} = live(conn, ~p"/en/docs")
+      {:ok, document} = Floki.parse_document(html)
+
+      supported_systems =
+        document
+        |> Floki.find(~s([data-part="feature-card"]))
+        |> Map.new(fn card ->
+          {card |> Floki.attribute("href") |> List.first(),
+           Floki.attribute(card, ~s([data-part="supported-icon"]), "title")}
+        end)
+
+      assert supported_systems == %{
+               "/en/docs/guides/features/cache" => ~w(apple gradle bazel elixir rust once),
+               "/en/docs/guides/features/build-insights" => ~w(apple gradle bazel elixir rust once),
+               "/en/docs/guides/features/selective-testing" => ~w(apple),
+               "/en/docs/guides/features/test-insights/flaky-tests" => ~w(apple gradle bazel elixir rust once),
+               "/en/docs/guides/features/test-insights" => ~w(apple gradle bazel elixir rust once),
+               "/en/docs/guides/features/previews" => ~w(apple android once),
+               "/en/docs/guides/features/runners" => ~w(apple gradle bazel elixir rust once)
+             }
+
+      assert length(Floki.find(document, ~s([data-part="supported-icon"][title="elixir"] svg))) ==
+               5
+
+      assert length(Floki.find(document, ~s([data-part="supported-icon"][title="rust"] svg))) == 5
+
+      once_logo = Floki.parse_fragment!(render_component(&Noora.Icon.brand_once/1, %{}))
+      once_logos = Floki.find(document, ~s([data-part="supported-icon"][title="once"] svg))
+
+      assert Enum.map(once_logos, &Floki.attribute(&1, "path", "d")) ==
+               List.duplicate(Floki.attribute(once_logo, "path", "d"), 6)
+
+      assert has_element?(lv, "#docs-cache-card", "Rust caching is experimental.")
+      assert document |> Floki.find("#docs-page-markdown") |> Floki.text() =~ "Rust caching is experimental."
+    end
+
+    test "introduces compute with runners and colocated cache infrastructure", %{conn: conn} do
+      {:ok, lv, html} = live(conn, ~p"/en/docs")
+
+      assert has_element?(lv, "h2#compute", "Compute")
+      assert has_element?(lv, ~s(#docs-toc a[href="#compute"]), "Compute")
+
+      assert has_element?(
+               lv,
+               ~s(a[data-part="feature-card"][href="/en/docs/guides/features/runners"]),
+               "cache infrastructure colocated next to compute for the best results"
+             )
+
+      {:ok, document} = Floki.parse_document(html)
+      markdown = document |> Floki.find("#docs-page-markdown") |> Floki.text()
+
+      assert markdown =~ "## Compute"
+      assert markdown =~ "[Runners](/en/docs/guides/features/runners)"
+      assert markdown =~ "cache infrastructure colocated next to compute for the best results"
+    end
+
+    test "positions Tuist as build infrastructure including Elixir, Rust, and Once", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/en/docs")
 
       assert has_element?(lv, "h1", "One platform for faster build toolchains")
       assert has_element?(lv, "#learn-more", "Explore Tuist's capabilities")
+      assert render(lv) =~ "Xcode, Gradle, Bazel, Elixir, Rust, and Once projects"
+      {:ok, document} = Floki.parse_document(render(lv))
+      assert document |> Floki.find("#docs-page-markdown") |> Floki.text() =~ "Elixir, Rust, and Once projects"
     end
 
     test "shows a Log in button with return_to when the user is not authenticated", %{
@@ -116,18 +333,100 @@ defmodule TuistWeb.DocsLiveTest do
   end
 
   describe "docs pages" do
+    test "links the cache overview to the Elixir guide", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/en/docs/guides/features/cache")
+      assert has_element?(view, ~s(a[href="/en/docs/guides/features/cache/elixir"]), "Elixir cache")
+    end
+
+    test "links and serves the experimental Rust cache guide", %{conn: conn} do
+      {:ok, overview, _} = live(conn, ~p"/en/docs/guides/features/cache")
+      assert has_element?(overview, ~s(a[href="/en/docs/guides/features/cache/rust"]), "Rust cache")
+
+      {:ok, view, html} = live(conn, ~p"/en/docs/guides/features/cache/rust")
+      markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()
+      assert markdown =~ "tuist cargo build --release"
+      assert markdown =~ "cargo clean"
+      assert markdown =~ "build-script runs"
+      assert markdown =~ "Kura through the Remote Execution API (REAPI)"
+      assert markdown =~ "server-issued cache credentials"
+      assert markdown =~ "a checkout at another path reuses the same entries"
+      refute markdown =~ "Mr. Boxington"
+      refute markdown =~ "protected GitHub"
+      assert has_element?(view, ~s(a[href="/en/docs/guides/get-started/rust-project"]))
+      assert has_element?(view, ~s(a[href="/en/docs/guides/features/cache#restrict-uploads-to-ci"]))
+      assert has_element?(view, ~s(a[href="/en/docs/guides/features/build-insights/rust#cache-measurements"]))
+    end
+
+    test "owns the shared Elixir setup in Get started", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/en/docs/guides/get-started/elixir-project")
+      markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()
+      assert markdown =~ "mix tuist.setup --project account/project"
+      assert markdown =~ "compile and test aliases"
+      assert markdown =~ "enables dependency caching"
+      assert markdown =~ "retries and CI sharding are optional"
+      refute markdown =~ "Code.eval_string"
+      refute markdown =~ "aliases: ["
+      assert has_element?(view, "h2 a#set-up-tuist")
+      assert has_element?(view, ~s(a[href="/en/docs/guides/features/cache/elixir"]))
+    end
+
+    test "feature guides link to shared Elixir setup instead of duplicating aliases", %{conn: conn} do
+      for path <- [
+            "/en/docs/guides/features/build-insights/elixir",
+            "/en/docs/guides/features/test-insights/elixir",
+            "/en/docs/guides/features/test-insights/flaky-tests/elixir",
+            "/en/docs/guides/features/test-sharding/elixir",
+            "/en/docs/guides/install-hex-package"
+          ] do
+        {:ok, view, html} = live(conn, path)
+        markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()
+        assert has_element?(view, ~s(a[href^="/en/docs/guides/get-started/elixir-project"]))
+        refute markdown =~ "aliases: ["
+      end
+    end
+
+    test "serves the Elixir cache guide with setup and safety boundaries", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/en/docs/guides/features/cache/elixir")
+      document = Floki.parse_document!(html)
+      markdown = document |> Floki.find("#docs-page-markdown") |> Floki.text()
+      assert markdown =~ "# Elixir cache"
+      refute markdown =~ "mix tuist.setup"
+      assert markdown =~ "no extra cache setup is needed"
+      refute markdown =~ "Code.eval_string"
+      refute markdown =~ "compile.exs"
+      refute markdown =~ "deps.compile tuist_ex --include-children"
+      assert markdown =~ "cache: true"
+      assert markdown =~ "automatically selects supported Hex and Git dependencies"
+      assert markdown =~ "nimble_options"
+      assert markdown =~ "include secrets"
+      assert markdown =~ "CAS Outputs"
+      refute markdown =~ "deps.loadpaths --no-compile --no-deps-check"
+      assert has_element?(view, ~s(a[href="/en/docs/guides/features/cache/elixir-advanced"]))
+      assert has_element?(view, ~s(a[href="/en/docs/guides/get-started/elixir-project#set-up-tuist"]))
+    end
+
+    test "serves advanced Elixir cache settings separately", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/en/docs/guides/features/cache/elixir-advanced")
+      markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()
+      assert markdown =~ "audited dependency allowlist"
+      assert markdown =~ "Portable reuse does not rewrite"
+      assert markdown =~ "shared REAPI"
+      assert markdown =~ "including secrets"
+      assert markdown =~ "exclude:"
+    end
+
     test "puts the page-owned template variables in a signed image URL", %{conn: conn} do
       {:ok, _live_view, html} = live(conn, ~p"/en/docs/guides/install-tuist")
       {:ok, document} = Floki.parse_document(html)
       [image] = Floki.attribute(document, "meta[property='og:image']", "content")
       uri = URI.parse(image)
-      params = URI.decode_query(uri.query)
+      %{"token" => token} = URI.decode_query(uri.query)
 
       assert uri.path =~ ~r|\A/open-graph-images/[0-9a-f]{64}\.jpg\z|
+      assert {:ok, params} = OpenGraph.verify_image_token(token)
       assert params["template"] == "docs"
       assert params["title"] == "Install Tuist"
       assert params["category"] == "Guides"
-      assert is_binary(params["signature"])
     end
 
     test "marks the page up as a TechArticle alongside its breadcrumbs", %{conn: conn} do
@@ -151,24 +450,141 @@ defmodule TuistWeb.DocsLiveTest do
     end
 
     @tag :locale
-    test "keeps a fallback locale's metadata on the requested locale, not English", %{conn: conn} do
-      # `Docs.get_page/1` serves the English page when a locale has no
-      # translation. The markup must still describe the URL that was requested,
-      # or the page contradicts its own canonical link.
-      {:ok, _live_view, html} = live(conn, "/es/docs/guides/install-tuist")
-      {:ok, document} = Floki.parse_document(html)
+    test "redirects an untranslated article to its English source, preserving the query", %{conn: conn} do
+      page = %{Tuist.Docs.get_page("/en/guides/install-tuist") | slug: "/en/guides/english-only"}
+      stub(CLI, :get_pages, fn -> [page] end)
+      stub(CLI, :get_page, fn slug -> if slug == page.slug, do: page end)
 
-      assert [canonical] = Floki.attribute(document, "link[rel='canonical']", "href")
-      assert canonical == Tuist.Environment.app_url(path: "/es/docs/guides/install-tuist")
+      assert {:error, {:redirect, %{to: "/en/docs/guides/english-only?utm_source=google"}}} =
+               live(conn, "/zh_Hans/docs/guides/english-only?utm_source=google")
+    end
+  end
 
-      assert [markdown_url] = Floki.attribute(document, "link[type='text/markdown']", "href")
-      assert markdown_url == Tuist.Environment.app_url(path: "/es/docs-markdown/guides/install-tuist")
+  describe "documentation language metadata" do
+    @describetag :locale
 
-      tech_article = html |> structured_data() |> Enum.find(&(&1["@type"] == "TechArticle"))
-      assert tech_article["url"] == Tuist.Environment.app_url(path: "/es/docs/guides/install-tuist")
+    test "navigation segments follow the page language rather than the previous session", %{conn: conn} do
+      for {locale, previous_locale, guides, references, resources, builds} <- [
+            {"ka", "en", "სახელმძღვანელოები", "მითითებები", "რესურსები", "ბილდები"},
+            {"en", "ka", "Guides", "References", "Resources", "Builds"}
+          ] do
+        conn = init_test_session(conn, %{locale: previous_locale})
+        {:ok, view, html} = live(conn, "/#{locale}/docs")
+        document = Floki.parse_document!(html)
 
-      breadcrumbs = html |> structured_data() |> Enum.find(&(&1["@type"] == "BreadcrumbList"))
-      refute Enum.any?(breadcrumbs["itemListElement"], &String.contains?(&1["item"], "/en/"))
+        for {tab, label} <- [{"guides", guides}, {"references", references}, {"resources", resources}] do
+          assert document |> Floki.find(~s(#docs-nav-tabs [data-tab="#{tab}"])) |> Floki.text() |> String.trim() == label
+        end
+
+        assert has_element?(view, "h2#builds", builds)
+        assert has_element?(view, "#docs-toc a[href='#builds']", builds)
+      end
+    end
+
+    test "an explicit docs language overrides the signed-in user's preference", %{conn: conn} do
+      user = user_fixture()
+
+      for {locale, preferred_locale, builds} <- [{"en", "ka", "Builds"}, {"ka", "en", "ბილდები"}] do
+        {:ok, user} = Accounts.update_user_preferred_locale(user, preferred_locale)
+        conn = conn |> log_in_user(user) |> get("/#{locale}/docs")
+        document = conn |> html_response(200) |> Floki.parse_document!()
+
+        assert document |> Floki.find("#docs-toc a[href='#builds']") |> Floki.text() |> String.trim() == builds
+
+        {:ok, view, _html} = live(conn)
+        assert has_element?(view, "#docs-toc a[href='#builds']", builds)
+        assert has_element?(view, "h2#builds", builds)
+      end
+    end
+
+    test "non-Latin sidebar sections have distinct collapsible IDs", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/ja/docs")
+      document = Floki.parse_fragment!(render(view))
+      ids = Floki.attribute(document, "#docs-sidebar [phx-hook='NooraCollapsible']", "id")
+
+      assert length(ids) > 1
+      assert Enum.uniq(ids) == ids
+      refute "docs-nav-" in ids
+    end
+
+    test "English-only articles do not advertise fallback pages as translations", %{conn: conn} do
+      page = %{Tuist.Docs.get_page("/en/guides/install-tuist") | slug: "/en/guides/english-only"}
+      stub(CLI, :get_pages, fn -> [page] end)
+      stub(CLI, :get_page, fn slug -> if slug == page.slug, do: page end)
+
+      document =
+        conn
+        |> get("/en/docs/guides/english-only?utm_source=google")
+        |> html_response(200)
+        |> Floki.parse_document!()
+
+      assert Floki.attribute(document, "html", "lang") == ["en"]
+
+      for picker <- ["docs-language-selector", "docs-mobile-nav-language-selector"] do
+        selector = "##{picker} a[data-value='zh_Hans']"
+        assert Floki.attribute(document, selector, "data-glossia-language") == ["zh-Hans"]
+        assert Floki.attribute(document, selector, "href") == ["/zh_Hans/docs/guides/english-only"]
+      end
+
+      alternates = Floki.find(document, "link[hreflang]")
+      assert length(alternates) == 2
+
+      for language <- ["en", "x-default"] do
+        assert Floki.attribute(alternates, "[hreflang='#{language}']", "href") ==
+                 [Tuist.Environment.app_url(path: "/en/docs/guides/english-only")]
+      end
+    end
+
+    test "available translations have reciprocal language links without inventing English pages", %{conn: conn} do
+      # Supply an exact inventory independent of repository translation coverage
+      # through the runtime CLI page provider.
+      page = Tuist.Docs.get_page("/en/guides/install-tuist")
+      pages = for locale <- ["es", "zh_Hans"], do: %{page | slug: "/#{locale}/guides/language-metadata"}
+      stub(CLI, :get_pages, fn -> pages end)
+      stub(CLI, :get_page, fn slug -> Enum.find(pages, &(&1.slug == slug)) end)
+
+      for {locale, language} <- [{"es", "es"}, {"zh_Hans", "zh-Hans"}] do
+        path = "/#{locale}/docs/guides/language-metadata"
+        document = conn |> get(path <> "?utm_source=google") |> html_response(200) |> Floki.parse_document!()
+
+        assert Floki.attribute(document, "html", "lang") == [language]
+
+        assert Floki.attribute(document, "link[rel='canonical']", "href") ==
+                 [Tuist.Environment.app_url(path: path)]
+
+        alternates = Floki.find(document, "link[hreflang]")
+        assert length(alternates) == 2
+
+        for {target_language, target_locale} <- [{"es", "es"}, {"zh-Hans", "zh_Hans"}] do
+          assert Floki.attribute(alternates, "[hreflang='#{target_language}']", "href") ==
+                   [Tuist.Environment.app_url(path: "/#{target_locale}/docs/guides/language-metadata")]
+        end
+      end
+    end
+
+    test "overview alternates remain localized and use an English fallback", %{conn: conn} do
+      for {locale, language} <- [{"en", "en"}, {"zh_Hans", "zh-Hans"}, {"zh_Hant", "zh-Hant"}] do
+        document =
+          conn |> get("/#{locale}/docs?utm_source=google") |> html_response(200) |> Floki.parse_document!()
+
+        assert Floki.attribute(document, "html", "lang") == [language]
+        assert length(Floki.find(document, "link[hreflang]")) == 12
+
+        for picker <- ["docs-language-selector", "docs-mobile-nav-language-selector"],
+            {target_locale, target_language} <- [{"en", "en"}, {"zh_Hans", "zh-Hans"}, {"yue_Hant", "yue-Hant"}] do
+          selector = "##{picker} a[data-value='#{target_locale}']"
+          assert Floki.attribute(document, selector, "data-glossia-language") == [target_language]
+          assert Floki.attribute(document, selector, "href") == ["/#{target_locale}/docs"]
+        end
+
+        assert length(Floki.find(document, "a[data-glossia-language]")) == 22
+
+        assert Floki.attribute(document, "link[hreflang='zh-Hans']", "href") ==
+                 [Tuist.Environment.app_url(path: "/zh_Hans/docs")]
+
+        assert Floki.attribute(document, "link[hreflang='x-default']", "href") ==
+                 [Tuist.Environment.app_url(path: "/en/docs")]
+      end
     end
   end
 

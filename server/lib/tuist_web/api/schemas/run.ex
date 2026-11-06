@@ -27,6 +27,7 @@ defmodule TuistWeb.API.Schemas.Run do
       :ran_at
     ],
     properties: %{
+      actor: TuistWeb.API.Schemas.ReportActor,
       id: %Schema{
         type: :number,
         description: "ID of the run"

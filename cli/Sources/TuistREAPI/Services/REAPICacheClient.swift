@@ -30,10 +30,30 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     private let negotiatedBatchBytes = Mutex<Int64>(maximumBatchBytes)
     private var batchBytes: Int64 { negotiatedBatchBytes.withLock { $0 } }
     private let compression = Mutex((stream: false, batchUpload: false))
+    /// Whether the server splices blobs from chunks cut with the FastCDC parameters `REAPIChunking` uses.
+    private let splicing = Mutex(false)
+    /// Whether the server describes the chunks of a blob it stores as chunks through `SplitBlob`.
+    private let splitting = Mutex(false)
+    /// Large blobs upload as chunks that each fit in a batch, so splicing needs batches of the largest chunk.
+    private var splicesBlobs: Bool {
+        splicing.withLock { $0 } && batchBytes >= Int64(REAPIChunking.maximumChunkBytes)
+    }
+
     private let fileSystem: FileSysteming
-    private let token: @Sendable () async throws -> String
+    private let token: @Sendable () async throws -> String?
     private let guards: TransferGuards
+    private let metadataTimeout: Duration
     private let stats: REAPIStats?
+    private let backpressureRetryPolicy: REAPIBackpressureRetryPolicy
+    private let chunkCacheDirectory: URL?
+    private static let maximumRetries = 2
+    private static let readBackoffBudget: Duration = .seconds(1)
+
+    /// An outer watchdog must cover attempts and waits, not just the per-RPC deadline.
+    /// Include the initial refused RPC before the drain window starts and a bounded wait per retry.
+    public static func metadataReadAllowance(timeout: Duration) -> Duration {
+        timeout * (maximumRetries + 2) + readBackoffBudget * maximumRetries + REAPIDrainRetryLadder.window
+    }
 
     public init(
         endpoint: GRPCEndpoint,
@@ -41,16 +61,32 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         instanceName: String,
         fileSystem: FileSysteming = FileSystem(),
         guards: TransferGuards = .default,
+        metadataTimeout: Duration = .seconds(120),
+        connectionCount: Int = 4,
         stats: REAPIStats? = nil,
-        token: @escaping @Sendable () async throws -> String
+        backpressureRetryPolicy: REAPIBackpressureRetryPolicy? = nil,
+        environment: [String: String] = Environment.current.variables,
+        chunkCacheDirectory: URL? = nil,
+        token: @escaping @Sendable () async throws -> String?
     ) async throws {
+        var guards = guards
+        if let raw = environment["TUIST_CACHE_CONCURRENCY_LIMIT"], let value = Int(raw), value > 0 {
+            if guards.uploadConcurrency == nil { guards.uploadConcurrency = value }
+            if guards.downloadConcurrency == nil { guards.downloadConcurrency = value }
+        }
+        if let value = guards.uploadConcurrency, value <= 0 {
+            throw REAPICacheError.invalidTransferGuards(reason: "uploadConcurrency must be positive, got \(value)")
+        }
         if let value = guards.downloadConcurrency, value <= 0 {
             throw REAPICacheError.invalidTransferGuards(reason: "downloadConcurrency must be positive, got \(value)")
+        }
+        guard connectionCount > 0 else {
+            throw REAPICacheError.invalidTransferGuards(reason: "connectionCount must be positive, got \(connectionCount)")
         }
         var clients: [GRPCClient<HTTP2ClientTransport.Posix>] = []
         var connections: [Task<Void, Error>] = []
         do {
-            for _ in 0 ..< 4 {
+            for _ in 0 ..< connectionCount {
                 let transport = try await REAPITransport.make(endpoint: endpoint, fileSystem: fileSystem)
                 let client = GRPCClient(transport: transport)
                 clients.append(client)
@@ -72,7 +108,10 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         self.token = token
         self.fileSystem = fileSystem
         self.guards = guards
+        self.metadataTimeout = metadataTimeout
         self.stats = stats
+        self.backpressureRetryPolicy = backpressureRetryPolicy ?? .init()
+        self.chunkCacheDirectory = chunkCacheDirectory
     }
 
     deinit {
@@ -84,17 +123,23 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         }
     }
 
-    private func metadata() async throws -> Metadata {
+    private func metadata(presenceLookup: Bool = false) async throws -> Metadata {
         var result = Metadata()
-        result.addString("Bearer \(try await token())", forKey: "authorization")
+        result.addString(REAPI.userAgent, forKey: "user-agent")
+        if let token = try await token() {
+            result.addString("Bearer \(token)", forKey: "authorization")
+        }
         result.addString(accountHandle, forKey: "x-tuist-account-handle")
         result.addString("module", forKey: "x-tuist-artifact-kind")
+        if presenceLookup {
+            result.addString("presence", forKey: "x-tuist-lookup")
+        }
         return result
     }
 
     private var options: CallOptions {
         var options = CallOptions.defaults
-        options.timeout = .seconds(120)
+        options.timeout = metadataTimeout
         return options
     }
 
@@ -134,6 +179,10 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         /// setting this must have validated the value is positive; invalid values are rejected at
         /// the config boundary, not silently clamped.
         public var downloadConcurrency: Int?
+
+        /// Upload slots shared by batch and ByteStream tasks within an upload operation.
+        /// Defaults to 8; explicit values override the environment configuration.
+        public var uploadConcurrency: Int?
 
         public init() {}
 
@@ -244,6 +293,14 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     }
 
     public func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
+        try await actionResult(for: digest, presenceLookup: false)
+    }
+
+    public func containsActionResult(for digest: REAPI.Digest) async throws -> Bool {
+        try await actionResult(for: digest, presenceLookup: true) != nil
+    }
+
+    private func actionResult(for digest: REAPI.Digest, presenceLookup: Bool) async throws -> REAPI.ActionResult? {
         try REAPI.validate(digest)
         do {
             return try await retry {
@@ -253,7 +310,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                             $0.instanceName = instanceName
                             $0.actionDigest = digest
                             $0.digestFunction = .sha256
-                        }, metadata: try await metadata(), options: options
+                        }, metadata: try await metadata(presenceLookup: presenceLookup), options: options
                     )
                 }
             }
@@ -264,7 +321,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     public func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws {
         try REAPI.validate(digest)
-        _ = try await retry {
+        _ = try await retry(uploadBudget: .init(maximumDelay: backpressureRetryPolicy.maximumCumulativeDelay)) {
             try await withClient { client in
                 try await Build_Bazel_Remote_Execution_V2_ActionCache.Client(wrapping: client).updateActionResult(
                     .with {
@@ -290,12 +347,12 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     }
 
     public func validateCapabilities() async throws {
-        var options = options
-        options.timeout = .seconds(10)
-        let response = try await withClient { client in
-            try await Build_Bazel_Remote_Execution_V2_Capabilities.Client(wrapping: client).getCapabilities(
-                .with { $0.instanceName = instanceName }, metadata: try await metadata(), options: options
-            )
+        let response = try await REAPICapabilityNegotiation.run { options in
+            try await withClient { client in
+                try await Build_Bazel_Remote_Execution_V2_Capabilities.Client(wrapping: client).getCapabilities(
+                    .with { $0.instanceName = instanceName }, metadata: try await metadata(), options: options
+                )
+            }
         }
         guard response.hasCacheCapabilities, response.cacheCapabilities.digestFunctions.contains(.sha256) else {
             throw REAPICacheError.unsupportedEndpoint
@@ -308,6 +365,12 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         }
         let advertised = response.cacheCapabilities.maxBatchTotalSizeBytes
         if advertised > 0 { negotiatedBatchBytes.withLock { $0 = min(advertised, Self.maximumBatchBytes) } }
+        let chunking = response.cacheCapabilities.fastCdc2020Params
+        splicing.withLock {
+            $0 = response.cacheCapabilities.spliceBlobSupport && response.cacheCapabilities.hasFastCdc2020Params
+                && chunking.avgChunkSizeBytes == UInt64(REAPIChunking.averageChunkBytes) && chunking.seed == 0
+        }
+        splitting.withLock { $0 = response.cacheCapabilities.splitBlobSupport }
     }
 
     /// Streaming reads resume from the byte they reached, so a deadline-exceeded attempt that
@@ -319,20 +382,53 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     /// three times the load from each client.
     private func retry<T>(
         retryingDeadlineExceeded: Bool = true,
+        uploadBudget: REAPIUploadRetryBudget? = nil,
         _ operation: () async throws -> T
     ) async throws -> T {
         var attempt = 0
         var deadlineAttempts = 0
+        var backpressureAttempts = 0
+        var backpressureDelay: Duration = .zero
+        var drain = REAPIDrainRetryLadder()
         while true {
             do { return try await operation() } catch {
                 if error is CancellationError || Task.isCancelled { throw error }
+                // The refused connection cools in `withClient`, so the retry goes out on another one.
+                if REAPIDrainRetryLadder.isDrainRefusal(error) {
+                    guard let delay = drain.nextDelay() else { throw error }
+                    try await REAPIDrainRetryLadder.timing.sleep(delay)
+                    continue
+                }
+                if let uploadBudget, let rpcError = error as? RPCError, rpcError.code == .resourceExhausted {
+                    guard backpressureAttempts < backpressureRetryPolicy.maximumRetryCount else { throw error }
+                    let delay = backpressureRetryPolicy.delay(for: backpressureAttempts, error: rpcError)
+                    guard uploadBudget.consume(delay) else {
+                        throw RPCError(
+                            code: .resourceExhausted,
+                            message: "\(rpcError.message) (upload admission retry wait budget exhausted)",
+                            metadata: rpcError.metadata,
+                            cause: rpcError
+                        )
+                    }
+                    try await Task.sleep(for: delay)
+                    backpressureAttempts += 1
+                    continue
+                }
                 if (error as? RPCError)?.code == .deadlineExceeded {
                     if !retryingDeadlineExceeded { throw error }
                     deadlineAttempts += 1
                     if deadlineAttempts >= 2 { throw error }
                 }
-                guard attempt < 2, Self.isRetryable(error) else { throw error }
-                try await Task.sleep(for: .milliseconds((1 << attempt) * 200 + Int.random(in: 0 ... 100)))
+                guard attempt < Self.maximumRetries, Self.isRetryable(error) else { throw error }
+                var delay: Duration = .milliseconds((1 << attempt) * 200 + Int.random(in: 0 ... 100))
+                if let rpcError = error as? RPCError, rpcError.code == .resourceExhausted {
+                    if let hinted = REAPIBackpressureRetryPolicy.retryInfoDelay(rpcError) {
+                        delay = max(delay, hinted)
+                    }
+                    guard delay <= Self.readBackoffBudget - backpressureDelay else { throw error }
+                    backpressureDelay += delay
+                }
+                try await Task.sleep(for: delay)
                 attempt += 1
             }
         }
@@ -340,10 +436,28 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     /// A transfer that stalled is tried again like a transient server failure: a write carries the
     /// blob from its first byte, so the attempt it replaces delivered nothing that can be kept.
+    /// `.internalError`, `.unknown` and `.cancelled` are how a stream cut by a proxy, a peer rotating its
+    /// connections, or an ingress answering with a non-gRPC error reaches the client. Every call this wraps is
+    /// idempotent, and `retry` checks for local cancellation before consulting this.
     private static func isRetryable(_ error: any Error) -> Bool {
         if let error = error as? REAPICacheError { if case .transferStalled = error { return true }; return false }
         guard let error = error as? RPCError else { return false }
-        return [.unavailable, .resourceExhausted, .deadlineExceeded].contains(error.code)
+        return [.unavailable, .resourceExhausted, .deadlineExceeded, .internalError, .unknown, .cancelled]
+            .contains(error.code)
+    }
+
+    private static func batchFailure(codes: [Int32]) -> RPCError? {
+        let code: RPCError.Code
+        if codes.contains(8) {
+            code = .resourceExhausted
+        } else if codes.contains(4) {
+            code = .deadlineExceeded
+        } else if codes.contains(14) {
+            code = .unavailable
+        } else {
+            return nil
+        }
+        return RPCError(code: code, message: "Cache batch temporarily rejected")
     }
 
     private func batches(_ digests: [REAPI.Digest]) -> [[REAPI.Digest]] {
@@ -371,16 +485,105 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         for digest in blobs.keys {
             try REAPI.validate(digest)
         }
-        let failures = Mutex<[REAPI.Digest: String]>([:])
+        let operation = UploadOperation(
+            budget: REAPIUploadRetryBudget(maximumDelay: backpressureRetryPolicy.maximumCumulativeDelay),
+            concurrency: guards.uploadConcurrency ?? 8
+        )
+        let (missing, existing) = try await findMissing(Array(blobs.keys), in: operation) { batch, reason in
+            operation.fail(batch, reason: reason)
+            self.stats?.recordFindMissingFailure()
+        }
+        let recipes = try await recipes(for: missing.filter { $0.sizeBytes > batchBytes }, in: blobs, operation: operation)
+        var sources = blobs.mapValues { BlobSource(url: $0) }
+        for (digest, chunks) in recipes {
+            for chunk in chunks where sources[chunk.digest] == nil {
+                sources[chunk.digest] = BlobSource(
+                    url: blobs[digest]!,
+                    range: chunk.offset ..< chunk.offset + chunk.digest.sizeBytes
+                )
+            }
+        }
+        // A chunk whose presence query failed is uploaded anyway: sending it again costs bytes, not correctness.
+        let unknownChunks = Mutex<Set<REAPI.Digest>>([])
+        let chunkDigests = Set(recipes.values.flatMap { $0.map(\.digest) })
+        let (missingChunks, _) = try await findMissing(Array(chunkDigests), in: operation) { batch, _ in
+            unknownChunks.withLock { $0.formUnion(batch) }
+        }
+        let chunks = missingChunks.union(unknownChunks.withLock { $0 })
+        // The largest blobs go first so their chunks, and the splices waiting on them, do not trail the operation.
+        var order: [REAPI.Digest] = []
+        var queued = Set<REAPI.Digest>()
+        for (_, recipe) in recipes.sorted(by: { $0.key.sizeBytes > $1.key.sizeBytes }) {
+            for chunk in recipe where chunks.contains(chunk.digest) && queued.insert(chunk.digest).inserted {
+                order.append(chunk.digest)
+            }
+        }
+        order.append(contentsOf: missing.filter { recipes[$0] == nil && operation.failure(of: $0) == nil })
+        let (uploaded, spliced) = try await uploadAndSplice(order, recipes: recipes, from: sources, in: operation)
+        let available = existing.union(uploaded).union(spliced).filter { blobs[$0] != nil }
+        return REAPIBlobUpload(
+            available: available,
+            failures: operation.failures.filter { blobs[$0.key] != nil && !available.contains($0.key) },
+            uploaded: recipes.isEmpty ? uploaded : nil
+        )
+    }
+
+    /// What one `uploadAvailableBlobs` call shares across its phases.
+    private final class UploadOperation: Sendable {
+        let budget: REAPIUploadRetryBudget
+        let concurrency: Int
+        private let reasons = Mutex<[REAPI.Digest: String]>([:])
+
+        init(budget: REAPIUploadRetryBudget, concurrency: Int) {
+            self.budget = budget
+            self.concurrency = concurrency
+        }
+
+        var failures: [REAPI.Digest: String] { reasons.withLock { $0 } }
+
+        func failure(of digest: REAPI.Digest) -> String? { reasons.withLock { $0[digest] } }
+
+        func fail(_ digests: some Sequence<REAPI.Digest>, reason: String) {
+            reasons.withLock { for digest in digests {
+                $0[digest] = reason
+            } }
+        }
+    }
+
+    /// The bytes of a blob: a whole file, or the range of one that holds a chunk.
+    private struct BlobSource: Sendable {
+        let url: URL
+        var range: Range<Int64>?
+    }
+
+    private func read(_ source: BlobSource) async throws -> Data {
+        guard let range = source.range else {
+            return try await fileSystem.readFile(at: AbsolutePath(validating: source.url.path))
+        }
+        // FileSystem has no ranged reads.
+        let handle = try FileHandle(forReadingFrom: source.url)
+        defer { try? handle.close() }
+        try handle.seek(toOffset: UInt64(range.lowerBound))
+        let data = try handle.read(upToCount: range.count) ?? Data()
+        guard data.count == range.count else { throw REAPICacheError.corruptBlob }
+        return data
+    }
+
+    /// Which of `digests` the cache lacks and which it holds. Digests whose query failed are in neither set and
+    /// are reported to `onFailure`.
+    private func findMissing(
+        _ digests: [REAPI.Digest],
+        in operation: UploadOperation,
+        onFailure: @escaping @Sendable ([REAPI.Digest], String) -> Void
+    ) async throws -> (missing: Set<REAPI.Digest>, present: Set<REAPI.Digest>) {
         // Missing-blob requests contain only digests, so batch by metadata count, not file size.
-        let digests = Array(blobs.keys)
         let queries = stride(from: 0, to: digests.count, by: 1024).map {
             Array(digests[$0 ..< min($0 + 1024, digests.count)])
         }
-        let missingBlobs = Mutex<Set<REAPI.Digest>>([])
-        let existing = try await transfer(queries) { batch in
+        let missing = Mutex<Set<REAPI.Digest>>([])
+        let present = try await transfer(queries, maxConcurrentTasks: operation.concurrency) { batch in
             do {
-                let response = try await self.retry {
+                let response = try await self.retry(uploadBudget: operation.budget) {
                     try await self.withClient { client in
                         try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Client(wrapping: client)
                             .findMissingBlobs(.with {
@@ -388,97 +591,289 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                             }, metadata: try await self.metadata(), options: self.options)
                     }
                 }
-                let missing = Set(response.missingBlobDigests)
-                guard missing.isSubset(of: Set(batch)) else { throw REAPICacheError.invalidDigest }
-                missingBlobs.withLock { $0.formUnion(missing) }
-                return Set(batch).subtracting(missing)
+                let absent = Set(response.missingBlobDigests)
+                guard absent.isSubset(of: Set(batch)) else { throw REAPICacheError.invalidDigest }
+                missing.withLock { $0.formUnion(absent) }
+                return Set(batch).subtracting(absent)
             } catch {
                 if error is CancellationError || Task.isCancelled { throw error }
-                let reason = REAPICall.findMissingBlobs.describeFailure(error)
-                failures.withLock { $0.merge(batch.map { ($0, reason) }) { _, reason in reason } }
-                self.stats?.recordFindMissingFailure()
+                onFailure(batch, REAPICall.findMissingBlobs.describeFailure(error))
                 return []
             }
         }
-        let uploaded = try await transfer(batches(missingBlobs.withLock { Array($0) })) { batch in
-            var successful = Set<REAPI.Digest>()
-            if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
-                do {
-                    try await self.retry { try await self.uploadBlob(digest, from: blobs[digest]!) }
-                    successful.insert(digest)
-                } catch {
-                    if error is CancellationError || Task.isCancelled { throw error }
-                    let reason = REAPICall.byteStreamWrite.describeFailure(error)
-                    failures.withLock { $0[digest] = reason }
+        return (missing.withLock { $0 }, present)
+    }
+
+    /// Cuts each blob a ByteStream write would otherwise carry into chunks that each fit in a batch, so no upload
+    /// request takes longer than a batch however slow the link is. Proxies such as CDNs end a request whose response
+    /// has not started within a fixed time, and a ByteStream write is only answered once its last byte arrives.
+    /// Empty when the server does not splice blobs.
+    private func recipes(
+        for digests: Set<REAPI.Digest>,
+        in blobs: [REAPI.Digest: URL],
+        operation: UploadOperation
+    ) async throws -> [REAPI.Digest: [REAPIChunking.Chunk]] {
+        guard splicesBlobs, !digests.isEmpty else { return [:] }
+        let recipes = Mutex<[REAPI.Digest: [REAPIChunking.Chunk]]>([:])
+        _ = try await transfer(digests.map { [$0] }, maxConcurrentTasks: operation.concurrency) { batch in
+            let digest = batch[0]
+            do {
+                let chunks = try REAPIChunking.chunks(of: blobs[digest]!, digest: digest)
+                if chunks.count <= REAPIChunking.maximumChunks { recipes.withLock { $0[digest] = chunks } }
+            } catch {
+                operation.fail([digest], reason: "The blob could not be read for a chunked upload: \(REAPI.describe(error))")
+            }
+            return []
+        }
+        return recipes.withLock { $0 }
+    }
+
+    private enum SpliceOutcome: Sendable {
+        case spliced, unsupported, evicted, failed
+    }
+
+    /// Splices one blob. A chunk the cache reported present can be evicted before the splice reads it; when
+    /// `evictionIsRetried`, that is reported for the caller to repair instead of as a failure.
+    private func spliceOnce(
+        _ digest: REAPI.Digest,
+        chunks: [REAPIChunking.Chunk],
+        evictionIsRetried: Bool,
+        in operation: UploadOperation
+    ) async throws -> SpliceOutcome {
+        do {
+            try await spliceBlob(digest, chunks: chunks, budget: operation.budget)
+            return .spliced
+        } catch let error as RPCError where error.code == .unimplemented {
+            splicing.withLock { $0 = false }
+            return .unsupported
+        } catch let error as RPCError where evictionIsRetried && [.notFound, .failedPrecondition].contains(error.code) {
+            return .evicted
+        } catch {
+            if error is CancellationError || Task.isCancelled { throw error }
+            operation.fail([digest], reason: REAPICall.spliceBlob.describeFailure(error))
+            return .failed
+        }
+    }
+
+    private enum UploadResult: Sendable {
+        case batch(Set<REAPI.Digest>)
+        case splice(REAPI.Digest, SpliceOutcome)
+    }
+
+    /// Uploads `digests` in batches and splices each recipe as soon as its last missing chunk lands, so the cache
+    /// verifying a splice, which reads the blob back, overlaps the uploads still in flight. Ready splices go ahead of
+    /// queued batches within the same concurrency. A splice that finds chunks evicted uploads them again and is
+    /// retried once, and a server that does not implement splicing gets those blobs whole.
+    private func uploadAndSplice(
+        _ digests: [REAPI.Digest],
+        recipes: [REAPI.Digest: [REAPIChunking.Chunk]],
+        from sources: [REAPI.Digest: BlobSource],
+        in operation: UploadOperation
+    ) async throws -> (uploaded: Set<REAPI.Digest>, spliced: Set<REAPI.Digest>) {
+        let uploading = Set(digests)
+        var pending: [REAPI.Digest: Set<REAPI.Digest>] = [:]
+        var blobsByChunk: [REAPI.Digest: [REAPI.Digest]] = [:]
+        var ready: [REAPI.Digest] = []
+        for (blob, recipe) in recipes {
+            let missing = Set(recipe.map(\.digest)).intersection(uploading)
+            if missing.isEmpty { ready.append(blob) } else { pending[blob] = missing }
+            for chunk in missing {
+                blobsByChunk[chunk, default: []].append(blob)
+            }
+        }
+        var queue = batches(digests)[...]
+        var uploaded = Set<REAPI.Digest>()
+        var spliced = Set<REAPI.Digest>()
+        var evicted: [REAPI.Digest: [REAPIChunking.Chunk]] = [:]
+        var unsupported = Set<REAPI.Digest>()
+        try await withThrowingTaskGroup(of: UploadResult.self) { group in
+            var running = 0
+            while true {
+                while running < operation.concurrency {
+                    if let blob = ready.popLast() {
+                        let recipe = recipes[blob]!
+                        group.addTask {
+                            try await .splice(blob, self.spliceOnce(blob, chunks: recipe, evictionIsRetried: true, in: operation))
+                        }
+                    } else if let batch = queue.popFirst() {
+                        group.addTask { try await .batch(self.uploadBatch(batch, from: sources, in: operation)) }
+                    } else {
+                        break
+                    }
+                    running += 1
                 }
-            } else {
-                var rejections: [REAPI.Digest: String] = [:]
-                var batchFailure: String?
-                do {
-                    try await self.retry {
-                        rejections = [:]
-                        let pending = Set(batch).subtracting(successful)
-                        var requests: [Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.Request] = []
-                        for digest in pending {
-                            let data = try await self.fileSystem.readFile(at: AbsolutePath(validating: blobs[digest]!.path))
-                            let compressed = self.compression.withLock { $0.batchUpload } && data.count >= REAPICompression
-                                .threshold
-                                ? try REAPICompression.compress(data) : data
-                            requests.append(.with {
-                                $0.digest = digest
-                                $0.data = compressed.count < data.count ? compressed : data
-                                $0.compressor = compressed.count < data.count ? .zstd : .identity
-                            })
-                        }
-                        let result = try await self.withClient { client in
-                            try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage
-                                .Client(wrapping: client)
-                                .batchUpdateBlobs(
-                                    .with {
-                                        $0.instanceName = self.instanceName; $0.digestFunction = .sha256
-                                        $0.requests = requests
-                                    },
-                                    metadata: try await self.metadata(),
-                                    options: self.batchOptions(forBytes: requests.reduce(0) { $0 + Int64($1.data.count) })
-                                )
-                        }
-                        successful
-                            .formUnion(result.responses.filter { $0.status.code == 0 && pending.contains($0.digest) }
-                                .map(\.digest))
-                        for response in result.responses where response.status.code != 0 && pending.contains(response.digest) {
-                            rejections[response.digest] = "\(REAPICall.batchUpdateBlobs.rawValue) rejected the blob "
-                                + "with status \(response.status.code): \(response.status.message)"
-                        }
-                        if result.responses.contains(where: { [4, 8, 14].contains($0.status.code) }) {
-                            throw RPCError(code: .resourceExhausted, message: "Cache batch temporarily rejected")
+                guard let result = try await group.next() else { break }
+                running -= 1
+                switch result {
+                case let .batch(successful):
+                    uploaded.formUnion(successful)
+                    for chunk in successful {
+                        for blob in blobsByChunk[chunk] ?? [] {
+                            pending[blob]?.remove(chunk)
+                            if pending[blob]?.isEmpty == true {
+                                pending[blob] = nil
+                                ready.append(blob)
+                            }
                         }
                     }
-                } catch {
-                    if error is CancellationError || Task.isCancelled { throw error }
-                    batchFailure = REAPICall.batchUpdateBlobs.describeFailure(error)
-                }
-                let rejected = Set(batch).subtracting(successful)
-                if batchFailure != nil, !rejected.isEmpty {
-                    self.stats?.recordBatchUploadFailure(digestsLost: rejected.count)
-                }
-                failures.withLock {
-                    for digest in rejected {
-                        $0[digest] = rejections[digest] ?? batchFailure
-                            ?? "\(REAPICall.batchUpdateBlobs.rawValue) returned no status for the blob"
-                    }
+                case let .splice(blob, .spliced): spliced.insert(blob)
+                case let .splice(blob, .unsupported): unsupported.insert(blob)
+                case let .splice(blob, .evicted): evicted[blob] = recipes[blob]
+                case .splice(_, .failed): break
                 }
             }
-            return successful
         }
-        let available = existing.union(uploaded)
-        return REAPIBlobUpload(
-            available: available,
-            failures: failures.withLock { $0 }.filter { !available.contains($0.key) }
-        )
+        for (blob, missing) in pending {
+            operation.fail(
+                [blob],
+                reason: missing.lazy.compactMap { operation.failure(of: $0) }.first
+                    ?? "A chunk of the blob was not uploaded"
+            )
+        }
+        if !evicted.isEmpty {
+            let repairs = evicted
+            let unknown = Mutex<Set<REAPI.Digest>>([])
+            let (missing, _) = try await findMissing(
+                Array(Set(repairs.values.flatMap { $0.map(\.digest) })), in: operation
+            ) { batch, _ in unknown.withLock { $0.formUnion(batch) } }
+            _ = try await upload(missing.union(unknown.withLock { $0 }), from: sources, in: operation)
+            let unserved = Mutex<Set<REAPI.Digest>>([])
+            try await spliced.formUnion(transfer(repairs.keys.map { [$0] }, maxConcurrentTasks: operation.concurrency) { batch in
+                switch try await self.spliceOnce(batch[0], chunks: repairs[batch[0]]!, evictionIsRetried: false, in: operation) {
+                case .spliced: return [batch[0]]
+                case .unsupported: unserved.withLock { _ = $0.insert(batch[0]) }
+                case .evicted, .failed: break
+                }
+                return []
+            })
+            unsupported.formUnion(unserved.withLock { $0 })
+        }
+        if !unsupported.isEmpty {
+            try await spliced.formUnion(upload(unsupported, from: sources, in: operation))
+        }
+        return (uploaded, spliced)
+    }
+
+    private func spliceBlob(
+        _ digest: REAPI.Digest,
+        chunks: [REAPIChunking.Chunk],
+        budget: REAPIUploadRetryBudget
+    ) async throws {
+        let response = try await retry(uploadBudget: budget) {
+            try await withClient { client in
+                try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Client(wrapping: client).spliceBlob(
+                    .with {
+                        $0.instanceName = instanceName
+                        $0.blobDigest = digest
+                        $0.chunkDigests = chunks.map(\.digest)
+                        $0.digestFunction = .sha256
+                        $0.chunkingFunction = .fastCdc2020
+                    }, metadata: try await metadata(), options: options
+                )
+            }
+        }
+        guard response.blobDigest == digest else { throw REAPICacheError.invalidDigest }
+    }
+
+    /// Uploads blobs in batches, and a blob too large for a batch as a ByteStream write. Returns the blobs the cache
+    /// accepted, recording why each other one was not.
+    private func upload(
+        _ digests: Set<REAPI.Digest>,
+        from sources: [REAPI.Digest: BlobSource],
+        in operation: UploadOperation
+    ) async throws -> Set<REAPI.Digest> {
+        try await transfer(batches(Array(digests)), maxConcurrentTasks: operation.concurrency) { batch in
+            try await self.uploadBatch(batch, from: sources, in: operation)
+        }
+    }
+
+    /// Uploads one batch, or one blob too large for a batch as a ByteStream write.
+    private func uploadBatch(
+        _ batch: [REAPI.Digest],
+        from sources: [REAPI.Digest: BlobSource],
+        in operation: UploadOperation
+    ) async throws -> Set<REAPI.Digest> {
+        var successful = Set<REAPI.Digest>()
+        if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
+            do {
+                try await retry(uploadBudget: operation.budget) {
+                    try await self.uploadBlob(digest, from: sources[digest]!.url)
+                }
+                successful.insert(digest)
+            } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+                operation.fail([digest], reason: REAPICall.byteStreamWrite.describeFailure(error))
+            }
+        } else {
+            var rejections: [REAPI.Digest: String] = [:]
+            var batchFailure: String?
+            do {
+                try await retry(uploadBudget: operation.budget) {
+                    rejections = [:]
+                    let pending = Set(batch).subtracting(successful)
+                    var requests: [Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest.Request] = []
+                    for digest in pending {
+                        let data = try await self.read(sources[digest]!)
+                        let compressed = self.compression.withLock { $0.batchUpload } && data.count >= REAPICompression
+                            .threshold
+                            ? try REAPICompression.compress(data) : data
+                        requests.append(.with {
+                            $0.digest = digest
+                            $0.data = compressed.count < data.count ? compressed : data
+                            $0.compressor = compressed.count < data.count ? .zstd : .identity
+                        })
+                    }
+                    let bytes = requests.reduce(0) { $0 + Int64($1.data.count) }
+                    // Chunks carry what a ByteStream write used to, so they keep its allowance for a slow link.
+                    let carriesChunks = pending.contains { sources[$0]!.range != nil }
+                    let result = try await self.withClient { client in
+                        try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage
+                            .Client(wrapping: client)
+                            .batchUpdateBlobs(
+                                .with {
+                                    $0.instanceName = self.instanceName; $0.digestFunction = .sha256
+                                    $0.requests = requests
+                                },
+                                metadata: try await self.metadata(),
+                                options: carriesChunks ? self.options(forBytes: bytes) : self.batchOptions(forBytes: bytes)
+                            )
+                    }
+                    successful
+                        .formUnion(result.responses.filter { $0.status.code == 0 && pending.contains($0.digest) }
+                            .map(\.digest))
+                    for response in result.responses where response.status.code != 0 && pending.contains(response.digest) {
+                        rejections[response.digest] = "\(REAPICall.batchUpdateBlobs.rawValue) rejected the blob "
+                            + "with status \(response.status.code): \(response.status.message)"
+                    }
+                    if let error = Self.batchFailure(codes: result.responses.map(\.status.code)) {
+                        throw error
+                    }
+                }
+            } catch {
+                if error is CancellationError || Task.isCancelled { throw error }
+                batchFailure = REAPICall.batchUpdateBlobs.describeFailure(error)
+            }
+            let rejected = Set(batch).subtracting(successful)
+            if batchFailure != nil, !rejected.isEmpty {
+                stats?.recordBatchUploadFailure(digestsLost: rejected.count)
+            }
+            for digest in rejected {
+                operation.fail(
+                    [digest],
+                    reason: rejections[digest] ?? batchFailure
+                        ?? "\(REAPICall.batchUpdateBlobs.rawValue) returned no status for the blob"
+                )
+            }
+        }
+        return successful
     }
 
     public func downloadAvailableBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> Set<REAPI.Digest> {
         try await downloadAvailableBlobs(blobs, onDownloaded: { _ in })
+    }
+
+    public func downloadBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> REAPIBlobDownload {
+        try await download(blobs, orderedDigests: [], onDownloaded: { _ in })
     }
 
     public func downloadAvailableBlobs(
@@ -486,6 +881,27 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         orderedDigests: [REAPI.Digest] = [],
         onDownloaded: @escaping @Sendable (REAPI.Digest) async throws -> Void
     ) async throws -> Set<REAPI.Digest> {
+        try await download(blobs, orderedDigests: orderedDigests, onDownloaded: onDownloaded).available
+    }
+
+    private static let downloadFailureCodes: Set<Int32> = [1, 2, 4, 7, 8, 12, 13, 14, 16]
+
+    private static func downloadFailure(codes: [Int32]) -> RPCError? {
+        guard let value = codes.first(where: downloadFailureCodes.contains),
+              let status = Status.Code(rawValue: Int(value)), let code = RPCError.Code(status) else { return nil }
+        return RPCError(code: code, message: "Cache download rejected")
+    }
+
+    private static func isDownloadEndpointFailure(_ error: any Error) -> Bool {
+        if let error = error as? RPCError { return downloadFailureCodes.contains(Int32(error.code.rawValue)) }
+        return (error as? REAPICacheError) == .transferStalled || (error as? REAPICacheError) == .proxyConnectionFailed
+    }
+
+    private func download(
+        _ blobs: [REAPI.Digest: URL], orderedDigests: [REAPI.Digest],
+        onDownloaded: @escaping @Sendable (REAPI.Digest) async throws -> Void
+    ) async throws -> REAPIBlobDownload {
+        let failures = Mutex(Set<REAPI.Digest>())
         for digest in blobs.keys {
             try REAPI.validate(digest)
         }
@@ -504,11 +920,16 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         ordered.append(contentsOf: blobs.keys.filter { !seen.contains($0) })
         let usesStreams = blobs.keys.contains { $0.sizeBytes > batchBytes }
         let maxConcurrentTasks = guards.downloadConcurrency ?? (usesStreams ? 8 : 32)
-        return try await synthesized.union(transfer(batches(ordered), maxConcurrentTasks: maxConcurrentTasks) { batch in
+        // Every read request takes one of these, so a split read's chunk batches and the other transfers share the
+        // download's limit instead of a split read adding requests on top of the transfer slots.
+        let requests = Permits(maxConcurrentTasks)
+        let available = try await synthesized.union(transfer(batches(ordered), maxConcurrentTasks: maxConcurrentTasks) { batch in
             if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
                 // `downloadBlob` resumes from the byte it reached, which subsumes a restart from zero.
                 do {
-                    try await self.downloadBlob(digest, to: blobs[digest]!)
+                    if try await !self.downloadSplitBlob(digest, to: blobs[digest]!, permits: requests) {
+                        try await requests.run { try await self.downloadBlob(digest, to: blobs[digest]!) }
+                    }
                 } catch let error as RPCError where error.code == .notFound {
                     // A legitimate server-reported miss, equivalent to a `NOT_FOUND` status in
                     // the batch response. Not a network loss; do not count it in stats so the
@@ -517,6 +938,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 } catch {
                     if error is CancellationError || Task.isCancelled { throw error }
                     self.stats?.recordStreamDownloadFailure(digestsLost: 1)
+                    if Self.isDownloadEndpointFailure(error) { failures.withLock { _ = $0.insert(digest) } }
                     return []
                 }
                 // `onDownloaded` lives outside the counted block: a local-admission failure here
@@ -531,8 +953,11 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 return [digest]
             }
             var successful = Set<REAPI.Digest>()
+            var endpointFailures = Set<REAPI.Digest>()
+            var receivedResponse = false
             do {
-                try await self.retry {
+                try await requests.run { try await self.retry {
+                    receivedResponse = false
                     let pending = batch.filter { !successful.contains($0) }
                     let response = try await self.withClient { client in
                         try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage
@@ -548,6 +973,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                                 options: self.batchOptions(forBytes: pending.reduce(0) { $0 + $1.sizeBytes })
                             )
                     }
+                    receivedResponse = true
                     for output in response.responses where output.status.code == 0 {
                         guard batch.contains(output.digest), !successful.contains(output.digest),
                               let path = blobs[output.digest] else { continue }
@@ -575,17 +1001,29 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                             if error is CancellationError || Task.isCancelled { throw error }
                         }
                     }
-                    if response.responses.contains(where: { [4, 8, 14].contains($0.status.code) }) {
-                        throw RPCError(code: .resourceExhausted, message: "Cache batch temporarily rejected")
+                    endpointFailures = Set(response.responses.filter {
+                        pending.contains($0.digest) && Self.downloadFailureCodes.contains($0.status.code)
+                    }.map(\.digest))
+                    if let error = Self
+                        .downloadFailure(codes: response.responses.filter { pending.contains($0.digest) }.map(\.status.code))
+                    {
+                        throw error
                     }
-                }
+                } }
             } catch {
                 if error is CancellationError || Task.isCancelled { throw error }
-                let lost = Set(batch).subtracting(successful).count
-                if lost > 0 { self.stats?.recordBatchDownloadFailure(digestsLost: lost) }
+                let lost = Set(batch).subtracting(successful)
+                if !lost.isEmpty { self.stats?.recordBatchDownloadFailure(digestsLost: lost.count) }
+                if !Self.isDownloadEndpointFailure(error) {
+                    endpointFailures = []
+                } else if !receivedResponse {
+                    endpointFailures = lost
+                }
             }
+            failures.withLock { $0.formUnion(endpointFailures.subtracting(successful)) }
             return successful
         })
+        return REAPIBlobDownload(available: available, remoteFailures: failures.withLock { $0.subtracting(available) })
     }
 
     private func transfer(
@@ -627,44 +1065,217 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         // A write cannot resume: a stream carries the blob from its first byte, and the committed
         // size of an unfinished upload is not reported, so a broken attempt starts over.
         let committedSize = try await withIdleGuard(expectedMessageBytes: Self.uploadChunkBytes) { heartbeat in
+            let producer = StreamingRequestProducer()
             let request = StreamingClientRequest<Google_Bytestream_WriteRequest>(
                 metadata: try await self.metadata()
             ) { writer in
-                let handle = try FileHandle(forReadingFrom: path)
-                defer { try? handle.close() }
-                let encoder = compressed ? try REAPICompression.Encoder() : nil
-                var offset: Int64 = 0
-                var consumed: Int64 = 0
-                repeat {
-                    let input = try handle.read(upToCount: Self.uploadChunkBytes) ?? Data()
-                    consumed += Int64(input.count)
-                    guard consumed <= digest.sizeBytes, !input.isEmpty || consumed == digest.sizeBytes else {
-                        throw REAPICacheError.corruptBlob
-                    }
-                    let finished = consumed == digest.sizeBytes
-                    let data = try encoder?.encode(input, finish: finished) ?? input
-                    // A zstd frame can buffer an input chunk without emitting any bytes yet.
-                    if !data.isEmpty || finished {
-                        try await writer.write(.with {
-                            $0.resourceName = resource
-                            $0.writeOffset = offset
-                            $0.data = data
-                            $0.finishWrite = finished
-                        })
-                        offset += Int64(data.count)
-                        sentBytes.withLock { $0 = offset }
-                        heartbeat(data.count)
-                    }
-                } while consumed < digest.sizeBytes
+                try await producer.run {
+                    let handle = try FileHandle(forReadingFrom: path)
+                    defer { try? handle.close() }
+                    let encoder = compressed ? try REAPICompression.Encoder() : nil
+                    var offset: Int64 = 0
+                    var consumed: Int64 = 0
+                    repeat {
+                        let input = try handle.read(upToCount: Self.uploadChunkBytes) ?? Data()
+                        consumed += Int64(input.count)
+                        guard consumed <= digest.sizeBytes, !input.isEmpty || consumed == digest.sizeBytes else {
+                            throw REAPICacheError.corruptBlob
+                        }
+                        let finished = consumed == digest.sizeBytes
+                        let data = try encoder?.encode(input, finish: finished) ?? input
+                        // A zstd frame can buffer an input chunk without emitting any bytes yet.
+                        if !data.isEmpty || finished {
+                            try await writer.write(.with {
+                                $0.resourceName = resource
+                                $0.writeOffset = offset
+                                $0.data = data
+                                $0.finishWrite = finished
+                            })
+                            offset += Int64(data.count)
+                            sentBytes.withLock { $0 = offset }
+                            heartbeat(data.count)
+                        }
+                    } while consumed < digest.sizeBytes
+                }
             }
             return try await self.withClient { client in
                 try await Google_Bytestream_ByteStream.Client(wrapping: client)
-                    .write(request: request, options: self.streamOptions(digest)).committedSize
+                    .write(request: request, options: self.streamOptions(digest)) { response in
+                        await producer.stop()
+                        return try response.message.committedSize
+                    }
             }
         }
         // REAPI permits -1 when a concurrent compressed upload has already completed.
         guard committedSize == (compressed ? sentBytes.withLock { $0 } : digest.sizeBytes)
             || (compressed && committedSize == -1) else { throw REAPICacheError.corruptBlob }
+    }
+
+    /// Reads a blob the cache stores as chunks by fetching its chunks in compressed batches. A cache may not serve a
+    /// chunked blob through a compressed ByteStream read, and batches keep every request short. Returns `false`,
+    /// leaving the read to ByteStream, when the cache holds the blob whole or describes chunks this client cannot
+    /// batch.
+    private func downloadSplitBlob(_ digest: REAPI.Digest, to path: URL, permits: Permits) async throws -> Bool {
+        guard splitting.withLock({ $0 }) else { return false }
+        let recipe: [REAPI.Digest]
+        do {
+            recipe = try await permits.run { try await retry {
+                try await withClient { client in
+                    try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Client(wrapping: client).splitBlob(
+                        .with {
+                            $0.instanceName = instanceName
+                            $0.blobDigest = digest
+                            $0.digestFunction = .sha256
+                            $0.chunkingFunction = .fastCdc2020
+                        }, metadata: try await metadata(), options: options
+                    )
+                }
+            } }.chunkDigests
+        } catch let error as RPCError where [.notFound, .invalidArgument, .failedPrecondition].contains(error.code) {
+            return false
+        } catch let error as RPCError where error.code == .unimplemented {
+            splitting.withLock { $0 = false }
+            return false
+        }
+        guard !recipe.isEmpty, recipe.count <= REAPIChunking.maximumChunks,
+              recipe.allSatisfy({ (try? REAPI.validate($0)) != nil && $0.sizeBytes > 0 && $0.sizeBytes <= batchBytes }),
+              recipe.reduce(0, { $0 + $1.sizeBytes }) == digest.sizeBytes
+        else { return false }
+        var offsets: [REAPI.Digest: [Int64]] = [:]
+        var unique: [REAPI.Digest] = []
+        var offset: Int64 = 0
+        for chunk in recipe {
+            if offsets[chunk] == nil { unique.append(chunk) }
+            offsets[chunk, default: []].append(offset)
+            offset += chunk.sizeBytes
+        }
+        let chunkOffsets = offsets
+        do {
+            try Data().write(to: path)
+            let failure = Mutex<(any Error)?>(nil)
+            // The batches take the download's request permits, so a blob uses the slots others are done with while
+            // the requests in flight never exceed the download's limit. One failed batch makes the blob unrestorable:
+            // the batches still waiting for a permit skip their reads and the ones in flight are cancelled.
+            let written = try await withThrowingTaskGroup(of: Int.self) { group in
+                for batch in batches(unique) {
+                    group.addTask {
+                        try await permits.run {
+                            guard !Task.isCancelled, failure.withLock({ $0 == nil }) else { return 0 }
+                            do {
+                                let chunks = try await self.readChunks(batch)
+                                let handle = try FileHandle(forWritingTo: path)
+                                defer { try? handle.close() }
+                                for (chunk, data) in chunks {
+                                    for offset in chunkOffsets[chunk]! {
+                                        try handle.seek(toOffset: UInt64(offset))
+                                        try handle.write(contentsOf: data)
+                                    }
+                                }
+                                return chunks.count
+                            } catch {
+                                if error is CancellationError || Task.isCancelled { throw error }
+                                failure.withLock { $0 = $0 ?? error }
+                                return 0
+                            }
+                        }
+                    }
+                }
+                var written = 0
+                while let count = try await group.next() {
+                    written += count
+                    if failure.withLock({ $0 != nil }) {
+                        group.cancelAll()
+                        break
+                    }
+                }
+                return written
+            }
+            guard written == unique.count else {
+                throw failure.withLock { $0 } ?? REAPICacheError.corruptBlob
+            }
+            guard try REAPI.digest(file: path) == digest else { throw REAPICacheError.corruptBlob }
+            return true
+        } catch {
+            try? await fileSystem.remove(AbsolutePath(validating: path.path))
+            throw error
+        }
+    }
+
+    /// Reads every chunk in `digests` through batch reads, verifying each against its digest. The deadline is the
+    /// allowance of the ByteStream read the chunks replace, not the tighter one of a batch of small blobs.
+    private func readChunks(_ digests: [REAPI.Digest]) async throws -> [REAPI.Digest: Data] {
+        var chunks: [REAPI.Digest: Data] = [:]
+        for digest in digests {
+            try Task.checkCancellation()
+            if let data = await cachedChunk(digest) { chunks[digest] = data }
+        }
+        try await retry {
+            let pending = digests.filter { chunks[$0] == nil }
+            guard !pending.isEmpty else { return }
+            let response = try await withClient { client in
+                try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Client(wrapping: client).batchReadBlobs(
+                    .with {
+                        $0.instanceName = instanceName
+                        $0.digests = pending
+                        $0.acceptableCompressors = [.zstd]
+                        $0.digestFunction = .sha256
+                    },
+                    metadata: try await metadata(),
+                    options: options(forBytes: pending.reduce(0) { $0 + $1.sizeBytes })
+                )
+            }
+            for output in response.responses where output.status.code == 0 && pending.contains(output.digest) {
+                let data: Data
+                switch output.compressor {
+                case .identity: data = output.data
+                case .zstd: data = try REAPICompression.decompress(output.data, size: output.digest.sizeBytes)
+                default: continue
+                }
+                if REAPI.digest(data) == output.digest {
+                    chunks[output.digest] = data
+                    await retainChunk(data, digest: output.digest)
+                }
+            }
+            if let error = Self
+                .downloadFailure(codes: response.responses.filter { pending.contains($0.digest) }.map(\.status.code))
+            {
+                throw error
+            }
+        }
+        guard chunks.count == digests.count else {
+            throw RPCError(code: .notFound, message: "The cache is missing chunks of the blob")
+        }
+        return chunks
+    }
+
+    /// This directory belongs to the caller's content cache and shares its scope, retention and byte budget.
+    /// Local bytes are only hints: a fresh remote result/recipe authorizes reuse and every chunk is verified.
+    private func cachedChunk(_ digest: REAPI.Digest) async -> Data? {
+        guard let directory = chunkCacheDirectory, digest.sizeBytes > 0,
+              digest.sizeBytes <= REAPIChunking.maximumChunkBytes else { return nil }
+        let file = directory.appendingPathComponent(digest.hash)
+        guard let properties = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
+              properties.isRegularFile == true, properties.isSymbolicLink != true,
+              properties.fileSize == Int(digest.sizeBytes),
+              let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: Int(digest.sizeBytes) + 1), REAPI.digest(data) == digest else { return nil }
+        if let path = try? AbsolutePath(validating: file.path) {
+            try? await fileSystem.setFileTimes(of: path, lastAccessDate: nil, lastModificationDate: Date())
+        }
+        return data
+    }
+
+    private func retainChunk(_ data: Data, digest: REAPI.Digest) async {
+        guard let directory = chunkCacheDirectory, digest.sizeBytes > 0,
+              digest.sizeBytes <= REAPIChunking.maximumChunkBytes,
+              let path = try? AbsolutePath(validating: directory.path) else { return }
+        do {
+            try await fileSystem.makeDirectory(at: path)
+            try data.write(to: directory.appendingPathComponent(digest.hash), options: .atomic)
+        } catch {
+            // An unwritable or concurrently pruned transfer cache must not discard verified remote bytes.
+        }
     }
 
     /// Reads a blob, resuming from the byte it reached when a read breaks partway. The bytes and the
@@ -679,16 +1290,30 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
             let handle = try FileHandle(forWritingTo: path)
             defer { try? handle.close() }
             let progress = ReadProgress()
-            let startedReading = ContinuousClock.now
+            var startedReading = ContinuousClock.now
             var stalledAttempts = 0
+            var backpressureDelay: Duration = .zero
+            var drain = REAPIDrainRetryLadder()
             var failure: (any Error)?
+            var compressed = compression.withLock { $0.stream } && digest.sizeBytes >= REAPICompression.threshold
             while true {
                 let before = progress.received
                 do {
-                    try await readAttempt(digest, from: before, into: handle, progress: progress)
+                    try await readAttempt(digest, from: before, compressed: compressed, into: handle, progress: progress)
                     failure = nil
+                } catch let error as RPCError where compressed && error.code == .unimplemented {
+                    // A cache that stores the blob as chunks may not serve it compressed.
+                    compressed = false
+                    continue
                 } catch {
                     if error is CancellationError || Task.isCancelled { throw error }
+                    if REAPIDrainRetryLadder.isDrainRefusal(error) {
+                        guard let delay = drain.nextDelay() else { throw error }
+                        // Time spent waiting out a drain is not time the link was slow.
+                        startedReading += delay
+                        try await REAPIDrainRetryLadder.timing.sleep(delay)
+                        continue
+                    }
                     guard Self.isResumable(error) else { throw error }
                     failure = error
                 }
@@ -709,13 +1334,66 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                         throw failure ?? REAPICacheError.corruptBlob
                     }
                 }
-                try await Task.sleep(for: .milliseconds(200 + Int.random(in: 0 ... 100)))
+                var delay: Duration = .milliseconds(200 + Int.random(in: 0 ... 100))
+                if let rpcError = failure as? RPCError, rpcError.code == .resourceExhausted {
+                    if let hinted = REAPIBackpressureRetryPolicy.retryInfoDelay(rpcError) {
+                        delay = max(delay, hinted)
+                    }
+                    guard delay <= .seconds(1) - backpressureDelay else { throw rpcError }
+                    backpressureDelay += delay
+                }
+                try await Task.sleep(for: delay)
             }
             let hash = progress.hash
             guard hash == digest.hash else { throw REAPICacheError.corruptBlob }
         } catch {
             try? await fileSystem.remove(AbsolutePath(validating: path.path))
             throw error
+        }
+    }
+
+    /// A count of requests that may be in flight, handed out in the order they were asked for.
+    private final class Permits: Sendable {
+        private struct State {
+            var available: Int
+            var waiting: [CheckedContinuation<Void, Never>] = []
+        }
+
+        private let state: Mutex<State>
+
+        init(_ count: Int) {
+            state = Mutex(State(available: count))
+        }
+
+        func acquire() async {
+            await withCheckedContinuation { continuation in
+                let granted = state.withLock {
+                    guard $0.available > 0 else {
+                        $0.waiting.append(continuation)
+                        return false
+                    }
+                    $0.available -= 1
+                    return true
+                }
+                if granted { continuation.resume() }
+            }
+        }
+
+        func run<T>(_ operation: () async throws -> T) async rethrows -> T {
+            await acquire()
+            defer { release() }
+            return try await operation()
+        }
+
+        func release() {
+            let next = state.withLock {
+                guard !$0.waiting.isEmpty else {
+                    $0.available += 1
+                    return nil as CheckedContinuation<Void, Never>?
+                }
+                return $0.waiting.removeFirst()
+            }
+            next?.resume()
         }
     }
 
@@ -743,10 +1421,10 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     private func readAttempt(
         _ digest: REAPI.Digest,
         from offset: Int64,
+        compressed: Bool,
         into handle: FileHandle,
         progress: ReadProgress
     ) async throws {
-        let compressed = compression.withLock { $0.stream } && digest.sizeBytes >= REAPICompression.threshold
         let encoding = compressed ? "compressed-blobs/zstd" : "blobs"
         // Bytes a broken attempt wrote but did not count are dropped, so the file, the counter and
         // the hash describe the same prefix of the blob.

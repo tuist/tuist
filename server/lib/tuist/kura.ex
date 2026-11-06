@@ -82,8 +82,8 @@ defmodule Tuist.Kura do
   @version_rollout_statuses [:provisioning, :replicating, :active, :failed]
   @version_rollout_batch_size 100
 
-  @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
-  def reconcile_orphaned_deployments, do: Reconciler.reconcile()
+  @doc "Enqueues unique reconciliation of desired Kura server rows with the observed Kubernetes state."
+  def enqueue_reconcile_orphaned_deployments, do: %{} |> Reconciler.new() |> Oban.insert!()
 
   # How long a server that has stopped receiving new traffic keeps serving
   # before its resources are torn down, so persistent gRPC channels and
@@ -1307,7 +1307,10 @@ defmodule Tuist.Kura do
 
   @doc """
   In-cluster Kura URL a runner-as-a-service build on a fleet of the
-  given platform should use, or `nil` when nothing serves it.
+  given platform should use, or `nil` when nothing serves it. A runner
+  claiming at a rack site (`Tuist.Runners.Sites.claim_site/2`) takes only that
+  site's private regions; any other runner takes only private regions with no
+  site.
 
   Two tiers, best first: the account's active private (runner-cache)
   node in a region serving the platform, else the in-cluster Service
@@ -1321,7 +1324,9 @@ defmodule Tuist.Kura do
   Whether the fleet can reach in-cluster URLs at all is the caller's
   gate (`Catalog.fleet_on_cluster_network?/1`).
   """
-  def runner_cache_endpoint_url(%Account{} = account, platform) when platform in [:linux, :macos] do
+  def runner_cache_endpoint_url(account, platform, site \\ nil)
+
+  def runner_cache_endpoint_url(%Account{} = account, platform, site) when platform in [:linux, :macos] do
     # A runner build resolving its cache endpoint is cache demand for the
     # account just as a developer machine's resolution is, and it is recorded
     # at the same boundary. The account's service-region instance is what the
@@ -1329,12 +1334,40 @@ defmodule Tuist.Kura do
     # a separate identity rule (`Tuist.Kura.RunnerCache`).
     Demand.record(account.id)
 
-    private_runner_cache_url(account, platform) || public_in_cluster_runner_cache_url(account, platform)
+    private_runner_cache_url(account, platform, site) || public_in_cluster_runner_cache_url(account, platform)
   end
 
-  def runner_cache_endpoint_url(%Account{}, _platform), do: nil
+  def runner_cache_endpoint_url(%Account{}, _platform, _site), do: nil
 
-  defp private_runner_cache_url(%Account{id: account_id}, platform) do
+  @doc """
+  The accounts among `account_ids` whose runner cache is warm at another rack
+  site than `site`: an active node in an available private region at another
+  site, and none at `site`. A runner at `site` lets such an account's jobs wait
+  briefly for a runner beside the cache (`Tuist.Runners.Sites`). Reads nothing
+  while no available private region is at another site.
+  """
+  def runner_cache_elsewhere(account_ids, site) when is_list(account_ids) and is_binary(site) do
+    site_by_region =
+      for region <- Regions.available(),
+          Regions.private?(region),
+          region_site when is_binary(region_site) <- [Regions.site(region)],
+          into: %{},
+          do: {region.id, region_site}
+
+    if account_ids == [] or not Enum.any?(Map.values(site_by_region), &(&1 != site)) do
+      MapSet.new()
+    else
+      Server
+      |> where([s], s.account_id in ^account_ids and s.status == :active and s.region in ^Map.keys(site_by_region))
+      |> select([s], {s.account_id, s.region})
+      |> Repo.all()
+      |> Enum.group_by(&elem(&1, 0), &Map.fetch!(site_by_region, elem(&1, 1)))
+      |> Enum.reject(fn {_account_id, sites} -> site in sites end)
+      |> MapSet.new(&elem(&1, 0))
+    end
+  end
+
+  defp private_runner_cache_url(%Account{id: account_id}, platform, site) do
     # `available/0`, not `all/0`: if a private region is dropped from
     # `TUIST_KURA_AVAILABLE_REGIONS` the controller stops reconciling
     # it, and gating here too means dispatch stops handing out the now
@@ -1342,7 +1375,9 @@ defmodule Tuist.Kura do
     # instead of routing jobs to an endpoint that no longer exists.
     private_region_ids =
       Regions.available()
-      |> Enum.filter(&(Regions.private?(&1) and Regions.serves_runner_platform?(&1, platform)))
+      |> Enum.filter(
+        &(Regions.private?(&1) and Regions.serves_runner_platform?(&1, platform) and Regions.site(&1) == site)
+      )
       |> Enum.map(& &1.id)
 
     if private_region_ids == [] do
@@ -1375,17 +1410,9 @@ defmodule Tuist.Kura do
     end
   end
 
-  # Tier 2, interim until the Linux fleets get a node-local private
-  # region (tier 1). eu-west is hardcoded: every runner fleet is
-  # colocated with it today, so it's the instance the CLI's latency
-  # race would pick from a runner — and both URL forms route through
-  # the same pinned per-instance Service, so same pod. Without an
-  # eu-west instance the race is moot (every public form is
-  # unreachable from a runner), so the first candidate wins: a
-  # cross-region cache beats none. No readiness heartbeat needed — the
-  # in-cluster Service already drops not-ready pods. Linux-only because
-  # only cluster-CNI pods resolve Service DNS; macOS Tart VMs can't,
-  # and their public resolution works anyway.
+  # Linux jobs use the existing public-region instance directly, preferring
+  # EU-West. Enrolled OVH hosts carry this traffic over vRack for every account.
+  # Preserve the selected primary and move identity; macOS routing is unchanged.
   defp public_in_cluster_runner_cache_url(%Account{} = account, :linux) do
     servers = managed_cli_endpoint_servers(account)
 
@@ -1719,7 +1746,10 @@ defmodule Tuist.Kura do
     case Repo.transaction(fn ->
            server = lock_with_status(server, :active, :not_drainable)
 
-           with {:ok, server} <- server |> Server.lifecycle_changeset(%{status: :drain_pending}) |> Repo.update(),
+           with {:ok, server} <-
+                  server
+                  |> Server.lifecycle_changeset(%{status: :drain_pending, drain_started_at: now_truncated()})
+                  |> Repo.update(),
                 :ok <- cancel_open_deployments(server) do
              server
            else
@@ -1778,7 +1808,7 @@ defmodule Tuist.Kura do
     Repo.transaction(fn ->
       server = lock_with_status(server, :drain_pending, :not_draining)
 
-      case server |> Server.lifecycle_changeset(%{status: :active}) |> Repo.update() do
+      case server |> Server.lifecycle_changeset(%{status: :active, drain_started_at: nil}) |> Repo.update() do
         {:ok, server} -> server
         {:error, reason} -> Repo.rollback(reason)
       end
@@ -1816,6 +1846,7 @@ defmodule Tuist.Kura do
                 |> Server.lifecycle_changeset(%{
                   status: :archived,
                   url: nil,
+                  drain_started_at: nil,
                   current_image_tag: nil,
                   observed_image_tag: nil,
                   last_ready_at: nil
@@ -2248,6 +2279,13 @@ defmodule Tuist.Kura do
   that were coming up during a rollout, which is itself a reason a cold start
   is slow. The percentile would be pulled down exactly where a regression shows.
 
+  A deployment from before the last return belongs to the instance that was
+  archived, so it is never a new instance, even when it finished inside the
+  window. The return is compared against with a minute of slack because
+  `last_returned_at` is stamped after the return's deployment is inserted and
+  truncated to the second, so the two can straddle a second boundary. Nothing
+  else is deployed in that minute: an archived server is outside every rollout.
+
   Read from `kura_deployments` rather than from the `time_to_ready`
   distribution, which is per pod and only holds what the pod that activated the
   instance scraped.
@@ -2262,7 +2300,7 @@ defmodule Tuist.Kura do
         where: e.inserted_at < parent_as(:deployment).inserted_at,
         where:
           is_nil(parent_as(:lifecycle).last_returned_at) or
-            e.inserted_at >= parent_as(:lifecycle).last_returned_at,
+            e.inserted_at >= fragment("? - interval '1 minute'", parent_as(:lifecycle).last_returned_at),
         select: 1
       )
 
@@ -2273,6 +2311,10 @@ defmodule Tuist.Kura do
       on: l.account_id == s.account_id and l.service_region == s.region
     )
     |> where([d], d.status == :succeeded and not is_nil(d.finished_at) and d.finished_at >= ^since)
+    |> where(
+      [d, _s, l],
+      is_nil(l.last_returned_at) or d.inserted_at >= fragment("? - interval '1 minute'", l.last_returned_at)
+    )
     |> where(not exists(earlier_deployment))
     |> select([d], %{
       count: count(d.id),

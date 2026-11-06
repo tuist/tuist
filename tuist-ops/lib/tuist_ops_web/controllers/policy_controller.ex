@@ -25,6 +25,13 @@ defmodule TuistOpsWeb.PolicyController do
     * `x-pomerium-claim-email` — the authenticated user's email,
       set by Pomerium via `jwt_claims_headers: { X-Pomerium-Claim-
       Email: email }` and passed through by the sidecar.
+    * `x-tuist-amp-email` / `x-tuist-amp-thread-id` — for the
+      `kube-orb-<env>.tuist.dev` hosts only: the creator and thread
+      of an Amp orb, from the Amp workload identity token the
+      sidecar's orb listener verified. The orb gets its creator's
+      tier, impersonated as `amp-orb:<email>:<thread>`; canary and
+      production write needs an elevation for that thread
+      (`/elevate <env> --thread <id>`).
 
   Outputs:
 
@@ -78,6 +85,7 @@ defmodule TuistOpsWeb.PolicyController do
 
   alias TuistOps.JIT.Elevation
   alias TuistOps.JIT.Policy
+  alias TuistOps.JIT.Request
   alias TuistOps.JIT.TailscaleClient
   alias TuistOps.Repo
 
@@ -97,32 +105,59 @@ defmodule TuistOpsWeb.PolicyController do
   # --- request extraction ------------------------------------------------
 
   defp extract_request(conn) do
-    with {:ok, env} <- env_from_host(conn.host),
-         {:ok, subject} <- subject_from_conn(conn) do
+    with {:ok, door, env} <- door_and_env(conn.host),
+         {:ok, subject} <- subject_from_conn(door, conn) do
       {:ok, subject, env}
     end
   end
 
-  # "kube-staging.tuist.dev" → "staging". Host header is the source
-  # of truth for env because Pomerium routes by Host and the same
-  # endpoint serves all envs.
-  defp env_from_host("kube-staging.tuist.dev"), do: {:ok, "staging"}
-  defp env_from_host("kube-canary.tuist.dev"), do: {:ok, "canary"}
-  defp env_from_host("kube-prod.tuist.dev"), do: {:ok, "production"}
-  defp env_from_host("kube-production.tuist.dev"), do: {:ok, "production"}
-  defp env_from_host(other), do: {:error, "unrecognized host #{inspect(other)}"}
+  # Host header is the source of truth for env because Pomerium and
+  # ingress-nginx route by Host and the same endpoint serves all envs.
+  # It also names the door: `kube-<env>` is Pomerium (a human's Google
+  # session), `kube-orb-<env>` is the sidecar's orb listener (an Amp
+  # workload identity token it verified). Each door reads only its own
+  # identity headers, so neither can be dressed up as the other.
+  defp door_and_env("kube-staging.tuist.dev"), do: {:ok, :pomerium, "staging"}
+  defp door_and_env("kube-canary.tuist.dev"), do: {:ok, :pomerium, "canary"}
+  defp door_and_env("kube-prod.tuist.dev"), do: {:ok, :pomerium, "production"}
+  defp door_and_env("kube-production.tuist.dev"), do: {:ok, :pomerium, "production"}
+  defp door_and_env("kube-orb-staging.tuist.dev"), do: {:ok, :orb, "staging"}
+  defp door_and_env("kube-orb-canary.tuist.dev"), do: {:ok, :orb, "canary"}
+  defp door_and_env("kube-orb-prod.tuist.dev"), do: {:ok, :orb, "production"}
+  defp door_and_env(other), do: {:error, "unrecognized host #{inspect(other)}"}
 
-  defp subject_from_conn(conn) do
+  defp subject_from_conn(:pomerium, conn) do
     case get_req_header(conn, "x-pomerium-claim-email") do
       [email | _] when is_binary(email) and byte_size(email) > 0 -> {:ok, email}
       _ -> {:error, "no x-pomerium-claim-email header"}
     end
   end
 
+  # The sidecar sets these from the verified Amp token's `email` and
+  # `thread_id` claims, which name the thread's creator and the thread.
+  defp subject_from_conn(:orb, conn) do
+    with [email | _] when byte_size(email) > 0 <- get_req_header(conn, "x-tuist-amp-email"),
+         [thread_id | _] <- get_req_header(conn, "x-tuist-amp-thread-id"),
+         true <- Request.orb_thread_id?(thread_id) do
+      {:ok, {:orb, email, thread_id}}
+    else
+      _ -> {:error, "no verified Amp orb identity"}
+    end
+  end
+
   # --- core resolution ---------------------------------------------------
 
-  defp resolve(subject, env) do
-    case TailscaleClient.user_role(subject) do
+  # An orb acts with its creator's tailnet role, under a username that
+  # names both the person and the thread so the trail tells them apart
+  # from the person's own kubectl.
+  defp resolve({:orb, email, thread_id} = subject, env) do
+    resolve_role(subject, email, "amp-orb:#{email}:#{thread_id}", env)
+  end
+
+  defp resolve(email, env), do: resolve_role(email, email, email, env)
+
+  defp resolve_role(subject, email, user, env) do
+    case TailscaleClient.user_role(email) do
       {:ok, role} ->
         base_groups = base_impersonate_groups(role)
 
@@ -131,19 +166,17 @@ defmodule TuistOpsWeb.PolicyController do
             {:deny, "role #{inspect(role)} has no cluster access tier"}
 
           write_access?(subject, env) and elevated_allowed?(role, env) ->
-            {:allow, subject, base_groups ++ [env_write_group(env)]}
+            {:allow, user, base_groups ++ [env_write_group(env)]}
 
           true ->
-            {:allow, subject, base_groups}
+            {:allow, user, base_groups}
         end
 
       {:error, :not_found} ->
-        {:deny, "subject #{subject} not on tailnet"}
+        {:deny, "subject #{email} not on tailnet"}
 
       {:error, reason} ->
-        Logger.warning(
-          "tuist_ops policy: tailnet lookup failed for #{subject}: #{inspect(reason)}"
-        )
+        Logger.warning("tuist_ops policy: tailnet lookup failed for #{email}: #{inspect(reason)}")
 
         {:deny, "tailnet lookup failed"}
     end
@@ -167,19 +200,35 @@ defmodule TuistOpsWeb.PolicyController do
   # status="active" but past expiry never returns elevated headers
   # (defence-in-depth alongside the RevertWorker which flips status
   # at TTL — DB query is the authoritative gate).
+  #
+  # A person's elevation and a thread's elevation never stand in for
+  # each other: `/elevate --thread` widens that one orb and not its
+  # creator's own kubectl, and a plain `/elevate` widens the person
+  # and none of their orbs. A thread elevation also only counts when
+  # the person who asked for it created the thread (the token's
+  # email), so naming someone else's thread grants nothing.
   defp active_elevation?(subject, env) do
     target_group = group_for_env(env)
     now = DateTime.utc_now()
 
-    Repo.exists?(
+    query =
       from(e in Elevation,
         where:
-          e.requester_email == ^subject and
-            e.target_group == ^target_group and
+          e.target_group == ^target_group and
             e.status == "active" and
             e.expires_at > ^now
       )
-    )
+
+    query =
+      case subject do
+        {:orb, email, thread_id} ->
+          from(e in query, where: e.requester_email == ^email and e.orb_thread_id == ^thread_id)
+
+        email ->
+          from(e in query, where: e.requester_email == ^email and is_nil(e.orb_thread_id))
+      end
+
+    Repo.exists?(query)
   end
 
   defp group_for_env("staging"), do: "group:tuist-staging-write"

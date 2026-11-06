@@ -9,16 +9,15 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,16 +61,19 @@ const (
 // ScalewayAppleSiliconMachineReconciler reconciles ScalewayAppleSiliconMachine objects.
 type ScalewayAppleSiliconMachineReconciler struct {
 	client.Client
-	Scheme             *runtime.Scheme
-	ScalewayClient     *scaleway.Client
-	CredentialsManager *credentials.Manager
+	APIReader               client.Reader
+	ProcessorDeploymentName string
+	Scheme                  *runtime.Scheme
+	ScalewayClient          *scaleway.Client
+	CredentialsManager      *credentials.Manager
 
 	// Recorder emits Events on lifecycle transitions. `kubectl describe
 	// scalewayapplesiliconmachine` then shows a tail-followable timeline
 	// of state changes alongside the static Conditions block, which is
 	// the difference between "I can see this is broken" and "I can see
 	// what step it's currently doing" while a Mac mini is mid-bootstrap.
-	Recorder record.EventRecorder
+	Recorder     record.EventRecorder
+	osUpdateDial osUpdateDialFunc
 
 	// Kubeconfig builds the per-host kubeconfig the bootstrap installs.
 	// Required for tart-kubelet to authenticate to the cluster.
@@ -91,6 +93,11 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// The Tailscale tags were lost that way and froze the production
 	// fleet on 2026-08-18.
 	FleetConfig bootstrap.Config
+
+	// TartReleases are the Tart tarballs the operator image carries, by version.
+	// A Machine pinned to one with TartVersionAnnotation runs it instead of
+	// FleetConfig.TartVersion.
+	TartReleases map[string][]byte
 
 	// DefaultGuestCapacity is the fleet-wide fallback for a Machine
 	// that does not set `spec.guestCapacity` — how many Tart guests a
@@ -257,7 +264,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 		return ctrl.Result{}, helperErr
 	}
 	defer func() {
-		if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil && err == nil {
+		if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil && err == nil {
 			err = patchErr
 		}
 	}()
@@ -277,7 +284,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 	// Machine) are still reconciled normally — useful for tests
 	// and for any operator-side bring-up before MachineDeployment
 	// adoption completes.
-	ownerMachine, ownerErr := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	ownerMachine, ownerErr := shared.OwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if ownerErr != nil {
 		return ctrl.Result{}, fmt.Errorf("get owner Machine: %w", ownerErr)
 	}
@@ -500,6 +507,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
+	if handled, result, err := r.reconcileScalewayOSUpdate(ctx, machine, sshKey, bootstrapCreds); handled || err != nil {
+		return result, err
+	}
+
 	// Detect Node drift: bootstrap previously succeeded
 	// (BootstrappedCondition=True) but the Node tart-kubelet
 	// registered no longer exists in the cluster. Causes seen in
@@ -639,6 +650,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// Resolved per machine, not read from a fleet-wide field: HostCPU and
 	// HostMemoryMB are overridable per Machine, so the desired hash for an
 	// overridden host is not the fleet's. See desiredHostConfigHash.
+	reportUnavailableTartPin(machine, r.FleetConfig, r.TartReleases, r.Recorder)
 	desiredHostConfigHash := r.desiredHostConfigHash(machine)
 	configDrift := hostConfigDrift(desiredHostConfigHash, machine.Status.HostConfigHash)
 	// Once a CR enters the terminal-failed state (FailureReason set
@@ -985,13 +997,15 @@ func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayHost(machineNam
 func (r *ScalewayAppleSiliconMachineReconciler) hostSizing(
 	machine *infrav1.ScalewayAppleSiliconMachine,
 ) hostSizing {
-	return hostSizing{
+	sizing := hostSizing{
 		HostCPU:              hostCPUFor(machine, r.FleetConfig.HostCPU),
 		HostMemoryMB:         hostMemoryMBFor(machine, r.FleetConfig.HostMemoryMB),
 		MaxPods:              maxPodsFor(machine, r.FleetConfig.MaxPods),
 		GuestCapacity:        guestCapacityFor(machine, r.DefaultGuestCapacity),
 		RunnerCacheVolumeGiB: runnerCacheVolumeGiBFor(machine, r.FleetConfig.RunnerCacheVolumeGiB),
 	}
+	sizing.TartVersion, sizing.TartTarball = hostTart(machine, r.FleetConfig, r.TartReleases)
+	return sizing
 }
 
 // hostConfig is the config for one Mac mini: the fleet-wide config the manager
@@ -1122,9 +1136,9 @@ func handleBootstrapFailure(
 	machine.Status.BootstrapAttempts++
 	attempts := machine.Status.BootstrapAttempts
 
-	conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapFailed",
+	conditions.MarkFalse(machine, BootstrappedCondition, bootstrapFailureReason(err),
 		clusterv1.ConditionSeverityWarning, "%v", err)
-	recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapFailed",
+	recorder.Eventf(machine, corev1.EventTypeWarning, bootstrapFailureReason(err),
 		"%v (attempt %d, will retry)", err, attempts)
 
 	hostAdoptable := machine.Status.ServerID != "" && poolPrefix != ""
@@ -1169,6 +1183,13 @@ func handleBootstrapFailure(
 			clusterv1.ConditionSeverityWarning,
 			"released Scaleway server %s after %d bootstrap failures; awaiting fresh adopt",
 			releasedID, attempts)
+	case rebootAfter > 0 && attempts >= rebootAfter && bootstrap.RestartUnsafe(err):
+		// A reboot would leave a FileVault host at the unlock screen with no
+		// sshd, the restart bootstrap itself refused.
+		if attempts == rebootAfter {
+			recorder.Eventf(machine, corev1.EventTypeWarning, "RebootForRecoverySkipped",
+				"Not rebooting Scaleway server %s: FileVault is on, so the host would not come back over SSH", machine.Status.ServerID)
+		}
 	case rebootAfter > 0 && attempts >= rebootAfter && !machine.Status.BootstrapRebootIssued && machine.Status.ServerID != "":
 		if rebootErr := client.RebootServer(ctx, machine.Status.ServerID, machine.Spec.Zone); rebootErr != nil {
 			logger.Error(rebootErr, "reboot for bootstrap recovery failed; will retry on next attempt")

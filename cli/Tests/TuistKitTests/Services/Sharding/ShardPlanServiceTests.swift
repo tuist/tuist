@@ -54,7 +54,8 @@ struct ShardPlanServiceTests {
                 shardMaxDuration: .any,
                 shardGranularity: .any,
                 buildRunId: .any,
-                gitBranch: .any
+                gitBranch: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.ShardPlan(
@@ -149,7 +150,8 @@ struct ShardPlanServiceTests {
                 shardMaxDuration: .any,
                 shardGranularity: .any,
                 buildRunId: .any,
-                gitBranch: .any
+                gitBranch: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.ShardPlan(
@@ -298,7 +300,8 @@ struct ShardPlanServiceTests {
                 shardMaxDuration: .any,
                 shardGranularity: .any,
                 buildRunId: .any,
-                gitBranch: .any
+                gitBranch: .any,
+                testImpactRunId: .any
             )
             .willReturn(
                 Components.Schemas.ShardPlan(
@@ -454,9 +457,10 @@ struct ShardPlanServiceTests {
                 shardMaxDuration: .any,
                 shardGranularity: .any,
                 buildRunId: .any,
-                gitBranch: .any
+                gitBranch: .any,
+                testImpactRunId: .any
             )
-            .willProduce { _, _, _, _, _, testSuites, _, _, _, _, _, _, _, _ in
+            .willProduce { _, _, _, _, _, testSuites, _, _, _, _, _, _, _, _, _ in
                 capture(testSuites)
                 return Components.Schemas.ShardPlan(
                     id: "plan-id",
@@ -508,9 +512,10 @@ struct ShardPlanServiceTests {
                 shardMaxDuration: .any,
                 shardGranularity: .any,
                 buildRunId: .any,
-                gitBranch: .any
+                gitBranch: .any,
+                testImpactRunId: .any
             )
-            .willProduce { _, _, _, _, parallelizableModules, _, _, _, _, _, _, _, _, _ in
+            .willProduce { _, _, _, _, parallelizableModules, _, _, _, _, _, _, _, _, _, _ in
                 sentParallelizableModules.mutate { $0 = parallelizableModules }
                 return Components.Schemas.ShardPlan(
                     id: "plan-id",
@@ -576,9 +581,10 @@ struct ShardPlanServiceTests {
                 shardMaxDuration: .any,
                 shardGranularity: .any,
                 buildRunId: .any,
-                gitBranch: .any
+                gitBranch: .any,
+                testImpactRunId: .any
             )
-            .willProduce { _, _, _, _, _, _, _, _, _, _, _, _, _, gitBranch in
+            .willProduce { _, _, _, _, _, _, _, _, _, _, _, _, _, gitBranch, _ in
                 sentGitBranch.mutate { $0 = gitBranch }
                 return Components.Schemas.ShardPlan(
                     id: "plan-id",
@@ -674,9 +680,10 @@ struct ShardPlanServiceTests {
                 shardMaxDuration: .any,
                 shardGranularity: .any,
                 buildRunId: .any,
-                gitBranch: .any
+                gitBranch: .any,
+                testImpactRunId: .any
             )
-            .willProduce { _, _, _, _, _, testSuites, _, _, _, _, _, _, _, _ in
+            .willProduce { _, _, _, _, _, testSuites, _, _, _, _, _, _, _, _, _ in
                 sentTestSuites.mutate { $0 = testSuites }
                 return Components.Schemas.ShardPlan(
                     id: "plan-id",
@@ -764,9 +771,10 @@ struct ShardPlanServiceTests {
                 shardMaxDuration: .any,
                 shardGranularity: .any,
                 buildRunId: .any,
-                gitBranch: .any
+                gitBranch: .any,
+                testImpactRunId: .any
             )
-            .willProduce { _, _, _, modules, _, _, skippedTestSuites, _, _, _, _, _, _, _ in
+            .willProduce { _, _, _, modules, _, _, skippedTestSuites, _, _, _, _, _, _, _, _ in
                 sentModules.mutate { $0 = modules }
                 sentSkippedTestSuites.mutate { $0 = skippedTestSuites }
                 return Components.Schemas.ShardPlan(
@@ -857,9 +865,10 @@ struct ShardPlanServiceTests {
                 shardMaxDuration: .any,
                 shardGranularity: .any,
                 buildRunId: .any,
-                gitBranch: .any
+                gitBranch: .any,
+                testImpactRunId: .any
             )
-            .willProduce { _, _, _, modules, _, testSuites, _, _, _, _, _, _, _, _ in
+            .willProduce { _, _, _, modules, _, testSuites, _, _, _, _, _, _, _, _, _ in
                 sentModules.mutate { $0 = modules }
                 sentTestSuites.mutate { $0 = testSuites }
                 return Components.Schemas.ShardPlan(
@@ -993,9 +1002,10 @@ struct ShardPlanServiceTests {
                 shardMaxDuration: .any,
                 shardGranularity: .any,
                 buildRunId: .any,
-                gitBranch: .any
+                gitBranch: .any,
+                testImpactRunId: .any
             )
-            .willProduce { _, _, _, _, _, testSuites, skippedTestSuites, _, _, _, _, _, _, _ in
+            .willProduce { _, _, _, _, _, testSuites, skippedTestSuites, _, _, _, _, _, _, _, _ in
                 sentTestSuites.mutate { $0 = testSuites }
                 sentSkippedTestSuites.mutate { $0 = skippedTestSuites }
                 return Components.Schemas.ShardPlan(

@@ -1,7 +1,7 @@
 # Flux on the management cluster
 
 Flux reconciles management-cluster desired state from git onto the
-self-hosted CAPI + caph **management cluster** (single-node Talos). This is
+self-hosted CAPI + caph **management cluster** (three-node Talos). This is
 **Pillar 1** of [hive/specs/72](https://hive.tuist.dev/specs/72): continuous
 GitOps reconciliation, so drift is corrected on an interval instead of only
 on merge, and no routine change needs the break-glass kubeconfig.
@@ -16,7 +16,7 @@ mechanism; a degraded control plane pages via Grafana Cloud.
 | Owned by Flux | Kept on `mgmt-cluster-apply.yml` |
 |---|---|
 | `tuist-staging`, `tuist-canary`, `tuist` (production) | `clusterclass-tuist.yaml`, `bare-metal*.yaml` (immutable templates — the delete-and-apply fallback for `field is immutable` can't be reproduced by a Kustomization) |
-| tenants `hive-production`, `once-production`, `atlas-production` | `cluster-preview.yaml` (replicas mutated out-of-band by the preview workflows; Flux would fight them every interval) and `cluster-pentest.yaml` (isolated security-assessment cluster) |
+| tenants `hive-production`, `once-production`, `atlas-production` | `cluster-pentest.yaml` (isolated security-assessment cluster) |
 | Cloudflare operator Helm release and `tuist.dev` rate-limit configuration | the other mgmt-side workloads (etcd-snapshot, tailscale, autoscaler, hetzner-robot-controller) |
 
 One Flux `Kustomization` per cluster (`cluster-*.yaml` here), each `path`
@@ -158,8 +158,8 @@ kubectl -n flux-system patch kustomization cluster-<name> --type=merge \
 
 ### Harden the source (optional)
 
-Path-scoping already prevents Flux from touching the immutable templates,
-preview or pentest — no Kustomization `path` reaches them. A `spec.ignore` on
+Path-scoping already prevents Flux from touching the immutable templates
+or pentest — no Kustomization `path` reaches them. A `spec.ignore` on
 the `flux-system` `GitRepository` is a second guard, and in a monorepo this
 size it also keeps the source artifact small (source-controller otherwise
 packages the whole repository on every sync).
@@ -189,7 +189,6 @@ patches:
           /infra/k8s/clusters/clusterclass-tuist.yaml
           /infra/k8s/clusters/bare-metal*.yaml
           /infra/k8s/clusters/machinedrainrules.yaml
-          /infra/k8s/clusters/cluster-preview.yaml
           /infra/k8s/clusters/cluster-pentest.yaml
 ```
 
@@ -234,7 +233,7 @@ node count — it changes which controller owns it.
 ## Health of Flux itself
 
 A down reconciler stops correcting drift without breaking anything visible, so
-Flux is watched from Grafana Cloud, which evaluates outside this single-node
+Flux is watched from Grafana Cloud, which evaluates outside this management
 cluster. Two rules are live (`infra/helm/k8s-monitoring/alerts.md`):
 
 - **`Flux - reconciliation has stalled fleet-wide`** on
@@ -274,5 +273,5 @@ things (see spec/72 Decision 6): the one-time bootstrap above; recovering
 Flux when it cannot reconcile itself (bad upgrade, source-controller can't
 reach git, RBAC lockout) by applying the corrective manifest directly until
 git access is restored; and manifests still outside Flux's scope (the
-ClusterClass/templates, preview, mgmt-side workloads). Routine cluster and
+ClusterClass/templates, mgmt-side workloads). Routine cluster and
 Flux changes go through git.

@@ -223,6 +223,7 @@ mise run rack:ztp <device> [--via <host>] --interface <iface> [--create-credenti
 mise run rack:write-install-usb <disk> --host <node>   # a stick that makes a rack Linux host a node (infra/rack-nodes)
 mise run rack:omada controller|devices|inform|adopt|apply|api [device]  # the Omada controller's side
 mise run rack:fleet-test                    # the suite; needs no hardware
+mise run rack:fleet-test render edge        # the files a site definition change touches
 ```
 
 The suite runs in CI on any change under `infra/rack-switch-fleet/` or
@@ -236,6 +237,17 @@ A note on reading its output: a test runner's prose is a convenience and its
 exit code is the fact. Three of these tests were red for several rounds of work
 because the tail of the `bats` output looked green.
 
+The suite is one bats file per subject under `tests/` (`render`, `edge`,
+`session`, `replace`, `recover`, `apply`, `resolve`, `save`, `omada`, `ztp`),
+sharing `tests/helpers.bash`. `rack:fleet-test` runs the files side by side and
+prints each file's output whole, with how long it took; names run a subset.
+Each file runs against its own copy of this directory and `infra/helm`, made
+in `setup_file`, and each test takes the lock in its own `FLEET_LOCK_DIR`, so a
+test may render into, edit or add to the committed files without touching the
+checkout or another file. Most of the suite's time is fake switches waiting
+out the session driver's quiet window, so a new test that drives a session
+belongs in a file of its own subject rather than in `render`.
+
 `--site` selects the rack and defaults to `ber1`.
 
 Shell and `ssh`, like `rack:prep-switch` beside it. `fleet.sh` is the
@@ -243,6 +255,18 @@ implementation and `mise/tasks/rack/fleet.sh` the operator entry point; the
 pieces worth testing on their own are in `lib/`. Rendering needs `jq`,
 normalising is `awk`, and the diff is `diff -u`, so there is no interpreter to
 install and nothing to build.
+
+A render's cost is the number of `jq` and `yq` processes it starts, so a
+function reads the fields it needs from the site in one `jq` call (joined with
+`\x1f` and split with `read`) rather than one call per field, per node or per
+port, and reads the tuist chart's values file with one `yq` call. `render`
+runs the site-wide checks once (`fleet_check_site`) and the edge checks once
+(`fleet_edge_check`), and sets `FLEET_SITE_CHECKED` and `FLEET_EDGE_CHECKED`
+to the site file so each device's and file's render skips them; when they fail
+it leaves the variables empty and every render runs and reports them as
+before. `fleet_render_k8s` takes the switch's rendered configuration as an
+optional third argument and digests it for `configRevision` instead of
+rendering it again.
 
 ## What the site definition is for
 
@@ -304,7 +328,7 @@ one:
   yet, which is most of them today, and a node with no links is a node that is
   reached some other way.
 - **`devices[].ports`** carries only what is neither a machine nor an appliance:
-  the ISL and the router uplink.
+  the ISL and the WAN ports.
 
 An appliance is a node like any other. Giving the PDU and the KVMs their own
 concept would put them back where the compute ports started, as port numbers
@@ -364,10 +388,9 @@ driver, a wedged mini in the colo has no remote recovery at all. Having the data
 say the hardware declares no out-of-band interface keeps that dependency
 visible.
 
-There are no minis in the site definition yet and there will eventually be forty
-or more, split A/B across the ToRs. They are the bulk of this rack, so the tests
-pin this rule down with a fixture mini rather than waiting for the first real
-one.
+There will eventually be forty or more minis, split A/B across the ToRs. They
+are the bulk of this rack, so the tests pin this rule down with a fixture mini
+as well as the site's own.
 
 Separate trap, same port: a host OS that bridges the LM port or changes its MAC
 kills AMT silently. That is not something this repository can check, but it does
@@ -392,8 +415,9 @@ ToR B. That is redundancy that looks like an untidiness, so a later edit moving
 them onto one switch would remove it without appearing to remove anything; the
 tests fail if the two storage nodes ever share a ToR. Mac minis follow the same
 rule for the same reason: one NIC each, split A/B the way the power feeds are.
-The two edges are split the same way on power: each names its transfer switch in
-`ats`, and the tests fail if they ever share one.
+The pairs are split the same way on power: the two edges, the two storage nodes
+and the two ToRs each resolve to different transfer switches, and the tests fail
+if a pair ever shares one (see the power section below).
 
 A node carries a `status`. `ber1-store-b` is `planned`: it is the one x86 node
 not yet bought, arriving November, and in the prep bay it is the empty slot in
@@ -411,11 +435,64 @@ row in review.
 waiting for a port and the ones belonging to a planned node.
 
 The power gear is Eaton throughout: three EATS16N transfer switches and two
-EVMAFC20A PDUs, one order not yet placed, so every power node is `planned`. The
-earlier APC choice was superseded when a single vendor across ATS and PDU turned
-out to be the stronger argument. Both are managed, so both keep a link to
-`ber1-mgmt`; the PDU also speaks a REST API, which is what a power driver should
-target, and that is recorded on the hardware rather than left to memory.
+EVMAFC20A PDUs. The earlier APC choice was superseded when a single vendor across
+ATS and PDU turned out to be the stronger argument. Both are managed, so both
+keep a link to `ber1-mgmt` (ports 41-45) and a static `mgmt_address`. Both
+speak Eaton's REST API, which is what their controllers target, and that is
+recorded on the hardware (`management_protocols`) rather than left to memory;
+for the transfer switch it rests on the card being a Network-M2, which is not
+yet confirmed on the units (see "RackATS" in the CAPI provider).
+
+Power runs feed -> ATS -> load, or feed -> ATS -> PDU -> load. `ber1-ats-1` is
+the critical layer and powers its loads from its own outlets: `ber1-mgmt`,
+`ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the KVMs, the one-of-a-kind
+things everything else is recovered through. The other two each feed one PDU,
+and that ATS-plus-PDU pair is a chain: `ber1-ats-2` -> `ber1-pdu-a` (chain A)
+and `ber1-ats-3` -> `ber1-pdu-b` (chain B). A node or switch names the device its
+cord goes into, `ats` or `pdu` and never both, and a PDU names its ATS, so every
+load resolves to exactly one transfer switch, the unit of failure.
+`fleet_check_power` enforces that shape and that the edges, the storage pair
+and the ToRs each resolve to two different ATSes; a member of one of those pairs
+that names no `ats` or `pdu` is an error of its own rather than skipped. The
+cable schedule shows each hop as its own row. `rack:fleet render` removes, and
+`render --check` reports, a `RackPDU`/`RackATS` object in `k8s/<site>/` whose
+device the site no longer has, since the workflow applies the whole directory
+and a renamed device would otherwise leave two objects driving one card.
+
+The hops start at the site's `feeds`: one per source, `feed-a` behind every
+transfer switch's source 1 and `feed-b` behind source 2 (the house sockets at
+home, the A and B whips in the colo). Each transfer switch therefore has two
+feed rows, `feed-b → ber1-ats-3 source-2` and so on, and the cord is labelled
+`feed-b ↔ ber1-ats-3:source-2` like every other cable. A chain drill pulls
+exactly those cords; before they had rows, the drill on 2026-10-06 pulled the
+minis' own cords twice. `fleet_check_power` refuses a site with transfer
+switches that names no feed for a source, or two.
+
+The prep bay ran `ber1-ats-1`, `ber1-ats-3` and `ber1-pdu-b`, which is the
+critical layer plus one chain: enough to fail a chain and watch the rest of the
+rack report it. Chain A, `ber1-ats-2` and `ber1-pdu-a`, exists only in the colo.
+
+The drill was run on 2026-10-06 with the three M5 Pro minis on chain B and
+two CI jobs running:
+
+- **One feed pulled**, on `ber1-ats-3` and then on `ber1-ats-1`: each switch
+  moved the load to its other source and back to its preferred one on restore,
+  reported as `Transferred` and `RedundancyLost`/`RedundancyRestored`. Nothing
+  downstream noticed: no mini, ToR or edge rebooted, VRRP did not move, and both
+  jobs completed.
+- **Chain B dark** (both of `ber1-ats-3`'s feeds out for about five minutes):
+  the minis, ToR B and edge-b went down. The critical layer kept reporting,
+  edge-a kept the power routes, and the MachineHealthCheck flagged the three
+  Machines without remediating any. After restore the PDU card answered in
+  about three minutes on its pinned certificate, and the minis came back
+  together in about 3.5 minutes, the time ToR B takes to boot, with no
+  re-bootstrap. edge-b took about 5.5 minutes.
+
+Keep more loads off the critical ATS over time rather than adding to it: gear
+bought with two power supplies goes one cord to each chain's PDU and needs no
+ATS at all, which leaves the critical layer with only what can never be
+dual-corded (JetKVMs, the shepherd, the jig, and `ber1-mgmt` while it has one
+supply).
 
 ### Outlets are not modelled here, because they already are somewhere else
 
@@ -433,12 +510,139 @@ one. That matters more than a gap would: an acknowledged gap eventually gets
 filled, and filling this one would leave two places to look and two chances to
 disagree.
 
-Two things follow. `internal/power` ships only a `shelly` driver, a prototype
-stand-in, so the rack's Eaton PDUs have none yet and a wedged mini in the colo
-has no remote recovery at all until they do. And whoever extends the chart side
-should carry the A/B property across: a mini's outlet and its ToR should not
-both land on the same side, or the split that the storage pair and the power
-feeds already keep is quietly undone for compute.
+Two things follow. A PDU is a `RackPDU`, adopted and kept configured by the CAPI
+provider (see "RackPDU objects" below), and a RackHost names its outlet as
+`power: {pdu: <name>, outlet: "<n>"}`; `ber1-runner-b01` to `b06`, `b15` and
+`b16` are on `ber1-pdu-b`, `b07` to `b14` on `ber1-pdu-a`. And a mini's outlet and its ToR
+must land on the same chain (chain A minis on ToR A, chain B minis on ToR B), so
+a mini never depends on the other chain. Crossed, any one ATS failure takes the
+whole fleet: half the minis lose power and the other half lose their ToR.
+`ber1-tor-b` is on chain B itself, so a chain B mini and its switch lose power
+together. `ber1-tor-a` is on the critical layer (`ber1-ats-1`) rather than on
+chain A, because it carries the live WAN fibre and every mini already depends
+on that layer for the WAN and management; a chain A mini behind it gains no
+transfer switch whose failure takes the whole fleet.
+
+This file records which chain a node is on (`ats`/`pdu`), but not the outlet,
+which stays the RackHost's, so `fleet_check_rack_hosts` checks it where the
+two meet: a node whose RackHost's `power.pdu` resolves to another chain's
+transfer switch than its data link's ToR, or names a PDU the site does not
+have, fails the render. A ToR on a transfer switch that feeds no PDU, the
+critical layer, passes with a mini on either chain. An outlet that is not on a
+RackPDU (a desk plug) is not held to a chain.
+
+An outlet's number is the card's (`/powerDistributions/1/outlets/<n>`), and
+it is the printed label's: outlet `n` reports `identification.physicalName`
+`An`, read off `ber1-pdu-b` on 2026-10-05, the letter being the PDU's one
+input. Its `measures` give each outlet's draw, which tells which outlets have
+a load without switching anything. The CAPI provider's RackPDU controller reads
+every outlet's into the RackPDU's `status.outlets[]` and the
+`capt_rackpdu_outlet_*` metrics, whatever is plugged in. Only a RackHost names
+its outlet, so only a mini's reading is tied to a node: its `HostDrawing`
+condition tells an empty outlet (0 VA) from a mini plugged in and powered off
+(about 0.1 W and 4 to 6 VA), whose power button someone has to press, since an
+outlet cycle does not start a mini our bootstrap has not set
+`pmset autorestart 1` on. The ToR's, edge's and storage node's outlets are
+read but stay unnamed, since outlets are not modelled here. The even outlets are hybrid C13/C19
+sockets, so every outlet takes the minis' C14 cord.
+
+**Cord colour is the chain.** Chain B's mini cords are blue, and chain A's are
+another colour, so a mini with one chain's cord on the other chain's ToR is
+visible at a glance.
+
+### RackPDU objects
+
+Each PDU (`evmafc20a`) with a `mgmt_address` is rendered as a `RackPDU` object
+into `k8s/<site>/<pdu>.yaml` by `fleet_render_pdu`, beside the RackSwitch
+objects, and the workflow applies both to `kubernetes.namespace`: its site,
+model, `mac`, address, `chain` (its `ats`), `managedBy: controller` once the
+node is `installed` (`standalone`, never contacted, before), and
+`outletStateOnStartup: "on"`. There is no revision: the spec is small, and the
+controller converges on `metadata.generation`. What the controller does with
+it (adopting the card on its factory login, deriving its passwords from the
+rack card root key, pinning its certificate on first use, reporting drift) is
+"RackPDU" in [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
+
+Nothing is rendered beside the object for its passwords. A card's passwords
+are derived from the root key in 1Password (`BER1_RACK_CARD_ROOT`) and the
+node's `mac` (or its name, without one), so recording a MAC after a card was
+adopted changes its passwords, and the controller rotates the card onto the
+new ones at its next pass. A person who needs the web UI runs
+`mise run rack:card-password <device>`, which reads the MAC from this
+directory's site definition; see "Rack card passwords" in
+[`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
+
+A power node may carry `mac`, its management card's MAC in lower case, like a
+switch. The edge's DHCP reserves the node's `mgmt_address` against it, so a
+factory card, which asks for DHCP, lands on its address with the edge as its
+router and nobody at it; an unknown MAC still gets the provisioning range. A
+node without one is
+rendered all the same, gets no reservation, and its RackPDU reports
+`AddressReserved=False`.
+
+**A card whose MAC nobody could read off the unit** is cabled to its
+management port anyway, and the edge's DHCP log gives its MAC:
+
+1. The card asks for DHCP and takes a provisioning address (`.100` to `.150`
+   of `management.edge.provisioning`, a one-hour lease). The controller does
+   not find it there: it dials only `spec.address`, and the edges advertise,
+   and the tailnet policy grants, only the power nodes' management /32s.
+2. Read the MAC from the switches' dnsmasq on the edge holding the management
+   address (`kubectl -n omada logs rack-edge-<site>-<edge> -c dhcp`). Each
+   Eaton card names itself: a PDU's vendor class is `Eaton Rack PDU Network
+   Management Controller` and its host name `enmc2-<MAC>`, a transfer switch's
+   `Eaton Gigabit Network Card 3` and `ups-<MAC>`. With every other power node's
+   MAC recorded, the one Eaton client in the provisioning range is the card
+   on the port.
+3. Record the MAC as the node's `mac`, render, and merge. The edge rollout
+   restarts dnsmasq with the reservation, and at the card's next renewal, at
+   most 30 minutes later, dnsmasq refuses its provisioning address (`DHCPNAK
+   ... static lease available`, its answer to a client renewing one address
+   while another is reserved for it). The card starts over and gets
+   `mgmt_address`. No restart of the card is needed. To move it sooner,
+   bounce its port on `ber1-mgmt` from the Omada controller.
+4. Check the controller adopted the card it expected: `kubectl get rackpdu
+   <name> -o wide` (or `rackats`) shows the serial the card reports.
+
+### RackATS objects
+
+Each transfer switch (`eats16n`) with a `mgmt_address` is rendered the same way
+as a `RackATS` into `k8s/<site>/<ats>.yaml` by `fleet_render_ats` (both go
+through `fleet_render_power`): its site, model, `mac`, address, `managedBy`
+(controller once `installed`) and `preferredSource`, and its card's passwords
+are derived the same way. The controller adopts all three.
+A transfer switch without a `mac` has no DHCP reservation and its RackATS
+reports `AddressReserved=False`; the reservation rule is the PDUs', since both
+are installed power nodes behind the edge.
+
+Every transfer switch carries `preferred_source`, 1 or 2: the source the
+switch powers the load from whenever it is good. Source 1 is feed A and
+source 2 feed B, so a transfer switch prefers the feed its chain is named for:
+`ber1-ats-1` (the critical layer) and `ber1-ats-2` (chain A) prefer 1,
+`ber1-ats-3` (chain B) prefers 2, which keeps the two chains on different feeds
+while both are good. `fleet_check_power` refuses a transfer switch without one
+and any other node with one.
+
+What the controller does with the object (adopting the card, keeping the
+preferred source, and reading every minute which source powers the load and
+whether the other could take it, into status, metrics and events) is "RackATS"
+in [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
+That observation replaces an SNMP exporter: nothing polls these switches over
+SNMP.
+
+### RackSite object
+
+Each site is rendered as a `RackSite` into `k8s/<site>/<site>.yaml` by
+`fleet_render_site`, named after the site and applied with the rest of the
+directory. Its `spec.contractedPower` comes from the site definition's
+`contracted_power`: the power the colocation contract allows, as
+`{"from": "YYYY-MM-DD", "watts": N}` steps, each in effect from that day (UTC)
+until the next one's. When the contract changes, add a step here. Don't edit the
+alert. `fleet_check_contracted_power` refuses a `from` that is not a real day, a
+`watts` that is not a whole number above 0, and two steps on one day. A site
+without `contracted_power` still gets its object, with no steps. What the
+controller does with it is "RackSite" in
+[`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
 
 ### The seam between two inventories, and how it is joined
 
@@ -457,8 +661,9 @@ stale, because the controller acts on the other.
 
 So a racked mini has a node here for its cable, its ToR port and the MAC its
 address is reserved against, pointing at its `RackHost` for everything else,
-its address included. Not a second description of the machine. `ber1-proto-01`
-is the first.
+its address included. Not a second description of the machine.
+`ber1-runner-b01` to `b03`, one three-up tray of M5 Pro minis on ToR B ports
+2 to 4, are the first.
 
 ## The switches as Kubernetes objects
 
@@ -478,10 +683,17 @@ the committed objects are stale. The object names the 1Password item holding the
 login and never carries the login.
 
 **They live in the rack's cluster.** Each site names its namespace
-(`kubernetes.namespace`); BER1 is `tuist-staging`, beside its `RackHost`, while
-the rack is at home, and moves to production with the rack. On a merge to
-`main`, the Rack Switches workflow applies the CRD and each site's rendered
-objects there, so the cluster's desired state follows git.
+(`kubernetes.namespace`); BER1 is `tuist`, production's, beside its `RackHost`
+(it was `tuist-staging` while the rack was built at home). The namespace is
+also what names the rack's env, by the tuist chart's convention (`tuist-<env>`,
+or `tuist` for production; `mise run rack:fleet env`): the Rack Switches
+workflow's objects, `omada-deployment.yml`, the install stick, the card
+passwords and the chart values the render reads all follow it, and
+`fleet_check_env` in the tests fails when the controller's vault and tailnet
+name, or the tuist chart values declaring the rack's hosts and runner pools,
+disagree with it. On a merge to `main`, the Rack Switches workflow applies the
+CRD and each site's rendered objects there, so the cluster's desired state
+follows git.
 
 **Status is pushed by an operator**, with `rack:fleet publish`, into the site's namespace in
 the cluster `--context` names (never whatever context happens to be current), which runs a
@@ -717,9 +929,11 @@ is in the data center. Where that stands on 2026-09-23:
 ## The edge nodes
 
 A site has two edge nodes, active and standby: `ber1-edge-a`, which is preferred,
-and `ber1-edge-b`. Each is a node of the rack's cluster that runs one pod: the
-rack-edge DaemonSet ([`infra/helm/rack-edge`](../helm/rack-edge)), deployed with
-the Omada controller by `omada-deployment.yml`. The pod runs what
+and `ber1-edge-b`. Each is a node of the rack's cluster that runs one pod, a
+kubelet static pod that the rack-edge DaemonSet
+([`infra/helm/rack-edge`](../helm/rack-edge)), deployed with the Omada
+controller by `omada-deployment.yml`, writes onto the node (see "Cold boot"
+below). The pod runs what
 `rack:fleet render` writes into `infra/helm/rack-edge/sites/<site>/` from the
 site definition (`lib/edge.sh`), and `render --check` in CI fails when those
 files no longer match it:
@@ -728,11 +942,13 @@ files no longer match it:
   VRRP instance, unicast to the other edge over `management.edge.vrrp`, and
   whichever is master holds every floating address. Today those are the edge
   address on the switch port (`management.edge.address`, the switches'
-  gateway) without its prefix route, the provisioning address, and a host route
-  to each switch marked `behind_edge`, and the machines' gateway, as a /32 (see
-  "The machines segment" below). The Cogent /31 (`management.edge.wan`) is
-  empty until the data center has it; set, it floats the same way, so the
-  standby holds no WAN address until it takes over. The first member is
+  gateway) without its prefix route, the provisioning address, a host route
+  to each switch marked `behind_edge` and to each installed power device whose
+  management link is on one, and the machines' gateway, as a /32 (see
+  "The machines segment" below). The WAN address (`management.edge.wan`), its
+  IPv6 address and the default routes through them float the same way, so the
+  standby holds no WAN address until it takes over (see "The WAN" below). The
+  first member is
   preferred and takes the addresses back a minute after it returns, and an edge
   whose switch port has no link never becomes master. An advert counts only
   from the other edge's VRRP address and with the site's password, which the
@@ -740,7 +956,9 @@ files no longer match it:
   every upgrade. Only the edges are on the VRRP VLAN, so a device that can send
   to an edge cannot read it. Delete the Secret and upgrade to rotate it: until
   both edges restart, each ignores the other and both hold the addresses.
-- `mgmt-path.sh`, what each edge needs whether it is master or not: the VRRP
+- `mgmt-path.sh`, what each edge needs whether it is master or not: the
+  uplinks' rings at 4096 RX and TX descriptors (i40e's 512 overflowed on the
+  WAN's bursts, counted as `rx_missed_errors` in `ethtool -S`), the VRRP
   VLAN as an active-backup bond (`vrrp0`) over one VLAN interface per uplink,
   so VRRP survives losing either ToR, with this edge's own VRRP address, the
   machines VLAN as a second bond (`machines0`) with this edge's own address on
@@ -748,7 +966,12 @@ files no longer match it:
   and the provisioning range, into tailscale0, clamps the MSS of what it
   forwards, and translates the provisioning range and the machines onto the
   uplinks; one addresses DHCP replies to each known switch's MAC; one keeps
-  the machines away from everything but the internet. It runs at pod
+  the machines away from everything but the internet. With a WAN it also
+  bonds the WAN VLAN (`wan0`), routes out through the other edge at a metric
+  keepalived's default route beats, routes the ToRs' management addresses over
+  the uplinks, translates the standby and the management segment onto the
+  WAN, and adds a fourth table that closes the WAN to everything the rack did
+  not start. It runs at pod
   start and again every five minutes, with the pod's node name picking its
   VRRP address, and refuses a port that carries the node's default route. What
   it installs stays in the kernel when the pod goes; the floating addresses go
@@ -756,16 +979,27 @@ files no longer match it:
 - `dnsmasq.conf`, DHCP on the switch port, the same on both edges: dnsmasq
   answers only for the ranges whose address the node holds, so only the master
   serves, and the reservations are identical wherever it moves. Each known
-  switch behind the edge gets its site address and the edge address as router,
+  switch behind the edge, and each installed power device behind it with a
+  `mac`, gets its site address and the edge address as router,
   anything else the provisioning range, and both get the controller's tailnet
   address in option 138. That option is what makes a factory switch zero touch.
+- `dhcp.sh`, what runs that dnsmasq: only while the node holds the edge
+  address on the switch port, stopping it when keepalived moves the address
+  away and starting it again when it exits. A dnsmasq started before the node
+  held the address served nothing once it arrived, and an edge's pod starts
+  before keepalived holds anything.
 - `dnsmasq-machines.conf`, DHCP on the machines segment, a second dnsmasq that
   is not authoritative, since both edges answer there (see "The machines
   segment" below). Each serves one interface, which is what lets the two share
-  port 67.
-- `tailnet-routes.sh`, run every five minutes by the pod's `routes` container
+  port 67. It keeps no lease file (`leasefile-ro`): every lease there is an
+  infinite reservation, and a kept one holds an address against a MAC the site
+  no longer reserves it for, so dnsmasq refuses it to the MAC that now has it
+  (a mini replaced on its predecessor's address would get none).
+- `tailnet-routes.sh`, run every 15 seconds by the pod's `routes` container
   through the node's own tailscaled: `tailscale set --advertise-routes` with a
-  /32 per machine on the machines segment, the same on both edges.
+  /32 per machine on the machines segment, the same on both edges, and on the
+  edge holding the edge address, a /32 per power device behind the edge (see
+  "Power devices on the tailnet" below).
 - With `management.edge.netboot`, x86-64 UEFI firmware on the provisioning
   range also gets iPXE's Secure Boot shim (`snponly-shim.efi`, which loads
   `snponly.efi`, with the name kept in the packet's file field), and iPXE its
@@ -780,10 +1014,9 @@ files no longer match it:
 The VLANs the edges talk over are `carried_by: edges` in the site's `vlans`:
 the switches tag them only on the ports facing an edge's data links and on the
 ISL, and declare them only where a port carries them. That is the VRRP VLAN and
-the machines VLAN. `management.edge.vrrp`
+the machines VLAN and the WAN VLAN. `management.edge.vrrp`
 names the VLAN, its prefix and the members, in order of preference, and every
-edge of the site has to be a member. The WAN-DMZ VLAN joins them the same way
-once it has an ID.
+edge of the site has to be a member.
 
 The pod uses host networking, with NET_ADMIN (and NET_RAW for keepalived and
 dnsmasq, and NET_BIND_SERVICE for dnsmasq) rather than privileged. The kernel
@@ -815,7 +1048,7 @@ its InternalIP, and keeps it converged; see
 `10.254.254.0/24`, used by nothing, so it reports Ready, and its kubelet hands
 host-network pods systemd-resolved's stub, which answers tailnet names. An
 edge's own networks sit inside the pod CIDR (staging gave `192.168.0.0/24`, the
-house network, to a runner node), and a Cilium agent would route them into the
+management prefix, to a runner node), and a Cilium agent would route them into the
 tunnel and cut the node off. The operator refuses to join it until the
 cluster's Cilium agent stays off that label. The site definition names the node
 the fleet commands jump through (`management.edge.ssh`), and the addresses the
@@ -823,7 +1056,7 @@ edges share (`.interface`, `.address`).
 
 Both edges advertise the same Tailscale subnet routes, the machines' /32s, so
 the tailnet fails over between them too. The management prefix is never
-advertised: at home it is the house network.
+advertised, so the tailnet reaches only the addresses the site names.
 
 **Reading the pod's logs.** `kubectl logs` and `exec` reach the edges' kubelets
 through a proxy Pod per node (see "Logs and exec" in
@@ -836,13 +1069,223 @@ The pod's logs are also in Loki like any other pod's:
 {cluster="tuist-staging", namespace="omada", container="vrrp"}
 ```
 
-They get there through `alloy-rack-edge` in
+They get there through `alloy-rack` in
 [`infra/helm/k8s-monitoring`](../helm/k8s-monitoring), an Alloy collector on
 the node's host network that reads `/var/log/pods` and pushes to the cluster's
 Alloy receiver at its tailnet name. Each line carries the time the receiver got
 it, so lines the collector catches up on after an outage are stamped late;
 dnsmasq's own time is at the start of each line. On the node itself:
 `sudo crictl -r unix:///run/containerd/containerd.sock logs <container>`.
+
+**An offer in the log with no request after it** is not a reply that went
+missing on its own. What the switch-port dnsmasq does with a client in the
+provisioning range:
+
+- It pings the address before offering it and hears no other DHCP packet
+  while it waits, so `DHCPDISCOVER` is logged up to three seconds after the
+  packet arrived (the `available DHCP range` line beside it carries the
+  arrival), and a second client queued behind it waits its turn.
+- It unicasts the offer: it puts the address and the client's MAC in the
+  node's neighbor table and sends to the address out the switch port. A
+  `FAILED` neighbor entry for an offered address afterwards is only that entry
+  ageing out.
+- `tuist_rack_dhcp` changes the destination MAC of a reply to a known switch
+  and nothing else; a test pins that it has no verdict and no policy.
+- An installer is a Linux DHCP client, not firmware: it sends no client
+  architecture and no iPXE user class, so it gets the plain provisioning
+  offer, and `dhcp-no-override` and `dhcp-authoritative` change nothing for it.
+
+None of that loses an offer: Ubuntu's live installer, booted from its ISO with
+the stick's seed behind this dnsmasq, its nft table and the edge's start order,
+took both provisioning leases and reached the boot server on every run
+(2026-10-11). A client that goes quiet after one `DHCPDISCOVER` has stopped
+asking. An installer stops when subiquity applies the install's own network
+section, DHCP on the uplinks only, which unmanages its 2.5G ports about nine
+seconds after they come up (the journals of `ber1-edge-b`'s and
+`ber1-store-a`'s installers, kept in `/var/log/installer/installer-journal.txt`
+of the system they installed, show it).
+
+`ber1-mgmt` logs every port's link changes, which tells how long a client was
+on the segment: `show logging buffer` in a session opened the way
+`read_live_config` in `fleet.sh` opens one, through the edge. Its clock is
+UTC+1 (`no system-time dst`). On 2026-10-10 `ber1-edge-b`'s ports 2 and 47
+came up at 10:01:05 UTC and stayed up until a power cycle at 10:05:18, while
+its any-host stick waited for the boot server; each port got one
+`DHCPDISCOVER` through, seven to ten seconds after coming up, and nothing
+more. Neither the edge nor the
+installer's software reproduces that.
+
+### The WAN
+
+The rack's only way to the internet is its upstream's handoff, a static
+address with no DHCP: Cogent's `149.6.170.31/31` behind `149.6.170.30`, and
+`2001:978:2:b::4:11/127` behind `::4:10`, the upstream's addresses, over which
+the site announces prefixes of its own (below).
+`management.edge.wan` names the VLAN it rides (4001, `carried_by: edges`), the
+addresses and the gateways.
+
+- **The switches.** A port with `purpose: wan` carries the WAN VLAN untagged
+  and nothing else, with no spanning tree towards the upstream, so the
+  upstream sees the edges and nothing of the rack; without a WAN in the site
+  it stays on the management VLAN. `ber1-tor-a` 30 is the Cogent optic,
+  `ber1-tor-b` 30 holds the spare, so a failover is moving the LC jumper, and
+  `ber1-tor-a` 24 is a copper WAN port for standing in an upstream on the
+  bench (a laptop on `149.6.170.30/31` that translates onto its own uplink),
+  with nothing in it at the colo. The edges' trunks and the ISL tag the WAN
+  VLAN like the edges' other VLANs.
+- **One address, floated.** keepalived holds the WAN addresses and the default
+  routes through them on the master, so exactly one edge answers for the
+  address, and the upstream learns a failover from keepalived's gratuitous ARP
+  and unsolicited neighbour advertisement. The IPv6 address rides
+  `virtual_ipaddress_excluded`, since an IPv4 instance's adverts carry only
+  IPv4 addresses. An edge whose WAN bond has no link never becomes master.
+  The upstream's own link is not tracked: there is one, and the standby has no
+  address to test it from.
+- **The standby goes out through the master.** Every edge routes out through
+  the other's VRRP address at metric 200, which keepalived's default route
+  beats on the master; the master translates the VRRP prefix onto the WAN.
+  That is how the standby stays on the tailnet and in the cluster. The route
+  is `proto static`, the protocol networkd gives the same route on an edge
+  installed with it (below): with any other, a networkd restart adds a second
+  copy beside the pod's.
+- **No DHCP on the uplinks.** The operator's converge gives an edge's X710
+  uplinks no address and no DHCP, global resolvers and no router
+  advertisements (see "Rack-owned Linux hosts" in
+  [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)).
+  The switches' gateway is still the edge address: the master answers ARP for
+  it on its uplinks, and `mgmt-path.sh` routes the ToRs' management addresses
+  over both uplinks, the node skipping a nexthop whose link is down. The
+  management segment reaches the internet translated onto the WAN.
+- **A reinstalled edge goes out through the other one.** With no DHCP
+  anywhere, a fresh install would reach nothing, the tailnet included, and so
+  never be converged. `render` also writes `infra/helm/tuist/rack-sites/<site>.yaml`
+  (`fleet_edge_install`): each edge's uplinks, in the order its data links are
+  listed (the order `mgmt-path.sh` stacks the edge VLANs in), the VRRP VLAN,
+  its VRRP address and the other edge's. The tuist chart puts that on the
+  edge's RackLinuxHost (`spec.edge`), and the operator's install builds the
+  VRRP bond from it the way `edge_vlan_bond` does, with the standby's default
+  route through the master, so the pod later finds it in place. A site with no
+  WAN lists no edges there, and its edges' installs keep DHCP on their
+  uplinks. It needs the other edge up as master: reinstall one edge at a
+  time.
+- **The first edge of a site goes out on its own.** With no other edge to go
+  out through, it takes the site's static WAN itself: once the WAN's address
+  is in the site, each edge in `rack-sites/<site>.yaml` also carries `wan`
+  (VLAN, address, gateway), which the install turns into a first-boot WAN
+  service ("The first edge of a site" in
+  [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)).
+  It holds the WAN only while no rack-edge pod runs on the node and nobody
+  else answers for the address, and records what it holds in
+  `/run/rack-edge/first-wan`. `mgmt-path.sh` gives that up before keepalived
+  starts, so from the pod's first start the WAN is keepalived's alone.
+- **Closed from outside.** `tuist_rack_wan` lets in replies to what the rack
+  started, ICMP and ICMPv6 (neighbour discovery included) and tailscaled's UDP
+  41641 for direct tailnet paths, and drops everything else arriving on
+  `wan0`, except what the edge translated itself (`ct status dnat`): the
+  cluster ports of the site's cluster-network storage host, from the
+  cluster's nodes only, in the `tuist_cluster_forwards` table the CAPI operator
+  renders into the edge's node configuration (see "A storage node on the
+  cluster network" in `infra/rack-nodes/AGENTS.md`). The edges' SSH, kubelets
+  and boot server are reached over the tailnet only. IPv6 serves the edges themselves: a /127 has
+  no room for the machines.
+- **The site's own prefixes.** `management.edge.wan.bgp` names the site's AS
+  (`asn`, AS218377), the upstream's (`peer_asn`, Cogent's AS174) and the
+  prefixes it announces (`95.130.119.0/24` and `2a11:83c0::/29`, registered to
+  Tuist GmbH with RIPE route objects and ROAs for AS218377). `render` writes
+  `bird.conf` (`fleet_edge_bgp`), and the static pod runs BIRD on both edges
+  with it: one session per family to the WAN gateways, bound to the WAN
+  addresses and `direct`, so only the master has sessions and they move with
+  keepalived. A failover drops the sessions; the new master's connect within
+  seconds, and graceful restart asks the upstream to keep the routes
+  meanwhile. Each prefix is a blackhole in BIRD's own table and nothing BIRD
+  learns goes into the node's routes, so the default through the WAN stays
+  keepalived's and announcing changes nothing the rack sends on its own: what
+  moves machines onto the prefix is the egress below. Of what the upstream sends, only
+  a default route is kept. `birdc -s /run/bird/bird.ctl show protocols` in
+  the pod's `bgp` container shows the sessions. CI parses every site's
+  `bird.conf` with the runner's BIRD 2 from the Ubuntu archive, installed
+  with apt rather than pulled as an image.
+- **Egress from the site's own prefix.** `management.edge.wan.egress.prefix`
+  is an IPv4 block inside a prefix `bgp` announces (`95.130.119.16/28`), and
+  the Mac minis on the machines segment go out to the WAN translated into it
+  instead of onto the WAN address: one `snat ... persistent` rule in
+  `mgmt-path.sh`, ahead of the segment's masquerade, so a mini keeps the same
+  address of the block across its connections. The upstream routes the
+  announced prefix to the WAN address, and the replies are untranslated by
+  conntrack before routing, so the edges hold no address of the block.
+  BER1 sets no `egress.nodes`, so every mini moves. The key limits it to the
+  named minis, for moving a site over one env at a time (staging's lent
+  mini, then canary's, then all).
+  The storage nodes never move: their cluster addresses are the WAN address,
+  forwarded to them by the edges, and their egress has to match. `render`
+  refuses a block outside the announced prefixes and a node that is not a
+  Mac mini on the segment (`fleet_edge_check_egress`).
+
+### Cold boot
+
+The edges' workload has to come back with nothing else up, because the WAN it
+brings up is how every node reaches the API server: a pod the kubelet only
+learns from the API server would never start after a power loss. So it is a
+kubelet static pod (`templates/_static-pod.tpl` in the chart). The rack-edge
+DaemonSet only installs it: it copies the rendered files to
+`/etc/rack-edge/<hash>` and the VRRP password to `/etc/rack-edge-vrrp`, then
+writes the manifest naming that directory into the kubelet's static pod path,
+`/etc/kubernetes/manifests`, which the operator configures on every rack node.
+The hash covers the site files and the manifest, so a change to either is a
+new manifest and the kubelet replaces the pod. The DaemonSet's pod is ready
+once the static pod's path has run with its hash (`/run/rack-edge/started`),
+and rolls one edge at a time, 90 seconds apart. `omada-deployment.yml` installs
+the release without waiting on it, like the other releases on rack nodes, since
+a dark edge would hold the wait. A configuration nothing runs any more is
+deleted once the new one runs.
+
+The static pod outlives the DaemonSet: deleting the release, or an edge's
+label, leaves it running, which is what keeps an edge up while its installer
+restarts. Taking the workload off an edge is deleting
+`/etc/kubernetes/manifests/rack-edge-<site>.yaml` there. Rolled out for the
+first time, the operator has to have given the edge its static pod path before
+the chart changes: otherwise the old pod goes and nothing starts the new one,
+and the rollout stops at the first edge, whose partner keeps the rack up.
+
+Tested in kind on 2026-10-09, on a worker named `ber1-edge-a` with dummy
+interfaces for its NICs: with the control plane stopped and every pod sandbox
+on the worker stopped, a kubelet restart brought the static pod back from its
+manifest, and keepalived put back the WAN address and the default route. A
+second configuration replaced the pod and removed the first's directory.
+
+### Power devices on the tailnet
+
+The operator switches the minis' outlets through the PDUs' REST API, from a
+cluster Pod, through the egress ProxyGroup, so each installed power node with
+a `mgmt_address` whose management link is on a switch behind the edge (today
+`ber1-ats-1`, `ber1-ats-3` and `ber1-pdu-b`, on `ber1-mgmt`) is a /32 on the
+tailnet too. Three things make that path work, all rendered from the site:
+
+- **Only the master advertises them.** `ber1-mgmt` is reached only through the
+  edges' switch ports, and only the master holds the edge address there and
+  the host routes to the devices behind it; the standby reaches the
+  management segment only through the master. `tailnet-routes.sh` adds the
+  power /32s only when the node holds the edge address on the switch port, so
+  after a failover they follow the master on the script's next run, within
+  15 seconds (`routesReapplySeconds`). At the management path's five minutes,
+  an edge deploy left the cluster with no remote power for that long
+  (measured 2026-10-05).
+- **The master translates what it forwards to them.** A power device
+  configured by hand has whatever gateway it was given (`ber1-pdu-b`'s was set
+  by hand), so its reply to a tailnet address would leave on the wrong
+  network. `mgmt-path.sh` masquerades
+  connections from `tailscale0` to them on the switch port, so they arrive
+  from the edge address, which is on-link for the device. Tailscale's own
+  subnet-route SNAT (`--snat-subnet-routes`, on by default on Linux, and the
+  edges join with the default) would do the same; the rule keeps the path
+  independent of how the node joined. Their replies into the tailnet are MSS
+  clamped like the switches'.
+- **The tailnet approves and grants only what the operator uses.**
+  `infra/tailscale/acls.json` auto-approves the installed power devices'
+  /32s, `192.168.0.14` (`ber1-ats-1`), `192.168.0.15` (`ber1-ats-3`) and
+  `192.168.0.16` (`ber1-pdu-b`), for `tag:tuist-rack-edge`, and grants the
+  staging cluster `tcp:443` to each, which the RackPDU and RackATS
+  controllers dial.
 
 ### Auto Install on the edge node
 
@@ -872,7 +1315,7 @@ service range (`10.128.0.0/12`) and the VRRP link.
   (the runners) is a machine. Its ToR port carries the machines VLAN untagged,
   as its native VLAN, and nothing tagged, so a machine never sees the
   management VLAN. The VLAN is `carried_by: edges`: tagged only on the edges'
-  ports and the ISL, and never on the router uplink. The controller writes the
+  ports and the ISL, and never on a WAN port. The controller writes the
   port's native VLAN through the Open API; its configuration-text form
   (`switchport general allowed vlan 10 untagged`, `switchport pvid 10`,
   `no switchport general allowed vlan 1`) has not been read off a switch yet.
@@ -904,6 +1347,13 @@ service range (`10.128.0.0/12`) and the VRRP link.
   rather than the prefix, for the reason the ACL file gives: under its
   catch-all grant, whatever is advertised is reachable from every device on
   the tailnet.
+- **The rack's caches** are on the segment too, on its storage nodes: the
+  Kura gateway the VMs reach (`rackFleet.vmCacheGatewayCIDRs`) and the VM
+  image cache the hosts pull golden bases from (`rackFleet.imageCache.nodes`,
+  see "The rack's VM image cache" in `infra/rack-nodes/AGENTS.md`). The render
+  refuses either unless it names a storage node of the site that is in the
+  rack, at its RackLinuxHost's address, so moving a storage node moves its
+  caches in the same change.
 
 Moving a host that is already on another network onto the segment: its SSH
 guard admits only the sources its RackHost lists, and the RackHost changes
@@ -976,7 +1426,7 @@ Switches are applied one at a time, in the order `apply_order` gives:
 1. `ber1-tor-b`. No WAN path lands on it, so a bad change costs one half of the
    rack's redundancy rather than the site's connectivity. It is also the only
    switch a change is tried on.
-2. `ber1-tor-a`. Carries the WAN optic and the router uplink, so a bad change
+2. `ber1-tor-a`. Carries the WAN ports, so a bad change
    takes the site off the internet and takes the path used to fix it along with
    it.
 3. `ber1-mgmt`, alone and last. There is one management switch and it is the
@@ -1304,3 +1754,205 @@ verifier.
 What adoption does to a configured switch is now measured, on `ber1-mgmt`; see
 "Adoption, measured on ber1-mgmt" in the assessment and "Switches the
 controller has adopted" above.
+
+## PicOS switches
+
+Rack 2's ToRs are FS S5860-24XMG on PicOS (`s5860-24xmg` in `models.json`,
+`"os": "picos"`). The rack switch controller writes them over SSH and NETCONF
+(`driver: picos`, see
+[`rack-switch-controller`](../rack-switch-controller/AGENTS.md)), so the render
+gives a PicOS switch a RackSwitch object and no configuration text: no
+`configs/<site>/<switch>.cfg`, and a `configRevision` that is the digest of the
+object's `config`. Ports are `te-1/1/1` to `te-1/1/32`: 1 to 24 copper (100M to
+10G), 25 to 28 SFP+, 29 to 32 SFP28.
+
+### Port speeds
+
+Every port runs at its default, and nothing sets another: auto on copper and
+SFP+ (a 1G copper SFP module links at 1G there with nothing set), 25G on SFP28,
+which rack 2's edge and storage DACs run at. Ports 29 to 32 are one speed
+group: PicOS commits them all at 25G (or unset) or all at 10G or 1G, and
+refuses a mix (measured 2026-10-26), so a 25G leg and a 1G module never share
+the SFP28 ports; 1G modules go in 25 to 28. Neither ZTP nor the controller
+writes a speed, so a 10G DAC in an SFP28 port, as on the bench, needs one set by
+hand on all four.
+
+### Zero touch, served by the edge
+
+A PicOS switch provisions itself only over its management port, eth0, and
+rack 2 has no management switch, so each ToR's eth0 is cabled straight to an
+edge's first onboard port. The edge node says so:
+
+```json
+{"name": "larch-edge-a", "role": "edge", "hardware": "rs501a-e12",
+ "tor_management": {"switch": "larch-tor-a", "nic": "lan1", "address": "192.168.61.1/30"}}
+```
+
+The ToR's `mgmt_address` is the other host on that /30, and its `mac` is the
+one on its label, which is eth0's. `management.picos` holds what the bootstrap
+needs, all of it public: `authorized_keys` (the rack switch controller's public
+key) and `ntp` (servers' addresses). `rack:fleet render` then writes, for the
+rack-edge chart:
+
+- `picos-bootstrap.sh`, from `picos/bootstrap.sh.tmpl`: what a factory switch
+  runs from ZTP. It adds `credentials.username` as a super-user with the
+  controller's key, gives admin and that user random passwords generated on
+  the switch, sets NTP, enables NETCONF, turns ZTP off, and logs `rack-ztp`
+  lines that `show log` lists. It carries no secret; the controller sets
+  admin's real password when it adopts the switch. For a ToR whose MAC the site
+  records with a live WAN port, a third commit sets up its WAN path
+  (`fleet_picos_wan_paths`): the carrier's port untagged on the WAN VLAN and
+  every port an edge's data link lands on tagged with it, as the controller
+  configures them. A factory switch passes the carrier untagged, and the
+  controller reaches the switch over that same WAN, so without it the first
+  edge of a site would lose its way out the moment its rack-edge pod moved the
+  WAN onto the VLAN. The switch matches itself by its management port's MAC,
+  the one the edge's DHCP answered, not ZTP's `switch_mac`, which is the system
+  MAC one above it; a failure of that commit is only logged. On 2026-10-26 the
+  bench unit (larch-tor-a) fetched larch's bootstrap from a factory reset
+  and logged `WAN path: te-1/1/27 untagged and te-1/1/{29,30} tagged on VLAN
+  4001` three minutes later, with VLAN 4001 named `wan`, te-1/1/27 on
+  `native-vlan-id 4001`, 29 and 30 trunks with `members 4001`, and NETCONF on
+  and ZTP off as before.
+- `ztp-<edge>.conf`: dnsmasq on that edge's link, answering DHCP for the ToR's
+  MAC alone, with options 66 (the edge), 67 (`picos-bootstrap.sh`) and 7 (the
+  edge, for ZTP's syslog), and serving the chart's site files over TFTP.
+- `ztp.sh`, which the static pod's `ztp` container runs: the edge's address on
+  the link, an nftables table that forwards the ToR's NTP and nothing else it
+  starts (and clamps its MSS into the tailnet), then that dnsmasq.
+- In `tailnet-routes.sh`, the ToR's address, advertised by the edge holding
+  its end of the link.
+- A `tor-console` container (`ztp.sh console`), which reboots the ToR when
+  ZTP missed it; below.
+
+### Rebooting a ToR that ZTP missed
+
+`rack-tor-console` (`edge/tor-console`, in the rack-edge image) runs on the edge
+that holds the ToR's serial console (the FS USB-to-RJ45 cable, found as
+`/dev/serial/by-id/usb-FTDI_*`, 115200 8N1). It checks the ToR's NETCONF port
+every 30 seconds; provisioning opens it within about four minutes of power-on.
+Once it has stayed closed for eight minutes, it logs in on the console with the
+factory login, `admin`/`pica8`, and goes by what the switch says:
+
+- **The login is refused:** the bootstrap replaced admin's password, so the
+  switch was provisioned and only its NETCONF is off. It is left alone.
+- **The login is taken:** ZTP never ran. The forced change of the factory
+  password is answered with a random password only the watcher keeps (the next
+  ZTP run replaces it), and the switch is rebooted, so ZTP runs again with the
+  edge serving. PicOS ends the session after the change, so the watcher logs
+  in again; admin's shell is the CLI, so it runs `start shell sh` and then
+  `sudo -n /pica/bin/reboot.sh`. An attempt that fails after the change
+  leaves the switch on that password, which the next attempt tries after the
+  factory one.
+
+The dialog counts a prompt only once the console has been quiet for 1.5 s:
+the CLI prints a prompt-like line and then drops what is typed while it
+starts. It tries at most once every twenty minutes. The factory login is the guard: a
+provisioned switch cannot be rebooted by it, whatever its ports say.
+
+### What the bench showed
+
+On 26 Oct the cold path ran on the bench with the first ASUS as the edge: a
+factory switch whose ZTP had missed, the watcher with a one-minute grace
+logging in on the console and rebooting it (10:32), the bootstrap fetched
+from the edge over TFTP (10:34) and NETCONF open (10:37), then the PicOS
+engine converging and cleaning up a ToR-like configuration through the edge
+with zero drift. NTP reached its servers through the edge.
+
+Measured on an S5860-24XMG with PicOS 4.7.1M-EC1, 22 to 25 October 2026:
+
+- ZTP is on from the factory and runs once per boot, about 93 seconds after
+  power-on, from the eth0 lease alone: no lease with options 66 and 67 (or 67 as
+  an `http://` URL) at that moment, no ZTP until the next boot. An edge cannot
+  be up that fast after a site power cut, so a ToR that boots unprovisioned has
+  to be rebooted once its edge serves: see "Rebooting a ToR that ZTP missed".
+- Its DHCP vendor class (option 60) is `S5860-24XMG`, not the `pica8-p<model>`
+  the documentation gives, and it asks for options 66, 67, 7, 43 and 42.
+- ZTP fetches the script into `/cftmp/provision.sh` and runs it as root before
+  PicOS's CLI exists; the CLI is reached from a `/cftmp/auto/post-xorplus` hook,
+  which runs as the CLI starts. `/cftmp/auto` is in the config backup, so a hook
+  deletes itself.
+- `set system login user <u> authentication public-key` is not valid on
+  4.7.1M-EC1; keys go in as `~<u>/.ssh/authorized_keys`, and survive a reboot
+  only when listed in `/etc/picos/user_backup_files.lst` before a commit saves.
+- ZTP stays on until something turns it off: `ztp_disable` from
+  `/usr/bin/ztp-functions.sh` and `set system ztp enable false`.
+- The factory reset is `save_config factory-default` (root), which keeps the
+  licence. It restores the original `/etc/shadow`, so the reset and the reboot
+  go in one `sudo sh -c '/usr/sbin/save_config factory-default &&
+  /pica/bin/reboot.sh'`, and nobody may log in between them:
+  `/etc/profile.d/picos.sh` saves the running configuration over the reset on
+  any login. A reset gives the switch new SSH host keys.
+- The RTC is set eight hours fast from the factory; NTP corrects the clock and,
+  after about eleven minutes, the RTC.
+- The controller's `tuist` user can `sudo` without a password.
+
+### Bringing up a new S5860
+
+Unit 2, a replacement, or unit 1 after its bench time. The aim is that the
+hands on site only unbox, rack and cable.
+
+1. **Before it ships to the rack:** put its label MAC (eth0's, the `MAC:` on the
+   bottom label) in its `devices[]` entry as `mac`, render, and merge. Nothing
+   else about the unit needs knowing in advance. Do not power it on to read
+   anything: a box that never booted is the state ZTP is proven from.
+2. **On site:** rack it; PSU 1 to an A strip, PSU 2 to a B strip; its **MGMT**
+   port (not CONSOLE, not a numbered port: they sit together and look alike) to
+   its edge's `lan1`, the middle of the edge's three RJ45 ports; its
+   **CONSOLE** port to its edge with the USB-to-RJ45 console cable; data cables
+   per the cable schedule. No chassis ground at home; to the rack's earth point
+   in the data centre.
+3. **Power on, in any order with its edge.** About 90 s after power-on the
+   switch asks its edge for DHCP and runs the bootstrap; about 4 minutes after
+   power-on the controller can log in. Its RackSwitch goes
+   `Adopted=False/NotProvisioned`, then `Adopted=True` with `status.hostKey`
+   pinned, then `Converged`.
+4. **If it stays `NotProvisioned`:** it booted before its edge served (ZTP
+   runs once per boot). The edge's `tor-console` container reboots it about
+   eight minutes after the edge is up; its log says what it found. If the
+   console cable is not in, power-cycle the switch once its edge is up.
+5. **Checks** from anywhere with the controller's key and a tailnet path, as
+   `tuist@<mgmt_address>`: `cli -c "show version"` (model, serial, PicOS
+   release, licence), `cli -c "show system rpsu;show system fan;show system temperature"`,
+   `cli -c "show system ntp-status"`, and `grep ztp_disable /etc/picos/picos_start.conf`
+   (`true`). `cli -c "show log last-rows 100"` shows the bootstrap's `rack-ztp` lines.
+
+To provision a switch again, as after a bench or an RMA: from the controller's
+user, `sudo sh -c '/usr/sbin/save_config factory-default && /pica/bin/reboot.sh'`,
+then clear its RackSwitch's `status.hostKey`, since the reset gives it new host
+keys. A switch on the bench at the edge's address has its NTP pointed elsewhere
+and the bench key installed; the reset removes both.
+
+## A site with no management switch
+
+Rack 2 (`sites/larch.json`) has none. Its management ports (BMCs and the PDU and
+transfer-switch cards) are cabled into the ToRs on a management VLAN
+of its own, and each ToR's own management port goes to an edge
+(`tor_management`). The render follows from the site data:
+
+- **The management VLAN is one the edges carry** (`carried_by: "edges"`), and
+  the edges reach it over their uplinks as `mgmt0`, a bond like `machines0`;
+  `management.edge.interface` has to be `mgmt0`. Its address, DHCP and the
+  power devices' routes sit on `mgmt0` the way BER1's sit on the edge's port
+  into its management switch.
+- **Only a port with a management link is untagged on that VLAN.** Every other
+  port is untagged on VLAN 1, which reaches nothing, so a mini racked before
+  it is recorded lands on no segment rather than on the management one. Ports
+  facing an edge and the ISL carry it tagged with the other edge VLANs.
+- **A management link lands on the opposite ToR**, so a dead ToR's side stays
+  reachable through the other one: not the ToR a node's data link is on, the
+  one an edge provisions, or, for power gear, the one its chain's minis are on
+  (a PDU through the minis on its outlets, a transfer switch through its PDUs).
+  `fleet_check_management_links` refuses
+  the rest, so nobody tidies the cross-cabling onto one ToR.
+- **Dual-PSU gear names `feeds`** (`["feed-a", "feed-b"]`) instead of an `ats`
+  or `pdu`: one cord per PSU straight into the facility's rails, which the cable
+  schedule lists.
+- **A PicOS ToR's management address is not routed over the uplinks**: it is
+  the far end of its own link to an edge.
+
+The env's one rack switch controller reconciles every site's switches, so
+`helm-values rack-switch-controller` merges the env's sites: BER1's Omada
+settings and the PicOS sites' 1Password items, which all name the same items.
+Each site with edges gets its own rack-edge release (`rack-edge-<site>`; BER1's
+is `rack-edge`, from before there was a second).

@@ -20,6 +20,9 @@ defmodule Tuist.Xcode.XcodeTarget do
     field :binary_cache_hash, Ch, type: "Nullable(String)"
     field :binary_cache_hit, Ch, type: "Enum8('miss' = 0, 'local' = 1, 'remote' = 2)"
     field :binary_build_duration, Ch, type: "Nullable(UInt32)"
+    # Whether a binary taken from the cache carries coverage counters; nil for a
+    # target built from source, and for runs of clients that reported nothing.
+    field :binary_cache_instrumented, Ch, type: "Nullable(Bool)"
     field :selective_testing_hash, Ch, type: "Nullable(String)"
     field :selective_testing_hit, Ch, type: "Enum8('miss' = 0, 'local' = 1, 'remote' = 2)"
     field :xcode_project_id, Ch, type: "UUID"
@@ -92,6 +95,7 @@ defmodule Tuist.Xcode.XcodeTarget do
       binary_cache_hash: binary_cache_metadata["hash"],
       binary_cache_hit: hit_enum_to_int(hit_value_to_enum(binary_cache_metadata["hit"], :miss)),
       binary_build_duration: binary_cache_metadata["build_duration"],
+      binary_cache_instrumented: binary_cache_metadata["instrumented"],
       selective_testing_hash: selective_testing_metadata["hash"],
       selective_testing_hit: hit_enum_to_int(hit_value_to_enum(selective_testing_metadata["hit"], :miss)),
       product: xcode_target["product"],

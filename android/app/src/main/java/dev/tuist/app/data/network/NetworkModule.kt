@@ -1,5 +1,8 @@
 package dev.tuist.app.data.network
 
+import com.squareup.moshi.JsonAdapter
+import com.squareup.moshi.JsonReader
+import com.squareup.moshi.JsonWriter
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
@@ -7,13 +10,18 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.tuist.app.BuildConfig
+import dev.tuist.app.api.AISubscriptionsApi
+import dev.tuist.app.api.FeatureFlagsApi
+import dev.tuist.app.api.NotificationPreferencesApi
 import dev.tuist.app.api.PreviewsApi
 import dev.tuist.app.api.ProjectsApi
+import dev.tuist.app.api.PushDevicesApi
 import dev.tuist.app.data.EnvironmentConfig
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import java.time.OffsetDateTime
 import javax.inject.Singleton
 
 @Module
@@ -23,6 +31,7 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideMoshi(): Moshi = Moshi.Builder()
+        .add(OffsetDateTime::class.java, OffsetDateTimeAdapter.nullSafe())
         .addLast(KotlinJsonAdapterFactory())
         .build()
 
@@ -30,7 +39,7 @@ object NetworkModule {
     @Singleton
     @PlainClient
     fun providePlainOkHttpClient(): OkHttpClient {
-        val builder = OkHttpClient.Builder()
+        val builder = CertificateTrust.clientBuilder()
 
         if (BuildConfig.DEBUG) {
             val logging = HttpLoggingInterceptor().apply {
@@ -49,7 +58,7 @@ object NetworkModule {
         authInterceptor: AuthInterceptor,
         tokenRefreshAuthenticator: TokenRefreshAuthenticator,
     ): OkHttpClient {
-        val builder = OkHttpClient.Builder()
+        val builder = CertificateTrust.clientBuilder()
             .addInterceptor(requestIdInterceptor)
             .addInterceptor(authInterceptor)
             .authenticator(tokenRefreshAuthenticator)
@@ -82,4 +91,33 @@ object NetworkModule {
     @Singleton
     fun providePreviewsApi(retrofit: Retrofit): PreviewsApi =
         retrofit.create(PreviewsApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideFeatureFlagsApi(retrofit: Retrofit): FeatureFlagsApi =
+        retrofit.create(FeatureFlagsApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideAISubscriptionsApi(retrofit: Retrofit): AISubscriptionsApi =
+        retrofit.create(AISubscriptionsApi::class.java)
+
+    @Provides
+    @Singleton
+    fun providePushDevicesApi(retrofit: Retrofit): PushDevicesApi =
+        retrofit.create(PushDevicesApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideNotificationPreferencesApi(retrofit: Retrofit): NotificationPreferencesApi =
+        retrofit.create(NotificationPreferencesApi::class.java)
+}
+
+/** Generated models type `date-time` fields as [OffsetDateTime], which Moshi doesn't support out of the box. */
+private object OffsetDateTimeAdapter : JsonAdapter<OffsetDateTime>() {
+    override fun fromJson(reader: JsonReader): OffsetDateTime = OffsetDateTime.parse(reader.nextString())
+
+    override fun toJson(writer: JsonWriter, value: OffsetDateTime?) {
+        writer.value(value?.toString())
+    }
 }

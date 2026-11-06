@@ -14,9 +14,12 @@ defmodule Tuist.Bazel do
   alias Tuist.ClickHouseRepo
   alias Tuist.ClickHouseTimeSeries
   alias Tuist.IngestRepo
+  alias Tuist.MCP.Events.Publisher
   alias Tuist.ReapiCache
   alias Tuist.Repo
   alias Tuist.Tests.Sanitizer
+
+  require Tuist.BuildMetrics
 
   @max_test_artifact_bytes_per_invocation 64 * 1_024 * 1_024
   @ingest_pruning_slack_seconds 24 * 60 * 60
@@ -42,6 +45,7 @@ defmodule Tuist.Bazel do
           git_branch: Map.get(invocation, :git_branch, ""),
           git_commit_sha: Map.get(invocation, :git_commit_sha, ""),
           is_ci: Map.get(invocation, :is_ci, false),
+          submission_auth: Map.get(invocation, :submission_auth, ""),
           custom_values: Map.get(invocation, :custom_values, %{}),
           bazel_version: Map.get(invocation, :bazel_version, ""),
           cpu_time_ms: Map.get(invocation, :cpu_time_ms, 0),
@@ -72,7 +76,32 @@ defmodule Tuist.Bazel do
         }
       end)
 
-    IngestRepo.insert_all(Invocation, entries)
+    result = IngestRepo.insert_all(Invocation, entries)
+
+    invocations
+    |> Enum.filter(
+      &(&1.command == "build" and &1.status == "failure" and Map.get(&1, :submission_auth, "") != "network_trusted")
+    )
+    |> Enum.group_by(& &1.project_id)
+    |> Enum.each(fn {project_id, failed_invocations} ->
+      Publisher.publish_batch(
+        "build.failed",
+        Enum.map(failed_invocations, fn invocation ->
+          data = %{
+            "project_id" => project_id,
+            "build_system" => "bazel",
+            "build_id" => invocation.invocation_id,
+            "is_ci" => Map.get(invocation, :is_ci, false),
+            "git_branch" => Map.get(invocation, :git_branch) || ""
+          }
+
+          {data, "bazel:#{invocation.invocation_id}"}
+        end),
+        %{"project_id" => project_id}
+      )
+    end)
+
+    result
   end
 
   def create_invocation_logs([]), do: {0, nil}
@@ -432,9 +461,16 @@ defmodule Tuist.Bazel do
     {invocations, meta} =
       project_id
       |> invocation_query(Keyword.put(opts, :commands, commands))
+      |> maybe_with_failure_category(project_id, opts)
       |> ClickHouseFlop.validate_and_run!(flop_params, for: Invocation)
 
     with_cache_summaries(project_id, invocations, meta)
+  end
+
+  defp maybe_with_failure_category(query, project_id, opts) do
+    if Keyword.get(opts, :failure_category, false),
+      do: Tuist.BuildMetrics.with_failure_category(query, "bazel", project_id),
+      else: query
   end
 
   def get_invocation(project_id, invocation_id, opts \\ []) do
@@ -651,6 +687,7 @@ defmodule Tuist.Bazel do
       |> where([invocation], invocation.project_id == ^project_id)
       |> maybe_filter_commands(Keyword.get(opts, :commands))
       |> maybe_filter_environment(Keyword.get(opts, :is_ci))
+      |> maybe_filter_status(Keyword.get(opts, :status))
 
     query =
       case Keyword.get(opts, :start_datetime) do
@@ -773,6 +810,12 @@ defmodule Tuist.Bazel do
   end
 
   defp maybe_filter_environment(query, _is_ci), do: query
+
+  defp maybe_filter_status(query, status) when status in ["success", "failure"] do
+    where(query, [invocation], invocation.status == ^status)
+  end
+
+  defp maybe_filter_status(query, _status), do: query
 
   defp cache_summary_query_options(invocations) do
     first_started_at = invocations |> Enum.min_by(& &1.started_at, NaiveDateTime) |> Map.fetch!(:started_at)

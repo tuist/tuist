@@ -22,6 +22,8 @@ defmodule Tuist.OnceEvents.Action do
     field :capability, :string
     field :action_index, :integer, default: 0
     field :identifier, :string
+    field :display_name, :string
+    field :source_files, {:array, :string}, default: []
 
     field :result, :string
     field :was_cached, :boolean, default: false

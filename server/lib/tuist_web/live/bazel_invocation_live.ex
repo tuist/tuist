@@ -40,6 +40,10 @@ defmodule TuistWeb.BazelInvocationLive do
          socket
          |> assign(:selected_project, project)
          |> assign(:invocation, invocation)
+         |> assign(
+           :failure_category,
+           Tuist.BuildMetrics.failure_category(invocation.project_id, "bazel", invocation.invocation_id)
+         )
          |> assign(:selected_tab, "overview")
          |> assign(:available_filters, cache_filters("actions"))
          |> assign(:cache_events, [])
@@ -202,6 +206,9 @@ defmodule TuistWeb.BazelInvocationLive do
           url={
             ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@invocation.invocation_id}/timeline.json"
           }
+          trace_url={
+            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@invocation.invocation_id}/trace.json"
+          }
         />
       </section>
       <div :if={@selected_tab == "overview"} data-part="tab-panel">
@@ -230,7 +237,7 @@ defmodule TuistWeb.BazelInvocationLive do
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">{dgettext("dashboard_builds", "Built by")}</div>
-                  <.run_ran_by_badge_cell run={@invocation} ran_by_name={@invocation.account_handle} />
+                  <.run_ran_by_badge_cell run={@invocation} />
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">
@@ -263,14 +270,6 @@ defmodule TuistWeb.BazelInvocationLive do
                   <div data-part="title">{dgettext("dashboard_projects", "Targets")}</div>
                   <code data-part="command">{target_patterns_label(@invocation.target_patterns)}</code>
                 </div>
-                <div
-                  :if={@invocation.bazel_version != ""}
-                  data-part="metadata"
-                  data-field="bazel-version"
-                >
-                  <div data-part="title">{dgettext("dashboard_projects", "Bazel version")}</div>
-                  <code data-part="command">{@invocation.bazel_version}</code>
-                </div>
               </div>
               <div data-part="metadata-row">
                 <div :if={connected_to_repository?(@selected_project)} data-part="metadata">
@@ -299,37 +298,16 @@ defmodule TuistWeb.BazelInvocationLive do
                 </div>
               </div>
             </div>
-            <div
-              :if={map_size(@invocation.custom_values || %{}) > 0}
-              data-part="custom-metadata-section"
-            >
-              <span data-part="custom-metadata-label">
-                {dgettext("dashboard_builds", "Custom metadata")}
-              </span>
-              <.table
-                id="custom-metadata-table"
-                rows={Map.to_list(@invocation.custom_values)}
-                row_key={fn {key, _value} -> key end}
-              >
-                <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
-                  <.text_cell label={key} />
-                </:col>
-                <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
-                  <a
-                    :if={url?(value)}
-                    href={value}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-part="custom-metadata-link"
-                  >
-                    {value}
-                  </a>
-                  <.text_cell :if={not url?(value)} label={value} />
-                </:col>
-              </.table>
-            </div>
+            <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
+            <TuistWeb.Components.BuildMetadata.build_metadata values={
+              @invocation.custom_values || %{}
+            } />
           </.card_section>
         </.card>
+        <TuistWeb.Components.BuildMetadata.environment_metadata
+          values={@invocation.custom_values || %{}}
+          fields={[{dgettext("dashboard_projects", "Bazel version"), @invocation.bazel_version}]}
+        />
       </div>
       <div :if={@selected_tab == "cache"} data-part="tab-panel">
         <.cache_tab
@@ -758,8 +736,8 @@ defmodule TuistWeb.BazelInvocationLive do
             [cache_operation_flop_filter(selected_cache_view)] ++
               cache_text_flop_filters(params["cache-filter"], selected_cache_view) ++
               Filter.Operations.convert_filters_to_flop(active_cache_filters),
-          order_by: [cache_sort_field(cache_sort_by)],
-          order_directions: [sort_direction(cache_sort_order)],
+          order_by: [cache_sort_field(cache_sort_by), :id],
+          order_directions: [sort_direction(cache_sort_order), :asc],
           page: parse_page(params["page"]),
           page_size: @cache_page_size
         },
@@ -779,7 +757,7 @@ defmodule TuistWeb.BazelInvocationLive do
   defp cache_text_flop_filters(nil, _selected_cache_view), do: []
   defp cache_text_flop_filters("", _selected_cache_view), do: []
   defp cache_text_flop_filters(search, "content-objects"), do: [%{field: :action_digest, op: :=~, value: search}]
-  defp cache_text_flop_filters(search, _selected_cache_view), do: [%{field: :action_mnemonic, op: :=~, value: search}]
+  defp cache_text_flop_filters(search, _selected_cache_view), do: [%{field: :action_search, op: :=~, value: search}]
 
   defp cache_requests_empty_state?(cache_events, cache_filter, active_cache_filters) do
     Enum.empty?(cache_events) and cache_filter == "" and Enum.empty?(active_cache_filters)
@@ -806,6 +784,7 @@ defmodule TuistWeb.BazelInvocationLive do
   defp cache_hit_rate(%{hit_rate: nil}), do: "0%"
   defp cache_hit_rate(cache), do: "#{cache.hit_rate}%"
 
+  defp cache_event_action(%{action_display_name: name}) when is_binary(name) and name != "", do: name
   defp cache_event_action(%{action_mnemonic: ""}), do: dgettext("dashboard_projects", "Action cache lookup")
   defp cache_event_action(event), do: event.action_mnemonic
   defp cache_target_label(""), do: dgettext("dashboard_projects", "Unknown")
@@ -957,7 +936,7 @@ defmodule TuistWeb.BazelInvocationLive do
 
   defp cache_sort_field("target"), do: :target_label
   defp cache_sort_field("outcome"), do: :outcome
-  defp cache_sort_field("action"), do: :action_mnemonic
+  defp cache_sort_field("action"), do: :action_display_name
   defp cache_sort_field("store"), do: :operation
   defp cache_sort_field("digest"), do: :action_digest
   defp cache_sort_field("latency"), do: :duration_ms
@@ -1041,13 +1020,4 @@ defmodule TuistWeb.BazelInvocationLive do
       "/#{assigns.selected_account.name}/#{assigns.selected_project.name}/#{assigns.bazel_detail_path}/#{assigns.invocation.invocation_id}"
 
   defp cache_path(socket, params), do: "#{detail_path(socket.assigns)}?#{URI.encode_query(params)}"
-
-  defp url?(value) when is_binary(value) do
-    case URI.parse(value) do
-      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and not is_nil(host) -> true
-      _ -> false
-    end
-  end
-
-  defp url?(_), do: false
 end

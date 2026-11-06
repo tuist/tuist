@@ -9,7 +9,7 @@ import TuistSupport
 import XcodeGraph
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
-public struct GraphCommand: AsyncParsableCommand {
+public struct GraphCommand: AsyncParsableCommand, ProjectPathProviding {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -80,7 +80,7 @@ public struct GraphCommand: AsyncParsableCommand {
         completion: .directory,
         envKey: .graphPath
     )
-    var path: String?
+    public var path: String?
 
     @Option(
         name: .shortAndLong,

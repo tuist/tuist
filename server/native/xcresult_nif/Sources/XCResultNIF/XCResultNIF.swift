@@ -4,13 +4,40 @@ import Path
 import XCResultParser
 
 /// Outcome of a parse in the form the C boundary carries.
-///
-/// Failures are reduced to their message because that is all `parse_xcresult`
-/// writes back, and it keeps the value `Sendable` so it can cross from the
-/// parse task to the thread blocked on it.
 private enum ParseOutcome: Sendable {
     case parsed(TestSummary)
-    case failed(String)
+    case failed(ParseFailure)
+}
+
+/// Stable error codes for the Elixir consumer; descriptions are only for diagnostics.
+struct ParseFailure: Encodable, Sendable {
+    let code: String
+    let error: String
+    let command: [String]?
+    let stderr: String?
+}
+
+extension ParseFailure {
+    init(_ error: any Error) {
+        let code: String
+        switch error {
+        case XCResultToolError.missingObject:
+            code = "missing_object"
+        case XCResultParserError.timedOut:
+            code = "parse_timeout"
+        case XCResultToolError.terminated:
+            code = "command_failed"
+        default:
+            code = "parse_failed"
+        }
+
+        switch error {
+        case let XCResultToolError.missingObject(command, stderr), let XCResultToolError.terminated(command, stderr):
+            self.init(code: code, error: error.localizedDescription, command: command, stderr: stderr)
+        default:
+            self.init(code: code, error: error.localizedDescription, command: nil, stderr: nil)
+        }
+    }
 }
 
 /// Seconds a parse may run before it cancels itself.
@@ -44,13 +71,21 @@ public func parseXCResult(
         do {
             var parsed = try await parse(path: path, rootDir: rootDir, timeout: timeoutSeconds)
             do {
-                parsed.coverage = try await parseCoverage(path: path, timeout: coverageTimeoutSeconds)
+                // Streamed beside the bundle rather than returned as a term: a large bundle's
+                // per-line counts would not fit the BEAM comfortably, and the processor reads
+                // the file back in chunks.
+                let output = "\(rootDir)/tuist_coverage.ndjson"
+                if let summary = try await parseCoverage(path: path, into: output, timeout: coverageTimeoutSeconds) {
+                    parsed.coveragePath = output
+                    parsed.coveragePartial = summary.partial
+                    parsed.coverageFileCount = summary.fileCount
+                }
             } catch {
                 parsed.coverageError = error.localizedDescription
             }
             value = .parsed(parsed)
         } catch {
-            value = .failed(error.localizedDescription)
+            value = .failed(ParseFailure(error))
         }
         outcome.withLock { $0 = value }
         semaphore.signal()
@@ -62,16 +97,27 @@ public func parseXCResult(
     // `outcome` on that path, so a late write cannot race the value returned.
     let deadline = DispatchTime.now() + .seconds(timeoutSeconds + coverageTimeoutSeconds + 2 * cancellationGraceSeconds)
     guard semaphore.wait(timeout: deadline) == .success else {
-        task.cancel()
+        // Cancelling runs the parse's cancellation handlers on the calling thread. Off this dirty
+        // scheduler, so a handler that never returns cannot keep the scheduler and the job with it.
+        Thread.detachNewThread { task.cancel() }
         return write(
-            timedOutMessage(path: path, seconds: timeoutSeconds),
+            ParseFailure(
+                code: "parse_timeout",
+                error: timedOutMessage(path: path, seconds: timeoutSeconds),
+                command: nil,
+                stderr: nil
+            ),
             outputPtr: outputPtr,
             outputLen: outputLen
         )
     }
 
     guard let value = outcome.withLock({ $0 }) else {
-        return write(failedToParseMessage(path: path), outputPtr: outputPtr, outputLen: outputLen)
+        return write(
+            ParseFailure(code: "parse_failed", error: failedToParseMessage(path: path), command: nil, stderr: nil),
+            outputPtr: outputPtr,
+            outputLen: outputLen
+        )
     }
 
     switch value {
@@ -89,10 +135,10 @@ public func parseXCResult(
             outputLen.pointee = Int32(jsonData.count)
             return 0
         } catch {
-            return write(error.localizedDescription, outputPtr: outputPtr, outputLen: outputLen)
+            return write(ParseFailure(error), outputPtr: outputPtr, outputLen: outputLen)
         }
-    case let .failed(message):
-        return write(message, outputPtr: outputPtr, outputLen: outputLen)
+    case let .failed(failure):
+        return write(failure, outputPtr: outputPtr, outputLen: outputLen)
     }
 }
 
@@ -135,12 +181,13 @@ private func parse(path: String, rootDir: String, timeout: Int) async throws -> 
 }
 
 /// Reads the coverage against its own deadline, the same way ``parse`` does.
-private func parseCoverage(path: String, timeout: Int) async throws -> XcodeCoverageReport? {
+private func parseCoverage(path: String, into output: String, timeout: Int) async throws -> XcodeCoverageSummary? {
     let xcresultPath = try AbsolutePath(validating: path)
+    let outputPath = try AbsolutePath(validating: output)
 
-    return try await withThrowingTaskGroup(of: XcodeCoverageReport?.self) { group in
+    return try await withThrowingTaskGroup(of: XcodeCoverageSummary?.self) { group in
         group.addTask {
-            try await XCResultParser().parseCoverage(path: xcresultPath)
+            try await XCResultParser().parseCoverage(path: xcresultPath, into: outputPath)
         }
         group.addTask {
             try await Task.sleep(for: .seconds(timeout))
@@ -164,12 +211,11 @@ private func failedToParseMessage(path: String) -> String {
 }
 
 private func write(
-    _ message: String,
+    _ failure: ParseFailure,
     outputPtr: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>,
     outputLen: UnsafeMutablePointer<Int32>
 ) -> Int32 {
-    let errorJSON = "{\"error\": \"\(message.replacingOccurrences(of: "\"", with: "\\\""))\"}"
-    let data = Array(errorJSON.utf8)
+    guard let data = try? JSONEncoder().encode(failure) else { return 1 }
     let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: data.count)
     for (i, byte) in data.enumerated() {
         buffer[i] = CChar(bitPattern: byte)

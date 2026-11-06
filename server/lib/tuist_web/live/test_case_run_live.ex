@@ -15,6 +15,8 @@ defmodule TuistWeb.TestCaseRunLive do
   alias Tuist.Storage
   alias Tuist.Tests
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.TestSelection.TestCaseRunTab
   alias TuistWeb.Utilities.Query
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -31,7 +33,7 @@ defmodule TuistWeb.TestCaseRunLive do
              ]
            ) do
         {:ok, run} ->
-          Tuist.Repo.preload(run, :ran_by_account)
+          Tuist.Repo.preload(run, [:ran_by_account, :actor_account])
 
         {:error, :not_found} ->
           raise NotFoundError, dgettext("dashboard_tests", "Test case run not found.")
@@ -78,7 +80,16 @@ defmodule TuistWeb.TestCaseRunLive do
         Enum.filter(test_case_run.repetitions || [], &(&1.source == "stress"))
       )
       |> assign(:head_title, "#{test_case_run.name} · #{slug} · Tuist")
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: test_case_run.name,
+          subtitle:
+            Enum.join(Enum.reject([test_case_run.module_name, test_case_run.suite_name], &(&1 in [nil, ""])), " · "),
+          badge: test_case_run.status |> to_string() |> String.capitalize()
+        )
+      )
       |> assign_text_attachment_urls(test_case_run)
+      |> assign(:selection, TestCaseRunTab.load(project, test_run, test_case_run))
 
     {:ok, socket}
   end
@@ -86,14 +97,29 @@ defmodule TuistWeb.TestCaseRunLive do
   def handle_params(_params, uri, socket) do
     params = Query.query_params(uri)
     uri = URI.new!("?" <> URI.encode_query(params))
-    selected_tab = params["tab"] || "overview"
+
+    selected_tab =
+      case params["tab"] do
+        "selective-testing" when is_nil(socket.assigns.selection) -> "overview"
+        nil -> "overview"
+        tab -> tab
+      end
 
     socket =
       socket
       |> assign(:selected_tab, selected_tab)
       |> assign(:uri, uri)
 
+    socket =
+      if selected_tab == "selective-testing",
+        do: TestCaseRunTab.assign_files(socket, socket.assigns.selection, params),
+        else: socket
+
     {:noreply, socket}
+  end
+
+  def handle_event("search-selection-files", %{"search" => search}, socket) do
+    {:noreply, push_patch(socket, to: "?" <> TestCaseRunTab.search_query(socket.assigns.uri, search), replace: true)}
   end
 
   @doc false

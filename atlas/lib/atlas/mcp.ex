@@ -10,12 +10,16 @@ defmodule Atlas.MCP do
   alias Atlas.MCP.OAuthSession
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Proxy.Server
+  alias Atlas.MCP.ServerConfiguration
+  alias Atlas.MCP.ToolApproval
   alias Atlas.Repo
   alias Atlas.Users
   alias Atlas.Users.User
 
   def list_servers(%User{} = user) do
-    Enum.map(Proxy.configured_servers(), fn %Server{} = server ->
+    Proxy.configured_servers()
+    |> Enum.filter(&Proxy.user_allowed?(&1, user))
+    |> Enum.map(fn %Server{} = server ->
       session = oauth_session_for(user, server)
 
       %{
@@ -27,6 +31,102 @@ defmodule Atlas.MCP do
   end
 
   def get_server(name), do: Proxy.fetch_server(name)
+
+  def list_server_configurations do
+    ServerConfiguration |> order_by(asc: :name) |> Repo.all()
+  end
+
+  def get_server_configuration_by_name(name) when is_binary(name) do
+    Repo.get_by(ServerConfiguration, name: name)
+  end
+
+  def get_server_configuration(id), do: Repo.get(ServerConfiguration, id)
+
+  def change_server_configuration(%ServerConfiguration{} = server, attrs \\ %{}) do
+    ServerConfiguration.changeset(server, attrs)
+  end
+
+  def create_server_configuration(attrs) do
+    %ServerConfiguration{}
+    |> ServerConfiguration.changeset(attrs)
+    |> reject_deployment_name()
+    |> Repo.insert()
+    |> audit_server_change("mcp_server.created")
+  end
+
+  def update_server_configuration(id, attrs) do
+    case Repo.get(ServerConfiguration, id) do
+      nil ->
+        {:error, :not_found}
+
+      server ->
+        changeset = server |> ServerConfiguration.changeset(attrs) |> reject_deployment_name()
+        updated = Ecto.Changeset.apply_changes(changeset)
+
+        changed? =
+          Enum.any?(
+            [:name, :url, :auth_type, :bearer_token, :authorization_url, :token_url, :registration_url, :scopes],
+            fn field ->
+              Map.get(server, field) != Map.get(updated, field)
+            end
+          )
+
+        multi = Ecto.Multi.new() |> Ecto.Multi.update(:server, changeset)
+
+        multi =
+          if changed? do
+            Ecto.Multi.delete_all(multi, :sessions, from(s in OAuthSession, where: s.server_name == ^server.name))
+          else
+            multi
+          end
+
+        case Repo.transaction(multi) do
+          {:ok, %{server: updated}} -> audit_server_change({:ok, updated}, "mcp_server.updated")
+          {:error, :server, reason, _} -> {:error, reason}
+        end
+    end
+  end
+
+  defp reject_deployment_name(changeset) do
+    if Enum.any?(
+         Proxy.configured_servers(Application.get_env(:atlas, :mcp_proxy, [])),
+         &(&1.name == Ecto.Changeset.get_field(changeset, :name))
+       ) do
+      Ecto.Changeset.add_error(changeset, :name, "is reserved by deployment configuration")
+    else
+      changeset
+    end
+  end
+
+  def delete_server_configuration(id) do
+    case Repo.get(ServerConfiguration, id) do
+      nil ->
+        {:error, :not_found}
+
+      server ->
+        Ecto.Multi.new()
+        |> Ecto.Multi.delete_all(:sessions, from(s in OAuthSession, where: s.server_name == ^server.name))
+        |> Ecto.Multi.delete(:server, server)
+        |> Repo.transaction()
+        |> case do
+          {:ok, %{server: deleted}} -> audit_server_change({:ok, deleted}, "mcp_server.deleted")
+          {:error, _, reason, _} -> {:error, reason}
+        end
+    end
+  end
+
+  defp audit_server_change({:ok, server} = result, action) do
+    Audit.record(action, %{
+      target_type: "mcp_server_configuration",
+      target_id: server.id,
+      target_label: server.name,
+      metadata: %{"server_name" => server.name, "auth_type" => server.auth_type, "path" => "/admin/mcps"}
+    })
+
+    result
+  end
+
+  defp audit_server_change(result, _action), do: result
 
   def get_oauth_session(%User{id: user_id}, server_name) when is_binary(server_name) do
     Repo.get_by(OAuthSession, user_id: user_id, server_name: server_name)
@@ -334,7 +434,144 @@ defmodule Atlas.MCP do
     )
   end
 
+  @tool_approval_ttl_seconds 3600
+
+  @doc """
+  Spends the caller's approval for this exact call, or files a request for one.
+
+  Returns `:ok` when an approved, unspent and unexpired approval matches the
+  user, tool and arguments; the approval is consumed in the same statement, so
+  two concurrent calls cannot share it. Otherwise returns
+  `{:approval_required, approval}` with the pending request a person decides in
+  the Atlas web UI, reusing an open request for the same call.
+  """
+  def authorize_tool_call(%User{} = user, server_name, tool_name, arguments)
+      when is_binary(server_name) and is_binary(tool_name) and is_map(arguments) do
+    digest = arguments_digest(arguments)
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+    matching = open_tool_approvals(user, server_name, tool_name, digest, now)
+
+    with :approval_required <- consume_tool_approval(matching, now) do
+      case Repo.one(from(a in matching, where: a.status == "pending", order_by: [desc: a.inserted_at], limit: 1)) do
+        %ToolApproval{} = approval -> {:approval_required, approval}
+        nil -> request_tool_approval(user, server_name, tool_name, arguments, digest, now)
+      end
+    end
+  end
+
+  defp open_tool_approvals(%User{id: user_id}, server_name, tool_name, digest, now) do
+    from(a in ToolApproval,
+      where: a.user_id == ^user_id and a.server_name == ^server_name and a.tool_name == ^tool_name,
+      where: a.arguments_digest == ^digest and a.expires_at > ^now and is_nil(a.consumed_at)
+    )
+  end
+
+  defp consume_tool_approval(matching, now) do
+    approved_id = from(a in matching, where: a.status == "approved", select: a.id, limit: 1)
+    spend = from(a in matching, where: a.status == "approved" and a.id in subquery(approved_id), select: a)
+
+    case Repo.update_all(spend, set: [consumed_at: now, updated_at: now]) do
+      {1, [approval]} ->
+        audit_tool_approval("mcp_tool_approval.consumed", approval)
+        :ok
+
+      {0, _} ->
+        :approval_required
+    end
+  end
+
+  defp request_tool_approval(user, server_name, tool_name, arguments, digest, now) do
+    {:ok, approval} =
+      %ToolApproval{}
+      |> ToolApproval.changeset(%{
+        user_id: user.id,
+        server_name: server_name,
+        tool_name: tool_name,
+        arguments: arguments,
+        arguments_digest: digest,
+        expires_at: DateTime.add(now, @tool_approval_ttl_seconds, :second)
+      })
+      |> Repo.insert()
+
+    audit_tool_approval("mcp_tool_approval.requested", approval)
+    {:approval_required, approval}
+  end
+
+  def list_pending_tool_approvals(%User{id: user_id}) do
+    now = DateTime.utc_now()
+
+    Repo.all(
+      from(a in ToolApproval,
+        where: a.user_id == ^user_id and a.status == "pending" and a.expires_at > ^now,
+        order_by: [desc: a.inserted_at]
+      )
+    )
+  end
+
+  @doc """
+  Records a person's decision on one of their own pending requests.
+
+  Only the person whose upstream session the call would use may decide it, and
+  this is reachable only from the browser session: no MCP tool decides an
+  approval, so the agent that asked cannot also answer.
+  """
+  def decide_tool_approval(%User{id: user_id}, id, decision) when decision in ["approved", "rejected"] do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+
+    query =
+      from(a in ToolApproval,
+        where: a.id == ^id and a.user_id == ^user_id and a.status == "pending" and a.expires_at > ^now,
+        select: a
+      )
+
+    case Repo.update_all(query, set: [status: decision, decided_at: now, updated_at: now]) do
+      {1, [approval]} ->
+        audit_tool_approval("mcp_tool_approval.#{decision}", approval)
+        {:ok, approval}
+
+      {0, _} ->
+        {:error, :not_found}
+    end
+  end
+
+  defp audit_tool_approval(action, %ToolApproval{} = approval) do
+    Audit.record(action, %{
+      target_type: "mcp_tool_approval",
+      target_id: approval.id,
+      target_label: "#{approval.server_name}/#{approval.tool_name}",
+      metadata: %{
+        "path" => "/admin/mcps",
+        "server_name" => approval.server_name,
+        "tool_name" => approval.tool_name,
+        "arguments" => approval.arguments,
+        "status" => approval.status
+      }
+    })
+  end
+
+  # Map key order is not part of a call's meaning, so the digest is taken over
+  # JSON with every object's keys sorted.
+  defp arguments_digest(arguments) do
+    :sha256 |> :crypto.hash(canonical_json(arguments)) |> Base.encode16(case: :lower)
+  end
+
+  defp canonical_json(map) when is_map(map) do
+    entries =
+      map
+      |> Enum.map(fn {key, value} -> {to_string(key), value} end)
+      |> Enum.sort_by(&elem(&1, 0))
+      |> Enum.map_join(",", fn {key, value} -> JSON.encode!(key) <> ":" <> canonical_json(value) end)
+
+    "{" <> entries <> "}"
+  end
+
+  defp canonical_json(list) when is_list(list), do: "[" <> Enum.map_join(list, ",", &canonical_json/1) <> "]"
+  defp canonical_json(value), do: JSON.encode!(value)
+
   defp session_status(%Server{auth_type: :bearer_token}, _session), do: :shared_credentials
+  # Atlas authenticates with its own projected ServiceAccount token, so there
+  # is no per-user connection either.
+  defp session_status(%Server{auth_type: :service_account_token}, _session), do: :shared_credentials
   defp session_status(%Server{auth_type: :none}, _session), do: :connected
   defp session_status(%Server{auth_type: :oauth2}, nil), do: :not_connected
 

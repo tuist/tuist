@@ -45,10 +45,7 @@
           </div>
         </div>
         <h1 data-part="label">
-          {if(@run.scheme in [nil, ""],
-            do: dgettext("dashboard_tests", "Unknown"),
-            else: @run.scheme
-          )}
+          {test_run_label(@selected_project, @run.scheme)}
         </h1>
         <.badge
           :if={@run.is_flaky}
@@ -219,7 +216,7 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@has_selective_testing_data}
+      :if={@has_selective_testing_data || @run.test_impact_run_id}
       label={dgettext("dashboard_tests", "Selective Testing")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
@@ -230,13 +227,6 @@
       label={dgettext("dashboard_tests", "Module Cache")}
       selected={@selected_tab == "module-cache"}
       patch={"?#{Query.put(@uri.query, "tab", "module-cache")}"}
-      replace={true}
-    />
-    <.tab_menu_horizontal_item
-      :if={@coverage_summary}
-      label={dgettext("dashboard_tests", "Coverage")}
-      selected={@selected_tab == "coverage"}
-      patch={"?#{Query.put(@uri.query, "tab", "coverage")}"}
       replace={true}
     />
     <.tab_menu_horizontal_item
@@ -483,6 +473,74 @@
       </.card_section>
     </.card>
 
+    <.card
+      :if={@selection_run}
+      title={dgettext("dashboard_tests", "Selected by coverage")}
+      icon="filter"
+      data-part="test-selection-card"
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "View selection")}
+          variant="secondary"
+          size="small"
+          patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
+        />
+      </:actions>
+      <.card_section data-part="test-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Baseline")}</div>
+              <span :if={@selection_run.baseline_sha not in [nil, ""]} data-part="value">
+                {String.slice(@selection_run.baseline_sha, 0, 7)}
+              </span>
+              <.badge
+                :if={Tuist.Tests.Selections.fallback?(@selection_run)}
+                label={
+                  if Tuist.Tests.Selections.run_all?(@selection_run),
+                    do:
+                      dgettext("dashboard_tests", "Run all: %{reason}",
+                        reason:
+                          TuistWeb.TestSelection.Components.fallback_label(@selection_run.reason)
+                      ),
+                    else:
+                      dgettext("dashboard_tests", "Fell back: %{reason}",
+                        reason:
+                          TuistWeb.TestSelection.Components.fallback_label(@selection_run.reason)
+                      )
+                }
+                color="warning"
+                style="light-fill"
+                size="large"
+              />
+            </div>
+            <div :if={@selection_run.requested_count > 0} data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Ran")}</div>
+              <span data-part="value">
+                {dgettext("dashboard_tests", "%{selected} of %{requested} tests",
+                  selected: @selection_run.selected_count,
+                  requested: @selection_run.requested_count
+                )}
+              </span>
+            </div>
+            <div :if={@selection_run.requested_count > 0} data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "In skipped modules")}</div>
+              <span data-part="value">
+                {Tuist.Tests.Selections.module_skipped_count(@selection_run)}
+              </span>
+            </div>
+            <div :if={@selection_run.requested_count > 0} data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Not affected")}</div>
+              <span data-part="value">
+                {Tuist.Tests.Selections.unaffected_count(@selection_run)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
     <.ci_context_card
       :if={@ci_context}
       context={@ci_context}
@@ -523,10 +581,16 @@
           <:col
             :let={shard}
             label={
-              if(@run.shard_plan && @run.shard_plan.granularity == "suite",
-                do: dgettext("dashboard_tests", "Test Suites"),
-                else: dgettext("dashboard_tests", "Modules")
-              )
+              cond do
+                @run.build_system == "once" ->
+                  dgettext("dashboard_tests", "Batches")
+
+                @run.shard_plan && @run.shard_plan.granularity == "suite" ->
+                  dgettext("dashboard_tests", "Test Suites")
+
+                true ->
+                  dgettext("dashboard_tests", "Modules")
+              end
             }
           >
             <.text_cell label={format_number(shard.target_count)} />
@@ -1074,7 +1138,7 @@
                           }
                           data-part="test-run-link"
                         >
-                          {run.scheme}
+                          {test_run_label(@selected_project, run.scheme)}
                           <.link_icon />
                         </.link>
                       </div>
@@ -1772,8 +1836,61 @@
     </.card>
   </div>
 
-  <div :if={@selected_tab == "test-optimizations" && @has_selective_testing_data}>
+  <div
+    :if={
+      @selected_tab == "test-optimizations" &&
+        (@has_selective_testing_data || @run.test_impact_run_id)
+    }
+    data-part="selective-testing"
+  >
+    <RunTab.expired_selection :if={@selection_expired?} />
+    <RunTab.coverage_selection
+      :if={@selection_run}
+      selection_run={@selection_run}
+      summary={@selection_summary}
+      diff={@selection_diff}
+      plan={@selection_plan}
+      baseline_coverage?={@selection_baseline_coverage?}
+      operator?={@selection_operator?}
+      tab={@selection_tab}
+      uri={@uri}
+      project={@selected_project}
+      account={@selected_account}
+      filters={@selection_filters}
+      tests={@selection_tests}
+      tests_meta={@selection_tests_meta}
+      files={@selection_files}
+      files_meta={@selection_files_meta}
+      targets={@selection_targets}
+      shards={@selection_shards}
+      modules_count={
+        if @has_selective_testing_data, do: @selective_testing_analytics[:total_modules_count]
+      }
+    >
+      <:modules :if={@has_selective_testing_data}>
+        <.selective_testing_tab
+          title={dgettext("dashboard_tests", "Modules")}
+          selection_targets={Map.new(@selection_targets, &{&1.module_name, &1})}
+          project={@selected_project}
+          selective_testing_analytics={@selective_testing_analytics}
+          selective_testing_filter={@selective_testing_filter}
+          selective_testing_page={@selective_testing_page}
+          selective_testing_page_count={@selective_testing_page_count}
+          selective_testing_sort_by={@selective_testing_sort_by}
+          selective_testing_sort_order={@selective_testing_sort_order}
+          expanded_target_names={@expanded_target_names}
+          uri={@uri}
+          run={@command_event}
+          available_filters={@selective_testing_available_filters}
+          selective_testing_active_filters={@selective_testing_active_filters}
+        />
+      </:modules>
+    </RunTab.coverage_selection>
     <.selective_testing_tab
+      :if={
+        @has_selective_testing_data &&
+          (!@selection_run || !Tuist.Tests.Selections.selection?(@selection_run))
+      }
       project={@selected_project}
       selective_testing_analytics={@selective_testing_analytics}
       selective_testing_filter={@selective_testing_filter}
@@ -2165,7 +2282,7 @@
                       }
                       data-part="test-run-link"
                     >
-                      {run.scheme}
+                      {test_run_label(@selected_project, run.scheme)}
                       <.link_icon />
                     </.link>
                   </div>
@@ -2226,203 +2343,6 @@
       />
     </.card_section>
   </.card>
-
-  <div
-    :if={@selected_tab == "coverage" and @coverage_summary}
-    data-part="coverage"
-  >
-    <.card
-      title={dgettext("dashboard_tests", "Code Coverage")}
-      icon="chart_arcs"
-      data-part="coverage-summary-card"
-    >
-      <.card_section data-part="coverage-summary-section">
-        <.alert
-          :if={@coverage_summary.partial}
-          id="coverage-partial-run"
-          status="information"
-          type="secondary"
-          size="small"
-          title={
-            dgettext(
-              "dashboard_tests",
-              "This run skipped tests, so its coverage only reflects the tests that ran. It is left out of the coverage trend."
-            )
-          }
-        />
-        <div data-part="widgets">
-          <.widget
-            title={dgettext("dashboard_tests", "Line coverage")}
-            description={
-              dgettext(
-                "dashboard_tests",
-                "Share of executable lines the tests ran at least once, counting each source file once."
-              )
-            }
-            value={"#{XcodeCoverage.percentage(@coverage_summary.covered_lines, @coverage_summary.executable_lines)}%"}
-            id="widget-coverage-percentage"
-          />
-          <.widget
-            title={dgettext("dashboard_tests", "Covered lines")}
-            description={
-              dgettext("dashboard_tests", "Executable lines the tests ran at least once.")
-            }
-            value={format_number(@coverage_summary.covered_lines)}
-            id="widget-coverage-covered-lines"
-          />
-          <.widget
-            title={dgettext("dashboard_tests", "Executable lines")}
-            description={
-              dgettext("dashboard_tests", "Lines the compiler instrumented for coverage.")
-            }
-            value={format_number(@coverage_summary.executable_lines)}
-            id="widget-coverage-executable-lines"
-          />
-        </div>
-      </.card_section>
-      <.card_section data-part="coverage-targets-section">
-        <.table id="coverage-targets-table" rows={@coverage_targets}>
-          <:col :let={target} label={dgettext("dashboard_tests", "Target")}>
-            <.text_cell label={target.name} />
-          </:col>
-          <:col :let={target} label={dgettext("dashboard_tests", "Files")}>
-            <.text_cell label={format_number(target.files_count)} />
-          </:col>
-          <:col :let={target} label={dgettext("dashboard_tests", "Lines")}>
-            <.text_cell label={"#{format_number(target.covered_lines)} / #{format_number(target.executable_lines)}"} />
-          </:col>
-          <:col :let={target} label={dgettext("dashboard_tests", "Coverage")}>
-            <.coverage_cell covered={target.covered_lines} executable={target.executable_lines} />
-          </:col>
-        </.table>
-      </.card_section>
-    </.card>
-
-    <.card
-      :if={@coverage_file}
-      title={@coverage_file.path}
-      icon="file"
-      data-part="coverage-file-card"
-      id="coverage-file"
-    >
-      <:actions>
-        <.button
-          label={dgettext("dashboard_tests", "Close")}
-          variant="secondary"
-          size="medium"
-          patch={"?#{Query.drop(@uri.query, "coverage-file")}"}
-        />
-      </:actions>
-      <.card_section data-part="coverage-file-section">
-        <div data-part="widgets">
-          <.widget
-            title={dgettext("dashboard_tests", "Line coverage")}
-            description={
-              dgettext(
-                "dashboard_tests",
-                "Share of the file's executable lines the tests ran at least once."
-              )
-            }
-            value={"#{XcodeCoverage.percentage(@coverage_file.covered_lines, @coverage_file.executable_lines)}%"}
-            id="widget-coverage-file-percentage"
-          />
-          <.widget
-            title={dgettext("dashboard_tests", "Covered lines")}
-            description={
-              dgettext("dashboard_tests", "Executable lines the tests ran at least once.")
-            }
-            value={"#{format_number(@coverage_file.covered_lines)} / #{format_number(@coverage_file.executable_lines)}"}
-            id="widget-coverage-file-lines"
-          />
-          <.widget
-            title={dgettext("dashboard_tests", "Functions")}
-            description={
-              dgettext("dashboard_tests", "Functions the compiler instrumented in the file.")
-            }
-            value={length(@coverage_file.functions)}
-            id="widget-coverage-file-functions"
-          />
-        </div>
-        <dl data-part="coverage-file-details">
-          <div :if={@coverage_file.git_blob_id != ""}>
-            <dt>{dgettext("dashboard_tests", "Git blob")}</dt>
-            <dd><code>{@coverage_file.git_blob_id}</code></dd>
-          </div>
-          <div :if={@coverage_file.targets != []}>
-            <dt>{dgettext("dashboard_tests", "Targets")}</dt>
-            <dd>{Enum.join(@coverage_file.targets, ", ")}</dd>
-          </div>
-          <div>
-            <dt>{dgettext("dashboard_tests", "Uncovered lines")}</dt>
-            <dd id="coverage-file-uncovered-lines">
-              {case @coverage_file.uncovered_ranges do
-                nil -> dgettext("dashboard_tests", "Unavailable")
-                [] -> dgettext("dashboard_tests", "None")
-                ranges -> coverage_line_ranges(ranges)
-              end}
-            </dd>
-          </div>
-        </dl>
-      </.card_section>
-      <.card_section :if={@coverage_file_functions != []} data-part="coverage-functions-section">
-        <.table id="coverage-functions-table" rows={@coverage_file_functions}>
-          <:col :let={function} label={dgettext("dashboard_tests", "Function")}>
-            <.text_cell label={function.name} />
-          </:col>
-          <:col :let={function} label={dgettext("dashboard_tests", "Line")}>
-            <.text_cell label={Integer.to_string(function.line_number)} />
-          </:col>
-          <:col :let={function} label={dgettext("dashboard_tests", "Executions")}>
-            <.text_cell label={format_number(function.execution_count)} />
-          </:col>
-          <:col :let={function} label={dgettext("dashboard_tests", "Coverage")}>
-            <.text_cell
-              :if={is_nil(function.covered_lines)}
-              label={dgettext("dashboard_tests", "Unavailable")}
-            />
-            <.coverage_cell
-              :if={function.covered_lines}
-              covered={function.covered_lines}
-              executable={function.executable_lines}
-            />
-          </:col>
-        </.table>
-      </.card_section>
-    </.card>
-
-    <.card
-      title={dgettext("dashboard_tests", "Files")}
-      icon="file"
-      data-part="coverage-files-card"
-    >
-      <.card_section data-part="coverage-files-section">
-        <.table id="coverage-files-table" rows={@coverage_files}>
-          <:col :let={file} label={dgettext("dashboard_tests", "File")}>
-            <div data-part="cell" data-type="text">
-              <.link
-                data-part="coverage-file-link"
-                patch={"?#{Query.put(@uri.query, "coverage-file", file.path)}"}
-              >
-                {file.path}
-              </.link>
-            </div>
-          </:col>
-          <:col :let={file} label={dgettext("dashboard_tests", "Lines")}>
-            <.text_cell label={"#{format_number(file.covered_lines)} / #{format_number(file.executable_lines)}"} />
-          </:col>
-          <:col :let={file} label={dgettext("dashboard_tests", "Coverage")}>
-            <.coverage_cell covered={file.covered_lines} executable={file.executable_lines} />
-          </:col>
-        </.table>
-        <.pagination_group
-          :if={@coverage_files_meta.total_pages > 1}
-          current_page={@coverage_files_meta.current_page}
-          number_of_pages={@coverage_files_meta.total_pages}
-          page_patch={fn page -> "?#{Query.put(@uri.query, "coverage-page", page)}" end}
-        />
-      </.card_section>
-    </.card>
-  </div>
 
   <div :if={@selected_tab == "logs"} data-part="bazel-invocation-logs">
     <.live_component

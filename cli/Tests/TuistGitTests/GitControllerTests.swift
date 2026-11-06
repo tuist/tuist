@@ -1,8 +1,11 @@
 import FileSystem
 import FileSystemTesting
+import Foundation
+import Path
 import Testing
 import TSCUtility
 import TuistEnvironment
+import TuistProcess
 import TuistSupport
 @testable import TuistGit
 @testable import TuistTesting
@@ -372,6 +375,686 @@ struct GitControllerTests {
         #expect(gitInfo.remoteURLOrigin == "https://github.com/tuist/tuist")
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_github_actions_checks_out_the_merge_commit() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "GITHUB_REF": "refs/pull/1/merge",
+            "GITHUB_SHA": "merge-commit-sha",
+        ]
+        stubPullRequestCheckout(path: path, head: "merge-commit-sha", secondParent: "actual-pr-head-sha")
+
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        #expect(gitInfo.sha == "actual-pr-head-sha")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_github_actions_checks_out_another_commit_than_the_merge_commit() async throws {
+        // A workflow that checks out the pull request's head keeps GITHUB_REF at the merge ref.
+        // When that head is itself a merge commit, its second parent is not the pull request.
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "GITHUB_REF": "refs/pull/1/merge",
+            "GITHUB_SHA": "merge-commit-sha",
+        ]
+        stubPullRequestCheckout(path: path, head: "actual-pr-head-sha", secondParent: "main-sha")
+
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        #expect(gitInfo.sha == "actual-pr-head-sha")
+    }
+
+    private func stubPullRequestCheckout(path: AbsolutePath, head: String, secondParent: String) {
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "\(head)\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD^2"], output: "\(secondParent)\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "origin")
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "remote", "get-url", "origin"],
+            output: "https://github.com/tuist/tuist"
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_reads_the_base_branch_and_pull_request_number()
+        async throws
+    {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "GITHUB_REF": "refs/pull/17/merge",
+            "GITHUB_HEAD_REF": "feature",
+            "GITHUB_BASE_REF": "main",
+        ]
+        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        #expect(gitInfo.baseBranch == "main")
+        #expect(gitInfo.pullRequestNumber == 17)
+        #expect(GitController.pullRequestNumber(ref: nil, environment: ["CI_MERGE_REQUEST_IID": "9"]) == 9)
+        #expect(GitController.pullRequestNumber(ref: "refs/heads/main", environment: [:]) == nil)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_strips_a_full_base_ref() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = ["SYSTEM_PULLREQUEST_TARGETBRANCH": "refs/heads/develop"]
+        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        #expect(gitInfo.baseBranch == "develop")
+        #expect(gitInfo.pullRequestNumber == nil)
+    }
+
+    @Test func ciBuildParameters_parse_reads_javas_xml_properties_format() throws {
+        let properties = try #require(CIBuildParameters.parse(Data(
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+            <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+            <properties>
+            <comment>TeamCity configuration parameters</comment>
+            <entry key="vcsroot.url">https://github.example.com/org/repo.git</entry>
+            <entry key="path">C:\\agent\\temp\\config.parameters</entry>
+            <entry key="escaped">a &lt;b&gt; &amp; &quot;c&quot;</entry>
+            <entry key="unicode">café 😀</entry>
+            <entry key="empty"/>
+            </properties>
+            """.utf8
+        )))
+
+        #expect(properties["vcsroot.url"] == "https://github.example.com/org/repo.git")
+        #expect(properties["path"] == "C:\\agent\\temp\\config.parameters")
+        #expect(properties["escaped"] == "a <b> & \"c\"")
+        #expect(properties["unicode"] == "café 😀")
+        #expect(properties["empty"] == "")
+        #expect(properties.count == 5)
+        #expect(CIBuildParameters.parse(Data("<properties><entry key=".utf8)) == nil)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_a_pull_request() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(
+            at: path,
+            configuration: [
+                "teamcity.build.branch": "pull/42",
+                "teamcity.pullRequest.number": "42",
+                "teamcity.pullRequest.source.branch": "refs/heads/feature",
+                "teamcity.pullRequest.target.branch": "refs/heads/master",
+            ]
+        )
+        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == "refs/pull/42/merge")
+        #expect(gitInfo.pullRequestNumber == 42)
+        #expect(gitInfo.branch == "feature")
+        #expect(gitInfo.baseBranch == "master")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_a_branch() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(at: path, configuration: ["teamcity.build.branch": "master"])
+        commandRunner.errorCommand(["git", "-C", path.pathString, "rev-parse"])
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.ref == nil)
+        #expect(gitInfo.pullRequestNumber == nil)
+        #expect(gitInfo.branch == "master")
+        #expect(gitInfo.baseBranch == nil)
+    }
+
+    /// Without a branch specification naming it, TeamCity calls the default branch `<default>`.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_teamcity_builds_the_default_branch_without_a_name() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try await mockTeamCity(at: path, configuration: ["teamcity.build.branch": "<default>"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse", "HEAD"], output: "master-sha\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "branch", "--show-current"], output: "master\n")
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "")
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.branch == "master")
+    }
+
+    /// Writes the parameter files a TeamCity agent writes for a build, in the XML format it writes
+    /// next to the `.properties` ones, and points the environment at them.
+    private func mockTeamCity(at path: AbsolutePath, configuration: [String: String]) async throws {
+        let buildParameters = path.appending(component: "teamcity.build.parameters")
+        let configurationParameters = path.appending(component: "teamcity.config.parameters")
+        try await writeJavaXMLProperties(
+            ["teamcity.configuration.properties.file": configurationParameters.pathString],
+            to: buildParameters
+        )
+        try await writeJavaXMLProperties(configuration, to: configurationParameters)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "TEAMCITY_VERSION": "2025.07 (build 197242)",
+            "TEAMCITY_BUILD_PROPERTIES_FILE": buildParameters.pathString,
+            "BUILD_NUMBER": "1234",
+        ]
+    }
+
+    private func writeJavaXMLProperties(_ properties: [String: String], to path: AbsolutePath) async throws {
+        let escape = { (string: String) in
+            string.replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+                .replacingOccurrences(of: "\"", with: "&quot;")
+        }
+        let entries = properties.sorted { $0.key < $1.key }
+            .map { "<entry key=\"\(escape($0.key))\">\(escape($0.value))</entry>" }
+        try await FileSystem().writeText(
+            ([
+                #"<?xml version="1.0" encoding="UTF-8" standalone="no"?>"#,
+                #"<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">"#,
+                "<properties>",
+            ] + entries + ["</properties>"]).joined(separator: "\n"),
+            at: path.parentDirectory.appending(component: path.basename + ".xml")
+        )
+    }
+
+    @Test func parseCommits_reads_sha_parents_and_time() {
+        let commits = GitHistoryParser.parseCommits("head mid 1700000000\nmid base other 1600000000\nroot 1500000000\nbad\n")
+
+        #expect(commits.map(\.sha) == ["head", "mid", "root"])
+        #expect(commits.map(\.parents) == [["mid"], ["base", "other"], []])
+        #expect(commits[0].committedAt == Date(timeIntervalSince1970: 1_700_000_000))
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_collects_the_merge_base_and_commits() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "false\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
+        commandRunner.succeedCommand(git + ["merge-base", "origin/main", "head"], output: "base\n")
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head", "basehead"],
+            output: "basehead base 1700000200\nhead base 1700000100\nbase 1700000000\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 10)
+        )
+
+        #expect(history.objectFormat == "sha1")
+        #expect(history.headSHA == "head")
+        #expect(history.mergeBaseSHA == "base")
+        // The base branch's commits are listed too, so the server knows the head it is told about.
+        #expect(history.baseHeadSHA == "basehead")
+        #expect(history.commits.map(\.sha) == ["basehead", "head", "base"])
+        #expect(history.fallbackReason == nil)
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_never_deepens_without_history_access() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
+        commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head", "basehead"],
+            output: "basehead 1700000200\nhead 1700000100\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 10, remoteAccess: .none)
+        )
+
+        #expect(history.mergeBaseSHA == nil)
+        #expect(history.baseHeadSHA == "basehead")
+        #expect(history
+            .fallbackReason == "shallow clone: the merge base with main is not in the checkout")
+        #expect(!commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=50",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_never_reaches_the_remote_without_remote_access() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
+        commandRunner.errorCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"])
+        commandRunner.errorCommand(git + ["rev-parse", "--verify", "--quiet", "main^{commit}"])
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head"],
+            output: "head 1700000100\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 10, remoteAccess: .none)
+        )
+
+        #expect(history.baseHeadSHA == nil)
+        #expect(history.fallbackReason == "the base branch main is not in the checkout")
+        #expect(!commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--depth=1",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
+        #expect(!commandRunner.called(git + ["ls-remote", "origin", "refs/heads/main"]))
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_asks_the_remote_only_for_the_base_branch_head() async throws {
+        // A depth-1 pull request checkout has no base branch. Its latest commit is one `ls-remote`
+        // away; finding the merge base would take fetching history.
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
+        commandRunner.errorCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"])
+        commandRunner.errorCommand(git + ["rev-parse", "--verify", "--quiet", "main^{commit}"])
+        commandRunner.succeedCommand(
+            git + ["ls-remote", "origin", "refs/heads/main"],
+            output: "mainhead\trefs/heads/main\n"
+        )
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head"],
+            output: "head 1700000100\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 10, remoteAccess: .baseHead)
+        )
+
+        #expect(history.baseHeadSHA == "mainhead")
+        #expect(history.mergeBaseSHA == nil)
+        #expect(history.commits.map(\.sha) == ["head"])
+        #expect(!commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--depth=1",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_reads_the_base_branch_the_checkout_has_without_the_remote() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "false\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
+        commandRunner.succeedCommand(git + ["merge-base", "origin/main", "head"], output: "base\n")
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head", "basehead"],
+            output: "basehead base 1700000200\nhead base 1700000100\nbase 1700000000\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 10, remoteAccess: .baseHead)
+        )
+
+        #expect(history.mergeBaseSHA == "base")
+        #expect(history.baseHeadSHA == "basehead")
+        #expect(!commandRunner.called(git + ["ls-remote", "origin", "refs/heads/main"]))
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_stops_deepening_at_the_history_window() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
+        // Never resolves, so deepening runs until a bound stops it.
+        commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
+        commandRunner.succeedCommand(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=50",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ])
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "head", "basehead"],
+            output: "head 1700000100\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 10, deepenBudgetSeconds: 5)
+        )
+
+        #expect(history.mergeBaseSHA == nil)
+        #expect(commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=50",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
+        #expect(!commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=100",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_keeps_the_deepening_steps_within_the_window_together() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
+        commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
+        commandRunner.succeedCommand(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=50",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ])
+        commandRunner.succeedCommand(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=70",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ])
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=120", "--since=30.days.ago", "head", "basehead"],
+            output: "head 1700000100\n"
+        )
+
+        _ = try await subject.gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 120, deepenBudgetSeconds: 5)
+        )
+
+        // 50 + 70 reaches the window's 120 commits; doubling to 100 would go past it.
+        #expect(commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=70",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
+        #expect(!commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=100",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_stops_deepening_when_a_fetch_fails() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
+        commandRunner.errorCommand(git + ["merge-base", "origin/main", "head"])
+        // The deepen fetch fails, as it does offline. Retrying it until the
+        // budget expires would overflow the depth long before that.
+        commandRunner.errorCommand(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=50",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ])
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head", "basehead"],
+            output: "head 1700000100\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path, headSHA: "head", baseBranch: "main", limits: GitHistoryLimits()
+        )
+
+        #expect(history.mergeBaseSHA == nil)
+        #expect(!commandRunner.called(git + [
+            "fetch",
+            "--no-tags",
+            "--filter=blob:none",
+            "--deepen=100",
+            "origin",
+            "+main:refs/remotes/origin/main",
+        ]))
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_reads_a_shallow_clones_boundary_parents_from_the_commit_objects() async throws {
+        // `git log` lists a shallow clone's boundary commits with no parents, which they have.
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
+        try await FileSystem().writeText("boundary\nside\n", at: path.appending(components: ".git", "shallow"))
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
+            output: "head mid side 1700000200\nmid boundary 1700000100\nside  1700000050\nboundary  1700000000\n"
+        )
+        commandRunner.succeedCommand(
+            git + ["log", "--no-walk", "--no-decorate", "--format=raw", "side", "boundary"],
+            output: """
+            commit side
+            tree t
+            parent fork
+            author A <a@tuist.dev> 1700000050 +0000
+            committer A <a@tuist.dev> 1700000050 +0000
+            gpgsig -----BEGIN PGP SIGNATURE-----
+             parent signature
+             -----END PGP SIGNATURE-----
+
+                parent message
+
+            commit boundary
+            tree t
+            parent outside
+            parent other
+            author A <a@tuist.dev> 1700000000 +0000
+            committer A <a@tuist.dev> 1700000000 +0000
+
+                merge
+
+            """
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path, headSHA: "head", baseBranch: nil, limits: GitHistoryLimits()
+        )
+
+        #expect(history.commits.map(\.sha) == ["head", "mid", "side", "boundary"])
+        #expect(history.commits.map(\.parents) == [["mid", "side"], ["boundary"], ["fork"], ["outside", "other"]])
+        #expect(history.commits.map(\.committedAt.timeIntervalSince1970) == [
+            1_700_000_200,
+            1_700_000_100,
+            1_700_000_050,
+            1_700_000_000,
+        ])
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_keeps_a_depth_one_clones_head_with_its_parent() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
+        try await FileSystem().writeText("head\n", at: path.appending(components: ".git", "shallow"))
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
+            output: "head  1700000000\n"
+        )
+        commandRunner.succeedCommand(
+            git + ["log", "--no-walk", "--no-decorate", "--format=raw", "head"],
+            output: "commit head (grafted, HEAD -> main)\ntree t\nparent previous\nauthor A <a@tuist.dev> 1700000000 +0000\n\n    message\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path, headSHA: "head", baseBranch: nil, limits: GitHistoryLimits()
+        )
+
+        #expect(history.commits == [
+            GitHistoryCommit(sha: "head", parents: ["previous"], committedAt: Date(timeIntervalSince1970: 1_700_000_000)),
+        ])
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_leaves_out_boundary_commits_whose_parents_cannot_be_read() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
+        try await FileSystem().writeText("boundary\n", at: path.appending(components: ".git", "shallow"))
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
+            output: "head boundary 1700000100\nboundary  1700000000\n"
+        )
+        commandRunner.errorCommand(git + ["log", "--no-walk", "--no-decorate", "--format=raw", "boundary"])
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path, headSHA: "head", baseBranch: nil, limits: GitHistoryLimits()
+        )
+
+        #expect(history.commits.map(\.sha) == ["head"])
+    }
+
+    /// A remote that stops answering leaves `git fetch` waiting forever. The stand-in's fetch
+    /// starts a child that ignores SIGTERM, as `git-remote-https` stands for here.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [false, true])
+    func gitHistory_tears_down_a_fetch_that_outlasts_the_budget(baseBranchInCheckout: Bool) async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let bin = path.appending(component: "bin")
+        try await FileSystem().makeDirectory(at: bin)
+        let fetchPID = path.appending(component: "fetch.pid")
+        let remotePID = path.appending(component: "remote.pid")
+        try await FileSystem().writeText(
+            """
+            #!/bin/sh
+            case "$*" in
+              *"rev-parse --show-object-format"*) echo sha1 ;;
+              *"rev-parse --is-shallow-repository"*) echo true ;;
+              *"rev-parse --verify"*) \(baseBranchInCheckout ? "echo basehead" : "exit 1") ;;
+              *" fetch "*)
+                echo $$ > "\(fetchPID.pathString)"
+                (trap '' TERM; exec sleep 600) &
+                echo $! > "\(remotePID.pathString)"
+                wait ;;
+              *" log "*) ;;
+              *) exit 1 ;;
+            esac
+            """,
+            at: bin.appending(component: "git")
+        )
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: bin.appending(component: "git").pathString
+        )
+        try #require(Environment.mocked).variables = ["PATH": "\(bin.pathString):/usr/bin:/bin"]
+        let budget = 1
+
+        let start = Date()
+        let history = try await GitController(commandRunner: CommandRunner()).gitHistory(
+            workingDirectory: path,
+            headSHA: "head",
+            baseBranch: "main",
+            limits: GitHistoryLimits(deepenBudgetSeconds: budget)
+        )
+
+        #expect(Date().timeIntervalSince(start) < Double(budget) + 2)
+        #expect(history.mergeBaseSHA == nil)
+        #expect(history.fallbackReason == (
+            baseBranchInCheckout
+                ? "shallow clone: the merge base with main was not found within \(budget)s"
+                : "the base branch main is not in the checkout and could not be fetched within \(budget)s"
+        ))
+        for pidFile in [fetchPID, remotePID] {
+            let contents = try await FileSystem().readTextFile(at: pidFile)
+            let pid = try #require(pid_t(contents.trimmingCharacters(in: .whitespacesAndNewlines)))
+            #expect(await processExits(pid), "\(pidFile.basename): process \(pid) outlived the fetch.")
+        }
+    }
+
+    /// `kill(pid, 0)` also succeeds for a zombie, which the orphaned child is until launchd or init reaps it.
+    private func processExits(_ pid: pid_t) async -> Bool {
+        for _ in 0 ..< 50 {
+            if kill(pid, 0) != 0, errno == ESRCH { return true }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        kill(pid, SIGKILL)
+        return false
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_explains_a_missing_base_branch() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha256\n")
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=5000", "--since=365.days.ago", "head"],
+            output: "head 1700000100\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path, headSHA: "head", baseBranch: nil, limits: GitHistoryLimits()
+        )
+
+        #expect(history.objectFormat == "sha256")
+        #expect(history.mergeBaseSHA == nil)
+        #expect(history.fallbackReason == "no base branch is known")
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_gitlab_ci() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
@@ -614,5 +1297,34 @@ struct GitControllerTests {
 
         // Then
         #expect(isInGitRepository == false)
+    }
+
+    @Test(.inTemporaryDirectory) func commitFiles_lists_the_commits_tree_with_blobs_and_modes_up_to_the_limit() async throws {
+        // The commit's tree, not the index: on a pull request's merge checkout the run reports
+        // HEAD^2, and the index is the merge commit's.
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "ls-tree", "-r", "-z", "--full-tree", "tip"],
+            output: [
+                "100644 blob aaa\tPackage.resolved",
+                "100755 blob bbb\tScripts/run.sh",
+                "120000 blob ccc\tSources/Link.swift",
+                "160000 commit ddd\tVendor/Submodule",
+                "100644 blob eee\tTuist/Package.swift",
+            ].joined(separator: "\0") + "\0"
+        )
+
+        let listing = try await subject.commitFiles(workingDirectory: path, sha: "tip", limit: 2)
+
+        #expect(listing.files == [
+            GitCommitFile(path: "Package.resolved", blobId: "aaa", mode: 0o100644),
+            GitCommitFile(path: "Scripts/run.sh", blobId: "bbb", mode: 0o100755),
+        ])
+        #expect(listing.truncated)
+
+        let whole = try await subject.commitFiles(workingDirectory: path, sha: "tip", limit: 10)
+        #expect(whole.files.map(\.path) == ["Package.resolved", "Scripts/run.sh", "Sources/Link.swift", "Tuist/Package.swift"])
+        #expect(whole.files[2].mode == 0o120000)
+        #expect(!whole.truncated)
     }
 }

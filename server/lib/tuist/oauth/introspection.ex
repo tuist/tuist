@@ -18,7 +18,7 @@ defmodule Tuist.OAuth.Introspection do
   narrowed to one tenant: it serves them all.
   """
   def token_response(token) do
-    case Authentication.authenticated_subject(token) do
+    case subject(token) do
       nil -> cache_token_response(token)
       subject -> active_response(subject, Cache.cache_grants(subject), nil)
     end
@@ -33,7 +33,7 @@ defmodule Tuist.OAuth.Introspection do
   serve, another tenant's tokens.
   """
   def token_response(token, %Account{} = account) do
-    case Authentication.authenticated_subject(token) do
+    case subject(token) do
       nil ->
         cache_token_response(token, account)
 
@@ -98,6 +98,19 @@ defmodule Tuist.OAuth.Introspection do
     %{"account" => %{"read" => [], "write" => []}, "project" => %{"read" => [], "write" => []}}
   end
 
+  # A token claiming to be a cache token never resolves to a subject: Guardian
+  # refuses its type and no stored credential is a JWT. Skipping those lookups
+  # leaves only its signature to verify, so the answer is unchanged.
+  defp subject(token) do
+    if cache_token_type?(token), do: nil, else: Authentication.authenticated_subject(token)
+  end
+
+  defp cache_token_type?(token) do
+    match?(%JOSE.JWT{fields: %{"typ" => @cache_token_type}}, JOSE.JWT.peek_payload(token))
+  rescue
+    _ -> false
+  end
+
   defp verified_cache_token(token) do
     Enum.find_value(cache_token_verifiers(), :error, fn verifier ->
       case verifier.decode_and_verify(token, %{"typ" => @cache_token_type}) do
@@ -126,6 +139,7 @@ defmodule Tuist.OAuth.Introspection do
       active: true,
       iss: issuer(),
       sub: claims["sub"],
+      cache_origin: claims["cache_origin"],
       cache_grants: grants,
       cache_payment_required: claims |> Map.get("cache_payment_required", []) |> scope_handles(tenant),
       cache_payment_failed: claims |> Map.get("cache_payment_failed", []) |> scope_handles(tenant)

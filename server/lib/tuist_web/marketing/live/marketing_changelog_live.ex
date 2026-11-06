@@ -6,6 +6,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Changelog
+  alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.SocialCards
 
   on_mount {TuistWeb.Authentication, :mount_current_user}
@@ -91,14 +92,22 @@ defmodule TuistWeb.Marketing.MarketingChangelogLive do
         %{"category" => category, "page" => new_page}
       end
 
-    {:noreply, push_patch(socket, to: ~p"/changelog?#{params}")}
+    {:noreply, push_patch(socket, to: Localization.localized_href(~p"/changelog?#{params}"))}
   end
 
   defp parse_page(params) do
     case Map.get(params, "page") do
-      nil -> 1
-      page when is_binary(page) -> String.to_integer(page)
-      page when is_integer(page) -> page
+      page when is_integer(page) and page > 0 ->
+        page
+
+      page when is_binary(page) ->
+        case Integer.parse(page) do
+          {num, ""} when num > 0 -> num
+          _ -> 1
+        end
+
+      _ ->
+        1
     end
   end
 end

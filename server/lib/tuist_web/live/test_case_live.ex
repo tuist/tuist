@@ -19,6 +19,7 @@ defmodule TuistWeb.TestCaseLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -58,6 +59,14 @@ defmodule TuistWeb.TestCaseLive do
       |> assign(:test_case_id, test_case_id)
       |> assign(:test_case_detail, test_case_detail)
       |> assign(:head_title, "#{test_case_detail.name} · #{slug} · Tuist")
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: test_case_detail.name,
+          subtitle:
+            Enum.join(Enum.reject([test_case_detail.module_name, test_case_detail.suite_name], &(&1 in [nil, ""])), " · "),
+          badge: test_case_detail.last_status |> to_string() |> String.capitalize()
+        )
+      )
       |> assign(:available_filters, define_filters(project))
       |> assign(:can_update_test_case, can_update_test_case?(socket.assigns[:current_user], project))
 
@@ -300,6 +309,14 @@ defmodule TuistWeb.TestCaseLive do
         display_name: dgettext("dashboard_tests", "Duration"),
         type: :number,
         operator: :>,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "claimed_actor_id",
+        field: :claimed_actor_id,
+        display_name: dgettext("dashboard_tests", "Reported name"),
+        type: :text,
+        operator: :==,
         value: ""
       },
       %Filter.Filter{
@@ -745,14 +762,17 @@ defmodule TuistWeb.TestCaseLive do
   defp build_flop_filters(filters, search) do
     base_filters =
       Enum.flat_map(filters, fn
-        %{id: "ran_by", value: :ci, operator: :==} ->
-          [%{field: :is_ci, op: :==, value: true}]
+        %{id: "ran_by", value: :ci, operator: op} ->
+          [%{field: :is_ci, op: op, value: true}]
 
         %{id: "ran_by", value: value, operator: :==} when not is_nil(value) ->
           [
             %{field: :is_ci, op: :==, value: false},
-            %{field: :account_id, op: :==, value: value}
+            %{field: :verified_actor, op: :==, value: value}
           ]
+
+        %{id: "ran_by", value: value, operator: op} when not is_nil(value) ->
+          [%{field: :verified_actor, op: op, value: value}]
 
         %{field: field, operator: op, value: value} when not is_nil(value) and value != "" ->
           [%{field: field, op: op, value: value}]

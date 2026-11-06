@@ -9,6 +9,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   use Oban.Worker, queue: :swift_registry_release
 
+  alias Tuist.GitHub.Retry
   alias Tuist.Registry
   alias Tuist.Registry.S3
   alias Tuist.Registry.Swift.Lock
@@ -18,8 +19,6 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   alias TuistCommon.Registry.Swift.KeyNormalizer
 
   require Logger
-
-  @github_opts [finch: Tuist.Finch, retry: false]
 
   @lock_ttl_seconds 1_800
   @metadata_lock_ttl_seconds 300
@@ -44,17 +43,6 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   @doc false
   def release_deferred_event_name, do: @release_deferred_event
-
-  # Symlinks nested inside these code-signed bundles are part of the bundle's
-  # sealed layout (e.g. a Mac Catalyst framework's `Versions/Current -> A` and
-  # the `Binary`/`Resources` links). Code signing records them as symlinks in
-  # `_CodeSignature/CodeResources`, so flattening them into real copies
-  # invalidates the signature ("a sealed resource is missing or invalid"). They
-  # always live well below the package root, so the SwiftPM root-level symlink
-  # extraction bug that `resolve_symlinks/1` works around
-  # (https://github.com/swiftlang/swift-package-manager/pull/9411) does not
-  # apply to them, and they are safe to keep as symlinks in the archive.
-  @signed_bundle_extensions ~w(.xcframework .framework .app .appex .bundle .dSYM .plugin .systemextension .xpc)
 
   @skippable_submodule_failure_markers [
     "no url found for submodule path",
@@ -167,12 +155,33 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
+  # Organizations with an IP allow list refuse the App's installation token with
+  # a 403 on every request while still serving their public repositories to a
+  # personal access token. Every GitHub request precedes the first upload, so
+  # the release is rebuilt from scratch with the fallback token.
+  defp sync_release(scope, name, full_handle, tag, version, token, opts) do
+    case sync_release_with_token(scope, name, full_handle, tag, version, token, opts) do
+      {:error, reason} = error ->
+        with true <- forbidden?(reason),
+             fallback_token when is_binary(fallback_token) <- Registry.swift_registry_github_fallback_token(token) do
+          Logger.info("GitHub refused the mirror's token for #{scope}/#{name}@#{tag}; retrying with the fallback token")
+
+          sync_release_with_token(scope, name, full_handle, tag, version, fallback_token, opts)
+        else
+          _no_fallback -> error
+        end
+
+      result ->
+        result
+    end
+  end
+
   # Briefly deletes a dead process's files from inside its single
   # `Briefly.Entry` server, and every `Briefly.create/1` from a new job process
   # makes a 5s call to that same server. Removing a cloned or extracted package
   # tree there stalls it long enough for concurrent release jobs to crash on the
   # call timeout, so the tree is removed here, in the job's own process.
-  defp sync_release(scope, name, full_handle, tag, version, token, opts) do
+  defp sync_release_with_token(scope, name, full_handle, tag, version, token, opts) do
     {:ok, tmp_dir} = Briefly.create(directory: true)
 
     try do
@@ -181,6 +190,12 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
       File.rm_rf(tmp_dir)
     end
   end
+
+  defp forbidden?({:http_error, 403}), do: true
+  defp forbidden?(tuple) when is_tuple(tuple), do: tuple |> Tuple.to_list() |> Enum.any?(&forbidden?/1)
+  defp forbidden?(list) when is_list(list), do: Enum.any?(list, &forbidden?/1)
+  defp forbidden?(map) when is_map(map), do: map |> Map.values() |> Enum.any?(&forbidden?/1)
+  defp forbidden?(_reason), do: false
 
   defp sync_release_in(tmp_dir, scope, name, full_handle, tag, version, token, opts) do
     archive_path = Path.join(tmp_dir, "source_archive.zip")
@@ -254,15 +269,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
              token,
              tag,
              archive_path,
-             @github_opts
+             github_opts()
            ) do
       normalize_archive(tmp_dir, archive_path)
     end
   end
 
-  # SwiftPM does not correctly handle symlinks when unzipping archives, which breaks
-  # packages that contain them (e.g. CLAUDE.md -> AGENTS.md symlinks).
-  # This workaround resolves symlinks by repacking the archive before upload.
+  # SwiftPM does not correctly handle root-level symlinks when unzipping archives,
+  # which breaks packages that contain them (e.g. CLAUDE.md -> AGENTS.md symlinks).
+  # This workaround flattens them by repacking the archive before upload.
   # Upstream fix: https://github.com/swiftlang/swift-package-manager/pull/9411
   # A single listing answers both questions asked of a downloaded archive, so
   # the archive it passes through untouched is inspected exactly once. An
@@ -277,7 +292,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp fetch_submodule_paths(full_handle, tag, token) do
-    case TuistCommon.GitHub.get_file_content(full_handle, token, ".gitmodules", tag, @github_opts) do
+    case TuistCommon.GitHub.get_file_content(full_handle, token, ".gitmodules", tag, github_opts()) do
       {:ok, content} -> {:ok, parse_gitmodules_paths(content)}
       {:error, :not_found} -> {:ok, []}
       {:error, reason} -> {:error, {:gitmodules_fetch_failed, reason}}
@@ -605,11 +620,11 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     parent_dir = Path.dirname(directory)
     base_name = Path.basename(directory)
 
-    with :ok <- remove_symlinks_outside_root(directory),
-         :ok <- resolve_symlinks(directory) do
-      # `-y` stores the symlinks that `resolve_symlinks/1` deliberately preserved
-      # (those inside code-signed bundles) as symlinks instead of following them
-      # and inlining their target, which would otherwise break the signature.
+    with {:ok, root_directory} <- real_path(directory),
+         :ok <- remove_symlinks_outside_root(directory, root_directory),
+         :ok <- resolve_root_symlinks(directory, root_directory) do
+      # `-y` stores the remaining (nested) symlinks as symlinks instead of
+      # following them and inlining their target.
       case System.cmd("zip", ["-r", "-y", archive_path, base_name], cd: parent_dir) do
         {_, 0} -> :ok
         {output, status} -> {:error, {:zip_failed, status, output}}
@@ -617,37 +632,29 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp resolve_symlinks(directory) do
-    case System.cmd("find", [directory, "-type", "l"], stderr_to_stdout: true) do
+  # Only symlinks directly under the package root are flattened: those are the
+  # ones un-patched SwiftPM clients fail to extract
+  # (https://github.com/swiftlang/swift-package-manager/pull/9411). Nested
+  # symlinks extract correctly and must be preserved, both because packages rely
+  # on them and because flattening the ones sealed inside code-signed bundles
+  # (e.g. a framework's `Versions/Current -> A`) invalidates the signature.
+  defp resolve_root_symlinks(directory, root_directory) do
+    # NUL-separated, because names may contain newlines.
+    case System.cmd("find", [directory, "-mindepth", "1", "-maxdepth", "1", "-type", "l", "-print0"],
+           stderr_to_stdout: true
+         ) do
       {output, 0} ->
-        symlink_paths =
-          output
-          |> String.split("\n", trim: true)
-          |> Enum.reject(&within_signed_bundle?/1)
+        symlink_paths = String.split(output, <<0>>, trim: true)
 
         {directory_symlinks, non_directory_symlinks} = classify_symlinks(symlink_paths)
 
-        with :ok <- resolve_non_directory_symlinks(non_directory_symlinks) do
-          resolve_directory_symlinks(directory_symlinks)
+        with :ok <- resolve_non_directory_symlinks(non_directory_symlinks, root_directory) do
+          resolve_directory_symlinks(directory_symlinks, root_directory)
         end
 
       {output, status} ->
         {:error, {:find_symlinks_failed, status, output}}
     end
-  end
-
-  defp within_signed_bundle?(path) do
-    # Inspect only the ancestor directories, not the symlink's own basename: the
-    # bundle whose sealed layout we protect is always a real directory above the
-    # symlink. A root-level symlink that happens to be named like a bundle (e.g.
-    # `Foo.framework -> ...`) must still be flattened, so it does not reintroduce
-    # the SwiftPM root-level extraction failure on un-patched clients.
-    path
-    |> Path.split()
-    |> Enum.drop(-1)
-    |> Enum.any?(fn component ->
-      Enum.any?(@signed_bundle_extensions, &String.ends_with?(component, &1))
-    end)
   end
 
   defp classify_symlinks(symlink_paths) do
@@ -656,37 +663,40 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end)
   end
 
-  defp resolve_non_directory_symlinks([]), do: :ok
+  defp resolve_non_directory_symlinks([], _root_directory), do: :ok
 
-  defp resolve_non_directory_symlinks([symlink_path | rest]) do
-    case File.stat(symlink_path) do
-      {:ok, %File.Stat{type: :regular}} ->
-        content = File.read!(symlink_path)
-        File.rm!(symlink_path)
-        File.write!(symlink_path, content)
-
-      _ ->
-        File.rm(symlink_path)
+  # The target is resolved and checked again right before it is read, and the
+  # resolved path is read instead of the link, so the bytes copied into the
+  # archive come from the file that passed the check.
+  defp resolve_non_directory_symlinks([symlink_path | rest], root_directory) do
+    with {:ok, target} <- File.read_link(symlink_path),
+         {:ok, resolved_target} <- resolve_symlink_target(symlink_path, target),
+         true <- path_within_root?(resolved_target, root_directory),
+         {:ok, %File.Stat{type: :regular}} <- File.lstat(resolved_target) do
+      content = File.read!(resolved_target)
+      File.rm!(symlink_path)
+      File.write!(symlink_path, content)
+    else
+      _ -> File.rm(symlink_path)
     end
 
-    resolve_non_directory_symlinks(rest)
+    resolve_non_directory_symlinks(rest, root_directory)
   end
 
-  defp resolve_directory_symlinks(directory_symlinks) do
+  defp resolve_directory_symlinks(directory_symlinks, root_directory) do
     {cyclic, non_cyclic} =
       Enum.split_with(directory_symlinks, fn path ->
-        case File.read_link(path) do
-          {:ok, target} ->
-            resolved = resolve_symlink_target(path, target)
-            symlink_creates_cycle?(Path.expand(path), resolved)
-
-          _ ->
-            false
+        with {:ok, target} <- File.read_link(path),
+             {:ok, resolved} <- resolve_symlink_target(path, target),
+             {:ok, parent} <- real_path(Path.dirname(path)) do
+          symlink_creates_cycle?(Path.join(parent, Path.basename(path)), resolved)
+        else
+          _ -> false
         end
       end)
 
     Enum.each(cyclic, &remove_cyclic_directory_symlink/1)
-    Enum.each(non_cyclic, &resolve_non_cyclic_directory_symlink/1)
+    Enum.each(non_cyclic, &resolve_non_cyclic_directory_symlink(&1, root_directory))
   end
 
   defp remove_cyclic_directory_symlink(symlink_path) do
@@ -695,11 +705,47 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     Logger.info("Removed recursive directory symlink #{symlink_path} -> #{target}")
   end
 
-  defp resolve_non_cyclic_directory_symlink(symlink_path) do
+  defp resolve_non_cyclic_directory_symlink(symlink_path, root_directory) do
     {:ok, target} = File.read_link(symlink_path)
-    resolved_target = resolve_symlink_target(symlink_path, target)
-    File.rm!(symlink_path)
-    File.cp_r!(resolved_target, symlink_path)
+
+    with {:ok, resolved_target} <- resolve_symlink_target(symlink_path, target),
+         true <- path_within_root?(resolved_target, root_directory),
+         {:ok, %File.Stat{type: :directory}} <- File.lstat(resolved_target) do
+      nested_targets = resolve_nested_symlinks(resolved_target)
+      File.rm!(symlink_path)
+      File.cp_r!(resolved_target, symlink_path)
+      repoint_copied_symlinks(nested_targets, symlink_path)
+    else
+      _ -> File.rm!(symlink_path)
+    end
+  end
+
+  # Resolved before the copy exists, so no link resolves through a copy whose
+  # links still carry their verbatim targets.
+  defp resolve_nested_symlinks(source_directory) do
+    {output, 0} = System.cmd("find", [source_directory, "-type", "l", "-print0"])
+
+    output
+    |> String.split(<<0>>, trim: true)
+    |> Enum.map(fn original_link ->
+      {:ok, target} = File.read_link(original_link)
+      {Path.relative_to(original_link, source_directory), resolve_symlink_target(original_link, target)}
+    end)
+  end
+
+  # `File.cp_r!/2` copies nested symlinks verbatim, so each copy is repointed at
+  # the path its original resolved to; a relative target would otherwise resolve
+  # from the copy's location, dangling or escaping the package root.
+  defp repoint_copied_symlinks(nested_targets, copy_directory) do
+    Enum.each(nested_targets, fn {relative_path, resolution} ->
+      copied_link = Path.join(copy_directory, relative_path)
+      File.rm!(copied_link)
+
+      with {:ok, resolved_target} <- resolution,
+           {:ok, copy_parent} <- real_path(Path.dirname(copied_link)) do
+        File.ln_s!(Path.relative_to(resolved_target, copy_parent, force: true), copied_link)
+      end
+    end)
   end
 
   defp symlink_creates_cycle?(symlink_path, resolved_target) do
@@ -776,9 +822,8 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp remove_symlinks_outside_root(root_directory) do
-    expanded_root_directory = Path.expand(root_directory)
-    prune_symlinks_outside_root([expanded_root_directory], expanded_root_directory)
+  defp remove_symlinks_outside_root(directory, root_directory) do
+    prune_symlinks_outside_root([Path.expand(directory)], root_directory)
   end
 
   defp prune_symlinks_outside_root([], _root_directory), do: :ok
@@ -828,23 +873,67 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp ensure_symlink_target_within_root(path, target, root_directory) do
-    resolved_target = resolve_symlink_target(path, target)
-
-    if path_within_root?(resolved_target, root_directory) do
+    with true <- target_text_within_root?(path, target, root_directory),
+         {:ok, resolved_target} <- resolve_symlink_target(path, target),
+         true <- path_within_root?(resolved_target, root_directory) do
       :ok
     else
-      {:symlink_outside_root, target}
+      _ -> {:symlink_outside_root, target}
+    end
+  end
+
+  # Clients resolve the archive's links again on their own filesystem, which
+  # may fold case or normalize Unicode, so names that are distinct here can
+  # name a symlink there. A target is therefore kept only when its text alone
+  # stays inside the package: relative, with `..` only at its start, and with
+  # no more of them than the link sits below the root. Every kept link then
+  # climbs at most to the root before descending, whatever its names resolve to.
+  defp target_text_within_root?(path, target, root_directory) do
+    {parents, names} =
+      target
+      |> Path.split()
+      |> Enum.reject(&(&1 == "."))
+      |> Enum.split_while(&(&1 == ".."))
+
+    with :relative <- Path.type(target),
+         false <- ".." in names,
+         {:ok, link_directory} <- real_path(Path.dirname(path)) do
+      depth = link_directory |> Path.relative_to(root_directory) |> Path.split() |> Enum.count(&(&1 != "."))
+      length(parents) <= depth
+    else
+      _ -> false
     end
   end
 
   defp resolve_symlink_target(link_path, target) do
     if Path.type(target) == :absolute do
-      Path.expand(target)
+      real_path(target)
     else
-      link_path
-      |> Path.dirname()
-      |> Path.join(target)
-      |> Path.expand()
+      link_path |> Path.dirname() |> Path.join(target) |> real_path()
+    end
+  end
+
+  # Resolves a path the way the OS does: one component at a time, following
+  # each symlink it meets before reading the next component. A `..` after a
+  # symlink therefore climbs from the link's target, not from its text, so
+  # `a/u/../x` with `a/u -> ../..` lands outside a package even though
+  # `Path.expand/1` keeps it inside.
+  @max_symlink_hops 40
+
+  defp real_path(path), do: path |> Path.absname() |> Path.split() |> walk_real_path("/", 0)
+
+  defp walk_real_path(_components, _current, hops) when hops > @max_symlink_hops, do: {:error, :too_many_symlinks}
+  defp walk_real_path([], current, _hops), do: {:ok, current}
+  defp walk_real_path(["/" | rest], _current, hops), do: walk_real_path(rest, "/", hops)
+  defp walk_real_path(["." | rest], current, hops), do: walk_real_path(rest, current, hops)
+  defp walk_real_path([".." | rest], current, hops), do: walk_real_path(rest, Path.dirname(current), hops)
+
+  defp walk_real_path([name | rest], current, hops) do
+    candidate = Path.join(current, name)
+
+    case File.read_link(candidate) do
+      {:ok, target} -> walk_real_path(Path.split(target) ++ rest, current, hops + 1)
+      {:error, _not_a_symlink} -> walk_real_path(rest, candidate, hops)
     end
   end
 
@@ -966,9 +1055,21 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     )
   end
 
+  defp github_opts do
+    # Retry transient connection failures in Req, but leave HTTP rate limits and
+    # upstream statuses to the worker's Oban snooze policy. Registry packages
+    # are public, so a token refused by an organization's IP allow list is
+    # retried anonymously.
+    [
+      finch: Tuist.Finch,
+      retry: fn request, result -> is_exception(result) and Retry.should_retry?(request, result) end,
+      anonymous_fallback: true
+    ]
+  end
+
   defp fetch_manifests(full_handle, tag, token) do
     with {:ok, contents} <-
-           TuistCommon.GitHub.list_repository_contents(full_handle, token, tag, @github_opts) do
+           TuistCommon.GitHub.list_repository_contents(full_handle, token, tag, github_opts()) do
       {manifest_payloads, failures} =
         contents
         |> Enum.map(&Map.get(&1, "path"))
@@ -976,7 +1077,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
         |> Enum.reduce({[], []}, fn path, {manifest_payloads, failures} ->
           filename = Path.basename(path)
 
-          case TuistCommon.GitHub.get_file_content(full_handle, token, path, tag, @github_opts) do
+          case TuistCommon.GitHub.get_file_content(full_handle, token, path, tag, github_opts()) do
             {:ok, content} ->
               manifest_payload = %{
                 content: content,

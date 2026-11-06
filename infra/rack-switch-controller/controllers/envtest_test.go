@@ -84,6 +84,10 @@ func TestEnvtestTheCommittedObjectsAreAdmittedAsWritten(t *testing.T) {
 		if err := yaml.Unmarshal(raw, &rs); err != nil {
 			t.Fatal(err)
 		}
+		// The site's directory also holds its RackPDU and RackATS objects.
+		if rs.Kind != "RackSwitch" {
+			continue
+		}
 		rs.Namespace = namespace
 		if err := c.Create(ctx, &rs); err != nil {
 			t.Fatalf("%s: %v", path, err)

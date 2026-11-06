@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -15,10 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -97,6 +97,10 @@ type RackLinuxMachineReconciler struct {
 	// own, such as a host's kubelet proxy.
 	EgressProxyTags string
 
+	// AMTProducts are the hardware models, by SMBIOS vendor and product, whose
+	// boot NIC is shared with Intel AMT (--rack-linux-amt-products).
+	AMTProducts []string
+
 	ConvergeInterval time.Duration
 
 	// NodeBinary is the rack-node binary (linux/amd64) a converge runs on the
@@ -127,7 +131,7 @@ func (r *RackLinuxMachineReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, helperErr
 	}
 	defer func() {
-		if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil && err == nil {
+		if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil && err == nil {
 			err = patchErr
 		}
 	}()
@@ -136,7 +140,7 @@ func (r *RackLinuxMachineReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return r.reconcileDelete(ctx, machine)
 	}
 
-	ownerMachine, ownerErr := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	ownerMachine, ownerErr := shared.OwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if ownerErr != nil {
 		return ctrl.Result{}, fmt.Errorf("get owner Machine: %w", ownerErr)
 	}
@@ -200,7 +204,7 @@ func (r *RackLinuxMachineReconciler) reconcileNormal(ctx context.Context, machin
 	if err := r.egress().ensure(ctx, r.Client, host); err != nil {
 		return ctrl.Result{}, fmt.Errorf("reconcile egress Service for %s: %w", nodeName, err)
 	}
-	if err := r.reconcileNodeAddresses(ctx, host, node); err != nil {
+	if err := r.reconcileNodeAddresses(ctx, host, node, clusterAddressApplied(machine)); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -262,7 +266,7 @@ func (r *RackLinuxMachineReconciler) retireRenamedNode(ctx context.Context, mach
 			"Deleted Node %s: the host is now %s and joins again under that name", name, host.Spec.Hostname)
 	}
 
-	owner, err := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	owner, err := shared.OwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if err != nil || owner == nil || owner.Status.NodeRef == nil || owner.Status.NodeRef.Name != name {
 		return err
 	}
@@ -381,9 +385,27 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *
 	if r.APIServerURL != "" {
 		server = r.APIServerURL
 	}
+	nodeIP := host.Status.Tailnet.Address
+	if host.Spec.ClusterNetwork != nil {
+		nodeIP = host.Spec.ClusterNetwork.PublicAddress
+	}
+	var forwards []infrav1.RackLinuxHostClusterNetwork
+	if host.Spec.Role == "edge" {
+		if forwards, err = r.siteClusterNetwork(ctx, host); err != nil {
+			return rackConvergeOptions{}, "", err
+		}
+	}
+	managementMAC := ""
+	if sharesBootNICWithAMT(host, r.AMTProducts) {
+		managementMAC = host.Status.BootMAC
+	}
 	return rackConvergeOptions{
 		NodeName:       host.Spec.Hostname,
-		NodeIP:         host.Status.Tailnet.Address,
+		Role:           host.Spec.Role,
+		Edge:           host.Spec.Edge,
+		NodeIP:         nodeIP,
+		ClusterNetwork: host.Spec.ClusterNetwork,
+		Forwards:       forwards,
 		ProviderID:     rackLinuxProviderID(host),
 		KubeletVersion: kubeletVersion,
 		K8sMinor:       minor,
@@ -391,10 +413,27 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *
 		ClusterDNS:     clusterDNS,
 		NodeLabels:     host.Spec.Node.Labels,
 		NodeTaints:     host.Spec.Node.Taints,
-		ManagementMAC:  host.Status.BootMAC,
+		ManagementMAC:  managementMAC,
 		APIServerURL:   server,
 		KubernetesAPI:  server,
+		// Best effort, like the cluster DNS: without it the node keeps no
+		// translation for the kubernetes Service, and only in-cluster clients
+		// on the node lose the API.
+		KubernetesServiceIP: discoverKubernetesService(ctx, r.APIReader),
 	}, "", nil
+}
+
+// discoverKubernetesService is the kubernetes Service's ClusterIP, or empty
+// when it cannot be read.
+func discoverKubernetesService(ctx context.Context, reader client.Reader) string {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	svc := &corev1.Service{}
+	if err := reader.Get(ctx, types.NamespacedName{Namespace: "default", Name: "kubernetes"}, svc); err != nil {
+		log.FromContext(ctx).Info("could not read the kubernetes Service; rack nodes keep no translation for it", "err", err.Error())
+		return ""
+	}
+	return svc.Spec.ClusterIP
 }
 
 func parseControlPlaneVersion(v string) (kubelet, minor string, ok bool) {
@@ -731,11 +770,42 @@ func rackLinuxMachineForCAPIMachine(_ context.Context, o client.Object) []reconc
 }
 
 // machinesForHost wakes a host's machine, which has the host's name, when the
-// host changes.
-func (r *RackLinuxMachineReconciler) machinesForHost(_ context.Context, o client.Object) []reconcile.Request {
+// host changes, and its site's edges, which forward to the site's
+// cluster-network hosts.
+func (r *RackLinuxMachineReconciler) machinesForHost(ctx context.Context, o client.Object) []reconcile.Request {
 	host, ok := o.(*infrav1.RackLinuxHost)
 	if !ok {
 		return nil
 	}
-	return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: host.Namespace, Name: host.Name}}}
+	requests := []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: host.Namespace, Name: host.Name}}}
+	list := &infrav1.RackLinuxHostList{}
+	if err := r.List(ctx, list, client.InNamespace(host.Namespace)); err != nil {
+		return requests
+	}
+	for i := range list.Items {
+		h := &list.Items[i]
+		if h.Name != host.Name && h.Spec.Role == "edge" && h.Spec.Location.Site == host.Spec.Location.Site {
+			requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: h.Namespace, Name: h.Name}})
+		}
+	}
+	return requests
+}
+
+// siteClusterNetwork is how the cluster reaches the cluster-network hosts of
+// host's site, which the site's edges forward to, in a stable order.
+func (r *RackLinuxMachineReconciler) siteClusterNetwork(ctx context.Context, host *infrav1.RackLinuxHost) ([]infrav1.RackLinuxHostClusterNetwork, error) {
+	list := &infrav1.RackLinuxHostList{}
+	if err := r.List(ctx, list, client.InNamespace(host.Namespace)); err != nil {
+		return nil, fmt.Errorf("list the site's hosts: %w", err)
+	}
+	var forwards []infrav1.RackLinuxHostClusterNetwork
+	for i := range list.Items {
+		h := &list.Items[i]
+		if h.Spec.Location.Site != host.Spec.Location.Site || h.Spec.ClusterNetwork == nil || !h.DeletionTimestamp.IsZero() {
+			continue
+		}
+		forwards = append(forwards, *h.Spec.ClusterNetwork)
+	}
+	sort.Slice(forwards, func(i, j int) bool { return forwards[i].PublicAddress < forwards[j].PublicAddress })
+	return forwards, nil
 }

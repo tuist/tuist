@@ -31,7 +31,9 @@ defmodule Tuist.Runners.CacheGrant do
   per job while the scope they carry (`account-<id>`) is stable across
   jobs, so volume warmth persists.
   """
-  def mint(account_id) when is_integer(account_id) do
+  def mint(account_id, opts \\ [])
+
+  def mint(account_id, opts) when is_integer(account_id) do
     case private_jwk() do
       {:ok, jwk} ->
         now = System.system_time(:second)
@@ -41,7 +43,9 @@ defmodule Tuist.Runners.CacheGrant do
           "aud" => Environment.cache_grant_audience(),
           "iss" => @issuer,
           "iat" => now,
-          "exp" => now + Environment.cache_grant_ttl_seconds()
+          "exp" => now + Environment.cache_grant_ttl_seconds(),
+          "site" => Keyword.get(opts, :site),
+          "platform" => platform(Keyword.get(opts, :platform))
         }
 
         {_, token} =
@@ -60,7 +64,38 @@ defmodule Tuist.Runners.CacheGrant do
       nil
   end
 
-  def mint(_), do: nil
+  def mint(_, _), do: nil
+
+  defp platform(value) when value in [:linux, :macos], do: Atom.to_string(value)
+  defp platform(_), do: nil
+
+  @doc "Verifies the dispatch-signed Linux site, including account, issuer, audience and lifetime."
+  def linux_site(token, account_id) when is_binary(token) and byte_size(token) <= 8192 do
+    with {:ok, jwk} <- private_jwk(),
+         {true, %JOSE.JWT{fields: claims}, _} <- JOSE.JWT.verify_strict(JOSE.JWK.to_public(jwk), ["EdDSA"], token),
+         %{
+           "scope" => scope,
+           "iss" => @issuer,
+           "aud" => audience,
+           "platform" => "linux",
+           "site" => site,
+           "iat" => issued,
+           "exp" => expires
+         } <- claims,
+         true <- scope == "account-#{account_id}" and audience == Environment.cache_grant_audience(),
+         true <- is_binary(site) and site != "",
+         true <- is_integer(issued) and is_integer(expires),
+         now = System.system_time(:second),
+         true <- issued <= now and expires > now and expires > issued do
+      {:ok, site}
+    else
+      _ -> {:error, :invalid_runner_grant}
+    end
+  rescue
+    _ -> {:error, :invalid_runner_grant}
+  end
+
+  def linux_site(_, _), do: {:error, :invalid_runner_grant}
 
   defp private_jwk do
     case Environment.cache_grant_private_key() do

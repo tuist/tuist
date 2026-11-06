@@ -21,15 +21,25 @@ import com.google.gson.annotations.SerializedName
 /**
  * 
  *
+ * @param artifact The artifact to upload: \"shared\" for the shared products, or \"module:<name>\" for a single module's test bundle. Defaults to the legacy single bundle when omitted.
  * @param reference The shard plan reference.
+ * @param shardPlanId The shard plan id returned by createShardPlan.
  */
 
 
 data class StartShardUploadParams1 (
 
+    /* The artifact to upload: \"shared\" for the shared products, or \"module:<name>\" for a single module's test bundle. Defaults to the legacy single bundle when omitted. */
+    @SerializedName("artifact")
+    val artifact: kotlin.String? = null,
+
     /* The shard plan reference. */
     @SerializedName("reference")
-    val reference: kotlin.String
+    val reference: kotlin.String? = null,
+
+    /* The shard plan id returned by createShardPlan. */
+    @SerializedName("shard_plan_id")
+    val shardPlanId: java.util.UUID? = null
 
 ) {
 

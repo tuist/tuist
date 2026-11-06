@@ -9,6 +9,7 @@ defmodule TuistWeb.BuildTimelineLoader do
   alias Tuist.Bazel
   alias Tuist.Builds
   alias Tuist.Gradle
+  alias Tuist.Mix
 
   def assign_timeline(socket, tab, build, force \\ false) do
     identity = {build.__struct__, build.project_id, build.id}
@@ -42,6 +43,7 @@ defmodule TuistWeb.BuildTimelineLoader do
 
   def available?(%Gradle.Build{} = build), do: Gradle.Timeline.available?(build)
   def available?(%Bazel.Invocation{} = invocation), do: Bazel.Timeline.available?(invocation)
+  def available?(%Mix.Build{} = build), do: Mix.Timeline.available?(build)
 
   def bootstrap(%Builds.Build{} = build) do
     metrics =
@@ -64,6 +66,7 @@ defmodule TuistWeb.BuildTimelineLoader do
 
   def bootstrap(%Gradle.Build{} = build), do: Gradle.Timeline.bootstrap(build)
   def bootstrap(%Bazel.Invocation{} = invocation), do: Bazel.Timeline.bootstrap(invocation)
+  def bootstrap(%Mix.Build{} = build), do: Mix.Timeline.bootstrap(build)
 
   def handle_event("load-timeline", %{"version" => version}, socket) do
     case socket.assigns do

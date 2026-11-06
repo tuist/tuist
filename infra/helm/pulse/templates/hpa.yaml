@@ -1,0 +1,43 @@
+{{- define "pulse.hpa" -}}
+{{- $root := .root }}
+{{- $pool := .pool }}
+{{- $a := .autoscaling }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "pulse.poolName" (list $root $pool) }}
+  labels:
+    {{- include "pulse.labels" $root | nindent 4 }}
+    {{- if $pool }}
+    app.kubernetes.io/component: {{ $pool }}
+    {{- end }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "pulse.poolName" (list $root $pool) }}
+  minReplicas: {{ $a.minReplicas }}
+  maxReplicas: {{ $a.maxReplicas }}
+  metrics:
+    {{- if $a.metrics }}
+    {{- toYaml $a.metrics | nindent 4 }}
+    {{- else }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $a.targetCPUUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+{{- if .Values.pools.enabled }}
+{{- range $pool := list "ingest" "query" }}
+{{- $a := (index $.Values.pools $pool).autoscaling }}
+{{- if $a.enabled }}
+---
+{{ include "pulse.hpa" (dict "root" $ "pool" $pool "autoscaling" $a) }}
+{{- end }}
+{{- end }}
+{{- else if .Values.autoscaling.enabled }}
+{{ include "pulse.hpa" (dict "root" . "pool" "" "autoscaling" .Values.autoscaling) }}
+{{- end }}

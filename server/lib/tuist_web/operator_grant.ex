@@ -399,10 +399,9 @@ defmodule TuistWeb.OperatorGrant do
   end
 
   # An OAuth access token authenticates as the account it was issued for, so the
-  # human is on `current_subject.issued_by` and `current_user` is never assigned
-  # — the shape every Atlas request and every direct OAuth client arrives in.
-  # `current_user` is only populated for a browser session or a claimed agent
-  # credential, so both are consulted.
+  # human is on `current_subject.issued_by`. `current_user` is populated for a
+  # browser session, and on the MCP endpoint for an `mcp`-scoped credential a user
+  # granted or claimed, so both are consulted.
   defp operator_from_conn(conn) do
     case conn.assigns do
       %{current_user: %User{} = user} -> user

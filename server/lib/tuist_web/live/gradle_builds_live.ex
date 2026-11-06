@@ -3,6 +3,7 @@ defmodule TuistWeb.GradleBuildsLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.BuildStatusFilter, only: [build_status_dropdown: 1]
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
@@ -11,6 +12,7 @@ defmodule TuistWeb.GradleBuildsLive do
   alias Tuist.Gradle
   alias Tuist.Gradle.Analytics
   alias Tuist.Repo
+  alias TuistWeb.Components.BuildStatusFilter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -67,12 +69,13 @@ defmodule TuistWeb.GradleBuildsLive do
       DatePicker.date_picker_params(params, "analytics")
 
     analytics_environment = params["analytics-environment"] || "any"
+    analytics_build_status = BuildStatusFilter.status(params)
 
-    opts = [
-      project_id: project.id,
-      start_datetime: start_datetime,
-      end_datetime: end_datetime
-    ]
+    opts =
+      BuildStatusFilter.put_status(
+        [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime],
+        analytics_build_status
+      )
 
     opts =
       case analytics_environment do
@@ -92,6 +95,7 @@ defmodule TuistWeb.GradleBuildsLive do
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
+    |> assign(:analytics_build_status, analytics_build_status)
     |> assign(:selected_build_duration_type, params["build-duration-type"] || "avg")
     |> assign(:uri, uri)
     |> assign_async(
@@ -110,7 +114,12 @@ defmodule TuistWeb.GradleBuildsLive do
       [:total_builds_analytics, :failed_builds_analytics, :build_success_rate_analytics, :analytics_chart_data],
       fn ->
         total_builds_analytics = Analytics.build_analytics(project.id, opts)
-        failed_builds_analytics = Analytics.build_analytics(project.id, Keyword.put(opts, :status, "failure"))
+
+        failed_builds_analytics =
+          BuildStatusFilter.failed_builds_analytics(analytics_build_status, total_builds_analytics, fn ->
+            Analytics.build_analytics(project.id, Keyword.put(opts, :status, "failure"))
+          end)
+
         build_success_rate_analytics = Analytics.build_success_rate_analytics(project.id, opts)
 
         {:ok,
@@ -207,7 +216,11 @@ defmodule TuistWeb.GradleBuildsLive do
     %{period: {start_datetime, end_datetime}} = DatePicker.date_picker_params(params, "analytics")
     analytics_environment = params["analytics-environment"] || "any"
 
-    opts = [start_datetime: start_datetime, end_datetime: end_datetime]
+    opts =
+      BuildStatusFilter.put_status(
+        [start_datetime: start_datetime, end_datetime: end_datetime],
+        BuildStatusFilter.status(params)
+      )
 
     opts =
       case analytics_environment do
@@ -246,6 +259,7 @@ defmodule TuistWeb.GradleBuildsLive do
              selected_project: project,
              selected_account: account,
              analytics_environment: analytics_environment,
+             analytics_build_status: analytics_build_status,
              analytics_period: {start_datetime, end_datetime}
            }
          } = socket
@@ -258,13 +272,21 @@ defmodule TuistWeb.GradleBuildsLive do
       end
 
     filters =
+      case analytics_build_status do
+        "any" -> filters
+        status -> [%{field: :status, op: :==, value: status} | filters]
+      end
+
+    filters =
       filters ++
         [
           %{field: :inserted_at, op: :>=, value: start_datetime},
           %{field: :inserted_at, op: :<=, value: DateTime.add(end_datetime, 1, :second)}
         ]
 
-    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size, filters: filters})
+    {builds, _meta} =
+      Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size, filters: filters}, failure_category: true)
+
     builds = Repo.preload(builds, :built_by_account)
 
     recent_builds_chart_data =

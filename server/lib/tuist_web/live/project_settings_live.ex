@@ -6,6 +6,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias TuistWeb.Errors.UnauthorizedError
   alias TuistWeb.Helpers.OpenGraph
 
   @logo_max_size 2 * 1024 * 1024
@@ -13,7 +14,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_project: selected_project, current_user: current_user}} = socket) do
     if Authorization.authorize(:project_update, current_user, selected_project) != :ok do
-      raise TuistWeb.Errors.UnauthorizedError,
+      raise UnauthorizedError,
             dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
 
@@ -27,7 +28,12 @@ defmodule TuistWeb.ProjectSettingsLive do
       |> assign(default_branch_form: default_branch_form)
       |> assign(delete_project_form: delete_project_form)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Settings")} · #{selected_project.name} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("settings"))
+      |> assign(
+        OpenGraph.project_image_assigns(selected_project,
+          title: dgettext("dashboard_projects", "Settings"),
+          fallback: "settings"
+        )
+      )
       |> allow_upload(:logo,
         accept: ~w(.png .jpg .jpeg .webp),
         max_entries: 1,

@@ -28,29 +28,62 @@ defmodule Tuist.GitHub.App do
     end
   end
 
+  @doc """
+  Mints a fresh installation token limited to `repositories` (names
+  without the owner) and `permissions`, for handing to code Tuist does
+  not control. Unlike `get_installation_token/2` it is never cached or
+  shared.
+  """
+  def create_scoped_installation_token(
+        %{installation_id: installation_id} = installation,
+        repositories,
+        permissions,
+        opts \\ []
+      )
+      when is_binary(installation_id) and is_list(repositories) and is_map(permissions) do
+    api_url = Keyword.get(opts, :api_url, VCS.installation_api_url(installation))
+
+    case Keyword.get(opts, :credentials, VCS.github_app_credentials(installation)) do
+      nil ->
+        {:error, "GitHub App is not configured"}
+
+      creds ->
+        refresh_installation_token(
+          installation_id,
+          api_url,
+          creds,
+          Keyword.merge(opts,
+            expires_in: to_timeout(minute: 10),
+            body: %{repositories: repositories, permissions: permissions}
+          )
+        )
+    end
+  end
+
   def get_installation_token(installation, opts \\ [])
 
   def get_installation_token(%{installation_id: installation_id} = installation, opts) when is_binary(installation_id) do
     api_url = Keyword.get(opts, :api_url, VCS.installation_api_url(installation))
     creds = Keyword.get(opts, :credentials, VCS.github_app_credentials(installation))
-    fetch_installation_token(installation_id, api_url, creds, opts)
+    fetch_installation_token(installation_id, api_url, creds, opts, Map.get(installation, :id))
   end
 
   def get_installation_token(installation_id, opts) when is_binary(installation_id) do
     api_url = Keyword.get(opts, :api_url, VCS.api_url(:github, nil))
     creds = Keyword.get(opts, :credentials, VCS.github_app_credentials())
-    fetch_installation_token(installation_id, api_url, creds, opts)
+    fetch_installation_token(installation_id, api_url, creds, opts, nil)
   end
 
-  defp fetch_installation_token(_installation_id, _api_url, nil, _opts) do
+  defp fetch_installation_token(_installation_id, _api_url, nil, _opts, _row_id) do
     {:error, "GitHub App is not configured"}
   end
 
-  defp fetch_installation_token(installation_id, api_url, creds, opts) do
+  defp fetch_installation_token(installation_id, api_url, creds, opts, row_id) do
     ttl = to_timeout(minute: 10)
+    identity = if row_id, do: "installation:#{row_id}", else: "app:#{creds.app_id}"
 
     case KeyValueStore.get_or_update(
-           [__MODULE__, "installation_token", api_url, installation_id],
+           [__MODULE__, "installation_token", identity, api_url, installation_id],
            [
              cache: get_cache(opts),
              ttl: Keyword.get(opts, :ttl, ttl)
@@ -141,6 +174,13 @@ defmodule Tuist.GitHub.App do
     jwt
   end
 
+  defp request_body(opts) do
+    case Keyword.get(opts, :body) do
+      nil -> []
+      body -> [json: body]
+    end
+  end
+
   defp refresh_installation_token(installation_id, api_url, creds, opts) do
     jwt = generate_app_jwt(creds, opts)
 
@@ -157,7 +197,7 @@ defmodule Tuist.GitHub.App do
         [
           url: pinned_url,
           headers: headers
-        ] ++ ssrf_opts ++ Retry.retry_options()
+        ] ++ request_body(opts) ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.post(req_opts) do
         {:ok, %Req.Response{status: 201, body: %{"token" => token, "expires_at" => expires_at}}} ->
@@ -186,8 +226,11 @@ defmodule Tuist.GitHub.App do
 
   defp pin_for_request(url, _api_url) do
     case SSRFGuard.pin(url) do
-      {:ok, pinned_url, hostname} -> {:ok, pinned_url, [connect_options: SSRFGuard.connect_options(hostname)]}
-      {:error, reason} -> {:error, "SSRF guard rejected GHES URL: #{inspect(reason)}"}
+      {:ok, pinned_url, hostname} ->
+        {:ok, pinned_url, [connect_options: SSRFGuard.connect_options(hostname), redirect: false]}
+
+      {:error, reason} ->
+        {:error, "SSRF guard rejected GHES URL: #{inspect(reason)}"}
     end
   end
 

@@ -7,10 +7,8 @@ defmodule Tuist.Runners.Jobs do
   job, guarded compare-and-set transitions); the ClickHouse
   `runner_jobs` ReplacingMergeTree is its analytics/history replica,
   fed by the transition outbox
-  (`Tuist.Runners.Workers.FlushJobTransitionEventsWorker`). Single-writer
-  except for jobs that predate the Postgres store, which have no
-  lifecycle row to transition and so take the direct write in
-  `set_log_archived_at/2`. This module owns:
+  (`Tuist.Runners.Workers.FlushJobTransitionEventsWorker`), its single
+  writer. This module owns:
 
     * the webhook write orchestration — the per-job ordering lock,
       the `runner_job_completions` resurrection guard, and the
@@ -45,13 +43,16 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.Builds.Build, as: BuildRun
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
-  alias Tuist.IngestRepo
+  alias Tuist.MCP.Events.Publisher
   alias Tuist.Projects
   alias Tuist.Repo
+  alias Tuist.Runners.APIJobs
+  alias Tuist.Runners.Bitrise.Build, as: BitriseBuild
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.GitLab.Job, as: GitLabJob
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
@@ -136,6 +137,13 @@ defmodule Tuist.Runners.Jobs do
   # `repository` on the job row therefore holds a pipeline slug. The
   # account's projects are the candidates instead, and `ci_project_handle`
   # plus `ci_run_id` narrow them in the run queries below.
+  def projects_for_runner_job(%{id: account_id}, _job, %BitriseBuild{}) do
+    case Repo.all(from(p in Projects.Project, where: p.account_id == ^account_id)) do
+      [] -> {:error, :not_found}
+      projects -> {:ok, projects}
+    end
+  end
+
   def projects_for_runner_job(%{id: account_id}, _job, %GitLabJob{}) do
     case Repo.all(from(p in Projects.Project, where: p.account_id == ^account_id)) do
       [] -> {:error, :not_found}
@@ -166,7 +174,7 @@ defmodule Tuist.Runners.Jobs do
 
   def list_runner_build_runs(projects, workflow_run_id, buildkite_job \\ nil) do
     project_ids = project_ids(projects)
-    workflow_run_id = Integer.to_string(workflow_run_id)
+    workflow_run_id = ci_run_id(workflow_run_id, buildkite_job)
 
     BuildRun
     |> where([build], build.project_id in ^project_ids)
@@ -179,9 +187,9 @@ defmodule Tuist.Runners.Jobs do
 
   def list_runner_test_runs(projects, workflow_run_id, buildkite_job \\ nil) do
     project_ids = project_ids(projects)
-    workflow_run_id = Integer.to_string(workflow_run_id)
+    workflow_run_id = ci_run_id(workflow_run_id, buildkite_job)
 
-    TestRun
+    TestRun.query()
     |> where([test], test.project_id in ^project_ids)
     |> where([test], test.status != "in_progress")
     |> ci_scope(buildkite_job)
@@ -191,6 +199,14 @@ defmodule Tuist.Runners.Jobs do
     |> latest_runner_runs_by_id()
     |> Enum.sort_by(&datetime_sort_key(&1.ran_at), :desc)
   end
+
+  # The CLI reports a Bitrise run under the build and app slugs, not the
+  # build number the lifecycle row carries.
+  defp ci_run_id(_workflow_run_id, %BitriseBuild{build_slug: build_slug}), do: build_slug
+  defp ci_run_id(workflow_run_id, _ci_job), do: Integer.to_string(workflow_run_id)
+
+  defp ci_scope(query, %BitriseBuild{app_slug: app_slug}),
+    do: where(query, [run], run.ci_provider == "bitrise" and run.ci_project_handle == ^app_slug)
 
   # The CLI reports the project path and instance host separately. Older
   # uploads omit the host, so retain those matches without accepting a known
@@ -441,13 +457,19 @@ defmodule Tuist.Runners.Jobs do
   `{:error, :not_found}` when none does (delivery race where
   `completed` arrives before `queued`).
 
+  With `account_id:`, a row owned by another account is left untouched
+  and `{:error, :account_mismatch}` is returned.
+
   Per-step data lives in `runner_job_steps`; the caller writes it
   via `Tuist.Runners.JobSteps.record/1` before invoking this.
   """
-  def complete(workflow_job_id, conclusion) when is_integer(workflow_job_id) and is_binary(conclusion) do
+  def complete(workflow_job_id, conclusion, opts \\ []) when is_integer(workflow_job_id) and is_binary(conclusion) do
+    account_id = Keyword.get(opts, :account_id)
+
     with_workflow_job_ordering_lock(workflow_job_id, fn ->
       case Repo.get(WorkflowJob, workflow_job_id) do
         nil -> {:error, :not_found}
+        %WorkflowJob{account_id: owner} when not is_nil(account_id) and owner != account_id -> {:error, :account_mismatch}
         %WorkflowJob{} = row -> complete_locked(row, conclusion)
       end
     end)
@@ -478,29 +500,20 @@ defmodule Tuist.Runners.Jobs do
 
   @doc """
   Stamps the job row with the time its gzipped log archive landed in
-  S3 (or clears it when the archive has been pruned). State-transition
-  INSERT, carrying all other columns forward.
+  S3 (or clears it when the archive has been pruned).
 
   The stamp is written to Postgres and reaches ClickHouse through the
   transition outbox like every other column, so the analytics row has a
   single writer and no write can re-assert a lifecycle state the job has
-  already left. ClickHouse trails the flush by up to a tick; control-plane
-  reads that must not see that lag go to `WorkflowJobs.log_archived_at/1`.
+  already left. ClickHouse trails the flush by up to a tick; reads that
+  must not see that lag go through `get_for_account/2`.
 
-  Jobs archived before `runner_workflow_jobs` existed have no row to
-  stamp and receive no outbox events at all, so for those the ClickHouse
-  row is the only state there is and writing it directly is safe. That
-  path retires once the pre-migration population ages past the archive
-  retention in `PruneArchivedLogsWorker`.
-
-  No-op when the workflow_job is unknown to both stores.
+  No-op when the workflow_job has no lifecycle row.
   """
   def set_log_archived_at(workflow_job_id, archived_at)
       when is_integer(workflow_job_id) and (is_nil(archived_at) or is_struct(archived_at, DateTime)) do
-    case WorkflowJobs.record_log_archived_at(workflow_job_id, archived_at) do
-      :ok -> :ok
-      :noop -> stamp_untracked_row(workflow_job_id, archived_at, DateTime.utc_now())
-    end
+    WorkflowJobs.record_log_archived_at(workflow_job_id, archived_at)
+    :ok
   end
 
   @doc """
@@ -510,9 +523,12 @@ defmodule Tuist.Runners.Jobs do
   The outbox makes divergence transient by construction, so this reads
   zero in steady state and any non-zero value means a replica row that
   will not converge on its own: a terminal job emits no further events,
-  so nothing lands to correct it. `settled_before` excludes rows young
-  enough to be mid-flush, which is also what keeps genuinely in-flight
-  jobs out of the count — those are non-terminal in both stores.
+  so nothing lands to correct it. `settled_before` bounds both stores: the
+  replica row must not have changed since, and the Postgres completion
+  must predate it. The second keeps a long-running job out of the count
+  in the minute between its completion and the flush that carries it,
+  when its replica row is old but the completion is still in the outbox.
+  Jobs still in flight are non-terminal in both stores and never count.
 
   Scans at most `limit` candidates so a systemic divergence can't hand
   Postgres an unbounded id list; a truncated scan is logged rather than
@@ -525,14 +541,19 @@ defmodule Tuist.Runners.Jobs do
       Logger.warning("runners: replica divergence scan hit its cap of #{limit}; gauge undercounts")
     end
 
-    terminal =
-      candidates
-      |> Enum.map(& &1.workflow_job_id)
-      |> WorkflowJobs.terminal_completions()
+    settled = settled_terminal_ids(candidates, settled_before)
 
     candidates
-    |> Enum.filter(&Map.has_key?(terminal, &1.workflow_job_id))
+    |> Enum.filter(&MapSet.member?(settled, &1.workflow_job_id))
     |> Enum.frequencies_by(&(&1.fleet_name || ""))
+  end
+
+  defp settled_terminal_ids(candidates, settled_before) do
+    candidates
+    |> Enum.map(& &1.workflow_job_id)
+    |> WorkflowJobs.terminal_completions()
+    |> Enum.filter(fn {_workflow_job_id, completed_at} -> DateTime.before?(completed_at, settled_before) end)
+    |> MapSet.new(fn {workflow_job_id, _completed_at} -> workflow_job_id end)
   end
 
   # Collapses per workflow_job via `argMax` rather than `FINAL`, matching
@@ -560,33 +581,10 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
-  Whether the job's log archive is available to serve.
-
-  A stamp in either store counts. Postgres is the one that leads, by up
-  to an outbox flush after `ArchiveLogsWorker` writes it, so it answers
-  on its own for anything archived since it started carrying the column.
-  ClickHouse answers for the two populations Postgres cannot: jobs with
-  no lifecycle row at all, and jobs whose row predates the column and so
-  reads `NULL` while the archive itself exists in S3. Requiring Postgres
-  alone would take the download away from every archive made before that
-  migration.
-
-  Both fallbacks retire together, once every archive predating the column
-  has aged past the retention in `PruneArchivedLogsWorker`.
-
-  The cost of accepting either store is a stale yes for one flush after a
-  prune clears the stamp, where Postgres reads `NULL` and ClickHouse
-  still holds the old value. The prune has already deleted the S3 object
-  by then, so the download fails at the redirect either way; only the
-  status code differs.
+  Whether the log archive of a job read by `get_for_account/2` is
+  available to serve.
   """
-  def archive_available?(%Job{workflow_job_id: workflow_job_id, account_id: account_id, log_archived_at: ch_archived_at}) do
-    case WorkflowJobs.log_archived_at(workflow_job_id, account_id) do
-      {:ok, %DateTime{}} -> true
-      {:ok, nil} -> not is_nil(ch_archived_at)
-      :not_found -> not is_nil(ch_archived_at)
-    end
-  end
+  def archive_available?(%Job{log_archived_at: archived_at}), do: not is_nil(archived_at)
 
   @doc """
   Lists jobs for an account, ordered so the most recently updated
@@ -893,19 +891,51 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
-  Returns the merged current state for a single `workflow_job_id`
-  belonging to `account_id`. Used by the detail page so the URL
-  can't be tampered with to view another customer's run.
+  Returns the current state for a single `workflow_job_id` belonging
+  to `account_id`. Used by the detail page so the URL can't be
+  tampered with to view another customer's run.
+
+  Served from the Postgres lifecycle row, in the ClickHouse
+  `runner_jobs` shape, so a job is visible from its first transition
+  rather than after the outbox replays it into ClickHouse.
   """
   def get_for_account(account_id, workflow_job_id) when is_integer(account_id) and is_integer(workflow_job_id) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where([j], j.account_id == ^account_id and j.workflow_job_id == ^workflow_job_id)
-    |> limit(1)
-    |> ClickHouseRepo.one()
-    |> case do
+    case WorkflowJobs.get_for_account(account_id, workflow_job_id) do
       nil -> {:error, :not_found}
-      job -> {:ok, job}
+      %WorkflowJob{} = row -> {:ok, struct(Job, WorkflowJobs.replica_row(row))}
+    end
+  end
+
+  @doc """
+  The current ClickHouse row of up to `limit` jobs with a
+  `workflow_job_id` above `after_id`, in id order, across every account.
+  Feeds `Tuist.Runners.Workers.BackfillWorkflowJobsWorker`.
+
+  `FINAL` is bounded by the id range of the page, which is the table's
+  sort key, so it merges only the parts that hold those jobs.
+  """
+  def list_replica_after(after_id, limit) when is_integer(after_id) and is_integer(limit) and limit > 0 do
+    ids =
+      ClickHouseRepo.all(
+        from(j in Job,
+          where: j.workflow_job_id > ^after_id,
+          distinct: true,
+          order_by: j.workflow_job_id,
+          limit: ^limit,
+          select: j.workflow_job_id
+        )
+      )
+
+    case ids do
+      [] ->
+        []
+
+      ids ->
+        Job
+        |> from(hints: ["FINAL"])
+        |> where([j], j.workflow_job_id >= ^List.first(ids) and j.workflow_job_id <= ^List.last(ids))
+        |> order_by([j], j.workflow_job_id)
+        |> ClickHouseRepo.all()
     end
   end
 
@@ -1335,6 +1365,19 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  The lifecycle row of the job that ran on `runner_name` within
+  `account_id`. See `Tuist.Runners.RunnerSessions.workflow_job_id_for_runner/2`.
+  """
+  def get_executed_by_runner_name(account_id, runner_name) do
+    with {:ok, workflow_job_id} <- RunnerSessions.workflow_job_id_for_runner(runner_name, account_id),
+         %WorkflowJob{} = job <- Repo.get_by(WorkflowJob, account_id: account_id, workflow_job_id: workflow_job_id) do
+      {:ok, job}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @doc """
   Lists lifecycle rows in `status = 'queued'` whose
   `enqueued_at` falls in `[enqueued_after, enqueued_before)` —
   candidates for the "queued but never reconciled" recovery path that
@@ -1418,11 +1461,29 @@ defmodule Tuist.Runners.Jobs do
 
     broadcast_status_change(row.account_id, "completed")
 
-    {:ok, %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}}
+    if conclusion == "failure" and row.status not in ["completed", "cancelled"] do
+      Publisher.publish(
+        "ci_job.failed",
+        %{
+          "account_id" => row.account_id,
+          "workflow_run_id" => row.workflow_run_id,
+          "workflow_job_id" => row.workflow_job_id
+        },
+        row.workflow_job_id
+      )
+    end
+
+    completed = %{row | status: WorkflowJobs.terminal_status(conclusion), conclusion: conclusion, completed_at: now}
+
+    # Only the first completion notifies; the terminal guard makes the rest no-ops.
+    if row.status not in ["completed", "cancelled"], do: APIJobs.dispatch_event(completed, "runner_job.completed")
+
+    {:ok, completed}
   end
 
   defp record_completed_locked(attrs, conclusion) do
     now = DateTime.utc_now()
+    previous = if conclusion == "failure", do: Repo.get(WorkflowJob, Map.fetch!(attrs, :workflow_job_id))
 
     persist_completion!(Map.fetch!(attrs, :workflow_job_id), Map.fetch!(attrs, :account_id), conclusion, now)
     :ok = WorkflowJobs.record_completed(attrs, conclusion, now)
@@ -1434,6 +1495,19 @@ defmodule Tuist.Runners.Jobs do
     )
 
     broadcast_status_change(Map.get(attrs, :account_id), "completed")
+
+    if conclusion == "failure" and (is_nil(previous) or previous.status not in ["completed", "cancelled"]) do
+      Publisher.publish(
+        "ci_job.failed",
+        %{
+          "account_id" => Map.fetch!(attrs, :account_id),
+          "workflow_run_id" => Map.fetch!(attrs, :workflow_run_id),
+          "workflow_job_id" => Map.fetch!(attrs, :workflow_job_id)
+        },
+        Map.fetch!(attrs, :workflow_job_id)
+      )
+    end
+
     :ok
   end
 
@@ -1478,38 +1552,6 @@ defmodule Tuist.Runners.Jobs do
     )
 
     :ok
-  end
-
-  defp stamp_untracked_row(workflow_job_id, archived_at, now) do
-    case current(workflow_job_id) do
-      nil ->
-        :ok
-
-      %Job{} = job ->
-        job
-        |> job_to_row()
-        |> Map.put(:updated_at, now)
-        |> stamp!(archived_at)
-    end
-  end
-
-  defp stamp!(row, archived_at) do
-    row
-    |> Map.put(:log_archived_at, archived_at)
-    |> insert_row!()
-
-    :ok
-  end
-
-  defp insert_row!(row) do
-    row = Map.put_new(row, :updated_at, DateTime.utc_now())
-    IngestRepo.insert_all(Job, [row])
-  end
-
-  defp job_to_row(%Job{} = job) do
-    job
-    |> Map.from_struct()
-    |> Map.delete(:__meta__)
   end
 
   # Returns `nil` when either bound is missing or the interval is

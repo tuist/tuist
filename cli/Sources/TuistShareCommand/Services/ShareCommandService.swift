@@ -25,6 +25,7 @@ import TuistSupport
 enum ShareCommandServiceError: Equatable, LocalizedError {
     case fullHandleNotFound
     case multipleAppsSpecified([String])
+    case invalidExecutable
     #if os(macOS)
         case appNotSpecified
     #endif
@@ -36,12 +37,14 @@ enum ShareCommandServiceError: Equatable, LocalizedError {
             return "You are missing fullHandle in your \(Constants.tuistManifestFileName). Run 'tuist init' to get started with remote Tuist features."
         case let .multipleAppsSpecified(apps):
             return "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
+        case .invalidExecutable:
+            return "Specify one executable file, or one distribution directory with --executable pointing to an executable inside it."
         #if os(macOS)
             case .appNotSpecified:
                 return "If you're not using Tuist projects, you must specify the app name when sharing an app, such as `tuist share App --platforms ios`."
         #endif
         case .appleBuildsSharingNotSupportedOnLinux:
-            return "Sharing Apple app bundles and IPAs is only supported on macOS. On Linux, only APK files can be shared."
+            return "Sharing Apple app bundles and IPAs is only supported on macOS. On Linux, share an APK or an executable."
         }
     }
 }
@@ -148,7 +151,9 @@ struct ShareCommandService {
             platforms: [Platform],
             derivedDataPath: String?,
             json: Bool,
-            track: String?
+            track: String?,
+            releaseNotes: String? = nil,
+            executable: String? = nil
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
@@ -171,14 +176,22 @@ struct ShareCommandService {
                     relativeTo: path
                 )
             }
-            if appPaths.contains(where: { $0.extension == "apk" }) {
+            if executable != nil || (appPaths.count == 1 && !["app", "ipa", "apk"].contains(appPaths[0].extension ?? "") &&
+                isExecutableFile(appPaths[0]))
+            {
+                try await shareExecutable(
+                    appPaths, entryPoint: executable, path: path, fullHandle: fullHandle,
+                    serverURL: serverURL, json: json, track: track, releaseNotes: releaseNotes
+                )
+            } else if appPaths.contains(where: { $0.extension == "apk" }) {
                 try await shareAPK(
                     appPaths,
                     path: path,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     json: json,
-                    track: track
+                    track: track,
+                    releaseNotes: releaseNotes
                 )
             } else if appPaths.contains(where: { $0.extension == "ipa" }) {
                 try await shareIPA(
@@ -187,7 +200,8 @@ struct ShareCommandService {
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     json: json,
-                    track: track
+                    track: track,
+                    releaseNotes: releaseNotes
                 )
             } else if appPaths.contains(where: { $0.extension == "app" }) {
                 try await shareAppBundles(
@@ -196,7 +210,8 @@ struct ShareCommandService {
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     json: json,
-                    track: track
+                    track: track,
+                    releaseNotes: releaseNotes
                 )
             } else {
                 guard apps.count < 2 else { throw ShareCommandServiceError.multipleAppsSpecified(apps) }
@@ -219,7 +234,8 @@ struct ShareCommandService {
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     json: json,
-                    track: track
+                    track: track,
+                    releaseNotes: releaseNotes
                 )
             }
         }
@@ -232,7 +248,9 @@ struct ShareCommandService {
             path: String?,
             apps: [String],
             json: Bool,
-            track: String?
+            track: String?,
+            releaseNotes: String? = nil,
+            executable: String? = nil
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
@@ -249,6 +267,16 @@ struct ShareCommandService {
                 )
             }
 
+            if executable != nil || (appPaths.count == 1 && !["app", "ipa", "apk"].contains(appPaths[0].extension ?? "") &&
+                isExecutableFile(appPaths[0]))
+            {
+                try await shareExecutable(
+                    appPaths, entryPoint: executable, path: path, fullHandle: fullHandle,
+                    serverURL: serverURL, json: json, track: track, releaseNotes: releaseNotes
+                )
+                return
+            }
+
             guard appPaths.allSatisfy({ $0.extension == "apk" }) else {
                 throw ShareCommandServiceError.appleBuildsSharingNotSupportedOnLinux
             }
@@ -259,10 +287,65 @@ struct ShareCommandService {
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 json: json,
-                track: track
+                track: track,
+                releaseNotes: releaseNotes
             )
         }
     #endif
+
+    private func isExecutableFile(_ path: AbsolutePath) -> Bool {
+        let values = try? path.url.resolvingSymlinksInPath().resourceValues(forKeys: [.isRegularFileKey, .isExecutableKey])
+        return values?.isRegularFile == true && values?.isExecutable == true
+    }
+
+    private func shareExecutable(
+        _ paths: [AbsolutePath],
+        entryPoint: String?,
+        path: AbsolutePath,
+        fullHandle: String,
+        serverURL: URL,
+        json: Bool,
+        track: String?,
+        releaseNotes: String?
+    ) async throws {
+        guard paths.count == 1, let input = paths.first else {
+            throw ShareCommandServiceError.invalidExecutable
+        }
+        let source = try AbsolutePath(validating: input.url.resolvingSymlinksInPath().path)
+        let entryPoint = try entryPoint.map { try RelativePath(validating: $0) }
+        let executablePath: AbsolutePath
+        if let entryPoint {
+            executablePath = source.appending(entryPoint)
+            let resolved = try AbsolutePath(validating: executablePath.url.resolvingSymlinksInPath().path)
+            guard try await fileSystem.exists(source, isDirectory: true),
+                  resolved.isDescendant(of: source)
+            else { throw ShareCommandServiceError.invalidExecutable }
+        } else {
+            executablePath = source
+        }
+        guard isExecutableFile(executablePath), source.basename != ExecutablePreviewManifest.filename else {
+            throw ShareCommandServiceError.invalidExecutable
+        }
+        let gitInfo = await resolveGitInfo(at: path)
+        let preview = try await Noora.current.progressBarStep(
+            message: "Uploading \(executablePath.basename)",
+            successMessage: "\(executablePath.basename) uploaded",
+            errorMessage: "Failed to upload \(executablePath.basename)"
+        ) { updateProgress in
+            try await previewsUploadService.uploadPreview(
+                .executable(path: source, entryPoint: entryPoint),
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                gitBranch: gitInfo.branch,
+                gitCommitSHA: gitInfo.sha,
+                gitRef: gitInfo.ref,
+                track: track,
+                releaseNotes: releaseNotes,
+                updateProgress: updateProgress
+            )
+        }
+        outputResult(preview, displayName: executablePath.basename, json: json)
+    }
 
     // MARK: - Cross-platform APK sharing
 
@@ -272,7 +355,8 @@ struct ShareCommandService {
         fullHandle: String,
         serverURL: URL,
         json: Bool,
-        track: String?
+        track: String?,
+        releaseNotes: String?
     ) async throws {
         guard appPaths.count == 1,
               let apkPath = appPaths.first
@@ -295,6 +379,7 @@ struct ShareCommandService {
                 gitCommitSHA: gitInfo.sha,
                 gitRef: gitInfo.ref,
                 track: track,
+                releaseNotes: releaseNotes,
                 updateProgress: updateProgress
             )
         }
@@ -320,7 +405,8 @@ struct ShareCommandService {
             fullHandle: String,
             serverURL: URL,
             json: Bool,
-            track: String?
+            track: String?,
+            releaseNotes: String?
         ) async throws {
             guard appPaths.count == 1,
                   let ipaPath = appPaths.first
@@ -335,7 +421,8 @@ struct ShareCommandService {
                 path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                track: track
+                track: track,
+                releaseNotes: releaseNotes
             )
 
             outputResult(preview, displayName: displayName, json: json)
@@ -347,7 +434,8 @@ struct ShareCommandService {
             fullHandle: String,
             serverURL: URL,
             json: Bool,
-            track: String?
+            track: String?,
+            releaseNotes: String?
         ) async throws {
             let appBundles = try await appPaths.concurrentMap {
                 try await appBundleLoader.load($0)
@@ -365,7 +453,8 @@ struct ShareCommandService {
                 path: path,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                track: track
+                track: track,
+                releaseNotes: releaseNotes
             )
 
             outputResult(preview, displayName: appName, json: json)
@@ -401,7 +490,8 @@ struct ShareCommandService {
             fullHandle: String,
             serverURL: URL,
             json: Bool,
-            track: String?
+            track: String?,
+            releaseNotes: String?
         ) async throws {
             try await fileSystem.runInTemporaryDirectory(prefix: "share") { temporaryPath in
                 let builtAppBundles = try await buildProductService.appBundles(
@@ -433,7 +523,8 @@ struct ShareCommandService {
                     path: path,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    track: track
+                    track: track,
+                    releaseNotes: releaseNotes
                 )
 
                 outputResult(preview, displayName: app, json: json)
@@ -446,7 +537,8 @@ struct ShareCommandService {
             path: AbsolutePath,
             fullHandle: String,
             serverURL: URL,
-            track: String?
+            track: String?,
+            releaseNotes: String?
         ) async throws -> Components.Schemas.Preview {
             let gitInfo = await resolveGitInfo(at: path)
 
@@ -463,6 +555,7 @@ struct ShareCommandService {
                     gitCommitSHA: gitInfo.sha,
                     gitRef: gitInfo.ref,
                     track: track,
+                    releaseNotes: releaseNotes,
                     updateProgress: updateProgress
                 )
             }

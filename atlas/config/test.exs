@@ -43,7 +43,7 @@ config :atlas, AtlasWeb.Endpoint,
 config :atlas, AtlasWeb.OutreachContactsLive, screenshot_note_agent: ScreenshotNoteAgent
 
 # Oban testing mode
-config :atlas, Oban, testing: :manual
+config :atlas, Oban, testing: :manual, notifier: Oban.Notifiers.PG
 
 config :atlas, :accounts,
   exchange_rates_client: ExchangeRatesClient,

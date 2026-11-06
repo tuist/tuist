@@ -20,7 +20,7 @@ defmodule TuistWeb.RateLimit.MCPTest do
       stub(Tuist.Environment, :mcp_rate_limit_bucket_size, fn -> bucket_size end)
 
       expect(RateLimit, :hit, fn
-        "mcp:auth:user:123", [limit: ^bucket_size, window: ^timeout] ->
+        "mcp:auth:user:123", [limit: ^bucket_size, window: ^timeout, failure_policy: :local] ->
           {:allow, 1}
       end)
 
@@ -38,7 +38,7 @@ defmodule TuistWeb.RateLimit.MCPTest do
       stub(Tuist.Environment, :mcp_rate_limit_bucket_size, fn -> bucket_size end)
 
       expect(RateLimit, :hit, fn
-        "mcp:auth:project:456", [limit: ^bucket_size, window: ^timeout] ->
+        "mcp:auth:project:456", [limit: ^bucket_size, window: ^timeout, failure_policy: :local] ->
           {:allow, 1}
       end)
 
@@ -56,7 +56,7 @@ defmodule TuistWeb.RateLimit.MCPTest do
       stub(Tuist.Environment, :mcp_rate_limit_bucket_size, fn -> bucket_size end)
 
       expect(RateLimit, :hit, fn
-        "mcp:auth:account:789", [limit: ^bucket_size, window: ^timeout] ->
+        "mcp:auth:account:789", [limit: ^bucket_size, window: ^timeout, failure_policy: :local] ->
           {:allow, 1}
       end)
 
@@ -75,7 +75,7 @@ defmodule TuistWeb.RateLimit.MCPTest do
       stub(Tuist.Environment, :mcp_rate_limit_bucket_size, fn -> bucket_size end)
 
       expect(RateLimit, :hit, fn
-        "mcp:unauth:127.0.0.1", [limit: ^bucket_size, window: ^timeout] ->
+        "mcp:unauth:127.0.0.1", [limit: ^bucket_size, window: ^timeout, failure_policy: :deny] ->
           {:allow, 1}
       end)
 

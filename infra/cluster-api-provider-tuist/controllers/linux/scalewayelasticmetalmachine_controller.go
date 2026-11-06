@@ -14,14 +14,14 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 
 	"golang.org/x/crypto/ssh"
@@ -146,12 +146,12 @@ func (r *ScalewayElasticMetalMachineReconciler) Reconcile(ctx context.Context, r
 		return ctrl.Result{}, helperErr
 	}
 	defer func() {
-		if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil && err == nil {
+		if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil && err == nil {
 			err = patchErr
 		}
 	}()
 
-	ownerMachine, ownerErr := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	ownerMachine, ownerErr := shared.OwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if ownerErr != nil {
 		return ctrl.Result{}, fmt.Errorf("get owner Machine: %w", ownerErr)
 	}
@@ -313,6 +313,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 		}
 		bootstrapScript := renderLinuxBootstrapScript(linuxCloudInitOptions{
 			NodeName:           machine.Name,
+			KuraLVM:            kuraLVMRequested(machine.Annotations),
 			KubeconfigYAML:     kubeconfigYAML,
 			ClusterCAPEM:       identity.CA,
 			K8sMinor:           firstNonEmpty(r.KubernetesMinor, "v1.34"),
@@ -391,7 +392,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 		conditions.MarkTrue(machine, NodeReadyCondition)
 		if machine.Status.FailureReason == nil {
 			fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
-			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, elasticMetalBootstrapUser, node); driftErr != nil {
+			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, elasticMetalBootstrapUser, false, node); driftErr != nil {
 				logger.Error(driftErr, "kubelet config re-push failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			} else if requeue {
@@ -493,6 +494,14 @@ func (r *ScalewayElasticMetalMachineReconciler) claimedServerIDs(ctx context.Con
 }
 
 func (r *ScalewayElasticMetalMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.ScalewayElasticMetalMachine) (ctrl.Result, error) {
+	running, err := holdReleaseForRunnerJobs(ctx, r.Client, machine.Name)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if len(running) > 0 {
+		r.event(machine, "WaitingForRunnerJobs", "%s", releaseHeldMessage(machine.Name, running))
+		return ctrl.Result{RequeueAfter: runnerJobsRecheckInterval}, nil
+	}
 	if machine.Status.ServerID != "" {
 		zone, err := scw.ParseZone(firstNonEmpty(machine.Spec.Zone, r.DefaultZone))
 		if err == nil {
@@ -647,7 +656,7 @@ func (r *ScalewayElasticMetalMachineReconciler) event(machine *infrav1.ScalewayE
 
 func (r *ScalewayElasticMetalMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.ScalewayElasticMetalMachine{}).
+		For(&infrav1.ScalewayElasticMetalMachine{}, builder.WithPredicates(ignoreOwnStatusWrites())).
 		Complete(r)
 }
 

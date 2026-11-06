@@ -34,12 +34,12 @@
 # terminated `poller` init container as proof of a claim and therefore
 # holds when the label never landed.
 #
-# `machines` is deliberately omitted: the rule then applies to every
-# Machine in this namespace, which is where every environment's Machines
-# live. Runner Pods should survive a drain regardless of which cluster,
-# pool, or operating system hosts them, so scoping this to the
-# bare-metal Linux pools would leave the same defect in place for the
-# macOS fleet.
+# `machines` is omitted, so the rule applies to every Machine in
+# `org-tuist` on the management cluster. The in-cluster fleets (the OVH
+# Linux runner boxes, the macOS hosts) are not there: their Machines live
+# in each workload cluster's release namespace, where Cluster API never
+# drains a Machine, and the Linux runner boxes get the same wait from
+# `holdReleaseForRunnerJobs` in cluster-api-provider-tuist instead.
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: MachineDrainRule
 metadata:
@@ -56,28 +56,18 @@ spec:
         matchLabels:
           kubernetes.io/metadata.name: tuist-runners
 ---
-# Cluster API drain behaviour for Kura cache Pods.
+# Cluster API drain behaviour for Kura cache Pods on Machines in
+# `org-tuist`. The in-cluster cache fleets never reach it: Cluster API
+# does not drain Machines in the workload clusters, so their release
+# deletes the Node and reaps the node-local PVCs without a drain.
 #
-# Without this, replacing a cache box wedges forever. The sequence:
-#
-#   1. Cluster API cordons the Node and evicts a cache Pod.
-#   2. That Pod's PVC is bound to a local-path PV with a
-#      `kubernetes.io/hostname` affinity to the box being drained, so
-#      the replacement Pod has nowhere to schedule and stays Pending.
-#   3. Each `KuraInstance` has a `PodDisruptionBudget` of
-#      `minAvailable: 1`, so with the first replica down the eviction
-#      API refuses the second.
-#   4. The thing that would free the volume — `deleteNodeLocalPVCs` in
-#      the CAPI provider's `reconcileDelete` — runs AFTER drain. With no
-#      `nodeDrainTimeout` set on these fleets, drain has no deadline, so
-#      the Machine sits in Deleting indefinitely and the PVC is never
-#      reaped.
-#
-# `Skip` breaks the cycle by not evicting these Pods at all. The drain
-# completes, the provider deletes the Node and reaps the node-local
-# PVCs, and the StatefulSets reprovision on whatever box is left in the
-# pool. Eviction could not have helped regardless: a Pod that cannot
-# reschedule is not made safer by being evicted politely.
+# Evicting a cache Pod cannot help a drain finish. Its PVC is bound to a
+# local-path PV with a `kubernetes.io/hostname` affinity to the box being
+# drained, so the replacement Pod has nowhere to schedule, and each
+# `KuraInstance`'s `minAvailable: 1` PodDisruptionBudget then makes the
+# eviction API refuse the second replica. With no `nodeDrainTimeout` the
+# drain has no deadline, so the Machine would sit in Deleting
+# indefinitely. `Skip` lets the drain complete instead.
 #
 # Skipping is safe here in a way it would not be for a runner Pod. A
 # runner Pod is a customer's CI job and losing it is a visible failure,

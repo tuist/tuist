@@ -19,14 +19,6 @@ protocol RunnerVolumeListCommandServicing {
     ) async throws
 }
 
-enum RunnerVolumeListCommandServiceError: LocalizedError, Equatable {
-    case missingAccount
-
-    var errorDescription: String? {
-        "Pass --account or configure a project full handle."
-    }
-}
-
 struct RunnerVolumeListCommandService: RunnerVolumeListCommandServicing {
     private let configLoader: ConfigLoading
     private let serverEnvironmentService: ServerEnvironmentServicing
@@ -56,14 +48,13 @@ struct RunnerVolumeListCommandService: RunnerVolumeListCommandServicing {
         pageSize: Int,
         json: Bool
     ) async throws {
-        let directory = try await Environment.current.pathRelativeToWorkingDirectory(path)
-        let config = try await configLoader.loadConfig(path: directory)
-        guard let accountHandle = try account ?? config.fullHandle.map({ try fullHandleService.parse($0).accountHandle }),
-              !accountHandle.isEmpty
-        else {
-            throw RunnerVolumeListCommandServiceError.missingAccount
-        }
-        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        let (accountHandle, serverURL) = try await RunnerAccount.resolve(
+            account: account,
+            path: path,
+            configLoader: configLoader,
+            serverEnvironmentService: serverEnvironmentService,
+            fullHandleService: fullHandleService
+        )
         let response = try await listRunnerVolumesService.listRunnerVolumes(
             accountHandle: accountHandle,
             serverURL: serverURL,

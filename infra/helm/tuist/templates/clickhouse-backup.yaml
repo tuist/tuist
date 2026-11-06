@@ -3,11 +3,9 @@
 {{- $chName := include "tuist.componentName" (dict "root" . "component" "clickhouse") }}
 {{- $chSecretName := printf "%s-credentials" $chName }}
 {{- /*
-Backups for the in-cluster ClickHouse (spec #73).
-
-While ClickHouse Cloud is still the system of record this is belt and braces.
-The moment reads and writes both live here it is the only copy: a RAID mirror
-survives a dead disk, not a dropped table, a bad migration or a lost machine.
+Backups for the in-cluster ClickHouse (spec #73), the only copy of the
+analytics data besides its replicas: a RAID mirror survives a dead disk, not a
+dropped table, a bad migration or a lost machine.
 
 ## Weekly full, daily incremental, and why the chain is two long
 

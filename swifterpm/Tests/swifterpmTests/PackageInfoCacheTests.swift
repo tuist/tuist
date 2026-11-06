@@ -3,6 +3,65 @@ import Testing
 @testable import SwifterPMCore
 
 struct PackageInfoCacheTests {
+    @Test(
+        arguments: ["example/package/1.1.4", "registry.example-12345678/example/package/1.1.4"],
+        ["1.1.4", "2.0.0"]
+    )
+    func writePackageInfoCacheUsesTheRecordedRegistryDownload(subpath: String, version: String) async throws {
+        try await withTemporaryDirectory { root in
+            let package = root.appendingPathComponent("Package")
+            let scratch = root.appendingPathComponent("scratch")
+            let cacheDir = root.appendingPathComponent("package-info")
+            let expectedSubpath = version == "1.1.4" ? subpath : "example/package/2.0.0"
+            let download = scratch.appendingPathComponent("registry/downloads/\(expectedSubpath)")
+            try await writeMinimalPackageManifest(at: package, name: "Root")
+            try await writeMinimalPackageManifest(
+                at: scratch.appendingPathComponent("registry/downloads/\(subpath)"), name: "StaleDependency"
+            )
+            try await writeMinimalPackageManifest(at: download, name: "RegistryDependency")
+            try await fileSystem.atomicWrite(
+                JSONFormatter.prettyData([
+                    "version": 7,
+                    "object": [
+                        "dependencies": [[
+                            "packageRef": ["identity": "Example.Package", "kind": "registry"],
+                            "state": ["name": "registryDownload", "version": "1.1.4"],
+                            "subpath": subpath,
+                        ]],
+                        "artifacts": [],
+                    ],
+                ]),
+                to: scratch.appendingPathComponent("workspace-state.json")
+            )
+            let pin = ResolvedPin(
+                identity: "example.package", kind: "registry", location: "",
+                state: .init(branch: nil, revision: nil, version: version)
+            )
+
+            try await PackageInfoCacheWriter.write(
+                packageDir: package, scratchDir: scratch,
+                resolved: ResolvedPins(originHash: nil, pins: [pin], version: 3),
+                mirrors: MirrorConfig(), cacheDir: cacheDir, disableSandbox: true, quiet: true
+            )
+
+            let index = try #require(
+                JSONSerialization.jsonObject(
+                    with: try await fileSystem.readFile(at: cacheDir.appendingPathComponent("index.json").absolutePath)
+                ) as? [String: Any]
+            )
+            let entries = try #require(index["packages"] as? [[String: Any]])
+            let entry = try #require(entries.first)
+            #expect(entry["package_path"] as? String == download.path)
+            let infoPath = try #require(entry["package_info_path"] as? String)
+            let info = try #require(
+                JSONSerialization.jsonObject(
+                    with: try await fileSystem.readFile(at: URL(fileURLWithPath: infoPath).absolutePath)
+                ) as? [String: Any]
+            )
+            #expect(info["name"] as? String == "RegistryDependency")
+        }
+    }
+
     @Test
     func writePackageInfoCacheWritesRootIndexFromCachedManifest() async throws {
         try await withTemporaryDirectory { root in
@@ -52,7 +111,11 @@ struct PackageInfoCacheTests {
                 try JSONFormatter.prettyData(emptyManifest(name: "CachedRoot")),
                 to: cacheDir.appendingPathComponent("root.json"))
             if let rootPath = try? cacheDir.appendingPathComponent("root.json").absolutePath {
-                try await ManifestEnvironmentFingerprint.write(forCacheFile: rootPath, packageDir: package)
+                try await ManifestCache.write(
+                    fileSystem.readFile(at: rootPath),
+                    at: rootPath.fileURL,
+                    inputs: ManifestCache.inputs(packageDir: package, disableSandbox: false)
+                )
             }
 
             try await PackageInfoCacheWriter.write(
@@ -101,7 +164,11 @@ struct PackageInfoCacheTests {
                 try JSONFormatter.prettyData(emptyManifest(name: "CachedDependency")),
                 to: packageInfoPath)
             if let packageInfoAbsolute = try? packageInfoPath.absolutePath {
-                try await ManifestEnvironmentFingerprint.write(forCacheFile: packageInfoAbsolute, packageDir: checkout)
+                try await ManifestCache.write(
+                    fileSystem.readFile(at: packageInfoAbsolute),
+                    at: packageInfoAbsolute.fileURL,
+                    inputs: ManifestCache.inputs(packageDir: checkout, disableSandbox: false)
+                )
             }
 
             try await PackageInfoCacheWriter.write(
@@ -181,8 +248,14 @@ struct PackageInfoCacheTests {
             ]
 
             try await writeCachedManifest(manifest, packageDir: package)
-            try await writeCachedManifest(emptyManifest(name: "LocalOne"), packageDir: localOne)
-            try await writeCachedManifest(emptyManifest(name: "LocalTwo"), packageDir: localTwo)
+            try await writeCachedManifest(
+                emptyManifest(name: "LocalOne"), packageDir: localOne,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localOne)
+            )
+            try await writeCachedManifest(
+                emptyManifest(name: "LocalTwo"), packageDir: localTwo,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localTwo)
+            )
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
@@ -246,8 +319,14 @@ struct PackageInfoCacheTests {
             ]
 
             try await writeCachedManifest(rootManifest, packageDir: package)
-            try await writeCachedManifest(localOneManifest, packageDir: localOne)
-            try await writeCachedManifest(emptyManifest(name: "LocalTwo"), packageDir: localTwo)
+            try await writeCachedManifest(
+                localOneManifest, packageDir: localOne,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localOne)
+            )
+            try await writeCachedManifest(
+                emptyManifest(name: "LocalTwo"), packageDir: localTwo,
+                cacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: package, packageDir: localTwo)
+            )
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
@@ -285,17 +364,12 @@ struct PackageInfoCacheTests {
             // refill the destination without invoking `swift`.
             try await writeCachedManifest(emptyManifest(name: "FreshFromManifestLoader"), packageDir: package)
 
-            // The package-info destination is newer than `Package.swift`, so the mtime
-            // check alone would consider it fresh, but its env sidecar records a
-            // different environment and must force a refresh.
-            try await Task.sleep(nanoseconds: 10_000_000)
-            try await fileSystem.atomicWrite(
-                try JSONFormatter.prettyData(emptyManifest(name: "StaleDestination")),
-                to: rootPath)
-            let rootAbsolutePath = try rootPath.absolutePath
-            try await fileSystem.write(
-                Data("a-fingerprint-produced-under-a-different-environment".utf8),
-                to: ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: rootAbsolutePath))
+            try await Environment.withManifestEnvironment(["FEATURE": "different"]) {
+                try await ManifestCache.write(
+                    JSONFormatter.prettyData(emptyManifest(name: "StaleDestination")), at: rootPath,
+                    inputs: ManifestCache.inputs(packageDir: package, disableSandbox: false)
+                )
+            }
 
             try await PackageInfoCacheWriter.write(
                 packageDir: package,
@@ -309,15 +383,13 @@ struct PackageInfoCacheTests {
 
             let rootInfo = try #require(
                 JSONSerialization.jsonObject(
-                    with: try await fileSystem.readFile(at: rootAbsolutePath))
+                    with: try await fileSystem.readFile(at: rootPath.absolutePath))
                     as? [String: Any])
             #expect(rootInfo["name"] as? String == "FreshFromManifestLoader")
 
-            let sidecar = try await fileSystem.readFile(
-                at: ManifestEnvironmentFingerprint.sidecarPath(forCacheFile: rootAbsolutePath))
+            let inputs = try await ManifestCache.inputs(packageDir: package, disableSandbox: false)
             #expect(
-                String(data: sidecar, encoding: .utf8)
-                    == (await ManifestEnvironmentFingerprint.current(packageDir: package))
+                await ManifestCache.read(at: rootPath, inputs: inputs) != nil
             )
         }
     }
@@ -330,7 +402,8 @@ struct PackageInfoCacheTests {
     }
 
     private func entryHashForTest(_ pin: ResolvedPin) -> String {
-        let input = "\(pin.location):\(pin.state.version ?? ""):\(pin.state.revision ?? "")"
+        let location = SourceControlLocations.canonicalLocation(pin.location)
+        let input = "\(location):\(pin.state.version ?? ""):\(pin.state.revision ?? "")"
         return String(Hashing.stable(input).prefix(16))
     }
 }

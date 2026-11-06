@@ -23,7 +23,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     queue: :process_xcresult,
     max_attempts: 20,
     unique: [
-      keys: [:test_run_id, :shard_index],
+      keys: [:test_run_id, :shard_index, :shard_attempt, :shard_report_revision],
       states: :incomplete,
       period: :infinity
     ]
@@ -95,9 +95,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       {:ok, parsed_data} ->
         parsed_data = merge_stress_repetitions(parsed_data, test_run_id, args)
 
-        case replace_test_run(parsed_data, args) do
-          :ok -> complete_processing(args)
-          {:error, reason} -> handle_processing_error(args, attempt, reason)
+        try do
+          case replace_test_run(parsed_data, args) do
+            :ok -> complete_processing(args)
+            {:error, reason} -> handle_processing_error(args, attempt, reason)
+          end
+        after
+          # The coverage the parser streamed to disk is ours once the run is written.
+          if is_binary(parsed_data["coverage_path"]), do: File.rm(parsed_data["coverage_path"])
         end
 
       {:error, reason} when reason in @unprocessable_input_reasons ->
@@ -231,18 +236,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   # with a different personal account.
   defp process_xcresult(test_run_id, storage_key, args) do
     with {:ok, account} <- storage_account(args["project_id"]) do
-      # For sharded runs, multiple workers share the same merged
-      # test_run_id and can run concurrently. Suffix the temp path with
-      # the shard index so they never clobber each other's download
-      # mid-parse. Oban's unique job configuration already keeps a given
-      # (test_run_id, shard_index) pair from running in parallel.
-      filename =
-        case Map.get(args, "shard_index") do
-          nil -> "xcresult_#{test_run_id}.zip"
-          index -> "xcresult_#{test_run_id}_s#{index}.zip"
-        end
-
-      temp_path = Path.join(System.tmp_dir!(), filename)
+      # Attempts and revisions of one shard may run concurrently, as may
+      # duplicate jobs during rolling upgrades. Local files are per invocation,
+      # never protected by Oban uniqueness or the canonical run identity.
+      temp_path = Path.join(System.tmp_dir!(), "xcresult_#{test_run_id}_#{Ecto.UUID.generate()}.zip")
 
       try do
         download =
@@ -252,15 +249,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
         case download do
           {:ok, _} ->
-            opts = [
-              test_run_id: test_run_id,
-              account_handle: args["account_handle"],
-              project_handle: args["project_handle"],
-              s3_bucket: Environment.s3_bucket_name(),
-              read_coverage: FeatureFlags.xcode_coverage_enabled?(account)
-            ]
-
-            XCResultProcessor.process_local(temp_path, opts)
+            XCResultProcessor.process_local(temp_path, processor_options(test_run_id, args, account))
 
           {:error, _} = error ->
             error
@@ -269,6 +258,21 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         File.rm(temp_path)
       end
     end
+  end
+
+  defp processor_options(test_run_id, args, account) do
+    [
+      test_run_id: test_run_id,
+      source_test_run_id: Map.get(args, "source_test_run_id") || test_run_id,
+      shard_index: Map.get(args, "shard_index"),
+      shard_attempt: Map.get(args, "shard_attempt") || 0,
+      shard_report_revision: Map.get(args, "shard_report_revision") || 0,
+      artifact: :main,
+      account_handle: args["account_handle"],
+      project_handle: args["project_handle"],
+      s3_bucket: Environment.s3_bucket_name(),
+      read_coverage: Map.get(args, "reporting_version", 0) != 1 and FeatureFlags.xcode_coverage_enabled?(account)
+    ]
   end
 
   # The stress gate reruns a run's new test cases in a second xcodebuild pass,
@@ -304,12 +308,13 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       try do
         case Storage.download_to_file(storage_key, temp_path, account) do
           {:ok, _} ->
-            XCResultProcessor.process_local(temp_path,
-              test_run_id: test_run_id,
-              account_handle: args["account_handle"],
-              project_handle: args["project_handle"],
-              s3_bucket: Environment.s3_bucket_name()
-            )
+            opts =
+              test_run_id
+              |> processor_options(args, account)
+              |> Keyword.put(:artifact, :stress)
+              |> Keyword.put(:read_coverage, false)
+
+            XCResultProcessor.process_local(temp_path, opts)
 
           {:error, _} = error ->
             error
@@ -423,8 +428,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
   defp storage_account(project_id) do
     case Projects.get_project_by_id(project_id) do
-      nil -> {:error, :project_not_found}
-      project -> {:ok, project.account}
+      nil ->
+        {:error, :project_not_found}
+
+      project ->
+        Tuist.Observability.set_selection(%{selected_project: project})
+        {:ok, project.account}
     end
   end
 
@@ -448,7 +457,9 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         test_modules: test_modules,
         run_destinations: normalize_run_destinations(parsed_data["run_destinations"] || []),
         run_errors: parsed_data["errors"] || [],
-        xcode_coverage: parsed_data["coverage"]
+        execution_mode: parsed_data["execution_mode"] || Map.get(args, "execution_mode"),
+        coverage_evidence: parsed_data["coverage_evidence"],
+        xcode_coverage: coverage_attrs(parsed_data)
       })
 
     case Tests.create_test(attrs) do
@@ -456,6 +467,15 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       error -> error
     end
   end
+
+  # The parser streams a bundle's coverage to a file (`coverage_path`) rather than
+  # returning it whole; `Tuist.Tests.Coverage.rows/2` reads it lazily from there.
+  # Without the file there is no coverage.
+  defp coverage_attrs(%{"coverage_path" => path} = parsed_data) when is_binary(path) do
+    %{path: path, partial: parsed_data["coverage_partial"] || false}
+  end
+
+  defp coverage_attrs(_parsed_data), do: nil
 
   # A runner error empties the module list without the run having passed: a target
   # whose `.xctest` cannot be loaded, or a UI-test runner that cannot launch, is

@@ -1,7 +1,11 @@
 defmodule Tuist.Kura.Workers.AwaitActivationWorker do
   @moduledoc """
   Activates a Kura instance that is coming up within about half a second of its
-  endpoint answering, rather than on the next minute's reconciler tick.
+  endpoint answering, rather than on the next minute's reconciler tick. After
+  regional activation, the same bounded job publishes stable DNS intent and
+  observes the controller's stable readiness until the gateway can route. It
+  does not finish merely because the regional URL works. Stable polling uses
+  the job's original insertion time, so snoozes cannot extend the stall budget.
 
   Each run checks `Tuist.Kura.Reconciler.activate_when_ready/1` about twice a
   second, then snoozes without a delay. Snoozing after every check would space
@@ -65,12 +69,14 @@ defmodule Tuist.Kura.Workers.AwaitActivationWorker do
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Server
+  alias Tuist.Kura.StableEndpoint
 
   @check_interval_ms Application.compile_env(:tuist, [__MODULE__, :check_interval_ms], 500)
 
   # The apiserver read, the authoritative DNS lookup and the `/up` probe's own
-  # timeout, rounded up. Held back from the run's budget so a check that costs
-  # all of it still finishes inside Oban's shutdown grace period.
+  # timeout, or the stable intent read and patch (three seconds each), rounded
+  # up. Never begin that second phase after the run budget is spent. Held back
+  # from the run's budget so a check that costs all of it still finishes inside Oban's shutdown grace period.
   @worst_case_check_ms 8_000
   @oban_shutdown_grace_ms 15_000
   @default_run_budget_ms @oban_shutdown_grace_ms - @worst_case_check_ms
@@ -119,25 +125,43 @@ defmodule Tuist.Kura.Workers.AwaitActivationWorker do
   defp reclaim_if_orphaned(held, _server_id), do: {:ok, held}
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"server_id" => server_id}}) do
+  def perform(%Oban.Job{args: %{"server_id" => server_id}, inserted_at: inserted_at}) do
     if Environment.kura_control_plane?() do
-      check(server_id, @checks_per_run, System.monotonic_time(:millisecond) + @run_budget_ms)
+      started_at = inserted_at || DateTime.utc_now()
+      check(server_id, started_at, @checks_per_run, System.monotonic_time(:millisecond) + @run_budget_ms)
     else
       :ok
     end
   end
 
-  defp check(server_id, remaining, deadline) do
-    with {:waiting, %Deployment{inserted_at: started_at}} <- Reconciler.activate_when_ready(server_id),
-         true <- DateTime.diff(DateTime.utc_now(), started_at) < Kura.provisioning_stall_seconds() do
+  defp check(server_id, started_at, remaining, deadline) do
+    with {:waiting, waiting_since} <- activation_status(server_id, started_at, deadline),
+         true <- DateTime.diff(DateTime.utc_now(), waiting_since) < Kura.provisioning_stall_seconds() do
       if remaining > 1 and System.monotonic_time(:millisecond) + @check_interval_ms < deadline do
         Process.sleep(@check_interval_ms)
-        check(server_id, remaining - 1, deadline)
+        check(server_id, started_at, remaining - 1, deadline)
       else
         {:snooze, 0}
       end
     else
       _ -> :ok
+    end
+  end
+
+  defp activation_status(server_id, started_at, deadline) do
+    case Reconciler.activate_when_ready(server_id) do
+      {:waiting, %Deployment{inserted_at: deployment_started_at}} ->
+        {:waiting, deployment_started_at}
+
+      :done ->
+        if System.monotonic_time(:millisecond) < deadline do
+          case StableEndpoint.await_ready(server_id) do
+            :pending -> {:waiting, started_at}
+            :done -> :done
+          end
+        else
+          {:waiting, started_at}
+        end
     end
   end
 end

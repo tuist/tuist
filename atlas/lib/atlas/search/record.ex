@@ -14,6 +14,8 @@ defmodule Atlas.Search.Record do
     gtm_signal
     social_channel_idea
     note
+    moodboard_resource
+    moodboard_comment
   )
 
   def source_types, do: @source_types

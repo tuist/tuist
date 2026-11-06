@@ -1,8 +1,9 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     net::{IpAddr, SocketAddr},
     path::Path,
-    time::Duration,
+    sync::{LazyLock, Mutex},
+    time::{Duration, Instant},
 };
 
 use futures_util::stream::StreamExt;
@@ -25,6 +26,8 @@ struct PeerStatusPayload {
     /// serving.
     #[serde(default)]
     traffic_state: Option<String>,
+    #[serde(default)]
+    topology: Option<crate::peer_topology::PeerTopology>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -100,49 +103,57 @@ async fn membership_task_loop(state: SharedState) {
                 DiscoveryScope::Global => format!("{}/_internal/status?scope=global", peer.url),
             };
             let label = peer.label.clone();
+            let app = &state;
             async move {
-                let result = match client {
-                    Ok(client) => client
+                let result = async {
+                    let response = client?
                         .get(url)
                         .send()
                         .await
-                        .map_err(|error| error.to_string()),
-                    Err(error) => Err(error),
-                };
+                        .map_err(|e| e.to_string())?
+                        .error_for_status()
+                        .map_err(|e| e.to_string())?;
+                    let payload = response
+                        .json::<PeerStatusPayload>()
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    let healthy = if payload.tenant_id == app.config.tenant_id {
+                        probe_private_path(app, &payload, &peer.url).await
+                    } else {
+                        false
+                    };
+                    Ok::<_, String>((payload, healthy))
+                }
+                .await;
                 (label, result)
             }
         }))
         .await;
         for (peer, result) in lookups {
             match result {
-                Ok(response) if response.status().is_success() => {
-                    match response.json::<PeerStatusPayload>().await {
-                        Ok(payload) => {
-                            peer_status_successes += 1;
-                            if payload.tenant_id != state.config.tenant_id
-                                || is_self_or_own_gateway(
-                                    &payload.node_url,
-                                    &state.config.node_url,
-                                    state.config.peer_gateway_url.as_deref(),
-                                )
-                            {
-                                continue;
-                            }
-                            members.insert(payload.region.clone());
-                            let traffic_state = payload.traffic_state.as_deref();
-                            views.push(PeerView {
-                                url: payload.node_url.clone(),
-                                region: payload.region.clone(),
-                                serving: traffic_state.is_none_or(|s| s == "serving"),
-                                draining: traffic_state == Some("draining"),
-                            });
-                            peer_nodes.insert(payload.node_url, payload.region);
-                        }
-                        Err(error) => warn!("failed to decode peer status from {peer}: {error}"),
+                Ok((payload, private_healthy)) => {
+                    peer_status_successes += 1;
+                    if payload.tenant_id != state.config.tenant_id {
+                        continue;
                     }
-                }
-                Ok(response) => {
-                    warn!("peer status check failed for {peer}: {}", response.status())
+                    if is_self_or_own_gateway(
+                        &payload.node_url,
+                        &state.config.node_url,
+                        state.config.peer_gateway_url.as_deref(),
+                    ) {
+                        continue;
+                    }
+                    members.insert(payload.region.clone());
+                    let traffic_state = payload.traffic_state.as_deref();
+                    views.push(PeerView {
+                        url: payload.node_url.clone(),
+                        region: payload.region.clone(),
+                        topology: payload.topology,
+                        private_healthy,
+                        serving: traffic_state.is_none_or(|s| s == "serving"),
+                        draining: traffic_state == Some("draining"),
+                    });
+                    peer_nodes.insert(payload.node_url, payload.region);
                 }
                 Err(error) => warn!("peer status request failed for {peer}: {error}"),
             }
@@ -162,6 +173,66 @@ async fn membership_task_loop(state: SharedState) {
         state.maybe_mark_serving().await;
         sleep(state.membership_poll_interval().await).await;
     }
+}
+
+async fn probe_private_path(
+    state: &SharedState,
+    peer: &PeerStatusPayload,
+    discovered_at: &str,
+) -> bool {
+    if is_self_or_own_gateway(
+        &peer.node_url,
+        &state.config.node_url,
+        state.config.peer_gateway_url.as_deref(),
+    ) {
+        return true;
+    }
+    let own = state.config.peer_topology.as_ref();
+    let selected = crate::peer_topology::endpoint(own, peer.topology.as_ref(), &peer.node_url);
+    let private = match selected {
+        Ok(url)
+            if own
+                .zip(peer.topology.as_ref())
+                .is_some_and(|(local, remote)| local.same_private_network(remote)) =>
+        {
+            url
+        }
+        Ok(_) => return true,
+        Err(error) => {
+            warn!(peer = %peer.node_url, %error, "peer private route unavailable");
+            return false;
+        }
+    };
+    // Compare the queried origin, not the advertised node identity: a gateway
+    // may advertise the same private/node URL without ever reaching that URL.
+    if reqwest::Url::parse(discovered_at).ok() == reqwest::Url::parse(private).ok() {
+        return true;
+    }
+    let result = async {
+        let status = state
+            .client()
+            .get(format!(
+                "{}/_internal/status",
+                private.trim_end_matches('/')
+            ))
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<PeerStatusPayload>()
+            .await?;
+        Ok::<bool, reqwest::Error>(
+            status.tenant_id == peer.tenant_id
+                && status.region == peer.region
+                && status.topology == peer.topology,
+        )
+    }
+    .await;
+    if !matches!(result, Ok(true)) {
+        warn!(peer = %peer.node_url, private, "peer private probe failed; public replication fallback is disabled");
+        return false;
+    }
+    true
 }
 
 pub(crate) async fn read_bounded_body(
@@ -347,7 +418,15 @@ async fn discover_dns_targets(
     scheme: &str,
     scope: DiscoveryScope,
 ) {
-    match tokio::net::lookup_host((dns_name, port)).await {
+    let lookup = tokio::net::lookup_host((dns_name, port))
+        .await
+        .map(|addresses| addresses.collect::<Vec<_>>());
+    match resolved_or_last(
+        &RESOLVED_DISCOVERY,
+        (dns_name.to_owned(), port),
+        lookup,
+        Instant::now(),
+    ) {
         Ok(addresses) => {
             for address in addresses {
                 if scheme == "https" {
@@ -376,6 +455,43 @@ async fn discover_dns_targets(
     }
 }
 
+// A discovery name's last successful answer. One failed lookup, such as a dropped
+// UDP query, must not empty the membership view and close every replication
+// link. Every target is still probed, so a stale address that stopped
+// answering drops out of membership anyway.
+const DISCOVERY_DNS_STALE_LIMIT: Duration = Duration::from_secs(300);
+type ResolvedDiscovery = Mutex<HashMap<(String, u16), (Instant, Vec<SocketAddr>)>>;
+static RESOLVED_DISCOVERY: LazyLock<ResolvedDiscovery> = LazyLock::new(Default::default);
+
+fn resolved_or_last(
+    cache: &ResolvedDiscovery,
+    key: (String, u16),
+    lookup: std::io::Result<Vec<SocketAddr>>,
+    now: Instant,
+) -> Result<Vec<SocketAddr>, String> {
+    let mut cache = cache.lock().unwrap_or_else(|error| error.into_inner());
+    match lookup {
+        Ok(addresses) => {
+            cache.insert(key, (now, addresses.clone()));
+            Ok(addresses)
+        }
+        Err(error) => match cache.get(&key) {
+            Some((resolved_at, addresses))
+                if now.saturating_duration_since(*resolved_at) <= DISCOVERY_DNS_STALE_LIMIT =>
+            {
+                warn!(
+                    "dns discovery lookup failed for {}:{}: {error}; reusing the addresses resolved {}s ago",
+                    key.0,
+                    key.1,
+                    now.saturating_duration_since(*resolved_at).as_secs()
+                );
+                Ok(addresses.clone())
+            }
+            _ => Err(error.to_string()),
+        },
+    }
+}
+
 fn format_ip_for_url(ip: IpAddr) -> String {
     match ip {
         IpAddr::V4(ip) => ip.to_string(),
@@ -390,6 +506,61 @@ mod tests {
 
     use super::*;
     use crate::test_support::test_context;
+
+    #[test]
+    fn a_failed_discovery_lookup_reuses_the_last_answer_until_it_is_stale() {
+        let cache = ResolvedDiscovery::default();
+        let key = ("kura-peers.kura.svc.cluster.local".to_owned(), 7443);
+        let failed = || {
+            Err(std::io::Error::other(
+                "temporary failure in name resolution",
+            ))
+        };
+        let start = Instant::now();
+        assert!(resolved_or_last(&cache, key.clone(), failed(), start).is_err());
+
+        let peers = vec![
+            SocketAddr::from(([10, 0, 0, 1], 7443)),
+            SocketAddr::from(([10, 0, 0, 2], 7443)),
+        ];
+        assert_eq!(
+            resolved_or_last(&cache, key.clone(), Ok(peers.clone()), start).unwrap(),
+            peers
+        );
+        assert_eq!(
+            resolved_or_last(
+                &cache,
+                key.clone(),
+                failed(),
+                start + DISCOVERY_DNS_STALE_LIMIT
+            )
+            .unwrap(),
+            peers,
+            "a transient failure emptied the membership view"
+        );
+        assert!(
+            resolved_or_last(
+                &cache,
+                key.clone(),
+                failed(),
+                start + DISCOVERY_DNS_STALE_LIMIT + Duration::from_secs(1)
+            )
+            .is_err(),
+            "an answer older than the limit kept a vanished peer set alive"
+        );
+
+        let shrunk = vec![peers[0]];
+        let later = start + Duration::from_secs(10);
+        assert_eq!(
+            resolved_or_last(&cache, key.clone(), Ok(shrunk.clone()), later).unwrap(),
+            shrunk
+        );
+        assert_eq!(
+            resolved_or_last(&cache, key, failed(), later).unwrap(),
+            shrunk,
+            "a successful answer must replace the cache"
+        );
+    }
 
     #[test]
     fn skips_self_and_own_gateway_but_adopts_other_peers() {
@@ -425,6 +596,152 @@ mod tests {
                 .expect("test server should run");
         });
         (format!("http://{address}"), handle)
+    }
+
+    #[tokio::test]
+    async fn legacy_discovery_accepts_status_slower_than_five_seconds() {
+        let app = Router::new().route(
+            "/_internal/status",
+            get(|| async {
+                sleep(Duration::from_secs(6)).await;
+                axum::Json(serde_json::json!({
+                    "tenant_id": "test-tenant",
+                    "region": "remote",
+                    "node_url": "http://remote.example"
+                }))
+            }),
+        );
+        let (url, server) = spawn_server(app).await;
+        let ctx = test_context(|config| config.peers = vec![url]).await;
+        ctx.state.client.store(std::sync::Arc::new(
+            ctx.state.peer_client_factory.build().unwrap(),
+        ));
+        let membership = tokio::spawn(membership_task_loop(ctx.state.clone()));
+        let discovered = tokio::time::timeout(Duration::from_secs(15), async {
+            while ctx.state.peer_views.load().is_empty() {
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await;
+        membership.abort();
+        server.abort();
+        discovered.expect("legacy discovery must retain the client's read timeout");
+        assert_eq!(ctx.state.peer_views.load()[0].region, "remote");
+    }
+
+    #[tokio::test]
+    async fn wrong_tenant_status_completes_discovery_without_adopting_peer() {
+        let app = Router::new().route(
+            "/_internal/status",
+            get(|| async {
+                axum::Json(serde_json::json!({
+                    "tenant_id": "another-tenant",
+                    "region": "remote",
+                    "node_url": "http://remote.example"
+                }))
+            }),
+        );
+        let (url, server) = spawn_server(app).await;
+        let ctx = test_context(|config| config.peers = vec![url]).await;
+        let membership = tokio::spawn(membership_task_loop(ctx.state.clone()));
+        let discovered = tokio::time::timeout(Duration::from_secs(5), async {
+            while !ctx
+                .state
+                .readiness_report()
+                .await
+                .initial_discovery_completed
+            {
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await;
+        membership.abort();
+        server.abort();
+        discovered.expect("a decoded response completes the legacy discovery observation");
+        assert!(ctx.state.peer_views.load().is_empty());
+        assert!(
+            ctx.state
+                .cluster_status_report()
+                .await
+                .connected_nodes
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn private_probe_checks_canonical_url_on_private_underlay() {
+        let canonical = "https://127.0.0.1:9";
+        let topology = crate::peer_topology::PeerTopology {
+            canonical_networks: Vec::new(),
+            provider: "ovh".into(),
+            private_network: Some("verified-domain".into()),
+            private_url: Some(canonical.into()),
+        };
+        let ctx = test_context(|config| config.peer_topology = Some(topology.clone())).await;
+        let peer = serde_json::from_value(serde_json::json!({
+            "tenant_id": "test-tenant",
+            "region": "remote",
+            "node_url": canonical,
+            "topology": topology
+        }))
+        .unwrap();
+        assert!(!super::probe_private_path(&ctx.state, &peer, "https://gateway.example").await);
+        assert!(super::probe_private_path(&ctx.state, &peer, canonical).await);
+        let own = serde_json::from_value(serde_json::json!({
+            "tenant_id": "test-tenant", "region": "local",
+            "node_url": ctx.state.config.node_url,
+            "topology": peer.topology
+        }))
+        .unwrap();
+        assert!(super::probe_private_path(&ctx.state, &own, "https://gateway.example").await);
+    }
+
+    #[tokio::test]
+    async fn failed_private_probe_preserves_advertised_traffic_state() {
+        let topology = crate::peer_topology::PeerTopology {
+            canonical_networks: Vec::new(),
+            provider: "ovh".into(),
+            private_network: Some("local-domain".into()),
+            private_url: Some("https://private.example:7443".into()),
+        };
+        let app = Router::new().route(
+            "/_internal/status",
+            get(|| async {
+                axum::Json(serde_json::json!({
+                    "tenant_id": "test-tenant",
+                    "region": "remote",
+                    "node_url": "https://remote.example:7443",
+                    "traffic_state": "serving",
+                    "topology": {
+                        "provider": "ovh",
+                        "private_network": "incompatible-domain",
+                        "private_url": "https://private.remote.example:7443"
+                    }
+                }))
+            }),
+        );
+        let (url, server) = spawn_server(app).await;
+        let ctx = test_context(|config| {
+            config.peers = vec![url];
+            config.peer_topology = Some(topology);
+        })
+        .await;
+        let membership = tokio::spawn(membership_task_loop(ctx.state.clone()));
+        let discovered = tokio::time::timeout(Duration::from_secs(5), async {
+            while ctx.state.peer_views.load().is_empty() {
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await;
+        membership.abort();
+        server.abort();
+        discovered.unwrap();
+        let peers = ctx.state.peer_views.load();
+        let peer = &peers[0];
+        assert!(!peer.private_healthy);
+        assert!(peer.serving);
+        assert!(!peer.draining);
+        assert!(!ctx.state.prefers_peer(&peer.url));
     }
 
     #[tokio::test]

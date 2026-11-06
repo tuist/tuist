@@ -5,7 +5,9 @@ defmodule TuistWeb.Docs.Layouts do
 
   import TuistWeb.AccountDropdown
 
+  alias Tuist.Docs
   alias Tuist.Docs.Paths
+  alias TuistWeb.Marketing.Localization
 
   embed_templates "layouts/*"
 
@@ -62,16 +64,27 @@ defmodule TuistWeb.Docs.Layouts do
   end
 
   defp language_name(locale) do
-    case Enum.find(TuistWeb.Marketing.Localization.languages(), &(&1.code == locale)) do
+    case Enum.find(Localization.languages(), &(&1.code == locale)) do
       %{label: label} -> label
       _ -> "English"
     end
   end
 
   defp localized_docs_href(current_path, target_locale) do
-    case current_path |> Path.split() |> Enum.reject(&(&1 == "/")) do
+    case current_path |> URI.parse() |> Map.fetch!(:path) |> Path.split() |> Enum.reject(&(&1 == "/")) do
       [_locale, "docs" | rest] -> Path.join(["/#{target_locale}", "docs" | rest])
       _ -> "/#{target_locale}/docs"
+    end
+  end
+
+  defp language_alternates(current_path) do
+    available_slugs = MapSet.new(Docs.slugs())
+
+    for language <- Localization.languages(),
+        href = localized_docs_href(current_path, language.code),
+        slug = String.replace(href, "/docs", "", global: false),
+        href == Paths.root_path(language.code) or MapSet.member?(available_slugs, slug) do
+      %{locale: language.code, href: href}
     end
   end
 end

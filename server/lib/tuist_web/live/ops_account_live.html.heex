@@ -131,6 +131,9 @@
         <:col :let={origin} label={dgettext("dashboard", "Resolutions")}>
           <.text_cell label={format_number(origin.demand_count)} />
         </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Hits")}>
+          <.text_cell label={format_number(origin.hit_count)} />
+        </:col>
         <:col :let={origin} label={dgettext("dashboard", "Last seen")}>
           <.text_cell label={Timex.from_now(origin.last_seen_on)} />
         </:col>
@@ -462,22 +465,120 @@
     </.card_section>
   </.card>
 
+  <.card title={dgettext("dashboard", "Sandbox concurrency")} icon="server">
+    <.card_section>
+      <p>
+        {dgettext(
+          "dashboard",
+          "Sandbox limits are independent of CI. Creating, resuming and running sandboxes count toward the CPU and memory limits. Every sandbox on a node, paused ones included, counts toward the disk limit with its workspace and memory image; archived sandboxes do not."
+        )}
+      </p>
+      <.form
+        for={@sandbox_concurrency_form}
+        id="sandbox-concurrency-form"
+        phx-submit="update_sandbox_concurrency_limits"
+      >
+        <.text_input
+          field={@sandbox_concurrency_form[:sandbox_vcpus_limit]}
+          input_type="number"
+          min={1}
+          label={dgettext("dashboard", "vCPU limit")}
+          required
+          show_required
+        />
+        <.text_input
+          field={@sandbox_concurrency_form[:sandbox_memory_gb_limit]}
+          input_type="number"
+          min={1}
+          label={dgettext("dashboard", "Memory limit (GB)")}
+          required
+          show_required
+        />
+        <.text_input
+          field={@sandbox_concurrency_form[:sandbox_disk_gb_limit]}
+          input_type="number"
+          min={1}
+          label={dgettext("dashboard", "Disk limit (GB)")}
+          required
+          show_required
+        />
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Save sandbox limits")}
+          />
+        </div>
+      </.form>
+    </.card_section>
+  </.card>
+
+  <.card title={dgettext("dashboard", "Remote execution concurrency")} icon="server">
+    <.card_section>
+      <p>
+        {dgettext(
+          "dashboard",
+          "Remote execution limits are independent of CI and sandboxes. Every Bazel action runs in its own VM with 2 vCPUs and 4 GB of memory; idle, busy and starting VMs count toward both limits. The bazel_remote_execution flag decides whether the account executes at all."
+        )}
+      </p>
+      <.form
+        for={@remote_execution_concurrency_form}
+        id="remote-execution-concurrency-form"
+        phx-submit="update_remote_execution_concurrency_limits"
+      >
+        <.text_input
+          field={@remote_execution_concurrency_form[:remote_execution_vcpus_limit]}
+          input_type="number"
+          min={2}
+          label={dgettext("dashboard", "vCPU limit")}
+          required
+          show_required
+        />
+        <.text_input
+          field={@remote_execution_concurrency_form[:remote_execution_memory_gb_limit]}
+          input_type="number"
+          min={4}
+          label={dgettext("dashboard", "Memory limit (GB)")}
+          required
+          show_required
+        />
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Save remote execution limits")}
+          />
+        </div>
+      </.form>
+    </.card_section>
+  </.card>
+
   <.card title={dgettext("dashboard", "Free tier")} icon="reload">
     <.card_section>
       <p data-part="free-tier-description">
         {dgettext(
           "dashboard",
-          "An Air account can reach the cache for %{limit} runs a month. Resetting starts the count over from now, so the account is unblocked and has the full allowance again for the rest of the month. It is not an exemption: the reset goes inert on the first of next month, when counting returns to the month boundary.",
-          limit: @free_tier_limit
+          "An Air account can reach the cache until it uses %{egress} of cache egress or %{requests} cache requests a month. Resetting starts the count over from now, so the account is unblocked and has the full allowance again for the rest of the month. It is not an exemption: the reset goes inert on the first of next month, when counting returns to the month boundary.",
+          egress: free_tier_egress_limit_label(),
+          requests: format_number(free_tier_requests_limit())
         )}
       </p>
       <dl data-part="free-tier-usage">
         <div>
-          <dt>{dgettext("dashboard", "Runs this period")}</dt>
-          <dd data-part="free-tier-hits">
-            {dgettext("dashboard", "%{hits} of %{limit}",
-              hits: @free_tier_hits,
-              limit: @free_tier_limit
+          <dt>{dgettext("dashboard", "Cache egress this period")}</dt>
+          <dd data-part="free-tier-egress">
+            {dgettext("dashboard", "%{usage} of %{limit}",
+              usage: free_tier_egress_label(@free_tier_egress_megabytes),
+              limit: free_tier_egress_limit_label()
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>{dgettext("dashboard", "Cache requests this period")}</dt>
+          <dd data-part="free-tier-requests">
+            {dgettext("dashboard", "%{usage} of %{limit}",
+              usage: format_number(@free_tier_requests),
+              limit: format_number(free_tier_requests_limit())
             )}
           </dd>
         </div>
@@ -555,25 +656,6 @@
 
   <.card title={dgettext("dashboard", "Prepaid runner minutes")} icon="asset">
     <.card_section>
-      <p data-part="prepaid-description">
-        {dgettext(
-          "dashboard",
-          "Setting this replaces what the account holds rather than adding to it, and the minutes are granted straight away so it can run on them. The charge rides its next invoice alongside the rest of the bill. Minutes expire at the end of the billing period they were bought for and do not roll over. The figures are minutes on the macOS 6 vCPU / 14 GB baseline; a larger machine draws them down faster than one minute per minute it runs."
-        )}
-      </p>
-      <.alert
-        :if={not @has_subscription}
-        id="prepaid-no-subscription-alert"
-        size="large"
-        status="warning"
-        title={dgettext("dashboard", "No active subscription")}
-        description={
-          dgettext(
-            "dashboard",
-            "This account has no subscription, so Stripe never generates an invoice for it. A prepaid charge added now would sit unbilled until one exists."
-          )
-        }
-      />
       <.table
         :if={@prepaid_balance}
         id="prepaid-balance-table"
@@ -592,85 +674,102 @@
       <p :if={is_nil(@prepaid_balance)} data-part="prepaid-empty">
         {dgettext("dashboard", "This account has no prepaid runner minutes.")}
       </p>
-      <.form
-        for={%{}}
-        id="prepaid-minutes-form"
-        phx-change="quote_prepaid_minutes"
-        phx-submit="set_prepaid_minutes"
-      >
-        <.text_input
-          id="prepaid-minutes-input"
-          name="minutes"
-          value={@prepaid_minutes_value}
-          input_type="number"
-          min={0}
-          label={dgettext("dashboard", "Prepaid minutes (macOS 6 vCPU / 14 GB)")}
-        />
-        <dl :if={@prepaid_quote} data-part="prepaid-quote">
-          <div>
-            <dt>{dgettext("dashboard", "Added to next invoice")}</dt>
-            <dd data-part="prepaid-quote-invoiced">{format_money(@prepaid_quote.invoiced)}</dd>
-          </div>
-          <div>
-            <dt>{dgettext("dashboard", "Granted now")}</dt>
-            <dd data-part="prepaid-quote-granted">{format_money(@prepaid_quote.granted)}</dd>
-          </div>
-        </dl>
-        <div data-part="actions">
-          <.button
-            type="submit"
-            variant="primary"
-            label={dgettext("dashboard", "Set minutes")}
-          />
-        </div>
-      </.form>
     </.card_section>
     <.card_section>
-      <p data-part="standing-prepaid-description">
+      <p data-part="prepaid-pool-description">
         {dgettext(
           "dashboard",
-          "Standing minutes are a monthly item on the account's subscription. Stripe bills them on every renewal invoice and the minutes are granted once that invoice is finalized, shortly after the cycle opens, which is what a recurring prepaid arrangement needs, since minutes expire with the cycle they were bought for. Setting them leaves the cycle now running exactly as it is. Zero stops the arrangement."
-        )}
-      </p>
-      <.alert
-        :if={@standing_prepaid_unavailable}
-        id="standing-prepaid-unavailable-alert"
-        size="large"
-        status="warning"
-        title={dgettext("dashboard", "Standing minutes unavailable")}
-        description={standing_prepaid_error(@standing_prepaid_unavailable)}
-      />
-      <p :if={is_nil(@standing_prepaid_unavailable)} data-part="standing-prepaid-next">
-        {dgettext("dashboard", "Next billed and granted on %{date}.",
-          date: standing_prepaid_next_label(@standing_prepaid_next_at)
+          "A pool is runner credit paid up front for a contract term of up to a year, usually by bank transfer. It stays usable for the whole term instead of expiring each month, so quiet months do not forfeit minutes the customer already paid for, and usage past it is billed on demand. A term shorter than a year lines a new contract up with the end of an earlier one. The pool pays the invoices that carry the term's usage, shown below once both dates are in. Granting a pool bills nothing: charge for it on its own invoice, and enter that invoice's id here so the credit can be traced to it."
         )}
       </p>
       <.form
-        :if={is_nil(@standing_prepaid_unavailable)}
         for={%{}}
-        id="standing-prepaid-minutes-form"
-        phx-change="quote_standing_prepaid_minutes"
-        phx-submit="set_standing_prepaid_minutes"
+        id="prepaid-pool-form"
+        phx-change="quote_prepaid_pool"
+        phx-submit="grant_prepaid_pool"
       >
         <.text_input
-          id="standing-prepaid-minutes-input"
-          name="minutes"
-          value={@standing_prepaid_minutes_value}
-          input_type="number"
-          min={0}
-          label={dgettext("dashboard", "Standing monthly minutes (macOS 6 vCPU / 14 GB)")}
+          id="prepaid-pool-paid-input"
+          name="paid"
+          value=""
+          label={dgettext("dashboard", "Amount paid (USD)")}
+          placeholder="8000.00"
         />
-        <dl :if={@standing_prepaid_quote} data-part="standing-prepaid-quote">
+        <.text_input
+          id="prepaid-pool-credit-multiplier-input"
+          name="credit_multiplier"
+          value=""
+          label={dgettext("dashboard", "Credit multiplier")}
+          placeholder="1.25"
+          hint={
+            dgettext(
+              "dashboard",
+              "Credit granted per dollar paid: the on-demand price per minute divided by the deal's prepaid price per minute."
+            )
+          }
+        />
+        <.select
+          id="prepaid-pool-platforms"
+          name="platforms"
+          value="all"
+          label={dgettext("dashboard", "Platforms")}
+        >
+          <:item value="all" label={dgettext("dashboard", "macOS and Linux")} />
+          <:item value="macos" label={dgettext("dashboard", "macOS")} />
+          <:item value="linux" label={dgettext("dashboard", "Linux")} />
+        </.select>
+        <.text_input
+          id="prepaid-pool-starts-on-input"
+          name="starts_on"
+          value=""
+          input_type="date"
+          label={dgettext("dashboard", "Contract's first day")}
+        />
+        <.text_input
+          id="prepaid-pool-expires-on-input"
+          name="expires_on"
+          value=""
+          input_type="date"
+          label={dgettext("dashboard", "Contract's last day")}
+        />
+        <.text_input
+          id="prepaid-pool-invoice-input"
+          name="invoice_id"
+          value=""
+          label={dgettext("dashboard", "Stripe invoice (optional)")}
+          placeholder="in_..."
+        />
+        <dl :if={@prepaid_pool_quote} data-part="prepaid-pool-quote">
           <div>
-            <dt>{dgettext("dashboard", "Billed each cycle")}</dt>
-            <dd data-part="standing-prepaid-quote-invoiced">
-              {format_money(@standing_prepaid_quote.invoiced)}
+            <dt>{dgettext("dashboard", "Credit granted")}</dt>
+            <dd data-part="prepaid-pool-quote-granted">
+              {format_money(@prepaid_pool_quote.granted)}
             </dd>
           </div>
           <div>
-            <dt>{dgettext("dashboard", "Granted each cycle")}</dt>
-            <dd data-part="standing-prepaid-quote-granted">
-              {format_money(@standing_prepaid_quote.granted)}
+            <dt>{dgettext("dashboard", "Baseline minutes")}</dt>
+            <dd data-part="prepaid-pool-quote-minutes">
+              {format_number(@prepaid_pool_quote.minutes)}
+            </dd>
+          </div>
+        </dl>
+        <dl :if={@prepaid_pool_coverage} data-part="prepaid-pool-coverage">
+          <div :if={@prepaid_pool_coverage.first_invoice_at}>
+            <dt>{dgettext("dashboard", "First invoice paid from the pool")}</dt>
+            <dd data-part="prepaid-pool-first-invoice">
+              {prepaid_pool_invoice_label(@prepaid_pool_coverage.first_invoice_at)}
+            </dd>
+          </div>
+          <div :if={@prepaid_pool_coverage.last_invoice_at}>
+            <dt>{dgettext("dashboard", "Last invoice paid from the pool")}</dt>
+            <dd data-part="prepaid-pool-last-invoice">
+              {prepaid_pool_invoice_label(@prepaid_pool_coverage.last_invoice_at)}
+            </dd>
+          </div>
+          <div :if={is_nil(@prepaid_pool_coverage.last_invoice_at)}>
+            <dt>{dgettext("dashboard", "Invoices paid from the pool")}</dt>
+            <dd data-part="prepaid-pool-no-invoices">
+              {dgettext("dashboard", "No subscription to invoice against")}
             </dd>
           </div>
         </dl>
@@ -678,7 +777,7 @@
           <.button
             type="submit"
             variant="primary"
-            label={dgettext("dashboard", "Set standing minutes")}
+            label={dgettext("dashboard", "Grant pool")}
           />
         </div>
       </.form>
@@ -765,8 +864,21 @@
           phx-click="initiate_enterprise_upgrade"
         />
         <.button
+          :if={not @has_subscription}
+          variant="secondary"
+          label={dgettext("dashboard", "Start open source plan")}
+          phx-click="start_open_source_plan"
+          data-confirm={
+            dgettext(
+              "dashboard",
+              "Put %{account} on the Open Source plan? Its usage is never invoiced, and Kura does not serve open source accounts.",
+              account: @account.name
+            )
+          }
+        />
+        <.button
           :if={
-            current_plan(@account) in [:pro, :enterprise] and
+            current_plan(@account) in [:pro, :enterprise, :open_source] and
               subscription_status(@account) != :cancelled
           }
           variant="secondary"

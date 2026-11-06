@@ -5,7 +5,10 @@ defmodule Tuist.Bundles.BundleSizeApprover do
 
   import Ecto.Changeset
 
-  @handle_format ~r/^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/
+  # Enterprise Managed User accounts end in an underscore and the enterprise's
+  # shortcode (e.g. `jane-doe_acme`), and the suffix counts toward the 39
+  # character limit.
+  @handle_format ~r/^(?=.{1,39}$)[a-z\d](?:[a-z\d]|-(?=[a-z\d]))*(?:_[a-z\d]{3,8})?$/
 
   @primary_key {:id, UUIDv7, autogenerate: false}
   @foreign_key_type UUIDv7

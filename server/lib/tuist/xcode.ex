@@ -5,6 +5,7 @@ defmodule Tuist.Xcode do
 
   import Ecto.Query
 
+  alias Tuist.BuildEntities
   alias Tuist.ClickHouseRepo
   alias Tuist.Xcode.XcodeGraph.Buffer, as: XcodeGraphBuffer
   alias Tuist.Xcode.XcodeProject.Buffer, as: XcodeProjectBuffer
@@ -12,7 +13,7 @@ defmodule Tuist.Xcode do
   alias Tuist.Xcode.XcodeTarget.Buffer, as: XcodeTargetBuffer
 
   def create_xcode_graph(%{
-        command_event: %{id: command_event_id, project_id: project_id},
+        command_event: %{id: command_event_id, project_id: project_id} = command_event,
         xcode_graph: %{name: name} = xcode_graph
       }) do
     {xcode_graph_data, projects_data, targets_data, xcode_graph_id} =
@@ -21,6 +22,10 @@ defmodule Tuist.Xcode do
     XcodeGraphBuffer.insert(xcode_graph_data)
     XcodeProjectBuffer.insert_all(projects_data)
     XcodeTargetBuffer.insert_all(targets_data)
+
+    if BuildEntities.enabled?(command_event.project_id) do
+      BuildEntities.Producers.xcode_graph(command_event, projects_data, targets_data)
+    end
 
     xcode_graph = %{id: xcode_graph_id, name: name, command_event_id: command_event_id}
     {:ok, xcode_graph}
@@ -326,6 +331,7 @@ defmodule Tuist.Xcode do
     xcode_graph_data = %{
       id: xcode_graph_id,
       name: xcode_graph.name,
+      project_id: project_id,
       command_event_id: command_event_id,
       binary_build_duration: Map.get(xcode_graph, :binary_build_duration),
       inserted_at: inserted_at
@@ -364,7 +370,13 @@ defmodule Tuist.Xcode do
         )
       end)
 
-    {xcode_graph_data, projects_data, targets_data, xcode_graph_id}
+    modules_count =
+      xcode_graph.projects
+      |> Enum.flat_map(fn project -> Enum.map(project["targets"], &{project["name"], &1["name"]}) end)
+      |> Enum.uniq()
+      |> length()
+
+    {Map.put(xcode_graph_data, :modules_count, modules_count), projects_data, targets_data, xcode_graph_id}
   end
 
   def normalize_hit_value(value) when value in ["miss", "local", "remote"], do: String.to_atom(value)

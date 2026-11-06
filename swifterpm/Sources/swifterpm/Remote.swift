@@ -32,21 +32,27 @@ enum RemoteMetadata {
     private static func fetchRemoteVersions(location: String) async throws -> [RemoteVersion] {
         let repo = try? GitHubRepo(location: location)
         if let repo, await GitHubAuth.hasSession() {
-            let apiVersions = (try? await githubRemoteVersions(repo: repo)) ?? []
+            let apiVersions = try await HTTPClient.optionalResult {
+                try await githubRemoteVersions(repo: repo)
+            } ?? []
             if !apiVersions.isEmpty {
                 return apiVersions
             }
         }
 
         let gitLabRepo = try? GitLabRepo(location: location)
-        if let gitLabRepo, await GitLabAuth.hasSession(host: gitLabRepo.host) {
-            let apiVersions = (try? await GitLabAPI.remoteVersions(repo: gitLabRepo)) ?? []
+        if let gitLabRepo, await GitLabAuth.hasSession(for: gitLabRepo) {
+            let apiVersions = try await HTTPClient.optionalResult {
+                try await GitLabAPI.remoteVersions(repo: gitLabRepo)
+            } ?? []
             if !apiVersions.isEmpty {
                 return apiVersions
             }
         }
 
-        let gitVersions = (try? await gitRemoteVersions(location: location)) ?? []
+        let gitVersions = try await HTTPClient.optionalResult {
+            try await gitRemoteVersions(location: location)
+        } ?? []
         if !gitVersions.isEmpty {
             return gitVersions
         }
@@ -57,13 +63,13 @@ enum RemoteMetadata {
         var attempts: [(candidate: String, error: any Error)] = []
         for candidate in SourceControlLocations.fetchCandidates(location) {
             do {
-                let authArguments = await GitTransportAuth.configArguments(for: candidate)
                 let output = try await SystemProcess.output(
-                    "/usr/bin/git", authArguments + ["ls-remote", "--tags", candidate],
+                    "/usr/bin/git", ["ls-remote", "--tags", candidate],
                     environment: SystemProcess.nonInteractiveGitEnvironment
                 )
                 return parseGitRemoteVersions(output)
             } catch {
+                try HTTPClient.requireFallbackAllowed(after: error)
                 attempts.append((candidate, error))
             }
         }
@@ -148,9 +154,8 @@ enum RemoteMetadata {
         var attempts: [(candidate: String, error: any Error)] = []
         for candidate in SourceControlLocations.fetchCandidates(location) {
             do {
-                let authArguments = await GitTransportAuth.configArguments(for: candidate)
                 let output = try await SystemProcess.output(
-                    "/usr/bin/git", authArguments + ["ls-remote", candidate, name],
+                    "/usr/bin/git", ["ls-remote", candidate, name],
                     environment: SystemProcess.nonInteractiveGitEnvironment
                 )
                 guard let line = output.split(separator: "\n").first,
@@ -160,6 +165,7 @@ enum RemoteMetadata {
                 }
                 return String(revision)
             } catch {
+                try HTTPClient.requireFallbackAllowed(after: error)
                 attempts.append((candidate, error))
             }
         }

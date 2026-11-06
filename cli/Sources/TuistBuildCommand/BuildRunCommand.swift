@@ -128,12 +128,13 @@
         var passthroughXcodeBuildArguments: [String] = []
     }
 
-    public struct BuildRunCommand: AsyncParsableCommand, LogConfigurableCommand {
+    public struct BuildRunCommand: AsyncParsableCommand, LogConfigurableCommand, ProjectPathProviding {
         public init() {}
 
         public static var configuration: CommandConfiguration {
             CommandConfiguration(
                 commandName: "run",
+                _superCommandName: "build",
                 abstract: "Builds a project (deprecated: Use 'tuist xcodebuild build' instead)",
                 discussion: "Use 'tuist build list' and 'tuist build show' to manage builds.",
                 shouldDisplay: false
@@ -144,6 +145,8 @@
 
         @OptionGroup()
         var buildOptions: BuildOptions
+
+        public var path: String? { buildOptions.path }
 
         @Flag(
             help: "Ignore binary cache and use sources only.",

@@ -183,41 +183,6 @@ defmodule Tuist.Runners.RunnerSessionsTest do
     end
   end
 
-  describe "recent_demand/3" do
-    test "ranks the fleet's account and repository pairs by jobs since the cutoff" do
-      busy = account_fixture()
-      quiet = account_fixture()
-      fleet = "fleet-demand"
-      now = DateTime.utc_now()
-      since = DateTime.add(now, -3600, :second)
-
-      for _ <- 1..3, do: session_fixture(busy, fleet_name: fleet, repository: "busy/app")
-      session_fixture(busy, fleet_name: fleet, repository: "busy/lib")
-      session_fixture(quiet, fleet_name: fleet, repository: "quiet/app")
-
-      for _ <- 1..5,
-          do:
-            session_fixture(quiet,
-              fleet_name: fleet,
-              repository: "quiet/app",
-              started_at: DateTime.add(now, -7200, :second)
-            )
-
-      session_fixture(quiet, fleet_name: "another-fleet", repository: "quiet/app")
-
-      assert [first | rest] = RunnerSessions.recent_demand([fleet], since, 10)
-      assert first == %{account_id: busy.id, repository: "busy/app"}
-
-      assert MapSet.new(rest) ==
-               MapSet.new([
-                 %{account_id: busy.id, repository: "busy/lib"},
-                 %{account_id: quiet.id, repository: "quiet/app"}
-               ])
-
-      assert [%{account_id: busy.id, repository: "busy/app"}] == RunnerSessions.recent_demand([fleet], since, 1)
-    end
-  end
-
   describe "close_by_pod_name/2" do
     test "sets ended_at on the open session matching pod_name" do
       account = account_fixture()
@@ -384,6 +349,41 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       session_fixture(account, workflow_job_id: 82_002, pod_name: "pod-owner")
 
       assert RunnerSessions.live_for_workflow_job(82_002, other_account.id) == :error
+    end
+  end
+
+  describe "workflow_job_id_for_runner/2" do
+    test "returns the job GitHub ran on the runner, not the one it was minted for" do
+      account = account_fixture()
+      session_fixture(account, runner_name: "runner-ran-other", workflow_job_id: 9101)
+      assert :mismatch = RunnerSessions.record_execution("runner-ran-other", 9199, account.id)
+
+      assert RunnerSessions.workflow_job_id_for_runner("runner-ran-other", account.id) == {:ok, 9199}
+    end
+
+    test "falls back to the minted job before GitHub reports the execution" do
+      account = account_fixture()
+      session_fixture(account, runner_name: "runner-unbound", workflow_job_id: 9102)
+
+      assert RunnerSessions.workflow_job_id_for_runner("runner-unbound", account.id) == {:ok, 9102}
+    end
+
+    test "resolves a runner whose session has ended" do
+      account = account_fixture()
+      session_fixture(account, pod_name: "pod-ended", runner_name: "runner-ended", workflow_job_id: 9103)
+      assert :matched = RunnerSessions.record_execution("runner-ended", 9103, account.id)
+      {:ok, _} = RunnerSessions.close_by_pod_name("pod-ended", DateTime.utc_now())
+
+      assert RunnerSessions.workflow_job_id_for_runner("runner-ended", account.id) == {:ok, 9103}
+    end
+
+    test "does not cross account boundaries" do
+      account = account_fixture()
+      other_account = account_fixture()
+      session_fixture(account, runner_name: "runner-owned", workflow_job_id: 9104)
+
+      assert RunnerSessions.workflow_job_id_for_runner("runner-owned", other_account.id) == :error
+      assert RunnerSessions.workflow_job_id_for_runner("", account.id) == :error
     end
   end
 

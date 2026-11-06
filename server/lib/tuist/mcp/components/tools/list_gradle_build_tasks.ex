@@ -86,7 +86,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
   def execute(conn, args) do
     build_run_id = MCPTool.resource_id(Map.get(args, "build_run_id"))
 
-    with {:ok, _build, _project} <-
+    with {:ok, build, _project} <-
            MCPTool.load_and_authorize(
              get_build(build_run_id),
              conn.assigns,
@@ -99,13 +99,17 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
       page_size = MCPTool.page_size(args)
 
       {tasks, meta} =
-        Gradle.list_tasks(build_run_id, %{
-          filters: filters,
-          order_by: [:duration_ms],
-          order_directions: [:desc],
-          page: page,
-          page_size: page_size
-        })
+        Gradle.list_tasks(
+          build_run_id,
+          %{
+            filters: filters,
+            order_by: [:duration_ms],
+            order_directions: [:desc],
+            page: page,
+            page_size: page_size
+          },
+          build.project_id
+        )
 
       {:ok,
        %{

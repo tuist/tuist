@@ -3,28 +3,30 @@
     import TuistSimulator
 
     extension DestinationType {
-        init?(_ supportedPlatform: Components.Schemas.PreviewSupportedPlatform) {
+        init?(_ supportedPlatform: String) {
             switch supportedPlatform {
-            case .ios:
+            case "ios":
                 self = .device(.iOS)
-            case .ios_simulator:
+            case "ios_simulator":
                 self = .simulator(.iOS)
-            case .tvos:
+            case "tvos":
                 self = .device(.tvOS)
-            case .tvos_simulator:
+            case "tvos_simulator":
                 self = .simulator(.tvOS)
-            case .watchos:
+            case "watchos":
                 self = .device(.watchOS)
-            case .watchos_simulator:
+            case "watchos_simulator":
                 self = .simulator(.watchOS)
-            case .visionos:
+            case "visionos":
                 self = .device(.visionOS)
-            case .visionos_simulator:
+            case "visionos_simulator":
                 self = .simulator(.visionOS)
-            case .macos:
+            case "macos":
                 self = .device(.macOS)
-            case .android:
+            case "android":
                 self = .android
+            default:
+                return nil
             }
         }
     }

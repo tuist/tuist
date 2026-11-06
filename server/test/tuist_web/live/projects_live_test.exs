@@ -69,6 +69,42 @@ defmodule TuistWeb.ProjectsLiveTest do
     assert project.build_system == :bazel
   end
 
+  test "creates a Mix project", %{conn: conn, account: account} do
+    {:ok, view, _html} = live(conn, ~p"/#{account.name}/projects")
+
+    render_hook(view, "select_build_system", %{"value" => ["mix"]})
+
+    view
+    |> form("#create-project-form", project: %{name: "my-mix-project"})
+    |> render_submit()
+
+    project = Projects.get_project_by_account_and_project_handles(account.name, "my-mix-project")
+
+    assert project.build_system == :mix
+  end
+
+  test "offers and creates a Cargo project", %{conn: conn, account: account} do
+    {:ok, view, html} = live(conn, ~p"/#{account.name}/projects")
+
+    assert html
+           |> Floki.parse_document!()
+           |> Floki.find("#create-project-form-build-system-selection option[value=cargo]")
+           |> Floki.text()
+           |> String.trim() == "Cargo (Rust)"
+
+    render_hook(view, "select_build_system", %{"value" => ["cargo"]})
+
+    view
+    |> form("#create-project-form", project: %{name: "my-cargo-project"})
+    |> render_submit()
+
+    project = Projects.get_project_by_account_and_project_handles(account.name, "my-cargo-project")
+
+    assert project.build_system == :cargo
+    assert_patch(view, ~p"/#{account.name}/projects")
+    assert has_element?(view, "[data-part=project]", "Cargo")
+  end
+
   test "shows why a reserved project name cannot be created", %{conn: conn, account: account} do
     {:ok, view, _html} = live(conn, ~p"/#{account.name}/projects")
 

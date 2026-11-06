@@ -2,10 +2,8 @@ import SwiftUI
 import TuistNoora
 
 struct PreviewsEmptyStateView: View {
-    let title: String
-    let buttonTitle: String
-    let isLoading: Bool
-    let action: () -> Void
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
 
     var body: some View {
         VStack(spacing: Noora.Spacing.spacing6) {
@@ -22,17 +20,16 @@ struct PreviewsEmptyStateView: View {
             Text(title)
                 .font(.title3.weight(.medium))
                 .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                .multilineTextAlignment(.center)
 
-            NooraButton(
-                title: buttonTitle,
-                icon: .refresh,
-                isLoading: isLoading
-            ) {
-                action()
-            }
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Noora.Spacing.spacing8)
+        .padding(.horizontal, Noora.Spacing.spacing7)
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets())
         .listRowBackground(Noora.Colors.surfaceBackgroundPrimary)

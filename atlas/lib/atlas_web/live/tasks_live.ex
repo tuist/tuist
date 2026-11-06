@@ -7,6 +7,7 @@ defmodule AtlasWeb.TasksLive do
   import Noora.Filter
 
   alias Atlas.Accounts.Account
+  alias Atlas.Demo
   alias Atlas.Repo
   alias Atlas.Tasks
   alias Atlas.Tasks.Task
@@ -145,7 +146,7 @@ defmodule AtlasWeb.TasksLive do
             {gettext("Track work for yourself or a teammate, with optional due dates and reminders.")}
           </p>
         </div>
-        <div data-part="header-actions">
+        <div :if={!Demo.enabled?()} data-part="header-actions">
           <.modal
             id="task-modal"
             title={gettext("Task details")}
@@ -317,7 +318,7 @@ defmodule AtlasWeb.TasksLive do
                 <span :if={!task.remind_at}>—</span>
               </div>
             </:col>
-            <:col :let={{_id, task}} label={gettext("Actions")}>
+            <:col :let={{_id, task}} :if={!Demo.enabled?()} label={gettext("Actions")}>
               <.button_cell>
                 <:button>
                   <.button_dropdown

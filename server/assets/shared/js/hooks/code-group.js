@@ -36,6 +36,27 @@ function setupTabPill(tabsContainer, tabs) {
   return position;
 }
 
+// Groups that share a tab label switch together, and the choice carries over to
+// later pages, so a reader who picks a CI provider once sees it in every example.
+const SELECTED_LABEL_KEY = "tuist.code-group.label";
+
+function readSelectedLabel() {
+  try {
+    return window.localStorage.getItem(SELECTED_LABEL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function selectLabel(label) {
+  try {
+    window.localStorage.setItem(SELECTED_LABEL_KEY, label);
+  } catch {
+    // Storage can be unavailable; the groups on this page still switch.
+  }
+  document.querySelectorAll(".code-group").forEach((group) => group.selectCodeGroupLabel?.(label));
+}
+
 function setupCodeGroups(el) {
   const groups = el.querySelectorAll(".code-group");
 
@@ -80,7 +101,10 @@ function setupCodeGroups(el) {
       tab.setAttribute("tabindex", i === 0 ? "0" : "-1");
       tab.setAttribute("aria-selected", tab.getAttribute("data-selected") === "true" ? "true" : "false");
 
-      tab.addEventListener("click", () => selectTab(tab));
+      tab.addEventListener("click", () => {
+        selectTab(tab);
+        selectLabel(tab.textContent.trim());
+      });
 
       tab.addEventListener("keydown", (e) => {
         let target;
@@ -92,10 +116,16 @@ function setupCodeGroups(el) {
         if (target) {
           e.preventDefault();
           selectTab(target);
+          selectLabel(target.textContent.trim());
           target.focus();
         }
       });
     });
+
+    group.selectCodeGroupLabel = (label) => {
+      const tab = tabs.find((t) => t.textContent.trim() === label);
+      if (tab && tab.getAttribute("data-selected") !== "true") selectTab(tab);
+    };
 
     if (copyBtn) {
       copyBtn.setAttribute("aria-label", "Copy code");
@@ -122,6 +152,11 @@ function setupCodeGroups(el) {
       });
     }
   });
+
+  // Every pass, not only the first: a LiveView patch restores the rendered
+  // selection on groups that are already set up.
+  const selectedLabel = readSelectedLabel();
+  if (selectedLabel) groups.forEach((group) => group.selectCodeGroupLabel?.(selectedLabel));
 }
 
 const CodeGroup = {

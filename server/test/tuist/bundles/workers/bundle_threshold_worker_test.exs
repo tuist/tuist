@@ -114,6 +114,65 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
       assert :ok == BundleThresholdWorker.perform(job)
     end
 
+    for metric <- [:install_size, :download_size], baseline_size <- [0, 317_000_000] do
+      @metric metric
+      @baseline_size baseline_size
+      test "reports absolute #{@metric} violations against #{@baseline_size} bytes" do
+        project =
+          ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "org/repo", provider: :github])
+
+        BundlesFixtures.bundle_threshold_fixture(project: project, metric: @metric, deviation_bytes: 1_500_000)
+
+        BundlesFixtures.bundle_fixture(
+          [
+            project: project,
+            git_branch: "main",
+            inserted_at: ~U[2024-01-01 00:00:00Z]
+          ] ++ [{@metric, @baseline_size}]
+        )
+
+        bundle =
+          BundlesFixtures.bundle_fixture(
+            [
+              project: project,
+              git_branch: "feature",
+              git_commit_sha: "abc123",
+              git_ref: "refs/pull/1/merge",
+              inserted_at: ~U[2024-01-02 00:00:00Z]
+            ] ++ [{@metric, @baseline_size + 1_500_001}]
+          )
+
+        stub(Environment, :github_app_configured?, fn -> true end)
+        stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+        expect(Client, :get_pull_request, fn _ -> {:ok, %{"head" => %{"sha" => "head-sha"}}} end)
+
+        expect(Client, :create_check_run, fn params ->
+          assert params.conclusion == "action_required"
+          assert params.head_sha == "head-sha"
+          assert params.output.summary =~ "**Threshold:** 1.5 MB on `main`"
+          assert params.output.summary =~ "+1.500001 MB"
+
+          assert params.output.summary =~
+                   if(@baseline_size == 0, do: "| 0 MB | 1.500001 MB |", else: "| 317 MB | 318.500001 MB |")
+
+          refute params.output.summary =~ "%"
+          assert params.external_id == bundle.id
+          assert hd(params.actions).identifier == "accept_bundle_size"
+          {:ok, %{"id" => 1}}
+        end)
+
+        assert :ok ==
+                 BundleThresholdWorker.perform(%Oban.Job{
+                   id: 1,
+                   args: %{
+                     "bundle_id" => bundle.id,
+                     "project_id" => project.id,
+                     "git_commit_sha" => "abc123"
+                   }
+                 })
+      end
+    end
+
     test "creates success check run when within threshold" do
       project =
         ProjectsFixtures.project_fixture(
@@ -403,6 +462,63 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
           "git_ref" => "refs/pull/1/merge",
           "install_size" => 1200,
           "download_size" => nil
+        }
+      }
+
+      assert :ok == BundleThresholdWorker.perform(job)
+    end
+
+    test "compares the bundle carried in the job args against a baseline of the same type and platforms" do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
+        )
+
+      BundlesFixtures.bundle_threshold_fixture(project: project, deviation_percentage: 5.0)
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        type: :app,
+        supported_platforms: [:ios_simulator],
+        install_size: 1000,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        type: :ipa,
+        supported_platforms: [:ios],
+        install_size: 100,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-02 00:00:00Z]
+      )
+
+      stub(Environment, :github_app_configured?, fn -> true end)
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Client, :get_pull_request, fn _params -> {:ok, %{"head" => %{"sha" => "real-head-sha"}}} end)
+
+      expect(Client, :create_check_run, fn params ->
+        assert params.conclusion == "success"
+        {:ok, %{"id" => 1}}
+      end)
+
+      job = %Oban.Job{
+        id: 1,
+        attempt: 1,
+        args: %{
+          "bundle_id" => UUIDv7.generate(),
+          "project_id" => project.id,
+          "git_commit_sha" => "abc123",
+          "bundle_name" => "App",
+          "git_ref" => "refs/pull/1/merge",
+          "install_size" => 1000,
+          "download_size" => nil,
+          "type" => "app",
+          "supported_platforms" => ["ios_simulator"]
         }
       }
 

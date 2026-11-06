@@ -1,0 +1,117 @@
+# Runs the management cluster's admission webhook servers with two replicas
+# spread across the three control-plane nodes. Every webhook here has
+# failurePolicy: Fail, so a single replica
+# blocks writes to its resources while it restarts (rollouts, the weekly
+# capi-webhook-cert-reloader restart, clusterctl upgrades). The controllers
+# use leader election, so the second replica only serves webhooks.
+#
+# These Deployments are installed by clusterctl, not by this repo. This file
+# holds only the fields this repo owns. mgmt-cluster-apply.yml applies it with
+# server-side apply (--field-manager=mgmt-cluster-apply --force-conflicts),
+# which takes those fields from clusterctl and leaves the rest alone, and
+# re-asserts them on every run after a clusterctl upgrade resets them.
+#
+# controller-pdbs.yaml keeps one replica available during voluntary eviction.
+# External Secrets'
+# webhook gets the same settings through its Helm values
+# (external-secrets-values.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capi-controller-manager
+  namespace: capi-system
+spec:
+  replicas: 2
+  template:
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    cluster.x-k8s.io/provider: cluster-api
+                    control-plane: controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caph-controller-manager
+  namespace: caph-system
+spec:
+  replicas: 2
+  template:
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    cluster.x-k8s.io/provider: infrastructure-hetzner
+                    control-plane: caph-controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capi-kubeadm-bootstrap-controller-manager
+  namespace: capi-kubeadm-bootstrap-system
+spec:
+  replicas: 2
+  template:
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    cluster.x-k8s.io/provider: bootstrap-kubeadm
+                    control-plane: controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capi-kubeadm-control-plane-controller-manager
+  namespace: capi-kubeadm-control-plane-system
+spec:
+  replicas: 2
+  template:
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    cluster.x-k8s.io/provider: control-plane-kubeadm
+                    control-plane: controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager-webhook
+  namespace: cert-manager
+spec:
+  replicas: 2
+  template:
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: webhook
+                    app.kubernetes.io/instance: cert-manager
+                    app.kubernetes.io/name: webhook

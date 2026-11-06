@@ -23,17 +23,17 @@ func withTemporaryDirectory<T>(_ body: (URL) async throws -> T) async throws -> 
     }
 }
 
-func writeCachedManifest(_ manifest: [String: Any], packageDir: URL) async throws {
+func writeCachedManifest(
+    _ manifest: [String: Any], packageDir: URL, cacheFile: URL? = nil, disableSandbox: Bool = false
+) async throws {
     try await fileSystem.makeDirectory(
         at: packageDir.absolutePath, options: [.createTargetParentDirectories])
     try await writeMinimalPackageManifest(at: packageDir, name: "Fixture")
-    let cachePath = ManifestLoader.cacheFilePath(packageDir: packageDir)
-    try await fileSystem.atomicWrite(JSONFormatter.prettyData(manifest), to: cachePath)
-    // A seeded cache is only reusable once it carries a matching environment sidecar;
-    // otherwise the freshness check treats it as a miss (see readCachedManifest).
-    if let cacheAbsolutePath = try? cachePath.absolutePath {
-        try await ManifestEnvironmentFingerprint.write(forCacheFile: cacheAbsolutePath, packageDir: packageDir)
-    }
+    let cachePath = cacheFile ?? ManifestLoader.cacheFilePath(packageDir: packageDir)
+    try await ManifestCache.write(
+        JSONFormatter.prettyData(manifest), at: cachePath,
+        inputs: ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)
+    )
 }
 
 func writeMinimalPackageManifest(at packageDir: URL, name: String) async throws {
@@ -61,6 +61,12 @@ func fixtureURL(_ components: [String]) async throws -> URL {
         URL(fileURLWithPath: await fileSystem.currentWorkingDirectory().pathString)
             .appendingPathComponents(relative),
     ]
+
+    if let root = env["TUIST_CONFIG_SRCROOT"] {
+        candidates.append(
+            URL(fileURLWithPath: root).appendingPathComponent("swifterpm")
+                .appendingPathComponents(relative))
+    }
 
     if let testSrcDir = env["TEST_SRCDIR"] {
         let srcDir = URL(fileURLWithPath: testSrcDir)
@@ -155,4 +161,70 @@ func writeMirrorsConfiguration(_ mirrors: [String: String], to path: URL) async 
         at: path.deletingLastPathComponent().absolutePath, options: [.createTargetParentDirectories]
     )
     try await fileSystem.atomicWrite(data, to: path)
+}
+
+/// Writes a `workspace-state.json` that only records `prebuilts`, as a previous native resolution would, and
+/// creates the directories they were extracted to.
+func writeWorkspaceState(prebuilts: [[String: Any]], scratchDir: URL) async throws {
+    try await fileSystem.makeDirectory(at: scratchDir.absolutePath, options: [.createTargetParentDirectories])
+    for case let path as String in prebuilts.map({ $0["path"] }) {
+        try await fileSystem.makeDirectory(
+            at: URL(fileURLWithPath: path).absolutePath, options: [.createTargetParentDirectories]
+        )
+    }
+    try await fileSystem.atomicWrite(
+        JSONFormatter.prettyData([
+            "object": ["artifacts": [], "dependencies": [], "prebuilts": prebuilts],
+            "version": 7,
+        ]),
+        to: scratchDir.appendingPathComponent("workspace-state.json")
+    )
+}
+
+func recordedPrebuiltPaths(scratchDir: URL) async throws -> [String?] {
+    let data = try await fileSystem.readFile(at: scratchDir.appendingPathComponent("workspace-state.json").absolutePath)
+    let state = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+    let object = state?["object"] as? [String: Any]
+    return (object?["prebuilts"] as? [[String: Any]] ?? []).map { $0["path"] as? String }
+}
+
+/// A swift-syntax prebuilt entry laid out the way SwiftPM extracts it, for a prebuilt `name` of
+/// `<compiler tag>-<platform>`.
+func swiftSyntaxPrebuilt(scratchDir: URL, version: String, name: String) -> [String: Any] {
+    [
+        "identity": "swift-syntax",
+        "version": version,
+        "libraryName": "MacroSupport",
+        "path": scratchDir.appendingPathComponent("prebuilts/swift-syntax/\(version)/\(name)-MacroSupport").path,
+        "checkoutPath": scratchDir.appendingPathComponent("checkouts/swift-syntax").path,
+        "products": ["SwiftSyntax"],
+        "includePath": ["Sources/_SwiftSyntaxCShims/include"],
+        "cModules": [],
+    ]
+}
+
+func swiftSyntaxPin(version: String) -> ResolvedPin {
+    ResolvedPin(
+        identity: "swift-syntax",
+        kind: "remoteSourceControl",
+        location: "https://github.com/swiftlang/swift-syntax.git",
+        state: ResolvedState(branch: nil, revision: "abcdef1234567890", version: version)
+    )
+}
+
+func inode(_ url: URL) -> UInt64? {
+    var stats = stat()
+    guard url.path.withCString({ lstat($0, &stats) }) == 0 else { return nil }
+    return UInt64(stats.st_ino)
+}
+
+/// Waits for the detached deletion `ScratchTrash.purge` starts.
+func trashIsPurged(_ trash: ScratchTrash, timeout: Duration = .seconds(30)) async throws -> Bool {
+    let clock = ContinuousClock()
+    let deadline = clock.now + timeout
+    while clock.now < deadline {
+        if (try? await fileSystem.contentsOfDirectory(at: trash.directory))?.isEmpty ?? true { return true }
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    return false
 }

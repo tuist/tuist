@@ -12,8 +12,9 @@ defmodule TuistWeb.API.ShardsController do
   alias TuistWeb.Headers
 
   @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
+  @suite_catch_all_minimum_gradle_plugin_version Version.parse!("0.17.0")
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
@@ -73,6 +74,12 @@ defmodule TuistWeb.API.ShardsController do
              description:
                "Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows."
            },
+           concurrent_modules: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "Test module names the test runner executes alongside other modules, running the rest one at a time after them, as ExUnit does with `async: true` modules. A module plan then balances the shards' wall clock, with the concurrency their history shows, instead of summing durations. `parallelizable_modules` is the same for the suites within a module."
+           },
            shard_min: %Schema{type: :integer, description: "Minimum number of shards."},
            shard_max: %Schema{type: :integer, description: "Maximum number of shards."},
            shard_total: %Schema{
@@ -102,6 +109,12 @@ defmodule TuistWeb.API.ShardsController do
              type: :string,
              format: :uuid,
              description: "The UUID of the associated Gradle build."
+           },
+           test_impact_run_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description:
+               "The impact run whose outcome was `selected`. The plan then holds only the suites with selected tests, balanced by those tests' durations, and each shard read carries its `skipped_tests` list. Omit it on fallbacks and default selective testing."
            }
          },
          required: [:reference]
@@ -123,6 +136,7 @@ defmodule TuistWeb.API.ShardsController do
       test_suites: Map.get(body_params, :test_suites),
       skipped_test_suites: Map.get(body_params, :skipped_test_suites),
       parallelizable_modules: Map.get(body_params, :parallelizable_modules),
+      concurrent_modules: Map.get(body_params, :concurrent_modules),
       shard_min: Map.get(body_params, :shard_min),
       shard_max: Map.get(body_params, :shard_max),
       shard_total: Map.get(body_params, :shard_total),
@@ -130,15 +144,18 @@ defmodule TuistWeb.API.ShardsController do
       granularity: Map.get(body_params, :granularity, "module"),
       git_branch: Map.get(body_params, :git_branch),
       build_run_id: Map.get(body_params, :build_run_id),
-      gradle_build_id: Map.get(body_params, :gradle_build_id)
+      gradle_build_id: Map.get(body_params, :gradle_build_id),
+      test_impact_run_id: Map.get(body_params, :test_impact_run_id)
     }
 
-    result = Shards.create_shard_plan(selected_project, params)
+    result =
+      Shards.create_shard_plan(selected_project, params, runner_grant: runner_grant(conn))
 
     response = %{
       id: result.plan.id,
       reference: result.plan.reference,
       shard_count: result.shard_count,
+      reporting_version: result.plan.reporting_version,
       upload_url:
         url(~p"/api/projects/#{selected_project.account.name}/#{selected_project.name}/tests/shards/upload/start"),
       shards: result.shard_assignments
@@ -209,10 +226,14 @@ defmodule TuistWeb.API.ShardsController do
     result =
       case upload_identifier(body_params) do
         {:plan_id, plan_id} ->
-          Shards.start_upload_for_plan_id(selected_project, selected_project.account, plan_id, artifact)
+          Shards.start_upload_for_plan_id(selected_project, selected_project.account, plan_id, artifact,
+            runner_grant: runner_grant(conn)
+          )
 
         {:reference, reference} ->
-          Shards.start_upload(selected_project, selected_project.account, reference, artifact)
+          Shards.start_upload(selected_project, selected_project.account, reference, artifact,
+            runner_grant: runner_grant(conn)
+          )
 
         {:error, :missing_shard_plan_identifier} ->
           {:error, :missing_shard_plan_identifier}
@@ -292,7 +313,7 @@ defmodule TuistWeb.API.ShardsController do
       ) do
     shard_index = if is_binary(shard_index), do: String.to_integer(shard_index), else: shard_index
 
-    opts = [suite_catch_all?: suite_catch_all_supported?(conn)]
+    opts = [suite_catch_all?: suite_catch_all_supported?(conn), runner_grant: runner_grant(conn)]
 
     result =
       case Map.get(query_params, "shard_plan_id") do
@@ -317,14 +338,7 @@ defmodule TuistWeb.API.ShardsController do
 
     case result do
       {:ok, result} ->
-        json(conn, %{
-          shard_plan_id: result.shard_plan_id,
-          modules: result.modules,
-          suites: result.suites,
-          skip: result.skip,
-          download_url: result.download_url,
-          download_urls: result.download_urls
-        })
+        json(conn, shard_response(result))
 
       {:error, :not_found} ->
         conn
@@ -335,6 +349,9 @@ defmodule TuistWeb.API.ShardsController do
         conn
         |> put_status(:not_found)
         |> json(%{message: "The shard index is out of range."})
+
+      {:error, :shard_storage_unavailable} ->
+        StorageError.render(conn)
     end
   end
 
@@ -414,7 +431,8 @@ defmodule TuistWeb.API.ShardsController do
             plan_id,
             upload_id,
             part_number,
-            artifact
+            artifact,
+            runner_grant: runner_grant(conn)
           )
 
         {:reference, reference} ->
@@ -424,7 +442,8 @@ defmodule TuistWeb.API.ShardsController do
             reference,
             upload_id,
             part_number,
-            artifact
+            artifact,
+            runner_grant: runner_grant(conn)
           )
 
         {:error, :missing_shard_plan_identifier} ->
@@ -434,6 +453,9 @@ defmodule TuistWeb.API.ShardsController do
     case result do
       {:ok, url} ->
         json(conn, %{data: %{url: url}})
+
+      {:error, :shard_storage_unavailable} ->
+        StorageError.render(conn)
 
       {:error, :not_found} ->
         conn
@@ -534,7 +556,8 @@ defmodule TuistWeb.API.ShardsController do
             plan_id,
             upload_id,
             parts_list,
-            artifact
+            artifact,
+            runner_grant: runner_grant(conn)
           )
 
         {:reference, reference} ->
@@ -544,7 +567,8 @@ defmodule TuistWeb.API.ShardsController do
             reference,
             upload_id,
             parts_list,
-            artifact
+            artifact,
+            runner_grant: runner_grant(conn)
           )
 
         {:error, :missing_shard_plan_identifier} ->
@@ -570,6 +594,29 @@ defmodule TuistWeb.API.ShardsController do
     end
   end
 
+  defp shard_response(result) do
+    response = %{
+      shard_plan_id: result.shard_plan_id,
+      modules: result.modules,
+      suites: result.suites,
+      skip: result.skip,
+      download_url: result.download_url,
+      download_urls: result.download_urls
+    }
+
+    case Map.get(result, :skipped_tests) do
+      nil -> response
+      skipped_tests -> Map.put(response, :skipped_tests, skipped_tests)
+    end
+  end
+
+  defp runner_grant(conn) do
+    case get_req_header(conn, "x-tuist-runner-grant") do
+      [grant] -> grant
+      _ -> nil
+    end
+  end
+
   defp upload_identifier(body_params) do
     shard_plan_id = Map.get(body_params, :shard_plan_id)
     reference = Map.get(body_params, :reference)
@@ -582,9 +629,10 @@ defmodule TuistWeb.API.ShardsController do
   end
 
   defp suite_catch_all_supported?(conn) do
-    case Headers.get_cli_version(conn) do
-      nil -> false
-      cli_version -> Version.compare(cli_version, @suite_catch_all_minimum_cli_version) != :lt
-    end
+    version_at_least?(Headers.get_cli_version(conn), @suite_catch_all_minimum_cli_version) or
+      version_at_least?(Headers.get_gradle_plugin_version(conn), @suite_catch_all_minimum_gradle_plugin_version)
   end
+
+  defp version_at_least?(nil, _minimum), do: false
+  defp version_at_least?(version, minimum), do: Version.compare(version, minimum) != :lt
 end

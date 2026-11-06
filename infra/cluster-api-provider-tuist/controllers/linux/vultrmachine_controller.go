@@ -15,15 +15,15 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/cluster-api/util/annotations"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
@@ -43,10 +43,20 @@ import (
 //go:embed vultr_convert.sh
 var vultrConvertScript string
 
+//go:embed vultr_convert_lvm.sh
+var vultrConvertLVMScript string
+
+func renderVultrConversionScript(lvm bool) string {
+	if lvm {
+		return kuraLVMSetupScript + "\n" + vultrConvertLVMScript
+	}
+	return vultrConvertScript
+}
+
 // vultrConvertResult parses the machine-readable tail the conversion prints, so
 // status records what the box actually ended up with rather than what was asked
 // for.
-var vultrConvertResult = regexp.MustCompile(`RESULT device=(\S+) fstype=(\S+) quota=(\S+)`)
+var vultrConvertResult = regexp.MustCompile(`RESULT device=(\S+) fstype=(\S+) quota=(\S+)(?: vg=(\S+))?`)
 
 const (
 	// VultrMachineFinalizer guards the CR until the node identity is cleaned up
@@ -122,13 +132,16 @@ type VultrMachineReconciler struct {
 	KubernetesMinor string
 
 	// DefaultRegion fills a spec that left it empty.
-	DefaultRegion string
+	DefaultRegion            string
+	PrivateNetworkConfigName string
+	PrivateNetworkNamespace  string
+	privateNetworkMu         sync.Mutex
+	privateVPCCache          map[string]vultrPrivateVPCCacheEntry
+	privateNICCache          map[string]vultrPrivateNICCacheEntry
 
-	// runScript is the SSH runner the conversion stage uses. A seam rather than a
-	// direct call because the conversion is the one stage with no counterpart in
-	// the other kinds, and it is what stands between a box and hosting unbounded
-	// cache volumes, so it is worth being able to test without a box. Nil uses
-	// runScriptOverSSH.
+	// runScript delivers conversion and private-network scripts through the
+	// established pinned bootstrap connection. Tests replace it without touching
+	// hosts. Nil uses runScriptOverSSH.
 	runScript func(ctx context.Context, user, host string, privateKey []byte, script string, hk *bootstrap.HostKeyState) (string, error)
 }
 
@@ -154,7 +167,7 @@ func (r *VultrMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	owner, err := util.GetOwnerMachine(ctx, r.Client, machine.ObjectMeta)
+	owner, err := shared.OwnerMachine(ctx, r.Client, machine.ObjectMeta)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -172,7 +185,7 @@ func (r *VultrMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	defer func() {
-		if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil && err == nil {
+		if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil && err == nil {
 			err = patchErr
 		}
 	}()
@@ -231,7 +244,7 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machine *i
 			machine.Status.Phase = "Adopting"
 			r.event(machine, "Adopted", "Adopted Vultr box %s (%s) in %s", server.Label, server.ID, region)
 			// Persist inside the lock; the deferred patch would flush after release.
-			if patchErr := patchHelper.Patch(ctx, machine); patchErr != nil {
+			if patchErr := patchHelper.Patch(ctx, machine, patch.Clusterv1ConditionsFieldPath{"status", "conditions"}); patchErr != nil {
 				return ctrl.Result{}, fmt.Errorf("persist adoption claim for %s: %w", server.ID, patchErr)
 			}
 			return ctrl.Result{RequeueAfter: time.Second}, nil
@@ -355,18 +368,26 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machine *i
 		return ctrl.Result{}, err
 	}
 
+	privateErr := r.reconcilePrivateNetwork(ctx, machine, node)
+	if privateErr != nil {
+		logger.Error(privateErr, "Vultr private network is not converged")
+	}
+
 	if nodeReady(node) {
 		machine.Status.Ready = true
 		machine.Status.Phase = "Ready"
 		conditions.MarkTrue(machine, NodeReadyCondition)
 		if machine.Status.FailureReason == nil {
 			fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
-			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, vultrBootstrapUser, node); driftErr != nil {
+			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, vultrBootstrapUser, false, node); driftErr != nil {
 				logger.Error(driftErr, "kubelet config re-push failed; will retry")
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			} else if requeue {
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
+		}
+		if privateErr != nil {
+			return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 		}
 		return ctrl.Result{RequeueAfter: KubeletConfigDriftResyncInterval}, nil
 	}
@@ -419,7 +440,7 @@ func (r *VultrMachineReconciler) reconcileConversion(
 		known = creds.HostFingerprint
 	}
 	hk := bootstrap.NewHostKeyState(known)
-	out, err := r.runner()(ctx, vultrBootstrapUser, server.MainIP, privateKey, vultrConvertScript, hk)
+	out, err := r.runner()(ctx, vultrBootstrapUser, server.MainIP, privateKey, renderVultrConversionScript(kuraLVMRequested(machine.Annotations)), hk)
 	if observed := hk.Observed(); observed != "" && observed != known {
 		if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, observed); perr != nil {
 			logger.Error(perr, "persist host fingerprint; will retry")
@@ -434,7 +455,7 @@ func (r *VultrMachineReconciler) reconcileConversion(
 	}
 
 	m := vultrConvertResult.FindStringSubmatch(out)
-	if m == nil {
+	if m == nil || m[2] != "xfs" || m[3] != "true" || (kuraLVMRequested(machine.Annotations) && m[4] != "kura-volumes") {
 		// The script exits non-zero when the gates fail, so a zero exit without a
 		// result line means it is not the script we think it is.
 		status.Attempts++
@@ -453,6 +474,7 @@ func (r *VultrMachineReconciler) reconcileConversion(
 func (r *VultrMachineReconciler) hostOptions(machine *infrav1.VultrMachine) linuxCloudInitOptions {
 	return linuxCloudInitOptions{
 		NodeName:      machine.Name,
+		KuraLVM:       kuraLVMRequested(machine.Annotations),
 		K8sMinor:      firstNonEmpty(r.KubernetesMinor, "v1.34"),
 		Taints:        machine.Spec.NodeTaints,
 		BootstrapUser: vultrBootstrapUser,
@@ -491,8 +513,33 @@ func (r *VultrMachineReconciler) reconcileDelete(ctx context.Context, machine *i
 	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 
+	running, err := holdReleaseForRunnerJobs(ctx, r.Client, machine.Name)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if len(running) > 0 {
+		r.event(machine, "WaitingForRunnerJobs", "%s", releaseHeldMessage(machine.Name, running))
+		return ctrl.Result{RequeueAfter: runnerJobsRecheckInterval}, nil
+	}
+
 	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
 		return ctrl.Result{}, fmt.Errorf("delete node identity: %w", err)
+	}
+	if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, machine.Name); err != nil {
+		return ctrl.Result{}, fmt.Errorf("delete machine bootstrap secret: %w", err)
+	}
+	// The wiped box's kubelet never deregisters and nothing else reaps a Node with
+	// this providerID. Left behind, it stays NotReady with its DaemonSet pods
+	// unavailable, which fails `helm --wait` on the observability chart.
+	node := &corev1.Node{}
+	node.SetName(machine.Name)
+	if err := r.Delete(ctx, node); err != nil && !apierrors.IsNotFound(err) {
+		r.event(machine, "DeleteNodeFailed", "delete Node: %v (will retry)", err)
+		return ctrl.Result{}, err
+	}
+	if err := deleteNodeLocalPVCs(ctx, r.Client, machine.Name); err != nil {
+		r.event(machine, "DeletePVCsFailed", "delete node-local PVCs orphaned by release: %v (will retry)", err)
+		return ctrl.Result{}, err
 	}
 
 	if machine.Status.InstanceID != "" {
@@ -549,6 +596,6 @@ func (r *VultrMachineReconciler) event(machine *infrav1.VultrMachine, reason, fo
 
 func (r *VultrMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.VultrMachine{}).
+		For(&infrav1.VultrMachine{}, builder.WithPredicates(ignoreOwnStatusWrites())).
 		Complete(r)
 }

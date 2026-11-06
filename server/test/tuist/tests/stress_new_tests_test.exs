@@ -2,6 +2,8 @@ defmodule Tuist.Tests.StressNewTestsTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  alias Tuist.GitHistory
+  alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.Test
@@ -25,9 +27,10 @@ defmodule Tuist.Tests.StressNewTestsTest do
         duration: 1000,
         status: "success",
         git_branch: Keyword.get(opts, :git_branch, "main"),
-        git_commit_sha: "abc123",
+        git_commit_sha: Keyword.get(opts, :git_commit_sha, "abc123"),
         ran_at: Keyword.get(opts, :ran_at, NaiveDateTime.utc_now()),
         is_ci: Keyword.get(opts, :is_ci, true),
+        submission_auth: Keyword.get(opts, :submission_auth, ""),
         test_modules: [
           %{
             name: "AppTests",
@@ -284,6 +287,111 @@ defmodule Tuist.Tests.StressNewTestsTest do
       # The dormant case leaves the known set with it, so the bulk-change ratio
       # keeps comparing two halves of one population.
       assert plan.known_count == 1
+    end
+  end
+
+  describe "commits the default branch reached" do
+    # The default branch at `main1`, and a merge queue that tested `queued` on top of it.
+    defp queue(account) do
+      repository = GitHistory.repository_id(account.id, "git@github.com:acme/app.git")
+      at = ~U[2026-09-01 00:00:00Z]
+
+      GitHistory.record_commits(repository, "sha1", [
+        %{sha: "main1", parents: [], committed_at: at},
+        %{sha: "queued", parents: ["main1"], committed_at: DateTime.add(at, 60, :second)}
+      ])
+
+      GitHistory.record_branch_head(repository, "main", "main1", "main")
+      GitHistory.record_branch_head(repository, "gh-readonly-queue/main/pr-1-queued", "queued", "main")
+      repository
+    end
+
+    test "a test case a merge queue ran is known once the default branch reaches its commit", %{
+      project: project,
+      account: account
+    } do
+      repository = queue(account)
+      run_on_main(project, account, ["testOld"], git_commit_sha: "main1")
+
+      run_on_main(project, account, ["testMerged"],
+        git_branch: "gh-readonly-queue/main/pr-1-queued",
+        git_commit_sha: "queued"
+      )
+
+      assert Enum.map(StressNewTests.plan(project, [case_attrs("testMerged")]).candidates, & &1.name) == ["testMerged"]
+
+      # A pull request's run sees the default branch at the queue's commit.
+      GitHistory.record_branch_head(repository, "main", "queued", "main")
+
+      assert Enum.map(
+               StressNewTests.plan(project, [case_attrs("testMerged"), case_attrs("testNew")]).candidates,
+               & &1.name
+             ) == ["testNew"]
+    end
+
+    test "unsigned reports on landed commits cannot make canonical cases known", %{project: project, account: account} do
+      repository = queue(account)
+      run_on_main(project, account, ["testOld"], git_commit_sha: "main1")
+      run_on_main(project, account, ["testCandidate"], git_branch: "feature", git_commit_sha: "unlanded", is_ci: false)
+
+      unsigned =
+        run_on_main(project, account, ["testCandidate"],
+          git_branch: "gh-readonly-queue/main/pr-1-queued",
+          git_commit_sha: "queued",
+          submission_auth: "network_trusted"
+        )
+
+      GitHistory.record_branch_head(repository, "main", "queued", "main")
+      case_id = hd(unsigned.test_case_runs).test_case_id
+      assert Tests.test_case_ids_landed_on_default_branch(project, "main", [case_id]) == MapSet.new()
+
+      # Older child rows may lack provenance; the persisted parent must still exclude them.
+      IngestRepo.query!(
+        """
+        INSERT INTO test_case_runs (id, project_id, test_case_id, test_run_id, is_ci, ran_at, git_commit_sha)
+        SELECT {id:UUID}, {project_id:Int64}, {case_id:UUID}, {run_id:UUID}, true, now(), 'queued'
+        """,
+        %{id: UUIDv7.generate(), project_id: project.id, case_id: case_id, run_id: unsigned.id}
+      )
+
+      assert Tests.test_case_ids_landed_on_default_branch(project, "main", [case_id]) == MapSet.new()
+
+      assert Enum.map(StressNewTests.plan(project, [case_attrs("testCandidate")]).candidates, & &1.name) == [
+               "testCandidate"
+             ]
+    end
+
+    test "a test case a merge queue ran stays new when its commit never lands", %{project: project, account: account} do
+      repository = queue(account)
+      run_on_main(project, account, ["testOld"], git_commit_sha: "main1")
+
+      run_on_main(project, account, ["testDequeued"],
+        git_branch: "gh-readonly-queue/main/pr-1-queued",
+        git_commit_sha: "queued"
+      )
+
+      # The queue dropped the entry and the default branch moved past it on another commit.
+      GitHistory.record_commits(repository, "sha1", [
+        %{sha: "main2", parents: ["main1"], committed_at: ~U[2026-09-01 00:02:00Z]}
+      ])
+
+      GitHistory.record_branch_head(repository, "main", "main2", "main")
+
+      assert Enum.map(StressNewTests.plan(project, [case_attrs("testDequeued")]).candidates, & &1.name) == [
+               "testDequeued"
+             ]
+    end
+
+    test "a local run on a commit the default branch reached does not make a test case known", %{
+      project: project,
+      account: account
+    } do
+      repository = queue(account)
+      GitHistory.record_branch_head(repository, "main", "queued", "main")
+      run_on_main(project, account, ["testOld"], git_commit_sha: "main1")
+      run_on_main(project, account, ["testLocal"], git_branch: "feature", git_commit_sha: "queued", is_ci: false)
+
+      assert Enum.map(StressNewTests.plan(project, [case_attrs("testLocal")]).candidates, & &1.name) == ["testLocal"]
     end
   end
 

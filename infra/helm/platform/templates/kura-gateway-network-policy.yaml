@@ -17,9 +17,19 @@ only gateway was the local one. A region running two or more boxes drops every
 request a gateway proxies to a pod on another box, and answers 504 once nginx
 exhausts its upstream retries.
 
-Kura policy stays additive: this grants the cache ports and nothing else, and the
-runtime's JWT check remains the auth boundary, the same one the per-instance
-policy already relies on when it opens that port to every pod in the cluster.
+The regional peer demux (kura-controller's PeerDemuxReconciler) is host-network
+too, and the public peer host's DNS targets the primary's box while the peer
+Service pins the gateway pod, which is the other replica. Once an account's
+replicas straddle boxes, every connection to its public peer host crosses them,
+and the per-instance policy's `ipBlock` for the peer port does not match
+`remote-node` for the reason above. It timed out for every straddled account in
+eu-west on 2026-10-16, which is how self-hosted nodes pull from the region.
+
+Kura policy stays additive: this grants the cache and peer ports and nothing
+else. The runtime's JWT check remains the auth boundary on the cache ports, the
+same one the per-instance policy already relies on when it opens them to every
+pod in the cluster, and mTLS against the account's peer CA on the peer port,
+which the per-instance policy already opens to every address.
 */ -}}
 {{- if .Values.kuraGatewayNetworkPolicy.enabled }}
 apiVersion: cilium.io/v2
@@ -46,5 +56,9 @@ spec:
             # routes gRPC so it never shares pooled upstream connections with
             # HTTP to the cache port.
             - port: {{ .Values.kuraGatewayNetworkPolicy.grpcPort | quote }}
+              protocol: TCP
+            # kura-controller's `peerPort`, where the regional peer demux
+            # forwards the public peer hosts.
+            - port: {{ .Values.kuraGatewayNetworkPolicy.peerPort | quote }}
               protocol: TCP
 {{- end }}

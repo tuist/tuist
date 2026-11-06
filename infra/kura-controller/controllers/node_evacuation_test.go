@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -140,6 +141,9 @@ func annotatedButSchedulableNode(name string) *corev1.Node {
 func evacScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	s := runtime.NewScheme()
+	if err := appsv1.AddToScheme(s); err != nil {
+		t.Fatal(err)
+	}
 	if err := corev1.AddToScheme(s); err != nil {
 		t.Fatalf("add corev1 to scheme: %v", err)
 	}
@@ -191,6 +195,46 @@ func TestEvacuateMovesTheStandbyBeforeThePrimary(t *testing.T) {
 	}
 	if podExists(t, c, "kura-acct-region-1") {
 		t.Fatal("expected the standby to be evacuated")
+	}
+}
+
+// A re-templated StatefulSet can restart a replica on a claim pinned to the
+// cordoned box. That pod never schedules, so it has no node name, yet it still
+// has to move; otherwise it stays Pending and the evacuation never finishes.
+func TestEvacuateMovesAPendingPodPinnedToTheLeavingNode(t *testing.T) {
+	instance := evacInstance()
+	caughtUp := stubRuntimeStatus{byPod: map[string]runtimeStatus{
+		"kura-acct-region-0": routableStatus(backfillCycleComplete),
+	}}
+	claim := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: "data-kura-acct-region-1", Namespace: "kura"},
+		Spec:       corev1.PersistentVolumeClaimSpec{VolumeName: "pinned"},
+	}
+	pv := &corev1.PersistentVolume{ObjectMeta: metav1.ObjectMeta{Name: "pinned"}, Spec: corev1.PersistentVolumeSpec{
+		NodeAffinity: &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{Key: corev1.LabelHostname, Operator: corev1.NodeSelectorOpIn, Values: []string{"old-box"}}}}}}},
+	}}
+	r, c := evacReconciler(t, caughtUp,
+		instance,
+		primaryService("kura-acct-region-0"),
+		servingEndpoints("kura-acct-region-0"),
+		evacPod("kura-acct-region-0", "new-box", true),
+		evacPod("kura-acct-region-1", "", false),
+		claim, pv,
+		evacNode("old-box", true),
+		evacNode("new-box", false),
+	)
+
+	if err := r.evacuateMarkedNodes(context.Background(), instance); err != nil {
+		t.Fatalf("evacuateMarkedNodes: %v", err)
+	}
+	if podExists(t, c, "kura-acct-region-1") {
+		t.Fatal("the Pending pod pinned to the leaving node was not moved")
+	}
+	if err := c.Get(context.Background(), client.ObjectKeyFromObject(claim), &corev1.PersistentVolumeClaim{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("its claim was kept (err=%v); the replacement would pin to the leaving node again", err)
+	}
+	if !podExists(t, c, "kura-acct-region-0") {
+		t.Fatal("the serving replica on the landing node was evacuated")
 	}
 }
 
@@ -679,5 +723,42 @@ func repinPeerPlane(t *testing.T, c client.Client, pod string) {
 	endpoints.Subsets = peerEndpoints(pod).Subsets
 	if err := c.Update(ctx, endpoints); err != nil {
 		t.Fatalf("update peer endpoints: %v", err)
+	}
+}
+
+func TestEvacuateRequiresTheStatefulSetPlacement(t *testing.T) {
+	for _, network := range []string{"", "pn-other", "pn-test"} {
+		t.Run("landing-network-"+network, func(t *testing.T) {
+			ctx := context.Background()
+			instance := evacInstance()
+			standby := evacPod("kura-acct-region-1", "old-box", true)
+			claim := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: "data-" + standby.Name, Namespace: instance.Namespace}}
+			landing := evacNode("new-box", false)
+			landing.Labels[privateNetworkLabel] = network
+			template := podTemplate(instance, "", "staging", "", false, false, false)
+			template.Spec.NodeSelector[privateNetworkLabel] = "pn-test"
+			sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}, Spec: appsv1.StatefulSetSpec{Template: template}}
+			status := stubRuntimeStatus{byPod: map[string]runtimeStatus{
+				"kura-acct-region-0": routableStatus(backfillCycleComplete),
+				standby.Name:         routableStatus(backfillCycleComplete),
+			}}
+			r, c := evacReconciler(t, status, instance, sts, claim, standby,
+				primaryService("kura-acct-region-0"), servingEndpoints("kura-acct-region-0"),
+				evacPod("kura-acct-region-0", "old-box", true), evacNode("old-box", true), landing)
+			if err := r.evacuateMarkedNodes(ctx, instance); err != nil {
+				t.Fatal(err)
+			}
+			wantRetained := network != "pn-test"
+			if got := podExists(t, c, standby.Name); got != wantRetained {
+				t.Fatalf("standby retained=%t, want %t", got, wantRetained)
+			}
+			err := c.Get(ctx, client.ObjectKeyFromObject(claim), &corev1.PersistentVolumeClaim{})
+			if wantRetained && err != nil || !wantRetained && !apierrors.IsNotFound(err) {
+				t.Fatalf("claim retained=%t: %v", wantRetained, err)
+			}
+			if !podExists(t, c, "kura-acct-region-0") {
+				t.Fatal("primary was deleted")
+			}
+		})
 	}
 }

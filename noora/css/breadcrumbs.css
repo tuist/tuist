@@ -136,8 +136,8 @@
     box-shadow:
       0 0 0 1px
         light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(54.9% 0 0 / 0.25)),
-      0 8px 24px rgb(0 0 0 / 0.16),
-      0 4px 8px rgb(0 0 0 / 0.08);
+      0 8px 24px oklch(0% 0 0 / 0.16),
+      0 4px 8px oklch(0% 0 0 / 0.08);
     border-radius: var(--noora-radius-4);
     background: var(--noora-surface-background-primary);
     overflow: hidden;

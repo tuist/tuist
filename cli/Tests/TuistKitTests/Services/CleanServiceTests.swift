@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistCache
+import TuistCAS
 import TuistConfig
 import TuistConfigLoader
 import TuistConstants
@@ -29,7 +30,7 @@ final class CleanServiceTests: TuistUnitTestCase {
     private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var cleanCacheService: MockCleanCacheServicing!
     private var cleanProjectCacheService: MockCleanProjectCacheServicing!
-    private var getCacheEndpointsService: MockGetCacheEndpointsServicing!
+    private var cacheURLStore: MockCacheURLStoring!
     private var serverAuthenticationController: MockServerAuthenticationControlling!
 
     override func setUpWithError() throws {
@@ -41,7 +42,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         serverEnvironmentService = .init()
         cleanCacheService = .init()
         cleanProjectCacheService = .init()
-        getCacheEndpointsService = .init()
+        cacheURLStore = .init()
         serverAuthenticationController = .init()
         given(configLoader)
             .loadConfig(path: .any)
@@ -57,7 +58,7 @@ final class CleanServiceTests: TuistUnitTestCase {
             serverEnvironmentService: serverEnvironmentService,
             cleanCacheService: cleanCacheService,
             cleanProjectCacheService: cleanProjectCacheService,
-            getCacheEndpointsService: getCacheEndpointsService,
+            cacheURLStore: cacheURLStore,
             serverAuthenticationController: serverAuthenticationController,
             fileSystem: FileSystem()
         )
@@ -71,7 +72,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         serverEnvironmentService = nil
         cleanCacheService = nil
         cleanProjectCacheService = nil
-        getCacheEndpointsService = nil
+        cacheURLStore = nil
         serverAuthenticationController = nil
         subject = nil
         super.tearDown()
@@ -86,7 +87,7 @@ final class CleanServiceTests: TuistUnitTestCase {
             serverEnvironmentService: serverEnvironmentService,
             cleanCacheService: cleanCacheService,
             cleanProjectCacheService: cleanProjectCacheService,
-            getCacheEndpointsService: getCacheEndpointsService,
+            cacheURLStore: cacheURLStore,
             serverAuthenticationController: serverAuthenticationController,
             fileSystem: FileSystem()
         )
@@ -359,7 +360,7 @@ struct CleanServiceRemoteTests {
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let cleanCacheService = MockCleanCacheServicing()
     private let cleanProjectCacheService = MockCleanProjectCacheServicing()
-    private let getCacheEndpointsService = MockGetCacheEndpointsServicing()
+    private let cacheURLStore = MockCacheURLStoring()
     private let serverAuthenticationController = MockServerAuthenticationControlling()
 
     private func makeSubject() -> CleanService {
@@ -371,7 +372,7 @@ struct CleanServiceRemoteTests {
             serverEnvironmentService: serverEnvironmentService,
             cleanCacheService: cleanCacheService,
             cleanProjectCacheService: cleanProjectCacheService,
-            getCacheEndpointsService: getCacheEndpointsService,
+            cacheURLStore: cacheURLStore,
             serverAuthenticationController: serverAuthenticationController,
             fileSystem: FileSystem()
         )
@@ -398,12 +399,12 @@ struct CleanServiceRemoteTests {
             .url(configServerURL: .any)
             .willReturn(serverURL)
 
-        given(getCacheEndpointsService)
-            .getCacheEndpoints(
-                serverURL: .value(serverURL),
+        given(cacheURLStore)
+            .getCacheURL(
+                for: .value(serverURL),
                 accountHandle: .value("tuist")
             )
-            .willReturn(CacheEndpointsResolution(endpoints: [cacheEndpoint], maxAge: nil))
+            .willReturn(URL(string: cacheEndpoint)!)
 
         given(cleanProjectCacheService)
             .cleanProjectCache(

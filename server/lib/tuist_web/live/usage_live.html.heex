@@ -34,11 +34,33 @@
     icon="server"
     data-part="runner-usage-card"
   >
+    <:actions :if={TuistWeb.UsageLive.runner_usage?(@runner_breakdown)}>
+      <.dropdown
+        id="runner-group-by-dropdown"
+        label={
+          Enum.find_value(
+            TuistWeb.UsageLive.runner_group_by_options(),
+            &(&1.value == @runner_group_by && &1.label)
+          )
+        }
+        secondary_text={dgettext("dashboard_usage", "Group by:")}
+      >
+        <.dropdown_item
+          :for={option <- TuistWeb.UsageLive.runner_group_by_options()}
+          value={option.value}
+          label={option.label}
+          patch={TuistWeb.UsageLive.runner_group_by_patch(@uri, option.value)}
+          data-selected={option.value == @runner_group_by}
+        >
+          <:right_icon :if={option.value == @runner_group_by}><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+    </:actions>
     <.card_section data-part="usage-summary-section">
       <span data-part="info-label">
         {dgettext(
           "dashboard_usage",
-          "Billing period %{from} to %{to}. Minutes are measured on the macOS 6 vCPU / 14 GB baseline; a larger machine uses more than one minute per minute it runs.",
+          "Billing period %{from} to %{to}. Minutes are measured on each platform's baseline machine, macOS 6 vCPU / 14 GB and Linux 2 vCPU / 8 GB; a larger machine uses more than one minute per minute it runs.",
           from: Timex.format!(@runner_breakdown.period_start, "{Mshort} {D}"),
           to: Timex.format!(@runner_breakdown.period_end, "{Mshort} {D}, {YYYY}")
         )}
@@ -48,8 +70,11 @@
           id="widget-runner-minutes"
           title={dgettext("dashboard_usage", "Runner minutes")}
           description={
-            dgettext("dashboard_usage", "%{count} free each month",
-              count: CldrHelpers.format_number(@runner_breakdown.free_minutes)
+            dgettext(
+              "dashboard_usage",
+              "%{macos} free macOS and %{linux} free Linux minutes each month",
+              macos: CldrHelpers.format_number(@runner_breakdown.free_minutes.macos),
+              linux: CldrHelpers.format_number(@runner_breakdown.free_minutes.linux)
             )
           }
           value={CldrHelpers.format_number(@runner_breakdown.minutes)}
@@ -87,7 +112,8 @@
           series={
             TuistWeb.UsageLive.runner_chart_series(
               @runner_breakdown.by_repository,
-              @runner_breakdown.projected_days
+              @runner_breakdown.projected_days,
+              @runner_group_by
             )
           }
           y_axis_min={0}
@@ -165,7 +191,6 @@
   </.card>
 
   <.card
-    :if={@usage_based_pricing}
     title={dgettext("dashboard_usage", "Cache usage")}
     icon="database"
     data-part="cache-usage-card"
@@ -356,7 +381,6 @@
   </.card>
 
   <.card
-    :if={@usage_based_pricing}
     title={dgettext("dashboard_usage", "Test insights usage")}
     icon="checkup_list"
     data-part="test-insights-usage-card"
@@ -486,169 +510,110 @@
       />
     </.async_result>
   </.card>
-
-  <.async_card
-    :let={ready?}
-    :if={not @usage_based_pricing}
-    results={[@totals]}
-    title={dgettext("dashboard_usage", "Cache traffic")}
-    icon="chart_column"
-    data-part="kura-traffic"
+  <.card
+    :if={@sandboxes_enabled}
+    title={dgettext("dashboard_usage", "Sandbox usage")}
+    icon="box_model_2"
+    data-part="sandbox-usage-card"
   >
-    <div data-part="widgets">
-      <.widget
-        id="widget-egress"
-        title={dgettext("dashboard_usage", "Egress")}
-        legend_color="primary"
-        description={
-          dgettext(
-            "dashboard_usage",
-            "Bytes sent from the cache to clients (cache downloads) in the selected window."
-          )
-        }
-        value={if ready?, do: TuistWeb.UsageLive.format_bytes(@totals.result.egress.bytes)}
-        loading={!ready?}
-        selected={@analytics_selected_widget == "egress"}
-        phx_click="select_widget"
-        phx_value_widget="egress"
-        trend_value={if ready?, do: @totals.result.egress.bytes_trend}
-        trend_type={:neutral}
-        trend_label={@analytics_trend_label}
-        empty={ready? && @totals.result.egress.bytes == 0}
-      />
-      <.widget
-        id="widget-ingress"
-        title={dgettext("dashboard_usage", "Ingress")}
-        legend_color="secondary"
-        description={
-          dgettext(
-            "dashboard_usage",
-            "Bytes received by the cache from clients (cache uploads) in the selected window."
-          )
-        }
-        value={if ready?, do: TuistWeb.UsageLive.format_bytes(@totals.result.ingress.bytes)}
-        loading={!ready?}
-        selected={@analytics_selected_widget == "ingress"}
-        phx_click="select_widget"
-        phx_value_widget="ingress"
-        trend_value={if ready?, do: @totals.result.ingress.bytes_trend}
-        trend_type={:neutral}
-        trend_label={@analytics_trend_label}
-        empty={ready? && @totals.result.ingress.bytes == 0}
-      />
-      <.widget
-        id="widget-requests"
-        title={dgettext("dashboard_usage", "Requests")}
-        legend_color="tertiary"
-        description={
-          dgettext(
-            "dashboard_usage",
-            "Number of cache requests served in the selected window."
-          )
-        }
-        value={if ready?, do: TuistWeb.UsageLive.format_count(@totals.result.request_count)}
-        loading={!ready?}
-        selected={@analytics_selected_widget == "requests"}
-        phx_click="select_widget"
-        phx_value_widget="requests"
-        trend_value={if ready?, do: @totals.result.request_count_trend}
-        trend_type={:neutral}
-        trend_label={@analytics_trend_label}
-        empty={ready? && @totals.result.request_count == 0}
-      />
-    </div>
-    <.card_section data-part="kura-traffic-card-chart-section" data-chart-frame="standard">
-      <% current_series = TuistWeb.UsageLive.series_for(assigns, @analytics_selected_widget) %>
-      <%= cond do %>
-        <% !current_series.ok? -> %>
+    <.async_result :let={usage} assign={@sandbox_usage}>
+      <:loading>
+        <.card_section data-part="usage-summary-section" data-chart-frame="standard">
           <.skeleton_chart />
-        <% Enum.empty?(current_series.result) or Enum.all?(current_series.result, &(&1.total == 0)) -> %>
-          <.empty_card_section
-            title={TuistWeb.UsageLive.empty_label()}
-            get_started_href="https://tuist.dev/en/docs"
-          >
-            <:image>
-              <img
-                src={~p"/images/empty_table_light.png"}
-                data-theme="light"
-                loading="lazy"
-                decoding="async"
-              />
-              <img
-                src={~p"/images/empty_table_dark.png"}
-                data-theme="dark"
-                loading="lazy"
-                decoding="async"
-              />
-            </:image>
-          </.empty_card_section>
-        <% true -> %>
-          <.chart
-            id="usage-traffic-chart"
-            type="line"
-            extra_options={
-              TuistWeb.UsageLive.traffic_chart_options(
-                current_series.result |> List.first() |> Map.get(:dates),
-                @analytics_selected_widget
+        </.card_section>
+      </:loading>
+      <.card_section data-part="usage-summary-section">
+        <span data-part="info-label">
+          {dgettext(
+            "dashboard_usage",
+            "Billing period %{from} to %{to}. A running sandbox uses its vCPUs for every hour it runs, memory and disk included; paused and archived sandboxes use none.",
+            from: Timex.format!(usage.period_start, "{Mshort} {D}"),
+            to: Timex.format!(usage.period_end, "{Mshort} {D}, {YYYY}")
+          )}
+        </span>
+        <div data-part="widgets">
+          <.widget
+            id="widget-sandbox-vcpu-hours"
+            title={dgettext("dashboard_usage", "vCPU-hours")}
+            description={
+              dgettext("dashboard_usage", "vCPUs times the hours sandboxes ran this period.")
+            }
+            value={TuistWeb.UsageLive.vcpu_hours(usage.vcpu_hours)}
+          />
+          <.widget
+            id="widget-sandbox-gross"
+            title={dgettext("dashboard_usage", "Usage value")}
+            description={
+              dgettext("dashboard_usage", "At %{rate}",
+                rate: TuistWeb.UsageLive.vcpu_hour_rate_label()
               )
             }
-            series={TuistWeb.UsageLive.traffic_chart_series(current_series.result)}
+            value={format_money(usage.gross)}
+          />
+          <.widget
+            id="widget-sandbox-billed"
+            title={dgettext("dashboard_usage", "Billed")}
+            description={
+              dgettext(
+                "dashboard_usage",
+                "Sandboxes are not billed while they are in early access"
+              )
+            }
+            value={format_money(usage.billed)}
+          />
+        </div>
+      </.card_section>
+      <.card_section
+        :if={usage.vcpu_hours > 0}
+        data-part="usage-detail-section"
+        data-chart-frame="standard"
+      >
+        <div data-part="chart">
+          <.chart
+            id="sandbox-spend-chart"
+            type="bar"
+            extra_options={
+              TuistWeb.UsageLive.runner_chart_options(TuistWeb.UsageLive.usage_chart_dates(usage))
+            }
+            series={TuistWeb.UsageLive.sandbox_chart_series(usage)}
             y_axis_min={0}
           />
-      <% end %>
-    </.card_section>
-  </.async_card>
-
-  <.card
-    :if={not @usage_based_pricing}
-    title={dgettext("dashboard_usage", "Traffic by region")}
-    icon="server"
-    data-part="kura-traffic-by-region-card"
-  >
-    <.card_section data-part="kura-traffic-by-region-card-section">
-      <%= cond do %>
-        <% !@per_region.ok? -> %>
-          <.skeleton_chart />
-        <% Enum.empty?(@per_region.result) -> %>
-          <.empty_card_section
-            title={TuistWeb.UsageLive.empty_label()}
-            get_started_href="https://tuist.dev/en/docs"
-          >
-            <:image>
-              <img
-                src={~p"/images/empty_table_light.png"}
-                data-theme="light"
-                loading="lazy"
-                decoding="async"
-              />
-              <img
-                src={~p"/images/empty_table_dark.png"}
-                data-theme="dark"
-                loading="lazy"
-                decoding="async"
-              />
-            </:image>
-          </.empty_card_section>
-        <% true -> %>
-          <.table
-            id="usage-per-region-table"
-            rows={@per_region.result}
-            row_key={fn row -> "usage-region-#{row.region}" end}
-          >
-            <:col :let={row} label={dgettext("dashboard_usage", "Region")}>
-              <.text_cell icon="server" label={TuistWeb.UsageLive.region_label(row.region)} />
-            </:col>
-            <:col :let={row} label={dgettext("dashboard_usage", "Egress")}>
-              <.text_cell label={TuistWeb.UsageLive.format_bytes(row.egress_bytes)} />
-            </:col>
-            <:col :let={row} label={dgettext("dashboard_usage", "Ingress")}>
-              <.text_cell label={TuistWeb.UsageLive.format_bytes(row.ingress_bytes)} />
-            </:col>
-            <:col :let={row} label={dgettext("dashboard_usage", "Requests")}>
-              <.text_cell label={TuistWeb.UsageLive.format_count(row.request_count)} />
-            </:col>
-          </.table>
-      <% end %>
-    </.card_section>
+        </div>
+        <div data-part="receipts">
+          <div data-part="receipt" data-kind="sandboxes">
+            <div data-part="heading">
+              <span data-part="platform">{dgettext("dashboard_usage", "Sandboxes")}</span>
+              <span data-part="shape">{TuistWeb.UsageLive.vcpu_hour_rate_label()}</span>
+            </div>
+            <dl data-part="lines">
+              <div data-part="line">
+                <dt>
+                  {dgettext("dashboard_usage", "%{count} vCPU-hours run",
+                    count: TuistWeb.UsageLive.vcpu_hours(usage.vcpu_hours)
+                  )}
+                </dt>
+                <dd>{TuistWeb.UsageLive.money_label(usage.gross)}</dd>
+              </div>
+              <div data-part="line" data-kind="credit">
+                <dt>{dgettext("dashboard_usage", "Covered during early access")}</dt>
+                <dd>{TuistWeb.UsageLive.credit_label(usage.early_access_credit)}</dd>
+              </div>
+              <div data-part="line" data-kind="total">
+                <dt>{dgettext("dashboard_usage", "Billed this period")}</dt>
+                <dd>{TuistWeb.UsageLive.money_label(usage.billed)}</dd>
+              </div>
+            </dl>
+            <% sandbox_pace = TuistWeb.UsageLive.sandbox_pace_label(usage) %>
+            <p :if={sandbox_pace} data-part="footnote">{sandbox_pace}</p>
+          </div>
+        </div>
+      </.card_section>
+      <.usage_empty_state
+        :if={usage.vcpu_hours == 0}
+        data-part="sandbox-usage-empty"
+        title={dgettext("dashboard_usage", "No sandboxes ran in this period")}
+        get_started_href={~p"/#{@selected_account.name}/sandboxes"}
+      />
+    </.async_result>
   </.card>
 </div>

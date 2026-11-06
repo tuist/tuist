@@ -241,6 +241,49 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                Projects.get_project_by_slug("#{user.account.name}/my-once-project")
     end
 
+    test "creates a Mix project", %{conn: conn, user: user} do
+      conn = Authentication.put_current_user(conn, user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects",
+          full_handle: "#{user.account.name}/my-mix-project",
+          build_system: "mix"
+        )
+
+      response = json_response(conn, :ok)
+      refute Map.has_key?(response, "build_system")
+
+      assert {:ok, %{build_system: :mix}} =
+               Projects.get_project_by_slug("#{user.account.name}/my-mix-project")
+    end
+
+    test "creates a Cargo project without exposing an unsupported enum to shipped clients", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects",
+          full_handle: "#{user.account.name}/my-cargo-project",
+          build_system: "cargo"
+        )
+
+      response = json_response(conn, :ok)
+
+      assert response == %{
+               "id" => response["id"],
+               "full_name" => "#{user.account.name}/my-cargo-project",
+               "default_branch" => "main",
+               "repository_url" => nil,
+               "visibility" => "private",
+               "token" => ""
+             }
+
+      assert {:ok, %{build_system: :cargo}} =
+               Projects.get_project_by_slug("#{user.account.name}/my-cargo-project")
+    end
+
     test "returns an error if the provided account doesn't exist", %{
       conn: conn,
       user: user
@@ -397,13 +440,17 @@ defmodule TuistWeb.API.ProjectsControllerTest do
     test "omits build systems that shipped clients can't decode", %{conn: conn, user: user} do
       conn = Authentication.put_current_user(conn, user)
       ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :once)
+      ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :cargo)
 
       conn = get(conn, "/api/projects")
 
       response = json_response(conn, :ok)
-      assert [project] = response["projects"]
-      refute Map.has_key?(project, "build_system")
-      assert_schema(project, "Project", Spec.spec())
+      assert length(response["projects"]) == 2
+
+      for project <- response["projects"] do
+        refute Map.has_key?(project, "build_system")
+        assert_schema(project, "Project", Spec.spec())
+      end
     end
 
     test "lists all user projects", %{conn: conn, user: user} do
@@ -614,15 +661,19 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert response["token"] == ""
     end
 
-    test "omits build systems that shipped clients can't decode", %{conn: conn, user: user} do
-      conn = Authentication.put_current_user(conn, user)
-      project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :once)
+    for build_system <- [:once, :cargo] do
+      @build_system build_system
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}")
+      test "omits #{@build_system} from the enum that shipped clients can't decode", %{conn: conn, user: user} do
+        conn = Authentication.put_current_user(conn, user)
+        project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: @build_system)
 
-      response = json_response(conn, :ok)
-      refute Map.has_key?(response, "build_system")
-      assert response["full_name"] == "#{user.account.name}/#{project.name}"
+        conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}")
+
+        response = json_response(conn, :ok)
+        refute Map.has_key?(response, "build_system")
+        assert response["full_name"] == "#{user.account.name}/#{project.name}"
+      end
     end
 
     test "Returns an organization's project by its handle", %{
@@ -734,6 +785,29 @@ defmodule TuistWeb.API.ProjectsControllerTest do
   end
 
   describe "PUT /api/projects/:account_handle/:project_handle" do
+    test "updates a Cargo project without exposing an unsupported enum to shipped clients", %{conn: conn, user: user} do
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id, build_system: :cargo)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/projects/#{user.account.name}/#{project.name}", default_branch: "develop")
+
+      response = json_response(conn, :ok)
+
+      assert response == %{
+               "id" => project.id,
+               "full_name" => "#{user.account.name}/#{project.name}",
+               "default_branch" => "develop",
+               "repository_url" => nil,
+               "visibility" => "private",
+               "token" => ""
+             }
+
+      assert {:ok, %{build_system: :cargo}} = Projects.get_project_by_slug("#{user.account.name}/#{project.name}")
+    end
+
     test "updates a project with a default branch", %{conn: conn, user: user} do
       # Given
 
@@ -906,6 +980,131 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "message" => "You don't have permission to delete the #{account.name}/#{project.name} project."
              }
     end
+  end
+
+  describe "with an account token" do
+    setup %{user: user} do
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      other_project = ProjectsFixtures.project_fixture(preload: [:account])
+
+      %{account: organization.account, project: project, other_project: other_project}
+    end
+
+    test "reads a project of the token's account with project:admin:read", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      conn =
+        conn |> bearer(account, ["project:admin:read"]) |> get("/api/projects/#{account.name}/#{project.name}")
+
+      assert json_response(conn, :ok)["full_name"] == "#{account.name}/#{project.name}"
+    end
+
+    test "cannot read a project of another account", %{conn: conn, account: account, other_project: other_project} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:read"])
+        |> get("/api/projects/#{other_project.account.name}/#{other_project.name}")
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "cannot read a project outside the token's project list", %{conn: conn, account: account, project: project} do
+      restricted_to = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn =
+        conn
+        |> bearer(account, ["project:admin:read"], all_projects: false, project_ids: [restricted_to.id])
+        |> get("/api/projects/#{account.name}/#{project.name}")
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "creates a project in the token's account with project:admin:write", %{conn: conn, account: account} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:write"])
+        |> post("/api/projects", %{full_handle: "#{account.name}/created-by-token"})
+
+      assert json_response(conn, :ok)["full_name"] == "#{account.name}/created-by-token"
+    end
+
+    test "creates a project in the token's account when no account is given", %{conn: conn, account: account} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:write"])
+        |> post("/api/projects", %{name: "created-by-token"})
+
+      assert json_response(conn, :ok)["full_name"] == "#{account.name}/created-by-token"
+    end
+
+    test "cannot create a project in another account", %{conn: conn, account: account, other_project: other_project} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:write"])
+        |> post("/api/projects", %{full_handle: "#{other_project.account.name}/created-by-token"})
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "cannot create a project when restricted to some projects", %{conn: conn, account: account, project: project} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:write"], all_projects: false, project_ids: [project.id])
+        |> post("/api/projects", %{full_handle: "#{account.name}/created-by-token"})
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "updates a project with project:admin:write", %{conn: conn, account: account, project: project} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:write"])
+        |> put("/api/projects/#{account.name}/#{project.name}", %{default_branch: "trunk"})
+
+      assert json_response(conn, :ok)["default_branch"] == "trunk"
+    end
+
+    test "cannot update a project with project:admin:read", %{conn: conn, account: account, project: project} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:read"])
+        |> put("/api/projects/#{account.name}/#{project.name}", %{default_branch: "trunk"})
+
+      assert json_response(conn, :forbidden)
+      assert Projects.get_project_by_id(project.id).default_branch == project.default_branch
+    end
+
+    test "deletes a project with project:admin:write", %{conn: conn, account: account, project: project} do
+      conn = conn |> bearer(account, ["project:admin:write"]) |> delete("/api/projects/#{project.id}")
+
+      assert response(conn, :no_content) == ""
+      refute Projects.get_project_by_id(project.id)
+    end
+
+    test "cannot delete a project of another account", %{conn: conn, account: account, other_project: other_project} do
+      conn = conn |> bearer(account, ["project:admin:write"]) |> delete("/api/projects/#{other_project.id}")
+
+      assert json_response(conn, :forbidden)
+      assert Projects.get_project_by_id(other_project.id)
+    end
+  end
+
+  defp bearer(conn, account, scopes, opts \\ []) do
+    {:ok, {_account_token, token}} =
+      Accounts.create_account_token(%{
+        account: account,
+        scopes: scopes,
+        name: "token-#{TuistTestSupport.Utilities.unique_integer()}",
+        all_projects: Keyword.get(opts, :all_projects, true),
+        project_ids: Keyword.get(opts, :project_ids, [])
+      })
+
+    conn
+    |> put_req_header("authorization", "Bearer #{token}")
+    |> put_req_header("content-type", "application/json")
   end
 
   defp unique_sso_domain do

@@ -333,6 +333,48 @@ impl AppState {
         }
     }
 
+    /// Preserve canonical identities/watermarks while routing every listing,
+    /// forward read, batch and individual body through the selected endpoint.
+    pub fn peer_request(
+        &self,
+        method: reqwest::Method,
+        peer: &str,
+        url: &str,
+    ) -> Result<reqwest::RequestBuilder, String> {
+        let views = self.peer_views.load();
+        let view = views.iter().find(|view| view.url == peer);
+        if self.config.peer_topology.is_some() && view.is_none() {
+            return Err("peer topology is no longer in the membership view".into());
+        }
+        let topology = view.and_then(|view| view.topology.as_ref());
+        let endpoint =
+            crate::peer_topology::endpoint(self.config.peer_topology.as_ref(), topology, peer)?;
+        let suffix = url
+            .strip_prefix(peer)
+            .filter(|suffix| suffix.starts_with('/'))
+            .ok_or_else(|| "peer request must be relative to its canonical endpoint".to_owned())?;
+        Ok(self.client().request(
+            method,
+            format!("{}{suffix}", endpoint.trim_end_matches('/')),
+        ))
+    }
+
+    pub fn prefers_peer(&self, peer: &str) -> bool {
+        let Some(own) = self.config.peer_topology.as_ref() else {
+            return false;
+        };
+        self.peer_views.load().iter().any(|view| {
+            view.url == peer
+                && view.private_healthy
+                && view.serving
+                && !view.draining
+                && view.topology.as_ref().is_some_and(|remote| {
+                    own.same_private_network(remote)
+                        && crate::peer_topology::endpoint(Some(own), Some(remote), peer).is_ok()
+                })
+        })
+    }
+
     /// The current outbound peer HTTP client (picks up rotated certs).
     pub fn client(&self) -> arc_swap::Guard<Arc<Client>> {
         self.client.load()
@@ -715,8 +757,13 @@ impl AppState {
                 self.config.backfill_ready_ring_percent
             ));
         }
+        let awaiting_exit_resume = self.runtime.authority.awaiting_exit_resume();
+        if awaiting_exit_resume {
+            reasons.push("unclean primary volume awaiting its exit resume".to_string());
+        }
 
-        let ready = writer_lock_owned && !draining && self.runtime.is_serving();
+        let ready =
+            writer_lock_owned && !draining && self.runtime.is_serving() && !awaiting_exit_resume;
         ReadinessReport {
             generation: snapshot.generation,
             ready,
@@ -737,7 +784,10 @@ impl AppState {
         let snapshot = self.readiness_snapshot().await;
         let draining = self.runtime.is_draining();
         let writer_lock_owned = self.runtime.writer_lock_owned();
-        let ready = writer_lock_owned && !draining && self.runtime.is_serving();
+        let ready = writer_lock_owned
+            && !draining
+            && self.runtime.is_serving()
+            && !self.runtime.authority.awaiting_exit_resume();
         let metrics = self.metrics.rollout_metrics_snapshot();
 
         let mut ring: Vec<String> = snapshot.known_peers.clone();
@@ -791,6 +841,7 @@ impl AppState {
             report.writer_lock_owned,
         );
         self.metrics.update_membership_generation(report.generation);
+        self.runtime.migration.export_metrics(&self.metrics);
         self.metrics
             .set_backfill_ring_fullness_percent(self.ring_fullness_percent());
         self.metrics.update_replication_bandwidth_limits(

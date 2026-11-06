@@ -56,7 +56,9 @@ packer {
 #   /Users/runner/work/<owner>/<repo>           <- workspace, set via JIT work_folder
 #   /Users/runner/Library/LaunchAgents/         <- dev.tuist.runner.plist
 #   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
+#   /opt/tuist/tcc-approvals.sh                 <- seeds/checks runner's standing TCC approvals
 #   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
+#   /opt/tuist/logd-watchdog.sh                 <- restarts a wedged logd (root LaunchDaemon)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
 #   /opt/tuist/runner-shell-agent               <- trusted interactive shell bridge
 #   /opt/tuist/tuist-cas-proxy                  <- compilation-cache (CAS) prune client,
@@ -147,6 +149,34 @@ variable "buildkite_agent_version" {
   default = "3.138.0"
 }
 
+variable "bitrise_den_agent_version" {
+  type        = string
+  description = "Bitrise den agent version. https://github.com/bitrise-io/bitrise-den-agent/releases."
+  # Pinned and started without `--fetch-latest-cli`, so the agent never
+  # updates itself or the CLI mid-VM.
+  # renovate: datasource=github-releases depName=bitrise-io/bitrise-den-agent
+  default = "2.69.0"
+}
+
+variable "bitrise_den_agent_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of the darwin-arm64 den agent zip, as pinned by bitrise-io/homebrew-den-agent."
+  default     = "b67c38531a3c6fed6571029fbe0958e828156979e8507ccec6c2404e03894186"
+}
+
+variable "bitrise_cli_version" {
+  type        = string
+  description = "Bitrise CLI version the den agent runs builds with. https://github.com/bitrise-io/bitrise/releases."
+  # renovate: datasource=github-releases depName=bitrise-io/bitrise
+  default = "3.2.1"
+}
+
+variable "bitrise_cli_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of the bitrise-Darwin-arm64 binary, from the release's checksums.txt."
+  default     = "33bf12c80ece4bda6168b90481eb3cd021e385851013ef7d922c00d638a44ed5"
+}
+
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
 # shape as the xcresult-processor image) so the build runs on
 # the existing M1-M `vm-image-builder` Mac mini — the host has
@@ -173,6 +203,15 @@ variable "memory_gb" {
   default = 8
 }
 
+# Builds the runner layer as an ASIF overlay on a read-only `base_image`
+# (macOS 27 hosts only). The build runs `tart` through `stacked-tart/`, which
+# turns the plugin's `tart clone` into `tart clone --stacked`. A stacked VM has
+# no `disk.img` for the plugin to edit, so the recovery partition is kept.
+variable "stacked" {
+  type    = bool
+  default = false
+}
+
 source "tart-cli" "runner" {
   vm_base_name = var.base_image
   vm_name      = var.output_image
@@ -188,12 +227,83 @@ source "tart-cli" "runner" {
   # tight values held for years on the original Mac mini but timed out
   # on newly-onboarded hosts. 15m gives headroom for the cold path on a
   # cirruslabs Tahoe base; the warm path returns long before then.
-  ssh_timeout = "15m"
-  headless    = true
+  ssh_timeout        = "15m"
+  headless           = true
+  recovery_partition = var.stacked ? "keep" : "delete"
+  # The job VM's disk, grown from the base's 140 GB. A clone stores only
+  # what its job writes, so the size costs host disk only when a job fills
+  # it; the rack's disk plan (`rackFleet.machine` in
+  # values-managed-production.yaml) counts two guests at this size.
+  disk_size_gb = 200
 }
 
 build {
   sources = ["source.tart-cli.runner"]
+
+  # Claim the space `disk_size_gb` added for the APFS container. The
+  # plugin only does this after deleting a recovery partition, and the
+  # base has none left to delete, so it never does here. The live resize
+  # intermittently fails with -69606 while growing the APFS structures and
+  # undoes its changes, so it is retried.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "store=$(diskutil info / | awk -F': *' '/APFS Physical Store/ { print $2 }')",
+      "printf 'y\\n' | sudo diskutil repairDisk \"$${store%s*}\"",
+      "for attempt in 1 2 3 4 5; do sudo diskutil apfs resizeContainer \"$store\" 0 && break; [ \"$attempt\" -lt 5 ] || exit 1; echo \"resizeContainer attempt $attempt failed, retrying in 15 s\" >&2; sleep 15; done"
+    ]
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/pem-store.sh"
+    destination = "/tmp/tuist-pem-store.sh"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/policy.json"
+    destination = "/tmp/policy.json"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/controls/aaa-cross-signed-intermediate.pem"
+    destination = "/tmp/tuist-negative-intermediate.pem"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/controls/issuer-roots.pem"
+    destination = "/tmp/tuist-issuer-roots.pem"
+  }
+  provisioner "file" {
+    source      = "${path.root}/../certificate-trust/controls/positive-isrg-root-x1.pem"
+    destination = "/tmp/tuist-positive-root.pem"
+  }
+
+  # Keychain clients and curl use independent stores. Do not rely on Apple's
+  # asynchronous revocation updates or silently matching certificate filenames.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain > /tmp/tuist-system-roots.pem",
+      "bash /tmp/tuist-pem-store.sh extract-blocked /tmp/tuist-system-roots.pem /tmp/tuist-blocked-cas",
+      "openssl verify -CAfile /tmp/tuist-issuer-roots.pem /tmp/tuist-negative-intermediate.pem",
+      "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native negative-chain baseline: trusted before containment'; else echo 'Native negative-chain baseline: already rejected; no differential containment claim'; fi",
+      "echo 'admin' | sudo -S true",
+      # SIP protects this authorization rule on current macOS. Authenticate
+      # the disposable guest's admin instead of rewriting the rule to allow.
+      "echo 'admin' | security authorize -C admin com.apple.trust-settings.admin",
+      "for cert in /tmp/tuist-blocked-cas/*.pem; do [ -e \"$cert\" ] || continue; sudo security add-trusted-cert -d -r deny -k /Library/Keychains/System.keychain \"$cert\"; if security verify-cert -c \"$cert\" -p basic >/dev/null 2>&1; then echo 'Native verifier accepted a denied root' >&2; exit 1; fi; done",
+      "if security verify-cert -c /tmp/tuist-negative-intermediate.pem -p basic -R offline >/dev/null 2>&1; then echo 'Native verifier accepted a compromised intermediate chain' >&2; exit 1; fi",
+      "security verify-cert -c /tmp/tuist-positive-root.pem -p basic -R offline",
+      "bash /tmp/tuist-pem-store.sh filter /etc/ssl/cert.pem /tmp/tuist-cacerts.pem",
+      "bash /tmp/tuist-pem-store.sh check /tmp/tuist-cacerts.pem",
+      "echo 'admin' | sudo -S install -m 0644 /tmp/tuist-cacerts.pem /etc/ssl/cert.pem",
+      "rm /tmp/tuist-cacerts.pem",
+      "/opt/homebrew/bin/brew update",
+      "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 /opt/homebrew/bin/brew upgrade ca-certificates",
+      "bash /tmp/tuist-pem-store.sh filter /opt/homebrew/etc/ca-certificates/cert.pem /tmp/tuist-homebrew-roots.pem",
+      "sudo install -m 0644 /tmp/tuist-homebrew-roots.pem /opt/homebrew/etc/ca-certificates/cert.pem",
+      "bash /tmp/tuist-pem-store.sh check /etc/ssl/cert.pem /opt/homebrew/etc/ca-certificates/cert.pem",
+      "rm -f /tmp/tuist-negative-intermediate.pem /tmp/tuist-issuer-roots.pem /tmp/tuist-positive-root.pem /tmp/tuist-system-roots.pem /tmp/tuist-homebrew-roots.pem",
+      "rm -rf /tmp/tuist-blocked-cas"
+    ]
+  }
 
   # Create the `runner` user. macos-tahoe-base (inherited via
   # the macos-tahoe-xcode base) ships with `admin` as its working
@@ -400,6 +510,36 @@ build {
     ]
   }
 
+  # The Bitrise den agent and CLI, for the same reason the Buildkite agent
+  # is here. `/opt/bitrise` is the layout the agent's own daemon installer
+  # creates, owned by the user the agent runs as.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cd /tmp",
+      "curl -sSL -o bitrise-den-agent.zip https://github.com/bitrise-io/bitrise-den-agent/releases/download/v${var.bitrise_den_agent_version}/bitrise-den-agent-darwin-arm64.zip",
+      "echo '${var.bitrise_den_agent_sha256_darwin_arm64}  bitrise-den-agent.zip' | shasum -a 256 -c -",
+      "mkdir -p /tmp/bitrise-den-agent-dist",
+      "unzip -q bitrise-den-agent.zip -d /tmp/bitrise-den-agent-dist",
+      "echo 'admin' | sudo -S install -m 0755 -o root -g wheel /tmp/bitrise-den-agent-dist/bitrise-den-agent /opt/tuist/bitrise-den-agent",
+      "curl -sSL -o bitrise https://github.com/bitrise-io/bitrise/releases/download/v${var.bitrise_cli_version}/bitrise-Darwin-arm64",
+      "echo '${var.bitrise_cli_sha256_darwin_arm64}  bitrise' | shasum -a 256 -c -",
+      "echo 'admin' | sudo -S mkdir -p /usr/local/bin",
+      "echo 'admin' | sudo -S install -m 0755 -o root -g wheel bitrise /usr/local/bin/bitrise",
+      "echo 'admin' | sudo -S mkdir -p /opt/bitrise/var/log /opt/bitrise/releases /opt/bitrise/bin",
+      "echo 'admin' | sudo -S touch /opt/bitrise/.env_all.yaml",
+      "echo 'admin' | sudo -S chown -R runner:staff /opt/bitrise",
+      "rm -rf bitrise-den-agent.zip /tmp/bitrise-den-agent-dist bitrise",
+      "/opt/tuist/bitrise-den-agent --version",
+      "/usr/local/bin/bitrise --version"
+    ]
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/build/tuist-cache-volume"
+    destination = "/tmp/tuist-cache-volume"
+  }
+
   provisioner "file" {
     source      = "${path.root}/inject-env.sh"
     destination = "/tmp/inject-env.sh"
@@ -416,13 +556,38 @@ build {
   }
 
   provisioner "file" {
+    source      = "${path.root}/logd-watchdog.sh"
+    destination = "/tmp/logd-watchdog.sh"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/logd-watchdog.plist"
+    destination = "/tmp/dev.tuist.logd-watchdog.plist"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/tuist-runner-cache"
+    destination = "/tmp/tuist-runner-cache"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/buildkite-hooks"
     destination = "/tmp/buildkite-hooks"
   }
 
   provisioner "file" {
+    source      = "${path.root}/bitrise-hooks"
+    destination = "/tmp/bitrise-hooks"
+  }
+
+  provisioner "file" {
     source      = "${path.root}/build/tuist-gitlab-runner"
     destination = "/tmp/tuist-gitlab-runner"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/build/tuist-job-runner"
+    destination = "/tmp/tuist-job-runner"
   }
 
   provisioner "file" {
@@ -453,11 +618,16 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/logd-watchdog.sh /opt/tuist/logd-watchdog.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cache-volume /usr/local/bin/tuist-cache-volume",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-runner-cache /usr/local/bin/tuist-runner-cache",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-gitlab-runner /opt/tuist/tuist-gitlab-runner",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-job-runner /opt/tuist/tuist-job-runner",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cas-proxy /opt/tuist/tuist-cas-proxy",
       "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.runner-shell-agent.plist /Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist",
+      "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.logd-watchdog.plist /Library/LaunchDaemons/dev.tuist.logd-watchdog.plist",
       # Global agent hooks: `buildkite-agent --hooks-path` points here, so
       # these run for every job the agent takes regardless of what the
       # customer's own repository defines.
@@ -465,7 +635,11 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/environment /opt/tuist/buildkite-hooks/environment",
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/post-command /opt/tuist/buildkite-hooks/post-command",
       "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/pre-exit /opt/tuist/buildkite-hooks/pre-exit",
-      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/buildkite-hooks"
+      # The Bitrise CLI's agent-mode build start hook, named in the
+      # agent-config.yml dispatch-poll writes.
+      "echo 'admin' | sudo -S mkdir -p /opt/tuist/bitrise-hooks",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/bitrise-hooks/build-start /opt/tuist/bitrise-hooks/build-start",
+      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/logd-watchdog.sh /tmp/tuist-runner-cache /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/dev.tuist.logd-watchdog.plist /tmp/buildkite-hooks /tmp/bitrise-hooks"
     ]
   }
 
@@ -519,6 +693,57 @@ build {
       "sudo -u runner defaults -currentHost write com.apple.screensaver askForPasswordDelay -int 0",
       "sudo sysadminctl -screenLock off -password runner || true",
       "sudo /usr/bin/python3 - <<'CHECK'\nimport sys\nkey = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])\nwith open('/etc/kcpassword', 'rb') as f:\n    enc = f.read()\ndec = bytes(b ^ key[i % len(key)] for i, b in enumerate(enc))\nif dec.startswith(b'<sealed>'):\n    sys.stderr.write('kcpassword was replaced by macOS with <sealed>; runner auto-login would boot to the password screen\\n')\n    sys.exit(1)\nif dec != b'runner' + bytes(6):\n    sys.stderr.write('kcpassword does not decode to the runner auto-login payload\\n')\n    sys.exit(1)\nCHECK"
+    ]
+  }
+
+  # Standing TCC approvals (scripting Finder, the iOS Simulator's
+  # microphone) live in runner's own TCC.db, which tccd only creates
+  # when runner logs in. Nothing above logs runner in, so reboot into
+  # the auto-login session, write the rows into the database tccd
+  # made, and reboot once more to assert they survive a boot. Runs
+  # before the LaunchAgent is installed: dispatch-poll.sh halts a VM
+  # it cannot dispatch from. See AGENTS.md for why each row has the
+  # shape it has.
+  provisioner "file" {
+    source      = "${path.root}/tcc-approvals.sh"
+    destination = "/tmp/tcc-approvals.sh"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo install -m 0755 -o root -g wheel /tmp/tcc-approvals.sh /opt/tuist/tcc-approvals.sh",
+      "rm -f /tmp/tcc-approvals.sh"
+    ]
+  }
+
+  provisioner "shell" {
+    expect_disconnect = true
+    skip_clean        = true
+    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+  }
+
+  provisioner "shell" {
+    pause_before = "45s"
+    inline = [
+      "set -euo pipefail",
+      "sudo /opt/tuist/tcc-approvals.sh wait",
+      "sudo -u runner /opt/tuist/tcc-approvals.sh seed"
+    ]
+  }
+
+  provisioner "shell" {
+    expect_disconnect = true
+    skip_clean        = true
+    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+  }
+
+  provisioner "shell" {
+    pause_before = "45s"
+    inline = [
+      "set -euo pipefail",
+      "sudo /opt/tuist/tcc-approvals.sh wait",
+      "sudo -u runner /opt/tuist/tcc-approvals.sh check"
     ]
   }
 
@@ -595,6 +820,25 @@ build {
       "set -euo pipefail",
       "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew install hello' || { echo 'sanity check: unprivileged brew install failed for the runner user — Homebrew prefix ownership regression' >&2; exit 1; }",
       "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew uninstall hello'"
+    ]
+  }
+
+  # Disk budget. Every job VM is a fresh clone of this image, so the
+  # space free here is the space a job starts with. Tuist commits to at
+  # least 45 GiB of it, and the build fails below 100 GiB so every job
+  # keeps that much room to write before the disk fills (a single job has
+  # written 66 GiB). Avail, not Size - Used: the System, Preboot, VM and
+  # Recovery volumes share the APFS container with the Data volume the
+  # job writes to. Runs last, after everything above has written to the
+  # disk.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "df -h -t apfs",
+      "avail_kib=$(df -k /System/Volumes/Data | awk 'NR == 2 { print $4 }')",
+      "avail_gib=$((avail_kib / 1048576))",
+      "echo \"disk budget: $${avail_gib} GiB available to a job, floor 100 GiB\"",
+      "[ \"$${avail_gib}\" -ge 100 ] || { echo \"disk budget: only $${avail_gib} GiB available, below the 100 GiB floor; shrink the image or raise disk_size_gb\" >&2; exit 1; }"
     ]
   }
 }

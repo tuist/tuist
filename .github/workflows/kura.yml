@@ -6,11 +6,15 @@ on:
       - main
     paths:
       - kura/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - .github/workflows/kura.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - kura/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - .github/workflows/kura.yml
   merge_group: {}
 
@@ -295,6 +299,9 @@ jobs:
       DOCKER_BUILDKIT: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The Kura preview below reads the pull request's head commit from HEAD^2.
+          fetch-depth: 2
 
       - uses: tuist/cache-volume@v1
         with:
@@ -325,8 +332,16 @@ jobs:
           cp bazel-bin/kura bin/amd64/kura
           chmod +x bin/amd64/kura
 
+      # Publishes the binary above as a preview of the tuist/kura project (from
+      # tuist.toml), so people and agents can try the pull request with
+      # `tuist run <preview-url>`. A failed upload must not hold back the E2E shards.
+      - name: Share Kura preview
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: tuist share bin/amd64 --executable kura
+
       - name: Assemble the runtime image
-        run: docker build -f Dockerfile.release --build-arg TARGETARCH=amd64 -t kura:e2e .
+        run: docker build -f Dockerfile.release --build-context certificate-trust=../infra/certificate-trust --build-arg TARGETARCH=amd64 -t kura:e2e .
 
       - name: Archive the Docker image
         run: docker save kura:e2e | zstd -T0 -o kura-e2e-images.tar.zst
@@ -371,7 +386,7 @@ jobs:
           chmod +x bin/amd64/kura
 
       - name: Assemble the runtime image
-        run: docker build -f Dockerfile.release --build-arg TARGETARCH=amd64 -t kura:e2e .
+        run: docker build -f Dockerfile.release --build-context certificate-trust=../infra/certificate-trust --build-arg TARGETARCH=amd64 -t kura:e2e .
 
       - name: Archive the Docker image
         run: docker save kura:e2e | zstd -T0 -o kura-e2e-images.tar.zst
@@ -401,13 +416,13 @@ jobs:
           - shard_name: cluster
             specs: "spec/e2e/cluster_spec.sh"
           - shard_name: clients
-            specs: "spec/e2e/clients_spec.sh spec/e2e/upload_errors_spec.sh"
+            specs: "spec/e2e/clients_spec.sh spec/e2e/upload_errors_spec.sh spec/e2e/xcode_lookups_lifecycle_spec.sh spec/e2e/action_inputs_spec.sh"
           - shard_name: bytestream-admission
             specs: "spec/e2e/bytestream_admission_spec.sh"
           - shard_name: discovery-faults-handoff
             specs: "spec/e2e/discovery_spec.sh spec/e2e/faults_spec.sh spec/e2e/handoff_spec.sh"
           - shard_name: authorization-mtls
-            specs: "spec/e2e/authorization_spec.sh spec/e2e/mtls_spec.sh"
+            specs: "spec/e2e/authorization_spec.sh spec/e2e/mtls_spec.sh spec/e2e/network_cache_spec.sh"
           - shard_name: large-artifact
             specs: "spec/e2e/large_artifact_spec.sh"
           - shard_name: gateway-throughput
@@ -444,8 +459,15 @@ jobs:
 
       - uses: ./.github/actions/mise-install
         with:
-          install: "rust shellspec bazel aqua:facebook/buck2"
+          install: "rust shellspec bazel aqua:facebook/buck2 node"
           working-directory: kura
+
+      - name: Install Java for the Bazel upload recovery fixture
+        if: matrix.shard_name == 'clients'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
 
       - name: Show Docker tooling
         run: docker compose version
@@ -457,6 +479,11 @@ jobs:
 
       - name: Load the prebuilt Docker image
         run: zstd -dc prebuilt-images/kura-e2e-images.tar.zst | docker load
+
+      - name: Configure the network-trusted cache tests
+        if: matrix.shard_name == 'authorization-mtls'
+        run: |
+          echo "KURA_NETWORK_CACHE_TEST_IMAGE=$KURA_IMAGE" >> "$GITHUB_ENV"
 
       - name: Run end-to-end suite
         run: shellspec ${{ matrix.specs }}

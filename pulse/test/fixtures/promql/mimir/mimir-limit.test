@@ -1,0 +1,342 @@
+load 5m
+  http_requests{job="api-server", instance="0", group="production"}	0+10x10
+  http_requests{job="api-server", instance="1", group="production"}	0+20x10
+  http_requests{job="api-server", instance="0", group="canary"}		0+30x10
+  http_requests{job="api-server", instance="1", group="canary"}		0+40x10
+  http_requests{job="api-server", instance="2", group="canary"}		0+50x10
+  http_requests{job="api-server", instance="3", group="canary"}		0+60x10
+  http_requests{job="api-server", instance="histogram_1", group="canary"}       {{schema:0 sum:10 count:10}}x11
+  http_requests{job="api-server", instance="histogram_2", group="canary"}       {{schema:0 sum:20 count:20}}x11
+  mixed{instance="1"}       {{schema:0 sum:20 count:20}}x2 0+10x5 {{schema:0 sum:20 count:20}}x2 0+10x2
+  mixed{instance="2"}       0+10x5 {{schema:0 sum:20 count:20}}x2 0+10x2 {{schema:0 sum:20 count:20}}x2
+  missing{instance="1"}     0 10 20 30 40 _ _ _ _ _ 0 10 _
+  missing{instance="2"}     _ _ _ _ _ 0 10 20 30 40 _ 0 10 _
+  nans{instance="1"}        NaN -NaN 0 10 20 30 40 NaN -NaN
+  nans{instance="2"}        0 10 20 30 40 NaN -NaN NaN -NaN
+  empty{}                   _ _ _ _ _ _ _ _ _ _
+  foo 1+1x10
+  bar 0 1 0 -1 0 1 0 -1 0 1 0
+
+eval instant at 50m count(limitk by (group) (0, http_requests))
+  expect no_info
+  expect no_warn
+  # empty
+
+eval instant at 50m count(limitk by (group) (-1, http_requests))
+  expect no_info
+  expect no_warn
+  # empty
+
+# Exercise k==1 special case (as sample is added before the main series loop).
+eval instant at 50m count(limitk by (group) (1, http_requests) and http_requests)
+  {} 2
+
+eval instant at 50m count(limitk by (group) (2, http_requests) and http_requests)
+  {} 4
+
+eval instant at 50m count(limitk(100, http_requests) and http_requests)
+  {} 8
+
+# Test for histograms.
+# k==1: verify that histogram is included in the result.
+eval instant at 50m limitk(1, http_requests{instance="histogram_1"})
+  {__name__="http_requests", group="canary", instance="histogram_1", job="api-server"} {{count:10 sum:10}}
+
+eval range from 0 to 50m step 5m limitk(1, http_requests{instance="histogram_1"})
+  {__name__="http_requests", group="canary", instance="histogram_1", job="api-server"} {{count:10 sum:10}}x10
+
+# Histogram is included with mix of floats as well.
+eval instant at 50m limitk(8, http_requests{instance=~"(histogram_2|0)"})
+  {__name__="http_requests", group="canary", instance="histogram_2", job="api-server"} {{count:20 sum:20}}
+  {__name__="http_requests", group="production", instance="0", job="api-server"} 100
+  {__name__="http_requests", group="canary", instance="0", job="api-server"} 300
+
+eval range from 0 to 50m step 5m limitk(8, http_requests{instance=~"(histogram_2|0)"})
+  {__name__="http_requests", group="canary", instance="histogram_2", job="api-server"} {{count:20 sum:20}}x10
+  {__name__="http_requests", group="production", instance="0", job="api-server"} 0+10x10
+  {__name__="http_requests", group="canary", instance="0", job="api-server"} 0+30x10
+
+# Test target a specific mixed series and validate a mixture of histogram and float points
+eval instant at 0m limitk(1, mixed{instance="1"})
+  {__name__="mixed", instance="1"} {{schema:0 sum:20 count:20}}
+
+eval instant at 20m limitk(1, mixed{instance="1"})
+  {__name__="mixed", instance="1"} 10
+
+eval instant at 25m limitk(1, mixed{instance="1"})
+  {__name__="mixed", instance="1"} 20
+
+eval instant at 50m limitk(1, mixed{instance="1"})
+  {__name__="mixed", instance="1"} {{schema:0 sum:20 count:20}}
+
+eval instant at 0m count(limitk(1, mixed))
+  {} 1
+
+eval instant at 0m count(limitk(2, mixed))
+  {} 2
+
+eval instant at 20m count(limitk(1, mixed))
+  {} 1
+
+eval instant at 20m count(limitk(2, mixed))
+  {} 2
+
+eval instant at 50m count(limitk(1, mixed))
+  {} 1
+
+eval instant at 50m count(limitk(2, mixed))
+  {} 2
+
+eval instant at 0m limitk(1, missing{instance="1"})
+  {__name__="missing", instance="1"} 0
+
+eval instant at 0m limitk(1, missing{instance="2"})
+  # no data
+
+eval instant at 0m count(limitk(1, missing))
+  {} 1
+
+eval instant at 0m count(limitk(2, missing))
+  {} 1
+
+eval instant at 0m count(limitk(20, missing))
+  {} 1
+
+eval instant at 40m count(limitk(1, missing))
+  {} 1
+
+eval instant at 40m count(limitk(2, missing))
+  {} 1
+
+# A point where we have a value in both series
+eval instant at 55m count(limitk(2, missing))
+  {} 2
+
+# A point where we have a value in both series
+eval instant at 60m count(limitk(2, missing))
+  {} 1
+
+eval instant at 10m limitk(1, empty)
+  expect no_info
+  expect no_warn
+  # empty
+
+# No special treatment for nans
+eval instant at 0m limitk(1, nans{instance="1"})
+  {__name__="nans", instance="1"} NaN
+
+eval instant at 0m count(limitk(2, nans))
+  {} 2
+
+eval instant at 50m count(limitk(2, http_requests{instance=~"histogram_[0-9]"}))
+  {} 2
+
+eval range from 0 to 50m step 5m count(limitk(2, http_requests{instance=~"histogram_[0-9]"}))
+  {} 2+0x10
+
+eval instant at 50m count(limitk(1000, http_requests{instance=~"histogram_[0-9]"}))
+  {} 2
+
+eval range from 0 to 50m step 5m count(limitk(1000, http_requests{instance=~"histogram_[0-9]"}))
+  {} 2+0x10
+
+# Bug #15971.
+eval range from 0m to 50m step 5m count(limitk(scalar(foo), http_requests))
+  {} 1 2 3 4 5 6 7 8 8 8 8
+
+# limitk(2, ...) should always return a 2-count subset of the timeseries (hence the AND'ing)
+eval range from 0 to 50m step 5m count(limitk(2, http_requests) and http_requests)
+  {} 2+0x10
+
+# limit_ratio
+eval range from 0 to 50m step 5m count(limit_ratio(0.0, http_requests))
+# empty
+
+eval instant at 50m count(limit_ratio(1.0, http_requests) and http_requests)
+  {} 8
+
+eval instant at 50m count(limit_ratio(-1.0, http_requests) and http_requests)
+  {} 8
+
+# All samples.
+eval range from 0 to 50m step 5m count(limit_ratio(1.0, http_requests) and http_requests)
+  {} 8+0x10
+
+# All samples.
+eval range from 0 to 50m step 5m count(limit_ratio(-1.0, http_requests) and http_requests)
+  {} 8+0x10
+
+# Capped to 1.0 -> all samples.
+eval range from 0 to 50m step 5m count(limit_ratio(1.1, http_requests) and http_requests)
+  expect warn msg: PromQL warning: ratio value should be between -1 and 1, got 1.1, capping to 1 (1:19)
+  {} 8+0x10
+
+# Capped to -1.0 -> all samples.
+eval range from 0 to 50m step 5m count(limit_ratio(-1.1, http_requests) and http_requests)
+  expect warn msg: PromQL warning: ratio value should be between -1 and 1, got -1.1, capping to -1 (1:19)
+  {} 8+0x10
+
+# Half~ish samples: verify we get "near" 4 (of 0.5 * 8).
+eval range from 0 to 50m step 5m count(limit_ratio(0.5, http_requests) and http_requests) <= bool (4+1)
+  {} 1+0x10
+
+eval range from 0 to 50m step 5m count(limit_ratio(0.5, http_requests) and http_requests) >= bool (4-1)
+  {} 1+0x10
+
+eval instant at 50m count(limit_ratio by (group) (1.0, http_requests) and http_requests)
+  {} 8
+
+eval instant at 50m count(limit_ratio by (group) (-1.0, http_requests) and http_requests)
+  {} 8
+
+eval instant at 50m count(limit_ratio(0.2, http_requests))
+  {} 3
+
+eval range from 0 to 50m step 5m count(limit_ratio(0.2, http_requests))
+  {} 3x10
+
+eval instant at 50m count(limit_ratio(-0.8, http_requests))
+  {} 5
+
+eval range from 0 to 50m step 5m count(limit_ratio(-0.8, http_requests))
+  {} 5x10
+
+# Complement 1of2: `or` should return all samples.
+eval range from 0 to 50m step 5m count(limit_ratio(0.2, http_requests) or limit_ratio(-0.8, http_requests))
+  {} 8+0x10
+
+# Complement 2of2: `and` should return no samples.
+eval range from 0 to 50m step 5m count(limit_ratio(0.2, http_requests) and limit_ratio(-0.8, http_requests))
+# empty
+
+# Complement below for [0.5, -0.5].
+eval range from 0 to 50m step 5m count(limit_ratio(0.5, http_requests) or limit_ratio(-0.5, http_requests))
+  {} 8+0x10
+
+eval range from 0 to 50m step 5m count(limit_ratio(0.5, http_requests) and limit_ratio(-0.5, http_requests))
+# empty
+
+# Complement below for [0.8, -0.2].
+eval range from 0 to 50m step 5m count(limit_ratio(0.8, http_requests) or limit_ratio(-0.2, http_requests))
+  {} 8+0x10
+
+eval range from 0 to 50m step 5m count(limit_ratio(0.8, http_requests) and limit_ratio(-0.2, http_requests))
+# empty
+
+# Complement below for [some_ratio, - (1.0 - some_ratio)], some_ratio derived from time(),
+# using a small prime number to avoid rounded ratio values, and a small set of them.
+eval range from 0 to 50m step 5m count(limit_ratio(time() % 17/17, http_requests) or limit_ratio( - (1.0 - (time() % 17/17)), http_requests))
+  {} 8+0x10
+
+eval range from 0 to 50m step 5m count(limit_ratio(time() % 17/17, http_requests) and limit_ratio( - (1.0 - (time() % 17/17)), http_requests))
+# empty
+
+# Poor man's normality check: ok (loaded samples follow a nice linearity over labels and time).
+# The check giving: 1 (i.e. true).
+eval range from 0 to 50m step 5m abs(avg(limit_ratio(0.5, http_requests{instance!~"histogram_[0-9]"})) - avg(limit_ratio(-0.5, http_requests{instance!~"histogram_[0-9]"}))) <= bool stddev(http_requests{instance!~"histogram_[0-9]"})
+  {} 1+0x10
+
+# All specified histograms are included for r=1.
+eval instant at 50m limit_ratio(1, http_requests{instance="histogram_1"})
+  {__name__="http_requests", group="canary", instance="histogram_1", job="api-server"} {{count:10 sum:10}}
+
+eval range from 0 to 50m step 5m limit_ratio(1, http_requests{instance="histogram_1"})
+  {__name__="http_requests", group="canary", instance="histogram_1", job="api-server"} {{count:10 sum:10}}x10
+
+# Bug #15971.
+eval range from 0m to 50m step 5m count(limit_ratio(scalar(bar), http_requests))
+  {} _ 8 _ 8 _ 8 _ 8 _ 8 _
+
+clear
+
+load 1m
+  mixed{instance="1"} {{schema:0 sum:20 count:20}} {{schema:0 sum:20 count:20}} {{schema:0 sum:20 count:20}} _ 10 10 10
+  mixed{instance="2"} 10 10 10 _ {{schema:0 sum:20 count:20}} {{schema:0 sum:20 count:20}} {{schema:0 sum:20 count:20}}
+  foo 1 2 1 2 1 2 1 2 1 2 1 2
+
+eval instant at 0m limitk(1, mixed{instance="1"})
+  {__name__="mixed", instance="1"} {{schema:0 sum:20 count:20}}
+
+eval instant at 0m count(limitk(2, mixed))
+  {} 2
+
+eval instant at 2m limitk(1, mixed{instance="1"})
+  {__name__="mixed", instance="1"} {{schema:0 sum:20 count:20}}
+
+eval instant at 3m limitk(1, mixed{instance="1"})
+  {__name__="mixed", instance="1"} {{schema:0 sum:20 count:20}}
+
+eval instant at 4m limitk(1, mixed{instance="1"})
+  {__name__="mixed", instance="1"} 10
+
+eval instant at 5m limitk(1, mixed{instance="1"})
+  {__name__="mixed", instance="1"} 10
+
+eval instant at 3m count(limitk(2, mixed))
+  {} 2
+
+eval instant at 4m count(limitk(2, mixed))
+  {} 2
+
+eval instant at 5m count(limitk(2, mixed))
+  {} 2
+
+eval range from 0m to 5m step 1m limitk(1, mixed{instance="1"})
+  {__name__="mixed", instance="1"} {{schema:0 sum:20 count:20}} {{schema:0 sum:20 count:20}} {{schema:0 sum:20 count:20}} {{schema:0 sum:20 count:20}} 10 10
+
+eval range from 0m to 5m step 1m limitk(1, mixed{instance="2"})
+  {__name__="mixed", instance="2"} 10 10 10 10 {{schema:0 sum:20 count:20}} {{schema:0 sum:20 count:20}}
+
+eval range from 0m to 5m step 1m count(limitk(2, mixed))
+  {} 2 2 2 2 2 2
+
+eval range from 0m to 5m step 1m count(limitk(2, mixed))
+  {} 2 2 2 2 2 2
+
+eval range from 0m to 5m step 1m count(limitk(scalar(foo), mixed))
+  {} 1 2 1 2 1 2
+
+clear
+
+load 1m
+  empty{instance="1"} _ _ _ _ _ _
+  empty{instance="2"} _ _ _ _ _ _
+  sparse{instance="1"} 1 _ _ _ _ _
+  sparse{instance="2"} 2 _ _ _ _ _
+  filtered 1 1 1 1 1 1
+  filtered2 1 2 1 2 1 2
+
+eval instant at 0 count(limitk(2, empty))
+
+eval instant at 0 count(limitk(2, sparse))
+  {} 2
+
+eval instant at 5m count(limitk(2, sparse))
+
+eval instant at 0 count(limit_ratio(1.0, empty))
+
+eval instant at 0 count(limit_ratio(1.0, sparse))
+  {} 2
+
+eval instant at 5m count(limit_ratio(1.0, sparse))
+
+eval instant at 0 count(limit_ratio(-1.0, empty))
+
+eval instant at 0 count(limit_ratio(-1.0, sparse))
+  {} 2
+
+eval instant at 5m count(limit_ratio(-1.0, sparse))
+
+eval range from 0m to 5m step 1m count(limitk(2, empty))
+
+eval range from 0m to 5m step 1m count(limitk(2, sparse))
+  {} 2 2 2 2 2
+
+eval instant at 0 count(limitk(2, filtered > 1))
+
+eval instant at 5m count(limitk(2, filtered > 1))
+
+eval range from 0m to 5m step 1m count(limitk(2, filtered > 1))
+
+eval range from 0m to 5m step 1m count(limitk(2, filtered2 > 1))
+  {} _ 1 _ 1 _ 1

@@ -48,6 +48,8 @@ public enum Constants {
         public static let privacyManifest = "PrivacyManifests"
         public static let moduleMaps = "ModuleMaps"
         public static let frameworkSearchPaths = "FrameworkSearchPaths"
+        /// Per-scheme debugger files that may still be referenced by another generated workspace.
+        public static let tuistCacheDebugging = "TuistCacheDebugging"
         public static let sources = "Sources"
         public static let testPlans = "TestPlans"
         public static let signingKeychain = "signing.keychain"

@@ -28,7 +28,7 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
 > [!TIP]
-> **Mise & Project Paths**
+> **Mise & project paths**
 >
 > Your environment's `PATH` environment variable is not inherited by the scheme post action, and therefore you have to use Mise's absolute path,
 > which will depend on how you installed Mise. Moreover, don't forget to inherit the build settings from a target in your project such that you
@@ -46,7 +46,6 @@ Apart from overall trends, you can also dive deep into each individual test, suc
 
 > [!NOTE]
 > Auto-generated schemes automatically include the `tuist inspect test` post-action.
-
 >
 > If you are not interested in tracking test insights in your auto-generated schemes, disable them using the [testInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) generation option.
 
@@ -98,10 +97,19 @@ testAction: .testAction(
 
 ## Continuous integration {#continuous-integration}
 
-To track test insights on CI, you will need to ensure that your CI is <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
+To track test insights on CI, you will need to ensure that your CI is <.localized_link href="/guides/server/authentication#continuous-integration">authenticated</.localized_link>.
 
 Additionally, you will either need to:
 - Use the <.localized_link href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</.localized_link> command when invoking `xcodebuild` actions.
 - Add `-resultBundlePath` to your `xcodebuild` invocation.
 
 When `xcodebuild` tests your project without `-resultBundlePath`, the required result bundle files are not generated. The `tuist inspect test` post-action requires these files to analyze your tests.
+
+### Git history {#git-history}
+
+On CI, Tuist also uploads the commit history of the checkout: commit SHAs, their parents, commit dates, and the branch the run and its pull request's base branch were on. No file contents, commit messages, or authors are uploaded. It's what tells Tuist which commits landed on your default branch, for example the ones a merge queue tested. Tuist reads the history the checkout already has, and when the checkout doesn't have the base branch, asks the remote for its latest commit (`git ls-remote`). Outside code coverage, it doesn't fetch history.
+
+| Variable | Effect |
+| --- | --- |
+| `TUIST_GIT_UPLOAD_ENABLED=false` | Doesn't read or upload any Git history. |
+| `TUIST_GIT_UNSHALLOW_ENABLED=false` | Reads only the checkout, without contacting the remote. |

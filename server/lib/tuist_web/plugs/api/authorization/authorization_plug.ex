@@ -12,10 +12,12 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def init(:bundle), do: :bundle
   def init(:cache), do: :cache
   def init(:preview), do: :preview
+  def init(:artifact), do: :artifact
   def init(:test), do: :test
   def init(:build), do: :build
   def init(:automation_alert), do: :automation_alert
   def init({:account, :runners}), do: {:account, :runners}
+  def init({:account, :runners, :update}), do: {:account, :runners, :update}
   def init({:account, :account, :update}), do: {:account, :account, :update}
   def init({:project, :project, :update}), do: {:project, :project, :update}
 
@@ -23,7 +25,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     opts
   end
 
-  @project_categories [:run, :bundle, :cache, :preview, :test, :build, :automation_alert]
+  @project_categories [:run, :bundle, :cache, :preview, :artifact, :test, :build, :automation_alert]
   @account_categories [:runners]
 
   def call(conn, category) when category in @project_categories do
@@ -32,6 +34,10 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
   def call(conn, {:account, category}) when category in @account_categories do
     authorize_account(conn, category)
+  end
+
+  def call(conn, {:account, :runners, :update}) do
+    authorize_account(conn, :runners, :update)
   end
 
   def call(conn, {:account, :account, action}) when action == :update do
@@ -48,35 +54,10 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   end
 
   def authorize_project(%{assigns: %{selected_project: selected_project}} = conn, category, opts \\ []) do
-    caching = Keyword.get(opts, :caching, false)
     action = Keyword.get(opts, :action, get_action(conn))
     subject = Authentication.authenticated_subject(conn)
 
-    cache_key = [
-      Atom.to_string(__MODULE__),
-      "authorize",
-      Atom.to_string(category),
-      Atom.to_string(action),
-      "#{subject_kind(subject)}-#{subject_id(subject)}",
-      "#{Atom.to_string(selected_project.__struct__)}-#{selected_project.id}"
-    ]
-
-    authorized? =
-      if caching do
-        Tuist.KeyValueStore.get_or_update(
-          cache_key,
-          [
-            cache: Map.get(conn.assigns, :cache, :tuist),
-            ttl: Keyword.get(opts, :cache_ttl, to_timeout(minute: 1)),
-            locking: true
-          ],
-          fn ->
-            authorize(subject, action, selected_project, category)
-          end
-        )
-      else
-        authorize(subject, action, selected_project, category)
-      end
+    authorized? = authorize(subject, action, selected_project, category)
 
     if authorized? do
       conn
@@ -115,13 +96,6 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
         |> halt()
     end
   end
-
-  defp subject_kind(%{__struct__: struct}), do: Atom.to_string(struct)
-  defp subject_kind(_subject), do: "unknown"
-
-  defp subject_id(%{id: id}), do: id
-  defp subject_id(%{account: %{id: id}}), do: id
-  defp subject_id(_subject), do: "unknown"
 
   defp subject_name(%{account: %{name: name}}), do: name
   defp subject_name(_subject), do: "The authenticated subject"

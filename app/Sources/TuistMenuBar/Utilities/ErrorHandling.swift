@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import OpenAPIRuntime
+import TuistAuthentication
 import TuistHTTP
 import TuistLogging
 import TuistServer
@@ -16,7 +17,7 @@ final class ErrorHandling: ObservableObject, Sendable {
             } else if error is ClientAuthenticationError {
                 // When we fail to authenticate, we sign out the user and force them to sign in again.
                 Task {
-                    try await ServerCredentialsStore.current.delete(serverURL: ServerEnvironmentService().url())
+                    try await ServerCredentialsStore.current.delete(serverURL: AppServerEnvironmentService().url())
                 }
                 return
             } else if let error = error as? ClientError {

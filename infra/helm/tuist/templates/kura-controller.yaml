@@ -1,6 +1,10 @@
 {{- if .Values.kuraController.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "kura-controller") }}
 {{- $namespace := .Values.kuraController.namespace }}
+{{- $connectivityDiagnostics := .Values.kuraController.connectivityDiagnostics }}
+{{- if and $connectivityDiagnostics.instances $connectivityDiagnostics.existingSecret }}
+{{- fail "kuraController.connectivityDiagnostics.instances and existingSecret are mutually exclusive" }}
+{{- end }}
 {{- $kuraSharedSecretName := "kura-shared-secrets" }}
 {{- $kuraIntrospection := .Values.kuraController.sharedSecrets.kuraIntrospection }}
 {{- $kuraSharedSecretsExternalSecret := .Values.kuraController.sharedSecrets.externalSecret }}
@@ -71,8 +75,11 @@ rules:
     resources: [statefulsets, deployments, daemonsets]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
-    resources: [services, configmaps, secrets]
+    resources: [services, configmaps, secrets, serviceaccounts]
     verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: [roles, rolebindings]
+    verbs: [get, list, watch, create, update, patch]
   - apiGroups: ["externaldns.k8s.io"]
     resources: [dnsendpoints]
     verbs: [get, list, watch, create, update, patch, delete]
@@ -80,8 +87,24 @@ rules:
     resources: [pods]
     # delete lets a new Kura image replace pods that cannot pass readiness on
     # the previous image. Ready pods remain under the StatefulSet's ordinary
-    # ordered rollout.
-    verbs: [get, list, watch, delete]
+    # ordered rollout. patch relabels a pod with the StatefulSet's update
+    # revision once its CPU request has been resized in place.
+    verbs: [get, list, watch, delete, patch]
+  # CPU request changes reach running pods through the resize subresource
+  # instead of a rolling restart; the controller compares the pods' and the
+  # update's ControllerRevisions to confirm nothing else changed.
+  - apiGroups: [""]
+    resources: [pods/resize]
+    verbs: [patch]
+  - apiGroups: ["apps"]
+    resources: [controllerrevisions]
+    verbs: [get]
+  # Pods of instances with spec.nodeLocalNetwork sit on a pod network the
+  # controller cannot route to, so their /status/rollout is read through the
+  # API server's port-forward, upgraded over SPDY (POST).
+  - apiGroups: [""]
+    resources: [pods/portforward]
+    verbs: [create]
   - apiGroups: ["discovery.k8s.io"]
     resources: [endpointslices]
     verbs: [get, list, watch]
@@ -249,6 +272,18 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [list]
+  # The Kura volume key endpoint authenticates the CSI node plugin's projected
+  # token and resolves the requested volume to its claim and node.
+  - apiGroups: [authentication.k8s.io]
+    resources: [tokenreviews]
+    verbs: [create]
+  # Capacity admission charges a node-local volume no claim is bound to any
+  # more, such as a quarantined replica's retained volume, against the node and
+  # region whose disk it still holds. The volume key endpoint gets a volume to
+  # resolve it to its claim and node.
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get, list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -281,6 +316,11 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # Capacity admission reads a replica's data claim size: a claim at least as
+  # large as the new one is kept by a resize, so its replica stays on its node.
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get]
   # The server applies the per-account mesh peer-TLS Secret alongside the
   # KuraInstance when an account bridges into the managed mesh.
   - apiGroups: [""]
@@ -325,6 +365,10 @@ spec:
       {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 6 }}
   template:
     metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port-name: metrics
+        prometheus.io/path: /metrics
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 8 }}
     spec:
@@ -333,6 +377,10 @@ spec:
       # as environment variables can exceed the process argument limit and
       # prevent the controller from starting when it is most needed.
       enableServiceLinks: false
+      {{- with .Values.kuraController.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.kuraController.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
@@ -343,11 +391,16 @@ spec:
           imagePullPolicy: {{ .Values.kuraController.image.pullPolicy }}
           args:
             - --leader-elect=true
+            - --serving-authority={{ .Values.kuraController.servingAuthority.enabled }}
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --watch-namespace={{ $namespace }}
-            {{- with .Values.kuraController.connectivityDiagnostics.instances }}
-            - {{ printf "--connectivity-diagnostics-instances=%s" (join "," .) | quote }}
+            - --connectivity-diagnostics-prepare={{ $connectivityDiagnostics.prepare | default false }}
+            - {{ printf "--connectivity-diagnostics-expires-at=%s" ($connectivityDiagnostics.expiresAt | default "") | quote }}
+            {{- if $connectivityDiagnostics.existingSecret }}
+            - "--connectivity-diagnostics-instances=$(KURA_CONNECTIVITY_DIAGNOSTICS_INSTANCES)"
+            {{- else if $connectivityDiagnostics.instances }}
+            - {{ printf "--connectivity-diagnostics-instances=%s" (join "," $connectivityDiagnostics.instances) | quote }}
             {{- end }}
             {{- if $tlsClusterIssuer }}
             - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
@@ -360,17 +413,31 @@ spec:
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
             {{- end }}
             - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
+            {{- if .Values.kuraController.privateReplication.enabled }}
+            - --private-replication=true
+            {{- end }}
             {{- if .Values.kuraController.stableDNS.enabled }}
             - --stable-dns-zone-id={{ required "kuraController.stableDNS.hostedZoneId is required" .Values.kuraController.stableDNS.hostedZoneId }}
             - --stable-dns-owner={{ required "kuraController.stableDNS.ownerId is required" .Values.kuraController.stableDNS.ownerId }}
             - --stable-dns-drain={{ .Values.kuraController.stableDNS.drain }}
             {{- end }}
-          {{- if .Values.kuraController.stableDNS.enabled }}
+          {{- if or .Values.kuraController.stableDNS.enabled $connectivityDiagnostics.existingSecret }}
           env:
+            {{- if .Values.kuraController.stableDNS.enabled }}
             - name: AWS_REGION
               value: us-east-1
             - name: AWS_EC2_METADATA_DISABLED
               value: "true"
+            {{- end }}
+            {{- if $connectivityDiagnostics.existingSecret }}
+            - name: KURA_CONNECTIVITY_DIAGNOSTICS_INSTANCES
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $connectivityDiagnostics.existingSecret | quote }}
+                  key: instances
+            {{- end }}
+          {{- end }}
+          {{- if .Values.kuraController.stableDNS.enabled }}
           envFrom:
             - secretRef:
                 name: {{ .Values.kuraController.stableDNS.secretName }}

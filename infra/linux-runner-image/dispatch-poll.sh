@@ -102,6 +102,33 @@ stage_cache_endpoint() {
   fi
 }
 
+stage_setup_info() {
+  # The server's "Set up job" groups for the runner's `.setup_info`,
+  # linking the job to its Tuist dashboard page. run-job.sh copies the
+  # staged file into the runner directory. Best-effort, like the cache
+  # endpoint: a staging failure only drops the link.
+  jq -e '.setup_info | type == "array"' /tmp/dispatch.json >/dev/null 2>&1 || return 0
+  setup_info_path="${JIT_OUTPUT_PATH}.setup-info"
+  setup_info_tmp="${setup_info_path}.tmp"
+  if ! { jq '.setup_info' /tmp/dispatch.json >"${setup_info_tmp}" && chmod 0644 "${setup_info_tmp}" && mv -f "${setup_info_tmp}" "${setup_info_path}"; }; then
+    rm -f "${setup_info_tmp}" 2>/dev/null || true
+    echo "$(date -u +%FT%TZ) dispatch-poll: failed to stage setup info; the job will run without the Tuist link"
+  fi
+}
+
+stage_cache_grant() {
+  # Same job-scoped shared volume as the JIT; never print the signed grant.
+  cache_grant=$(jq -r '.cache_signing_grant // empty' /tmp/dispatch.json)
+  grant_path="${JIT_OUTPUT_PATH}.cache-grant"
+  rm -f "${grant_path}"
+  if [ -n "${cache_grant}" ]; then
+    if ! { printf '%s' "${cache_grant}" >"${grant_path}.tmp" && chmod 0644 "${grant_path}.tmp" && mv -f "${grant_path}.tmp" "${grant_path}"; }; then
+      rm -f "${grant_path}.tmp"
+      echo "dispatch-poll: could not stage cache grant; using default shard storage"
+    fi
+  fi
+}
+
 while true; do
   attempt=$((attempt + 1))
   # `-f` intentionally omitted so 4xx/5xx land in $http instead of
@@ -117,6 +144,30 @@ while true; do
 
   case "${http}" in
     200)
+      # A job created through the Tuist API: the server is its coordinator,
+      # so the whole job, with its report token, is staged for the executor.
+      if jq -e '.api_job' /tmp/dispatch.json >/dev/null; then
+        if [ -z "${JIT_OUTPUT_PATH}" ]; then
+          echo "API job dispatch requires the isolated poller container"
+          exit 1
+        fi
+        api_path="${JIT_OUTPUT_PATH}.api-job.json"
+        if ! { (umask 077; jq --arg report_url "${TUIST_RUNNER_DISPATCH_URL%/dispatch}/jobs" \
+          '.api_job + {report_url: $report_url}' /tmp/dispatch.json >"${api_path}.tmp") &&
+          chmod 0644 "${api_path}.tmp" && mv -f "${api_path}.tmp" "${api_path}"; }; then
+          rm -f "${api_path}.tmp" 2>/dev/null || true
+          echo "API job could not be staged"
+          exit 1
+        fi
+        # Sidecars use the JIT path as their job-start marker.
+        stage_cache_endpoint
+        if ! printf 'api\n' >"${JIT_OUTPUT_PATH}"; then
+          rm -f "${api_path}" 2>/dev/null || true
+          echo "API job marker could not be staged"
+          exit 1
+        fi
+        exit 0
+      fi
       if jq -e '.gitlab_job' /tmp/dispatch.json >/dev/null; then
         if [ -z "${JIT_OUTPUT_PATH}" ]; then
           echo "GitLab dispatch requires the isolated poller container"
@@ -137,6 +188,39 @@ while true; do
           echo "GitLab assignment marker could not be staged"
           exit 1
         fi
+        exit 0
+      fi
+      bitrise_secret=$(jq -r '.bitrise_intro_secret // empty' /tmp/dispatch.json)
+      if [ -n "${bitrise_secret}" ]; then
+        if [ -z "${JIT_OUTPUT_PATH}" ]; then
+          echo "Bitrise dispatch requires the isolated poller container"
+          exit 1
+        fi
+        # The pool's intro secret and the job-scoped report token, for
+        # run-job.sh to connect the den agent with. Values are shell-quoted
+        # because the intro secret's alphabet is not documented.
+        bitrise_env_path="${JIT_OUTPUT_PATH}.bitrise-env"
+        bitrise_tmp="${bitrise_env_path}.tmp"
+        bitrise_report_token=$(jq -r '.bitrise_report_token // empty' /tmp/dispatch.json)
+        if ! { (umask 077
+          {
+            printf 'BITRISE_DEN_AGENT_INTRO_SECRET=%q\n' "${bitrise_secret}"
+            printf 'TUIST_RUNNER_REPORT_TOKEN=%q\n' "${bitrise_report_token}"
+            printf 'TUIST_RUNNER_REPORT_URL=%q\n' "${TUIST_RUNNER_DISPATCH_URL%/dispatch}"
+          } >"${bitrise_tmp}") &&
+          chmod 0644 "${bitrise_tmp}" && mv -f "${bitrise_tmp}" "${bitrise_env_path}"; }; then
+          rm -f "${bitrise_tmp}" 2>/dev/null || true
+          echo "$(date -u +%FT%TZ) dispatch-poll: failed to stage bitrise env to ${bitrise_env_path}; aborting"
+          exit 1
+        fi
+        # Sidecars use the JIT path as their job-start marker.
+        stage_cache_endpoint
+        if ! printf 'bitrise\n' >"${JIT_OUTPUT_PATH}"; then
+          rm -f "${bitrise_env_path}" 2>/dev/null || true
+          echo "$(date -u +%FT%TZ) dispatch-poll: bitrise marker could not be staged; aborting"
+          exit 1
+        fi
+        echo "$(date -u +%FT%TZ) dispatch-poll: claimed bitrise build, staged for runner container"
         exit 0
       fi
       jit=$(jq -r '.encoded_jit_config // empty' /tmp/dispatch.json)
@@ -204,6 +288,8 @@ while true; do
           exit 1
         fi
         stage_cache_endpoint
+        stage_cache_grant
+        stage_setup_info
         echo "$(date -u +%FT%TZ) dispatch-poll: claimed, JIT staged for runner container"
         exit 0
       fi

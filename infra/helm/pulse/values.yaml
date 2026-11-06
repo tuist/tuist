@@ -1,0 +1,699 @@
+# Default values for the Pulse chart. See docs/deployment.md for a
+# walkthrough and docs/configuration.md for what each setting does.
+
+image:
+  repository: ghcr.io/tuist/pulse
+  # Defaults to the chart's appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Name of an existing Secret holding the sensitive settings. When set, the
+# chart does not render its own Secret and ignores `secretKeyBase`,
+# `tenantTokens`, and the storage credentials below. The Secret must contain
+# these keys:
+#
+#   SECRET_KEY_BASE              at least 64 random characters
+#   PULSE_TENANT_TOKENS          JSON object, tenant name => "sha256$<hex>"
+#   PULSE_S3_ACCESS_KEY_ID       object storage access key
+#   PULSE_S3_SECRET_ACCESS_KEY   object storage secret key
+#   PULSE_ADMIN_TOKENS           optional JSON array of admin "sha256$<hex>"
+existingSecret: ""
+
+# Optional external-secrets-operator integration for managed installations.
+# Standalone installs do not need ESO. When enabled, existingSecret must name
+# the target Secret and items maps runtime keys to provider item/field paths.
+externalSecrets:
+  enabled: false
+  refreshInterval: 1h
+  storeRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  items: {}
+  # Optional ESO target data expressions. These are passed verbatim to ESO,
+  # not evaluated by Helm. Use them to derive digests from provider values.
+  template: {}
+
+# Phoenix secret key base. Leave empty to have the chart generate one and keep
+# it across upgrades.
+secretKeyBase: ""
+
+# Tenant name => SHA-256 digest of that tenant's bearer token, written as
+# "sha256$<64 lowercase hex characters>". Store digests, never plaintext
+# tokens. Generate one with:
+#
+#   printf '%s' "$TOKEN" | shasum -a 256 | awk '{print "sha256$" $1}'
+#
+# At least one tenant is required unless workloadIdentity.trust,
+# tenantRegistry.enabled or issuer is set.
+tenantTokens: {}
+#  production: "sha256$5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
+
+# Trusted credential issuer (for example Tuist): Pulse verifies its signed
+# access tokens and ingest keys offline against its JWKS, and takes tenant and
+# scopes from their claims, so tenants need no Pulse configuration. Keys and
+# the signed status list (revocations, suspensions, Sentry projects, quotas)
+# are cached per instance and mirrored to the bucket. Empty disables it.
+# See docs/issuer-credentials.md.
+issuer: {}
+#  issuer: https://tuist.dev
+#  audience: https://eu.pulse.tuist.dev       # this deployment's canonical URL
+#  jwks_url: https://tuist.dev/.well-known/pulse/jwks.json
+#  status_url: https://tuist.dev/api/pulse/status.jwt   # optional
+#  refresh_interval_seconds: 60               # 10..3600
+#  key_retention_seconds: 604800              # keys stay usable this long after the last fetch
+#  expired_grace_seconds: 3600                # expired ingest tokens answer 503, not 401
+#  max_access_ttl_seconds: 86400
+#  max_ingest_key_ttl_seconds: 31622400
+#  mirror: true                               # copy keys/status to auth/issuer/ in the bucket
+
+workloadIdentity:
+  # Trusted Kubernetes projected ServiceAccount token issuers. Callers send the
+  # token as `Authorization: Bearer <jwt>`; tenantTokens keep working alongside.
+  # Each entry pins the issuing cluster's public signing keys, so clusters that
+  # share an issuer string (kubeadm's default) stay distinct. Only RS256 keys
+  # and explicitly bound subjects are accepted; capabilities are "read" (query
+  # APIs and MCP) and "ingest" (push/write APIs). These are public keys, not
+  # secrets. See docs/configuration.md#workload-identity.
+  trust: []
+  # - name: atlas-production
+  #   issuer: https://kubernetes.default.svc.cluster.local
+  #   audiences: [pulse.tuist.dev]
+  #   max_token_ttl_seconds: 3600   # optional, 600..86400, default 3600
+  #   keys:
+  #     type: inline
+  #     # The JWKS document as a JSON string, verbatim from
+  #     # `kubectl get --raw /openid/v1/jwks` on the issuing cluster, or as a
+  #     # YAML object (then quote "n": YAML reads a bare n as false).
+  #     jwks: '{"keys":[{"use":"sig","kty":"RSA","kid":"<kid>","alg":"RS256","n":"<modulus>","e":"AQAB"}]}'
+  #   bindings:
+  #     - subject: system:serviceaccount:atlas-production:atlas
+  #       tenant: tuist
+  #       capabilities: [read]
+  #
+  # For workloads in Pulse's own cluster, fetch the keys from the API server
+  # instead, authenticating with the token mounted by kubernetesApiToken below:
+  # - name: local-cluster
+  #   issuer: https://kubernetes.default.svc.cluster.local
+  #   audiences: [pulse.tuist.dev]
+  #   keys:
+  #     type: url
+  #     url: https://kubernetes.default.svc/openid/v1/jwks
+  #     ca_file: /var/run/secrets/pulse/kubernetes-api/ca.crt
+  #     token_file: /var/run/secrets/pulse/kubernetes-api/token
+  #     refresh_interval_seconds: 300   # optional, 60..3600
+  #   bindings:
+  #     - subject: system:serviceaccount:monitoring:alloy
+  #       tenant: tuist
+  #       capabilities: [ingest]
+
+  # Mounts a projected token for the Kubernetes API (its default audience) and
+  # the cluster CA at /var/run/secrets/pulse/kubernetes-api/{token,ca.crt}, for
+  # JWKS URL key sources. It does not enable serviceAccount.automount. Kubernetes
+  # binds system:service-account-issuer-discovery to every ServiceAccount by
+  # default, which is all /openid/v1/jwks needs.
+  kubernetesApiToken:
+    enabled: false
+    expirationSeconds: 3600
+
+storage:
+  # Bucket that holds every acknowledged record. Required.
+  bucket: ""
+  # Region name passed to the S3 client. Required, even for providers that
+  # ignore it (use "auto" for Cloudflare R2, for example).
+  region: ""
+  # S3-compatible endpoint URL. Leave empty for Amazon S3.
+  endpoint: ""
+  # Allow a plain-HTTP endpoint. Only for object storage on a private network.
+  allowHttp: false
+  # Static credentials. Pulse does not read ambient cloud credentials, so
+  # these are required unless `existingSecret` provides them.
+  accessKeyId: ""
+  secretAccessKey: ""
+
+# Node-local read cache of immutable segment objects (docs/configuration.md#object-cache).
+# Repeated dashboard panels and maintenance reads of segments this pod just
+# uploaded are served without a billed GET at object-store latency. Disposable:
+# a miss only costs the GET it saves, and correctness never depends on it.
+objectCache:
+  # Memory tier, 0..1048576 MiB (0 disables). Cleared under memory pressure.
+  memoryMb: 64
+  disk:
+    # Disk tier on an emptyDir volume, kept across container restarts. Size
+    # it for the dashboard working set plus the newest ingest (about an hour).
+    enabled: false
+    sizeMb: 4096
+    # Optional emptyDir medium ("" for node disk, Memory for tmpfs).
+    medium: ""
+
+# Optional suffix-GET metric exclusion; requires Range and strong If-Match support.
+# Can add up to 2 GETs for candidates needing full scans; does not raise scan capacity.
+metricsFooterPruning:
+  enabled: false
+
+# Manifest format for prefixes without enforced retention (PULSE_MANIFEST_FORMAT).
+# paged: a bounded root over immutable pages, so ingest cost and manifest memory
+#        do not grow with history. Flat manifests convert on their next write;
+#        releases before 1.27.0 cannot read converted manifests and fail requests
+#        for them (no data loss). Upgrade every pod before relying on paged writes.
+# flat:  the pre-1.27 unbounded list. Use it only while an older release still
+#        writes to the bucket; it does not convert paged manifests back.
+# See docs/configuration.md#manifest-format.
+manifestFormat: paged
+
+metricsCompaction:
+  # Merges small metrics segments in the background. Enable it only once every
+  # Pulse version writing to the bucket supports compaction (1.30 or later
+  # for finalized hours). Without it every remote-write batch stays its own
+  # segment, so ranges beyond about 20 minutes exceed the default query
+  # segment budget. See docs/configuration.md#long-dashboard-and-alert-ranges.
+  enabled: false
+  # With compaction, rewrite each settled hour into segments grouped by metric
+  # name plus hourly rollups, so long ranges read only their metric's rows and
+  # 1-day to 7-day range functions read one rollup row per series and hour.
+  # Also groups settled raw segments of the current hour by metric name, so
+  # 1-hour panels read their metric's rows instead of every batch.
+  finalize: true
+
+manifestBackups:
+  # Copies of each compacted prefix's manifest under .../backups/, for buckets
+  # without versioning (Tigris, for example). Maintenance deletes a retired
+  # object only once a backup records its retirement, so the newest backup
+  # always restores. See docs/configuration.md#manifest-backups.
+  enabled: true
+  intervalMs: 900000
+
+# Experimental Tempo search recovers complete retained candidate context. Exact
+# resource.service.name equality may use publication-proven service/ID summaries;
+# unknown/legacy sources still read. Metadata/page/heap limits can bind before the
+# hard 8192-ref catalog maximum. Actual GETs keep 1024-input/32MiB/1M-row bounds;
+# small windows do not clip context, late fallback can exhaust budgets, and unread
+# irrelevant objects are not scrubbed. Search capability5/discovery12 artifacts
+# (tuple 2,1,3,5,12) are required on all serving instances; opt in only after capacity
+# validation. No representative postings/client/deployment acceptance claim.
+# Bounded same-span negated regex/status/int64 OR/span-duration search expressions
+# bypass service/ID planning; full-scope limits remain plus 20M prefilter owner/attr/
+# instruction work units per attempt in candidate/context passes. Equal-precedence
+# AND/OR group left-to-right. Unscoped keys use span-first presence precedence.
+# Omitted or paired-zero HTTP bounds scan all retained context under these limits;
+# partial windows reject. See docs/trace-query-expressions.md; discovery and
+# window-local search retain narrower grammar.
+# Also enables resource/span/instrumentation/event/link discovery (1M raw rows,
+# 2M owner-plus-attribute work per attempt before filtering, 5000 entries/1MiB).
+# Dense flat scopes can now fail before the old row cap. Names/values accept parent
+# string filters; filtered names are complete conservative hints, NOT matching-key
+# proofs or exact upstream omission/dynamic dedicated-column parity. Default names
+# combine five namespaces plus static v2 suggestions, one 2M-work/5000-scope-name
+# budget (20 intrinsic reservations even for v1). Errors reject whole, not partial
+# suggestions. None values union 3 original owners (not event/link) after optional
+# same-parent resource/span string filters, not Tempo's ignored-query fast path.
+# Types stay distinct, all owners/attrs charge before filtering; old unfiltered
+# callbacks cannot receive queries and windowed-filtered-none needs separate
+# explicit support. Floats (including non-finite classes) and 7 parent-filtered intrinsic strings use
+# stored-data bounds, unlike static vocabulary. event:timeSinceStart additionally
+# returns exact signed int nanoseconds, not duration strings; parent filters are
+# a complete extension versus upstream's empty path. Default event time0 can
+# yield negative offsets; no events invent no value. Event times validate even on
+# nonmatches, parent+all event attrs charge before filtering. Explicit event-time
+# and separate windowed-event-time support is required, never old callbacks. Paired positive windows select
+# retained segment envelopes, not span starts; all header/provider costs remain.
+# Compaction broadens suggestions; excluded payloads are not integrity-scrubbed.
+# Flat/old adapters reject unsupported windows. Matching capability12 required.
+# Root name/service values now select parent traces then recover complete retained
+# roots, never child names/default services. Missing/ambiguous roots fail409 whole:
+# in-flight and retention-straddling traces can make broad/recent dictionaries
+# unusable, not partial suggestions. Entire retained S3 data must fit1024 objects/
+# 32MiB compressed/1M raw rows even for tiny windows; replay decodes all sources.
+# No service/ID planner; 65,536 candidates/16MiB bookkeeping, 2M resource/span/link
+# owner+attr work, 5000 values/independent1MiB dictionary/result bounds. Dedicated
+# root and windowed-root adapters required. Not transparent autocomplete parity.
+# Canonical trace:duration measures full retained bounds without requiring roots:
+# ingestion/retention can grow/shrink it, not exporter duration. Unfiltered int
+# nanos vs filtered Go duration strings (µs), both lexical: separate cached types.
+# Same full-tenant input/replay bounds; 2M resource/span owners+attrs, 65,536 groups/
+# 80B summary charge under16MiB (not total native memory), 5000/1MiB dictionaries/
+# results. Nanosecond cardinality commonly fails422; new duration/window support
+# required. Static duration/span:duration/traceDuration empty vocabularies unchanged.
+# Zero/partial windows, same-key equality shortcuts, intrinsic/nonstring/nested
+# predicates and matching targeted complex values remain unsupported.
+# Explicit static intrinsic names/seven v2 vocabularies use the gate and auth/
+# admission but no storage. They do not establish stored values or TraceQL support.
+tempoSearch:
+  enabled: false
+  # A candidate trace's other spans are read from sources starting or ending
+  # within this horizon of the candidates' segments. Traces longer than it can
+  # report a shorter duration and fewer matching spans. 0 reads every retained
+  # source, which is slow on long retention.
+  contextHorizonMs: 3600000
+
+# OTLP/gRPC receiver for logs, metrics and traces (Collector, Alloy and SDK
+# exporters). Uses the same tenancy (`x-scope-orgid` metadata or Basic
+# credentials), auth, limits and storage as OTLP/HTTP on the http port.
+# Plain-text HTTP/2 (h2c): terminate TLS in front of Pulse, as for HTTP.
+otlpGrpc:
+  enabled: false
+  port: 4317
+  # Largest decompressed export message; larger ones fail permanently.
+  maxMessageBytes: 16777216
+  # Admitted calls receiving/ingesting per pod; further calls wait within
+  # their end-to-end deadline (HTTP/2 backpressure).
+  maxInFlight: 64
+
+logCompaction:
+  # Native merges of small log segments, which keep log queries from reading
+  # one object per push. Upgrade all readers/writers/compactors first.
+  enabled: false
+  # With compaction, write per-minute line/byte counts per stream for settled
+  # minutes, so count_over_time/bytes_over_time/rate panels without line
+  # filters read the counts instead of every line.
+  rollups: true
+  # With compaction, regroup log segments by stream: each settled hour once
+  # (10 minutes after it ends), and settled batches of a busy unfinished hour.
+  # Stream selectors then read only their stream's segments, so parsed-field
+  # alerts and panels over 6h-24h stop reading every stream's lines. Upgrade
+  # every pod first: older releases replay grouped segments in live tail.
+  # See docs/configuration.md#stream-grouped-log-segments.
+  groupByStream: true
+
+traceCompaction:
+  # Merges each hour's per-flush trace segments into objects of one service,
+  # one class (error/event spans or the others) and at most 256 trace IDs, so
+  # Tempo search and TraceQL metrics read only the objects that can match.
+  # Uses the same manifest backups and cleanup as logs and metrics, so it is
+  # safe without bucket versioning (Tigris). Upgrade every pod writing to the
+  # bucket to 1.38 or later before relying on it; older pods read the merged
+  # objects but do not prune them. Retention is configured under retention.tracesDays.
+  enabled: true
+
+# Experimental event-time retention. Read docs/retention.md before changing any
+# of these. Defaults keep unlimited retention: no durations and no worker.
+retention:
+  # Runs the background retention/cleanup worker even when all durations are
+  # 0. The worker also runs whenever any duration is positive. Set it to
+  # true before returning all durations to 0 while committed cleanup is pending.
+  enabled: false
+  # Whole days of event-time retention per signal, 0..3650. 0 stops advancing
+  # the retention floor; it never restores expired data.
+  logsDays: 0
+  metricsDays: 0
+  # Trace retention uses span START timestamps, not end times or object age.
+  tracesDays: 0
+  # observe: preview only, but finish cleanup already committed.
+  # enforce: expire data. Irreversible; first finish rolling out this image
+  #          in observe mode.
+  # paused:  no floor advancement and no cleanup.
+  mode: observe
+  # Manifest format of enforced prefixes. paged keeps the format-4 manifest,
+  # with manifest backups and metric hour finalization; releases before 1.32
+  # must not run in enforce mode against the bucket. bucketed converts to the
+  # older format-3 manifest. Prefixes already in format 3 stay there.
+  manifestFormat: paged
+  # Reader grace between a committed expiry and physical deletion,
+  # 60000..2592000000 ms. Keep it well above clock skew and query duration; a
+  # query that still finds an object or page deleted restarts once, then fails.
+  deleteGraceMs: 3600000
+  # Maintenance cadence, 1000..3600000 ms.
+  intervalMs: 30000
+  # Maximum DELETE attempts per node per intervalMs, 1..512, shared by
+  # retention and compaction cleanup of retention-managed prefixes. At most
+  # four run concurrently.
+  deleteLimit: 512
+  # Deadline for one maintenance operation, 1000..600000 ms. When the worker
+  # runs, the pod termination grace is raised to cover it.
+  timeoutMs: 30000
+  # Deadline for converting one existing manifest in enforce mode,
+  # 30000..3600000 ms. In enforce mode with a positive duration, the pod
+  # termination grace is raised to cover it.
+  migrationTimeoutMs: 600000
+  # Requests with records more than this far in the future are rejected once a
+  # prefix is retention-managed, 0..86400000 ms.
+  futureSkewMs: 600000
+  # Days of expired partitions revisited by orphan sweeps, 1..7302. Empty
+  # keeps the default of twice the persisted retention days plus two.
+  sweepHorizonDays: ""
+
+ingestBatching:
+  # Node-local coalescing window, 0..10000 ms. 0 disables it. Otherwise
+  # requests WITHOUT Idempotency-Key for one tenant and signal share a segment
+  # for up to this long, and each manifest owner publishes at most once per
+  # window (keyed requests share those publications too), so object-store
+  # PUTs follow time, not pushes: about 2 per window per signal per instance.
+  # Acknowledgments still wait for the segment PUT and manifest write, so the
+  # window adds up to its length to ingest latency. 2000 suits object stores
+  # that bill per request (see docs/storage-costs.md); 20 favors latency.
+  # Buffers hold at most 2048 callers, 400000 rows and 32 MiB of estimated
+  # terms and flush early at a quarter of any bound. Overflow uses the
+  # original direct path.
+  flushIntervalMs: 0
+  # Node-local bound on concurrently processed ingest requests (HTTP and gRPC),
+  # 1..100000. Excess requests get a retryable 429 / RESOURCE_EXHAUSTED with a
+  # one-second Retry-After. Empty derives it from the container memory limit
+  # (about 32 MiB per slot; see docs/configuration.md#node-memory-envelope).
+  maxConcurrentRequests: ""
+  # Slots that metrics, logs and traces each keep for themselves, so one
+  # signal's burst cannot starve the others; the rest are shared. Empty means
+  # an eighth of maxConcurrentRequests, at least 1. At most maxConcurrentRequests / 3.
+  reservedRequestsPerSignal: ""
+  # Estimated bytes of coalesced requests that released their slot while they
+  # wait for durable publication (acknowledgment is unchanged). Budget this
+  # in addition to the slots; 0 disables the handoff.
+  maxPendingBytes: 67108864
+
+alerting:
+  # Experimental native Prometheus/LogQL/mixed thresholds, recordings and Slack delivery. Grafana
+  # execution/policy parity is not implemented; do not transfer production paging.
+  evaluationEnabled: false
+  # Separate explicit opt-in for native Slack outbox delivery.
+  notificationsEnabled: false
+  # Public bindings: tenant/id/type=slack_webhook/secret_env. Supply the HTTPS
+  # webhook via a Secret-backed extraEnv entry named by secret_env, never here.
+  notificationTargets: []
+  # Read-only disabled Grafana previews: tenant/uid/type=native_promql or native_logql.
+  # Explicitly maps an original datasource UID to this tenant's Pulse metrics.
+  # No external URLs, automatic residency, recording ordering or enabling imports.
+  sourceBindings: []
+  # Poll durable rule heads every 1000..60000 ms. Queries have separate admission.
+  pollIntervalMs: 5000
+  # Dedicated principals, not tenant-shared credentials. Each item has tenant,
+  # id, type (human/agent/service), token_hash (64 lowercase SHA-256 hex chars),
+  # and capabilities. See docs/alerting.md. Never put plaintext bearer tokens here.
+  principals: []
+
+sentry:
+  # Experimental JSON error ingestion. Numeric project ID => tenant, service,
+  # public_key_hashes (1..8 lowercase SHA-256 digests of ingest-only DSN keys).
+  # Optional allowed_domains: up to 32 origin patterns, 1..256 UTF-8 bytes each.
+  # Omission allows all origins; [] denies Origin-bearing requests. SDKs without
+  # Origin still require valid credentials and are unaffected by that list.
+  # Empty disables ingestion. Error events share log retention. Add exact SDK
+  # paths to ingress.paths explicitly; see docs/error-tracking.md.
+  projects: {}
+  # Optional bounded S3 monitoring projection, independent of ingest success.
+  # Newness means new within historyDays, not first ever. See docs/error-monitoring.md
+  # for capacity, replay floors, conservative resets and the fixed five-minute
+  # error-rate detector (at least 5 baseline events and a 3x increase).
+  projectionEnabled: false
+  historyDays: 1
+  # Round-robin cadence: each pass handles one configured project, 1000..60000.
+  projectionIntervalMs: 5000
+
+reliability:
+  # Experimental periodic service assessments, independently opt-in. S3/CAS
+  # required. Raw ingest/retention is unchanged. See docs/reliability.md.
+  enabled: false
+  tenants: []
+  # Explicit ISO date required when enabling; verify current provider pricing.
+  priceValidUntil: ""
+  # USD/month PER TENANT. Objects are estimated dispatch charges, not an invoice
+  # cap. Model attempts reserve all 5000 tokens; failed attempts are not refunded.
+  assessmentBudgetUsd: 500
+  objectBudgetUsd: 100
+  investigationBudgetUsd: 1000
+  inputNanoUsdPerToken: 110
+  # Fixed HTTPS external runtime. $5/run, 20 starts/day, 2 unresolved runs and
+  # 1h/service cooldown. Receiver must enforce cost/deadline and report completion.
+  investigationUrl: ""
+  # Supply PULSE_RELIABILITY_OPENAI_API_KEY and, if handoff is enabled,
+  # PULSE_RELIABILITY_INVESTIGATION_TOKEN using Secret-backed extraEnv.
+
+mcp:
+  # Browser origins allowed to call POST /mcp. Requests without an Origin
+  # header (most agents and servers) are always accepted.
+  allowedOrigins: []
+
+# Per-request ingest budgets, keyed by setting name. Unset keys keep their
+# defaults. See docs/ingest-limits.md.
+ingestLimits: {}
+#  max_records: 10000
+# OTLP distributions independently cap projected float samples at max_records.
+# Complete source metadata repeats per projection under the fixed 16 MiB cap.
+#  max_attributes: 128
+#  max_key_bytes: 256
+#  max_value_bytes: 16384
+#  max_attribute_bytes: 65536
+#  max_depth: 16
+#  max_nodes: 1024
+#  max_trace_nodes: 262144 # request-wide traces ceiling, independent of per-set max_nodes
+#  max_otlp_nodes: 262144 # request-wide logs ceiling (JSON/protobuf)
+# OTLP logs also have a fixed 16 MiB normalized payload cap and effective depth <=32.
+# Upgrade all readers/writers before rich OTLP logs; see docs/logs.md.
+
+# Additional environment variables for the Pulse container.
+extraEnv: []
+extraEnvFrom: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automount: false
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 4000
+  annotations: {}
+
+# Optional public ingress. TLS terminates here; Pulse itself serves plain
+# HTTP. Only the listed paths are routed, so the self-monitoring endpoint
+# (/metrics) and the probes stay private. Keep that property if you change
+# `paths`: routing "/" would expose /metrics.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: ""
+  tls: []
+  #  - secretName: pulse-tls
+  #    hosts:
+  #      - pulse.example.com
+  paths:
+    - path: /v1/logs
+      pathType: Exact
+    - path: /v1/traces
+      pathType: Exact
+    - path: /v1/metrics
+      pathType: Exact
+    # Loki's and Grafana Cloud's OTLP paths.
+    - path: /otlp/v1/logs
+      pathType: Exact
+    - path: /otlp/v1/traces
+      pathType: Exact
+    - path: /otlp/v1/metrics
+      pathType: Exact
+    # Grafana Cloud/Cortex remote-write path (Mimir's /api/v1/push is below).
+    - path: /api/prom/push
+      pathType: Exact
+    - path: /loki/api/v1
+      pathType: Prefix
+    - path: /api/v1
+      pathType: Prefix
+    - path: /api/search/tags
+      pathType: Exact
+    - path: /api/v2/search/tags
+      pathType: Exact
+    - path: /api/search/tag
+      pathType: Prefix
+    - path: /api/v2/search/tag
+      pathType: Prefix
+    - path: /api/search
+      pathType: Exact
+    - path: /api/traces
+      pathType: Prefix
+    - path: /api/v2/traces
+      pathType: Prefix
+    # TraceQL metrics (Traces Drilldown).
+    - path: /api/metrics
+      pathType: Prefix
+    # Tempo datasource health checks.
+    - path: /api/echo
+      pathType: Exact
+    - path: /api/status/buildinfo
+      pathType: Exact
+    - path: /mcp
+      pathType: Exact
+
+# Prometheus Operator ServiceMonitor for Pulse's self-monitoring endpoint.
+# Send these metrics to a monitoring system other than Pulse itself.
+serviceMonitor:
+  enabled: false
+  interval: 15s
+  scrapeTimeout: 10s
+  labels: {}
+
+# Self-monitoring alert rules (files/alerts.json) as a Prometheus Operator
+# PrometheusRule. Grafana can import the same file as Grafana-managed rules.
+# See docs/self-monitoring.md.
+prometheusRule:
+  enabled: false
+  labels: {}
+
+# Per-tenant admission limits, so one tenant cannot take a shared instance's
+# capacity from the others. Applied per instance, only to callers whose
+# credentials verify. See docs/scaling.md#per-tenant-limits. Example:
+#   default: {ingest_max_concurrent: 8, query_max_concurrent: 2}
+#   tenants: {acme: {ingest_bytes_per_second: 10485760}}
+tenantLimits: {}
+
+# Tenant lifecycle through the admin API: tenants created, suspended and
+# deleted at runtime, with credentials stored in the bucket. Requires
+# admin.tokenHashes. Deletion purges a tenant's data after deletionGraceMs,
+# which must be at least twice cacheTtlMs. See docs/tenants.md.
+tenantRegistry:
+  enabled: false
+  # How long instances cache a tenant's state; suspensions and deletions take
+  # effect everywhere within this time.
+  cacheTtlMs: 30000
+  deletionGraceMs: 600000
+
+# Admin API credentials (/api/v1/admin): digests of admin Bearer tokens, in
+# the same "sha256$<hex>" form as tenantTokens. Empty hides the API (404).
+admin:
+  tokenHashes: []
+
+# Per-tenant usage metering (ingested requests, bytes and records per signal;
+# query count and time), written to usage/v1/ in the bucket and read through
+# the admin API. See docs/tenants.md#usage-metering.
+usage:
+  enabled: false
+  flushIntervalMs: 60000
+
+# Instances of the combined Deployment, which runs every role. Every instance
+# can ingest and query any tenant: the bucket is the only authority, so you can
+# change this at any time. See docs/scaling.md.
+replicaCount: 1
+
+# HorizontalPodAutoscaler for the combined Deployment (ignored with pools).
+# Scales on CPU; for slot saturation (docs/scaling.md) use a custom-metrics
+# adapter or KEDA and set `metrics` accordingly.
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+  metrics: []
+
+# Separate ingest, query and maintenance Deployments on the same bucket, so
+# writes and reads scale independently and heavy queries cannot starve ingest.
+# Replaces the combined Deployment; the ingress routes receiver paths to the
+# ingest pool and everything else to the query pool. Maintenance (compaction,
+# retention, alerting, error projection, reliability) has no Service.
+pools:
+  enabled: false
+  ingest:
+    replicas: 2
+    resources: {}
+    autoscaling:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+      metrics: []
+  query:
+    replicas: 2
+    resources: {}
+    autoscaling:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+      metrics: []
+  maintenance:
+    replicas: 1
+    resources: {}
+    autoscaling:
+      enabled: false
+
+# Erlang distribution among Pulse pods, through a headless Service, so
+# rendezvous ownership spreads compaction, retention and alert evaluation
+# across instances instead of every instance attempting all of it. Correctness
+# never depends on it: conditional object writes arbitrate overlaps. Keep pods
+# inside one trusted network; the cookie is generated into the chart Secret
+# (or RELEASE_COOKIE in existingSecret).
+clustering:
+  enabled: false
+
+# Starting points, not measured capacity. Size limits.memory with
+# docs/scaling.md#sizing-formula (flat manifests add about 2 KiB per
+# segment). Pulse sizes its ingest and query
+# slots from limits.memory (docs/configuration.md#node-memory-envelope), so
+# raising memory raises concurrency; overload beyond the slots is a retryable
+# 429. Override slots with ingestBatching.maxConcurrentRequests, or
+# PULSE_QUERY_MAX_CONCURRENT / PULSE_QUERY_MAX_HEAP_MB via extraEnv; queries
+# beyond the slots wait up to PULSE_QUERY_QUEUE_MS (5000) first. Above 85%
+# of limits.memory the node evicts caches and refuses new interactive queries
+# (PULSE_MEMORY_PRESSURE_PERCENT, docs/scaling.md#memory-pressure).
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 2Gi
+
+# Rolling updates briefly run old and new instances together, which
+# object-storage conditional writes keep safe for compatible versions. When upgrading from a version that rejected stale/non-finite samples,
+# use type: Recreate and rollingUpdate: null so old readers never overlap new
+# writers. Existing buckets cannot be rolled back to the old reader after those
+# values are stored. See docs/deployment.md's stale-sample compatibility section.
+# Remote-write source-start upgrades also require Recreate/rollingUpdate: null
+# plus a fleet-wide metric-delivery pause, old keyed-retry drain and shutdown of
+# all old readers/writers/compactors. Recreate alone cannot coordinate other
+# deployments sharing the bucket; see docs/deployment.md's source-start section.
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# Time to finish in-flight requests on shutdown. Collectors retry anything
+# that was not acknowledged.
+terminationGracePeriodSeconds: 30
+# Delay before shutdown so load balancers stop routing to the pod first.
+preStopSleepSeconds: 5
+
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 2
+  failureThreshold: 30
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+# Readiness reflects a background object-storage check that runs every
+# 15 seconds, so a pod becomes ready shortly after storage is reachable.
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: http
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

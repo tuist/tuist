@@ -31,6 +31,7 @@ defmodule Tuist.Runners.GitLab do
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
+  alias Tuist.Runners.Workers.CaptureGitLabIdentityWorker
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
 
@@ -50,6 +51,11 @@ defmodule Tuist.Runners.GitLab do
   def get_connection(id), do: Repo.get(Connection, id)
   # Internal lookup after dispatch or report authentication selected the job.
   def get_job(id), do: Repo.get(Job, id)
+
+  @doc "Stores the cache volume identity verified when the job was acquired."
+  def store_cache_volume_identity(%Job{} = job, identity) when is_map(identity) do
+    job |> Ecto.Changeset.change(cache_volume_identity: identity) |> Repo.update()
+  end
 
   def get_job_for_account(account_id, id) do
     Repo.one(
@@ -81,7 +87,9 @@ defmodule Tuist.Runners.GitLab do
     attrs = attrs |> Map.put(:account_id, account_id) |> Map.put(:enabled, true)
 
     attrs =
-      if connection.id && Map.get(attrs, :runner_token) in [nil, ""], do: Map.delete(attrs, :runner_token), else: attrs
+      Enum.reduce([:runner_token, :api_token], attrs, fn field, attrs ->
+        if connection.id && Map.get(attrs, field) in [nil, ""], do: Map.delete(attrs, field), else: attrs
+      end)
 
     connection |> Connection.changeset(attrs) |> Repo.insert_or_update()
   end
@@ -210,8 +218,12 @@ defmodule Tuist.Runners.GitLab do
         })
 
       case target do
-        {:ok, resolved} -> enqueue_assignment(job, account, resolved, payload)
-        {:error, _} -> :ok
+        {:ok, resolved} ->
+          enqueue_assignment(job, account, resolved, payload)
+          {:ok, _} = CaptureGitLabIdentityWorker.enqueue(job)
+
+        {:error, _} ->
+          :ok
       end
 
       job

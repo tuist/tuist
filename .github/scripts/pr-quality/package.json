@@ -1,8 +1,0 @@
-{
-  "name": "rawtree-jev-ci-review",
-  "private": true,
-  "type": "module",
-  "engines": { "node": ">=24" },
-  "scripts": { "test": "node --test *.test.mjs" },
-  "dependencies": { "@typesafe-ai/sdk": "0.6.0" }
-}

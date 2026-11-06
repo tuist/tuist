@@ -24,92 +24,43 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
   def summary(project_id, opts \\ []) do
     {start_dt, end_dt} = period_datetimes(opts)
 
+    # Both aggregates read the per-run roll-ups the projector maintains
+    # (`Tuist.OnceEvents.ingest_action/2`, `ingest_cache_event/2`) rather
+    # than joining every action and cache event of the period, which grew
+    # with each run and dominated the page load. The roll-ups are exact
+    # sums of those rows, so the averages below are the same numbers the
+    # row-level queries produced.
     action_stats =
-      Action
-      |> where([a], a.project_id == ^project_id and a.capability != "_phase")
-      |> join(:inner, [a], r in Run, on: r.id == a.once_run_id)
-      |> where([_, r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
-      |> select([a, _], %{
-        read_ms:
-          fragment(
-            "coalesce(avg(case when ? then ? end), 0)",
-            a.was_cached,
-            a.duration_ms
-          ),
-        write_ms:
-          fragment(
-            "coalesce(avg(case when not ? then ? end), 0)",
-            a.was_cached,
-            a.duration_ms
-          ),
-        avg_ms: fragment("coalesce(avg(?), 0)", a.duration_ms),
-        # Totals feed the throughput denominators below. Averages
-        # answer "how slow was one probe on average"; sums answer
-        # "how much wall time was spent probing" which is what
-        # throughput divides by.
-        read_ms_total:
-          fragment(
-            "coalesce(sum(case when ? then ? end), 0)",
-            a.was_cached,
-            a.duration_ms
-          ),
-        write_ms_total:
-          fragment(
-            "coalesce(sum(case when not ? then ? end), 0)",
-            a.was_cached,
-            a.duration_ms
-          )
+      Run
+      |> where([r], r.project_id == ^project_id)
+      |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
+      |> select([r], %{
+        cached: coalesce(sum(r.cached_actions), 0),
+        executed: coalesce(sum(r.executed_actions), 0),
+        cached_ms: coalesce(sum(r.cached_action_ms_total), 0),
+        executed_ms: coalesce(sum(r.executed_action_ms_total), 0)
       })
-      |> Repo.one() ||
-        %{
-          read_ms: 0,
-          write_ms: 0,
-          avg_ms: 0,
-          read_ms_total: 0,
-          write_ms_total: 0
-        }
+      |> Repo.one()
+      |> action_latencies()
 
     transfer_row =
-      CacheEvent
-      |> where([e], e.project_id == ^project_id)
-      |> join(:inner, [e], r in Run, on: r.id == e.once_run_id)
-      |> where([_, r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
-      |> maybe_filter_run_environment(opts)
-      |> select([e, _], %{
-        download_bytes:
-          fragment(
-            "coalesce(sum(case when ? = 'download' then ? end), 0)",
-            e.kind,
-            e.bytes_transferred
-          ),
-        upload_bytes:
-          fragment(
-            "coalesce(sum(case when ? = 'upload' then ? end), 0)",
-            e.kind,
-            e.bytes_transferred
-          ),
-        download_ms:
-          fragment(
-            "coalesce(sum(case when ? = 'download' then ? end), 0)",
-            e.kind,
-            e.duration_ms
-          ),
-        upload_ms:
-          fragment(
-            "coalesce(sum(case when ? = 'upload' then ? end), 0)",
-            e.kind,
-            e.duration_ms
-          )
+      Run
+      |> where([r], r.project_id == ^project_id)
+      |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
+      |> maybe_filter_environment(opts)
+      |> select([r], %{
+        download_bytes: coalesce(sum(r.cache_bytes_downloaded), 0),
+        upload_bytes: coalesce(sum(r.cache_bytes_uploaded), 0)
       })
-      |> Repo.one() || %{download_bytes: 0, upload_bytes: 0, download_ms: 0, upload_ms: 0}
+      |> Repo.one()
 
     download_bytes = to_int(transfer_row.download_bytes)
     upload_bytes = to_int(transfer_row.upload_bytes)
     transfer_bytes = download_bytes + upload_bytes
 
-    read_latency_ms = to_int(action_stats.read_ms)
-    write_latency_ms = to_int(action_stats.write_ms)
-    latency_ms = to_int(action_stats.avg_ms)
+    read_latency_ms = action_stats.read_ms
+    write_latency_ms = action_stats.write_ms
+    latency_ms = action_stats.latency_ms
 
     # The client doesn't measure per-blob wall time yet, so
     # `once_cache_events.duration_ms` is ~0 and dividing by it
@@ -118,8 +69,8 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
     # for uploads) as the denominator — real wall time the runner
     # spent on cache traffic, close enough to the Bazel throughput
     # story until we instrument per-blob timing on the client.
-    read_ms_total = to_int(action_stats.read_ms_total)
-    write_ms_total = to_int(action_stats.write_ms_total)
+    read_ms_total = action_stats.read_ms_total
+    write_ms_total = action_stats.write_ms_total
 
     download_throughput = safe_throughput(download_bytes, read_ms_total)
     upload_throughput = safe_throughput(upload_bytes, write_ms_total)
@@ -234,58 +185,35 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
     {start_dt, end_dt} = period_datetimes(opts)
     granularity = granularity_for(start_dt, end_dt)
 
+    # One row per run instead of one per action or cache event; see
+    # `summary/2`. Buckets still key on the run's `started_at`, which is
+    # what the row-level queries grouped the joined run by.
     action_rows =
-      Action
-      |> where([a], a.project_id == ^project_id and a.capability != "_phase")
-      |> join(:inner, [a], r in Run, on: r.id == a.once_run_id)
-      |> where([_, r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
-      |> maybe_filter_run_environment(opts)
-      |> group_by([a, r], fragment("date_trunc(?, ?)", ^to_string(granularity), r.started_at))
-      |> select([a, r], %{
+      Run
+      |> where([r], r.project_id == ^project_id)
+      |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
+      |> maybe_filter_environment(opts)
+      |> group_by([r], fragment("date_trunc(?, ?)", ^to_string(granularity), r.started_at))
+      |> select([r], %{
         bucket: fragment("min(?)", r.started_at),
-        lookups: count(a.id),
-        hits: sum(fragment("(case when ? then 1 else 0 end)", a.was_cached)),
-        read_ms:
-          fragment(
-            "coalesce(avg(case when ? then ? end), 0)",
-            a.was_cached,
-            a.duration_ms
-          ),
-        write_ms:
-          fragment(
-            "coalesce(avg(case when not ? then ? end), 0)",
-            a.was_cached,
-            a.duration_ms
-          ),
-        read_ms_total:
-          fragment(
-            "coalesce(sum(case when ? then ? end), 0)",
-            a.was_cached,
-            a.duration_ms
-          ),
-        write_ms_total:
-          fragment(
-            "coalesce(sum(case when not ? then ? end), 0)",
-            a.was_cached,
-            a.duration_ms
-          ),
-        latency_ms: fragment("coalesce(avg(?), 0)", a.duration_ms)
+        cached: coalesce(sum(r.cached_actions), 0),
+        executed: coalesce(sum(r.executed_actions), 0),
+        cached_ms: coalesce(sum(r.cached_action_ms_total), 0),
+        executed_ms: coalesce(sum(r.executed_action_ms_total), 0)
       })
       |> Repo.all()
+      |> Enum.map(fn row -> row |> action_latencies() |> Map.put(:bucket, row.bucket) end)
 
     transfer_rows =
-      CacheEvent
-      |> where([e], e.project_id == ^project_id)
-      |> join(:inner, [e], r in Run, on: r.id == e.once_run_id)
-      |> where([_, r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
-      |> group_by([e, r], fragment("date_trunc(?, ?)", ^to_string(granularity), r.started_at))
-      |> select([e, r], %{
+      Run
+      |> where([r], r.project_id == ^project_id)
+      |> where([r], r.started_at >= ^start_dt and r.started_at < ^end_dt)
+      |> group_by([r], fragment("date_trunc(?, ?)", ^to_string(granularity), r.started_at))
+      |> select([r], %{
         bucket: fragment("min(?)", r.started_at),
-        observations: count(e.id),
-        download_bytes: fragment("coalesce(sum(case when ? = 'download' then ? end), 0)", e.kind, e.bytes_transferred),
-        upload_bytes: fragment("coalesce(sum(case when ? = 'upload' then ? end), 0)", e.kind, e.bytes_transferred),
-        download_ms: fragment("coalesce(sum(case when ? = 'download' then ? end), 0)", e.kind, e.duration_ms),
-        upload_ms: fragment("coalesce(sum(case when ? = 'upload' then ? end), 0)", e.kind, e.duration_ms)
+        observations: coalesce(sum(r.cache_event_count), 0),
+        download_bytes: coalesce(sum(r.cache_bytes_downloaded), 0),
+        upload_bytes: coalesce(sum(r.cache_bytes_uploaded), 0)
       })
       |> Repo.all()
 
@@ -338,6 +266,30 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
   end
 
   # ---- Internals --------------------------------------------------------
+
+  # The per-action latency figures, derived from summed run roll-ups. An
+  # average over actions is the summed duration over the action count, and
+  # a run's `total_actions` is its `cached_actions + executed_actions`.
+  # Rounded half up to whole milliseconds, as the `avg` it replaces was.
+  defp action_latencies(row) do
+    cached = to_int(row.cached)
+    executed = to_int(row.executed)
+    cached_ms = to_int(row.cached_ms)
+    executed_ms = to_int(row.executed_ms)
+
+    %{
+      lookups: cached + executed,
+      hits: cached,
+      read_ms: rounded_average(cached_ms, cached),
+      write_ms: rounded_average(executed_ms, executed),
+      latency_ms: rounded_average(cached_ms + executed_ms, cached + executed),
+      read_ms_total: cached_ms,
+      write_ms_total: executed_ms
+    }
+  end
+
+  defp rounded_average(_sum, 0), do: 0
+  defp rounded_average(sum, count) when count > 0, do: div(2 * sum + count, 2 * count)
 
   defp build_series_row(action_row, transfer_row) do
     lookups = bucket_value(action_row, :lookups)
@@ -470,14 +422,6 @@ defmodule Tuist.OnceEvents.CacheAnalytics do
   defp maybe_filter_environment(query, opts) do
     case Keyword.get(opts, :is_ci) do
       is_ci when is_boolean(is_ci) -> where(query, [r], r.is_ci == ^is_ci)
-      _ -> query
-    end
-  end
-
-  # Same filter where the run is the joined binding rather than the first.
-  defp maybe_filter_run_environment(query, opts) do
-    case Keyword.get(opts, :is_ci) do
-      is_ci when is_boolean(is_ci) -> where(query, [_, r], r.is_ci == ^is_ci)
       _ -> query
     end
   end

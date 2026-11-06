@@ -1,8 +1,9 @@
 import ArgumentParser
 import Foundation
 import TuistCore
+import TuistSupport
 
-public struct CleanCommand: AsyncParsableCommand {
+public struct CleanCommand: AsyncParsableCommand, ProjectPathProviding {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -30,7 +31,7 @@ public struct CleanCommand: AsyncParsableCommand {
         completion: .directory,
         envKey: .cleanPath
     )
-    var path: String?
+    public var path: String?
 
     public func run() async throws {
         try await CleanService().run(

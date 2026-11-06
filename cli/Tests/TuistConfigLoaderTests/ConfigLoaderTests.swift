@@ -98,6 +98,48 @@ struct ConfigLoaderTests {
         #expect(HTTPSettings.current.caCertificatePath == "/etc/ssl/certs/ca.pem")
     }
 
+    @Test(.inTemporaryDirectory)
+    func loadCargoConfig_uses_toml_even_when_swift_config_exists() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let loader = MockTuistTomlConfigLoading()
+        let previousSettings = HTTPSettings.current
+        defer { HTTPSettings.current = previousSettings }
+        given(loader).loadConfig(at: .any).willReturn(TuistTomlConfig(
+            project: "org/rust-project",
+            url: URL(string: "https://custom.tuist.dev")!,
+            network: .init(proxy: false)
+        ))
+        #if os(macOS)
+            let swift = MockSwiftConfigLoading()
+            given(swift).locateConfig(at: .any).willReturn(directory.appending(component: "Tuist.swift"))
+            let subject = ConfigLoader(swiftConfigLoader: swift, tomlConfigLoader: loader)
+        #else
+            let subject = ConfigLoader(tomlConfigLoader: loader)
+        #endif
+        let config = try await subject.loadCargoConfig(path: directory)
+        #expect(config.fullHandle == "org/rust-project")
+        #expect(config.url == URL(string: "https://custom.tuist.dev")!)
+        #expect(config.network.proxy == false)
+        #expect(HTTPSettings.current.useEnvironmentProxy == false)
+        #if os(macOS)
+            verify(swift).locateConfig(at: .any).called(0)
+            verify(swift).loadConfig(path: .any).called(0)
+        #endif
+    }
+
+    @Test(.inTemporaryDirectory)
+    func loadCargoConfig_defaults_without_toml() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let loader = MockTuistTomlConfigLoading()
+        let previousSettings = HTTPSettings.current
+        defer { HTTPSettings.current = previousSettings }
+        given(loader).loadConfig(at: .any).willReturn(nil)
+        let config = try await makeConfigLoader(tomlConfigLoader: loader).loadCargoConfig(path: directory)
+        #expect(config.fullHandle == nil)
+        #expect(config.url == Constants.URLs.production)
+        #expect(config.network.proxy == true)
+    }
+
     private func makeConfigLoader(tomlConfigLoader: TuistTomlConfigLoading) -> ConfigLoader {
         #if os(macOS)
             let swiftConfigLoader = MockSwiftConfigLoading()

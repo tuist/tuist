@@ -8,11 +8,12 @@ defmodule TuistWeb.TestRunLiveTest do
 
   alias Tuist.CommandEvents
   alias Tuist.IngestRepo
+  alias Tuist.Projects
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobSteps
   alias Tuist.Shards.Analytics, as: ShardsAnalytics
   alias Tuist.Storage
-  alias Tuist.Tests.XcodeCoverage
+  alias Tuist.Tests
   alias Tuist.Xcode
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -20,6 +21,7 @@ defmodule TuistWeb.TestRunLiveTest do
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
   alias TuistTestSupport.Fixtures.XcodeFixtures
+  alias TuistWeb.Helpers.OpenGraph
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
@@ -84,6 +86,46 @@ defmodule TuistWeb.TestRunLiveTest do
     end
   end
 
+  for {build_system, scheme, title} <- [
+        {:mix, "", "mix test"},
+        {:mix, "integration", "mix test · integration"},
+        {:cargo, "nextest", "Cargo tests"},
+        {:cargo, "cargo nextest run · ci", "Cargo tests · ci"},
+        {:cargo, "cargo test", "cargo test"}
+      ] do
+    @build_system build_system
+    @scheme scheme
+    @card_title title
+    test "uses #{@card_title} on public #{@build_system} test-run cards", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, project} = Projects.update_project(project, %{build_system: @build_system, visibility: :public})
+
+      {:ok, run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          build_system: Atom.to_string(@build_system),
+          scheme: @scheme,
+          git_branch: "feature/elixir-og",
+          status: "failure"
+        )
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{run.id}"
+      html = conn |> get(path) |> html_response(:ok)
+      [image] = html |> Floki.parse_document!() |> Floki.attribute("meta[property='og:image']", "content")
+      %{"token" => token} = URI.decode_query(URI.parse(image).query)
+
+      assert {:ok, params} = OpenGraph.verify_image_token(token)
+      assert params["template"] == "project"
+      assert params["project_id"] == to_string(project.id)
+      assert params["title"] == @card_title
+      assert params["subtitle"] == "feature/elixir-og"
+      assert params["badge"] == "Failure"
+    end
+  end
+
   test "shows details of a test run", %{
     conn: conn,
     organization: organization,
@@ -101,229 +143,13 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "h1")
   end
 
-  test "shows the coverage tab with the run's targets, least covered files first, and a file's detail", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    file = fn path, lines, functions ->
-      %{
-        path: path,
-        git_blob_id: "blob-#{path}",
-        targets: ["Calculator"],
-        covered_lines: Enum.count(lines, fn {_line, count} -> count > 0 end),
-        executable_lines: length(lines),
-        line_numbers: Enum.map(lines, &elem(&1, 0)),
-        execution_counts: Enum.map(lines, &elem(&1, 1)),
-        functions: functions
-      }
-    end
-
-    {:ok, test_run} =
-      Tuist.Tests.create_test(%{
-        id: UUIDv7.generate(),
-        project_id: project.id,
-        account_id: organization.account.id,
-        duration: 1000,
-        status: "success",
-        scheme: "App",
-        git_branch: "main",
-        git_commit_sha: "abc123",
-        ran_at: NaiveDateTime.utc_now(),
-        is_ci: true,
-        test_modules: [],
-        xcode_coverage: %{
-          partial: false,
-          files: [
-            file.("Sources/Calculator/Add.swift", [{2, 3}, {3, 0}, {4, 0}, {6, 1}], [
-              %{name: "add(_:_:)", line_number: 2, execution_count: 3, covered_lines: 2, executable_lines: 4}
-            ]),
-            file.("Sources/Calculator/Untested.swift", [{2, 0}, {3, 0}], [])
-          ]
-        }
-      })
-
-    base = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}"
-    {:ok, lv, _html} = live(conn, "#{base}?tab=coverage")
-
-    assert has_element?(lv, "#widget-coverage-percentage", "33.3%")
-    refute has_element?(lv, "#coverage-partial-run")
-    assert has_element?(lv, "#coverage-targets-table", "Calculator")
-
-    files_html = lv |> element("#coverage-files-table") |> render()
-    untested = files_html |> :binary.match("Untested.swift") |> elem(0)
-    add = files_html |> :binary.match("Add.swift") |> elem(0)
-    assert untested < add
-
-    {:ok, lv, _html} = live(conn, "#{base}?tab=coverage&coverage-file=Sources/Calculator/Add.swift")
-
-    assert has_element?(lv, "#coverage-file", "Sources/Calculator/Add.swift")
-    assert has_element?(lv, "#coverage-file-uncovered-lines", "3–4")
-    assert has_element?(lv, "#coverage-functions-table", "add(_:_:)")
-  end
-
-  test "shows a file without line data with its reported counts and its uncovered lines as unavailable", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    {:ok, test_run} =
-      Tuist.Tests.create_test(%{
-        id: UUIDv7.generate(),
-        project_id: project.id,
-        account_id: organization.account.id,
-        duration: 1000,
-        status: "success",
-        scheme: "App",
-        git_branch: "main",
-        git_commit_sha: "abc123",
-        ran_at: NaiveDateTime.utc_now(),
-        is_ci: true,
-        test_modules: [],
-        xcode_coverage: %{
-          partial: false,
-          files: [
-            %{
-              path: "Sources/Calculator/Legacy.swift",
-              git_blob_id: "legacy1",
-              targets: ["Calculator"],
-              covered_lines: 8,
-              executable_lines: 10,
-              line_numbers: [],
-              execution_counts: [],
-              functions: []
-            }
-          ]
-        }
-      })
-
-    {:ok, lv, _html} =
-      live(
-        conn,
-        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage&coverage-file=Sources/Calculator/Legacy.swift"
-      )
-
-    assert has_element?(lv, "#widget-coverage-file-percentage", "80.0%")
-    assert has_element?(lv, "#widget-coverage-file-lines", "8 / 10")
-    assert has_element?(lv, "#coverage-file-uncovered-lines", "Unavailable")
-  end
-
-  test "shows a function several shards covered as unavailable", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    shard = fn lines ->
-      %{
-        partial: false,
-        files: [
-          %{
-            path: "Sources/Calculator/Add.swift",
-            git_blob_id: "add1",
-            targets: ["Calculator"],
-            covered_lines: 1,
-            executable_lines: 2,
-            line_numbers: [2, 3],
-            execution_counts: lines,
-            functions: [%{name: "add(_:_:)", line_number: 2, execution_count: 1, covered_lines: 1, executable_lines: 2}]
-          }
-        ]
-      }
-    end
-
-    {:ok, test_run} =
-      Tuist.Tests.create_test(%{
-        id: UUIDv7.generate(),
-        project_id: project.id,
-        account_id: organization.account.id,
-        duration: 1000,
-        status: "success",
-        scheme: "App",
-        git_branch: "main",
-        git_commit_sha: "abc123",
-        ran_at: NaiveDateTime.utc_now(),
-        is_ci: true,
-        test_modules: [],
-        xcode_coverage: shard.([1, 0])
-      })
-
-    {:ok, stored} = Tuist.Tests.get_test(test_run.id)
-    XcodeCoverage.publish(stored, XcodeCoverage.rows(project.id, shard.([0, 1])), 1)
-
-    {:ok, lv, _html} =
-      live(
-        conn,
-        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage&coverage-file=Sources/Calculator/Add.swift"
-      )
-
-    assert has_element?(lv, "#widget-coverage-file-lines", "2 / 2")
-    assert has_element?(lv, "#coverage-functions-table", "Unavailable")
-  end
-
-  test "hides the coverage tab from an account without the xcode_coverage flag", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    {:ok, test_run} =
-      Tuist.Tests.create_test(%{
-        id: UUIDv7.generate(),
-        project_id: project.id,
-        account_id: organization.account.id,
-        duration: 1000,
-        status: "success",
-        scheme: "App",
-        git_branch: "main",
-        git_commit_sha: "abc123",
-        ran_at: NaiveDateTime.utc_now(),
-        is_ci: true,
-        test_modules: [],
-        xcode_coverage: %{
-          partial: false,
-          files: [
-            %{
-              path: "Sources/Add.swift",
-              git_blob_id: "abc",
-              targets: ["App"],
-              covered_lines: 1,
-              executable_lines: 2,
-              line_numbers: [1, 2],
-              execution_counts: [1, 0],
-              functions: []
-            }
-          ]
-        }
-      })
-
-    stub(Tuist.FeatureFlags, :xcode_coverage_enabled?, fn _account -> false end)
-
-    {:ok, lv, _html} =
-      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=coverage")
-
-    refute has_element?(lv, "[data-part='tab-menu-horizontal-item']", "Coverage")
-    refute has_element?(lv, "#widget-coverage-percentage")
-  end
-
-  test "hides the coverage tab for a run that gathered none", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: organization.account.id)
-
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
-
-    refute has_element?(lv, "[data-part='tab-menu-horizontal-item']", "Coverage")
-    refute render(lv) =~ "tab=coverage"
-  end
-
   test "shows the stress gate's verdict and the candidate that disagreed", %{
     conn: conn,
     organization: organization,
     project: project
   } do
     {:ok, test_run} =
-      Tuist.Tests.create_test(%{
+      Tests.create_test(%{
         id: UUIDv7.generate(),
         project_id: project.id,
         account_id: organization.account.id,
@@ -654,6 +480,35 @@ defmodule TuistWeb.TestRunLiveTest do
     # Then
     assert has_element?(lv, "a", "Download result")
     assert has_element?(lv, "a[href*='/runs/#{command_event.id}/download']")
+  end
+
+  test "immutable runs expose a canonical download link for a shard's original bundle", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 1, reporting_version: 1)
+    source_id = String.upcase(UUIDv7.generate())
+    stub(Tuist.Tasks, :run_async, fn _ -> :ok end)
+
+    assert {:ok, _} =
+             Tests.create_test(%{
+               id: source_id,
+               project_id: project.id,
+               account_id: organization.account.id,
+               shard_plan_id: plan.id,
+               shard_index: 0,
+               status: "success",
+               duration: 1,
+               is_ci: true,
+               test_modules: []
+             })
+
+    key = "#{organization.account.name}/#{project.name}/runs/#{source_id}/result_bundle.zip"
+    stub(Storage, :object_exists?, fn object_key, _ -> object_key == key end)
+    {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{plan.id}")
+    render_async(lv)
+    assert has_element?(lv, "a[href*='/runs/#{plan.id}/download']", "Download result")
   end
 
   test "hides download button when test run has no result bundle", %{
@@ -998,32 +853,46 @@ defmodule TuistWeb.TestRunLiveTest do
   end
 
   describe "shard card for sharded test runs" do
-    test "shows shard card for sharded test run", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+    for {build_system, granularity, label} <- [
+          {:once, "module", "Batches"},
+          {:xcode, "module", "Modules"},
+          {:xcode, "suite", "Test Suites"},
+          {:cargo, "module", "Modules"}
+        ] do
+      @tag build_system: build_system, granularity: granularity, label: label
+      test "shows #{build_system} #{granularity} shard counts as #{label}", %{
+        conn: conn,
+        organization: organization,
+        project: project,
+        build_system: build_system,
+        granularity: granularity,
+        label: label
+      } do
+        {:ok, project} = Projects.update_project(project, %{build_system: build_system})
+        shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2, granularity: granularity)
 
-      {:ok, test_run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          scheme: "AppScheme",
-          shard_plan_id: shard_plan.id,
-          shard_index: 0
-        )
+        {:ok, test_run} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            build_system: to_string(build_system),
+            scheme: "AppScheme",
+            shard_plan_id: shard_plan.id,
+            shard_index: 0
+          )
 
-      stub(ShardsAnalytics, :shard_metrics, fn _ ->
-        [
-          %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()},
-          %{shard_index: 1, actual_duration_ms: 4000, status: "success", ran_at: NaiveDateTime.utc_now()}
-        ]
-      end)
+        stub(ShardsAnalytics, :shard_metrics, fn _ ->
+          [
+            %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()},
+            %{shard_index: 1, actual_duration_ms: 4000, status: "success", ran_at: NaiveDateTime.utc_now()}
+          ]
+        end)
 
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+        {:ok, lv, _html} =
+          live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
-      assert has_element?(lv, "[data-part='shards-card']")
+        assert has_element?(lv, "[data-part='shards-card']")
+        assert has_element?(lv, "#shard-balance-table th", label)
+      end
     end
 
     test "shows pending shards when not all reported", %{
@@ -1117,12 +986,12 @@ defmodule TuistWeb.TestRunLiveTest do
       refute has_element?(lv, "#shard-balance-table", "Not reported")
     end
 
-    test "refreshes the shard table when the run state reloads", %{
+    test "refreshes shard rows, metrics and cases when the run state reloads", %{
       conn: conn,
       organization: organization,
       project: project
     } do
-      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2, reporting_version: 1)
 
       {:ok, test_run} =
         RunsFixtures.test_fixture(
@@ -1130,7 +999,15 @@ defmodule TuistWeb.TestRunLiveTest do
           scheme: "AppScheme",
           status: "in_progress",
           shard_plan_id: shard_plan.id,
-          shard_index: 0
+          shard_index: 0,
+          test_modules: [
+            %{
+              name: "FirstModule",
+              status: "success",
+              duration: 500,
+              test_cases: [%{name: "firstShardCase", status: "success", duration: 500}]
+            }
+          ]
         )
 
       stub(ShardsAnalytics, :shard_metrics, fn _ ->
@@ -1143,17 +1020,45 @@ defmodule TuistWeb.TestRunLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
 
       assert has_element?(lv, "#shard-balance-table", "Pending")
+      assert has_element?(lv, "#widget-test-cases", "1")
+      assert has_element?(lv, "#widget-failed-test-cases", "0")
+      assert has_element?(lv, "#test-cases-table", "firstShardCase")
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          status: "failure",
+          shard_plan_id: shard_plan.id,
+          shard_index: 1,
+          test_modules: [
+            %{
+              name: "SecondModule",
+              status: "failure",
+              duration: 700,
+              test_cases: [
+                %{name: "secondShardPassed", status: "success", duration: 300},
+                %{name: "secondShardFailed", status: "failure", duration: 400}
+              ]
+            }
+          ]
+        )
 
       stub(ShardsAnalytics, :shard_metrics, fn _ ->
         [
           %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()},
-          %{shard_index: 1, actual_duration_ms: 7000, status: "success", ran_at: NaiveDateTime.utc_now()}
+          %{shard_index: 1, actual_duration_ms: 7000, status: "failure", ran_at: NaiveDateTime.utc_now()}
         ]
       end)
 
       render_hook(lv, "refresh_test_run")
 
       refute has_element?(lv, "#shard-balance-table", "Pending")
+      assert has_element?(lv, "#widget-test-cases", "3")
+      assert has_element?(lv, "#widget-failed-test-cases", "1")
+      assert has_element?(lv, "#test-cases-table", "firstShardCase")
+      assert has_element?(lv, "#test-cases-table", "secondShardPassed")
+      assert has_element?(lv, "#test-cases-table", "secondShardFailed")
     end
   end
 

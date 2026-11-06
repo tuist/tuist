@@ -8,6 +8,20 @@ defmodule TuistWeb.SSOLinkHTML do
 
   attr :title, :string, required: true
   attr :subtitle, :string, required: true
+  slot :inner_block, required: true
+
+  def security_settings_frame(assigns) do
+    ~H"""
+    <.link_frame title={@title} subtitle={@subtitle}>
+      <div id="user-security-settings">
+        {render_slot(@inner_block)}
+      </div>
+    </.link_frame>
+    """
+  end
+
+  attr :title, :string, required: true
+  attr :subtitle, :string, required: true
   slot :inner_block
 
   def link_frame(assigns) do

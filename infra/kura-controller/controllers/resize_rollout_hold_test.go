@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -189,6 +190,71 @@ func TestReconcileLowersTheRequestOfAResizeReplicaStrandedOnCPU(t *testing.T) {
 	}
 }
 
+// The re-template orphans the pods and the next pass recreates the
+// StatefulSet. Its template carries the grown ephemeral-storage request, so a
+// StatefulSet recreated on the default RollingUpdate replaces the highest
+// ordinal at that request on its old volume, which is pinned to a box that may
+// not fit it. It has to come back already held.
+func TestReconcileRecreatesAReTemplatedStatefulSetHeld(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+	f := newResizeHoldFixture(3000)
+	instance := f.instance
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(
+			instance,
+			f.claim(0, "16Gi"), f.claim(1, "16Gi"),
+			f.servingPod(0, "3"), f.servingPod(1, "3"),
+		).Build(),
+		Scheme: scheme,
+		RuntimeStatusClient: fakeRuntimeStatusClient{statuses: map[string]runtimeStatus{
+			instance.Name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, BackfillInitialCycle: backfillCycleComplete},
+			instance.Name + "-1": {Ready: true, State: "serving", RingMembers: 2, BackfillInitialCycle: backfillCycleComplete},
+		}},
+	}
+	request := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+
+	result, err := reconciler.Reconcile(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.RequeueAfter != 10*time.Second {
+		t.Fatalf("expected the resize to keep requeuing, got %+v", result)
+	}
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, request.NamespacedName, sts); err != nil {
+		t.Fatal(err)
+	}
+	if sts.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType || sts.Annotations[resizeRolloutHoldAnnotation] != "true" {
+		t.Fatalf("expected the StatefulSet to be recreated held, got strategy %+v annotations %v", sts.Spec.UpdateStrategy, sts.Annotations)
+	}
+	if got := templateStorage(sts); got.String() != "32Gi" {
+		t.Fatalf("expected the recreated StatefulSet to carry the grown claim, got %s", got.String())
+	}
+	for ordinal := 0; ordinal < 2; ordinal++ {
+		if !objectExists(t, reconciler.Client, f.claim(ordinal, "16Gi")) || !objectExists(t, reconciler.Client, f.servingPod(ordinal, "3")) {
+			t.Fatalf("ordinal %d must keep serving through the recreate", ordinal)
+		}
+	}
+
+	if _, err := reconciler.Reconcile(ctx, request); err != nil {
+		t.Fatal(err)
+	}
+	if objectExists(t, reconciler.Client, f.claim(0, "16Gi")) {
+		t.Fatal("expected the next pass to rebuild ordinal 0 behind ordinal 1")
+	}
+	if !objectExists(t, reconciler.Client, f.claim(1, "16Gi")) {
+		t.Fatal("ordinal 1 must keep serving while ordinal 0 rebuilds")
+	}
+	if err := reconciler.Get(ctx, request.NamespacedName, sts); err != nil {
+		t.Fatal(err)
+	}
+	if sts.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType {
+		t.Fatalf("expected the hold to stay in place during the rebuild, got %+v", sts.Spec.UpdateStrategy)
+	}
+}
+
 func TestHoldRolloutForResize(t *testing.T) {
 	ctx := context.Background()
 	scheme := meshTestScheme(t)
@@ -248,15 +314,33 @@ func TestHoldRolloutForResize(t *testing.T) {
 		})
 	}
 
-	t.Run("reports nothing held without a StatefulSet", func(t *testing.T) {
+	t.Run("reports a missing StatefulSet held, since it is created held", func(t *testing.T) {
 		f := newResizeHoldFixture(3000)
 		r := &KuraInstanceReconciler{Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(f.instance).Build(), Scheme: scheme}
 		held, err := r.holdRolloutForResize(ctx, f.instance)
 		if err != nil {
 			t.Fatal(err)
 		}
+		if !held {
+			t.Fatal("a missing StatefulSet is recreated on the hold")
+		}
+	})
+
+	t.Run("reports a StatefulSet still being replaced not held", func(t *testing.T) {
+		f := newResizeHoldFixture(3000)
+		sts := f.statefulSet(rollingUpdate(), "3", nil)
+		sts.Finalizers = []string{metav1.FinalizerOrphanDependents}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(f.instance, sts).Build()
+		if err := c.Delete(ctx, sts); err != nil {
+			t.Fatal(err)
+		}
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		held, err := r.holdRolloutForResize(ctx, f.instance)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if held {
-			t.Fatal("a missing StatefulSet cannot be held")
+			t.Fatal("a StatefulSet being replaced cannot be held")
 		}
 	})
 }
@@ -406,11 +490,129 @@ func TestReplacePodsStrandedOnCPU(t *testing.T) {
 			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(f.instance, f.statefulSet(onDelete(), tc.template, tc.annotations), pod).Build()
 			r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
 
-			if err := r.replacePodsStrandedOnCPU(ctx, f.instance); err != nil {
+			if err := r.replacePodsStrandedOnResources(ctx, f.instance); err != nil {
 				t.Fatal(err)
 			}
 			if deleted := !objectExists(t, c, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace}}); deleted != tc.wantDeleted {
 				t.Fatalf("deleted = %v, want %v", deleted, tc.wantDeleted)
+			}
+		})
+	}
+}
+
+func TestResizeHoldReplacesPodStrandedOnDisk(t *testing.T) {
+	for _, disk := range []corev1.ResourceName{corev1.ResourceEphemeralStorage, kuraDiskResource} {
+		for _, operatorPause := range []bool{false, true} {
+			f := newResizeHoldFixture(100)
+			if disk == kuraDiskResource {
+				f.instance.Spec.DiskResource = string(disk)
+			}
+			annotations := resizeHeld()
+			if operatorPause {
+				annotations = nil
+			}
+			sts := f.statefulSet(onDelete(), "100m", annotations)
+			sts.Spec.Template.Spec.Containers[0].Resources.Requests[disk] = resource.MustParse("32Gi")
+			pod := f.unscheduledPod(1, "100m", "Insufficient "+string(disk))
+			pod.Spec.Containers[0].Resources.Requests[disk] = resource.MustParse("64Gi")
+			c := fake.NewClientBuilder().WithScheme(meshTestScheme(t)).WithObjects(sts, pod).Build()
+			r := &KuraInstanceReconciler{Client: c}
+			if err := r.replacePodsStrandedOnResources(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			if exists := objectExists(t, c, pod); exists != operatorPause {
+				t.Fatalf("disk=%s operatorPause=%v: pod exists=%v", disk, operatorPause, exists)
+			}
+		}
+	}
+}
+
+func TestLVMResizeHoldWaitsForFreshCatchUp(t *testing.T) {
+	for _, tc := range []struct {
+		name, cycle      string
+		missing, invalid bool
+		exhausted        int64
+		release          bool
+	}{
+		{name: "initial backfill pending", cycle: "pending"},
+		{name: "initial backfill running", cycle: "running"},
+		{name: "missing observation", missing: true},
+		{name: "invalid observation", cycle: backfillCycleComplete, invalid: true},
+		{name: "backfill budget exhausted", cycle: backfillCycleComplete, exhausted: 1},
+		{name: "both caught up", cycle: backfillCycleComplete, release: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newResizeHoldFixture(600)
+			f.instance.Spec.DiskResource = string(kuraDiskResource)
+			f.instance.Spec.StorageClassName = thinLocalStorageClass
+			sts := f.statefulSet(onDelete(), "600m", resizeHeld())
+			sts.Status.UpdateRevision = "current"
+			pods := []*corev1.Pod{f.servingPod(0, "600m"), f.servingPod(1, "600m")}
+			for _, pod := range pods {
+				pod.Labels[appsv1.ControllerRevisionHashLabelKey] = "current"
+			}
+			samples := map[string]runtimeStatus{
+				pods[0].Name: {Ready: true, State: "serving", WriterLockOwned: true, BackfillInitialCycle: backfillCycleComplete},
+				pods[1].Name: {Ready: true, State: "serving", WriterLockOwned: true, BackfillInitialCycle: tc.cycle, invalidObservation: tc.invalid, BackfillBudgetExhaustedRealPeers: tc.exhausted},
+			}
+			if tc.missing {
+				delete(samples, pods[1].Name)
+			}
+			c := fake.NewClientBuilder().WithScheme(meshTestScheme(t)).WithObjects(f.instance, sts, pods[0], pods[1]).Build()
+			r := &KuraInstanceReconciler{Client: c, RuntimeStatusClient: fakeRuntimeStatusClient{statuses: samples}}
+			if err := r.releaseResizeRolloutHold(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			got := &appsv1.StatefulSet{}
+			if err := c.Get(context.Background(), client.ObjectKeyFromObject(sts), got); err != nil {
+				t.Fatal(err)
+			}
+			released := got.Spec.UpdateStrategy.Type == appsv1.RollingUpdateStatefulSetStrategyType
+			if released != tc.release {
+				t.Fatalf("released = %v, want %v", released, tc.release)
+			}
+		})
+	}
+}
+
+func TestLVMResizeRetainsHoldWhileRollingAChangedTemplate(t *testing.T) {
+	for _, retired := range []bool{false, true} {
+		t.Run(fmt.Sprintf("retired=%v", retired), func(t *testing.T) {
+			f := newResizeHoldFixture(600)
+			f.instance.Spec.StorageClassName = thinLocalStorageClass
+			f.instance.Spec.DiskResource = string(kuraDiskResource)
+			sts := f.statefulSet(onDelete(), "600m", resizeHeld())
+			sts.Status.UpdateRevision = "new"
+			old, donor := f.servingPod(0, "600m"), f.servingPod(1, "600m")
+			old.Status.PodIP = "10.0.0.1"
+			old.Labels[appsv1.ControllerRevisionHashLabelKey] = "old"
+			intent, err := json.Marshal(lvmWriteTarget{Pod: donor.Name, UID: string(donor.UID), SourceIncarnation: "current-boot", Target: migrationTarget{URL: renderPodNodeURL(f.instance, donor.Name, f.instance.Namespace), Incarnation: "current-boot"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			old.Annotations = map[string]string{lvmRebuildAnnotation: "true", lvmWriteTargetAnnotation: string(intent)}
+			donor.Labels[appsv1.ControllerRevisionHashLabelKey] = "new"
+			endpoints := &corev1.Endpoints{ObjectMeta: metav1.ObjectMeta{Name: f.instance.Name, Namespace: f.instance.Namespace}, Subsets: []corev1.EndpointSubset{{Addresses: []corev1.EndpointAddress{{IP: "10.0.0.2", TargetRef: &corev1.ObjectReference{Name: donor.Name}}}}}}
+			c := fake.NewClientBuilder().WithScheme(meshTestScheme(t)).WithObjects(f.instance, sts, old, donor, f.claim(0, "32Gi"), f.claim(1, "32Gi"), endpoints, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(f.instance), Namespace: f.instance.Namespace}}).Build()
+			sample := runtimeStatus{Ready: true, BackfillInitialCycle: backfillCycleComplete, ConnectionIncarnation: "current-boot"}
+			r := &KuraInstanceReconciler{Client: c, RuntimeStatusClient: fakeRuntimeStatusClient{statuses: map[string]runtimeStatus{old.Name: sample, donor.Name: sample}}, PublicConnectionRetirer: stubConnectionRetirer{ready: retired}}
+			if err := r.releaseResizeRolloutHold(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			got := &appsv1.StatefulSet{}
+			if err := c.Get(context.Background(), client.ObjectKeyFromObject(sts), got); err != nil {
+				t.Fatal(err)
+			}
+			if got.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType {
+				t.Fatal("released automatic rollout before manually handing off the stale template")
+			}
+			if exists := objectExists(t, c, old.DeepCopy()); exists == retired {
+				t.Fatalf("old pod exists=%v retired=%v", exists, retired)
+			}
+			for _, obj := range []client.Object{donor.DeepCopy(), f.claim(0, "32Gi"), f.claim(1, "32Gi")} {
+				if !objectExists(t, c, obj) {
+					t.Fatal("template rollout discarded its donor or a cache claim")
+				}
 			}
 		})
 	}

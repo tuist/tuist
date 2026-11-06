@@ -8,6 +8,7 @@ defmodule TuistWeb.FlakyTestsLiveTest do
 
   alias Tuist.IngestRepo
   alias Tuist.Tests.TestCase
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "flaky tests page" do
@@ -23,6 +24,45 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       # Then
       assert has_element?(lv, "[data-part='flaky-tests']")
       assert has_element?(lv, "[data-part='empty-flaky-tests']")
+    end
+
+    test "Once uses the shared analytics, test links, search, and native filter labels", %{
+      conn: conn,
+      organization: organization
+    } do
+      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :once)
+      base = "/#{organization.account.name}/#{project.name}/tests"
+
+      {:ok, empty, _html} = live(conn, base <> "/flaky-tests")
+
+      assert has_element?(
+               empty,
+               ~s([data-part="empty-flaky-tests"] a[href="https://tuist.dev/en/docs/guides/features/test-insights/flaky-tests/once"]),
+               "Get started"
+             )
+
+      matching = create_flaky_test_case(project, "reconnects_after_timeout", module_name: "NetworkTests")
+      create_flaky_test_case(project, "rejects_invalid_token", module_name: "AuthTests")
+      RunsFixtures.optimize_test_case_runs()
+
+      {:ok, lv, _html} = live(conn, base <> "/flaky-tests")
+      render_async(lv)
+
+      for id <- ["widget-flaky-test-cases", "widget-flaky-test-case-runs", "widget-flaky-test-runs"] do
+        assert has_element?(lv, "##{id}")
+      end
+
+      assert has_element?(lv, ~s(a[href$="#{base}/test-cases/#{matching.id}"]), "reconnects_after_timeout")
+      assert has_element?(lv, ~s([data-part="last-flaky-run-link"][href^="#{base}/test-runs/"]))
+
+      render_click(lv, "add_filter", %{"value" => "module_name"})
+      assert has_element?(lv, "[data-part='active-filters']", "Target")
+      render_click(lv, "add_filter", %{"value" => "suite_name"})
+      assert has_element?(lv, "[data-part='active-filters']", "Suite")
+
+      render_change(lv, "search-flaky-tests", %{"search" => "NetworkTests"})
+      assert has_element?(lv, "#flaky-tests-table", "reconnects_after_timeout")
+      refute has_element?(lv, "#flaky-tests-table", "rejects_invalid_token")
     end
 
     test "lists flaky tests when data exists", %{
@@ -42,6 +82,28 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       # Then
       assert has_element?(lv, "[data-part='flaky-tests-table']")
       assert has_element?(lv, "#flaky-tests-table", "testFlakyExample")
+    end
+
+    test "links the last flaky run by its UUID", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      # A leading 0x09 byte percent-encodes to `/%09` if the id leaks as raw bytes.
+      test_run_id = "09f6b50d-6c85-4541-a214-f06bf12f676c"
+      create_flaky_test_case(project, "testFlakyExample", test_run_id: test_run_id)
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
+
+      # Then
+      assert has_element?(
+               lv,
+               ~s([data-part="last-flaky-run-link"][href="/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run_id}"])
+             )
     end
 
     test "filters flaky tests by search term", %{
@@ -65,6 +127,69 @@ defmodule TuistWeb.FlakyTestsLiveTest do
       # Then
       assert has_element?(lv, "#flaky-tests-table", "testFirstFlaky")
       refute has_element?(lv, "#flaky-tests-table", "testSecondFlaky")
+    end
+
+    for field <- [:suite_name, :module_name],
+        {operator, value, expected_names} <- [
+          {"==", "CoordinatorTests", ["testExact"]},
+          {"=~", "coordinator", ["testExact", "testExtended"]},
+          {"!=~", "coordinator", ["testOther"]}
+        ] do
+      @field field
+      @operator operator
+      @value value
+      @expected_names expected_names
+
+      test "filters #{@field} with #{@operator}", %{
+        conn: conn,
+        organization: organization,
+        project: project
+      } do
+        for {name, value} <- [
+              {"testExact", "CoordinatorTests"},
+              {"testExtended", "CoordinatorTestsExtended"},
+              {"testOther", "OtherTests"}
+            ] do
+          create_flaky_test_case(project, name, [{@field, value}])
+        end
+
+        RunsFixtures.optimize_test_case_runs()
+
+        query =
+          URI.encode_query(%{
+            "filter_#{@field}_op" => @operator,
+            "filter_#{@field}_val" => @value
+          })
+
+        {:ok, lv, _html} =
+          live(conn, "/#{organization.account.name}/#{project.name}/tests/flaky-tests?#{query}")
+
+        for name <- ["testExact", "testExtended", "testOther"] do
+          assert has_element?(lv, "#flaky-tests-table", name) == name in @expected_names
+        end
+      end
+    end
+
+    for field <- [:suite_name, :module_name] do
+      @field field
+
+      test "searches by #{@field} through the search box", %{
+        conn: conn,
+        organization: organization,
+        project: project
+      } do
+        create_flaky_test_case(project, "testMatching", [{@field, "BackendViewsCoordinatorTests"}])
+        create_flaky_test_case(project, "testOther", [{@field, "LaunchRedirectCoordinatorTests"}])
+        RunsFixtures.optimize_test_case_runs()
+
+        {:ok, lv, _html} =
+          live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/flaky-tests")
+
+        render_change(lv, "search-flaky-tests", %{"search" => "backendviewscoordinator"})
+
+        assert has_element?(lv, "#flaky-tests-table", "testMatching")
+        refute has_element?(lv, "#flaky-tests-table", "testOther")
+      end
     end
 
     test "supports sorting via URL params", %{
@@ -172,7 +297,13 @@ defmodule TuistWeb.FlakyTestsLiveTest do
   end
 
   defp create_flaky_test_case(project, name, opts) do
-    test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: name, is_flaky: true)
+    test_case =
+      RunsFixtures.test_case_fixture(
+        Keyword.merge(
+          [project_id: project.id, name: name, is_flaky: true],
+          Keyword.take(opts, [:suite_name, :module_name])
+        )
+      )
 
     IngestRepo.insert_all(TestCase, [TuistTestSupport.Utilities.insertable_attrs(test_case)])
 

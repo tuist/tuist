@@ -66,11 +66,16 @@ defmodule TuistWeb.Utilities.RobotsTxt do
     default_disallow_paths = route_infos |> default_disallow_routes() |> Enum.map(& &1.path)
 
     default_disallow_paths
-    |> Enum.map(&best_disallow_pattern(&1, exempt_paths, default_disallow_paths))
+    |> Enum.map(&best_disallow_pattern(&1, exempt_paths))
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq_by(& &1.rendered)
     |> remove_covered_patterns()
     |> Enum.map(& &1.rendered)
+    |> Enum.flat_map(fn pattern ->
+      if String.ends_with?(pattern, "$"),
+        do: [pattern, String.trim_trailing(pattern, "$") <> "?"],
+        else: [pattern]
+    end)
     |> Enum.sort_by(&disallow_sort_key/1)
   end
 
@@ -184,13 +189,12 @@ defmodule TuistWeb.Utilities.RobotsTxt do
     end)
   end
 
-  defp best_disallow_pattern(path, exempt_paths, default_disallow_paths) do
-    path
-    |> disallow_candidates()
-    |> Enum.find(&safe_disallow_pattern?(&1, exempt_paths))
-    |> case do
+  defp best_disallow_pattern(path, exempt_paths) do
+    candidates = disallow_candidates(path)
+
+    case Enum.find(candidates, &safe_disallow_pattern?(&1, exempt_paths)) do
       nil -> nil
-      candidate -> finalize_disallow_pattern(candidate, default_disallow_paths)
+      candidate -> finalize_disallow_pattern(candidate, List.last(candidates))
     end
   end
 
@@ -217,30 +221,16 @@ defmodule TuistWeb.Utilities.RobotsTxt do
     not Enum.any?(exempt_paths, &disallow_pattern_matches?(pattern, &1))
   end
 
-  defp finalize_disallow_pattern(candidate, default_disallow_paths) do
-    trailing_slash? = needs_trailing_slash?(candidate, default_disallow_paths)
+  defp finalize_disallow_pattern(candidate, full_path) do
+    exact? = candidate.segments == full_path.segments
+    rendered = render_disallow_pattern(candidate.segments, not exact?) <> if(exact?, do: "$", else: "")
 
     %{
       segments: candidate.segments,
-      trailing_slash?: trailing_slash?,
-      rendered: render_disallow_pattern(candidate.segments, trailing_slash?)
+      trailing_slash?: not exact?,
+      rendered: rendered,
+      matcher: disallow_matcher(rendered)
     }
-  end
-
-  defp needs_trailing_slash?(candidate, default_disallow_paths) do
-    cond do
-      wildcard_path?(candidate) ->
-        false
-
-      Enum.any?(default_disallow_paths, &same_path?(&1, candidate)) ->
-        false
-
-      Enum.any?(default_disallow_paths, &strict_path_prefix?(candidate, &1)) ->
-        true
-
-      true ->
-        false
-    end
   end
 
   defp remove_covered_patterns(patterns) do
@@ -257,19 +247,15 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   end
 
   defp disallow_pattern_matches?(pattern, path) do
-    wildcard_prefix?(pattern.segments, path.segments) and
-      not (Map.get(pattern, :trailing_slash?, false) and same_length_path?(pattern, path))
+    path = Map.get_lazy(path, :rendered, fn -> render_disallow_pattern(path.segments, false) end)
+    Regex.match?(pattern.matcher, path)
   end
 
-  defp wildcard_prefix?(pattern_segments, path_segments) do
-    length(pattern_segments) <= length(path_segments) and
-      pattern_segments
-      |> Enum.zip(path_segments)
-      |> Enum.all?(fn
-        {@wildcard_segment, _segment} -> true
-        {segment, segment} -> true
-        _ -> false
-      end)
+  defp disallow_matcher(pattern) do
+    # Robots wildcards span slashes, and rules match URL prefixes rather than
+    # whole segments. Compile each candidate once, not once per route comparison.
+    regex = pattern |> Regex.escape() |> String.replace("\\*", ".*") |> String.replace("\\$", "$")
+    Regex.compile!("^" <> regex)
   end
 
   defp path_info(path) do
@@ -285,10 +271,13 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   end
 
   defp path_info_from_segments(segments) do
+    path = build_path(segments)
+
     %{
-      raw: build_path(segments),
+      raw: path,
       segments: segments,
-      dynamic?: Enum.any?(segments, &dynamic_segment?/1)
+      dynamic?: Enum.any?(segments, &dynamic_segment?/1),
+      matcher: disallow_matcher(path)
     }
   end
 
@@ -327,17 +316,6 @@ defmodule TuistWeb.Utilities.RobotsTxt do
     String.starts_with?(segment, ":") or String.starts_with?(segment, @wildcard_segment)
   end
 
-  defp wildcard_path?(path) do
-    Enum.any?(path.segments, &(&1 == @wildcard_segment))
-  end
-
-  defp same_path?(left, right), do: left.segments == right.segments
-  defp same_length_path?(left, right), do: length(left.segments) == length(right.segments)
-
-  defp strict_path_prefix?(prefix, path) do
-    path_prefix?(prefix.segments, path.segments) and not same_path?(prefix, path)
-  end
-
   defp path_prefix?(prefix_segments, path_segments) do
     Enum.take(path_segments, length(prefix_segments)) == prefix_segments
   end
@@ -352,7 +330,11 @@ defmodule TuistWeb.Utilities.RobotsTxt do
   end
 
   defp discovery_lines do
-    ["", "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap.xml")}"]
+    [
+      "",
+      "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap.xml")}",
+      "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap-projects.xml")}"
+    ]
   end
 
   defp robots_txt_setting(metadata) do

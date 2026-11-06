@@ -1,6 +1,10 @@
 .noora-card__section[data-chart-frame] {
   min-height: 320px;
 
+  &[data-chart-frame="cache"] {
+    min-height: calc(200px + 2 * var(--noora-spacing-7));
+  }
+
   &[data-chart-frame="small"] {
     min-height: 168px;
 

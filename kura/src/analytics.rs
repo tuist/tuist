@@ -35,6 +35,7 @@ const MAX_BAZEL_INVOCATION_BATCH_SIZE: usize = 32;
 pub struct Analytics {
     sender: mpsc::Sender<AnalyticsEvent>,
     bazel_sender: mpsc::Sender<BazelInvocationAnalyticsEvent>,
+    network_bazel_sender: mpsc::Sender<BazelInvocationAnalyticsEvent>,
     pending: Arc<AtomicUsize>,
     queue_capacity: usize,
     metrics: Metrics,
@@ -113,6 +114,7 @@ pub struct ReapiCacheAnalyticsEvent {
     pub operation: &'static str,
     pub outcome: &'static str,
     pub action_digest: String,
+    pub output_path: String,
     pub size: u64,
     pub duration_us: u64,
     pub observed_at_ms: u64,
@@ -123,7 +125,8 @@ impl Serialize for ReapiCacheAnalyticsEvent {
     where
         S: Serializer,
     {
-        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", 15)?;
+        let fields = if self.output_path.is_empty() { 15 } else { 16 };
+        let mut event = serializer.serialize_struct("ReapiCacheAnalyticsEvent", fields)?;
         event.serialize_field("event_id", &self.event_id)?;
         event.serialize_field("account_handle", &self.context.account_handle)?;
         event.serialize_field("project_handle", &self.context.project_handle)?;
@@ -131,6 +134,9 @@ impl Serialize for ReapiCacheAnalyticsEvent {
         event.serialize_field("operation", self.operation)?;
         event.serialize_field("outcome", self.outcome)?;
         event.serialize_field("action_digest", &self.action_digest)?;
+        if !self.output_path.is_empty() {
+            event.serialize_field("output_path", &self.output_path)?;
+        }
         event.serialize_field("size", &self.size)?;
         // Microseconds are the real measurement: Kura answers most action-cache
         // lookups in well under a millisecond, so a millisecond field rounds
@@ -150,6 +156,10 @@ impl Serialize for ReapiCacheAnalyticsEvent {
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct BazelInvocationAnalyticsEvent {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub submission_auth: Option<&'static str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub test_summaries: Vec<BazelTestSummaryAnalyticsEvent>,
     pub account_handle: String,
     pub project_handle: String,
     pub invocation_id: String,
@@ -180,6 +190,13 @@ pub struct BazelInvocationAnalyticsEvent {
     pub exit_code: i32,
     pub started_at_ms: u64,
     pub finished_at_ms: u64,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct BazelTestSummaryAnalyticsEvent {
+    pub target_label: String,
+    pub status: String,
+    pub duration_ms: u64,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
@@ -220,11 +237,14 @@ impl Analytics {
             return Ok(None);
         };
 
-        let client = crate::control_plane_http::analytics_client_builder(config.request_timeout_ms)
-            .build()
-            .map_err(|error| format!("failed to build analytics client: {error}"))?;
+        let client =
+            crate::control_plane_http::analytics_client_builder(config.request_timeout_ms)?
+                .build()
+                .map_err(|error| format!("failed to build analytics client: {error}"))?;
         let (sender, receiver) = mpsc::channel(config.queue_capacity);
         let (bazel_sender, bazel_receiver) = mpsc::channel(config.queue_capacity);
+        let (network_bazel_sender, network_bazel_receiver) =
+            mpsc::channel(config.queue_capacity.min(128));
         let pending = Arc::new(AtomicUsize::new(0));
         let queue_metrics = metrics.analytics_queue_metrics();
         let runtime = AnalyticsRuntime {
@@ -239,16 +259,25 @@ impl Analytics {
 
         queue_metrics.update(config.queue_capacity, 0);
         let bazel_runtime = runtime.clone();
+        let network_bazel_runtime = runtime.clone();
         tokio::spawn(async move {
             runtime.run(receiver).await;
         });
         tokio::spawn(async move {
-            bazel_runtime.run_bazel_invocations(bazel_receiver).await;
+            bazel_runtime
+                .run_bazel_invocations(bazel_receiver, "bazel_invocations")
+                .await;
+        });
+        tokio::spawn(async move {
+            network_bazel_runtime
+                .run_bazel_invocations(network_bazel_receiver, "bazel_invocations_network")
+                .await;
         });
 
         Ok(Some(Self {
             sender,
             bazel_sender,
+            network_bazel_sender,
             pending,
             queue_capacity: config.queue_capacity,
             metrics,
@@ -341,13 +370,27 @@ impl Analytics {
     }
 
     pub fn enqueue_bazel_invocation_event(&self, event: BazelInvocationAnalyticsEvent) {
-        match self.bazel_sender.try_send(event) {
-            Ok(()) => self
-                .metrics
-                .record_analytics_event("bazel_invocations", "enqueued", 1),
-            Err(_) => self
-                .metrics
-                .record_analytics_event("bazel_invocations", "dropped", 1),
+        let network = event.submission_auth == Some("network_trusted");
+        let pipeline = if network {
+            "bazel_invocations_network"
+        } else {
+            "bazel_invocations"
+        };
+        // Include JSON escaping in the cap. Separate queues and breakers keep
+        // unsigned bursts and invalid batches from dropping signed telemetry.
+        if network && serde_json::to_vec(&event).map_or(true, |encoded| encoded.len() > 128 * 1024)
+        {
+            self.metrics.record_analytics_event(pipeline, "dropped", 1);
+            return;
+        }
+        let sender = if network {
+            &self.network_bazel_sender
+        } else {
+            &self.bazel_sender
+        };
+        match sender.try_send(event) {
+            Ok(()) => self.metrics.record_analytics_event(pipeline, "enqueued", 1),
+            Err(_) => self.metrics.record_analytics_event(pipeline, "dropped", 1),
         }
     }
 
@@ -368,6 +411,7 @@ impl AnalyticsRuntime {
     async fn run_bazel_invocations(
         self,
         mut receiver: mpsc::Receiver<BazelInvocationAnalyticsEvent>,
+        pipeline: &'static str,
     ) {
         let mut ticker = interval(Duration::from_millis(self.config.batch_timeout_ms));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -376,21 +420,21 @@ impl AnalyticsRuntime {
         let mut breaker = CircuitBreaker::new();
 
         self.metrics
-            .update_analytics_circuit_state("bazel_invocations", breaker.state.code());
+            .update_analytics_circuit_state(pipeline, breaker.state.code());
 
         loop {
             tokio::select! {
                 event = receiver.recv() => {
                     let Some(event) = event else {
-                        self.flush_bazel_invocations(&mut batch, &mut breaker).await;
+                        self.flush_bazel_invocations(&mut batch, &mut breaker, pipeline).await;
                         break;
                     };
                     batch.push(event);
                     if batch.len() >= batch_size {
-                        self.flush_bazel_invocations(&mut batch, &mut breaker).await;
+                        self.flush_bazel_invocations(&mut batch, &mut breaker, pipeline).await;
                     }
                 }
-                _ = ticker.tick() => self.flush_bazel_invocations(&mut batch, &mut breaker).await,
+                _ = ticker.tick() => self.flush_bazel_invocations(&mut batch, &mut breaker, pipeline).await,
             }
         }
     }
@@ -626,6 +670,7 @@ impl AnalyticsRuntime {
         &self,
         batch: &mut Vec<BazelInvocationAnalyticsEvent>,
         breaker: &mut CircuitBreaker,
+        pipeline: &'static str,
     ) {
         if batch.is_empty() {
             return;
@@ -634,15 +679,12 @@ impl AnalyticsRuntime {
         let count = batch.len() as u64;
         let events = std::mem::take(batch);
         self.flush(
-            "bazel_invocations",
+            pipeline,
             BAZEL_INVOCATIONS_WEBHOOK_PATH,
             &EventBatch { events },
             count,
             breaker,
-            |count, result| {
-                self.metrics
-                    .record_analytics_event("bazel_invocations", result, count)
-            },
+            |count, result| self.metrics.record_analytics_event(pipeline, result, count),
         )
         .await;
     }
@@ -993,9 +1035,10 @@ mod tests {
     use crate::{config::AnalyticsConfig, metrics::Metrics};
 
     use super::{
-        Analytics, BazelInvocationAnalyticsEvent, BazelInvocationLogAnalyticsEvent, CircuitBreaker,
-        CircuitState, ReapiCacheAnalyticsEvent, analytics_endpoint, classify_reqwest_error,
-        error_cause_chain, error_result_label, sign, status_result_label,
+        Analytics, BazelInvocationAnalyticsEvent, BazelInvocationLogAnalyticsEvent,
+        BazelTestSummaryAnalyticsEvent, CircuitBreaker, CircuitState, ReapiCacheAnalyticsEvent,
+        analytics_endpoint, classify_reqwest_error, error_cause_chain, error_result_label, sign,
+        status_result_label,
     };
 
     #[derive(Clone, Debug)]
@@ -1036,6 +1079,8 @@ mod tests {
         .expect("analytics should be enabled");
 
         analytics.enqueue_bazel_invocation_event(BazelInvocationAnalyticsEvent {
+            submission_auth: None,
+            test_summaries: Vec::new(),
             account_handle: "acme".into(),
             project_handle: "bazel".into(),
             invocation_id: "invocation-1".into(),
@@ -1253,6 +1298,7 @@ mod tests {
             operation: "action_cache",
             outcome: "hit",
             action_digest: "digest-1".into(),
+            output_path: String::new(),
             size: 128,
             duration_us: 9_400,
             observed_at_ms: 1_700_000_000_123,
@@ -1399,22 +1445,29 @@ mod tests {
 
     #[tokio::test]
     async fn classifies_connect_timeout_separately_from_full_request_timeout() {
-        // 240.0.0.1/4 is IANA-reserved and unroutable, so a TCP connect to
-        // it never completes. A tiny connect_timeout forces the client to
-        // return the connect-timeout branch of `reqwest::Error`, which in
-        // reqwest 0.13.x is `is_connect() == true && is_timeout() == true`.
-        // The classifier's precedence must return `connect` here.
+        struct StalledResolver;
+        impl reqwest::dns::Resolve for StalledResolver {
+            fn resolve(&self, _: reqwest::dns::Name) -> reqwest::dns::Resolving {
+                Box::pin(std::future::pending())
+            }
+        }
+        // DNS is part of the connect budget. Stall it locally rather than
+        // assuming a reserved address cannot connect on the runner's network.
+        // Both is_connect() and is_timeout() must be true; connect wins.
         let client = reqwest::Client::builder()
+            .no_proxy()
+            .dns_resolver(Arc::new(StalledResolver))
             .connect_timeout(Duration::from_millis(20))
             .timeout(Duration::from_secs(30))
             .build()
             .expect("client should build");
         let error = client
-            .post("http://240.0.0.1:9/webhooks/gradle-cache")
+            .post("http://connect-timeout.invalid/webhooks/gradle-cache")
             .body(Vec::<u8>::new())
             .send()
             .await
-            .expect_err("connect to unroutable address should fail");
+            .expect_err("stalled DNS must exhaust the connect budget");
+        assert!(error.is_connect() && error.is_timeout());
         assert_eq!(
             classify_reqwest_error(&error),
             "connect",
@@ -1581,8 +1634,89 @@ mod tests {
     // callers here. If a future direct-POST pipeline is added back,
     // reintroduce them alongside its test.
 
+    #[tokio::test]
+    async fn unsigned_invocations_cannot_poison_or_share_signed_telemetry_batches() {
+        let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
+        let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
+        let analytics = Analytics::from_config(
+            Some(&AnalyticsConfig {
+                server_url: base_url,
+                signing_key: "key".into(),
+                batch_size: 32,
+                batch_timeout_ms: 20,
+                queue_capacity: 64,
+                request_timeout_ms: 1000,
+                circuit_breaker_failure_threshold: 2,
+                circuit_breaker_open_ms: 1000,
+                outbox_max_entries: 1000,
+                outbox_max_bytes: 4 * 1024 * 1024,
+                outbox_max_batch_bytes: 64 * 1024,
+            }),
+            "https://cache.example",
+            Metrics::new("local".into(), "tenant".into()),
+            None,
+        )
+        .unwrap()
+        .unwrap();
+        for index in 0..8 {
+            let mut event = empty_bazel_invocation_event(index);
+            event.submission_auth = Some("network_trusted");
+            event.test_summaries = vec![
+                BazelTestSummaryAnalyticsEvent {
+                    target_label: "x".repeat(1024),
+                    status: "success".into(),
+                    duration_ms: 1,
+                };
+                100
+            ];
+            analytics.enqueue_bazel_invocation_event(event);
+            let mut oversized = empty_bazel_invocation_event(index + 20);
+            oversized.submission_auth = Some("network_trusted");
+            oversized.test_summaries = vec![
+                BazelTestSummaryAnalyticsEvent {
+                    target_label: "x".repeat(1024),
+                    status: "success".into(),
+                    duration_ms: 1,
+                };
+                500
+            ];
+            analytics.enqueue_bazel_invocation_event(oversized);
+        }
+        analytics.enqueue_bazel_invocation_event(empty_bazel_invocation_event(100));
+        timeout(Duration::from_secs(2), async {
+            loop {
+                if captured.lock().unwrap().iter().any(|request| {
+                    let body: Value = serde_json::from_slice(&request.body).unwrap();
+                    body["events"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|event| event["submission_auth"].is_null())
+                }) {
+                    break;
+                }
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        for request in captured.lock().unwrap().iter() {
+            assert!(request.body.len() < 8 * 1024 * 1024);
+            let body: Value = serde_json::from_slice(&request.body).unwrap();
+            let events = body["events"].as_array().unwrap();
+            let network = !events[0]["submission_auth"].is_null();
+            assert!(
+                events
+                    .iter()
+                    .all(|event| event["submission_auth"].is_null() != network)
+            );
+        }
+    }
+
     fn empty_bazel_invocation_event(index: usize) -> BazelInvocationAnalyticsEvent {
         BazelInvocationAnalyticsEvent {
+            submission_auth: None,
+            test_summaries: Vec::new(),
             account_handle: "acme".into(),
             project_handle: "bazel".into(),
             invocation_id: format!("invocation-{index}"),

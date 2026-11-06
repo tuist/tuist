@@ -2,9 +2,18 @@ import Foundation
 import Path
 
 public struct BuildAction: Equatable, Codable, Sendable {
+    public enum BuildFor: String, Codable, CaseIterable, Sendable {
+        case analyzing
+        case archiving
+        case profiling
+        case running
+        case testing
+    }
+
     // MARK: - Attributes
 
     public var targets: [TargetReference]
+    public var buildFor: [TargetReference: Set<BuildFor>]
     public var preActions: [ExecutionAction]
     public var postActions: [ExecutionAction]
     public var parallelizeBuild: Bool
@@ -15,6 +24,7 @@ public struct BuildAction: Equatable, Codable, Sendable {
 
     public init(
         targets: [TargetReference] = [],
+        buildFor: [TargetReference: Set<BuildFor>] = [:],
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
         parallelizeBuild: Bool = true,
@@ -22,6 +32,7 @@ public struct BuildAction: Equatable, Codable, Sendable {
         findImplicitDependencies: Bool = true
     ) {
         self.targets = targets
+        self.buildFor = buildFor
         self.preActions = preActions
         self.postActions = postActions
         self.parallelizeBuild = parallelizeBuild

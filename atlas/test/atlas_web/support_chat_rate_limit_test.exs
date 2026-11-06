@@ -1,5 +1,5 @@
 defmodule AtlasWeb.SupportChatRateLimitTest do
-  use ExUnit.Case, async: true
+  use Atlas.DataCase, async: true
 
   alias AtlasWeb.SupportChatRateLimit
 

@@ -1,7 +1,7 @@
 package dev.tuist.gradle
 
 import dev.tuist.gradle.services.RefreshAuthTokenService
-import java.io.File
+import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.URI
 import java.util.concurrent.TimeUnit
@@ -13,14 +13,7 @@ open class TokenProvider(
     internal val credentialStore: CredentialStore = CredentialStore(),
     internal val envProvider: (String) -> String? = { System.getenv(it) },
     internal val tokenCacheFactory: (URI) -> CachedValueStore<String> = { url ->
-        val sanitizedUrl = URI(url.scheme, url.host, url.path, null).toASCIIString()
-            .replace(Regex("[/: ]"), "_")
-        CachedValueStore(
-            lockFilePath = File(
-                File(System.getProperty("user.home"), ".tuist/state/auth-locks"),
-                "token_$sanitizedUrl.lock"
-            )
-        )
+        CachedValueStore(lockFilePath = credentialStore.refreshLockFile(url))
     }
 ) {
     /** Convenience constructor: wires an internal [RefreshAuthTokenService] from the given [httpClients]. */
@@ -44,14 +37,21 @@ open class TokenProvider(
         if (!envToken.isNullOrBlank()) return envToken
 
         return try {
-            tokenCache.getValue(forceRefresh, deadlineNanos) { resolveToken(deadlineNanos) }
+            val token = tokenCache.getValue(forceRefresh, deadlineNanos) { resolveToken(deadlineNanos) }
+            if (token.isBlank()) throw NotAuthenticatedException(serverURL)
+            token
         } catch (e: TimeoutException) {
             throw InterruptedIOException("Timed out acquiring a Tuist token").apply { initCause(e) }
         }
     }
 
+    open fun getOptionalToken(forceRefresh: Boolean = false): String? {
+        if (envProvider("TUIST_TOKEN") == null && credentialStore.readValidated(serverURL) == null) return null
+        return getToken(forceRefresh)
+    }
+
     private fun resolveToken(deadlineNanos: Long?): Pair<String, Long?> {
-        val credentials = credentialStore.read(serverURL)
+        val credentials = credentialStore.readValidated(serverURL)
             ?: throw NotAuthenticatedException(serverURL)
 
         val accessToken = credentials.accessToken
@@ -72,14 +72,19 @@ open class TokenProvider(
 
         try {
             val newTokens = refreshAuthTokenService.refreshTokens(serverURL, refreshToken, timeoutMs)
+            // A login or signout can change credentials while the refresh request is in flight.
+            val currentCredentials = credentialStore.readValidated(serverURL)
+                ?: throw NotAuthenticatedException(serverURL)
+            if (currentCredentials != credentials) {
+                return Pair(currentCredentials.accessToken, JwtParser.getExpirationMs(currentCredentials.accessToken))
+            }
             credentialStore.write(
                 serverURL,
-                Credentials(newTokens.accessToken, newTokens.refreshToken)
+                credentials.copy(accessToken = newTokens.accessToken, refreshToken = newTokens.refreshToken)
             )
             return Pair(newTokens.accessToken, JwtParser.getExpirationMs(newTokens.accessToken))
-        } catch (e: java.net.ConnectException) {
-            throw e
-        } catch (e: InterruptedIOException) {
+        } catch (e: IOException) {
+            // Transport failures and unavailable servers say nothing about the credentials.
             throw e
         } catch (_: Exception) {
             throw NotAuthenticatedException(serverURL)

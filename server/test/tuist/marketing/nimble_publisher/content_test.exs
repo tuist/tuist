@@ -4,6 +4,7 @@ defmodule Tuist.Marketing.NimblePublisher.ContentTest do
   alias Tuist.Marketing.Blog
 
   test "tracks production content files for recompilation" do
+    Code.ensure_loaded!(Blog)
     assert function_exported?(Blog, :__mix_recompile__?, 0)
     refute Blog.__mix_recompile__?()
 

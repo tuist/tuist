@@ -1,32 +1,34 @@
 ---
 {
   "title": "What is Tuist?",
-  "description": "A virtual platform team for app developers. Cache, insights, testing, previews, and runners across Xcode, Gradle, and Bazel."
+  "description": "A virtual platform team for developers. Build infrastructure for Xcode, Gradle, Bazel, Elixir, Rust, and Once, with features tailored to each toolchain."
 }
 ---
 
 # A virtual platform team for developers who ship
 
-**Tuist helps teams scale app development and ship faster**, turning the complexity of large codebases into a productive experience that grows with your team. It works with the build systems you already use, on Xcode, Gradle, and Bazel projects.
+**Tuist helps teams scale app development and ship faster**, turning the complexity of large codebases into a productive experience that grows with your team. It works with the build systems you already use, on Xcode, Gradle, Bazel, Elixir, Rust, and Once projects. Available features depend on your toolchain: Rust projects get Cargo build and test insights, including doctests, flaky test detection, and experimental compilation caching. Once connects natively for shared caching, build and test insights, sharding, and supported application previews.
 
-Start by <.localized_link href="/guides/install-tuist">installing the Tuist command-line interface</.localized_link>, then follow one of the <.localized_link href="/guides/get-started">Get Started paths</.localized_link> for your build system.
+Follow one of the <.localized_link href="/guides/get-started">Get Started paths</.localized_link> for your build system. Once connects directly without the Tuist CLI; other paths explain which Tuist tooling to install.
 
 <br/>
 
 <.home_cards>
   <.home_card
     title="Cache"
-    details="Share compilation outputs across your team and CI. Works with Xcode's compilation cache, Tuist's module cache, Gradle's build cache, and Bazel's remote cache."
+    details="Share build outputs across your team and CI. Works with Xcode's compilation cache, Tuist's module cache, Gradle's build cache, Bazel's remote cache, Elixir's dependency cache, Rust's experimental compilation cache, and Once's shared action cache."
+    supported_for="apple,gradle,bazel,elixir,rust,once"
     link="/guides/features/cache"
 />
   <.home_card
     title="Build & test insights"
-    details="Track build and test duration, failures, flakiness, and regressions across Xcode, Gradle, and Bazel projects."
+    details="Track build and test duration, failures, flakiness, and regressions across Xcode, Gradle, Bazel, Elixir, Rust, and Once projects."
+    supported_for="apple,gradle,bazel,elixir,rust,once"
     link="/guides/features/build-insights"
 />
   <.home_card
     title="Selective testing"
-    details="Run only the tests affected by a change, on Xcode and generated projects, so feedback lands in seconds."
+    details="Run only the tests affected by a change in generated Xcode projects, so feedback lands in seconds."
     link="/guides/features/selective-testing"
 />
   <.home_card

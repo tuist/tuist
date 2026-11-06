@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Public Firebase project identifiers, never a service-account key. Empty disables push. -->
+    <string name="atlas_firebase_application_id" translatable="false"></string>
+    <string name="atlas_firebase_api_key" translatable="false"></string>
+    <string name="atlas_firebase_project_id" translatable="false"></string>
+    <string name="atlas_firebase_sender_id" translatable="false"></string>
+</resources>

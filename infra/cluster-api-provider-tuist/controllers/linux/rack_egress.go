@@ -84,6 +84,19 @@ func rackLinuxKubeletEgressName(hostName string) string {
 	return rackLinuxEgressName(hostName) + "-kubelet"
 }
 
+// removeKubelet deletes the host's kubelet egress, which a host the control
+// plane reaches at its own address does not need.
+func (e rackEgress) removeKubelet(ctx context.Context, c client.Client, hostName string) error {
+	if !e.enabled() {
+		return nil
+	}
+	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: rackLinuxKubeletEgressName(hostName), Namespace: e.Namespace}}
+	if err := c.Delete(ctx, svc); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete egress Service %s: %w", svc.Name, err)
+	}
+	return nil
+}
+
 // ensureKubelet fronts the host's kubelet with an egress proxy of its own. An
 // egress Service outside the ProxyGroup gets a dedicated proxy Pod that
 // forwards every port to the tailnet address, so the kubelet answers on its own

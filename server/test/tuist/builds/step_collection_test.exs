@@ -32,6 +32,7 @@ defmodule Tuist.Builds.StepCollectionTest do
       RunsFixtures.build_fixture(
         project_id: project.id,
         user_id: uploader.account.id,
+        targets: [],
         build_steps: steps
       )
 

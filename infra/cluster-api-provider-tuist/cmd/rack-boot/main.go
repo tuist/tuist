@@ -52,9 +52,18 @@ func run() error {
 	flag.StringVar(&cfg.PeerInterface, "peer-interface", "vrrp0", "the link between the site's edges")
 	flag.DurationVar(&cfg.PeerWait, "peer-wait", 2*time.Minute, "how long a fresh edge waits for the edges' link before downloading the ISO from the internet")
 	flag.StringVar(&apiFile, "kubernetes-api-file", "/etc/tuist/kubernetes-api", "a file on the node naming the API server its kubelet uses; a rack node reaches no Service address")
+	flag.BoolVar(&cfg.Internet, "internet", false, "serve seeds and announcements to machines that reach this server over the internet, from the cluster, and nothing to netboot")
+	flag.StringVar(&cfg.Listen, "listen", ":8480", "with --internet: the address to listen on, behind the cluster's ingress")
 	flag.Parse()
-	for name, value := range map[string]string{"address": cfg.Address, "iso-url": cfg.ISOURL, "iso-sha256": cfg.ISOSHA256,
-		"namespace": cfg.Namespace, "secret": cfg.SecretName, "site": cfg.Site, "node": cfg.Node} {
+	required := map[string]string{"namespace": cfg.Namespace, "secret": cfg.SecretName}
+	if cfg.Internet {
+		cfg.Site, cfg.Node = "internet", "internet"
+	} else {
+		for name, value := range map[string]string{"address": cfg.Address, "iso-url": cfg.ISOURL, "iso-sha256": cfg.ISOSHA256, "site": cfg.Site, "node": cfg.Node} {
+			required[name] = value
+		}
+	}
+	for name, value := range required {
 		if value == "" {
 			return fmt.Errorf("--%s is required", name)
 		}
@@ -127,6 +136,9 @@ func run() error {
 	}()
 	if !informers.WaitForCacheSync(ctx) {
 		return fmt.Errorf("the boot Secret and the candidates did not sync")
+	}
+	if cfg.Internet {
+		return server.RunInternet(ctx)
 	}
 	return server.Run(ctx)
 }

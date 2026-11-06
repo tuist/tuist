@@ -30,12 +30,22 @@ spec:
         - jsonPath: .status.power
           name: Power
           type: string
+        - jsonPath: .status.outletDraw.activePowerWatts
+          name: Watts
+          priority: 1
+          type: string
         - jsonPath: .status.quarantined
           name: Quarantined
           type: boolean
         - jsonPath: .spec.parked
           name: Parked
           type: boolean
+        - jsonPath: .status.lease.borrower
+          name: LentTo
+          type: string
+        - jsonPath: .status.lease.state
+          name: Lease
+          type: string
         - jsonPath: .spec.serial
           name: Serial
           priority: 1
@@ -95,6 +105,21 @@ spec:
                     a separate subnet router, the session survives, so a rack host can be
                     fully bootstrapped over one transport.
                   type: string
+                lendTo:
+                  description: |-
+                    LendTo lends the host's runner runtime to another environment, by the
+                    name the operator knows its cluster under (`--rack-lease-borrower`). The
+                    host stays this operator's: its Machine, power, OS updates and bootstrap
+                    from a reinstall. The other env's operator owns everything a runner
+                    needs: tart-kubelet and its config, the VM egress firewall, cache
+                    volumes, Tailscale and the Node, and rolls them out with that env's
+                    deploys. The two operators hand the host over through a RackHostLease in
+                    the borrowing cluster; see "A host lent to another env" in this
+                    provider's AGENTS.md. Clearing it returns the host once the borrower has
+                    drained it.
+                  maxLength: 63
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                  type: string
                 location:
                   description: |-
                     Location is where the box physically is. Nothing in the reconcile path
@@ -147,6 +172,47 @@ spec:
                         operator's default.
                       type: integer
                   type: object
+                nodeCluster:
+                  description: |-
+                    NodeCluster registers the host's Node in another cluster: the host stays
+                    in this operator's inventory (its Machine, power, OS updates and
+                    bootstrap are this cluster's), but its tart-kubelet joins the cluster
+                    whose kubeconfig the Secret holds, and that cluster's runner pools and
+                    server drive its guests. This cluster then has no Node for the host, so
+                    the Machine is kept off remediation and the host is not re-bootstrapped
+                    for a missing Node. Drain the host's Node before setting it.
+
+                    This is the manual lend, where this operator pushes the runtime with the
+                    other cluster's kubeconfig. LendTo replaces it; the two are exclusive.
+                  properties:
+                    cacheVolumesURL:
+                      description: |-
+                        CacheVolumesURL is the other cluster's server endpoint for macOS custom
+                        cache volumes (`<server>/api/internal/runners/cache-volumes`). Empty
+                        turns custom cache volumes off on the host.
+                      type: string
+                    kubeconfigSecret:
+                      description: |-
+                        KubeconfigSecret names a Secret in the host's namespace whose
+                        `kubeconfig` key is the kubeconfig tart-kubelet authenticates with: a
+                        node identity the other cluster issued for this host's Machine name.
+                      minLength: 1
+                      type: string
+                  required:
+                    - kubeconfigSecret
+                  type: object
+                nodeFleet:
+                  description: |-
+                    NodeFleet is the `tuist.dev/fleet` label on the host's Node when it is not
+                    the operator's fleet: a host lent to the runner pools of another fleet,
+                    such as one another environment's server drives. Runner pools select Nodes
+                    by that label, so the operator's own pools stop placing runners on the
+                    host and pools selecting this value start. The Machine keeps the
+                    operator's fleet, its name and its credentials. A change reaches the host
+                    through the host-config drift loop.
+                  maxLength: 63
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                  type: string
                 parked:
                   description: |-
                     Parked keeps the host declared with no Machine: bench work, an RMA, a
@@ -165,10 +231,8 @@ spec:
                     credentialsSecretRef:
                       description: |-
                         CredentialsSecretRef names a Secret in the operator's namespace holding
-                        `username` and `password` for the endpoint's HTTP auth. Optional: an
-                        unauthenticated plug on a management VLAN needs none. Several hosts
-                        normally point at the same Secret, since a PDU has one credential and
-                        many outlets.
+                        `username` and `password` for the endpoint named by `host`. Optional
+                        for an unauthenticated plug.
                       properties:
                         name:
                           default: ""
@@ -182,28 +246,42 @@ spec:
                       type: object
                       x-kubernetes-map-type: atomic
                     driver:
-                      default: shelly
                       description: |-
-                        Driver selects the power backend. `shelly` speaks the Shelly Gen2 RPC
-                        (with a Gen1 fallback) and is for home and office prototypes only: it is
-                        the BER1 prototype's PDU stand-in, not a rack driver. A colo rack's
-                        switched PDUs get their own driver rather than being forced through this
-                        one.
+                        Driver selects the power backend of an endpoint named by `host`; unset
+                        is `shelly`, the Shelly Gen2 RPC (with a Gen1 fallback), for home and
+                        office prototypes only. The rack's PDUs are RackPDUs, named by `pdu`.
                       enum:
                         - shelly
                       type: string
                     host:
                       description: |-
-                        Host is the PDU / plug endpoint, as a host or host:port. Plain HTTP by
-                        default; give it an `https://` prefix to force TLS.
+                        Host is the endpoint, as a host, host:port or `scheme://host`; a bare
+                        host is plain HTTP. It is dialled directly.
+                      minLength: 1
                       type: string
                     outlet:
                       default: "0"
                       description: |-
-                        Outlet identifies the outlet on that endpoint. Driver-specific; for
-                        Shelly it is the switch channel id, `"0"` on a single-channel plug.
+                        Outlet identifies the outlet. Driver-specific: for Shelly the switch
+                        channel id, `"0"` on a single-channel plug; for a PDU the outlet's
+                        1-based number on it.
+                      maxLength: 16
+                      type: string
+                    pdu:
+                      description: |-
+                        PDU names a RackPDU in the host's namespace, whose controller adopted
+                        it and owns its credentials, certificate pin and egress Service. Power
+                        actions are refused while it is not Ready.
+                      minLength: 1
                       type: string
                   type: object
+                  x-kubernetes-validations:
+                    - message: set either pdu or host
+                      rule: has(self.pdu) != has(self.host)
+                    - message: a pdu outlet takes its driver and credentials from the RackPDU
+                      rule: '!has(self.pdu) || (!has(self.driver) && !has(self.credentialsSecretRef))'
+                    - message: a pdu outlet is its 1-based number on the PDU
+                      rule: '!has(self.pdu) || (has(self.outlet) && self.outlet.matches(''^[1-9][0-9]*$''))'
                 serial:
                   description: |-
                     Serial is the Mac's hardware serial (e.g. `C07FC05JQ6NY`). This is the
@@ -245,33 +323,38 @@ spec:
               description: RackHostStatus is the observed state of one physical host.
               properties:
                 conditions:
-                  description: Conditions are CAPI-style condition entries (PowerReachable).
+                  description: Conditions are CAPI-style condition entries (PowerReachable, HostDrawing).
                   items:
                     description: Condition defines an observation of a Cluster API resource operational state.
                     properties:
                       lastTransitionTime:
                         description: |-
-                          Last time the condition transitioned from one status to another.
+                          lastTransitionTime is the last time the condition transitioned from one status to another.
                           This should be when the underlying condition changed. If that is not known, then using the time when
                           the API field changed is acceptable.
                         format: date-time
                         type: string
                       message:
                         description: |-
-                          A human readable message indicating details about the transition.
+                          message is a human readable message indicating details about the transition.
                           This field may be empty.
+                        maxLength: 10240
+                        minLength: 1
                         type: string
                       reason:
                         description: |-
-                          The reason for the condition's last transition in CamelCase.
+                          reason is the reason for the condition's last transition in CamelCase.
                           The specific API may choose whether or not this field is considered a guaranteed API.
                           This field may be empty.
+                        maxLength: 256
+                        minLength: 1
                         type: string
                       severity:
                         description: |-
                           severity provides an explicit classification of Reason code, so the users or machines can immediately
                           understand the current situation and act accordingly.
                           The Severity field MUST be set only when Status=False.
+                        maxLength: 32
                         type: string
                       status:
                         description: status of the condition, one of True, False, Unknown.
@@ -281,6 +364,8 @@ spec:
                           type of condition in CamelCase or in foo.example.com/CamelCase.
                           Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
                           can be useful (see .node.status.conditions), the ability to deconflict is important.
+                        maxLength: 256
+                        minLength: 1
                         type: string
                     required:
                       - lastTransitionTime
@@ -298,11 +383,77 @@ spec:
                 lastPowerActionTime:
                   format: date-time
                   type: string
+                lease:
+                  description: |-
+                    Lease is how far the host has been handed to another env, as this
+                    operator recorded it. It outlives the host's Machine, so a Machine
+                    made again while the host is lent picks the lease up rather than pushing
+                    this env's runtime over the borrower's.
+                  properties:
+                    borrower:
+                      description: Borrower is the env the host is lent to.
+                      type: string
+                    borrowerNode:
+                      description: |-
+                        BorrowerNode is the Node the borrower runs the host as, which is also
+                        the host's tailnet device name while it is lent. Taking the host back
+                        clears that device.
+                      type: string
+                    keyFingerprint:
+                      description: |-
+                        KeyFingerprint is the SHA-256 fingerprint of the lease key authorized on
+                        the host, empty until one is.
+                      type: string
+                    message:
+                      description: Message says what the lend is waiting for.
+                      type: string
+                    since:
+                      description: Since is when State last changed.
+                      format: date-time
+                      type: string
+                    state:
+                      description: State is one of Offered, Draining, Lent, Returning or Reclaimed.
+                      type: string
+                  required:
+                    - borrower
+                    - state
+                  type: object
                 machine:
                   description: |-
                     Machine is the name of the CAPI Machine and RackAppleSiliconMachine that
                     make this host a node, and of the Node they register: `<fleet>-<host>`.
                   type: string
+                outletDraw:
+                  description: |-
+                    OutletDraw is what the outlet's meter last read: the outlet's entry in its
+                    RackPDU's status, or the endpoint's own meter for an outlet of its own.
+                    Unset when there is no recent reading. The HostDrawing condition says
+                    what it means for the host.
+                  properties:
+                    activePowerWatts:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: ActivePowerWatts is the real power drawn, in watts.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    apparentPowerVA:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: |-
+                        ApparentPowerVA is the apparent power, in volt-amperes. A cord plugged in
+                        to a machine that is off still reads a few VA, an empty outlet none.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    currentAmps:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: CurrentAmps is the RMS current, in amperes.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                  type: object
                 power:
                   description: |-
                     Power is the last observed outlet state: On, Off, or Unknown when the

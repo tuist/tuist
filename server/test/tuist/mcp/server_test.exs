@@ -4,10 +4,12 @@ defmodule Tuist.MCP.ServerTest do
 
   alias Tuist.Environment
   alias Tuist.MCP.Components.Tools.AddOrganizationMember
+  alias Tuist.MCP.Components.Tools.CancelOrganizationInvitation
   alias Tuist.MCP.Components.Tools.CreateOrganization
   alias Tuist.MCP.Components.Tools.CreateProject
   alias Tuist.MCP.Components.Tools.GetBazelIntegrationGuide
   alias Tuist.MCP.Components.Tools.GetGradleIntegrationGuide
+  alias Tuist.MCP.Components.Tools.InviteOrganizationMember
   alias Tuist.MCP.Components.Tools.UpdateTestCase
   alias Tuist.MCP.Server
   alias Tuist.MCP.Tool
@@ -27,6 +29,8 @@ defmodule Tuist.MCP.ServerTest do
       assert "create_organization" in tool_names
       assert "create_project" in tool_names
       assert "add_organization_member" in tool_names
+      assert "invite_organization_member" in tool_names
+      assert "cancel_organization_invitation" in tool_names
       assert "list_runner_jobs" in tool_names
       assert "get_runner_job" in tool_names
       assert "list_runner_job_steps" in tool_names
@@ -34,12 +38,20 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_runner_job_logs" in tool_names
       assert "list_runner_workflows" in tool_names
       assert "list_runner_profiles" in tool_names
+      assert "get_runner_catalog" in tool_names
+      assert "create_runner_profile" in tool_names
+      assert "update_runner_profile" in tool_names
+      assert "delete_runner_profile" in tool_names
       assert "list_runner_volumes" in tool_names
       assert "get_runner_volume" in tool_names
       assert "list_runner_volume_jobs" in tool_names
       assert "list_runner_job_volumes" in tool_names
       assert "get_runner_volume_analytics" in tool_names
-      assert "clear_runner_volume" in tool_names
+      assert "delete_runner_volume" in tool_names
+      refute "clear_runner_volume" in tool_names
+      assert "list_sandboxes" in tool_names
+      assert "get_sandbox_analytics" in tool_names
+      assert "delete_sandbox" in tool_names
       assert "list_webhook_endpoints" in tool_names
       assert "get_webhook_endpoint" in tool_names
       assert "list_webhook_delivery_attempts" in tool_names
@@ -54,6 +66,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_bazel_build_step" in tool_names
       assert "list_xcode_build_steps" in tool_names
       assert "get_xcode_build_step" in tool_names
+      assert "get_build_trace" in tool_names
       assert "list_xcode_build_issues" in tool_names
       assert "list_xcode_build_cache_tasks" in tool_names
       assert "list_xcode_build_cas_outputs" in tool_names
@@ -63,6 +76,12 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_bazel_invocation_log" in tool_names
       assert "list_bazel_cache_events" in tool_names
       assert "get_bazel_cache_event" in tool_names
+      assert "list_cargo_builds" in tool_names
+      assert "get_cargo_build" in tool_names
+      assert "list_mix_builds" in tool_names
+      assert "get_mix_build" in tool_names
+      assert "list_once_runs" in tool_names
+      assert "get_once_run" in tool_names
       assert "list_test_runs" in tool_names
       assert "list_test_module_runs" in tool_names
       assert "list_test_suite_runs" in tool_names
@@ -71,6 +90,9 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_test_case" in tool_names
       assert "get_test_run" in tool_names
       assert "get_test_case_run" in tool_names
+      assert "get_coverage" in tool_names
+      assert "list_coverage_files" in tool_names
+      assert "get_coverage_file" in tool_names
       assert "list_bundles" in tool_names
       assert "get_bundle" in tool_names
       assert "get_bundle_artifact_tree" in tool_names
@@ -86,20 +108,33 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_test_case_run_attachments" in tool_names
       assert "list_projects" in tool_names
       assert "get_project" in tool_names
+      assert "connect_project_repository" in tool_names
+      assert "disconnect_project_repository" in tool_names
       assert "list_project_tokens" in tool_names
       assert "list_previews" in tool_names
       assert "get_preview" in tool_names
       assert "get_latest_preview" in tool_names
-      assert server.version == "1.32.0"
-      assert server.instructions =~ "agent_auth.skill"
-      assert server.instructions =~ "identity-assertion exchange"
-      assert server.instructions =~ "enter the code on the Tuist page"
-      assert server.instructions =~ "explicitly ask the user to confirm the email address"
+      assert server.version == "1.50.1"
 
       assert server.instructions =~
-               "The `get_gradle_integration_guide` and `get_bazel_integration_guide` tools provide the Gradle, Android, and Bazel integration workflows"
+               "This server uses OAuth 2.0 with dynamic client registration; the client completes the standard browser authorization flow."
 
-      assert server.instructions =~ "Gradle and Bazel require separate `tuist auth whoami --url` authentication"
+      refute server.instructions =~ "auth_md"
+      refute server.instructions =~ "agent_auth.skill"
+      refute server.instructions =~ "anonymous registration"
+      refute server.instructions =~ "identity-assertion exchange"
+      refute server.instructions =~ "six-digit code"
+      refute server.instructions =~ "confirm the email address"
+
+      assert server.instructions =~
+               "Model Context Protocol authentication only authorizes Tuist tools; it does not authenticate local command-line tools or build-system integrations."
+
+      refute server.instructions =~ "get_gradle_integration_guide"
+      refute server.instructions =~ "get_bazel_integration_guide"
+      refute server.instructions =~ "list_accounts"
+      refute server.instructions =~ "tuist auth whoami"
+      refute server.instructions =~ "Gradle"
+      refute server.instructions =~ "Bazel"
     end
 
     test "offers search_tuist only on the Tuist-hosted installation" do
@@ -108,6 +143,23 @@ defmodule Tuist.MCP.ServerTest do
 
       stub(Environment, :tuist_hosted?, fn -> false end)
       refute "search_tuist" in Map.keys(Server.server().tools)
+    end
+
+    test "offers report_feedback only on the hosted installation with an Atlas workload token" do
+      token_path = Briefly.create!()
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :atlas_support_ingest_token_path, fn -> token_path end)
+      assert "report_feedback" in Map.keys(Server.server().tools)
+
+      stub(Environment, :atlas_support_ingest_token_path, fn -> token_path <> ".missing" end)
+      refute "report_feedback" in Map.keys(Server.server().tools)
+
+      stub(Environment, :atlas_support_ingest_token_path, fn -> nil end)
+      refute "report_feedback" in Map.keys(Server.server().tools)
+
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :atlas_support_ingest_token_path, fn -> token_path end)
+      refute "report_feedback" in Map.keys(Server.server().tools)
     end
 
     test "offers codebase tools only when the hosted codebase service is configured" do
@@ -199,21 +251,50 @@ defmodule Tuist.MCP.ServerTest do
       refute "ask_tuist" in Map.keys(Server.server().prompts)
     end
 
-    test "instructs clients to answer questions with source-backed tools when they are available" do
+    test "describes source capabilities when the tools are available" do
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :codebase_search_enabled?, fn -> true end)
 
       instructions = Server.server().instructions
 
-      assert instructions =~ "Use the relevant Tuist tool"
       assert instructions =~ "search_tuist_code"
-      assert instructions =~ "treat truncated results as partial"
-      assert instructions =~ "source revision"
+      assert instructions =~ "list_tuist_files"
+      assert instructions =~ "read_tuist_file"
+      assert instructions =~ "fixed revision"
+      assert instructions =~ "revision-pinned links"
+      assert instructions =~ "`truncated` and `truncation_reason` indicate partial results"
+      assert instructions =~ "next_start_line"
 
       stub(Environment, :codebase_search_enabled?, fn -> false end)
       instructions = Server.server().instructions
-      refute instructions =~ "Use the relevant Tuist tool"
-      assert instructions =~ "agent_auth.skill"
+      refute instructions =~ "search_tuist_code"
+      assert instructions =~ "OAuth 2.0 with dynamic client registration"
+      refute instructions =~ "auth_md"
+      refute instructions =~ "agent_auth.skill"
+    end
+
+    test "server instructions describe capabilities and authentication without answer directives" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+
+      for enabled <- [true, false] do
+        stub(Environment, :codebase_search_enabled?, fn -> enabled end)
+        instructions = Server.server().instructions
+
+        assert instructions =~ "standard browser authorization flow"
+        assert instructions =~ "does not authenticate local command-line tools or build-system integrations"
+
+        for directive <- [
+              "Use the relevant Tuist tool",
+              "inspect focused tests",
+              "treat truncated results as partial",
+              "cite returned links",
+              "Keep the answer focused",
+              "Never invent credentials",
+              "Verify the outcome"
+            ] do
+          refute instructions =~ directive
+        end
+      end
     end
 
     test "tool descriptions state their capability without steering tool selection" do
@@ -247,6 +328,20 @@ defmodule Tuist.MCP.ServerTest do
 
       assert AddOrganizationMember.annotations() == %{
                title: "Add Organization Member",
+               readOnlyHint: false,
+               openWorldHint: false,
+               destructiveHint: true
+             }
+
+      assert InviteOrganizationMember.annotations() == %{
+               title: "Invite Organization Member",
+               readOnlyHint: false,
+               openWorldHint: true,
+               destructiveHint: false
+             }
+
+      assert CancelOrganizationInvitation.annotations() == %{
+               title: "Cancel Organization Invitation",
                readOnlyHint: false,
                openWorldHint: false,
                destructiveHint: true

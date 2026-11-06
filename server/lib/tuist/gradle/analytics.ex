@@ -547,11 +547,14 @@ defmodule Tuist.Gradle.Analytics do
       case category do
         :gradle_version -> dynamic([b], b.gradle_version)
         :java_version -> dynamic([b], b.java_version)
+        :elixir_version -> dynamic([b], b.elixir_version)
+        :otp_version -> dynamic([b], b.otp_version)
+        :mix_env -> dynamic([b], b.mix_env)
       end
 
     query =
       select_merge(
-        from(b in Build,
+        from(b in build_schema(opts),
           where:
             b.project_id == ^project_id and
               b.inserted_at >= ^DateTime.to_naive(start_datetime) and
@@ -564,6 +567,7 @@ defmodule Tuist.Gradle.Analytics do
 
     query
     |> maybe_filter_ci(opts)
+    |> maybe_filter_status(opts)
     |> ClickHouseRepo.all()
     |> Enum.map(fn row ->
       %{category: row.category, value: row.value || 0}
@@ -572,8 +576,8 @@ defmodule Tuist.Gradle.Analytics do
 
   defp build_total_count(project_id, start_datetime, end_datetime, opts) do
     query =
-      maybe_filter_ci(
-        from(b in Build,
+      filter_builds(
+        from(b in build_schema(opts),
           where:
             b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
               b.inserted_at <= ^DateTime.to_naive(end_datetime),
@@ -582,15 +586,13 @@ defmodule Tuist.Gradle.Analytics do
         opts
       )
 
-    query = maybe_filter_status(query, opts)
-
     ClickHouseRepo.one(query) || 0
   end
 
   defp build_counts_over_time(project_id, start_datetime, end_datetime, date_format, opts) do
     query =
-      maybe_filter_ci(
-        from(b in Build,
+      filter_builds(
+        from(b in build_schema(opts),
           group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
           where:
             b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
@@ -604,15 +606,13 @@ defmodule Tuist.Gradle.Analytics do
         opts
       )
 
-    query = maybe_filter_status(query, opts)
-
     ClickHouseRepo.all(query)
   end
 
   defp success_rate(project_id, start_datetime, end_datetime, opts) do
     query =
-      maybe_filter_ci(
-        from(b in Build,
+      filter_builds(
+        from(b in build_schema(opts),
           where:
             b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
               b.inserted_at <= ^DateTime.to_naive(end_datetime),
@@ -635,8 +635,8 @@ defmodule Tuist.Gradle.Analytics do
 
   defp success_rates_over_time(project_id, start_datetime, end_datetime, date_format, opts) do
     query =
-      maybe_filter_ci(
-        from(b in Build,
+      filter_builds(
+        from(b in build_schema(opts),
           group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
           where:
             b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
@@ -656,8 +656,8 @@ defmodule Tuist.Gradle.Analytics do
 
   defp build_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
     query =
-      maybe_filter_ci(
-        from(b in Build,
+      filter_builds(
+        from(b in build_schema(opts),
           where:
             b.project_id == ^project_id and
               b.inserted_at >= ^DateTime.to_naive(start_datetime) and
@@ -676,8 +676,8 @@ defmodule Tuist.Gradle.Analytics do
 
   defp build_percentiles_over_time(project_id, percentile, start_datetime, end_datetime, date_format, opts) do
     query =
-      maybe_filter_ci(
-        from(b in Build,
+      filter_builds(
+        from(b in build_schema(opts),
           group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
           where:
             b.project_id == ^project_id and
@@ -697,8 +697,8 @@ defmodule Tuist.Gradle.Analytics do
 
   defp average_build_duration(project_id, start_datetime, end_datetime, opts) do
     query =
-      maybe_filter_ci(
-        from(b in Build,
+      filter_builds(
+        from(b in build_schema(opts),
           where:
             b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
               b.inserted_at <= ^DateTime.to_naive(end_datetime),
@@ -715,8 +715,8 @@ defmodule Tuist.Gradle.Analytics do
 
   defp build_durations_over_time(project_id, start_datetime, end_datetime, date_format, opts) do
     query =
-      maybe_filter_ci(
-        from(b in Build,
+      filter_builds(
+        from(b in build_schema(opts),
           group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
           where:
             b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
@@ -855,6 +855,12 @@ defmodule Tuist.Gradle.Analytics do
       is_ci -> from(b in query, where: b.is_ci == ^is_ci)
     end
   end
+
+  # The build-level queries only touch project_id, inserted_at, duration_ms,
+  # status and is_ci, which Tuist.Mix.Build shares, so Mix reuses them.
+  defp build_schema(opts), do: Keyword.get(opts, :schema, Build)
+
+  defp filter_builds(query, opts), do: query |> maybe_filter_ci(opts) |> maybe_filter_status(opts)
 
   defp maybe_filter_status(query, opts) do
     case Keyword.get(opts, :status) do

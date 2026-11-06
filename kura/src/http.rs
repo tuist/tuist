@@ -9,8 +9,8 @@ use std::{
 use axum::{
     Json, Router,
     body::{Body, to_bytes},
-    extract::{MatchedPath, Path as AxumPath, Query, Request, State},
-    http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, Version},
+    extract::{FromRequestParts, MatchedPath, Path as AxumPath, Query, Request, State},
+    http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, Version, request::Parts},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{delete, get, head, post, put},
@@ -161,6 +161,10 @@ pub fn internal_router(state: SharedState) -> Router {
     internal_routes()
         .layer(middleware::from_fn_with_state(
             state.clone(),
+            reject_uncertain_primary_peer_requests,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
             reject_overloaded_internal_writes,
         ))
         .layer(middleware::from_fn_with_state(
@@ -169,6 +173,20 @@ pub fn internal_router(state: SharedState) -> Router {
         ))
         .layer(middleware::map_response(guard_response_stream_transport))
         .with_state(state)
+}
+
+async fn reject_uncertain_primary_peer_requests(
+    State(state): State<SharedState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    if !state.runtime.authority.peer_safe() {
+        return error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "expired primary volume requires positive fencing and quarantine",
+        );
+    }
+    next.run(req).await
 }
 
 #[cfg(test)]
@@ -292,6 +310,33 @@ fn internal_routes() -> Router<SharedState> {
     Router::new()
         .route(ROUTE_INTERNAL_STATUS, get(internal_status))
         .route(
+            "/_internal/connections/retire",
+            post(retire_public_connections),
+        )
+        .route(
+            "/_internal/migration/prepare",
+            post(crate::migration::prepare),
+        )
+        .route(
+            "/_internal/migration/verify",
+            post(crate::migration::verify),
+        )
+        .route("/_internal/migration/reset", post(crate::migration::reset))
+        .route(
+            "/_internal/migration/rebind",
+            post(crate::migration::rebind),
+        )
+        .route("/_internal/migration/abort", post(crate::migration::abort))
+        .route("/_internal/handover/verify", post(crate::handover::verify))
+        .route(
+            "/_internal/handover/descriptors",
+            post(crate::handover::descriptors),
+        )
+        .route(
+            "/_internal/handover/verify-descriptors",
+            post(crate::handover::verify_descriptors),
+        )
+        .route(
             ROUTE_INTERNAL_BACKFILL_ENTRIES,
             get(internal_backfill_entries),
         )
@@ -361,10 +406,11 @@ impl NamespaceQuery {
         }
     }
 
-    fn usage_context(&self) -> UsageContext {
+    fn usage_context(&self, origin: RequestOrigin) -> UsageContext {
         UsageContext {
             tenant_id: self.tenant_id.clone(),
             namespace_id: self.namespace_id.clone(),
+            origin: origin.0,
         }
     }
 }
@@ -481,6 +527,21 @@ struct ProjectAnalyticsContext<'a> {
 struct UsageContext {
     tenant_id: String,
     namespace_id: String,
+    origin: Option<Arc<str>>,
+}
+
+/// Where the credential that authorized the request was issued, when it carried
+/// a signed origin. Set by `authorize_request`; absent on routes it skips and on
+/// nodes without authorization.
+#[derive(Clone, Debug, Default)]
+struct RequestOrigin(Option<Arc<str>>);
+
+impl<S: Send + Sync> FromRequestParts<S> for RequestOrigin {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        Ok(parts.extensions.get::<Self>().cloned().unwrap_or_default())
+    }
 }
 
 #[derive(Clone)]
@@ -1269,8 +1330,31 @@ async fn reject_draining_public_requests(
         return draining_response(version);
     }
 
-    let mut response = next.run(req).await;
-    if state.runtime.is_draining() && is_http1(version) {
+    let permit = if is_probe_route(&route) {
+        None
+    } else {
+        match state
+            .runtime
+            .authority
+            .admit_request(is_write_method(req.method()))
+        {
+            Ok(permit) => permit,
+            Err(_) => return draining_response(version),
+        }
+    };
+    let mutation = is_write_method(req.method());
+    let mut response = crate::serving_authority::scope(permit.clone(), next.run(req)).await;
+    if mutation
+        && response.status().is_success()
+        && crate::migration::acknowledge(&state).await.is_err()
+    {
+        return draining_response(version);
+    }
+    if permit.as_ref().is_some_and(|p| p.check().is_err()) {
+        return draining_response(version);
+    }
+
+    if (state.runtime.is_draining() || state.runtime.retiring_connections()) && is_http1(version) {
         response.headers_mut().insert(
             axum::http::header::CONNECTION,
             HeaderValue::from_static("close"),
@@ -1385,7 +1469,11 @@ fn retry_after(response: &mut Response, seconds: u64) {
     }
 }
 
-async fn authorize_request(State(state): State<SharedState>, req: Request, next: Next) -> Response {
+async fn authorize_request(
+    State(state): State<SharedState>,
+    mut req: Request,
+    next: Next,
+) -> Response {
     let Some(auth) = state.auth.as_ref() else {
         return serve_endpoint_alias(&state, req, next).await;
     };
@@ -1400,8 +1488,19 @@ async fn authorize_request(State(state): State<SharedState>, req: Request, next:
     let authorization = req
         .headers()
         .get(axum::http::header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .map(ToOwned::to_owned);
+        .map(|value| {
+            if req
+                .headers()
+                .get_all(axum::http::header::AUTHORIZATION)
+                .iter()
+                .count()
+                == 1
+            {
+                value.to_str().unwrap_or_default().to_owned()
+            } else {
+                String::new()
+            }
+        });
     let context = request_context_from_http(
         &state,
         HttpRequestFacts {
@@ -1430,6 +1529,13 @@ async fn authorize_request(State(state): State<SharedState>, req: Request, next:
     match access {
         AccessDecision::Allow => {
             access_span.record("kura.auth.result", "allow");
+            if let Some(origin) = context
+                .authorization
+                .as_deref()
+                .and_then(|authorization| auth.origin(authorization))
+            {
+                req.extensions_mut().insert(RequestOrigin(Some(origin)));
+            }
         }
         AccessDecision::Deny(deny) => {
             access_span.record("kura.auth.result", "deny");
@@ -1830,11 +1936,33 @@ async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
         .into_response()
 }
 
+#[derive(serde::Deserialize)]
+struct RetireConnectionsRequest {
+    incarnation: String,
+}
+
+// Internal mTLS surface only. This retires transport reuse, not serving rights:
+// requests still obey the normal authority, admission and replication checks.
+async fn retire_public_connections(
+    State(state): State<SharedState>,
+    Json(request): Json<RetireConnectionsRequest>,
+) -> Response {
+    if request.incarnation != state.runtime.connection_incarnation() {
+        return error_response(StatusCode::CONFLICT, "runtime incarnation changed");
+    }
+    Json(serde_json::json!({
+        "incarnation": state.runtime.connection_incarnation(),
+        "remaining_connections": state.runtime.retire_public_connections(),
+    }))
+    .into_response()
+}
+
 async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
     let status = state.rollout_status_report().await;
     // `backfill_initial_cycle` is the catch-up gate contract consumers
     // (gate.sh, the kura-controller) read: pending | complete | degraded.
     Json(serde_json::json!({
+        "serving_authority": state.runtime.authority.report(),
         "generation": status.generation,
         "ready": status.ready,
         "state": status.state.as_str(),
@@ -1855,6 +1983,7 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         // Only a process that bound the gRPC-only listener gets this far with
         // it set, so the kura-controller switches the gateway's gRPC on it.
         "gateway_grpc_port": state.config.gateway_grpc_port,
+        "connection_incarnation": state.runtime.connection_incarnation(),
     }))
 }
 
@@ -1869,6 +1998,7 @@ async fn metrics_handler(State(state): State<SharedState>) -> impl IntoResponse 
 }
 
 async fn get_keyvalue(
+    origin: RequestOrigin,
     AxumPath(cas_id): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
@@ -1877,7 +2007,7 @@ async fn get_keyvalue(
         Ok(namespace) => namespace,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
-    let usage = namespace.usage_context();
+    let usage = namespace.usage_context(origin);
 
     let key = action_cache_key(&cas_id);
     match state.store.fetch_inline_artifact_bytes(
@@ -1940,6 +2070,7 @@ async fn get_keyvalue(
 }
 
 async fn get_nx(
+    origin: RequestOrigin,
     AxumPath(hash): AxumPath<String>,
     State(state): State<SharedState>,
     method: Method,
@@ -1948,6 +2079,7 @@ async fn get_nx(
     let usage = UsageContext {
         tenant_id: state.config.tenant_id.clone(),
         namespace_id: NX_NAMESPACE_ID.to_owned(),
+        origin: origin.0,
     };
 
     get_artifact(
@@ -1965,6 +2097,7 @@ async fn get_nx(
 }
 
 async fn put_nx(
+    origin: RequestOrigin,
     AxumPath(hash): AxumPath<String>,
     State(state): State<SharedState>,
     request: Request,
@@ -1972,6 +2105,7 @@ async fn put_nx(
     let usage = UsageContext {
         tenant_id: state.config.tenant_id.clone(),
         namespace_id: NX_NAMESPACE_ID.to_owned(),
+        origin: origin.0,
     };
 
     put_blob_artifact(
@@ -1993,6 +2127,7 @@ async fn put_nx(
 }
 
 async fn get_metro(
+    origin: RequestOrigin,
     AxumPath(cache_key): AxumPath<String>,
     State(state): State<SharedState>,
     method: Method,
@@ -2001,6 +2136,7 @@ async fn get_metro(
     let usage = UsageContext {
         tenant_id: state.config.tenant_id.clone(),
         namespace_id: METRO_NAMESPACE_ID.to_owned(),
+        origin: origin.0,
     };
 
     get_artifact(
@@ -2018,6 +2154,7 @@ async fn get_metro(
 }
 
 async fn put_metro(
+    origin: RequestOrigin,
     AxumPath(cache_key): AxumPath<String>,
     State(state): State<SharedState>,
     request: Request,
@@ -2025,6 +2162,7 @@ async fn put_metro(
     let usage = UsageContext {
         tenant_id: state.config.tenant_id.clone(),
         namespace_id: METRO_NAMESPACE_ID.to_owned(),
+        origin: origin.0,
     };
 
     put_blob_artifact(
@@ -2046,6 +2184,7 @@ async fn put_metro(
 }
 
 async fn put_keyvalue(
+    origin: RequestOrigin,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
     request: Request,
@@ -2054,7 +2193,7 @@ async fn put_keyvalue(
         Ok(namespace) => namespace,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
-    let usage = namespace.usage_context();
+    let usage = namespace.usage_context(origin);
 
     let body = match to_bytes(request.into_body(), state.config.max_keyvalue_bytes).await {
         Ok(body) => body,
@@ -2141,6 +2280,7 @@ async fn put_keyvalue(
 }
 
 async fn get_xcode(
+    origin: RequestOrigin,
     AxumPath(id): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
@@ -2153,7 +2293,7 @@ async fn get_xcode(
     };
 
     let analytics = namespace.project_analytics_context();
-    let usage = namespace.usage_context();
+    let usage = namespace.usage_context(origin);
 
     get_artifact(
         state,
@@ -2170,6 +2310,7 @@ async fn get_xcode(
 }
 
 async fn put_xcode(
+    origin: RequestOrigin,
     AxumPath(id): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
@@ -2181,7 +2322,7 @@ async fn put_xcode(
     };
 
     let analytics = namespace.project_analytics_context();
-    let usage = namespace.usage_context();
+    let usage = namespace.usage_context(origin);
 
     put_blob_artifact(
         state,
@@ -2202,6 +2343,7 @@ async fn put_xcode(
 }
 
 async fn get_gradle(
+    origin: RequestOrigin,
     AxumPath(cache_key): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
@@ -2214,7 +2356,7 @@ async fn get_gradle(
     };
 
     let analytics = namespace.project_analytics_context();
-    let usage = namespace.usage_context();
+    let usage = namespace.usage_context(origin);
 
     get_artifact(
         state,
@@ -2231,6 +2373,7 @@ async fn get_gradle(
 }
 
 async fn put_gradle(
+    origin: RequestOrigin,
     AxumPath(cache_key): AxumPath<String>,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
@@ -2242,7 +2385,7 @@ async fn put_gradle(
     };
 
     let analytics = namespace.project_analytics_context();
-    let usage = namespace.usage_context();
+    let usage = namespace.usage_context(origin);
 
     put_blob_artifact(
         state,
@@ -2297,6 +2440,7 @@ async fn head_module(
 }
 
 async fn get_module(
+    origin: RequestOrigin,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
     method: Method,
@@ -2306,7 +2450,7 @@ async fn get_module(
         Ok(query) => query,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
-    let usage = query.namespace.usage_context();
+    let usage = query.namespace.usage_context(origin);
 
     get_artifact(
         state,
@@ -2496,6 +2640,7 @@ async fn upload_module_part(
 }
 
 async fn complete_module_upload(
+    origin: RequestOrigin,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
     Json(body): Json<CompleteMultipartRequest>,
@@ -2525,6 +2670,7 @@ async fn complete_module_upload(
         .map(|upload| UsageContext {
             tenant_id: upload.tenant_id,
             namespace_id: upload.namespace_id,
+            origin: origin.0,
         });
 
     match state
@@ -2671,6 +2817,7 @@ async fn internal_status(
         "region": state.config.region.clone(),
         "tenant_id": state.config.tenant_id.clone(),
         "node_url": node_url,
+        "topology": state.config.peer_topology,
         "traffic_state": state.runtime.traffic_state().as_str(),
         "pulling": true,
         "incarnation": format!("{:016x}", state.store.sync_feed().incarnation()),
@@ -4251,12 +4398,14 @@ fn record_usage_event(
         "download" => usage.record_public_download(
             &context.tenant_id,
             &context.namespace_id,
+            context.origin.as_ref(),
             artifact_kind,
             size,
         ),
         "upload" => usage.record_public_upload(
             &context.tenant_id,
             &context.namespace_id,
+            context.origin.as_ref(),
             artifact_kind,
             size,
         ),
@@ -5863,6 +6012,70 @@ mod tests {
             response.headers().get(axum::http::header::CONNECTION),
             Some(&HeaderValue::from_static("close"))
         );
+    }
+
+    #[tokio::test]
+    async fn migration_controls_are_not_public_routes() {
+        let context = test_context(|_| {}).await;
+        for path in [
+            "/_internal/migration/prepare",
+            "/_internal/migration/verify",
+            "/_internal/migration/reset",
+            "/_internal/migration/rebind",
+            "/_internal/migration/abort",
+        ] {
+            let response = public_router(context.state.clone())
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(path)
+                        .header("content-type", "application/json")
+                        .body(Body::from("{}"))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
+    }
+
+    #[tokio::test]
+    async fn connection_retirement_is_internal_and_incarnation_bound() {
+        let context = test_context(|_| {}).await;
+        let runtime = &context.state.runtime;
+        let request = |incarnation: &str| {
+            Request::builder()
+                .method("POST")
+                .uri("/_internal/connections/retire")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"incarnation": incarnation}).to_string(),
+                ))
+                .unwrap()
+        };
+        let response = public_router(context.state.clone())
+            .oneshot(request(runtime.connection_incarnation()))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert!(!runtime.retiring_connections());
+        let response = internal_router(context.state.clone())
+            .oneshot(request("previous-process"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        assert!(!runtime.retiring_connections());
+        let connection = runtime.public_connection();
+        let response = internal_router(context.state.clone())
+            .oneshot(request(runtime.connection_incarnation()))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), 4096).await.unwrap()).unwrap();
+        assert_eq!(body["remaining_connections"], 1);
+        assert!(!runtime.is_draining());
+        drop(connection);
     }
 
     #[tokio::test]
@@ -7534,6 +7747,95 @@ mod tests {
 
         assert_json_error_response(response, StatusCode::NOT_FOUND, "Key-value entry not found")
             .await;
+    }
+
+    // Requests authorized by a cache token carrying a signed origin book their
+    // usage under it, uploads and downloads alike; the middleware hands it to
+    // the handler, which never reads it off the request itself.
+    #[tokio::test]
+    async fn keyvalue_usage_carries_the_origin_of_the_authorizing_credential() {
+        const SECRET: &str = "origin-usage-secret";
+        let auth = Arc::new(
+            crate::auth::AuthEngine::new(
+                crate::auth::config::AuthConfig {
+                    base_url: "http://127.0.0.1:1".into(),
+                    connect_timeout: Duration::from_millis(50),
+                    request_timeout: Duration::from_millis(50),
+                    verifier: Some(crate::auth::tuist::JwtVerifier {
+                        algorithm: jsonwebtoken::Algorithm::HS256,
+                        keys: crate::auth::tuist::JwtVerifier::secret_keys(SECRET),
+                        issuer: None,
+                        audiences: Vec::new(),
+                    }),
+                    introspection: None,
+                    cache_max_entries: 128,
+                },
+                crate::metrics::Metrics::new("test".into(), "tenant".into()),
+            )
+            .expect("build the policy engine"),
+        );
+        let token = jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+            &serde_json::json!({
+                "sub": "test",
+                "type": "subject",
+                "scopes": ["project_cache_write"],
+                "cache_grants": { "project": { "write": ["test-tenant/ios"] } },
+                "cache_origin": "NL",
+                "exp": 4_102_444_800_u64,
+            }),
+            &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
+        )
+        .expect("mint a policy token");
+        let context = crate::test_support::test_context_with_auth(
+            |config| config.usage = Some(test_usage_config()),
+            Some(auth),
+        )
+        .await;
+        let app = router(context.state.clone());
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/api/cache/keyvalue?tenant_id=test-tenant&namespace_id=ios")
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::from(
+                        r#"{"cas_id":"cas-1","entries":[{"value":"x"}]}"#,
+                    ))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/keyvalue/cas-1?tenant_id=test-tenant&namespace_id=ios")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get_response.status(), StatusCode::OK);
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+        assert_eq!(rollups.len(), 2, "{rollups:?}");
+        assert!(
+            rollups
+                .iter()
+                .all(|rollup| rollup.origin.as_deref() == Some("NL")),
+            "{rollups:?}"
+        );
     }
 
     #[tokio::test]
@@ -9627,6 +9929,7 @@ mod tests {
             usage: Some(UsageContext {
                 tenant_id: context.state.config.tenant_id.clone(),
                 namespace_id: "ios".to_owned(),
+                origin: None,
             }),
             analytics: None,
             analytics_key: "builds/hash/Module.framework".to_owned(),

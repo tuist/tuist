@@ -126,6 +126,11 @@ func (in *RunnerPoolAutoscaling) DeepCopyInto(out *RunnerPoolAutoscaling) {
 		*out = new(int32)
 		**out = **in
 	}
+	if in.HoldRecentPeak != nil {
+		in, out := &in.HoldRecentPeak, &out.HoldRecentPeak
+		*out = new(bool)
+		**out = **in
+	}
 }
 
 func (in *RunnerPoolRollout) DeepCopyInto(out *RunnerPoolRollout) {
@@ -149,4 +154,8 @@ func (in *RunnerPoolStatus) DeepCopyInto(out *RunnerPoolStatus) {
 		in.LastScaleDownAt.DeepCopyInto(out.LastScaleDownAt)
 	}
 	in.ImageRolledAt.DeepCopyInto(&out.ImageRolledAt)
+	if in.LastDemandAt != nil {
+		out.LastDemandAt = new(metav1.Time)
+		in.LastDemandAt.DeepCopyInto(out.LastDemandAt)
+	}
 }

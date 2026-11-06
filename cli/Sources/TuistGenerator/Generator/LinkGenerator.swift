@@ -54,10 +54,45 @@ enum LinkGeneratorPath: Hashable {
     func xcodeValue(sourceRootPath: AbsolutePath) -> String {
         switch self {
         case let .absolutePath(path):
-            return "$(SRCROOT)/\(path.relative(to: sourceRootPath).pathString)"
+            return "$(SRCROOT)/\(Self.relativePathString(path, to: sourceRootPath))"
         case let .string(value):
             return value
         }
+    }
+
+    /// `path.relative(to: base).pathString`, computed by scanning the two path strings.
+    ///
+    /// Every target's search path settings relativize every path it is given, and `relative(to:)` splits both paths
+    /// into arrays of component strings on every call. Absolute paths are normalized (no empty, `.` or `..` components
+    /// and no trailing separator), so for ASCII paths, whose component equality is byte equality, the relative path is
+    /// one `..` per base component after the shared ones followed by the remaining path components. Anything else,
+    /// including the root and equal paths, goes through `relative(to:)`.
+    static func relativePathString(_ path: AbsolutePath, to base: AbsolutePath) -> String {
+        let pathBytes = Array(path.pathString.utf8)
+        let baseBytes = Array(base.pathString.utf8)
+        let slash: UInt8 = 0x2F // "/"
+        guard pathBytes.count > 1, baseBytes.count > 1, pathBytes != baseBytes,
+              pathBytes.allSatisfy({ $0 < 0x80 }), baseBytes.allSatisfy({ $0 < 0x80 })
+        else { return path.relative(to: base).pathString }
+
+        // The end of the longest shared run of whole components, at a separator or the end of a path.
+        var shared = 0
+        var index = 1
+        while index <= min(pathBytes.count, baseBytes.count) {
+            let pathEnds = index == pathBytes.count || pathBytes[index] == slash
+            let baseEnds = index == baseBytes.count || baseBytes[index] == slash
+            if pathEnds, baseEnds { shared = index }
+            if pathEnds != baseEnds { break }
+            if !pathEnds, pathBytes[index] != baseBytes[index] { break }
+            index += 1
+        }
+
+        let parentCount = baseBytes[shared...].count(where: { $0 == slash })
+        var components = Array(repeating: "..", count: parentCount)
+        if shared + 1 < pathBytes.count {
+            components.append(String(Substring(path.pathString.utf8.dropFirst(shared + 1))))
+        }
+        return components.joined(separator: "/")
     }
 }
 
@@ -190,7 +225,7 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
                     role = .plugin
                 case .macro:
                     role = .link
-                case .runtime, .runtimeEmbedded:
+                case .runtime, .runtimeEmbedded, .runtimeDynamic, .runtimeDynamicEmbedded:
                     role = target.product.isStatic ? .buildOnly : .link
                 }
                 guard role != .buildOnly else { continue }
@@ -398,13 +433,18 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         path: AbsolutePath,
         graphTraverser: GraphTraversing
     ) throws {
-        let swiftIncludePaths = graphTraverser.librariesSwiftIncludePaths(path: path, name: target.name).sorted()
-        try setup(
-            setting: "SWIFT_INCLUDE_PATHS",
-            paths: swiftIncludePaths.map(LinkGeneratorPath.absolutePath),
-            pbxTarget: pbxTarget,
-            sourceRootPath: sourceRootPath
+        let swiftIncludePathsBySDKCondition = Dictionary(
+            grouping: graphTraverser.librariesSwiftIncludePaths(path: path, name: target.name),
+            by: \.sdkCondition
         )
+        for (sdkCondition, swiftIncludePaths) in swiftIncludePathsBySDKCondition {
+            try setup(
+                setting: sdkCondition.map { "SWIFT_INCLUDE_PATHS[\($0)]" } ?? "SWIFT_INCLUDE_PATHS",
+                paths: swiftIncludePaths.map(\.path).sorted().map(LinkGeneratorPath.absolutePath),
+                pbxTarget: pbxTarget,
+                sourceRootPath: sourceRootPath
+            )
+        }
     }
 
     func setupRunPathSearchPaths(
@@ -436,7 +476,7 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             return
         }
         let value = SettingValue
-            .array(["$(inherited)"] + paths.map { $0.xcodeValue(sourceRootPath: sourceRootPath) }.uniqued().sorted())
+            .array(["$(inherited)"] + Set(paths.map { $0.xcodeValue(sourceRootPath: sourceRootPath) }).sorted())
         let newSetting = [name: value]
         let helper = SettingsHelper()
         for configuration in configurationList.buildConfigurations {
@@ -474,6 +514,15 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         pbxproj.add(object: buildPhase)
         pbxTarget.buildPhases.append(buildPhase)
 
+        // `files` is computed from object references, so every append through it rebuilds the whole array.
+        // Appending in batches keeps linking linear in the number of dependencies.
+        var pendingBuildFiles: [PBXBuildFile] = []
+        func flushPendingBuildFiles() {
+            guard !pendingBuildFiles.isEmpty else { return }
+            buildPhase.files?.append(contentsOf: pendingBuildFiles)
+            pendingBuildFiles.removeAll()
+        }
+
         func addBuildFile(
             _ path: AbsolutePath,
             condition: PlatformCondition?,
@@ -490,7 +539,7 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             let buildFile = PBXBuildFile(file: fileRef, settings: settings)
             buildFile.applyCondition(condition, applicableTo: target)
             pbxproj.add(object: buildFile)
-            buildPhase.files?.append(buildFile)
+            pendingBuildFiles.append(buildFile)
         }
 
         for dependency in linkableDependencies {
@@ -506,6 +555,8 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             case .bundle, .macro:
                 break
             case let .packageProduct(product, condition):
+                // Appends to this phase directly, after the files added so far.
+                flushPendingBuildFiles()
                 try pbxTarget.addSwiftPackageProduct(
                     productName: product,
                     role: .link,
@@ -522,7 +573,7 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
                 let buildFile = PBXBuildFile(file: fileRef, settings: settings)
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
-                buildPhase.files?.append(buildFile)
+                pendingBuildFiles.append(buildFile)
             case let .sdk(sdkPath, sdkStatus, _, condition):
                 guard sdkStatus != .none else { continue }
                 guard let fileRef = fileElements.sdk(path: sdkPath) else {
@@ -532,9 +583,10 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
                 let buildFile = createSDKBuildFile(for: fileRef, status: sdkStatus)
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
-                buildPhase.files?.append(buildFile)
+                pendingBuildFiles.append(buildFile)
             }
         }
+        flushPendingBuildFiles()
     }
 
     func generateCopyProductsBuildPhase(

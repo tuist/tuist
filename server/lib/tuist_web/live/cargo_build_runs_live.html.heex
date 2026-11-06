@@ -1,0 +1,141 @@
+<div id="build-runs" data-build-system="cargo">
+  <.card
+    title={dgettext("dashboard_builds", "Build Runs")}
+    icon="chart_column"
+    data-part="build-runs-card"
+  >
+    <.card_section data-part="build-runs-card-section">
+      <div data-part="filters">
+        <.dropdown
+          id="build-runs-sort-by"
+          label={
+            if @build_runs_sort_by == "duration",
+              do: dgettext("dashboard_builds", "Duration"),
+              else: dgettext("dashboard_builds", "Ran at")
+          }
+          secondary_text={dgettext("dashboard_builds", "Sort by:")}
+        >
+          <.dropdown_item
+            :for={
+              {value, label} <- [
+                {"duration", dgettext("dashboard_builds", "Duration")},
+                {"ran-at", dgettext("dashboard_builds", "Ran at")}
+              ]
+            }
+            value={value}
+            label={label}
+            patch={column_patch_sort(assigns, value)}
+            data-selected={@build_runs_sort_by == value}
+          >
+            <:right_icon :if={@build_runs_sort_by == value}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.filter_dropdown
+          id="filter-dropdown"
+          label={dgettext("dashboard_builds", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={@active_filters != []} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+      <.async_result :let={result} assign={@cargo_build_runs}>
+        <:loading><.skeleton_chart /></:loading>
+        <:failed><TuistWeb.Components.ErrorCardSection.error_state /></:failed>
+        <div :if={result.builds != []} data-part="build-runs-table">
+          <.table
+            id="cargo-build-runs"
+            rows={result.builds}
+            row_navigate={
+              fn build ->
+                url(
+                  ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/cargo-builds/#{build.id}"
+                )
+              end
+            }
+          >
+            <:col :let={build} label={dgettext("dashboard_builds", "Command")}>
+              <.text_cell label={"cargo #{build.command}"} />
+            </:col>
+            <:col :let={build} label={dgettext("dashboard_builds", "Status")}>
+              <.status_badge_cell
+                label={
+                  if build.status == "success",
+                    do: dgettext("dashboard_builds", "Passed"),
+                    else: dgettext("dashboard_builds", "Failed")
+                }
+                status={if build.status == "success", do: "success", else: "error"}
+              />
+            </:col>
+            <:col :let={build} label={dgettext("dashboard_builds", "Branch")}>
+              <.text_cell
+                icon="git_branch"
+                label={
+                  if build.git_branch == "",
+                    do: dgettext("dashboard_builds", "None"),
+                    else: build.git_branch
+                }
+              />
+            </:col>
+            <:col :let={build} label={dgettext("dashboard_builds", "Commit SHA")}>
+              <.text_cell label={SHA.format_commit_sha(build.git_commit_sha)} />
+            </:col>
+            <:col :let={build} label={dgettext("dashboard_builds", "Ran by")}>
+              <.run_ran_by_badge_cell
+                run={build}
+                ran_by_name={build.ran_by_account && build.ran_by_account.name}
+              />
+            </:col>
+            <:col
+              :let={build}
+              label={dgettext("dashboard_builds", "Duration")}
+              patch={column_patch_sort(assigns, "duration")}
+              sort_order={@build_runs_sort_by == "duration" && @build_runs_sort_order}
+            >
+              <.text_cell
+                icon="history"
+                label={DateFormatter.format_duration_from_milliseconds(build.duration_ms)}
+              />
+            </:col>
+            <:col
+              :let={build}
+              label={dgettext("dashboard_builds", "Ran at")}
+              patch={column_patch_sort(assigns, "ran-at")}
+              sort_order={@build_runs_sort_by == "ran-at" && @build_runs_sort_order}
+            >
+              <.text_cell sublabel={DateFormatter.from_now(build.inserted_at)} />
+            </:col>
+            <:col :let={build} label={dgettext("dashboard_builds", "Rust version")}>
+              <.text_cell label={
+                if build.rust_version == "",
+                  do: dgettext("dashboard_builds", "Unknown"),
+                  else: build.rust_version
+              } />
+            </:col>
+          </.table>
+          <.pagination
+            uri={result.uri}
+            has_previous_page={result.meta.has_previous_page?}
+            has_next_page={result.meta.has_next_page?}
+            start_cursor={result.meta.start_cursor}
+            end_cursor={result.meta.end_cursor}
+          />
+        </div>
+        <.empty_card_section
+          :if={result.builds == []}
+          title={dgettext("dashboard_builds", "No data yet")}
+          get_started_href="https://tuist.dev/en/docs/guides/get-started/rust-project"
+          data-part="empty-build-runs-table-card-section"
+        >
+          <:image>
+            <img src={~p"/images/empty_table_light.png"} data-theme="light" /><img
+              src={~p"/images/empty_table_dark.png"}
+              data-theme="dark"
+            />
+          </:image>
+        </.empty_card_section>
+      </.async_result>
+    </.card_section>
+  </.card>
+</div>

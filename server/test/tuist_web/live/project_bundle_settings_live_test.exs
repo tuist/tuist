@@ -12,6 +12,86 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "create threshold" do
+    test "shows MB unit help below the input, only for absolute limits", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+      render_hook(lv, "open_create_threshold_modal")
+      refute render(lv) =~ "1 MB = 1,000,000 bytes"
+
+      html = render_hook(lv, "update_create_form_unit", %{"unit" => "megabytes"})
+      assert html =~ "Deviation (MB)"
+      assert html =~ "1 MB = 1,000,000 bytes"
+      assert html =~ ~s(class="noora-hint-text")
+      refute html =~ "Deviation MB (1 MB ="
+
+      html = render_hook(lv, "update_create_form_unit", %{"unit" => "percentage"})
+      assert html =~ "Deviation %"
+      refute html =~ "1 MB = 1,000,000 bytes"
+    end
+
+    for metric <- ["install_size", "download_size"] do
+      @metric metric
+      test "creates an absolute #{@metric} limit in decimal MB", %{
+        conn: conn,
+        organization: organization,
+        project: project
+      } do
+        {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+        render_hook(lv, "open_create_threshold_modal")
+        render_hook(lv, "update_create_form_name", %{"value" => "Absolute"})
+        render_hook(lv, "update_create_form_metric", %{"metric" => @metric})
+        render_hook(lv, "update_create_form_unit", %{"unit" => "megabytes"})
+        render_hook(lv, "update_create_form_deviation", %{"value" => "1.5"})
+        html = render_hook(lv, "create_threshold")
+
+        assert [threshold] = Bundles.get_project_bundle_thresholds(project)
+        assert threshold.metric == String.to_existing_atom(@metric)
+        assert threshold.deviation_bytes == 1_500_000
+        assert is_nil(threshold.deviation_percentage)
+        assert html =~ "1.5 MB"
+      end
+    end
+
+    test "invalid limits never save a stale value", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+      render_hook(lv, "update_create_form_name", %{"value" => "Invalid"})
+
+      for {unit, values} <- [
+            {"percentage", ["", "0", "-1", "0.47oops", 5]},
+            {"megabytes", ["", "0", "-1", "1.5MB", "0.0000001", "9223372036854.775808", "NaN", "Infinity"]}
+          ],
+          value <- values do
+        render_hook(lv, "update_create_form_unit", %{"unit" => unit})
+        render_hook(lv, "update_create_form_deviation", %{"value" => "1.5"})
+        render_hook(lv, "update_create_form_deviation", %{"value" => value})
+        html = render_hook(lv, "create_threshold")
+        assert html =~ "Enter a valid size threshold."
+        assert Bundles.get_project_bundle_thresholds(project) == []
+      end
+    end
+
+    test "escapes draft values in the threshold description", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+      html = render_hook(lv, "update_create_form_deviation", %{"value" => "<script>alert(1)</script>"})
+      assert html =~ "&lt;script&gt;"
+      refute html =~ "<script>alert(1)</script>"
+    end
+
+    test "resets the unit on dismissal and reopening", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+      render_hook(lv, "update_create_form_unit", %{"unit" => "megabytes"})
+      render_hook(lv, "close_create_threshold_modal")
+      render_hook(lv, "open_create_threshold_modal")
+      render_hook(lv, "update_create_form_name", %{"value" => "Default"})
+      render_hook(lv, "create_threshold")
+      assert [threshold] = Bundles.get_project_bundle_thresholds(project)
+      assert threshold.deviation_percentage == 5.0
+      assert is_nil(threshold.deviation_bytes)
+    end
+
     test "creates a threshold via the modal", %{
       conn: conn,
       organization: organization,
@@ -35,6 +115,124 @@ defmodule TuistWeb.ProjectBundleSettingsLiveTest do
   end
 
   describe "update threshold" do
+    test "shows compact labels and updates unit help when editing a limit", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      threshold = BundlesFixtures.bundle_threshold_fixture(project: project, deviation_bytes: 1_500_000)
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+      html = render(lv)
+      assert html =~ "Deviation (MB)"
+      assert html =~ "1 MB = 1,000,000 bytes"
+      assert html =~ ~s(class="noora-hint-text")
+      refute html =~ "Deviation MB (1 MB ="
+
+      html = render_hook(lv, "update_edit_form_unit", %{"id" => threshold.id, "unit" => "percentage"})
+      assert html =~ "Deviation %"
+      refute html =~ "1 MB = 1,000,000 bytes"
+
+      html = render_hook(lv, "update_edit_form_unit", %{"id" => threshold.id, "unit" => "megabytes"})
+      assert html =~ "1 MB = 1,000,000 bytes"
+    end
+
+    test "preserves percentages and switches units in both directions", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      threshold = BundlesFixtures.bundle_threshold_fixture(project: project, deviation_percentage: 0.47)
+      {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+      assert html =~ "0.47%"
+      render_hook(lv, "update_edit_form_name", %{"id" => threshold.id, "value" => "Renamed"})
+      render_hook(lv, "update_threshold", %{"id" => threshold.id})
+      assert {:ok, %{deviation_percentage: 0.47, deviation_bytes: nil}} = Bundles.get_bundle_threshold(threshold.id)
+
+      render_hook(lv, "update_edit_form_unit", %{"id" => threshold.id, "unit" => "megabytes"})
+      render_hook(lv, "update_edit_form_deviation", %{"id" => threshold.id, "value" => "1.500001"})
+      render_hook(lv, "update_threshold", %{"id" => threshold.id})
+      assert {:ok, %{deviation_percentage: nil, deviation_bytes: 1_500_001}} = Bundles.get_bundle_threshold(threshold.id)
+
+      render_hook(lv, "update_edit_form_name", %{"id" => threshold.id, "value" => "Absolute renamed"})
+      render_hook(lv, "update_threshold", %{"id" => threshold.id})
+      assert {:ok, %{deviation_bytes: 1_500_001}} = Bundles.get_bundle_threshold(threshold.id)
+
+      render_hook(lv, "update_edit_form_unit", %{"id" => threshold.id, "unit" => "percentage"})
+      render_hook(lv, "update_edit_form_deviation", %{"id" => threshold.id, "value" => "0.47"})
+      render_hook(lv, "update_threshold", %{"id" => threshold.id})
+      assert {:ok, %{deviation_percentage: 0.47, deviation_bytes: nil}} = Bundles.get_bundle_threshold(threshold.id)
+    end
+
+    test "invalid edits preserve the persisted rule and cancellation restores it", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      threshold = BundlesFixtures.bundle_threshold_fixture(project: project, deviation_bytes: 1_500_001)
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+
+      for value <- ["", "0", "-1", "1.5MB", "0.0000001", "9223372036854.775808", "NaN", "Infinity", 5] do
+        render_hook(lv, "update_edit_form_deviation", %{"id" => threshold.id, "value" => value})
+        html = render_hook(lv, "update_threshold", %{"id" => threshold.id})
+        assert html =~ "Enter a valid size threshold."
+        assert {:ok, ^threshold} = Bundles.get_bundle_threshold(threshold.id)
+      end
+
+      render_hook(lv, "close_edit_threshold_modal", %{"id" => threshold.id})
+      render_hook(lv, "update_threshold", %{"id" => threshold.id})
+      assert {:ok, %{deviation_bytes: 1_500_001}} = Bundles.get_bundle_threshold(threshold.id)
+    end
+
+    test "changing units requires a new value instead of reinterpreting the old limit", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      threshold = BundlesFixtures.bundle_threshold_fixture(project: project, deviation_percentage: 0.47)
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+      render_hook(lv, "update_edit_form_unit", %{"id" => threshold.id, "unit" => "megabytes"})
+      html = render_hook(lv, "update_threshold", %{"id" => threshold.id})
+      assert html =~ "Enter a valid size threshold."
+      assert {:ok, ^threshold} = Bundles.get_bundle_threshold(threshold.id)
+      render_hook(lv, "update_create_form_name", %{"value" => "New absolute"})
+      render_hook(lv, "update_create_form_unit", %{"unit" => "megabytes"})
+      render_hook(lv, "create_threshold")
+      assert Bundles.get_project_bundle_thresholds(project) == [threshold]
+    end
+
+    test "clears validation errors when the user corrects the form", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      threshold = BundlesFixtures.bundle_threshold_fixture(project: project, deviation_bytes: 1_500_000)
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+      render_hook(lv, "update_create_form_deviation", %{"value" => ""})
+      assert render_hook(lv, "create_threshold") =~ "Enter a valid size threshold."
+      refute render_hook(lv, "update_create_form_deviation", %{"value" => "0.47"}) =~ "Enter a valid size threshold."
+
+      render_hook(lv, "update_edit_form_name", %{"id" => threshold.id, "value" => ""})
+      assert render_hook(lv, "update_threshold", %{"id" => threshold.id}) =~ "The size threshold could not be saved."
+
+      refute render_hook(lv, "update_edit_form_name", %{"id" => threshold.id, "value" => "Valid"}) =~
+               "The size threshold could not be saved."
+    end
+
+    test "reports changeset failures separately from invalid limits", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      threshold = BundlesFixtures.bundle_threshold_fixture(project: project, deviation_percentage: 0.47)
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/bundles")
+      html = render_hook(lv, "create_threshold")
+      assert html =~ "The size threshold could not be saved."
+      render_hook(lv, "update_edit_form_name", %{"id" => threshold.id, "value" => ""})
+      html = render_hook(lv, "update_threshold", %{"id" => threshold.id})
+      assert html =~ "The size threshold could not be saved."
+      assert {:ok, ^threshold} = Bundles.get_bundle_threshold(threshold.id)
+    end
+
     test "updates a threshold", %{
       conn: conn,
       organization: organization,

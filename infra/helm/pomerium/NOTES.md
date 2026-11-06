@@ -16,6 +16,19 @@ per-env kubectl gateway. One Helm release per workload env
 - ClusterRoleBindings for `tuist-admins` / `tuist-eng` /
   `tuist-<env>-write` → `view` / `view` / `edit` respectively
   (`templates/access-tiers.yaml`).
+- Controlled CNPG switchovers through `tuist-edit-cnpg-write`, aggregated
+  into `edit`: `patch` on `clusters/status` in `postgresql.cnpg.io`.
+  Canary/production require a human-driven JIT elevation; staging retains
+  standing write access. The grant covers the status subresource, not just
+  promotion fields, so use it only for the authorized incident action.
+  Follow the [switchover runbook](../../k8s/onboarding.md#controlled-cnpg-switchover)
+  for health checks and explicit subresource authorization checks.
+
+Local RBAC regression checks (Helm, mikefarah/yq, jq; no cluster access):
+
+```bash
+bash infra/helm/pomerium/test-access-tiers.sh
+```
 
 ## Staging: the gateway is no longer the primary door
 

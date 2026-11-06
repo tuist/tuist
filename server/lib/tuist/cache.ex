@@ -16,17 +16,32 @@ defmodule Tuist.Cache do
   alias Tuist.KeyValueStore
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias Tuist.Repo
 
   @short_cache_ttl to_timeout(second: 10)
 
   @cache_token_type "cache"
   @cache_token_ttl_seconds 1800
 
+  @doc """
+  What `/api/cache/access` answers for an opaque credential that a cache node
+  cannot read for itself.
+
+  `cache_grants` carries the action each project allows and is what a node
+  authorizes from. `projects` predates it and carries no action, so nodes that
+  still read only it treat every handle as writable. It therefore lists only
+  the projects whose cache the subject may read: narrowing it to writes would
+  cut those nodes off from reads they are entitled to.
+  """
   def accessible_handles(resource, opts \\ []) do
+    resource = with_resolved_membership(resource)
+    grants = cache_grants_for(resource, accessible_accounts(resource), accessible_projects(resource, opts))
+
     Map.merge(
       %{
         accounts: accessible_account_handles(resource),
-        projects: accessible_project_handles(resource, opts)
+        projects: grants["project"]["read"],
+        cache_grants: grants
       },
       billing_refusals(resource)
     )
@@ -51,7 +66,7 @@ defmodule Tuist.Cache do
     accounts =
       resource
       |> with_resolved_membership()
-      |> resolve_accessible_accounts()
+      |> billing_accounts()
 
     blocked_ids = Billing.cache_blocked_account_ids(accounts)
     blocked = Enum.filter(accounts, &MapSet.member?(blocked_ids, &1.id))
@@ -62,6 +77,11 @@ defmodule Tuist.Cache do
       payment_failed: blocked |> Enum.filter(&MapSet.member?(failed_ids, &1.id)) |> account_handles()
     }
   end
+
+  # A project credential may explain its owner's billing refusal without
+  # gaining the account-wide cache grants deliberately excluded below.
+  defp billing_accounts(%Project{} = project), do: [Repo.preload(project, :account).account]
+  defp billing_accounts(resource), do: resolve_accessible_accounts(resource)
 
   defp billing_refusal_claims(resource) do
     %{payment_required: required, payment_failed: failed} = billing_refusals(resource)
@@ -115,7 +135,11 @@ defmodule Tuist.Cache do
 
     cache_token_signer().encode_and_sign(
       subject,
-      Map.put(billing_refusal_claims(subject), "cache_grants", grants),
+      subject
+      |> billing_refusal_claims()
+      |> Map.put("cache_grants", grants)
+      |> Map.put("cache_origin", Keyword.get(opts, :origin))
+      |> Map.reject(fn {_key, value} -> is_nil(value) end),
       token_type: @cache_token_type,
       ttl: {ttl, :second}
     )
@@ -222,12 +246,6 @@ defmodule Tuist.Cache do
 
   def accessible_account_handles(%Project{}), do: []
   def accessible_account_handles(_), do: []
-
-  def accessible_project_handles(resource, opts \\ []) do
-    resource
-    |> accessible_projects(opts)
-    |> project_handles()
-  end
 
   @doc """
   Creates multiple CAS analytics events in a batch.

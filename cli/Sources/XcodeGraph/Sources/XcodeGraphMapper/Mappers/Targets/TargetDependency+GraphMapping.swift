@@ -153,6 +153,10 @@ extension TargetDependency.PackageType {
             return .runtime
         case .runtimeEmbedded:
             return .runtimeEmbedded
+        case .runtimeDynamic:
+            return .runtimeDynamic
+        case .runtimeDynamicEmbedded:
+            return .runtimeDynamicEmbedded
         case .plugin:
             return .plugin
         case .macro:

@@ -17,9 +17,11 @@ public struct DeleteDerivedDirectoryProjectMapper: ProjectMapping {
         preservedDerivedDirectories: Set<String> = [
             Constants.DerivedDirectory.moduleMaps,
             Constants.DerivedDirectory.frameworkSearchPaths,
+            Constants.DerivedDirectory.tuistCacheDebugging,
             Constants.DerivedDirectory.sources,
             Constants.DerivedDirectory.infoPlists,
             Constants.DerivedDirectory.entitlements,
+            Constants.DerivedDirectory.testPlans,
         ],
         fileSystem: FileSysteming = FileSystem()
     ) {

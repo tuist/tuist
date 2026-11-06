@@ -10,6 +10,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -123,7 +124,7 @@ func TestVultrConversionIgnoresAnotherBoxesRecord(t *testing.T) {
 	called := false
 	r := conversionReconciler(t, func(context.Context, string, string, []byte, string, *bootstrap.HostKeyState) (string, error) {
 		called = true
-		return "prep-vultr: RESULT device=/dev/nvme0n1p2 fstype=xfs quota=true size=894G", nil
+		return "prep-vultr: RESULT device=/dev/mapper/kura--volumes-data fstype=xfs quota=true vg=kura-volumes size=128G", nil
 	})
 	m := vultrMachine("tuist", "m", "box-2")
 	m.Status.Converted = &infrav1.ConversionStatus{InstanceID: "box-1", QuotaEnforced: true}
@@ -143,7 +144,7 @@ func TestVultrConversionIgnoresAnotherBoxesRecord(t *testing.T) {
 // The result line is what proves the layout, so it has to land in status.
 func TestVultrConversionRecordsWhatTheBoxActuallyGot(t *testing.T) {
 	r := conversionReconciler(t, func(context.Context, string, string, []byte, string, *bootstrap.HostKeyState) (string, error) {
-		return "prep-vultr: gate ok\nprep-vultr: RESULT device=/dev/nvme0n1p2 fstype=xfs quota=true size=894G\n", nil
+		return "prep-vultr: gate ok\nprep-vultr: RESULT device=/dev/mapper/kura--volumes-data fstype=xfs quota=true vg=kura-volumes size=128G\n", nil
 	})
 	m := vultrMachine("tuist", "m", "box-1")
 
@@ -152,7 +153,7 @@ func TestVultrConversionRecordsWhatTheBoxActuallyGot(t *testing.T) {
 		t.Fatalf("done=%v err=%v", done, err)
 	}
 	c := m.Status.Converted
-	if c.DataDevice != "/dev/nvme0n1p2" || c.DataFilesystem != "xfs" || !c.QuotaEnforced {
+	if c.DataDevice != "/dev/mapper/kura--volumes-data" || c.DataFilesystem != "xfs" || !c.QuotaEnforced {
 		t.Fatalf("converted = %+v, want the parsed result line", c)
 	}
 	if c.Attempts != 0 || c.ConvertedAt == nil {
@@ -230,6 +231,50 @@ func TestVultrReleaseClearsTheConversionRecord(t *testing.T) {
 	}
 	if m.Status.Converted != nil {
 		t.Fatalf("converted = %+v, want it cleared; the reinstall wipes the layout", m.Status.Converted)
+	}
+}
+
+// The released box is wiped, so its kubelet never deregisters. A Node left
+// behind stays NotReady with DaemonSet pods counted unavailable, which fails
+// every `helm --wait` on the observability chart until someone deletes it.
+func TestVultrReleaseDeletesTheNodeAndItsLocalVolumes(t *testing.T) {
+	scheme := vultrScheme(t)
+	m := vultrMachine("tuist", "m", "box-1")
+	m.Finalizers = []string{VultrMachineFinalizer}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "m"}}
+	bootstrapSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: "tuist", Name: "m-bootstrap"}}
+	pvc := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Namespace: "kura", Name: "data-kura-0"}}
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "pvc-local"},
+		Spec: corev1.PersistentVolumeSpec{
+			ClaimRef: &corev1.ObjectReference{Namespace: "kura", Name: "data-kura-0"},
+			NodeAffinity: &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key: corev1.LabelHostname, Operator: corev1.NodeSelectorOpIn, Values: []string{"m"},
+				}}}},
+			}},
+		},
+	}
+	cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(m, node, bootstrapSecret, pv, pvc).Build()
+
+	r := &VultrMachineReconciler{
+		Client:             cl,
+		CredentialsManager: &credentials.Manager{Client: cl, Namespace: "tuist"},
+		VultrClient:        newFakeVultrAPI(func(string) {}),
+	}
+
+	if _, err := r.reconcileDelete(context.Background(), m); err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+	ctx := context.Background()
+	if err := cl.Get(ctx, types.NamespacedName{Name: "m"}, &corev1.Node{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("get Node = %v, want NotFound; a wiped box's Node lingers NotReady and wedges helm --wait", err)
+	}
+	if err := cl.Get(ctx, types.NamespacedName{Namespace: "kura", Name: "data-kura-0"}, &corev1.PersistentVolumeClaim{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("get PVC = %v, want NotFound; it stays bound to a PV on a wiped node", err)
+	}
+	if err := cl.Get(ctx, types.NamespacedName{Namespace: "tuist", Name: "m-bootstrap"}, &corev1.Secret{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("get bootstrap Secret = %v, want NotFound", err)
 	}
 }
 
@@ -321,5 +366,24 @@ func TestVultrReleaseHoldsTheClaimUntilTheWipeIsUnderway(t *testing.T) {
 	}
 	if controllerutil.ContainsFinalizer(m, VultrMachineFinalizer) {
 		t.Fatal("still holding the claim after the wipe was observably running")
+	}
+}
+
+func TestVultrConversionRejectsIncompleteLVMResult(t *testing.T) {
+	for _, result := range []string{
+		"RESULT device=/dev/md1 fstype=xfs quota=true",
+		"RESULT device=/dev/md1 fstype=xfs quota=false vg=kura-volumes",
+		"RESULT device=/dev/md1 fstype=ext4 quota=true vg=kura-volumes",
+		"RESULT device=/dev/md1 fstype=xfs quota=true vg=other",
+	} {
+		r := conversionReconciler(t, func(context.Context, string, string, []byte, string, *bootstrap.HostKeyState) (string, error) {
+			return result, nil
+		})
+		m := vultrMachine("tuist", "m", "box-1")
+		m.Annotations = map[string]string{"tuist.dev/kura-storage-layout": "lvm-v1"}
+		done, _, err := r.reconcileConversion(context.Background(), m, &vultr.Server{ID: "box-1", MainIP: "1.2.3.4"}, nil)
+		if err != nil || done || m.Status.Converted.ConvertedAt != nil {
+			t.Fatalf("accepted invalid conversion result %q: done=%v err=%v", result, done, err)
+		}
 	}
 }

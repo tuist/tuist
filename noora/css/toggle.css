@@ -8,6 +8,10 @@
     &[data-disabled] {
       cursor: not-allowed;
     }
+
+    &:has([data-part="description"]) {
+      align-items: start;
+    }
   }
 
   & [data-part="control"] {
@@ -42,6 +46,7 @@
   }
 
   & [data-part="description"] {
+    display: block;
     margin-top: var(--noora-spacing-2);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-body-small);
@@ -79,7 +84,7 @@
       border-radius: var(--noora-radius-2);
       background: var(--noora-choice-selector-label);
       box-shadow: var(--noora-border-light-default);
-      transition: left 0.15s ease-in-out;
+      transition: inset-inline-start 0.15s ease-in-out;
     }
 
     &[data-state="unchecked"] {
@@ -88,7 +93,7 @@
       }
 
       & [data-part="thumb"] {
-        left: 0;
+        inset-inline-start: 0;
       }
     }
 
@@ -99,7 +104,7 @@
       }
 
       & [data-part="thumb"] {
-        left: 14px;
+        inset-inline-start: 14px;
       }
     }
 

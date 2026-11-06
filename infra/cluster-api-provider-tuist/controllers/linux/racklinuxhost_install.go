@@ -6,17 +6,18 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/capiconditions"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -59,6 +60,17 @@ type RackInstall struct {
 	// rack's management segment reaches it.
 	ServerURL string
 
+	// InternetServerURL is the boot server a preinstalled box reaches over the
+	// internet before its site has one. Set, an edge whose TPM is pinned has
+	// its install published with no other edge of its site to serve it: the
+	// first edge of a site, which that server hands its seed to, sealed.
+	InternetServerURL string
+
+	// PreinstalledProducts are the hardware models, as their SMBIOS vendor and
+	// product a machine announces, that arrive with the preinstall image's
+	// installer partition on their boot drive. Their installs keep it.
+	PreinstalledProducts []string
+
 	// AuthorizedKeys are people's SSH keys, authorized beside the fleet key.
 	AuthorizedKeys []string
 }
@@ -68,8 +80,10 @@ func rackConsoleSecretName(fleet string) string { return fleet + "-console" }
 
 // reconcileInstall publishes an install for a host that has no tailnet device
 // yet, or whose spec.reinstallGeneration is above the generation its current
-// install ran for, and withdraws it once a new device shows the install ran,
-// recording the install's generation. An edge's install is published only
+// install ran for, and withdraws it once a new device joins, recording the
+// install's generation. The new device is held to the install's host key only
+// when the boot server handed out its seed; otherwise another installer, such
+// as the host's own stick, installed it. An edge's install is published only
 // while another edge of its site is connected to serve it, or once the edge
 // was rebooted into it. The reinstall of a running host is started by setting
 // its firmware to boot its installer once and rebooting it, and that of a
@@ -98,7 +112,8 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 	}
 
 	if inst != nil && device != nil && device.DeviceID != inst.PreviousDeviceID {
-		if inst.HostKeyFingerprint != "" {
+		handedOut := installHandedOut(host, inst)
+		if handedOut && inst.HostKeyFingerprint != "" {
 			if err := r.CredentialsManager.SetMachineHostFingerprint(ctx, rackLinuxPinKey(host.Name, device.DeviceID), inst.HostKeyFingerprint); err != nil {
 				return 0, fmt.Errorf("trust %s's new install by its host key: %w", host.Spec.Hostname, err)
 			}
@@ -107,8 +122,14 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 			return 0, err
 		}
 		host.Status.Provisioning.InstalledGeneration = inst.Generation
-		r.Recorder.Eventf(host, corev1.EventTypeNormal, "Installed",
-			"%s ran install %s (generation %d) and joined the tailnet as %s", host.Spec.Hostname, inst.KeyID, inst.Generation, device.DeviceID)
+		if handedOut {
+			r.Recorder.Eventf(host, corev1.EventTypeNormal, "Installed",
+				"%s ran install %s (generation %d) and joined the tailnet as %s", host.Spec.Hostname, inst.KeyID, inst.Generation, device.DeviceID)
+		} else {
+			r.Recorder.Eventf(host, corev1.EventTypeNormal, "InstalledElsewhere",
+				"%s joined the tailnet as %s from another installer, such as its own stick: the boot server never handed out install %s, so it is withdrawn and the host's SSH host key is pinned on first use",
+				host.Spec.Hostname, device.DeviceID, inst.KeyID)
+		}
 		conditions.MarkTrue(host, InstalledCondition)
 		setProvisioningState(host, infrav1.RackLinuxHostProvisioned, "", now)
 		return 0, nil
@@ -140,7 +161,7 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 		if edges, err = r.servingEdges(ctx, host); err != nil {
 			return 0, err
 		}
-		if len(edges) == 0 && (inst == nil || inst.TriggeredAt == nil) {
+		if len(edges) == 0 && !r.internetServes(host) && (inst == nil || inst.TriggeredAt == nil) {
 			if inst != nil {
 				if err := r.withdrawInstall(ctx, host); err != nil {
 					return 0, err
@@ -154,11 +175,6 @@ func (r *RackLinuxHostReconciler) reconcileInstall(ctx context.Context, host *in
 			setProvisioningState(host, infrav1.RackLinuxHostRegistering, "waiting for another edge of the site to serve the install, or for the stick", now)
 			return 0, nil
 		}
-	case "storage":
-		conditions.MarkFalse(host, InstalledCondition, "NoStorageLayout", clusterv1.ConditionSeverityWarning,
-			"the storage role's disk layout is not implemented, so no install is published for %s", host.Spec.Hostname)
-		setProvisioningState(host, infrav1.RackLinuxHostRegistering, "the storage role has no install", now)
-		return 0, nil
 	}
 
 	if inst == nil || inst.Generation != generation || renewDue(host, inst, now) || !r.installServed(ctx, inst) {
@@ -274,6 +290,7 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		return err
 	}
 	seed := rackinstall.Seed{
+		KuraLVM:         kuraLVMRequested(host.Annotations),
 		Host:            host.Spec.Hostname,
 		Role:            host.Spec.Role,
 		User:            firstNonEmpty(host.Spec.SSHUser, "tuist"),
@@ -284,6 +301,10 @@ func (r *RackLinuxHostReconciler) publishInstall(ctx context.Context, host *infr
 		TailnetKeyID:    key.ID,
 		Built:           now,
 		HostKey:         hostKey,
+		Edge:            rackEdgeNetwork(host.Spec.Edge),
+	}
+	if hw := host.Status.Hardware; hw != nil && slices.Contains(r.Install.PreinstalledProducts, hw.Product) {
+		seed.ResidentInstaller = true
 	}
 	userData, err := rackinstall.UserData(seed)
 	if err != nil {
@@ -393,9 +414,16 @@ func renewDue(host *infrav1.RackLinuxHost, inst *infrav1.RackLinuxHostInstallSta
 	if now.After(inst.ExpiresAt.Time) {
 		return true
 	}
+	return !installHandedOut(host, inst) && now.After(inst.ExpiresAt.Add(-rackInstallRenewBefore))
+}
+
+// installHandedOut reports whether the boot server handed out inst's seed, which
+// it records in status.boot before it does. Only then can a device carry the
+// install's join key and host key; one that joins before came from another
+// installer, such as the host's own stick.
+func installHandedOut(host *infrav1.RackLinuxHost, inst *infrav1.RackLinuxHostInstallStatus) bool {
 	boot := host.Status.Boot
-	handedOut := boot != nil && boot.KeyID == inst.KeyID && boot.ServedAt != nil
-	return !handedOut && now.After(inst.ExpiresAt.Add(-rackInstallRenewBefore))
+	return boot != nil && boot.KeyID == inst.KeyID && boot.ServedAt != nil
 }
 
 // bootWaitsFor names the boot servers the install waits for before the host
@@ -601,8 +629,9 @@ func prepareRackHostSSH(ctx context.Context, c client.Client, creds *credentials
 
 // rackHostKnownKey is the SSH host key fingerprint a rack host's current
 // tailnet device is held to, and the key its pin is kept under: the pin, else,
-// for the device of a new install the operator gave a host key, that key.
-// Empty means the first key the host presents is trusted and pinned.
+// for the device of a new install the operator gave a host key and whose seed
+// the boot server handed out, that key. Empty means the first key the host
+// presents is trusted and pinned.
 func rackHostKnownKey(ctx context.Context, creds *credentials.Manager, host *infrav1.RackLinuxHost) (pinKey, known string, err error) {
 	pinKey = rackLinuxPinKey(host.Name, host.Status.Tailnet.DeviceID)
 	pin, err := creds.GetMachineBootstrap(ctx, pinKey)
@@ -612,7 +641,7 @@ func rackHostKnownKey(ctx context.Context, creds *credentials.Manager, host *inf
 	if pin != nil && pin.HostFingerprint != "" {
 		return pinKey, pin.HostFingerprint, nil
 	}
-	if inst := host.Status.Install; inst != nil && inst.HostKeyFingerprint != "" && inst.PreviousDeviceID != host.Status.Tailnet.DeviceID {
+	if inst := host.Status.Install; inst != nil && inst.HostKeyFingerprint != "" && inst.PreviousDeviceID != host.Status.Tailnet.DeviceID && installHandedOut(host, inst) {
 		return pinKey, inst.HostKeyFingerprint, nil
 	}
 	return pinKey, "", nil
@@ -620,19 +649,28 @@ func rackHostKnownKey(ctx context.Context, creds *credentials.Manager, host *inf
 
 // renderBootInstallerOnceScript sets BootNext to the host's installer and
 // reboots a few seconds later, after the SSH session ends. The installer is the
+// installer partition a preinstalled host carries on its boot drive, else the
 // install stick when one is plugged in, which boots with the firmware as it
 // ships, and otherwise the firmware's IPv4 network boot entry for mac. The
-// stick gets a boot entry of its own, left out of BootOrder, since the firmware
-// lists a removable disk only after booting with it.
+// partition and the stick get a boot entry of their own, made afresh: the
+// firmware lists a removable disk only after booting with it, and turns an
+// entry whose partition is gone into another under the same name.
 func renderBootInstallerOnceScript(mac string) string {
 	return fmt.Sprintf(`set -eu
 mac=%[1]s
 label='tuist install stick'
+installer=/dev/disk/by-label/%[4]s
 entries() {
-  efibootmgr | awk -v label="$label" '/^Boot[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/ { name = substr($0, 9); sub(/^[* ] /, "", name); sub(/\t.*/, "", name); if (name == label) print substr($1, 5, 4) }'
+  efibootmgr | awk -v label="${1:-$label}" '/^Boot[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/ { name = substr($0, 9); sub(/^[* ] /, "", name); sub(/\t.*/, "", name); if (name == label) print substr($1, 5, 4) }'
 }
 %[3]sentry= via=
-if find_install_stick; then
+if [ -e "$installer" ]; then
+  part=$(readlink -f "$installer")
+  for old in $(entries '%[5]s'); do efibootmgr -q -b "$old" -B; done
+  efibootmgr -q -C -d "/dev/$(lsblk -no PKNAME "$part")" -p 1 -L '%[5]s' -l '\EFI\boot\bootx64.efi'
+  entry=$(entries '%[5]s' | head -n 1)
+  via="the installer partition $part"
+elif find_install_stick; then
   for old in $(entries); do efibootmgr -q -b "$old" -B; done
   efibootmgr -q -C -d "$stick_disk" -p "${stick_esp##*[!0-9]}" -L "$label" -l '\EFI\BOOT\BOOTX64.EFI'
   entry=$(entries | head -n 1)
@@ -650,7 +688,7 @@ fi
 efibootmgr -q -n "$entry"
 echo "tuist-install: BootNext=$entry, $via"
 nohup sh -c 'sleep 3; systemctl reboot' >/dev/null 2>&1 &
-`, strings.ReplaceAll(strings.ToLower(mac), ":", ""), mac, findInstallStickShell)
+`, strings.ReplaceAll(strings.ToLower(mac), ":", ""), mac, findInstallStickShell, rackinstall.InstallerLabel, rackinstall.InstallerBootEntry)
 }
 
 // findInstallStickShell defines find_install_stick, which sets stick_disk and
@@ -676,3 +714,22 @@ var findInstallStickShell = `find_install_stick() {
   return 1
 }
 `
+
+// rackEdgeNetwork is an edge's spec.edge as its install builds it.
+func rackEdgeNetwork(e *infrav1.RackLinuxHostEdge) *rackinstall.EdgeNetwork {
+	if e == nil {
+		return nil
+	}
+	n := &rackinstall.EdgeNetwork{Uplinks: e.Uplinks, VLAN: int(e.VRRP.VLAN), Address: e.VRRP.Address, Peer: e.VRRP.Peer}
+	if e.WAN != nil {
+		n.WAN = &rackinstall.StaticWAN{Address: e.WAN.Address, Gateway: e.WAN.Gateway, VLAN: int(e.WAN.VLAN)}
+	}
+	return n
+}
+
+// internetServes reports whether the internet boot server can hand the host
+// its seed: one is configured and the host's TPM is pinned, which for a host
+// declared with its vendor's check code means pinned to that key.
+func (r *RackLinuxHostReconciler) internetServes(host *infrav1.RackLinuxHost) bool {
+	return r.Install.InternetServerURL != "" && host.Status.TPM != nil
+}

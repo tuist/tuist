@@ -5,8 +5,10 @@ import (
 	"fmt"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv2 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
@@ -58,7 +60,9 @@ func (r *TuistClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	defer func() { _ = patchHelper.Patch(ctx, infraCluster) }()
+	defer func() {
+		_ = patchHelper.Patch(ctx, infraCluster, patch.Clusterv1ConditionsFieldPath{"status", "conditions"})
+	}()
 
 	infraCluster.Status.Ready = true
 
@@ -80,7 +84,13 @@ func (r *TuistClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("patch helper for Cluster: %w", err)
 	}
-	conditions.MarkTrue(ownerCluster, clusterv1.ControlPlaneInitializedCondition)
+	// Cluster API 1.14 gates Machine creation on the v1beta2 condition.
+	conditions.Set(ownerCluster, metav1.Condition{
+		Type:    clusterv2.ClusterControlPlaneInitializedCondition,
+		Status:  metav1.ConditionTrue,
+		Reason:  clusterv2.ClusterControlPlaneInitializedReason,
+		Message: "Control plane is managed outside Cluster API",
+	})
 	if err := clusterPatchHelper.Patch(ctx, ownerCluster); err != nil {
 		return ctrl.Result{}, fmt.Errorf("patch Cluster status: %w", err)
 	}

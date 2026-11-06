@@ -224,6 +224,22 @@ func TestOutletEndpointDefaultsToHTTPAndDropsPaths(t *testing.T) {
 	}
 }
 
+func TestOutletEndpointDialsDialKeepingSchemeAndPort(t *testing.T) {
+	for _, tc := range []struct {
+		host, want string
+	}{
+		{"192.168.0.50", "http://pdu-192-168-0-50.egress.svc.cluster.local/rpc/Switch.Set"},
+		{"192.168.0.50:8080", "http://pdu-192-168-0-50.egress.svc.cluster.local:8080/rpc/Switch.Set"},
+		{"https://192.168.0.50", "https://pdu-192-168-0-50.egress.svc.cluster.local/rpc/Switch.Set"},
+	} {
+		o := Outlet{Host: tc.host, Dial: "pdu-192-168-0-50.egress.svc.cluster.local"}
+		got, err := o.endpoint("/rpc/Switch.Set", nil)
+		if err != nil || got != tc.want {
+			t.Fatalf("endpoint(%q) = %q, %v; want %q", tc.host, got, err, tc.want)
+		}
+	}
+}
+
 func TestOutletEndpointRejectsEmptyHost(t *testing.T) {
 	if _, err := (Outlet{}).endpoint("/rpc/Switch.Set", nil); err == nil {
 		t.Fatal("endpoint succeeded with no host")

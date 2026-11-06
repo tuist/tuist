@@ -46,6 +46,7 @@ defmodule TuistWeb.PercentileDropdownWidget do
   attr(:legend_color, :string, default: nil)
   attr(:selected, :boolean, default: false)
   attr(:trend_value, :any, default: nil)
+  attr(:trend_value_label, :string, default: nil)
   attr(:trend_type, :atom, default: :regular, values: [:regular, :inverse, :neutral])
   attr(:trend_label, :string, default: nil)
   attr(:phx_click, :string, default: nil, doc: "Phoenix event to trigger on widget click")
@@ -64,6 +65,7 @@ defmodule TuistWeb.PercentileDropdownWidget do
       legend_color={@legend_color}
       selected={@selected}
       trend_value={@trend_value}
+      trend_value_label={@trend_value_label}
       trend_type={@trend_type}
       trend_label={@trend_label}
       phx_click={@phx_click}

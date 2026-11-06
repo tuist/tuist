@@ -6,7 +6,6 @@ defmodule TuistWeb.BillingLive do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Billing.UsagePricing
-  alias Tuist.CommandEvents
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Billing, as: RunnerBilling
@@ -34,19 +33,17 @@ defmodule TuistWeb.BillingLive do
     # disagree with each other.
     billing_period = Billing.current_billing_period(selected_account)
 
-    remote_cache_hits_count = remote_cache_hits_count(selected_account, subscription, billing_period)
-
     prepaid_runner_credit = Prepaid.balance(selected_account)
     runner_usage = runner_usage(selected_account, subscription, prepaid_runner_credit, billing_period)
 
     usage_pricing = usage_pricing(selected_account, billing_period)
 
-    # Runner time is billed alongside remote cache hits, so the headline
+    # Runner time is billed alongside the usage meters, so the headline
     # figure has to carry both or it understates the bill for anyone
     # using runners.
     estimated_next_payment =
       usage_pricing
-      |> usage_payment(remote_cache_hits_count)
+      |> usage_payment()
       |> Money.add(runner_usage.billed)
       |> format_money()
 
@@ -78,11 +75,11 @@ defmodule TuistWeb.BillingLive do
       |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:plan, plan)
       |> assign(:next_charge_date, next_charge_date)
-      |> assign(:remote_cache_hits_count, remote_cache_hits_count)
       |> assign(:usage_pricing, usage_pricing)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Billing")} · #{selected_account.name} · Tuist")
       |> assign(:payment_method, payment_method)
       |> assign(:payment_issue, payment_issue(selected_account, subscription))
+      |> assign(:downgrade_date, downgrade_date(subscription, billing_period))
 
     {:ok, socket}
   end
@@ -98,14 +95,20 @@ defmodule TuistWeb.BillingLive do
 
   defp payment_issue(_account, _subscription), do: nil
 
+  # A downgrade to Air keeps Pro until the period it was made in ends.
+  defp downgrade_date(%{plan: :pro, cancel_at_period_end: true}, {_period_start, %DateTime{} = period_end}),
+    do: Timex.format!(period_end, "{Mfull} {D}")
+
+  defp downgrade_date(_subscription, _billing_period), do: nil
+
   @impl true
   def handle_params(_params, uri, socket) do
     {:noreply, assign(socket, :uri, uri)}
   end
 
   @impl true
-  def handle_event("change_plan", %{"plan" => plan}, socket) do
-    plan = String.to_atom(plan)
+  def handle_event("change_plan", %{"plan" => plan}, socket) when plan in ["air", "pro"] do
+    plan = String.to_existing_atom(plan)
 
     send(self(), :change_plan)
 
@@ -114,6 +117,8 @@ defmodule TuistWeb.BillingLive do
      |> assign(:new_plan, plan)
      |> push_event("close-modal", %{id: "billing-upgrade-modal"})}
   end
+
+  def handle_event("change_plan", _params, socket), do: {:noreply, socket}
 
   def handle_event("close-billing-upgrade-modal", _, socket) do
     socket = push_event(socket, "close-modal", %{id: "billing-upgrade-modal"})
@@ -132,14 +137,13 @@ defmodule TuistWeb.BillingLive do
         {:ok, {:external_redirect, session_url}} ->
           redirect(socket, external: session_url)
 
+        # Reloaded rather than assigned, because a downgrade only takes
+        # effect at the end of the period and the page has to say so.
         :ok ->
-          socket
+          push_navigate(socket, to: URI.parse(uri).path)
       end
 
-    {
-      :noreply,
-      assign(socket, :plan, new_plan)
-    }
+    {:noreply, socket}
   end
 
   # The window the next invoice will cover. A subscription renewing
@@ -152,34 +156,11 @@ defmodule TuistWeb.BillingLive do
 
   defp usage_period(_billing_period, now), do: {%{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}, now}
 
-  # The denormalized counter on the account is the calendar month, which
-  # is both the window an Air free tier really resets on and the one the
-  # cache gate is enforced against, so Air reads it as it always has.
-  # A Pro subscription is invoiced on its own cycle instead, and usage
-  # from before that cycle opened was settled on an invoice already sent:
-  # counting it here prices a charge that is not coming, and contradicts
-  # the charge date printed beside it.
-  #
-  # Read the same way the meter reads it, so the figure shown and the
-  # figure reported to Stripe are one number rather than two that agree
-  # by coincidence.
-  defp remote_cache_hits_count(%{customer_id: customer_id}, %{plan: :pro}, {period_start, period_end})
-       when is_binary(customer_id) do
-    CommandEvents.remote_cache_hits_count_for_customer(customer_id, period_start, period_end) || 0
-  end
-
-  defp remote_cache_hits_count(account, _subscription, _billing_period),
-    do: account.current_month_remote_cache_hits_count || 0
-
   defp usage_pricing(account, billing_period) do
-    if FeatureFlags.usage_based_pricing_enabled?(account) do
-      UsagePricing.period_breakdown(account, billing_period || hd(Billing.recent_billing_periods(account, 1)))
-    end
+    UsagePricing.period_breakdown(account, billing_period || hd(Billing.recent_billing_periods(account, 1)))
   end
 
-  defp usage_payment(nil, remote_cache_hits_count), do: Billing.get_estimated_next_payment_money(remote_cache_hits_count)
-
-  defp usage_payment(%{cache: cache, tests: tests}, _remote_cache_hits_count) do
+  defp usage_payment(%{cache: cache, tests: tests}) do
     Money.add(cache.billed || Money.new(0, :USD), tests.billed || Money.new(0, :USD))
   end
 
@@ -237,27 +218,34 @@ defmodule TuistWeb.BillingLive do
     now = DateTime.utc_now()
     {period_start, _period_end} = usage_period(billing_period, now)
 
-    total_ms =
-      RunnerBilling.compute_milliseconds(account.id, period_start, now)
+    by_platform =
+      account.id
+      |> RunnerBilling.compute_units_by_platform(period_start, now)
+      |> Map.new(&{&1.platform, &1.total_units})
 
-    # Truncated to whole minutes, matching how the Stripe Price rounds,
-    # so this figure is the quantity that would be invoiced rather than
-    # one running slightly ahead of it.
-    free_minutes = Allowance.free_monthly_minutes()
-    free_ms = free_minutes * 60_000
+    total_ms = by_platform |> Map.values() |> Enum.sum()
+
+    # In macOS minutes, the unit of the shared allowance, so the bar and
+    # its ceiling measure the same thing whichever platform ran.
+    free_minutes = Allowance.free_monthly_minutes(:macos)
 
     # Costed per millisecond rather than per whole minute, because the
-    # runner Price charges that way: its tiers are in raw meter units and
+    # runner Prices charge that way: their tiers are in raw meter units and
     # Stripe rounds none of it. Costing minutes would show nothing at all
-    # for an account that has run less than one.
-    accrued = Prepaid.on_demand_cost_for_milliseconds(total_ms)
-    chargeable = Prepaid.on_demand_cost_for_milliseconds(max(total_ms - free_ms, 0))
+    # for an account that has run less than one. Each platform's Price
+    # has its own free tier.
+    accrued = platforms_cost(by_platform, fn _platform, ms -> ms end)
+
+    chargeable =
+      platforms_cost(by_platform, fn platform, ms ->
+        max(ms - Allowance.free_monthly_minutes(platform) * 60_000, 0)
+      end)
 
     {billed, not_billed_because} =
       cond do
         Trials.on_trial?(account) -> {Money.new(0, :USD), :trial}
         is_nil(subscription) -> {Money.new(0, :USD), :no_subscription}
-        total_ms <= free_ms -> {Money.new(0, :USD), :within_allowance}
+        chargeable == Money.new(0, :USD) -> {Money.new(0, :USD), :within_allowance}
         true -> {chargeable, nil}
       end
 
@@ -265,14 +253,14 @@ defmodule TuistWeb.BillingLive do
     # they cost nothing more to run. Counting them alongside the free
     # allowance makes one bar answer "how much can I still run", which is
     # the question the bar is there to answer.
-    prepaid_minutes = if prepaid, do: prepaid.granted_minutes, else: 0
+    prepaid_minutes = if prepaid, do: prepaid.period_minutes, else: 0
 
     %{
       # An account with runners turned on has an allowance whether or
       # not it has touched it, and that is the thing the bar answers.
       enabled: FeatureFlags.runners_enabled?(account),
       total_ms: total_ms,
-      minutes: div(total_ms, 60_000),
+      minutes: Allowance.allowance_minutes(by_platform),
       free_minutes: free_minutes,
       prepaid_minutes: prepaid_minutes,
       covered_minutes: free_minutes + prepaid_minutes,
@@ -280,6 +268,13 @@ defmodule TuistWeb.BillingLive do
       billed: billed,
       not_billed_because: not_billed_because
     }
+  end
+
+  defp platforms_cost(by_platform, billable_ms) do
+    Enum.reduce([:macos, :linux], Money.new(0, :USD), fn platform, total ->
+      ms = billable_ms.(platform, Map.get(by_platform, platform, 0))
+      Money.add(total, Prepaid.on_demand_cost_for_milliseconds(platform, ms))
+    end)
   end
 
   @doc """
@@ -301,17 +296,28 @@ defmodule TuistWeb.BillingLive do
   Says what the runner bar's ceiling is made of, so a limit larger than
   the plan's allowance is not left unexplained.
   """
-  def runner_minutes_composition(%{prepaid_minutes: 0}), do: dgettext("dashboard_account", "of your usage")
+  def runner_minutes_composition(%{prepaid_minutes: 0}),
+    do:
+      dgettext(
+        "dashboard_account",
+        "of your free minutes, counted in macOS minutes (%{linux} Linux minutes count as %{macos})",
+        linux: format_number(Allowance.free_monthly_minutes(:linux)),
+        macos: format_number(Allowance.free_monthly_minutes(:macos))
+      )
 
   def runner_minutes_composition(%{free_minutes: free, prepaid_minutes: prepaid}),
     do:
-      dgettext("dashboard_account", "of your usage (%{free} free runner minutes plus %{prepaid} prepaid)",
+      dgettext("dashboard_account", "of your usage (%{free} free macOS minutes plus %{prepaid} prepaid)",
         free: format_number(free),
         prepaid: format_number(prepaid)
       )
 
   def runner_billed_explanation(:within_allowance),
-    do: dgettext("dashboard_account", "within your %{count} free minutes", count: Allowance.free_monthly_minutes())
+    do:
+      dgettext("dashboard_account", "within your %{macos} free macOS and %{linux} free Linux minutes",
+        macos: format_number(Allowance.free_monthly_minutes(:macos)),
+        linux: format_number(Allowance.free_monthly_minutes(:linux))
+      )
 
   def runner_billed_explanation(:trial), do: dgettext("dashboard_account", "free during your trial")
 

@@ -11,3 +11,4 @@ swiftc -parse-as-library \
     -o "$TEST_DIR/probe"
 "$TEST_DIR/probe" default
 "$TEST_DIR/probe" ignored
+"$TEST_DIR/probe" beam

@@ -20,7 +20,8 @@ defmodule TuistTestSupport.Fixtures.BundlesFixtures do
         project_id: project.id,
         name: Keyword.get(opts, :name, "Default threshold"),
         metric: Keyword.get(opts, :metric, :install_size),
-        deviation_percentage: Keyword.get(opts, :deviation_percentage, 5.0),
+        deviation_percentage: Keyword.get(opts, :deviation_percentage, if(opts[:deviation_bytes], do: nil, else: 5.0)),
+        deviation_bytes: Keyword.get(opts, :deviation_bytes),
         baseline_branch: Keyword.get(opts, :baseline_branch, "main"),
         bundle_name: Keyword.get(opts, :bundle_name)
       })
@@ -82,6 +83,7 @@ defmodule TuistTestSupport.Fixtures.BundlesFixtures do
         git_branch: Keyword.get(opts, :git_branch, "main"),
         git_commit_sha: Keyword.get(opts, :git_commit_sha),
         git_ref: Keyword.get(opts, :git_ref),
+        custom_tags: Keyword.get(opts, :custom_tags, []),
         type: Keyword.get(opts, :type, :app),
         project_id: project.id,
         uploaded_by_account_id: uploaded_by_account.id,

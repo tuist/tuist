@@ -7,6 +7,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Kura
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.ClaimProposal
@@ -77,6 +78,54 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
     assert Concurrency.limits_for(user.account, :linux) == %{vcpus: 48, memory_gb: 96}
     assert Concurrency.limits_for(user.account, :macos) == %{vcpus: 18, memory_gb: 42}
+  end
+
+  test "updates sandbox and remote execution limits independently and rejects invalid limits", %{conn: conn, user: user} do
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    ci_limits = Concurrency.limits_for(user.account, :linux)
+
+    lv
+    |> form("#sandbox-concurrency-form", %{
+      "account" => %{"sandbox_vcpus_limit" => "8", "sandbox_memory_gb_limit" => "24", "sandbox_disk_gb_limit" => "120"}
+    })
+    |> render_submit()
+
+    account = Repo.reload!(user.account)
+    assert account.sandbox_vcpus_limit == 8
+    assert account.sandbox_memory_gb_limit == 24
+    assert account.sandbox_disk_gb_limit == 120
+    assert Concurrency.limits_for(account, :linux) == ci_limits
+
+    html =
+      lv
+      |> form("#sandbox-concurrency-form", %{
+        "account" => %{"sandbox_vcpus_limit" => "0", "sandbox_memory_gb_limit" => "-1"}
+      })
+      |> render_submit()
+
+    assert html =~ "must be greater than"
+    assert Repo.reload!(account).sandbox_vcpus_limit == 8
+
+    lv
+    |> form("#remote-execution-concurrency-form", %{
+      "account" => %{"remote_execution_vcpus_limit" => "6", "remote_execution_memory_gb_limit" => "20"}
+    })
+    |> render_submit()
+
+    account = Repo.reload!(account)
+    assert {account.remote_execution_vcpus_limit, account.remote_execution_memory_gb_limit} == {6, 20}
+    assert {account.sandbox_vcpus_limit, account.sandbox_memory_gb_limit} == {8, 24}
+
+    # One VM needs 2 vCPUs and 4 GB.
+    html =
+      lv
+      |> form("#remote-execution-concurrency-form", %{
+        "account" => %{"remote_execution_vcpus_limit" => "1", "remote_execution_memory_gb_limit" => "3"}
+      })
+      |> render_submit()
+
+    assert html =~ "must hold one VM: at least 2 vCPUs"
+    assert Repo.reload!(account).remote_execution_vcpus_limit == 6
   end
 
   test "links Kura servers to their latest deployment", %{conn: conn, user: user} do
@@ -699,6 +748,39 @@ defmodule TuistWeb.OpsAccountLiveTest do
     refute html =~ "kura-egress-limits-form"
   end
 
+  test "offers the open source plan only to an account with no subscription", %{conn: conn, user: user} do
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    assert html =~ "Start open source plan"
+
+    BillingFixtures.subscription_fixture(account_id: user.account.id, plan: :pro)
+
+    {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+    refute html =~ "Start open source plan"
+  end
+
+  test "starts the open source plan and reloads the account", %{conn: conn, user: user} do
+    expect(Billing, :start_open_source_plan, fn account ->
+      assert account.id == user.account.id
+      {:ok, %{id: "sub_fake"}}
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    lv |> element("button", "Start open source plan") |> render_click()
+
+    flash = assert_redirect(lv, ~p"/ops/accounts/#{user.account.id}")
+    assert flash["info"] == "#{user.account.name} is now on the Open Source plan."
+  end
+
+  test "reports an account that already has a subscription", %{conn: conn, user: user} do
+    stub(Billing, :start_open_source_plan, fn _account -> {:error, :subscription_exists} end)
+
+    {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+    assert render_hook(lv, "start_open_source_plan", %{}) =~
+             "#{user.account.name} already has an active subscription."
+  end
+
   test "one-click upgrade when the Stripe customer already has billing details", %{conn: conn, user: user} do
     stub(Stripe.Customer, :retrieve, fn _customer_id ->
       {:ok,
@@ -784,164 +866,6 @@ defmodule TuistWeb.OpsAccountLiveTest do
   end
 
   describe "prepaid runner minutes" do
-    test "quotes the money as minutes are typed, before anything is charged", %{conn: conn, user: user} do
-      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-
-      reject(&Prepaid.set_minutes/3)
-
-      html =
-        lv
-        |> form("#prepaid-minutes-form", %{"minutes" => "10000"})
-        |> render_change()
-
-      assert html =~ "600.00"
-      assert html =~ "750.00"
-    end
-
-    test "shows the new balance without waiting for a reload", %{conn: conn, user: user} do
-      # The minutes are granted as the charge is created, so the table
-      # has to be re-read. Assigning it only at mount is what made the
-      # button look like it did nothing.
-      grant = fn minutes ->
-        %{
-          available: Money.new(minutes * 75, :USD),
-          expires_at: ~U[2026-09-01 00:00:00Z],
-          grants: [
-            %{
-              id: "credgr_1",
-              kind: "prepaid",
-              available: Money.new(minutes * 75, :USD),
-              available_minutes: minutes,
-              expires_at: ~U[2026-09-01 00:00:00Z]
-            }
-          ]
-        }
-      end
-
-      # Keyed on the charge rather than a call count: the page reads the
-      # balance once for the dead render and again on connect, so a
-      # counter would have advanced before the form was ever submitted.
-      {:ok, billed} = Agent.start_link(fn -> false end)
-
-      stub(Prepaid, :set_minutes, fn _account, _minutes ->
-        Agent.update(billed, fn _ -> true end)
-        {:ok, %{id: "ii_1"}}
-      end)
-
-      stub(Prepaid, :balance, fn _account ->
-        if Agent.get(billed, & &1), do: grant.(10_100), else: grant.(10_000)
-      end)
-
-      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-
-      assert has_element?(lv, "#prepaid-balance-table", "10K")
-
-      html =
-        lv
-        |> form("#prepaid-minutes-form", %{"minutes" => "100"})
-        |> render_submit()
-
-      assert html =~ "10.1K"
-    end
-
-    test "sets the balance to the figure typed rather than adding to it", %{conn: conn, user: user} do
-      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-
-      expect(Prepaid, :set_minutes, fn account, minutes ->
-        assert account.id == user.account.id
-        assert minutes == 10_000
-        {:ok, %{id: "ii_1"}}
-      end)
-
-      # `expect` above is the assertion: it pins the account and the
-      # minute count, and verify_on_exit! fails the test if nothing was
-      # set.
-      lv
-      |> form("#prepaid-minutes-form", %{"minutes" => "10000"})
-      |> render_submit()
-    end
-
-    test "arrives prefilled with what the account already holds", %{conn: conn, user: user} do
-      stub(Prepaid, :balance, fn _account ->
-        %{
-          available: Money.new(750_000, :USD),
-          expires_at: ~U[2026-09-01 00:00:00Z],
-          grants: [
-            %{
-              id: "credgr_1",
-              kind: "prepaid",
-              available: Money.new(750_000, :USD),
-              available_minutes: 10_000,
-              expires_at: ~U[2026-09-01 00:00:00Z]
-            }
-          ]
-        }
-      end)
-
-      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-
-      assert html =~ ~s(id="prepaid-minutes-input")
-      assert html =~ ~s(value="10000")
-    end
-
-    test "refuses a minute count that is not a whole number at or above zero", %{conn: conn, user: user} do
-      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-
-      # Arity 2, which is what the page calls. Rejecting /3 rejected a
-      # head nothing invokes, so this asserted nothing at all.
-      reject(&Prepaid.set_minutes/2)
-
-      for value <- ["-5", "abc", "1.5", ""] do
-        lv
-        |> form("#prepaid-minutes-form", %{"minutes" => value})
-        |> render_submit()
-      end
-    end
-
-    test "says the balance was cleared rather than quoting a charge", %{conn: conn, user: user} do
-      # Zero invoices nothing, so quoting a minute's worth told the
-      # operator 0.06$ had been added to a bill that gained no line.
-      stub(Prepaid, :set_minutes, fn _account, _minutes -> {:ok, :cleared} end)
-
-      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-
-      lv
-      |> form("#prepaid-minutes-form", %{"minutes" => "0"})
-      |> render_submit()
-
-      # Read off the flash itself: the page carries rates elsewhere, so
-      # asserting against the whole render proves nothing.
-      flash = lv |> element("#ops-account-flash-info") |> render()
-
-      assert flash =~ "no longer holds any prepaid runner minutes"
-      refute flash =~ "next invoice"
-      refute flash =~ "0.06"
-    end
-
-    test "clears the balance when set to zero", %{conn: conn, user: user} do
-      # Zero is a figure to set, not a malformed one: it is how an
-      # account's minutes are taken away.
-      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-
-      expect(Prepaid, :set_minutes, fn account, minutes ->
-        assert account.id == user.account.id
-        assert minutes == 0
-        {:ok, :cleared}
-      end)
-
-      lv
-      |> form("#prepaid-minutes-form", %{"minutes" => "0"})
-      |> render_submit()
-    end
-
-    test "warns when the account has no subscription to bill against", %{conn: conn, user: user} do
-      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-
-      assert has_element?(lv, "#prepaid-no-subscription-alert")
-      # The body, not just the alert: it only renders at one size.
-      assert render(lv) =~ "would sit unbilled"
-    end
-
     test "lists what the account holds in minutes rather than money", %{conn: conn, user: user} do
       # Ops reads this to answer "how much runner time is left", and the
       # account bought minutes, not a sum of money. The money is an
@@ -970,93 +894,159 @@ defmodule TuistWeb.OpsAccountLiveTest do
     end
   end
 
-  describe "standing prepaid runner minutes" do
-    test "opens on the minutes the subscription carries", %{conn: conn, user: user} do
-      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 6_000} end)
-
-      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
-
-      assert has_element?(lv, "#standing-prepaid-minutes-input[value=\"6000\"]")
+  describe "prepaid runner pool" do
+    defp pool_params(overrides \\ %{}) do
+      Map.merge(
+        %{
+          "paid" => "8000.00",
+          "credit_multiplier" => "1.4",
+          "platforms" => "macos",
+          "starts_on" => "2026-10-01",
+          "expires_on" => "2027-09-30",
+          "invoice_id" => "in_pool"
+        },
+        overrides
+      )
     end
 
-    test "sets the standing minutes without touching what the account holds now", %{conn: conn, user: user} do
-      # The two fields do different jobs. What every future cycle opens at
-      # must not silently replace minutes the customer is part-way through
-      # spending.
-      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 0} end)
-      reject(&Prepaid.set_minutes/2)
-      reject(&Prepaid.set_minutes/3)
-
-      expect(Prepaid, :set_standing_minutes, fn account, minutes ->
-        assert account.id == user.account.id
-        assert minutes == 6_000
-        {:ok, 6_000}
-      end)
-
+    test "quotes the credit and the baseline minutes it buys before anything is granted", %{conn: conn, user: user} do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      lv
-      |> form("#standing-prepaid-minutes-form", %{"minutes" => "6000"})
-      |> render_submit()
+      reject(&Prepaid.grant_pool/2)
 
-      flash = lv |> element("#ops-account-flash-info") |> render()
+      html =
+        lv
+        |> form("#prepaid-pool-form", pool_params())
+        |> render_change()
 
-      assert flash =~ "each renewal"
-      assert flash =~ "360.00"
-      assert flash =~ "cycle now running is unchanged"
+      assert html =~ "11,200.00"
+      assert html =~ "224K"
     end
 
-    test "quotes the cycle's money as minutes are typed", %{conn: conn, user: user} do
-      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 0} end)
+    test "names the first and last invoice the pool will pay for", %{conn: conn, user: user} do
+      # Stripe picks the invoices a grant pays by when their period ends, so
+      # the operator sees which ones before granting rather than after.
+      stub(Billing, :current_billing_period, fn _account -> {~U[2099-09-15 00:00:00Z], ~U[2099-10-15 00:00:00Z]} end)
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
       html =
         lv
-        |> form("#standing-prepaid-minutes-form", %{"minutes" => "6000"})
+        |> form("#prepaid-pool-form", pool_params(%{"starts_on" => "2099-11-01", "expires_on" => "2100-10-31"}))
         |> render_change()
 
-      assert html =~ "360.00"
-      assert html =~ "450.00"
+      assert html =~ "November 15, 2099"
+      assert html =~ "November 15, 2100"
     end
 
-    test "stops the arrangement when set to zero", %{conn: conn, user: user} do
-      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 6_000} end)
-      expect(Prepaid, :set_standing_minutes, fn _account, 0 -> {:ok, 0} end)
+    test "says no invoice will draw on a pool when the account has no billing cycle", %{conn: conn, user: user} do
+      stub(Billing, :current_billing_period, fn _account -> nil end)
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      html =
+        lv
+        |> form("#prepaid-pool-form", pool_params(%{"starts_on" => "2099-11-01", "expires_on" => "2100-10-31"}))
+        |> render_change()
+
+      assert html =~ "No subscription to invoice against"
+    end
+
+    test "grants the pool on the terms typed", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      expect(Prepaid, :grant_pool, fn account, attrs ->
+        assert account.id == user.account.id
+        assert attrs.paid_cents == 800_000
+        assert Decimal.equal?(attrs.credit_multiplier, Decimal.new("1.4"))
+        assert attrs.platforms == [:macos]
+        assert attrs.starts_on == ~D[2026-10-01]
+        assert attrs.expires_on == ~D[2027-09-30]
+        assert attrs.invoice_id == "in_pool"
+        {:ok, %{id: "credgr_pool"}}
+      end)
 
       lv
-      |> form("#standing-prepaid-minutes-form", %{"minutes" => "0"})
+      |> form("#prepaid-pool-form", pool_params())
       |> render_submit()
 
-      flash = lv |> element("#ops-account-flash-info") |> render()
-      assert flash =~ "no longer be billed or granted minutes at each renewal"
+      assert render(lv) =~ "September 30, 2027"
     end
 
-    test "explains why a subscription that does not renew monthly cannot carry standing minutes",
-         %{conn: conn, user: user} do
-      stub(Prepaid, :standing_minutes, fn _account -> {:error, :not_monthly} end)
-
+    test "covers every platform and records no invoice when those are left as they are", %{conn: conn, user: user} do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
-      assert has_element?(lv, "#standing-prepaid-unavailable-alert")
-      assert render(lv) =~ "renews monthly"
-      refute has_element?(lv, "#standing-prepaid-minutes-form")
-    end
-
-    test "says why the standing minutes could not be set", %{conn: conn, user: user} do
-      stub(Prepaid, :standing_minutes, fn _account -> {:ok, 0} end)
-      stub(Prepaid, :set_standing_minutes, fn _account, _minutes -> {:error, :on_runner_trial} end)
-
-      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+      expect(Prepaid, :grant_pool, fn _account, attrs ->
+        assert attrs.platforms == [:linux, :macos]
+        assert is_nil(attrs.invoice_id)
+        {:ok, %{id: "credgr_pool"}}
+      end)
 
       lv
-      |> form("#standing-prepaid-minutes-form", %{"minutes" => "6000"})
+      |> form("#prepaid-pool-form", pool_params(%{"platforms" => "all", "invoice_id" => "  "}))
+      |> render_submit()
+    end
+
+    test "refuses input it cannot read without granting anything", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      reject(&Prepaid.grant_pool/2)
+
+      for overrides <- [
+            %{"paid" => "eight thousand"},
+            %{"credit_multiplier" => "1.4x"},
+            %{"starts_on" => "soon"},
+            %{"expires_on" => "soon"}
+          ] do
+        lv
+        |> form("#prepaid-pool-form", pool_params(overrides))
+        |> render_submit()
+
+        assert render(lv) =~ "Could not grant the pool"
+      end
+    end
+
+    test "says which term was refused", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      stub(Prepaid, :grant_pool, fn _account, _attrs -> {:error, {:invalid_pool, :expires_on}} end)
+
+      lv
+      |> form("#prepaid-pool-form", pool_params())
       |> render_submit()
 
-      flash = lv |> element("#ops-account-flash-error") |> render()
-      assert flash =~ "runner trial"
+      assert render(lv) =~ "within thirteen months"
+    end
+
+    test "lists a pool beside a monthly grant that has not expired yet", %{conn: conn, user: user} do
+      stub(Prepaid, :balance, fn _account ->
+        %{
+          available: Money.new(375_000, :USD),
+          expires_at: ~U[2026-11-05 00:00:00Z],
+          grants: [
+            %{
+              id: "credgr_monthly",
+              kind: "prepaid",
+              available: Money.new(75_000, :USD),
+              available_minutes: 10_000,
+              expires_at: ~U[2026-11-05 00:00:00Z]
+            },
+            %{
+              id: "credgr_pool",
+              kind: "pool",
+              available: Money.new(300_000, :USD),
+              available_minutes: 40_000,
+              expires_at: ~U[2027-10-05 00:00:00Z]
+            }
+          ]
+        }
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+
+      refute has_element?(lv, "#prepaid-minutes-form")
+      assert has_element?(lv, "#prepaid-balance-table", "Pool")
+      assert has_element?(lv, "#prepaid-balance-table", "Prepaid")
     end
   end
 
@@ -1120,15 +1110,19 @@ defmodule TuistWeb.OpsAccountLiveTest do
   end
 
   describe "free tier" do
-    test "shows the usage against the limit and when it was last reset", %{conn: conn, user: user} do
+    test "shows the usage against the limits and when it was last reset", %{conn: conn, user: user} do
       user.account
-      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: 42)
+      |> Ecto.Changeset.change(
+        current_month_cache_egress_megabytes: 1_500,
+        current_month_cache_requests: 2_500
+      )
       |> Repo.update!()
 
-      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+      {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
       assert html =~ "Free tier"
-      assert html =~ "42 of 200"
+      assert lv |> element("[data-part='free-tier-egress']") |> render() =~ "1.5 GB of 100.0 GB"
+      assert lv |> element("[data-part='free-tier-requests']") |> render() =~ "2,500 of 1M"
       assert html =~ "Never"
     end
 
@@ -1136,10 +1130,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
       refute has_element?(lv, "#free-tier-blocked-alert")
 
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
-
       user.account
-      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold)
+      |> Ecto.Changeset.change(current_month_cache_requests: UsagePricing.included_requests())
       |> Repo.update!()
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
@@ -1147,10 +1139,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
     end
 
     test "resetting unblocks the account and clears the warning", %{conn: conn, user: user} do
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
-
       user.account
-      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold * 2)
+      |> Ecto.Changeset.change(current_month_cache_requests: UsagePricing.included_requests() * 2)
       |> Repo.update!()
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
@@ -1162,7 +1152,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ "starts over from now"
 
       account = Repo.reload!(user.account)
-      assert account.current_month_remote_cache_hits_count == 0
+      assert account.current_month_cache_requests == 0
       assert account.free_tier_reset_at
     end
 

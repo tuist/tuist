@@ -1,6 +1,7 @@
 import Foundation
 import OpenAPIRuntime
 import SwiftUI
+import TuistAuthentication
 import TuistHTTP
 import TuistLogging
 import TuistServer
@@ -31,7 +32,7 @@ public final class ErrorHandling: ObservableObject {
                 )
                 Task {
                     try await ServerCredentialsStore.current.delete(
-                        serverURL: ServerEnvironmentService().url()
+                        serverURL: AppServerEnvironmentService().url()
                     )
                 }
                 return

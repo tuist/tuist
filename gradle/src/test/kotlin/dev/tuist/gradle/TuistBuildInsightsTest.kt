@@ -1,8 +1,23 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
+import okhttp3.mockwebserver.Dispatcher
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
+import okio.Buffer
+import org.gradle.testkit.runner.GradleRunner
+import org.gradle.tooling.GradleConnector
+import org.gradle.tooling.model.GradleProject
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
+import org.junit.jupiter.params.provider.ValueSource
+import java.io.File
 import java.net.URI
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -410,5 +425,169 @@ class TuistBuildInsightsTest {
 
         assertEquals(listOf("nightly"), report.customMetadata.tags)
         assertEquals(mapOf("team" to "android"), report.customMetadata.values)
+    }
+
+    @ParameterizedTest
+    @CsvSource("8.12.1,false", "8.12.1,true", "9.2.1,false", "9.2.1,true", "9.8.2,false", "9.8.2,true")
+    fun `task cache metadata survives isolated configuration cache reuse`(gradleVersion: String, remote: Boolean, @TempDir projectDir: File) {
+        val reports = ConcurrentLinkedQueue<BuildReportRequest>()
+        val artifacts = ConcurrentHashMap<String, ByteArray>()
+        val server = MockWebServer()
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = when {
+                request.path!!.endsWith("/gradle/builds") -> {
+                    reports.add(gson.fromJson(request.body.readUtf8(), BuildReportRequest::class.java))
+                    MockResponse().setResponseCode(201).setBody("""{"id": "build"}""")
+                }
+                request.method == "PUT" -> {
+                    artifacts[request.path!!] = request.body.readByteArray()
+                    MockResponse()
+                }
+                request.method == "GET" -> {
+                    artifacts[request.path!!]?.let { MockResponse().setBody(Buffer().write(it)) }
+                        ?: MockResponse().setResponseCode(404)
+                }
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+        server.start()
+        File(projectDir, "settings.gradle.kts").writeText("""
+            plugins { id("dev.tuist") }
+            tuist {
+                project = "test-account/test-project"
+                url = "${server.url("/")}"
+                uploadInBackground = false
+                network { proxy = false }
+                buildCache {
+                    enabled = $remote
+                    allowInsecureProtocol = true
+                }
+            }
+            buildCache {
+                local {
+                    isEnabled = ${!remote}
+                    directory = File(settingsDir, "local-cache")
+                }
+            }
+            rootProject.name = "cache-test"
+            include(":app", ":lib")
+        """.trimIndent())
+        File(projectDir, "build.gradle.kts").writeText("""
+            tasks.register("fails") { doLast { throw GradleException("expected failure") } }
+        """.trimIndent())
+        for (module in listOf("app", "lib")) {
+            val directory = File(projectDir, module).apply { mkdirs() }
+            File(directory, "build.gradle.kts").writeText("""
+                @CacheableTask
+                abstract class Generate : DefaultTask() {
+                    @get:Input abstract val content: Property<String>
+                    @get:OutputFile abstract val outputFile: RegularFileProperty
+                    @TaskAction fun generate() { outputFile.get().asFile.writeText(content.get()) }
+                }
+                tasks.register<Generate>("generate") {
+                    content.set("$module-output")
+                    outputFile.set(layout.buildDirectory.file("output.txt"))
+                }
+            """.trimIndent())
+        }
+        val options = listOf("--build-cache", "--configuration-cache", "-Dorg.gradle.unsafe.isolated-projects=true", "--max-workers=2")
+        val runner = GradleRunner.create()
+            .withProjectDir(projectDir)
+            .withGradleVersion(gradleVersion)
+            .withArguments(listOf("generate") + options)
+            .withEnvironment(System.getenv() + mapOf(
+                "TUIST_TOKEN" to "test-token",
+                "TUIST_URL" to server.url("/").toString(),
+                "TUIST_CACHE_ENDPOINT" to server.url("/").toString()
+            ))
+            .withPluginClasspath()
+        try {
+            runner.build()
+            assertEquals(1, reports.size)
+            val initial = reports.last()
+            for (module in listOf("app", "lib")) {
+                val task = initial.tasks.single { it.taskPath == ":$module:generate" }
+                assertEquals(TaskOutcome.EXECUTED, task.outcome)
+                assertTrue(task.cacheable)
+                assertTrue(!task.cacheKey.isNullOrBlank())
+                assertTrue(task.cacheArtifactSize!! > 0)
+                File(projectDir, "$module/build").deleteRecursively()
+            }
+
+            val cached = runner.build()
+            assertTrue(cached.output.contains("Configuration cache entry reused"), cached.output)
+            assertEquals(2, reports.size)
+            for (module in listOf("app", "lib")) {
+                val task = reports.last().tasks.single { it.taskPath == ":$module:generate" }
+                val original = initial.tasks.single { it.taskPath == task.taskPath }
+                assertEquals(if (remote) TaskOutcome.REMOTE_HIT else TaskOutcome.LOCAL_HIT, task.outcome)
+                assertTrue(task.cacheable)
+                assertEquals(original.cacheKey, task.cacheKey)
+                assertEquals(original.cacheArtifactSize, task.cacheArtifactSize)
+                assertEquals("$module-output", File(projectDir, "$module/build/output.txt").readText())
+            }
+            assertEquals(2, reports.last().tasks.map { it.cacheKey }.toSet().size)
+
+            runner.build()
+            assertEquals(3, reports.size)
+            assertTrue(reports.last().tasks.all { it.outcome == TaskOutcome.UP_TO_DATE && it.cacheable })
+
+            runner.withArguments(listOf("fails") + options).buildAndFail()
+            assertEquals(4, reports.size)
+            assertEquals("failure", reports.last().status)
+            assertEquals(TaskOutcome.FAILED, reports.last().tasks.single().outcome)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["8.12.1", "9.2.1", "9.8.2"])
+    fun `IDE model loading does not create empty build reports`(gradleVersion: String, @TempDir projectDir: File) {
+        val reports = ConcurrentLinkedQueue<BuildReportRequest>()
+        val server = MockWebServer()
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                reports.add(gson.fromJson(request.body.readUtf8(), BuildReportRequest::class.java))
+                return MockResponse().setResponseCode(201).setBody("""{"id": "build"}""")
+            }
+        }
+        server.start()
+        val pluginClasspath = GradleRunner.create().withPluginClasspath().pluginClasspath
+            .joinToString(", ") { "\"${it.absolutePath.replace("\\", "\\\\")}\"" }
+        File(projectDir, "settings.gradle.kts").writeText("""
+            buildscript { dependencies { classpath(files($pluginClasspath)) } }
+            apply<dev.tuist.gradle.TuistPlugin>()
+            extensions.configure<dev.tuist.gradle.TuistExtension>("tuist") {
+                project = "test-account/test-project"
+                url = "${server.url("/")}"
+                uploadInBackground = false
+                network { proxy = false }
+                buildCache { enabled = false }
+            }
+            rootProject.name = "model-project"
+        """.trimIndent())
+        File(projectDir, "build.gradle.kts").writeText("plugins { java }")
+        try {
+            GradleConnector.newConnector()
+                .useGradleVersion(gradleVersion)
+                .forProjectDirectory(projectDir)
+                .connect().use { connection ->
+                    repeat(2) {
+                        val model = connection.model(GradleProject::class.java)
+                            .withArguments("-Dorg.gradle.unsafe.isolated-projects=true", "--max-workers=2")
+                            .setEnvironmentVariables(System.getenv() + mapOf(
+                                "TUIST_TOKEN" to "test-token",
+                                "TUIST_URL" to server.url("/").toString(),
+                                "TUIST_CACHE_ENDPOINT" to server.url("/").toString()
+                            ))
+                            .get()
+                        assertEquals("model-project", model.name)
+                        assertTrue(reports.isEmpty(), "IDE model loading must not upload a zero-task build")
+                    }
+                }
+        } finally {
+            server.shutdown()
+        }
     }
 }

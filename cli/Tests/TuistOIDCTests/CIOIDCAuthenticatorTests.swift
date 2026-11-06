@@ -121,6 +121,40 @@ struct CIOIDCAuthenticatorTests {
         #expect(error.localizedDescription.contains("upstream connect error"))
     }
 
+    @Test(.withMockedEnvironment())
+    func fetchOIDCToken_returns_supplied_workload_token_without_ci_detection() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables = ["TUIST_OIDC_TOKEN": "  fly-identity-token\n"]
+
+        let token = try await subject.fetchOIDCToken()
+
+        #expect(token == "fly-identity-token")
+        verify(oidcTokenFetcher)
+            .fetchToken(requestURL: .any, requestToken: .any, audience: .any)
+            .called(0)
+    }
+
+    @Test(.withMockedEnvironment())
+    func fetchOIDCToken_prefers_explicit_token_over_detected_ci_provider() async throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "TUIST_OIDC_TOKEN": "fly-identity-token",
+            "GITHUB_ACTIONS": "true",
+        ]
+
+        #expect(try await subject.fetchOIDCToken() == "fly-identity-token")
+    }
+
+    @Test(.withMockedEnvironment(), arguments: ["", " \n\t"])
+    func fetchOIDCToken_rejects_empty_supplied_tokens(token: String) async throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables = ["TUIST_OIDC_TOKEN": token, "CIRCLECI": "true"]
+
+        await #expect(throws: CIOIDCAuthenticatorError.emptyOIDCToken) {
+            try await subject.fetchOIDCToken()
+        }
+    }
+
     // MARK: - CircleCI
 
     @Test(.withMockedEnvironment())

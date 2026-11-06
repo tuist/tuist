@@ -5,6 +5,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
   alias Tuist.Accounts
   alias Tuist.OAuth.Introspection
   alias Tuist.OIDC
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "POST /api/auth/oidc/token" do
@@ -19,7 +20,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
 
       {:ok, account} = Accounts.update_account(project.account, %{cache_write_policy: :tokens_only})
 
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/tuist"}} end)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/tuist"}} end)
 
       conn =
         conn
@@ -62,7 +63,8 @@ defmodule TuistWeb.API.OIDCControllerTest do
           preload: [:account, :vcs_connection]
         )
 
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/monorepo"}} end)
+      unrelated = ProjectsFixtures.project_fixture(account: project1.account)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/monorepo", all_projects: true}} end)
 
       conn =
         conn
@@ -75,6 +77,10 @@ defmodule TuistWeb.API.OIDCControllerTest do
       {:ok, claims} = Tuist.Guardian.decode_and_verify(response["access_token"])
       assert project1.id in claims["project_ids"]
       assert project2.id in claims["project_ids"]
+      refute claims["all_projects"]
+      refute unrelated.id in claims["project_ids"]
+      future = ProjectsFixtures.project_fixture(account: project1.account)
+      refute future.id in claims["project_ids"]
     end
 
     test "returns 403 naming the accounts when the repository is linked from multiple accounts", %{conn: conn} do
@@ -90,7 +96,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
           preload: [:account]
         )
 
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/shared"}} end)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/shared"}} end)
 
       conn =
         conn
@@ -112,7 +118,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
           preload: [:account]
         )
 
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/renamed"}} end)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/renamed"}} end)
 
       conn =
         conn
@@ -129,7 +135,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
       ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "Tuist/Cased"])
       ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "tuist/cased"])
 
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/cased"}} end)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "tuist/cased"}} end)
 
       conn =
         conn
@@ -140,7 +146,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 403 when no project is linked to the repository", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:ok, %{repository: "nonexistent/repo"}} end)
+      stub(OIDC, :claims, fn _token, _account -> {:ok, %{repository: "nonexistent/repo"}} end)
 
       conn =
         conn
@@ -152,7 +158,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 401 when OIDC token is invalid", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:error, :invalid_token} end)
+      stub(OIDC, :claims, fn _token, _account -> {:error, :invalid_token} end)
 
       conn =
         conn
@@ -164,7 +170,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 400 when OIDC token is from unsupported CI provider", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:error, :unsupported_provider, "https://gitlab.com"} end)
+      stub(OIDC, :claims, fn _token, _account -> {:error, :unsupported_provider, "https://gitlab.com"} end)
 
       conn =
         conn
@@ -178,7 +184,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 401 when OIDC token is expired", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:error, :token_expired} end)
+      stub(OIDC, :claims, fn _token, _account -> {:error, :token_expired} end)
 
       conn =
         conn
@@ -190,7 +196,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
     end
 
     test "returns 401 when OIDC token audience is invalid", %{conn: conn} do
-      stub(OIDC, :claims, fn _token -> {:error, :invalid_audience} end)
+      stub(OIDC, :claims, fn _token, _account -> {:error, :invalid_audience} end)
 
       conn =
         conn
@@ -200,5 +206,80 @@ defmodule TuistWeb.API.OIDCControllerTest do
       response = json_response(conn, :unauthorized)
       assert response["message"] =~ "audience"
     end
+  end
+
+  describe "POST /api/auth/oidc/token with a signed GitHub Actions token" do
+    setup do
+      stub(Tuist.KeyValueStore, :get_or_update, fn _key, _opts, func -> func.() end)
+      :ok
+    end
+
+    test "does not authorize projects linked to a GitHub Enterprise Server repository with the same name", %{conn: conn} do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      ghes_installation_fixture(account)
+
+      ProjectsFixtures.project_fixture(
+        account_id: account.id,
+        vcs_connection: [repository_full_handle: "acme-internal/app"]
+      )
+
+      conn = exchange(conn, "acme-internal/app")
+
+      assert json_response(conn, :forbidden)["message"] =~ "No projects linked"
+    end
+
+    test "authorizes only github.com-linked projects when a GitHub Enterprise Server link has the same name", %{
+      conn: conn
+    } do
+      project =
+        ProjectsFixtures.project_fixture(vcs_connection: [repository_full_handle: "acme/app"], preload: [:account])
+
+      other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      ghes_installation_fixture(other_account)
+
+      ProjectsFixtures.project_fixture(
+        account_id: other_account.id,
+        vcs_connection: [repository_full_handle: "acme/app"]
+      )
+
+      conn = exchange(conn, "acme/app")
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(json_response(conn, :ok)["access_token"])
+      assert claims["sub"] == to_string(project.account.id)
+      assert claims["project_ids"] == [project.id]
+    end
+  end
+
+  defp ghes_installation_fixture(account) do
+    {:ok, _installation} =
+      Tuist.VCS.create_github_app_installation(%{
+        account_id: account.id,
+        installation_id: "#{account.id}54321",
+        client_url: "https://ghes.example.test"
+      })
+  end
+
+  defp exchange(conn, repository) do
+    jwk = JOSE.JWK.generate_key({:rsa, 2048})
+    {_, public_jwk} = jwk |> JOSE.JWK.to_public() |> JOSE.JWK.to_map()
+    jwks = %{"keys" => [Map.merge(public_jwk, %{"use" => "sig", "alg" => "RS256", "kid" => "test-key"})]}
+
+    claims = %{
+      "iss" => "https://token.actions.githubusercontent.com",
+      "aud" => "tuist",
+      "exp" => DateTime.utc_now() |> DateTime.add(3600) |> DateTime.to_unix(),
+      "repository" => repository
+    }
+
+    {_, token} =
+      jwk |> JOSE.JWT.sign(%{"alg" => "RS256", "kid" => "test-key"}, JOSE.JWT.from_map(claims)) |> JOSE.JWS.compact()
+
+    stub(Req, :get, fn "https://token.actions.githubusercontent.com/.well-known/jwks", _opts ->
+      {:ok, %{status: 200, body: jwks}}
+    end)
+
+    conn
+    |> put_req_header("content-type", "application/json")
+    |> post(~p"/api/auth/oidc/token", %{token: token})
   end
 end

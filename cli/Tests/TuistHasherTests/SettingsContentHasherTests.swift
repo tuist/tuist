@@ -276,6 +276,14 @@ struct SettingsContentHasherCompilationCacheTests {
         #expect(try await subject.hash(settings: mainCheckout) == subject.hash(settings: worktree))
     }
 
+    @Test func hash_keepsCoveragePrefixMappingPolicy() async throws {
+        let subject = makeSubject()
+        let xccovCompatible = settings(base: ["TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES": "NO"])
+        let mappedCoverage = settings(base: ["TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES": "YES"])
+
+        #expect(try await subject.hash(settings: xccovCompatible) != subject.hash(settings: mappedCoverage))
+    }
+
     @Test func hash_ignoresWarningsAsErrorsSettings() async throws {
         // Given
         let subject = makeSubject()

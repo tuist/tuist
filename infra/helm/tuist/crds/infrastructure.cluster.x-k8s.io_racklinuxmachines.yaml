@@ -90,10 +90,18 @@ spec:
                     description: MachineAddress contains information for the node's address.
                     properties:
                       address:
-                        description: The machine address.
+                        description: address is the machine address.
+                        maxLength: 256
+                        minLength: 1
                         type: string
                       type:
-                        description: Machine address type, one of Hostname, ExternalIP, InternalIP, ExternalDNS or InternalDNS.
+                        description: type is the machine address type, one of Hostname, ExternalIP, InternalIP, ExternalDNS or InternalDNS.
+                        enum:
+                          - Hostname
+                          - ExternalIP
+                          - InternalIP
+                          - ExternalDNS
+                          - InternalDNS
                         type: string
                     required:
                       - address
@@ -136,27 +144,32 @@ spec:
                     properties:
                       lastTransitionTime:
                         description: |-
-                          Last time the condition transitioned from one status to another.
+                          lastTransitionTime is the last time the condition transitioned from one status to another.
                           This should be when the underlying condition changed. If that is not known, then using the time when
                           the API field changed is acceptable.
                         format: date-time
                         type: string
                       message:
                         description: |-
-                          A human readable message indicating details about the transition.
+                          message is a human readable message indicating details about the transition.
                           This field may be empty.
+                        maxLength: 10240
+                        minLength: 1
                         type: string
                       reason:
                         description: |-
-                          The reason for the condition's last transition in CamelCase.
+                          reason is the reason for the condition's last transition in CamelCase.
                           The specific API may choose whether or not this field is considered a guaranteed API.
                           This field may be empty.
+                        maxLength: 256
+                        minLength: 1
                         type: string
                       severity:
                         description: |-
                           severity provides an explicit classification of Reason code, so the users or machines can immediately
                           understand the current situation and act accordingly.
                           The Severity field MUST be set only when Status=False.
+                        maxLength: 32
                         type: string
                       status:
                         description: status of the condition, one of True, False, Unknown.
@@ -166,6 +179,8 @@ spec:
                           type of condition in CamelCase or in foo.example.com/CamelCase.
                           Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
                           can be useful (see .node.status.conditions), the ability to deconflict is important.
+                        maxLength: 256
+                        minLength: 1
                         type: string
                     required:
                       - lastTransitionTime
@@ -200,8 +215,11 @@ spec:
                       items:
                         description: |-
                           RackNodeFile is one file on a rack node. Group names what a change to it
-                          takes: modules, sysctl, network (networkd reloaded), systemd (systemd
-                          re-executed), containerd or kubelet (restarted), or none.
+                          takes: modules, sysctl, network (networkd reloaded), networkd or resolved
+                          (systemd-networkd or systemd-resolved restarted, for their own
+                          configuration), systemd (systemd re-executed), units (systemd reloaded, for
+                          unit drop-ins, which leaves the units running), containerd or kubelet
+                          (restarted), or none.
                         properties:
                           content:
                             type: string
@@ -215,6 +233,31 @@ spec:
                           - path
                         type: object
                       type: array
+                    clusterNodeSets:
+                      description: |-
+                        ClusterNodeSets are nftables sets the node agent keeps equal to the
+                        IPv4 InternalIPs and ExternalIPs of the cluster's Cilium nodes, every
+                        apply and whenever they change. The addresses are not in the configuration, so a
+                        node joining or leaving the cluster changes no hash and restarts nothing
+                        here. A file in Nftables declares each set without flushing it.
+                      items:
+                        description: RackNodeNftSet names an nftables set of IPv4 addresses.
+                        properties:
+                          family:
+                            enum:
+                              - ip
+                              - inet
+                            type: string
+                          name:
+                            type: string
+                          table:
+                            type: string
+                        required:
+                          - family
+                          - name
+                          - table
+                        type: object
+                      type: array
                     containerd:
                       description: |-
                         Containerd is installed, and its configuration is its default with the
@@ -225,13 +268,21 @@ spec:
                       required:
                         - configPath
                       type: object
+                    directories:
+                      description: Directories are created, with their parents, when missing.
+                      items:
+                        type: string
+                      type: array
                     files:
                       description: Files are written, in order, when their content or mode differs.
                       items:
                         description: |-
                           RackNodeFile is one file on a rack node. Group names what a change to it
-                          takes: modules, sysctl, network (networkd reloaded), systemd (systemd
-                          re-executed), containerd or kubelet (restarted), or none.
+                          takes: modules, sysctl, network (networkd reloaded), networkd or resolved
+                          (systemd-networkd or systemd-resolved restarted, for their own
+                          configuration), systemd (systemd re-executed), units (systemd reloaded, for
+                          unit drop-ins, which leaves the units running), containerd or kubelet
+                          (restarted), or none.
                         properties:
                           content:
                             type: string
@@ -248,7 +299,9 @@ spec:
                     hash:
                       description: |-
                         Hash fingerprints the configuration. The node records the one it last
-                        applied, and restarts containerd and the kubelet when it changes.
+                        applied, and restarts containerd and the kubelet when it changes, and
+                        systemd-networkd and systemd-resolved when the configuration carries
+                        files of theirs.
                       type: string
                     hostname:
                       description: Hostname is the host's OS hostname, its Node's name.
@@ -268,6 +321,13 @@ spec:
                       type: object
                     modules:
                       description: Modules are loaded once the files are written.
+                      items:
+                        type: string
+                      type: array
+                    nftables:
+                      description: |-
+                        Nftables files are loaded with `nft -f` on every apply. Each recreates
+                        a table of its own, so loading it again undoes whatever flushed it.
                       items:
                         type: string
                       type: array

@@ -10,16 +10,24 @@ defmodule Tuist.Authentication do
   alias Tuist.Projects
 
   def authenticated_subject(token) do
+    case authenticated_subject_snapshot(token) do
+      nil -> nil
+      snapshot -> snapshot.subject
+    end
+  end
+
+  def authenticated_subject_snapshot(token) do
     case Tuist.Guardian.resource_from_token(token) do
       {:ok, %AuthenticatedAccount{} = resource, claims} ->
         if Accounts.agent_registration_credential_revoked?(claims) do
           nil
         else
-          reject_if_inactive_account_user(resource)
+          snapshot(reject_if_inactive_account_user(resource), Map.get(claims, "exp"))
         end
 
-      {:ok, resource, _opts} ->
-        resource |> Tuist.Repo.preload(:account) |> reject_if_inactive_user()
+      {:ok, resource, claims} ->
+        subject = resource |> Tuist.Repo.preload(:account) |> reject_if_inactive_user()
+        snapshot(subject, Map.get(claims, "exp"))
 
       _ ->
         user = Accounts.get_user_by_token(token)
@@ -27,10 +35,14 @@ defmodule Tuist.Authentication do
         if is_nil(user) do
           account_or_project_token(token)
         else
-          reject_if_inactive_user(user)
+          snapshot(reject_if_inactive_user(user), nil)
         end
     end
   end
+
+  defp snapshot(nil, _expiry), do: nil
+  defp snapshot(subject, %DateTime{} = expiry), do: snapshot(subject, DateTime.to_unix(expiry))
+  defp snapshot(subject, expiry), do: %{subject: subject, expires_at: expiry}
 
   defp reject_if_inactive_user(%User{active: false}), do: nil
   defp reject_if_inactive_user(%User{} = user), do: Accounts.touch_last_sign_in(user)
@@ -74,20 +86,23 @@ defmodule Tuist.Authentication do
         {:ok, account_token} ->
           touch_account_owner_sign_in(account_token.account)
 
-          %AuthenticatedAccount{
-            account: account_token.account,
-            scopes: account_token.scopes,
-            all_projects: account_token.all_projects,
-            project_ids: Enum.map(account_token.account_token_projects, & &1.project_id),
-            token_id: account_token.id,
-            created_by_account_id: account_token.created_by_account_id
-          }
+          snapshot(
+            %AuthenticatedAccount{
+              account: account_token.account,
+              scopes: account_token.scopes,
+              all_projects: account_token.all_projects,
+              project_ids: Enum.map(account_token.account_token_projects, & &1.project_id),
+              token_id: account_token.id,
+              created_by_account_id: account_token.created_by_account_id
+            },
+            account_token.expires_at
+          )
 
         _ ->
           nil
       end
     else
-      project_token
+      snapshot(project_token, nil)
     end
   end
 
@@ -107,13 +122,20 @@ defmodule Tuist.Authentication do
 
   """
   def refresh(old_token, opts) do
+    # `:sso_claims` replaces the old token's (see `Tuist.Accounts.refresh_sso_claims/2`).
+    {sso_claims, opts} = Keyword.pop(opts, :sso_claims)
+
     with {:ok, resource, old_claims} <- Tuist.Guardian.resource_from_token(old_token, %{}, opts),
          {:ok, {:resource, resource}} when resource != nil <-
            {:ok, {:resource, preload_account(resource)}},
-         {preferred_username, subject} <- refresh_subject(resource),
+         {:ok, {preferred_username, subject}} <- refresh_subject(resource),
          new_claims =
            old_claims
            |> Map.drop(["jti", "iss", "iat", "nbf", "exp"])
+           # Keeps the original sign-in time, which credential revocation
+           # compares against (see `Tuist.Accounts.credentials_revoked?/2`).
+           |> Map.put_new("auth_time", old_claims["iat"])
+           |> replace_sso_claims(sso_claims)
            |> Map.put("preferred_username", preferred_username),
          {:ok, new_token, new_claims} <- __MODULE__.encode_and_sign(subject, new_claims, opts) do
       Tuist.Guardian.on_revoke(old_claims, old_token)
@@ -127,13 +149,22 @@ defmodule Tuist.Authentication do
     end
   end
 
+  defp replace_sso_claims(claims, nil), do: claims
+
+  defp replace_sso_claims(claims, sso_claims) do
+    claims |> Map.drop(["sso", "sso_grace_until"]) |> Map.merge(sso_claims)
+  end
+
   defp preload_account(%User{} = user), do: Tuist.Repo.preload(user, :account)
   defp preload_account(%AuthenticatedAccount{} = resource), do: resource
   defp preload_account(_), do: nil
 
-  defp refresh_subject(%User{account: %{name: name}} = user), do: {name, user}
+  # Access tokens of deactivated users are already rejected, so don't keep
+  # extending their refresh chain either.
+  defp refresh_subject(%User{active: false}), do: {:error, :inactive_user}
+  defp refresh_subject(%User{account: %{name: name}} = user), do: {:ok, {name, user}}
 
-  defp refresh_subject(%AuthenticatedAccount{account: %{name: name}} = resource), do: {name, resource}
+  defp refresh_subject(%AuthenticatedAccount{account: %{name: name}} = resource), do: {:ok, {name, resource}}
 
   def exchange(old_token, from_type, to_type, options) do
     Tuist.Guardian.exchange(old_token, from_type, to_type, options)

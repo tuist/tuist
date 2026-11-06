@@ -21,6 +21,7 @@ Boot0002* UEFI HTTPv4 (MAC:38052538B5B5)	PciRoot(0x0)/Pci(0x1c,0x4)/Pci(0x0,0x0)
 Boot0003* UEFI PXEv4 (MAC:38052538B5B5)	PciRoot(0x0)/Pci(0x1c,0x4)/Pci(0x0,0x0)/MAC(38052538b5b5,0)/IPv4(0.0.0.0,0,DHCP,0.0.0.0,0.0.0.0,0.0.0.0)
 Boot0004* Ubuntu	HD(1,GPT,5c1d6e2a-0000-0000-0000-000000000000,0x800,0x219800)/File(\EFI\ubuntu\shimx64.efi)
 Boot0007* tuist install stick	HD(2,GPT,0badf00d-0000-0000-0000-000000000000,0x796998,0x27b0)/File(\EFI\BOOT\BOOTX64.EFI)
+Boot0009* tuist installer	VenHw(99e275e7-75a0-4b37-a2e6-c5385e6c00cb)
 `
 
 // newInstallerHost fakes a host with the given USB disks: "stick" is an
@@ -50,7 +51,7 @@ func newInstallerHost(t *testing.T, usb ...string) installerHost {
 		}
 	}
 	fakes := map[string]string{
-		"efibootmgr": `echo "efibootmgr $*" >>"` + h.calls + `"
+		"efibootmgr": `printf '%s\n' "efibootmgr $*" >>"` + h.calls + `"
 state="` + state + `"
 case "$*" in
   ""|-v) printf 'BootCurrent: 0004\nBootOrder: 0004,0001,0002,0003\n'; cat "$state" ;;
@@ -58,6 +59,7 @@ case "$*" in
   "-q -C "*) printf 'Boot0008* %s\tHD(%s,GPT,feedface-0000-0000-0000-000000000000,0x796998,0x27b0)/File(%s)\n' "$8" "$6" "${10}" >>"$state" ;;
 esac`,
 		"lsblk": `case "$*" in
+  "-no PKNAME "*) echo nvme0n1 ;;
   "-dnpo NAME,TRAN,TYPE") printf '` + strings.ReplaceAll(disks, "\n", `\n`) + `' ;;
   "-lnpo NAME,PARTTYPE "*) case "$3" in
 ` + parts + `  esac ;;
@@ -154,5 +156,41 @@ func TestBootInstallerOnceRefusesAHostWithNeither(t *testing.T) {
 	}
 	if calls, _ := os.ReadFile(h.calls); strings.Contains(string(calls), "-n ") {
 		t.Fatalf("set BootNext: %s", calls)
+	}
+}
+
+// A preinstalled host boots the installer partition on its boot drive, even
+// with a stick plugged in, through an entry made afresh: the firmware turned
+// the one an earlier deploy made into a group of its network entries.
+func TestBootInstallerOnceBootsTheInstallerPartition(t *testing.T) {
+	h := newInstallerHost(t, "stick")
+	label := filepath.Join(t.TempDir(), "TUISTINST")
+	if err := os.WriteFile(label, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("no bash")
+	}
+	script := strings.Replace(renderBootInstallerOnceScript(svcMAC), "installer=/dev/disk/by-label/TUISTINST", "installer="+label, 1)
+	cmd := exec.Command(bash, "-s")
+	cmd.Stdin = strings.NewReader(script)
+	cmd.Env = append(os.Environ(), "PATH="+h.bin+":"+os.Getenv("PATH"))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	calls := h.rebooted(t, string(out))
+	for _, want := range []string{
+		"efibootmgr -q -b 0009 -B\n",
+		`efibootmgr -q -C -d /dev/nvme0n1 -p 1 -L tuist installer -l \EFI\boot\bootx64.efi` + "\n",
+		"efibootmgr -q -n 0008\n",
+	} {
+		if !strings.Contains(calls, want) {
+			t.Errorf("calls lack %q:\n%s", want, calls)
+		}
+	}
+	if strings.Contains(calls, "/dev/sda") || strings.Contains(calls, "-b 0007") {
+		t.Errorf("touched the stick:\n%s", calls)
 	}
 }

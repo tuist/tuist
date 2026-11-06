@@ -1,6 +1,7 @@
 package rackinstall
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"sigs.k8s.io/yaml"
+
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/sshd"
 )
 
 // The installed system hashes the console password itself: the installer's
@@ -63,7 +66,7 @@ type autoinstall struct {
 		}
 		Network struct {
 			Ethernets map[string]struct {
-				Match map[string]string
+				Match map[string]any
 				DHCP4 bool `json:"dhcp4"`
 			}
 		}
@@ -97,8 +100,8 @@ func TestUserDataInstallsTheHostWithTheFleetKey(t *testing.T) {
 	if a.SSH.AllowPW || len(a.SSH.AuthorizedKeys) != 2 || a.Storage.Layout.Name != "direct" {
 		t.Fatalf("ssh %+v storage %+v", a.SSH, a.Storage)
 	}
-	if len(a.Network.Ethernets) != 1 || a.Network.Ethernets["uplinks"].Match["driver"] != "i40e" || !a.Network.Ethernets["uplinks"].DHCP4 {
-		t.Fatalf("network %+v; only the SFP+ uplinks may be configured", a.Network)
+	if len(a.Network.Ethernets) != 1 || fmt.Sprint(a.Network.Ethernets["uplinks"].Match["driver"]) != "[i40e bnxt_en]" || !a.Network.Ethernets["uplinks"].DHCP4 {
+		t.Fatalf("network %+v; only the uplinks, the MS-01's X710 and the RS501A's N225P, may be configured", a.Network)
 	}
 	late := strings.Join(a.LateCommands, "\n")
 	for _, want := range []string{
@@ -150,9 +153,84 @@ func TestUserDataCommandsAreValidShell(t *testing.T) {
 	}
 }
 
+func TestUserDataGivesAStorageNodeAQuotaedDataFilesystem(t *testing.T) {
+	s := edgeSeed()
+	s.Host, s.Role = "ber1-store-a", "storage"
+	out, err := UserData(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seed struct {
+		Autoinstall struct {
+			Storage struct {
+				Layout *struct{ Name string }
+				Config []map[string]any
+			}
+			LateCommands []string `json:"late-commands"`
+		}
+	}
+	if err := yaml.Unmarshal([]byte(out), &seed); err != nil {
+		t.Fatalf("user-data is not YAML: %v", err)
+	}
+	storage := seed.Autoinstall.Storage
+	if storage.Layout != nil {
+		t.Fatalf("a storage node is laid out explicitly, not with %q", storage.Layout.Name)
+	}
+	byID := map[string]map[string]any{}
+	for _, action := range storage.Config {
+		byID[fmt.Sprint(action["id"])] = action
+	}
+	mounts := map[string]map[string]any{}
+	for _, action := range storage.Config {
+		if action["type"] != "mount" {
+			continue
+		}
+		format := byID[fmt.Sprint(action["device"])]
+		mounts[fmt.Sprint(action["path"])] = map[string]any{
+			"fstype":    format["fstype"],
+			"options":   action["options"],
+			"partition": byID[fmt.Sprint(format["volume"])],
+		}
+	}
+	for path, fstype := range map[string]string{"/boot/efi": "fat32", "/boot": "ext4", "/": "ext4", "/data": "xfs"} {
+		if mounts[path] == nil || mounts[path]["fstype"] != fstype {
+			t.Errorf("%s is %v, want %s", path, mounts[path], fstype)
+		}
+	}
+	if !strings.Contains(fmt.Sprint(mounts["/data"]["options"]), "prjquota") {
+		t.Errorf("/data is mounted with %v; cache volumes need project quotas", mounts["/data"]["options"])
+	}
+	if size := mounts["/"]["partition"].(map[string]any)["size"]; size != "64G" {
+		t.Errorf("/ is %v, want it capped at 64G", size)
+	}
+	if size := mounts["/data"]["partition"].(map[string]any)["size"]; fmt.Sprint(size) != "-1" {
+		t.Errorf("/data is %v, want the full legacy data partition", size)
+	}
+	late := strings.Join(seed.Autoinstall.LateCommands, "\n")
+	for _, bind := range []string{
+		"/data/kubelet /var/lib/kubelet none bind,nofail 0 0",
+		"/data/containerd /var/lib/containerd none bind,nofail 0 0",
+		"/data/local-path-provisioner /opt/local-path-provisioner none bind,nofail 0 0",
+	} {
+		if !strings.Contains(late, bind) {
+			t.Errorf("late-commands lack the fstab line %q", bind)
+		}
+	}
+	if sh, err := exec.LookPath("sh"); err == nil {
+		for i, command := range seed.Autoinstall.LateCommands {
+			path := filepath.Join(t.TempDir(), "command.sh")
+			if err := os.WriteFile(path, []byte(command), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if out, err := exec.Command(sh, "-n", path).CombinedOutput(); err != nil {
+				t.Errorf("late-command %d: %v\n%s\n%s", i, err, out, command)
+			}
+		}
+	}
+}
+
 func TestUserDataRefusesWhatItCannotInstall(t *testing.T) {
 	for name, mutate := range map[string]func(*Seed){
-		"storage role":      func(s *Seed) { s.Role = "storage" },
 		"unknown role":      func(s *Seed) { s.Role = "db" },
 		"no tags":           func(s *Seed) { s.TailnetTags = nil },
 		"client secret":     func(s *Seed) { s.TailnetKey = "tskey-client-oops" },
@@ -194,6 +272,21 @@ func TestUserDataKeepsTheBluetoothDriverOut(t *testing.T) {
 	late := strings.Join(seed.Autoinstall.LateCommands, "\n")
 	if !strings.Contains(late, "cat > /target/etc/modprobe.d/tuist-rack.conf <<'TUIST_EOF'\nblacklist btusb\nTUIST_EOF") {
 		t.Fatalf("late-commands do not keep btusb out:\n%s", late)
+	}
+}
+
+// The operator reaches a rack host over SSH alone, so the install takes sshd
+// out of systemd's start rate limit before the host first boots.
+func TestUserDataKeepsSSHDOutOfTheStartLimit(t *testing.T) {
+	_, seed := renderEdge(t)
+	late := strings.Join(seed.Autoinstall.LateCommands, "\n")
+	for path, content := range map[string]string{
+		sshd.ServiceDropInPath: sshd.ServiceDropInContent,
+		sshd.SocketDropInPath:  sshd.SocketDropInContent,
+	} {
+		if !strings.Contains(late, "cat > /target"+path+" <<'TUIST_EOF'\n"+content+"TUIST_EOF") {
+			t.Errorf("late-commands do not write %s:\n%s", path, late)
+		}
 	}
 }
 
@@ -286,6 +379,305 @@ func TestUserDataRefusesAHostKeyThatIsNotOne(t *testing.T) {
 		s.HostKey = k
 		if _, err := UserData(s); err == nil {
 			t.Errorf("%s: rendered", name)
+		}
+	}
+}
+
+func ber1EdgeB() *EdgeNetwork {
+	return &EdgeNetwork{
+		Uplinks: []string{"enp2s0f1np1", "enp2s0f0np0"},
+		VLAN:    4000,
+		Address: "10.255.255.2/29",
+		Peer:    "10.255.255.1",
+	}
+}
+
+type edgeNetplan struct {
+	Autoinstall struct {
+		Network struct {
+			Version   int
+			Ethernets map[string]struct {
+				Match     map[string]string
+				DHCP4     bool     `json:"dhcp4"`
+				LinkLocal []string `json:"link-local"`
+				AcceptRA  bool     `json:"accept-ra"`
+				Optional  bool
+			}
+			VLANs map[string]struct {
+				ID       int `json:"id"`
+				Link     string
+				Optional bool
+			} `json:"vlans"`
+			Bonds map[string]struct {
+				Interfaces []string
+				Parameters map[string]any
+				LinkLocal  []string `json:"link-local"`
+				Addresses  []string
+				Routes     []struct {
+					To, Via string
+					Metric  int
+				}
+				Optional bool
+			}
+		}
+		LateCommands []string `json:"late-commands"`
+	}
+}
+
+func renderEdgeNetwork(t *testing.T, e *EdgeNetwork) (string, edgeNetplan) {
+	t.Helper()
+	s := edgeSeed()
+	s.Edge = e
+	out, err := UserData(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed edgeNetplan
+	if err := yaml.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("user-data is not YAML: %v", err)
+	}
+	return out, parsed
+}
+
+// A freshly installed edge at a site with no DHCP on the management VLAN goes
+// out through the other edge on the site's VRRP VLAN, built as the rack-edge
+// pod builds it, so the pod later finds vrrp0 and its members in place: a
+// bond over vrrp0-<n> on the n-th uplink, the edge's VRRP address, and a
+// default route through the peer at the pod's metric. Its uplinks take no
+// address, and it resolves through the converge's global resolvers.
+func TestUserDataGivesAnEdgeItsWayOutThroughTheOtherEdge(t *testing.T) {
+	_, seed := renderEdgeNetwork(t, ber1EdgeB())
+	n := seed.Autoinstall.Network
+
+	if n.Version != 2 || len(n.Ethernets) != 2 || len(n.VLANs) != 2 || len(n.Bonds) != 1 {
+		t.Fatalf("network %+v", n)
+	}
+	for id, uplink := range map[string]string{"uplink-1": "enp2s0f1np1", "uplink-2": "enp2s0f0np0"} {
+		e := n.Ethernets[id]
+		if len(e.Match) != 1 || e.Match["name"] != uplink || e.DHCP4 || e.LinkLocal == nil || len(e.LinkLocal) != 0 || e.AcceptRA || !e.Optional {
+			t.Errorf("%s: %+v", id, e)
+		}
+	}
+	for member, link := range map[string]string{"vrrp0-1": "uplink-1", "vrrp0-2": "uplink-2"} {
+		if v := n.VLANs[member]; v.ID != 4000 || v.Link != link || !v.Optional {
+			t.Errorf("%s: %+v", member, v)
+		}
+	}
+	bond, ok := n.Bonds["vrrp0"]
+	if !ok {
+		t.Fatalf("no vrrp0 bond: %+v", n.Bonds)
+	}
+	if strings.Join(bond.Interfaces, " ") != "vrrp0-1 vrrp0-2" || bond.Parameters["mode"] != "active-backup" || bond.Parameters["mii-monitor-interval"] != float64(100) {
+		t.Errorf("bond %+v", bond)
+	}
+	if strings.Join(bond.Addresses, " ") != "10.255.255.2/29" || bond.Optional || bond.LinkLocal == nil || len(bond.LinkLocal) != 0 {
+		t.Errorf("bond %+v", bond)
+	}
+	if len(bond.Routes) != 1 || bond.Routes[0].To != "default" || bond.Routes[0].Via != "10.255.255.1" || bond.Routes[0].Metric != 200 {
+		t.Errorf("routes %+v", bond.Routes)
+	}
+
+	late := strings.Join(seed.Autoinstall.LateCommands, "\n")
+	if !strings.Contains(late, "mkdir -p /target/etc/systemd/resolved.conf.d\ncat > /target/etc/systemd/resolved.conf.d/10-tuist-edge.conf <<'TUIST_EOF'\n[Resolve]\nDNS=1.1.1.1 8.8.8.8\nTUIST_EOF") {
+		t.Fatalf("late-commands do not write the edge's resolvers:\n%s", late)
+	}
+}
+
+func TestUserDataLeavesAnEdgeWithoutANetworkOnDHCP(t *testing.T) {
+	out, _ := renderEdge(t)
+	if strings.Contains(out, "vrrp0") || strings.Contains(out, EdgeResolvedPath) {
+		t.Fatalf("an edge with no edge network is given one:\n%s", out)
+	}
+}
+
+// netplan turns the edge's configuration into networkd files with the names
+// the rack-edge pod looks for, and network-online waits for vrrp0 alone. Run
+// where netplan is installed (Ubuntu); skipped elsewhere.
+func TestNetplanGeneratesTheEdgesVRRPBond(t *testing.T) {
+	netplan, err := exec.LookPath("netplan")
+	if err != nil {
+		t.Skip("netplan is not installed")
+	}
+	out, _ := renderEdgeNetwork(t, ber1EdgeB())
+	var userData struct {
+		Autoinstall struct {
+			Network map[string]any
+		}
+	}
+	if err := yaml.Unmarshal([]byte(out), &userData); err != nil {
+		t.Fatal(err)
+	}
+	config, err := yaml.Marshal(map[string]any{"network": userData.Autoinstall.Network})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "etc", "netplan"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "etc", "netplan", "00-installer-config.yaml"), config, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// netplan asks systemd to reload when it is done, which fails without one.
+	output, _ := exec.Command(netplan, "generate", "--root-dir", root).CombinedOutput()
+	read := func(name string) string {
+		data, err := os.ReadFile(filepath.Join(root, "run", name))
+		if err != nil {
+			t.Fatalf("netplan generated no %s: %v\n%s", name, err, output)
+		}
+		return string(data)
+	}
+	for name, want := range map[string][]string{
+		"systemd/network/10-netplan-uplink-1.network":                           {"Name=enp2s0f1np1", "VLAN=vrrp0-1", "LinkLocalAddressing=no"},
+		"systemd/network/10-netplan-uplink-2.network":                           {"Name=enp2s0f0np0", "VLAN=vrrp0-2"},
+		"systemd/network/10-netplan-vrrp0-1.netdev":                             {"Name=vrrp0-1", "Kind=vlan", "Id=4000"},
+		"systemd/network/10-netplan-vrrp0-2.network":                            {"Bond=vrrp0"},
+		"systemd/network/10-netplan-vrrp0.netdev":                               {"Kind=bond", "Mode=active-backup", "MIIMonitorSec=100ms"},
+		"systemd/network/10-netplan-vrrp0.network":                              {"Address=10.255.255.2/29", "Gateway=10.255.255.1", "Metric=200"},
+		"systemd/system/systemd-networkd-wait-online.service.d/10-netplan.conf": {"-i vrrp0"},
+	} {
+		got := read(name)
+		for _, w := range want {
+			if !strings.Contains(got, w) {
+				t.Errorf("%s lacks %q:\n%s", name, w, got)
+			}
+		}
+	}
+	if wait := read("systemd/system/systemd-networkd-wait-online.service.d/10-netplan.conf"); strings.Contains(wait, "enp2s0") || strings.Contains(wait, "vrrp0-") {
+		t.Errorf("network-online waits for an uplink:\n%s", wait)
+	}
+}
+
+func TestUserDataRefusesAnEdgeNetworkItCannotBuild(t *testing.T) {
+	for name, mutate := range map[string]func(*Seed){
+		"not an edge":       func(s *Seed) { s.Role = "storage" },
+		"no uplinks":        func(s *Seed) { s.Edge.Uplinks = nil },
+		"three uplinks":     func(s *Seed) { s.Edge.Uplinks = []string{"eth0", "eth1", "eth2"} },
+		"one uplink twice":  func(s *Seed) { s.Edge.Uplinks = []string{"eth0", "eth0"} },
+		"uplink with quote": func(s *Seed) { s.Edge.Uplinks = []string{"eth0'"} },
+		"no VLAN":           func(s *Seed) { s.Edge.VLAN = 0 },
+		"VLAN out of range": func(s *Seed) { s.Edge.VLAN = 4095 },
+		"no prefix length":  func(s *Seed) { s.Edge.Address = "10.255.255.2" },
+		"peer outside":      func(s *Seed) { s.Edge.Peer = "10.255.254.1" },
+		"peer is the edge":  func(s *Seed) { s.Edge.Peer = "10.255.255.2" },
+		"peer is not an IP": func(s *Seed) { s.Edge.Peer = "ber1-edge-a" },
+		"IPv6 VRRP address": func(s *Seed) { s.Edge.Address, s.Edge.Peer = "fd00::2/64", "fd00::1" },
+		"WAN on the VRRP VLAN": func(s *Seed) {
+			s.Edge.WAN = &StaticWAN{Address: "149.6.170.31/31", Gateway: "149.6.170.30", VLAN: 4000}
+		},
+		"WAN without a prefix": func(s *Seed) { s.Edge.WAN = &StaticWAN{Address: "149.6.170.31", Gateway: "149.6.170.30", VLAN: 4001} },
+		"WAN gateway outside": func(s *Seed) {
+			s.Edge.WAN = &StaticWAN{Address: "149.6.170.31/31", Gateway: "149.6.170.29", VLAN: 4001}
+		},
+		"WAN gateway is it": func(s *Seed) {
+			s.Edge.WAN = &StaticWAN{Address: "149.6.170.31/31", Gateway: "149.6.170.31", VLAN: 4001}
+		},
+	} {
+		s := edgeSeed()
+		s.Edge = ber1EdgeB()
+		mutate(&s)
+		if _, err := UserData(s); err == nil {
+			t.Errorf("%s: rendered", name)
+		}
+	}
+}
+
+func TestStorageInstallReservesSystemLVAndLeavesKuraExtentsFree(t *testing.T) {
+	for _, resident := range []bool{false, true} {
+		var config struct {
+			Storage struct{ Config []map[string]any }
+		}
+		if err := yaml.Unmarshal([]byte(storageLayoutForSeed(Seed{Role: "storage", ResidentInstaller: resident, KuraLVM: true})), &config); err != nil {
+			t.Fatal(err)
+		}
+		byID := map[string]map[string]any{}
+		for _, action := range config.Storage.Config {
+			byID[fmt.Sprint(action["id"])] = action
+		}
+		if byID["kura-vg"]["type"] != "lvm_volgroup" || byID["kura-vg"]["name"] != "kura-volumes" {
+			t.Fatalf("missing VG: %v", byID)
+		}
+		if byID["data-lv"]["volgroup"] != "kura-vg" || byID["data-lv"]["size"] != "128G" || byID["data-fs"]["volume"] != "data-lv" {
+			t.Fatalf("wrong system LV: %v", byID)
+		}
+		if fmt.Sprint(byID["data"]["size"]) != "-1" {
+			t.Fatal("PV must span remaining data partition")
+		}
+		lvs := 0
+		for _, action := range byID {
+			if action["type"] == "lvm_partition" {
+				lvs++
+			}
+		}
+		if lvs != 1 {
+			t.Fatal("installer must leave tenant extents unallocated")
+		}
+		if resident && (byID["installer"]["preserve"] != true || byID["data"]["device"] != "disk1") {
+			t.Fatal("resident installer must survive on separate boot disk")
+		}
+	}
+	for _, role := range []string{"edge", "services"} {
+		if strings.Contains(storageLayout(role, true), "kura-volumes") {
+			t.Fatal("non-storage node gained VG")
+		}
+	}
+}
+
+func TestUserDataGivesAnEdgeTheSitesStaticWANWhileNoPodRuns(t *testing.T) {
+	e := ber1EdgeB()
+	e.WAN = &StaticWAN{Address: "149.6.170.31/31", Gateway: "149.6.170.30", VLAN: 4001}
+	out, seed := renderEdgeNetwork(t, e)
+	late := strings.Join(seed.Autoinstall.LateCommands, "\n")
+
+	head := "cat > /target" + EdgeFirstWANPath + " <<'TUIST_EOF'\n"
+	start := strings.Index(late, head)
+	if start < 0 {
+		t.Fatalf("late-commands do not write the first-boot WAN:\n%s", late)
+	}
+	script := late[start+len(head):]
+	script = script[:strings.Index(script, "\nTUIST_EOF")]
+	for _, want := range []string{
+		"uplinks='enp2s0f1np1 enp2s0f0np0' vlan=4001 address='149.6.170.31/31' gateway='149.6.170.30'",
+		"state=" + EdgeFirstWANState + " metric=50",
+		"compgen -G '/etc/kubernetes/manifests/rack-edge-*.yaml'",
+		`arping -D -q -c 2 -w 3 -I "$dev" "${address%/*}"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("the first-boot WAN lacks %q:\n%s", want, script)
+		}
+	}
+	if strings.Contains(script, "@") {
+		t.Errorf("a placeholder is left in the first-boot WAN:\n%s", script)
+	}
+	check := exec.Command("bash", "-n")
+	check.Stdin = strings.NewReader(script)
+	if msg, err := check.CombinedOutput(); err != nil {
+		t.Fatalf("the first-boot WAN is not valid bash: %v\n%s", err, msg)
+	}
+	if !strings.Contains(late, "ExecStart="+EdgeFirstWANPath) ||
+		!strings.Contains(late, "curtin in-target --target=/target -- systemctl enable tuist-edge-first-wan.service") {
+		t.Errorf("late-commands do not enable the first-boot WAN:\n%s", late)
+	}
+	// The WAN is the service's, never netplan's, which would keep it on the
+	// standby edge too.
+	if strings.Contains(fmt.Sprint(seed.Autoinstall.Network), "149.6.170.31") {
+		t.Errorf("netplan carries the WAN: %+v", seed.Autoinstall.Network)
+	}
+	if !strings.Contains(out, "    - iputils-arping\n") {
+		t.Errorf("the install does not bring arping")
+	}
+
+	_, seed = renderEdgeNetwork(t, ber1EdgeB())
+	if strings.Contains(strings.Join(seed.Autoinstall.LateCommands, "\n"), EdgeFirstWANPath) {
+		t.Errorf("an edge with no WAN gets the first-boot WAN")
+	}
+}
+
+func TestStorageLayoutDefaultsToFullSharedXFS(t *testing.T) {
+	for _, resident := range []bool{false, true} {
+		got := storageLayoutForSeed(Seed{Role: "storage", ResidentInstaller: resident})
+		if strings.Contains(got, "lvm_") || !strings.Contains(got, "volume: data, fstype: xfs") {
+			t.Fatalf("unenrolled storage host changed layout: %s", got)
 		}
 	}
 }

@@ -39,13 +39,13 @@ defmodule TuistWeb.API.Schemas.PaginationMetadata do
         type: :string,
         nullable: true,
         description:
-          "Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination."
+          "Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. May be `nil` when using page-based pagination."
       },
       end_cursor: %Schema{
         type: :string,
         nullable: true,
         description:
-          "Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination."
+          "Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. May be `nil` when using page-based pagination."
       }
     },
     required: [:has_next_page, :has_previous_page, :page_size]

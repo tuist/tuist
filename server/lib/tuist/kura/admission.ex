@@ -89,9 +89,8 @@ defmodule Tuist.Kura.Admission do
 
   defp measured_headroom_gib(%Regions{id: region_id} = region) do
     with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
-         observed when is_integer(observed) <- Capacity.reserved_gib(region_id),
-         desired when is_integer(desired) <- desired_reservation_gib(region) do
-      target - max(observed, desired)
+         reserved when is_integer(reserved) <- reserved_gib(region, desired_reservations(region)) do
+      target - reserved
     else
       _ -> nil
     end
@@ -99,11 +98,10 @@ defmodule Tuist.Kura.Admission do
 
   defp admit_replacements_with_capacity(%Regions{id: region_id} = region, replacements) do
     with target when is_integer(target) <- Capacity.pressure_line_gib(region_id),
-         observed when is_integer(observed) <- Capacity.reserved_gib(region_id),
-         desired when is_integer(desired) <- desired_reservation_gib(region),
-         adjustment when is_integer(adjustment) <- replacement_adjustment_gib(region, replacements) do
+         desired when is_map(desired) <- replace_reservations(region, desired_reservations(region), replacements),
+         reserved when is_integer(reserved) <- reserved_gib(region, desired) do
       cond do
-        max(observed, desired + adjustment) > target -> {:error, :capacity_exhausted}
+        reserved > target -> {:error, :capacity_exhausted}
         unplaceable?(region, Enum.map(replacements, &elem(&1, 1))) -> {:error, :capacity_unplaceable}
         true -> :ok
       end
@@ -125,25 +123,52 @@ defmodule Tuist.Kura.Admission do
     Enum.any?(candidates, &(Capacity.placeable?(region, &1) == false))
   end
 
-  defp replacement_adjustment_gib(region, replacements) do
-    Enum.reduce_while(replacements, 0, fn
-      {%Server{region: current_region} = current, %Server{region: candidate_region} = candidate}, adjustment
+  defp replace_reservations(region, desired, replacements) do
+    Enum.reduce_while(replacements, desired, fn
+      {%Server{region: current_region} = current, %Server{region: candidate_region} = candidate}, desired
       when current_region == candidate_region and current_region == region.id ->
-        {:cont, adjustment + Capacity.resident_gib(region, candidate) - Capacity.resident_gib(region, current)}
+        {:cont, Map.put(desired, instance_key(current), Capacity.resident_gib(region, candidate))}
 
-      _replacement, _adjustment ->
+      _replacement, _desired ->
         {:halt, nil}
     end)
   end
 
-  # The Kubernetes reading is the source of truth for already-created pods,
-  # but it cannot see a row that has committed before the controller creates its
-  # pods. Keeping pending rows in this total closes that admission race.
-  defp desired_reservation_gib(%Regions{id: region_id} = region) do
+  # Each instance counts once, at the larger of what its pods request and what
+  # its row reserves. The pods are the source of truth for what already runs,
+  # but cannot see a row committed before the controller creates its pods; the
+  # rows cannot see pods whose row is gone, such as an instance left behind by
+  # a deleted account.
+  defp reserved_gib(%Regions{id: region_id}, desired) do
+    case Capacity.reserved_gib_by_instance(region_id) do
+      observed when is_map(observed) ->
+        observed
+        |> Map.merge(desired, fn _instance, observed_gib, desired_gib -> max(observed_gib, desired_gib) end)
+        |> Map.values()
+        |> Enum.sum()
+
+      nil ->
+        nil
+    end
+  end
+
+  defp desired_reservations(%Regions{id: region_id} = region) do
     Server
     |> where([server], server.region == ^region_id and server.status not in ^@volumeless_statuses)
     |> preload(account: [:subscriptions])
     |> Repo.all()
-    |> Enum.reduce(0, fn server, total -> total + Capacity.resident_gib(region, server) end)
+    |> Enum.reduce(%{}, fn server, desired ->
+      Map.update(
+        desired,
+        instance_key(server),
+        Capacity.resident_gib(region, server),
+        &(&1 + Capacity.resident_gib(region, server))
+      )
+    end)
   end
+
+  # A row's pods carry its `provisioner_node_ref` as their instance. A row
+  # without one has no pods to match, so it stands on its own.
+  defp instance_key(%Server{provisioner_node_ref: ref}) when is_binary(ref), do: ref
+  defp instance_key(%Server{id: id}), do: {:server, id}
 end

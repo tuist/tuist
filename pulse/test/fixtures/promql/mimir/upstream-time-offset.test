@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Provenance-includes-location: https://github.com/prometheus/prometheus/tree/main/promql/testdata/selectors.test
+# Provenance-includes-license: Apache-2.0
+# Provenance-includes-copyright: The Prometheus Authors
+
+load 10s
+	http_requests_total{job="api-server", instance="0", group="production"}	0+10x1000 100+30x1000
+	http_requests_total{job="api-server", instance="1", group="production"}	0+20x1000 200+30x1000
+	http_requests_total{job="api-server", instance="0", group="canary"}	0+30x1000 300+80x1000
+	http_requests_total{job="api-server", instance="1", group="canary"}	0+40x2000
+
+eval instant at 8000s rate(http_requests_total[1m])
+	{job="api-server", instance="0", group="production"} 1
+	{job="api-server", instance="1", group="production"} 2
+	{job="api-server", instance="0", group="canary"} 3
+	{job="api-server", instance="1", group="canary"} 4
+
+eval instant at 18000s rate(http_requests_total[1m])
+	{job="api-server", instance="0", group="production"} 3
+	{job="api-server", instance="1", group="production"} 3
+	{job="api-server", instance="0", group="canary"} 8
+	{job="api-server", instance="1", group="canary"} 4
+
+eval instant at 8000s rate(http_requests_total{group=~"pro.*"}[1m])
+	{job="api-server", instance="0", group="production"} 1
+	{job="api-server", instance="1", group="production"} 2
+
+eval instant at 18000s rate(http_requests_total{group=~".*ry", instance="1"}[1m])
+	{job="api-server", instance="1", group="canary"} 4
+
+eval instant at 18000s rate(http_requests_total{instance!="3"}[1m] offset 10000s)
+	{job="api-server", instance="0", group="production"} 1
+	{job="api-server", instance="1", group="production"} 2
+	{job="api-server", instance="0", group="canary"} 3
+	{job="api-server", instance="1", group="canary"} 4
+
+eval instant at 4000s rate(http_requests_total{instance!="3"}[1m] offset -4000s)
+	{job="api-server", instance="0", group="production"} 1
+	{job="api-server", instance="1", group="production"} 2
+	{job="api-server", instance="0", group="canary"} 3
+	{job="api-server", instance="1", group="canary"} 4
+
+eval instant at 18000s rate(http_requests_total[40s]) - rate(http_requests_total[1m] offset 10000s)
+	{job="api-server", instance="0", group="production"} 2
+	{job="api-server", instance="1", group="production"} 1
+	{job="api-server", instance="0", group="canary"} 5
+	{job="api-server", instance="1", group="canary"} 0
+

@@ -1,5 +1,6 @@
 defmodule AtlasWeb.Docs.MarkdownTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias AtlasWeb.Docs.Markdown
 
@@ -22,6 +23,51 @@ defmodule AtlasWeb.Docs.MarkdownTest do
     end
 
     assert Enum.count(LazyHTML.query(document, "h2")) == 3
+  end
+
+  test "fenced code uses light and dark syntax colors without changing copy text" do
+    for {language, source} <- [
+          {"json", ~s({"title": "Prepare documents", "enabled": true})},
+          {"javascript", "const enabled = true;"},
+          {"bash", "printf '%s' hello"},
+          {"yaml", "enabled: true"}
+        ] do
+      html = Markdown.render("```#{language}\n#{source}\n```")
+      document = LazyHTML.from_fragment(html)
+      assert html =~ "color: light-dark("
+      refute Enum.empty?(LazyHTML.query(document, "[data-part=code] code span"))
+      assert document |> LazyHTML.query("[data-part=code] code") |> LazyHTML.text() |> String.trim() == source
+      assert document |> LazyHTML.query("[data-part=copy-source]") |> LazyHTML.text() == source
+      assert Enum.count(LazyHTML.query(document, "[data-part=copy][aria-label='Copy code']")) == 1
+    end
+  end
+
+  test "highlighted source cannot introduce HTML elements" do
+    source = ~s|{"example": "<img src=x onerror=alert(1)><script>unsafe</script>"}|
+    document = "```json\n#{source}\n```" |> Markdown.render() |> LazyHTML.from_fragment()
+    assert Enum.empty?(LazyHTML.query(document, "img, script"))
+    assert document |> LazyHTML.query("[data-part=code] code") |> LazyHTML.text() |> String.trim() == source
+  end
+
+  test "unsupported languages and unavailable parsers retain escaped source" do
+    source = "<script>unsafe</script>"
+    html = Markdown.render("```unknown-language\n#{source}\n```")
+    assert html =~ "&lt;script&gt;unsafe&lt;/script&gt;"
+    refute html =~ "<script>"
+
+    stub(Lumis, :highlight, fn _, _ -> {:error, "Parser unavailable"} end)
+    document = "```json\n#{source}\n```" |> Markdown.render() |> LazyHTML.from_fragment()
+    assert Enum.empty?(LazyHTML.query(document, "script"))
+    assert document |> LazyHTML.query("[data-part=code] code") |> LazyHTML.text() == source
+    assert document |> LazyHTML.query("[data-part=copy-source]") |> LazyHTML.text() == source
+  end
+
+  test "large snippets skip highlighting without truncating display or copy text" do
+    stub(Lumis, :highlight, fn _, _ -> flunk("Oversized snippets must not be highlighted") end)
+    source = String.duplicate("<&>", 90_000)
+    document = "```json\n#{source}\n```" |> Markdown.render() |> LazyHTML.from_fragment()
+    assert document |> LazyHTML.query("[data-part=code] code") |> LazyHTML.text() == source
+    assert document |> LazyHTML.query("[data-part=copy-source]") |> LazyHTML.text() == source
   end
 
   test "tables retain inline markup inside Noora scroll regions" do

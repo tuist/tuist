@@ -1,5 +1,9 @@
 defmodule Tuist.Runners.GitLab.Connection do
-  @moduledoc "An encrypted GitLab runner credential bound to an account and GitLab instance."
+  @moduledoc """
+  An encrypted GitLab runner credential bound to an account and GitLab instance.
+  The optional API token reads merge requests, so pipelines of the project's own
+  merge requests can save cache volumes.
+  """
   use Ecto.Schema
 
   import Ecto.Changeset
@@ -10,6 +14,7 @@ defmodule Tuist.Runners.GitLab.Connection do
   schema "runner_gitlab_connections" do
     field :url, :string, default: "https://gitlab.com"
     field :runner_token, Binary, redact: true
+    field :api_token, Binary, redact: true
     field :enabled, :boolean, default: true
     field :last_polled_at, :utc_datetime
     field :last_error, :string
@@ -19,7 +24,7 @@ defmodule Tuist.Runners.GitLab.Connection do
 
   def changeset(connection, attrs) do
     connection
-    |> cast(attrs, [:account_id, :url, :runner_token, :enabled])
+    |> cast(attrs, [:account_id, :url, :runner_token, :api_token, :enabled])
     |> validate_required([:account_id, :url, :runner_token])
     |> update_change(:url, &String.trim_trailing(&1, "/"))
     |> validate_change(:url, fn :url, url ->

@@ -4,6 +4,8 @@ struct ResolvedPins: Codable, Sendable {
     var originHash: String?
     var pins: [ResolvedPin]
     var version: Int
+    /// Invocation-local ownership, deliberately excluded from Package.resolved encoding.
+    var nativeOwnedCheckouts: Set<String> = []
 
     init(originHash: String?, pins: [ResolvedPin], version: Int) {
         self.originHash = originHash
@@ -133,37 +135,22 @@ struct ResolvedPin: Codable, Equatable, Sendable {
         case state
     }
 
+    /// Keeps the location spelling SwiftPM recorded, so the lockfile is the same whichever tool
+    /// wrote it. Comparisons and cache keys use `SourceControlLocations.canonicalLocation`.
     func normalizedForResolvedFile(mirrors: MirrorConfig) -> ResolvedPin {
-        var normalized = normalizedForResolvedFile()
-        if PinKind.isSourceControl(kind),
-           let original = mirrors.mirroredOriginal(ofSourceControlLocation: location)
-        {
+        var normalized = self
+        guard PinKind.isSourceControl(kind) else { return normalized }
+
+        if let original = mirrors.mirroredOriginal(ofSourceControlLocation: location) {
             normalized.location = original
         }
-        return normalized
-    }
-
-    private func normalizedForResolvedFile() -> ResolvedPin {
-        var normalized = self
-        if let originalLocation {
-            normalized.originalLocation = Self.normalizedRemoteSourceControlLocation(originalLocation)
+        if kind != "localSourceControl",
+           !location.hasPrefix("/"),
+           URL(string: location)?.isFileURL != true
+        {
+            normalized.identity = identity.lowercased()
         }
-        guard PinKind.isSourceControl(kind),
-              kind != "localSourceControl",
-              !location.hasPrefix("/"),
-              URL(string: location)?.isFileURL != true
-        else { return normalized }
-
-        normalized.identity = identity.lowercased()
-        normalized.location = Self.normalizedRemoteSourceControlLocation(location)
         return normalized
-    }
-
-    private static func normalizedRemoteSourceControlLocation(_ location: String) -> String {
-        guard !location.hasPrefix("/"),
-              URL(string: location)?.isFileURL != true
-        else { return location }
-        return SourceControlLocations.canonicalResolvedFileLocation(location)
     }
 
     func revision() throws -> String {
@@ -287,5 +274,47 @@ enum PinKind {
             SafePathComponent.make(name),
             SafePathComponent.make(pin.versionString()),
         ].joined(separator: "/")
+    }
+}
+
+struct RegistryDownloadPaths: Sendable {
+    private var subpaths: [String: String] = [:]
+
+    init(pins: [ResolvedPin], scratchDir: URL) async throws {
+        let registryPins = Dictionary(uniqueKeysWithValues: pins.filter {
+            PinKind.isRegistry($0.kind)
+        }.map { ($0.identity.lowercased(), $0) })
+        guard !registryPins.isEmpty else { return }
+
+        let statePath = scratchDir.appendingPathComponent("workspace-state.json")
+        if try await fileSystem.exists(statePath.absolutePath) {
+            let workspace = try JSONSerialization.jsonObject(
+                with: await fileSystem.readFile(at: statePath.absolutePath)
+            ) as? [String: Any]
+            let object = workspace?["object"] as? [String: Any]
+            let dependencies = object?["dependencies"] as? [[String: Any]] ?? []
+            for dependency in dependencies {
+                let ref = dependency["packageRef"] as? [String: Any]
+                let state = dependency["state"] as? [String: Any]
+                guard ref?["kind"] as? String == "registry",
+                      let identity = ref?["identity"] as? String,
+                      let pin = registryPins[identity.lowercased()],
+                      state?["name"] as? String == "registryDownload",
+                      state?["version"] as? String == pin.state.version,
+                      let subpath = dependency["subpath"] as? String
+                else { continue }
+
+                guard !subpath.isEmpty, !subpath.hasPrefix("/"), !subpath.split(separator: "/").contains("..") else {
+                    throw ToolError.message("invalid registry download subpath for \(pin.identity): \(subpath)")
+                }
+                // SwiftPM 6.4 adds a registry-specific prefix. Preserve the recorded location
+                // rather than deriving a path from the identity or reproducing SwiftPM's hash.
+                subpaths[pin.identity.lowercased()] = subpath
+            }
+        }
+    }
+
+    func subpath(for pin: ResolvedPin) throws -> String {
+        try subpaths[pin.identity.lowercased()] ?? PinKind.registryDownloadSubpath(pin)
     }
 }

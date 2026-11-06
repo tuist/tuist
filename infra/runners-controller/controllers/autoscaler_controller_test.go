@@ -185,6 +185,39 @@ func TestAutoscaler_ScalesDownAfterCooldown(t *testing.T) {
 	}
 }
 
+func TestAutoscaler_HoldRecentPeakFalseReleasesABurstPool(t *testing.T) {
+	tests := []struct {
+		name string
+		hold *bool
+		want int32
+	}{
+		{name: "default holds the last hour's peak", hold: nil, want: 11},
+		{name: "false sizes to current load", hold: ptr.To(false), want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := newAutoscalerPool("smoke", 11, &tuistv1.RunnerPoolAutoscaling{
+				Enabled:          true,
+				MinWarmPoolFloor: ptr.To[int32](0),
+				MaxReplicas:      18,
+				HoldRecentPeak:   tt.hold,
+			})
+			r, server := setupReconciler(t, pool, scaling.Signals{Fleet: "smoke", P95ConcurrentLastHour: 11})
+			defer server.Close()
+
+			reconcileOnce(t, r, "smoke")
+
+			got := &tuistv1.RunnerPool{}
+			if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+				t.Fatalf("get pool: %v", err)
+			}
+			if got.Spec.Replicas != tt.want {
+				t.Errorf("Replicas = %d, want %d", got.Spec.Replicas, tt.want)
+			}
+		})
+	}
+}
+
 func TestAutoscaler_DefersScaleDownDuringCooldown(t *testing.T) {
 	tenSecondsAgo := metav1.NewTime(time.Date(2026, 5, 14, 11, 59, 50, 0, time.UTC))
 	pool := newAutoscalerPool("linux", 10, &tuistv1.RunnerPoolAutoscaling{
@@ -517,11 +550,11 @@ func TestAutoscaler_FleetReclaimsIdleHeadroomForRealLoad(t *testing.T) {
 	gotIdle := &tuistv1.RunnerPool{}
 	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "idle", Namespace: "tuist-runners"}, gotIdle)
 
-	// busy keeps its real load (6). Its per-pool target would be 7
-	// (load 6 + floor 1) — the +1 speculative slot is squeezed because
-	// the fleet is tight, but real work is intact.
-	if gotBusy.Spec.Replicas != 6 {
-		t.Errorf("busy Replicas = %d, want 6 (real load protected)", gotBusy.Spec.Replicas)
+	// busy keeps its real load (6) and takes the one slot left after
+	// idle's floor: both ask for headroom (busy 1, idle 5), the slot
+	// cannot be split, and busy has the larger target.
+	if gotBusy.Spec.Replicas != 7 {
+		t.Errorf("busy Replicas = %d, want 7 (real load plus the last free slot)", gotBusy.Spec.Replicas)
 	}
 	// idle is held at floor 1. Per-pool it would scale to 6 (p95 5 +
 	// floor 1); the fleet allocator denies the speculative warm buffer.
@@ -646,6 +679,34 @@ func TestAutoscaler_MacosFleetCapacityExcludesUnhealthyNodes(t *testing.T) {
 	}
 }
 
+// A joining host pulling its runner images is tainted against runner Pods, so
+// counting its memory would scale pools into slots the scheduler cannot fill.
+func TestAutoscaler_MacosFleetCapacityExcludesPrewarmingNodes(t *testing.T) {
+	const fleet = "runners-macos"
+	ready := macosNode("mac-ready", fleet)
+	prewarming := macosNode("mac-joining", fleet)
+	prewarming.Spec.Taints = []corev1.Taint{{Key: "tuist.dev/prewarming", Value: "true", Effect: corev1.TaintEffectNoSchedule}}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ready, prewarming).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	got, err := r.macosFleetAllocatableMemory(context.Background(), fleet)
+	if err != nil {
+		t.Fatalf("macosFleetAllocatableMemory: %v", err)
+	}
+	if want := int64(macosGuestMemoryMB) * 1024 * 1024; got != want {
+		t.Fatalf("macosFleetAllocatableMemory = %d, want only the warm node's memory %d", got, want)
+	}
+	if reason := nodeFilterReason(prewarming); reason != nodeFilteredPrewarming {
+		t.Fatalf("nodeFilterReason = %q, want %q", reason, nodeFilteredPrewarming)
+	}
+}
+
 // TestAutoscaler_MacosFleetCapacityCountsGuestsNotHosts is the
 // mixed-SKU case the byte-based budget exists for: one fleet label
 // spanning a single-guest M2-L and a dual-guest M4-XL. Counting hosts
@@ -691,7 +752,7 @@ func TestAutoscaler_FilteredZeroCapacityFallsBackToPerPoolTarget(t *testing.T) {
 	signals := scaling.Signals{Fleet: pool.Name, Claimed: 7}
 	knobs := scaling.PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 30}
 
-	got := r.allocate(context.Background(), pool, signals, knobs, 8, logr.Discard())
+	got, _ := r.allocate(context.Background(), pool, signals, knobs, 8, logr.Discard())
 	if got != 8 {
 		t.Fatalf("allocate with every node filtered = %d, want per-pool fallback 8", got)
 	}
@@ -763,6 +824,134 @@ func TestAutoscaler_MacosFleetSqueezesIdleHeadroomAgainstHostBudget(t *testing.T
 	// floor 1); the allocator denies the speculative buffer.
 	if gotIdle.Spec.Replicas != 1 {
 		t.Errorf("idle Replicas = %d, want 1 (speculative headroom reclaimed)", gotIdle.Spec.Replicas)
+	}
+}
+
+// TestAutoscaler_LearnedSpareOutranksSiblingHeadroom: a pool's learned
+// burst is its floor tier, so on a tight fleet it is funded before a
+// sibling's p95 headroom rather than split with it.
+func TestAutoscaler_LearnedSpareOutranksSiblingHeadroom(t *testing.T) {
+	const fleet = "runners-macos"
+	learned := macosFleetPool("macos-learned", fleet, 0, 0, 9)
+	learned.Spec.Autoscaling.MaxLearnedWarmPoolFloor = 3
+	peak := macosFleetPool("macos-peak", fleet, 0, 0, 9)
+	// 4 single-guest hosts = 4 slots: the learned burst of 3, and 1 slot
+	// of the sibling's p95 headroom of 4.
+	var nodes []client.Object
+	for i := 1; i <= 4; i++ {
+		nodes = append(nodes, macosNode(fmt.Sprintf("mac-%d", i), fleet))
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	objs := []client.Object{learned, peak}
+	objs = append(objs, nodes...)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objs...).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	signalsByFleet := map[string]scaling.Signals{
+		"macos-learned": {Fleet: "macos-learned", LearnedWarmFloor: 3},
+		"macos-peak":    {Fleet: "macos-peak", P95ConcurrentLastHour: 4},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(signalsByFleet[r.URL.Query().Get("fleet")])
+	}))
+	defer server.Close()
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	_ = os.WriteFile(tokenPath, []byte("test-token"), 0o600)
+	sc := scaling.NewClient(server.URL)
+	sc.TokenPath = tokenPath
+
+	r := &AutoscalerReconciler{
+		Client:        fakeClient,
+		Scheme:        scheme,
+		SignalsClient: sc,
+		PollInterval:  time.Millisecond,
+	}
+
+	reconcileOnce(t, r, "macos-learned")
+	reconcileOnce(t, r, "macos-peak")
+
+	gotLearned := &tuistv1.RunnerPool{}
+	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "macos-learned", Namespace: "tuist-runners"}, gotLearned)
+	gotPeak := &tuistv1.RunnerPool{}
+	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "macos-peak", Namespace: "tuist-runners"}, gotPeak)
+
+	if gotLearned.Spec.Replicas != 3 {
+		t.Errorf("learned Replicas = %d, want 3 (learned burst funded as floor)", gotLearned.Spec.Replicas)
+	}
+	if gotPeak.Spec.Replicas != 1 {
+		t.Errorf("peak Replicas = %d, want 1 (headroom gets what is left)", gotPeak.Spec.Replicas)
+	}
+}
+
+// TestAutoscaler_FullRackKeepsTheFloorOfThePoolInUse: on a rack short of
+// seats, a pool whose jobs are arriving keeps its learned spare, and a pool
+// with no job in the last hour gives up its floor for it.
+func TestAutoscaler_FullRackKeepsTheFloorOfThePoolInUse(t *testing.T) {
+	const fleet = "runners-macos"
+	inUse := macosFleetPool("macos-in-use", fleet, 0, 0, 9)
+	inUse.Spec.Autoscaling.MaxLearnedWarmPoolFloor = 3
+	idle := macosFleetPool("macos-idle", fleet, 0, 0, 9)
+	idle.Spec.Autoscaling.MaxLearnedWarmPoolFloor = 3
+	// 4 single-guest hosts = 4 slots: the running job and its spare of 3.
+	var nodes []client.Object
+	for i := 1; i <= 4; i++ {
+		nodes = append(nodes, macosNode(fmt.Sprintf("mac-%d", i), fleet))
+	}
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	objs := []client.Object{inUse, idle}
+	objs = append(objs, nodes...)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objs...).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	signalsByFleet := map[string]scaling.Signals{
+		"macos-in-use": {Fleet: "macos-in-use", Claimed: 1, Occupied: 1, P95ConcurrentLastHour: 1, LearnedWarmFloor: 3},
+		"macos-idle":   {Fleet: "macos-idle", LearnedWarmFloor: 3},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(signalsByFleet[r.URL.Query().Get("fleet")])
+	}))
+	defer server.Close()
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	_ = os.WriteFile(tokenPath, []byte("test-token"), 0o600)
+	sc := scaling.NewClient(server.URL)
+	sc.TokenPath = tokenPath
+
+	r := &AutoscalerReconciler{
+		Client:        fakeClient,
+		Scheme:        scheme,
+		SignalsClient: sc,
+		PollInterval:  time.Millisecond,
+	}
+
+	reconcileOnce(t, r, "macos-in-use")
+	reconcileOnce(t, r, "macos-idle")
+
+	gotInUse := &tuistv1.RunnerPool{}
+	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "macos-in-use", Namespace: "tuist-runners"}, gotInUse)
+	gotIdle := &tuistv1.RunnerPool{}
+	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "macos-idle", Namespace: "tuist-runners"}, gotIdle)
+
+	if gotInUse.Spec.Replicas != 4 {
+		t.Errorf("in-use Replicas = %d, want 4 (its job and its whole spare)", gotInUse.Spec.Replicas)
+	}
+	if gotIdle.Spec.Replicas != 0 {
+		t.Errorf("idle Replicas = %d, want 0 (no seat left for a floor nobody is using)", gotIdle.Spec.Replicas)
 	}
 }
 
@@ -1140,5 +1329,58 @@ func linuxNodeWithResources(name, fleetSelector string, cpu int64, memoryMB int6
 				corev1.ResourceMemory: *resource.NewQuantity(memoryMB*1024*1024, resource.BinarySI),
 			},
 		},
+	}
+}
+
+// tart-kubelet keeps the images of pools with recent work on every host
+// within its golden budget, so the autoscaler stamps when a pool last had
+// real work, at most every demandStampInterval, and never for an idle pool.
+func TestAutoscaler_StampsLastDemandAt(t *testing.T) {
+	autoscaling := &tuistv1.RunnerPoolAutoscaling{Enabled: true, MaxReplicas: 30}
+	start := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+
+	idle := newAutoscalerPool("idle", 0, autoscaling)
+	r, server := setupReconciler(t, idle, scaling.Signals{Fleet: "idle"})
+	defer server.Close()
+	r.Now = func() time.Time { return start }
+	reconcileOnce(t, r, "idle")
+	got := &tuistv1.RunnerPool{}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(idle), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if got.Status.LastDemandAt != nil {
+		t.Fatalf("LastDemandAt = %v, want nil for a pool without work", got.Status.LastDemandAt)
+	}
+
+	busy := newAutoscalerPool("busy", 1, autoscaling)
+	r, server = setupReconciler(t, busy, scaling.Signals{Fleet: "busy", Queued: 1})
+	defer server.Close()
+	now := start
+	r.Now = func() time.Time { return now }
+	read := func() time.Time {
+		t.Helper()
+		got := &tuistv1.RunnerPool{}
+		if err := r.Get(context.Background(), client.ObjectKeyFromObject(busy), got); err != nil {
+			t.Fatalf("get pool: %v", err)
+		}
+		if got.Status.LastDemandAt == nil {
+			t.Fatal("LastDemandAt = nil, want it stamped for a pool with queued work")
+		}
+		return got.Status.LastDemandAt.Time
+	}
+
+	reconcileOnce(t, r, "busy")
+	if got := read(); !got.Equal(start) {
+		t.Fatalf("LastDemandAt = %v, want %v", got, start)
+	}
+	now = start.Add(demandStampInterval - time.Second)
+	reconcileOnce(t, r, "busy")
+	if got := read(); !got.Equal(start) {
+		t.Fatalf("LastDemandAt = %v, want %v until demandStampInterval passes", got, start)
+	}
+	now = start.Add(demandStampInterval)
+	reconcileOnce(t, r, "busy")
+	if got := read(); !got.Equal(now) {
+		t.Fatalf("LastDemandAt = %v, want %v", got, now)
 	}
 }

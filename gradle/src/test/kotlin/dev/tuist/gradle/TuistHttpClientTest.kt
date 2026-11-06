@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test
 import java.net.HttpURLConnection
 import java.net.URI
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 
 class TuistHttpClientTest {
 
@@ -99,6 +101,42 @@ class TuistHttpClientTest {
 
         assertEquals("success", result)
         assertEquals(2, mockWebServer.requestCount)
+    }
+
+    @Test
+    fun `an authenticated 401 cannot retry with credentials that disappeared`() {
+        mockWebServer.enqueue(MockResponse().setResponseCode(401))
+        var calls = 0
+        val baseUrl = mockWebServer.url("/").toString()
+        val client = TuistHttpClient(object : ConfigurationProvider {
+            override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
+                calls++
+                return CacheConfiguration(baseUrl, if (forceRefresh) "" else "invalid-token", "account", "project")
+            }
+        })
+        assertFailsWith<TokenExpiredException> {
+            client.execute { config ->
+                val connection = client.openConnection(URI(mockWebServer.url("/report").toString()), config)
+                if (connection.responseCode == 401) throw TokenExpiredException()
+            }
+        }
+        assertEquals(2, calls)
+        assertEquals(1, mockWebServer.requestCount)
+        assertEquals("Bearer invalid-token", mockWebServer.takeRequest().getHeader("Authorization"))
+    }
+
+    @Test
+    fun `credential-free 401 does not refresh or retry and explains server policy`() {
+        mockWebServer.enqueue(MockResponse().setResponseCode(401))
+        val client = createHttpClient(token = "")
+        assertFailsWith<ReportAuthenticationRequiredException> {
+            client.execute { config ->
+                val connection = client.openConnection(URI(mockWebServer.url("/report").toString()), config)
+                if (connection.responseCode == 401) throw TokenExpiredException()
+            }
+        }
+        assertEquals(1, mockWebServer.requestCount)
+        assertNull(mockWebServer.takeRequest().getHeader("Authorization"))
     }
 
     @Test

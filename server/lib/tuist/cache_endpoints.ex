@@ -69,6 +69,9 @@ defmodule Tuist.CacheEndpoints do
     end
   end
 
+  @doc "Returns the main configured cache endpoint without probing or provisioning."
+  def primary_endpoint_url, do: List.first(active_endpoint_urls())
+
   @doc "Toggles the enabled flag on a cache endpoint."
   def toggle_enabled(%CacheEndpoint{} = endpoint) do
     endpoint

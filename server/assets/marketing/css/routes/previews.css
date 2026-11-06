@@ -46,7 +46,8 @@
        40px right/below with the 8px left inset. */
     @media (max-width: 720px) {
       align-items: flex-start;
-      padding: var(--noora-spacing-13) var(--noora-spacing-10) var(--noora-spacing-10) var(--noora-spacing-4);
+      padding-inline: var(--noora-spacing-4) var(--noora-spacing-10);
+      padding-block: var(--noora-spacing-13) var(--noora-spacing-10);
     }
 
     & > [data-part="copy"] {
@@ -69,7 +70,7 @@
       text-wrap: balance;
 
       @media (max-width: 720px) {
-        text-align: left;
+        text-align: start;
       }
     }
 
@@ -80,7 +81,7 @@
       text-wrap: pretty;
 
       @media (max-width: 720px) {
-        text-align: left;
+        text-align: start;
       }
 
       /* The two sentences break where the comp does on desktop and reflow
@@ -109,18 +110,21 @@
        mobile it is hidden like the other feature pages' illustrations. */
     & > [data-part="illustration"] {
       --stage-scale: 1;
-
       align-self: stretch;
       margin: 0 calc(-1 * var(--noora-spacing-4));
       height: calc(300px * var(--stage-scale));
       overflow: hidden;
+
+      direction: ltr;
 
       @media (max-width: 720px) {
         display: none;
       }
 
       /* Fixed 1200x300 stage (Figma coordinates); everything inside is
-         absolutely positioned against it. */
+         absolutely positioned against it, under SVG connectors and the
+         commit-graph hook's pixel coordinates, so it stays left-to-right
+         in RTL. */
       /* Scaled from the top-left corner: the slot is exactly 1200 x scale
          wide, so the shrunk stage fills it edge to edge (scaling from the
          center of the 1200px layout box would push it off to the right). */
@@ -266,7 +270,7 @@
 
         @media (min-width: 721px) {
           &:nth-child(2n) {
-            border-left: 1px solid var(--marketing-stroke-default);
+            border-inline-start: 1px solid var(--marketing-stroke-default);
           }
         }
 
@@ -300,9 +304,9 @@
 
           & > [data-part="fade"] {
             position: absolute;
-            right: 0;
             bottom: 0;
-            left: 0;
+            inset-inline-end: 0;
+            inset-inline-start: 0;
             background: linear-gradient(to bottom, transparent, var(--noora-surface-background-primary));
             height: 78px;
             pointer-events: none;
@@ -317,17 +321,18 @@
           justify-content: flex-start;
           align-items: flex-start;
           box-sizing: border-box;
-          padding: var(--noora-spacing-7) 0 0 var(--noora-spacing-10);
+          padding-inline: var(--noora-spacing-10) 0;
+          padding-block: var(--noora-spacing-7) 0;
 
           /* Both fades sit above the table's body outline, which Noora
              draws as a z-index 1 pseudo-element and would otherwise stay
              sharp while everything under it fades. */
           & > [data-part="fade"] {
             position: absolute;
-            right: 0;
             bottom: 0;
-            left: 0;
             z-index: var(--noora-z-index-2);
+            inset-inline-end: 0;
+            inset-inline-start: 0;
             background: linear-gradient(to bottom, transparent, var(--noora-surface-background-primary));
             height: 78px;
             pointer-events: none;
@@ -336,12 +341,17 @@
           & > [data-part="fade-right"] {
             position: absolute;
             top: 0;
-            right: 0;
             bottom: 0;
             z-index: var(--noora-z-index-2);
+            inset-inline-end: 0;
             background: linear-gradient(to right, transparent, var(--noora-surface-background-primary));
             width: 160px;
             pointer-events: none;
+
+            /* The list overflows past the inline end, so the fade follows it. */
+            [dir="rtl"] & {
+              background: linear-gradient(to left, transparent, var(--noora-surface-background-primary));
+            }
           }
         }
 
@@ -392,9 +402,9 @@
 
           & > [data-part="fade"] {
             position: absolute;
-            right: 0;
             bottom: 0;
-            left: 0;
+            inset-inline-end: 0;
+            inset-inline-start: 0;
             background: linear-gradient(to bottom, transparent, var(--noora-surface-background-primary));
             height: 60px;
             pointer-events: none;
@@ -524,7 +534,7 @@
                 min-width: 0;
 
                 &:not(:first-child) {
-                  border-left: 1px solid var(--marketing-stroke-default);
+                  border-inline-start: 1px solid var(--marketing-stroke-default);
                 }
 
                 & > [data-part="heading"] {
@@ -636,9 +646,9 @@
 
             & > [data-part="status"] {
               position: absolute;
-              right: -2px;
               bottom: -2px;
               box-sizing: border-box;
+              inset-inline-end: -2px;
               border: 1.5px solid var(--noora-surface-background-primary);
               border-radius: 50%;
               background: var(--noora-green-500);
@@ -810,7 +820,7 @@
          hardware rather than UI. */
     & [data-block="island"] {
       top: 12px;
-      left: 82px;
+      inset-inline-start: 82px;
       border-radius: 7px;
       background: light-dark(var(--noora-neutral-light-700), var(--noora-neutral-dark-1100));
       width: 60px;
@@ -819,7 +829,7 @@
 
     & [data-block="avatar"] {
       top: 51px;
-      left: 22px;
+      inset-inline-start: 22px;
       border-radius: var(--noora-radius-4);
       width: 45px;
       height: 45px;
@@ -827,14 +837,14 @@
 
     & [data-block="name"] {
       top: 58px;
-      left: 82px;
+      inset-inline-start: 82px;
       width: var(--name-width);
       height: 12px;
     }
 
     & [data-block="subline"] {
       top: 76px;
-      left: 82px;
+      inset-inline-start: 82px;
       background: var(--marketing-illustration-neutral-1);
       width: var(--subline-width);
       height: 8px;
@@ -847,35 +857,35 @@
       height: 20px;
 
       &[data-tab="0"] {
-        left: 23px;
+        inset-inline-start: 23px;
       }
 
       &[data-tab="1"] {
-        left: 84px;
+        inset-inline-start: 84px;
       }
 
       &[data-tab="2"] {
-        left: 145px;
+        inset-inline-start: 145px;
       }
     }
 
     & [data-block="card"] {
       top: 163px;
-      left: 23px;
+      inset-inline-start: 23px;
       background: var(--marketing-illustration-neutral-1);
       width: 178px;
       height: var(--card-height);
 
       & > [data-block="card-title"] {
         top: 8px;
-        left: 8px;
+        inset-inline-start: 8px;
         width: 64px;
         height: 8px;
       }
 
       & > [data-block="card-meta"] {
         top: 8px;
-        right: 8px;
+        inset-inline-end: 8px;
         width: var(--meta-width);
         height: 8px;
       }
@@ -884,11 +894,11 @@
            a run pill, stacked under the card header. */
       & > [data-part="row"] {
         position: absolute;
-        right: 8px;
-        left: 8px;
         transition:
           transform 480ms cubic-bezier(0.2, 0.7, 0.2, 1),
           opacity 360ms ease;
+        inset-inline-end: 8px;
+        inset-inline-start: 8px;
         height: 26px;
 
         &[data-row="0"] {
@@ -909,7 +919,7 @@
 
         & > [data-block="app-icon"] {
           top: 1px;
-          left: 0;
+          inset-inline-start: 0;
           border-radius: var(--noora-radius-3);
           width: 24px;
           height: 24px;
@@ -917,21 +927,21 @@
 
         & > [data-block="row-title"] {
           top: 4px;
-          left: 32px;
+          inset-inline-start: 32px;
           width: var(--row-title-width);
           height: 8px;
         }
 
         & > [data-block="row-subtitle"] {
           top: 16px;
-          left: 32px;
+          inset-inline-start: 32px;
           width: var(--row-subtitle-width);
           height: 6px;
         }
 
         & > [data-block="run"] {
           top: 5px;
-          right: 0;
+          inset-inline-end: 0;
           border-radius: 8px;
           width: var(--run-width);
           height: 16px;
@@ -941,7 +951,7 @@
 
     & [data-block="footer"] {
       top: var(--footer-top);
-      left: 22px;
+      inset-inline-start: 22px;
       background: var(--marketing-illustration-neutral-3);
       width: 179px;
       height: 20px;

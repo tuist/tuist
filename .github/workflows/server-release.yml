@@ -22,10 +22,11 @@ on:
       - main
     paths:
       - server/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - tuist_common/**
       - noora/**
       - mise/tasks/server/**
-      - mise/tasks/release/components.json
       - .github/workflows/server-release.yml
       - .github/workflows/server-rc.yml
       - .github/workflows/server-promote.yml

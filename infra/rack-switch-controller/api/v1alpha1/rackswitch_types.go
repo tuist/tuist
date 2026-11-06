@@ -16,6 +16,19 @@ const (
 	ManagedByStandalone ManagedBy = "standalone"
 )
 
+// Driver is how the controller changes a switch it manages.
+// +kubebuilder:validation:Enum=omada;picos
+type Driver string
+
+const (
+	// DriverOmada adopts the switch into the site's Omada controller and
+	// writes it through the controller's Open API.
+	DriverOmada Driver = "omada"
+	// DriverPicOS reads a PicOS switch over NETCONF and writes it over its
+	// CLI with commit confirmed, both over SSH with the controller's key.
+	DriverPicOS Driver = "picos"
+)
+
 // SpanningTreeMode is the switch-wide spanning-tree protocol.
 // +kubebuilder:validation:Enum=off;stp;rstp;mstp
 type SpanningTreeMode string
@@ -174,6 +187,10 @@ type RackSwitchSpec struct {
 	// +kubebuilder:default=standalone
 	// +optional
 	ManagedBy ManagedBy `json:"managedBy,omitempty"`
+	// How the controller changes the switch when it manages it.
+	// +kubebuilder:default=omada
+	// +optional
+	Driver Driver `json:"driver,omitempty"`
 	// The desired configuration of a switch the controller manages.
 	// +optional
 	Config *SwitchConfig `json:"config,omitempty"`
@@ -207,6 +224,12 @@ type RackSwitchStatus struct {
 	// The Omada controller's name for the device's state.
 	// +optional
 	ControllerStatus string `json:"controllerStatus,omitempty"`
+	// The SHA-256 fingerprint of a PicOS switch's RSA host key, pinned at
+	// the first connection. A switch presenting another key is not written
+	// to; clearing this pins the next one, as after a factory reset or a
+	// replacement unit.
+	// +optional
+	HostKey string `json:"hostKey,omitempty"`
 	// Adopted, Converged and Ready.
 	// +optional
 	// +listType=map

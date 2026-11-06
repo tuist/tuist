@@ -1,9 +1,12 @@
 defmodule Tuist.CacheActionItemsTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.CacheActionItems
   alias Tuist.Projects.Project
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+
+  setup :set_mimic_from_context
 
   setup do
     project = ProjectsFixtures.project_fixture()
@@ -80,6 +83,40 @@ defmodule Tuist.CacheActionItemsTest do
   end
 
   describe "create_cache_action_items/1" do
+    test "inserts rows in project and hash order", %{project: first} do
+      second = ProjectsFixtures.project_fixture()
+      now = DateTime.utc_now(:second)
+
+      rows =
+        Enum.map(
+          [{second.id, "hash-b"}, {second.id, "hash-a"}, {first.id, "hash-b"}, {first.id, "hash-a"}],
+          fn {project_id, hash} ->
+            %{id: UUIDv7.generate(), project_id: project_id, hash: hash, inserted_at: now, updated_at: now}
+          end
+        )
+
+      test_pid = self()
+
+      stub(Repo, :insert_all, fn schema, rows, opts ->
+        send(test_pid, {:insert_all, schema, rows})
+        Mimic.call_original(Repo, :insert_all, [schema, rows, opts])
+      end)
+
+      assert {4, _} = CacheActionItems.create_cache_action_items(rows)
+      assert_received {:insert_all, CacheActionItems.CacheActionItem, inserted_rows}
+
+      assert Enum.map(inserted_rows, &{&1.project_id, &1.hash}) == [
+               {first.id, "hash-a"},
+               {first.id, "hash-b"},
+               {second.id, "hash-a"},
+               {second.id, "hash-b"}
+             ]
+
+      for project <- [first, second], hash <- ["hash-a", "hash-b"] do
+        assert CacheActionItems.get_cache_action_item(%{project: project, hash: hash})
+      end
+    end
+
     test "creates a cache action item with valid attributes", %{project: project} do
       # When
       cache_action_item =

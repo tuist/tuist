@@ -1,5 +1,9 @@
-# Defaults shared by every environment. Which rack, which Omada site and which
-# 1Password items live in values-<env>.yaml.
+# Defaults shared by every environment. Which rack, which Omada site, the
+# controller's address and which 1Password items come from the rack's site
+# definition (infra/rack-switch-fleet/sites/<site>.json), which
+# omada-deployment.yml reads and passes with --set: kubernetes.namespace and
+# management.controller. Nothing here restates them, so moving the rack between
+# clusters is an edit to that file alone.
 
 image:
   repository: ghcr.io/tuist/rack-switch-controller
@@ -36,6 +40,26 @@ gates:
   lags: true
   portSpanningTree: true
   siteServices: true
+
+# PicOS switches, reached over SSH and NETCONF with the controller's key,
+# which the zero-touch bootstrap installs for user. Unset sshKeyItem means
+# the controller manages no PicOS switch.
+picos:
+  # 1Password SSH key item; its "private key" field is the controller's key.
+  sshKeyItem: ""
+  # 1Password item whose password field admin gets when a switch is adopted.
+  adminPasswordItem: ""
+  user: tuist
+  # The rollback timer of every commit: a change the controller cannot read
+  # back over a new connection in this time undoes itself.
+  confirmAfter: 5m
+  # The Tailscale egress ProxyGroup a switch's management address is reached
+  # through (infra/helm/tailscale-operator, `macminiEgress`): the controller
+  # keeps an ExternalName Service per switch in its namespace and dials that.
+  # An empty proxyGroup dials the addresses themselves.
+  egress:
+    namespace: tailscale-operator
+    proxyGroup: macmini-egress
 
 credentials:
   secretStoreRef:

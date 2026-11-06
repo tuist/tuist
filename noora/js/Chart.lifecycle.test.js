@@ -40,7 +40,10 @@ describe("chart lifecycle", () => {
     vi.unstubAllGlobals();
   });
 
-  function mount({ lazy = false } = {}) {
+  function mount({
+    lazy = false,
+    option = { colors: ["#000000"], series: [] },
+  } = {}) {
     const el = document.createElement("div");
     el.dataset.lazy = String(lazy);
     el.innerHTML = `<div data-part="chart"></div>`;
@@ -48,7 +51,7 @@ describe("chart lifecycle", () => {
     const hook = {
       ...Chart,
       el,
-      option: vi.fn(() => ({ colors: ["#000000"], series: [] })),
+      option: vi.fn(() => option),
     };
     hooks.push(hook);
     hook.mounted();
@@ -113,5 +116,44 @@ describe("chart lifecycle", () => {
     expect(
       hook.el.querySelector("[data-part='chart']").__nooraChart,
     ).toBeNull();
+  });
+
+  it("opens the line point nearest a click over the plot through LiveView", () => {
+    const series = [
+      {
+        type: "line",
+        data: [
+          { value: ["a", 1], url: "/first" },
+          { value: ["b", 2], url: "/second" },
+        ],
+      },
+    ];
+    const zrHandlers = {};
+    const chartHandlers = {};
+    const chart = {
+      setOption: vi.fn(),
+      on: vi.fn((name, handler) => (chartHandlers[name] = handler)),
+      resize: vi.fn(),
+      dispose: vi.fn(),
+      getZr: () => ({
+        on: (name, handler) => (zrHandlers[name] = handler),
+        setCursorStyle: vi.fn(),
+      }),
+      containPixel: vi.fn((_finder, [, y]) => y < 100),
+      getOption: () => ({ series }),
+      convertToPixel: (_finder, [x]) => [x === "a" ? 10 : 50, 0],
+    };
+    echarts.init.mockReturnValueOnce(chart);
+    const navigate = vi.fn();
+    const hook = mount({ option: { colors: ["#000000"], series } });
+    hook.js = () => ({ navigate });
+
+    zrHandlers.click({ offsetX: 40, offsetY: 20 });
+    expect(navigate).toHaveBeenCalledWith("/second");
+
+    // Outside the plot, and on the point itself, nothing opens twice.
+    zrHandlers.click({ offsetX: 40, offsetY: 200 });
+    chartHandlers.click({ seriesType: "line", data: series[0].data[0] });
+    expect(navigate).toHaveBeenCalledOnce();
   });
 });

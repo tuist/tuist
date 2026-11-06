@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 )
@@ -39,6 +39,10 @@ func TestRackLinuxHostKeepsTheMachineThatMakesItANode(t *testing.T) {
 	}
 	if machine.Labels[RackLinuxRoleLabel] != "services" || machine.Labels[clusterv1.ClusterNameLabel] != "tuist-tuist-capi" {
 		t.Fatalf("labels %v", machine.Labels)
+	}
+	// Cluster API syncs it to the Node, where the rack dashboards read the site.
+	if got := machine.Labels[infrav1.RackSiteNodeLabel]; got != "ber1" {
+		t.Fatalf("site label %q, want the host's site", got)
 	}
 	owners := machine.OwnerReferences
 	if len(owners) != 1 || owners[0].Kind != "RackLinuxHost" || owners[0].Name != svcUUID || owners[0].Controller == nil || !*owners[0].Controller {

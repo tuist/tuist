@@ -27,9 +27,7 @@ tuist inspect bundle App --platforms ios --configuration Debug
 
 When you pass an app name instead of a path on macOS, Tuist resolves the built `.app` from Xcode's build products (honoring `--derived-data-path` when set), the same way `tuist share` does.
 
-The command uploads the bundle to Tuist and returns a link to a detailed overview, including a scan of the contents and a module breakdown:
-
-![Analyzed bundle](/images/guides/features/bundle-size/analyzed-bundle.png)
+<!-- @snippet: ./_upload-result -->
 
 ## Comparing with App Store Connect {#app-store-connect}
 

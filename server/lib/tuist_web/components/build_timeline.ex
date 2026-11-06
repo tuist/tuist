@@ -12,6 +12,7 @@ defmodule TuistWeb.Components.BuildTimeline do
   attr :source, :string, required: true
 
   attr :url, :string, required: true
+  attr :trace_url, :string, default: nil, doc: "Where to download the timeline as a Perfetto trace."
 
   def build_timeline_section(assigns) do
     ~H"""
@@ -28,7 +29,13 @@ defmodule TuistWeb.Components.BuildTimeline do
           <.error_card_section data-part="timeline-error" />
         </.card>
       </:failed>
-      <.build_timeline duration={@duration} version={@version} source={@source} url={@url} />
+      <.build_timeline
+        duration={@duration}
+        version={@version}
+        source={@source}
+        url={@url}
+        trace_url={@trace_url}
+      />
     </.async_result>
     """
   end
@@ -37,6 +44,7 @@ defmodule TuistWeb.Components.BuildTimeline do
   attr :duration, :integer, required: true
   attr :version, :integer, required: true
   attr :source, :string, default: "xcode"
+  attr :trace_url, :string, default: nil
 
   def build_timeline(assigns) do
     assigns = assign(assigns, :groups, timeline_groups(assigns.source))
@@ -87,6 +95,15 @@ defmodule TuistWeb.Components.BuildTimeline do
               "targets"
             )}</span>
           </span>
+          <.button
+            :if={@trace_url}
+            href={@trace_url}
+            variant="secondary"
+            size="medium"
+            label={dgettext("dashboard_builds", "Download trace")}
+          >
+            <:icon_left><.download /></:icon_left>
+          </.button>
         </:actions>
         <.error_card_section data-part="payload-error" hidden />
         <.card_section data-part="timeline-content">
@@ -153,16 +170,8 @@ defmodule TuistWeb.Components.BuildTimeline do
                       id="timeline-search"
                       name="timeline_search"
                       data-control="search"
-                      aria-label={
-                        if @source == "xcode",
-                          do: dgettext("dashboard_builds", "Search steps or targets"),
-                          else: dgettext("dashboard_builds", "Search steps, targets, or categories")
-                      }
-                      placeholder={
-                        if @source == "xcode",
-                          do: dgettext("dashboard_builds", "Search steps or targets…"),
-                          else: dgettext("dashboard_builds", "Search steps, targets, or categories…")
-                      }
+                      aria-label={search_label(@source)}
+                      placeholder={search_placeholder(@source)}
                       show_suffix={false}
                     />
                   </div>
@@ -218,11 +227,17 @@ defmodule TuistWeb.Components.BuildTimeline do
               <div data-part="selection" hidden>
                 <strong data-detail="title"></strong>
                 <dl>
-                  <div>
+                  <%!-- A Mix build has no projects or targets: its unit of work is the file. --%>
+                  <div hidden={@source == "mix"}>
                     <dt>{dgettext("dashboard_builds", "Project")}</dt><dd data-detail="project"></dd>
                   </div>
                   <div>
-                    <dt>{dgettext("dashboard_builds", "Target")}</dt><dd data-detail="target"></dd>
+                    <dt>
+                      {if @source == "mix",
+                        do: dgettext("dashboard_builds", "File"),
+                        else: dgettext("dashboard_builds", "Target")}
+                    </dt>
+                    <dd data-detail="target"></dd>
                   </div>
                   <div>
                     <dt>{dgettext("dashboard_builds", "Type")}</dt>
@@ -277,6 +292,27 @@ defmodule TuistWeb.Components.BuildTimeline do
       </.card>
     </div>
     """
+  end
+
+  defp search_label("xcode"), do: dgettext("dashboard_builds", "Search steps or targets")
+  defp search_label("mix"), do: dgettext("dashboard_builds", "Search files or modules")
+  defp search_label(_source), do: dgettext("dashboard_builds", "Search steps, targets, or categories")
+
+  defp search_placeholder("xcode"), do: dgettext("dashboard_builds", "Search steps or targets…")
+  defp search_placeholder("mix"), do: dgettext("dashboard_builds", "Search files or modules…")
+  defp search_placeholder(_source), do: dgettext("dashboard_builds", "Search steps, targets, or categories…")
+
+  # The kinds of work a Mix build reports. They reuse the lane colours of the
+  # closest groups of the other build systems.
+  defp timeline_groups("mix") do
+    [
+      {"compile", dgettext("dashboard_builds", "Compilation")},
+      {"setup", dgettext("dashboard_builds", "Type checking")},
+      {"resource", dgettext("dashboard_builds", "Writing to disk")},
+      {"script", dgettext("dashboard_builds", "Other compilers")},
+      {"other", dgettext("dashboard_builds", "Other")},
+      {"failure", dgettext("dashboard_builds", "Failed")}
+    ]
   end
 
   defp timeline_groups(source) do

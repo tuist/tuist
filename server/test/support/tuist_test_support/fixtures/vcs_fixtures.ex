@@ -24,6 +24,7 @@ defmodule TuistTestSupport.Fixtures.VCSFixtures do
           end,
         html_url: Keyword.get(opts, :html_url),
         client_url: Keyword.get(opts, :client_url),
+        api_url: Keyword.get(opts, :api_url),
         app_id: Keyword.get(opts, :app_id),
         app_slug: Keyword.get(opts, :app_slug),
         client_id: Keyword.get(opts, :client_id),

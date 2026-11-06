@@ -1,27 +1,21 @@
 defmodule TuistWeb.RateLimit do
   @moduledoc """
-  Applies rate limits using Valkey with an in-memory fallback.
+  Applies shared rate limits using Valkey. Shared failures deny by default;
+  explicitly selected fixed-window callers may use a reduced node-local outage budget.
+  Installations without Valkey use an approximate in-memory limiter.
 
+  Set `:fallback` to false to distinguish configured Valkey backend failures
+  from quota denials. Such failures return `{:error, :unavailable}` and never
+  use a local outage budget, even when `:failure_policy` is `:local`.
   Fixed-window limits use the `:limit` and `:window` options. Token-bucket
   limits use the `:capacity`, `:refill_rate`, and optional `:cost` options.
   """
 
   alias Tuist.Environment
   alias TuistWeb.Authentication
-  alias TuistWeb.RateLimit.InMemory
-  alias TuistWeb.RateLimit.PersistentFixedWindow
-  alias TuistWeb.RateLimit.PersistentTokenBucket
   alias TuistWeb.RemoteIp
 
-  def hit(key, opts) do
-    algorithm = Keyword.get(opts, :algorithm, :fixed_window)
-
-    if is_nil(Environment.redis_url()) do
-      hit_in_memory(algorithm, key, opts)
-    else
-      hit_persistent(algorithm, key, opts)
-    end
-  end
+  defdelegate hit(key, opts), to: Tuist.RateLimit
 
   def rate_limit(%Plug.Conn{} = conn, opts) do
     if Environment.tuist_hosted?() do
@@ -44,7 +38,7 @@ defmodule TuistWeb.RateLimit do
   end
 
   defp check(key, limit, window) do
-    case __MODULE__.hit(key, limit: limit, window: window) do
+    case __MODULE__.hit(key, limit: limit, window: window, failure_policy: :local) do
       {:allow, _count} -> :ok
       {:deny, _limit} -> :deny
     end
@@ -70,54 +64,6 @@ defmodule TuistWeb.RateLimit do
   defp anon_scope(%Plug.Conn{path_params: %{"account_handle" => account}}) when is_binary(account), do: account
 
   defp anon_scope(_conn), do: nil
-
-  defp hit_persistent(:fixed_window, key, opts) do
-    window = Keyword.fetch!(opts, :window)
-    limit = Keyword.fetch!(opts, :limit)
-    increment = Keyword.get(opts, :increment, 1)
-
-    with_in_memory_fallback(
-      fn -> PersistentFixedWindow.hit(key, window, limit, increment) end,
-      fn -> InMemory.hit(key, window, limit, increment) end
-    )
-  end
-
-  defp hit_persistent(:token_bucket, key, opts) do
-    refill_rate = Keyword.fetch!(opts, :refill_rate)
-    capacity = Keyword.fetch!(opts, :capacity)
-    cost = Keyword.get(opts, :cost, 1)
-
-    with_in_memory_fallback(
-      fn -> PersistentTokenBucket.hit(key, refill_rate, capacity, cost) end,
-      fn -> InMemory.hit_token_bucket(key, refill_rate, capacity, cost) end
-    )
-  end
-
-  defp hit_in_memory(:fixed_window, key, opts) do
-    InMemory.hit(
-      key,
-      Keyword.fetch!(opts, :window),
-      Keyword.fetch!(opts, :limit),
-      Keyword.get(opts, :increment, 1)
-    )
-  end
-
-  defp hit_in_memory(:token_bucket, key, opts) do
-    InMemory.hit_token_bucket(
-      key,
-      Keyword.fetch!(opts, :refill_rate),
-      Keyword.fetch!(opts, :capacity),
-      Keyword.get(opts, :cost, 1)
-    )
-  end
-
-  defp with_in_memory_fallback(persistent, in_memory) do
-    persistent.()
-  rescue
-    _error in [MatchError, Redix.ConnectionError, Redix.Error] -> in_memory.()
-  catch
-    :exit, _reason -> in_memory.()
-  end
 
   defp requester_key(conn) do
     case Authentication.current_user(conn) do

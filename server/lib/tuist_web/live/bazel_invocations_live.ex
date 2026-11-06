@@ -4,6 +4,7 @@ defmodule TuistWeb.BazelInvocationsLive do
   use Noora
 
   import TuistWeb.BazelAnalyticsHelpers
+  import TuistWeb.Components.BuildStatusFilter, only: [build_status_dropdown: 1]
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
@@ -12,6 +13,8 @@ defmodule TuistWeb.BazelInvocationsLive do
   alias Tuist.Bazel
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Components.BuildHealth
+  alias TuistWeb.Components.BuildStatusFilter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -30,7 +33,7 @@ defmodule TuistWeb.BazelInvocationsLive do
       |> assign(:bazel_invocation_commands, socket.assigns[:bazel_invocation_commands])
       |> assign(:bazel_show_analytics, socket.assigns[:bazel_show_analytics] != false)
       |> assign(:head_title, "#{resource} · #{account.name}/#{project.name} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("overview"))
+      |> assign(OpenGraph.project_image_assigns(project, title: resource))
       |> assign(:available_filters, define_filters(resource_kind))
 
     {:ok, socket}
@@ -39,6 +42,9 @@ defmodule TuistWeb.BazelInvocationsLive do
   def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
     page = parse_page(params["page"])
     sort_by = params["invocations-sort-by"] || "ran-at"
+
+    sort_by = listing_sort_by(sort_by, socket.assigns.bazel_resource_kind)
+
     sort_order = params["invocations-sort-order"] || "desc"
     uri = URI.new!("?" <> URI.encode_query(params))
     active_filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
@@ -48,13 +54,18 @@ defmodule TuistWeb.BazelInvocationsLive do
 
     analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
     analytics_environment = analytics_environment_param(params["analytics-environment"])
+    analytics_build_status = BuildStatusFilter.status(params)
 
     filters =
       [%{field: :project_id, op: :==, value: project.id}] ++
         build_flop_filters(active_filters)
 
     filters = maybe_add_environment_filter(filters, analytics_environment, socket.assigns.bazel_show_analytics)
-    analytics_opts = analytics_opts(analytics_period, socket.assigns.bazel_invocation_commands, analytics_environment)
+
+    analytics_opts =
+      analytics_period
+      |> analytics_opts(socket.assigns.bazel_invocation_commands, analytics_environment)
+      |> BuildStatusFilter.put_status(analytics_build_status)
 
     list_opts =
       if socket.assigns.bazel_show_analytics do
@@ -68,13 +79,13 @@ defmodule TuistWeb.BazelInvocationsLive do
         project.id,
         %{
           filters: filters,
-          order_by: [sort_field(sort_by)],
-          order_directions: [sort_direction(sort_order)],
+          order_by: sort_fields(sort_by),
+          order_directions: List.duplicate(sort_direction(sort_order), length(sort_fields(sort_by))),
           page: page,
           page_size: @page_size,
           commands: socket.assigns.bazel_invocation_commands
         },
-        list_opts
+        Keyword.put(list_opts, :failure_category, socket.assigns.bazel_resource_kind == :builds)
       )
 
     commands = socket.assigns.bazel_invocation_commands
@@ -94,6 +105,7 @@ defmodule TuistWeb.BazelInvocationsLive do
       |> assign(:analytics_trend_label, analytics_trend_label(analytics_preset))
       |> assign(:analytics_environment, analytics_environment)
       |> assign(:analytics_environment_label, environment_label(analytics_environment))
+      |> assign(:analytics_build_status, analytics_build_status)
       |> assign(:analytics_selected_widget, analytics_selected_widget)
       |> assign(:has_any_invocations, has_any_invocations)
       |> assign(:selected_duration_type, params["duration-type"] || "avg")
@@ -106,7 +118,8 @@ defmodule TuistWeb.BazelInvocationsLive do
                project.id,
                analytics_period,
                commands,
-               analytics_environment
+               analytics_environment,
+               analytics_build_status
              ),
            invocation_analytics:
              Bazel.invocation_analytics(
@@ -218,6 +231,11 @@ defmodule TuistWeb.BazelInvocationsLive do
             <:right_icon :if={@analytics_environment == value}><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
+        <.build_status_dropdown
+          id="bazel-builds-status-dropdown"
+          status={@analytics_build_status}
+          uri={@uri}
+        />
         <.date_picker
           id="bazel-invocations-date-range-picker"
           name="analytics-date-range"
@@ -498,12 +516,22 @@ defmodule TuistWeb.BazelInvocationsLive do
               id="bazel-invocations-sort-by"
               label={
                 case @invocations_sort_by do
+                  "failure-category" -> dgettext("dashboard_builds", "Failure category")
                   "duration" -> dgettext("dashboard_builds", "Duration")
                   _ -> dgettext("dashboard_builds", "Ran at")
                 end
               }
               secondary_text={dgettext("dashboard_builds", "Sort by:")}
             >
+              <.dropdown_item
+                :if={@bazel_resource_kind == :builds}
+                value="failure-category"
+                label={dgettext("dashboard_builds", "Failure category")}
+                patch={column_patch_sort(assigns, "failure-category")}
+                data-selected={@invocations_sort_by == "failure-category"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
               <.dropdown_item
                 value="duration"
                 label={dgettext("dashboard_builds", "Duration")}
@@ -655,11 +683,17 @@ defmodule TuistWeb.BazelInvocationsLive do
     if numeric(summary.total) == 0, do: nil, else: "#{Float.round(success_rate_value(summary), 1)}%"
   end
 
-  defp invocation_summary_with_trends(project_id, {start_datetime, end_datetime} = period, commands, environment) do
-    summary = Bazel.summary(project_id, analytics_opts(period, commands, environment))
+  defp invocation_summary_with_trends(project_id, {start_datetime, end_datetime} = period, commands, environment, status) do
+    opts = period |> analytics_opts(commands, environment) |> BuildStatusFilter.put_status(status)
+    summary = Bazel.summary(project_id, opts)
 
-    previous_summary =
-      Bazel.summary(project_id, analytics_opts(previous_period(start_datetime, end_datetime), commands, environment))
+    previous_opts =
+      start_datetime
+      |> previous_period(end_datetime)
+      |> analytics_opts(commands, environment)
+      |> BuildStatusFilter.put_status(status)
+
+    previous_summary = Bazel.summary(project_id, previous_opts)
 
     Map.merge(summary, %{
       total_trend: trend(previous_summary.total, summary.total),
@@ -905,6 +939,12 @@ defmodule TuistWeb.BazelInvocationsLive do
     ~p"/#{assigns.selected_account.name}/#{assigns.selected_project.name}/invocations/#{invocation_id}"
   end
 
+  defp listing_sort_by("failure-category", kind) when kind != :builds, do: "ran-at"
+  defp listing_sort_by(value, _kind), do: value
+  defp sort_fields("failure-category"), do: [:failure_category, :finished_at, :invocation_id]
+  defp sort_fields(value), do: [sort_field(value)]
+
+  defp sort_field("failure-category"), do: :failure_category
   defp sort_field("command"), do: :command
   defp sort_field("status"), do: :status
   defp sort_field("duration"), do: :duration_ms
@@ -996,7 +1036,7 @@ defmodule TuistWeb.BazelInvocationsLive do
       }
 
     if resource_kind == :builds,
-      do: [status_filter, environment_filter],
+      do: [BuildHealth.category_filter(), status_filter, environment_filter],
       else: [status_filter, command_filter, environment_filter]
   end
 end

@@ -60,14 +60,125 @@ struct BinaryCacheStorageTests {
         let combined = item("combined", fingerprints)
         #expect(try await reader.fetch([combined], cacheCategory: .binaries).isEmpty)
         let mac = item("mac", fingerprints.filter { $0.key == "macos-device" })
-        _ = try await producer.store([mac: [artifact]], cacheCategory: .binaries)
+        _ = try await subject(directory.appending(component: "other-producer"), remote: remote)
+            .store([mac: [artifact]], cacheCategory: .binaries)
         let hits = try await reader.fetch([combined], cacheCategory: .binaries)
         #expect(hits.count == 1)
         #expect(await remote.actions.count == 3)
         #expect(await remote.uploads.values.allSatisfy { $0 == 1 })
-        var changed = fingerprints
-        changed["ios-device"] = "changed-compilation-settings"
-        #expect(try await reader.fetch([item("changed", changed)], cacheCategory: .binaries).isEmpty)
+        let fresh = subject(directory.appending(component: "fresh-reader"), remote: remote)
+        #expect(try await fresh.fetch([item("different-consumer-graph", fingerprints)], cacheCategory: .binaries).count == 1)
+        for variant in fingerprints.keys {
+            var changed = fingerprints
+            changed[variant] = "changed-compilation-settings"
+            #expect(try await fresh.fetch([item("changed", changed)], cacheCategory: .binaries).isEmpty)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [BinaryCacheVariant.iosSimulator, .iosDevice])
+    func partialWarmAndFullWarmShareSDKKeysAndOnlyPlanMissingBuilds(firstVariant: BinaryCacheVariant) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let cache = subject(directory.appending(component: "cache"))
+        let target = GraphTarget.test(target: .test(name: "Shared", product: .framework))
+        let sdkHashes = fingerprints.filter { $0.key != "macos-device" }
+        let inputs = ["same-target-hash": sdkHashes]
+        let targets = [(target, "same-target-hash")]
+        let selection: BinaryCacheSDKSelection = firstVariant == .iosSimulator ? .simulators : .devices
+        let missingVariant: BinaryCacheVariant = firstVariant == .iosSimulator ? .iosDevice : .iosSimulator
+        let withCatalyst = fingerprints.merging(["ios-maccatalyst": "catalyst-inputs"]) { _, new in new }
+        #expect(selection.fingerprints(withCatalyst) == [
+            firstVariant.rawValue: sdkHashes[firstVariant.rawValue]!, "macos-device": "mac-inputs",
+        ])
+        let cold = try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, storage: cache, preserving: []
+        ).batches
+        #expect(cold.count == 1 && cold[0].variant == nil)
+        #expect(cold[0].fingerprints == inputs)
+        let partial = try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, sdkSelection: selection, storage: cache, preserving: []
+        ).batches
+        #expect(partial.map(\.variant) == [firstVariant])
+        let partialArtifact = directory.appending(components: "partial", "Shared.xcframework")
+        try await makeArtifact(at: partialArtifact, variants: [firstVariant.rawValue])
+        let partialItem = CacheStorableItem(name: "Shared", hash: "same-target-hash", metadata: .init(
+            binaryCacheFingerprints: partial[0].fingerprints["same-target-hash"]!, requiresSDKSlices: true
+        ))
+        _ = try await cache.store([partialItem: [partialArtifact]], cacheCategory: .binaries)
+        #expect(try await cache.fetch([item("same-target-hash", sdkHashes)], cacheCategory: .binaries).isEmpty)
+        let remaining = try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, storage: cache, preserving: []
+        ).batches
+        #expect(remaining.map(\.variant) == [missingVariant])
+        let remainingArtifact = directory.appending(components: "remaining", "Shared.xcframework")
+        try await makeArtifact(at: remainingArtifact, variants: [missingVariant.rawValue])
+        _ = try await cache.store([CacheStorableItem(name: "Shared", hash: "same-target-hash", metadata: .init(
+            binaryCacheFingerprints: remaining[0].fingerprints["same-target-hash"]!, requiresSDKSlices: true
+        )): [remainingArtifact]], cacheCategory: .binaries)
+        let restored = try #require(try await cache.fetch([item("same-target-hash", sdkHashes)], cacheCategory: .binaries).values
+            .first)
+        #expect(try await XCFrameworkCoverageService().coverage(at: restored).keys.sorted() == ["ios-device", "ios-simulator"])
+        for selection in [BinaryCacheSDKSelection.all, .simulators, .devices] {
+            #expect(try await CacheWarmPlan.make(
+                targets: targets, fingerprints: inputs, sdkSelection: selection, storage: cache, preserving: []
+            ).batches.isEmpty)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func asymmetricSDKMissesStaySeparateAndLocalSlicesCanBeRepublished() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let root = directory.appending(component: "cache")
+        let local = subject(root)
+        let targets = ["Consumer", "Dependency"].map {
+            (GraphTarget.test(target: .test(name: $0, product: .framework)), $0.lowercased())
+        }
+        let inputs = Dictionary(uniqueKeysWithValues: targets.map { target, hash in
+            (hash, ["ios-device": "\(target.target.name)-device", "ios-simulator": "\(target.target.name)-simulator"])
+        })
+        for (index, variant) in [BinaryCacheVariant.iosDevice, .iosSimulator].enumerated() {
+            let (target, hash) = targets[index]
+            let artifact = directory.appending(component: "\(target.target.name).xcframework")
+            try await makeArtifact(at: artifact, variants: [variant.rawValue], name: target.target.name)
+            _ = try await local.store([CacheStorableItem(name: target.target.name, hash: hash, metadata: .init(
+                binaryCacheFingerprints: [variant.rawValue: inputs[hash]![variant.rawValue]!], requiresSDKSlices: true
+            )): [artifact]], cacheCategory: .binaries)
+        }
+        let remote = MemoryREAPICache()
+        let cache = subject(root, remote: remote)
+        let plan = try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, storage: cache, preserving: []
+        )
+        #expect(plan.batches.map(\.variant) == [.iosDevice, .iosSimulator])
+        #expect(plan.batches[0].targets.map(\.0.target.name) == ["Dependency"])
+        #expect(plan.batches[1].targets.map(\.0.target.name) == ["Consumer"])
+        #expect(plan.localHits.flatMap(\.keys).count == 2)
+        let debugPlan = try await CacheWarmPlan.make(
+            targets: targets, fingerprints: inputs, generateOnly: true, storage: cache, preserving: []
+        )
+        #expect(debugPlan.batches.count == 1)
+        let debugBatch = try #require(debugPlan.batches.first)
+        #expect(debugBatch.variant == nil)
+        #expect(Set(debugBatch.targets.map(\.0.target.name)) == ["Consumer", "Dependency"])
+        #expect(debugBatch.fingerprints == inputs)
+        for hits in plan.localHits {
+            try await cache.republishIfNeeded(hits, cacheCategory: .binaries)
+        }
+        #expect(await remote.actions.count == 2)
+    }
+
+    @Test(.inTemporaryDirectory) func partialPublicationCannotFallBackToACompleteTargetAction() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        let cache = subject(directory.appending(component: "cache"), remote: remote)
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: ["ios-device"])
+        let target = CacheStorableItem(name: "Shared", hash: "full-target-hash", metadata: .init(
+            binaryCacheFingerprints: ["ios-simulator": "simulator-inputs"], requiresSDKSlices: true
+        ))
+        await #expect(throws: CacheUploadError.self) {
+            try await cache.store([target: [artifact]], cacheCategory: .binaries)
+        }
+        #expect(try await cache.fetch([item("full-target-hash", fingerprints)], cacheCategory: .binaries).isEmpty)
+        #expect(await remote.actions.isEmpty)
     }
 
     @Test(.inTemporaryDirectory) func missingAndCorruptBlobsAreMisses() async throws {
@@ -281,6 +392,9 @@ struct BinaryCacheStorageTests {
         }
         #expect(try await local.blob(firstDigest) != nil)
         #expect(try await local.blob(secondDigest) == nil)
+        try await FileSystem().setFileTimes(
+            of: local.blobPath(firstDigest), lastAccessDate: nil, lastModificationDate: Date(timeIntervalSince1970: 0)
+        )
         try await local.storeBlob(secondDigest, from: source, preserving: [])
         #expect(try await local.blob(firstDigest) == nil)
         #expect(try await local.blob(secondDigest) != nil)
@@ -328,6 +442,11 @@ struct BinaryCacheStorageTests {
         #expect(remaining == 90000 - payload.count - resultSize)
         #expect(await admission.admit(remaining))
         #expect(await admission.admit(1) == false)
+        try await FileSystem().setFileTimes(
+            of: binaries.appending(component: "action-\(digest.hash)"),
+            lastAccessDate: nil,
+            lastModificationDate: Date(timeIntervalSince1970: 0)
+        )
         try await pruner.clean(maxBytes: payload.count, minimumEntries: 0, preserving: [local.blobEntry(digest)])
         #expect(try await local.action(digest) == nil)
         #expect(try await local.blob(digest) != nil)
@@ -461,6 +580,55 @@ struct BinaryCacheStorageTests {
         #expect(restored.count == (missingDelayedBlob ? 1 : 2))
     }
 
+    @Test(.inTemporaryDirectory, arguments: [true, false])
+    func republishRestoresLocalHitsTheRemoteEvicted(sliced: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        let producer = subject(directory.appending(component: "producer"), remote: remote)
+        let artifact: AbsolutePath
+        if sliced {
+            artifact = directory.appending(component: "Shared.xcframework")
+            try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
+        } else {
+            artifact = directory.appending(component: "Shared.bundle")
+            try await FileSystem().makeDirectory(at: artifact)
+            try await FileSystem().writeText("payload", at: artifact.appending(component: "contents"))
+        }
+        let target = item("evicted", sliced ? fingerprints : [:])
+        _ = try await producer.store([target: [artifact]], cacheCategory: .binaries)
+        let hits = try await producer.fetch([target], cacheCategory: .binaries)
+        #expect(hits.keys.map(\.source) == [.local])
+        await remote.evictAll()
+
+        try await producer.republishIfNeeded([target: try #require(hits.values.first)], cacheCategory: .binaries)
+
+        let reader = subject(directory.appending(component: "reader"), remote: remote)
+        #expect(try await reader.fetch([target], cacheCategory: .binaries).keys.map(\.source) == [.remote])
+    }
+
+    @Test(.inTemporaryDirectory) func republishLeavesPublishedLocalHitsUntouched() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let remote = MemoryREAPICache()
+        let producer = subject(directory.appending(component: "producer"), remote: remote)
+        let artifact = directory.appending(component: "Shared.xcframework")
+        try await makeArtifact(at: artifact, variants: Set(fingerprints.keys))
+        let target = item("published", fingerprints)
+        _ = try await producer.store([target: [artifact]], cacheCategory: .binaries)
+        let hits = try await producer.fetch([target], cacheCategory: .binaries)
+        let uploads = await remote.uploads
+        let actions = await remote.actions
+
+        try await producer.republishIfNeeded([target: try #require(hits.values.first)], cacheCategory: .binaries)
+
+        #expect(await remote.uploads == uploads)
+        #expect(await remote.actions == actions)
+        for (variant, fingerprint) in fingerprints {
+            let action = try BinaryCacheAction(name: target.name, variant: variant, fingerprint: fingerprint)
+            #expect(await remote.queries[action.digest] == nil)
+            #expect(await remote.presenceQueries[action.digest] == 1)
+        }
+    }
+
     @Test(.inTemporaryDirectory) func blobPublicationRefreshesRecencyAndRepairsCorruption() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
@@ -493,12 +661,12 @@ struct BinaryCacheStorageTests {
         CacheStorableItem(name: "Shared", hash: hash, metadata: .init(binaryCacheFingerprints: fingerprints))
     }
 
-    private func makeArtifact(at path: AbsolutePath, variants: Set<String>) async throws {
+    private func makeArtifact(at path: AbsolutePath, variants: Set<String>, name: String = "Shared") async throws {
         let fileSystem = FileSystem()
         try await fileSystem.makeDirectory(at: path)
         let libraries = try BinaryCacheVariant.allCases.filter { variants.contains($0.rawValue) }.map { variant in
             XCFrameworkInfoPlist.Library(
-                identifier: variant.rawValue, path: try RelativePath(validating: "Shared.framework"), mergeable: false,
+                identifier: variant.rawValue, path: try RelativePath(validating: "\(name).framework"), mergeable: false,
                 platform: variant == .macos ? .macOS : .iOS,
                 platformVariant: variant == .iosSimulator ? .simulator : variant == .catalyst ? .maccatalyst : nil,
                 architectures: Array(variant.architectures)
@@ -507,7 +675,7 @@ struct BinaryCacheStorageTests {
         for library in libraries {
             let framework = path.appending(component: library.identifier).appending(library.path)
             try await fileSystem.makeDirectory(at: framework)
-            try Data(library.identifier.utf8).write(to: framework.appending(component: "Shared").url)
+            try Data(library.identifier.utf8).write(to: framework.appending(component: name).url)
             try Data("shared-resource".utf8).write(to: framework.appending(component: "resource").url)
         }
         try await fileSystem.writeAsPlist(XCFrameworkInfoPlist(libraries: libraries), at: path.appending(component: "Info.plist"))
@@ -520,6 +688,7 @@ actor MemoryREAPICache: REAPICacheStoring {
     var uploads: [REAPI.Digest: Int] = [:]
     var downloads: [REAPI.Digest: Int] = [:]
     var queries: [REAPI.Digest: Int] = [:]
+    var presenceQueries: [REAPI.Digest: Int] = [:]
     var maximumActiveLookups = 0
     private var activeLookups = 0
     private var delayed = false
@@ -529,6 +698,11 @@ actor MemoryREAPICache: REAPICacheStoring {
     private var fail = false
     func failUploads() { fail = true }
     func corrupt(_ digest: REAPI.Digest) { blobs[digest] = Data("corrupt".utf8) }
+    func evictAll() {
+        actions = [:]
+        blobs = [:]
+    }
+
     func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
         queries[digest, default: 0] += 1
         activeLookups += 1
@@ -536,6 +710,11 @@ actor MemoryREAPICache: REAPICacheStoring {
         defer { activeLookups -= 1 }
         if delayed { try await Task.sleep(for: .milliseconds(2)) }
         return actions[digest]
+    }
+
+    func containsActionResult(for digest: REAPI.Digest) async throws -> Bool {
+        presenceQueries[digest, default: 0] += 1
+        return actions[digest] != nil
     }
 
     func uploadAvailableBlobs(_ incoming: [REAPI.Digest: URL]) async throws -> REAPIBlobUpload {
@@ -572,6 +751,10 @@ private struct GatedREAPICache: REAPICacheStoring {
 
     func actionResult(for digest: REAPI.Digest) async throws -> REAPI.ActionResult? {
         try await remote.actionResult(for: digest)
+    }
+
+    func containsActionResult(for digest: REAPI.Digest) async throws -> Bool {
+        try await remote.containsActionResult(for: digest)
     }
 
     func storeActionResult(_ result: REAPI.ActionResult, for digest: REAPI.Digest) async throws {

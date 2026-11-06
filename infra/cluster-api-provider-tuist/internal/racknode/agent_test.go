@@ -2,6 +2,7 @@ package racknode
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -135,4 +136,91 @@ func TestAgentWaitsForAConfiguration(t *testing.T) {
 	if host.locks != 0 || agentReport(t, c) != nil {
 		t.Fatal("applied without a configuration")
 	}
+}
+
+func clusterNode(name, os string, excluded bool, addresses ...string) *corev1.Node {
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: name, Labels: map[string]string{"kubernetes.io/os": os}}}
+	if excluded {
+		node.Labels["cilium.io/no-schedule"] = "true"
+	}
+	for _, address := range addresses {
+		node.Status.Addresses = append(node.Status.Addresses, corev1.NodeAddress{Type: corev1.NodeInternalIP, Address: address})
+	}
+	return node
+}
+
+// The nodes that run Cilium are the Linux nodes without its exclusion: not
+// the macOS hosts, not the rack's bridge nodes, and only their IPv4
+// addresses, InternalIP or, on a Hetzner Cloud node, ExternalIP.
+func TestClusterNodeAddressesAreTheCiliumNodes(t *testing.T) {
+	nodes := []corev1.Node{
+		*clusterNode("eu-west-a", "linux", false, "51.68.54.127", "2001:db8::1"),
+		*clusterNode("hetzner-cp", "linux", false, "49.12.18.71"),
+		*externalOnlyNode("hetzner-md-0", "167.233.70.247"),
+		*clusterNode("ber1-store-a", "linux", false, "149.6.170.31"),
+		*clusterNode("ber1-edge-a", "linux", true, "100.102.176.95"),
+		*clusterNode("mini", "darwin", false, "100.66.118.128"),
+		*clusterNode("eu-west-b", "linux", false, "51.68.54.127"),
+	}
+	want := []string{"149.6.170.31", "167.233.70.247", "49.12.18.71", "51.68.54.127"}
+	if got := ClusterNodeAddresses(nodes); !slices.Equal(got, want) {
+		t.Fatalf("addresses %v, want %v", got, want)
+	}
+}
+
+// The agent keeps the configuration's sets equal to the Cilium nodes'
+// addresses: once applied, when a node joins, and not again while nothing
+// changes, each in one transaction.
+func TestAgentKeepsTheClusterNodeSetsEqualToTheCiliumNodes(t *testing.T) {
+	cfg := testConfig()
+	cfg.ClusterNodeSets = []infrav1.RackNodeNftSet{{Family: "ip", Table: "tuist_cluster_forwards", Name: "nodes"}}
+	a, c, host, now := newAgent(t, &cfg)
+	ctx := context.Background()
+	if err := c.Create(ctx, clusterNode("eu-west-a", "linux", false, "51.68.54.127")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := a.Once(ctx); err != nil {
+		t.Fatal(err)
+	}
+	want := "flush set ip tuist_cluster_forwards nodes\nadd element ip tuist_cluster_forwards nodes { 51.68.54.127 }\n"
+	if len(host.stdin) != 1 || host.stdin[0] != want {
+		t.Fatalf("synced %q, want %q", host.stdin, want)
+	}
+
+	*now = now.Add(time.Minute)
+	if err := a.Once(ctx); err != nil || len(host.stdin) != 1 {
+		t.Fatalf("synced an unchanged set again (%d, %v)", len(host.stdin), err)
+	}
+
+	if err := c.Create(ctx, clusterNode("us-east-a", "linux", false, "15.204.1.2")); err != nil {
+		t.Fatal(err)
+	}
+	*now = now.Add(time.Minute)
+	if err := a.Once(ctx); err != nil {
+		t.Fatal(err)
+	}
+	want = "flush set ip tuist_cluster_forwards nodes\nadd element ip tuist_cluster_forwards nodes { 15.204.1.2, 51.68.54.127 }\n"
+	if len(host.stdin) != 2 || host.stdin[1] != want {
+		t.Fatalf("after a node joined, synced %q", host.stdin)
+	}
+}
+
+func TestAgentSyncsNoSetsWithoutAny(t *testing.T) {
+	cfg := testConfig()
+	a, _, host, _ := newAgent(t, &cfg)
+	if err := a.Once(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(host.stdin) != 0 {
+		t.Fatalf("synced %q", host.stdin)
+	}
+}
+
+// externalOnlyNode is a Hetzner Cloud node, which its cloud provider gives an
+// ExternalIP and no InternalIP.
+func externalOnlyNode(name, address string) *corev1.Node {
+	node := clusterNode(name, "linux", false)
+	node.Status.Addresses = []corev1.NodeAddress{{Type: corev1.NodeExternalIP, Address: address}, {Type: corev1.NodeHostName, Address: name}}
+	return node
 }

@@ -5,6 +5,9 @@ defmodule TuistWeb.PreviewsControllerTest do
   alias Tuist.Accounts
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Environment
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -16,10 +19,36 @@ defmodule TuistWeb.PreviewsControllerTest do
   setup do
     user = %{account: account} = AccountsFixtures.user_fixture(email: "tuist@tuist.dev")
     project = ProjectsFixtures.project_fixture(account_id: account.id)
+    stub(AppBuilds, :preview_install_token, fn _preview -> "install-token" end)
     %{user: user, project: project, account: account}
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/previews/start" do
+    for build_system <- [:once, :bazel, :mix, :cargo] do
+      @build_system build_system
+      test "accepts previews from #{@build_system}", %{conn: conn, user: user, project: project, account: account} do
+        {:ok, project} = Projects.update_project(project, %{build_system: @build_system})
+        expect(Storage, :multipart_start, fn _object_key, _actor -> {:ok, "upload-id"} end)
+
+        conn =
+          conn
+          |> Authentication.put_current_user(user)
+          |> put_req_header("content-type", "application/json")
+          |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+            type: "ipa",
+            display_name: "Atlas",
+            supported_platforms: ["ios"],
+            version: "0.1.0",
+            bundle_identifier: "dev.tuist.atlas"
+          )
+
+        response = json_response(conn, :ok)
+        assert response["status"] == "success"
+        assert AppBuilds.has_previews?(project)
+        assert Repo.get!(Project, project.id).build_system == @build_system
+      end
+    end
+
     test "starts multipart upload", %{conn: conn, user: user, project: project, account: account} do
       # Given
       upload_id = "upload-id"
@@ -77,6 +106,41 @@ defmodule TuistWeb.PreviewsControllerTest do
              }
     end
 
+    test "old and future upload payloads reuse annotated previews without clearing notes", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      stub(Storage, :multipart_start, fn _object_key, _actor -> {:ok, "upload-id"} end)
+      base = %{display_name: "App", bundle_identifier: "dev.tuist.app", version: "1.0.0", git_commit_sha: "commit-sha"}
+
+      payloads = [
+        Map.put(base, :release_notes, "Fix sign-in"),
+        base,
+        Map.put(base, :release_notes, nil),
+        Map.put(base, :release_notes, ""),
+        Map.merge(base, %{release_notes: "  \n", future_metadata: %{title: "Ignored safely"}})
+      ]
+
+      preview_ids =
+        for payload <- payloads do
+          response =
+            conn
+            |> Authentication.put_current_user(user)
+            |> put_req_header("content-type", "application/json")
+            |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start", payload)
+            |> json_response(:ok)
+
+          {:ok, build} = AppBuilds.app_build_by_id(response["data"]["app_build_id"], preload: [:preview])
+          assert build.preview.release_notes == "Fix sign-in"
+          assert build.preview.track == ""
+          build.preview.id
+        end
+
+      assert length(Enum.uniq(preview_ids)) == 1
+    end
+
     test "starts multipart upload with track", %{conn: conn, user: user, project: project, account: account} do
       # Given
       upload_id = "upload-id"
@@ -92,7 +156,8 @@ defmodule TuistWeb.PreviewsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
           display_name: "name",
-          track: "beta"
+          track: "beta",
+          release_notes: "Fix the sign-in flow\nReady for QA"
         )
 
       # Then
@@ -103,6 +168,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         AppBuilds.app_build_by_id(response["data"]["preview_id"], preload: [:preview])
 
       assert app_build.preview.track == "beta"
+      assert app_build.preview.release_notes == "Fix the sign-in flow\nReady for QA"
     end
 
     test "starts multipart upload of a bundle app build", %{
@@ -162,6 +228,117 @@ defmodule TuistWeb.PreviewsControllerTest do
       response = json_response(conn, :ok)
       {:ok, app_build} = AppBuilds.app_build_by_id(response["data"]["preview_id"])
       assert app_build.type == :ipa
+    end
+
+    for platform <- ["macos", "linux"], env <- [:test, :can, :prod] do
+      @platform platform
+      @env env
+      test "starts executable preview uploads for #{platform} in #{env} without enrollment", %{
+        conn: conn,
+        user: user,
+        project: project,
+        account: account
+      } do
+        stub(Environment, :env, fn -> @env end)
+        stub(FunWithFlags, :enabled?, fn _flag, _opts -> false end)
+
+        expect(Storage, :multipart_start, fn object_key, _actor ->
+          assert String.ends_with?(object_key, ".zip")
+          {:ok, "upload-id"}
+        end)
+
+        conn =
+          conn
+          |> Authentication.put_current_user(user)
+          |> put_req_header("content-type", "application/json")
+          |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+            type: "executable",
+            display_name: "tuist",
+            git_commit_sha: "commit-sha",
+            supported_platforms: [@platform]
+          )
+
+        response = json_response(conn, :ok)
+        {:ok, build} = AppBuilds.app_build_by_id(response["data"]["app_build_id"])
+        assert build.type == :executable
+        assert build.supported_platforms == [String.to_existing_atom(@platform)]
+        assert build.supported_architectures == []
+      end
+    end
+
+    test "groups CLI target builds under one preview without mixing commits", %{
+      conn: conn,
+      user: user,
+      account: account,
+      project: project
+    } do
+      stub(Storage, :multipart_start, fn _key, _actor -> {:ok, "upload-id"} end)
+      stub(Storage, :multipart_complete_upload, fn _key, _upload, _parts, _actor -> :ok end)
+      stub(Storage, :generate_download_url, fn _key, _actor, _opts -> "https://example.com/build.zip" end)
+      conn = Authentication.put_current_user(conn, user)
+
+      targets = [
+        {"macos", "macos-arm64", ["arm64"]},
+        {"macos", "macos-x86_64", ["x86_64"]},
+        {"macos", "macos-universal", ["arm64", "x86_64"]},
+        {"linux", "linux-x86_64", ["x86_64"]}
+      ]
+
+      responses =
+        Enum.map(targets, fn {platform, binary_id, architectures} ->
+          started =
+            conn
+            |> put_req_header("content-type", "application/json")
+            |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+              type: "executable",
+              display_name: "tuist",
+              git_commit_sha: "preview-commit",
+              build_version: "preview-commit",
+              binary_id: binary_id,
+              supported_platforms: [platform],
+              supported_architectures: architectures
+            )
+            |> json_response(:ok)
+
+          {:ok, build} = AppBuilds.app_build_by_id(started["data"]["app_build_id"])
+          assert build.supported_architectures == architectures
+
+          conn
+          |> put_req_header("content-type", "application/json")
+          |> put_req_header("x-tuist-preview-capabilities", "desktop")
+          |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
+            preview_id: started["data"]["app_build_id"],
+            app_build_id: started["data"]["app_build_id"],
+            multipart_upload_parts: %{upload_id: "upload-id", parts: [%{part_number: 1, etag: "etag"}]}
+          )
+          |> json_response(:ok)
+        end)
+
+      assert responses |> Enum.map(& &1["id"]) |> Enum.uniq() |> length() == 1
+      preview = List.last(responses)
+      assert Enum.sort(preview["supported_platforms"]) == ["linux", "macos"]
+      assert length(preview["builds"]) == 4
+      assert Enum.all?(preview["builds"], &(&1["type"] == "executable"))
+
+      assert Enum.sort(
+               Enum.map(preview["builds"], fn build ->
+                 {hd(build["supported_platforms"]), build["binary_id"], build["supported_architectures"]}
+               end)
+             ) == Enum.sort(targets)
+
+      started =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          type: "executable",
+          display_name: "tuist",
+          git_commit_sha: "next-commit",
+          supported_platforms: ["macos"]
+        )
+        |> json_response(:ok)
+
+      {:ok, next_build} = AppBuilds.app_build_by_id(started["data"]["app_build_id"])
+      assert next_build.preview_id != preview["id"]
     end
 
     test "starts multipart upload of an apk preview", %{
@@ -586,6 +763,204 @@ defmodule TuistWeb.PreviewsControllerTest do
     end
   end
 
+  describe "client compatibility" do
+    for operation <- [:show, :index, :latest, :complete], capabilities <- [nil, "desktop", "future-capability"] do
+      @operation operation
+      @capabilities capabilities
+      test "#{operation} with #{inspect(capabilities)} preserves supported builds", %{
+        conn: conn,
+        user: user,
+        project: project,
+        account: account
+      } do
+        previous = AppBuildsFixtures.preview_fixture(project: project, inserted_at: ~U[2020-01-01 00:00:00Z])
+
+        AppBuildsFixtures.app_build_fixture(
+          preview: previous,
+          binary_id: "previous",
+          build_version: "1",
+          supported_platforms: [:ios_simulator]
+        )
+
+        preview =
+          AppBuildsFixtures.preview_fixture(
+            project: project,
+            supported_platforms: [:ios_simulator, :android, :macos, :linux]
+          )
+
+        legacy_types = [{:app_bundle, :ios_simulator}, {:ipa, :ios}, {:apk, :android}, {:app_bundle, :macos}]
+
+        legacy_builds =
+          for {type, platform} <- legacy_types do
+            AppBuildsFixtures.app_build_fixture(preview: preview, type: type, supported_platforms: [platform])
+          end
+
+        cli =
+          AppBuildsFixtures.app_build_fixture(
+            preview: preview,
+            type: :executable,
+            supported_platforms: [:macos, :linux]
+          )
+
+        new_platform =
+          AppBuildsFixtures.app_build_fixture(preview: preview, type: :app_bundle, supported_platforms: [:linux])
+
+        stub(Storage, :generate_download_url, fn key, _actor, _opts -> "https://example.com/#{key}" end)
+        stub(Storage, :multipart_complete_upload, fn _key, _upload, _parts, _actor -> :ok end)
+        conn = Authentication.put_current_user(conn, user)
+        conn = if @capabilities, do: put_req_header(conn, "x-tuist-preview-capabilities", @capabilities), else: conn
+
+        response =
+          case @operation do
+            :show ->
+              conn |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}") |> json_response(:ok)
+
+            :index ->
+              conn
+              |> get(~p"/api/projects/#{account.name}/#{project.name}/previews")
+              |> json_response(:ok)
+              |> Map.fetch!("previews")
+              |> Enum.find(&(&1["id"] == preview.id))
+
+            :latest ->
+              conn
+              |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=previous&build_version=1")
+              |> json_response(:ok)
+              |> Map.fetch!("preview")
+
+            :complete ->
+              conn
+              |> put_req_header("content-type", "application/json")
+              |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
+                preview_id: hd(legacy_builds).id,
+                multipart_upload_parts: %{upload_id: "upload", parts: [%{part_number: 1, etag: "etag"}]}
+              )
+              |> json_response(:ok)
+          end
+
+        assert response["id"] == preview.id
+
+        expected_ids =
+          Enum.map(legacy_builds, & &1.id) ++ if(@capabilities == "desktop", do: [cli.id, new_platform.id], else: [])
+
+        assert Enum.sort(Enum.map(response["builds"], & &1["id"])) == Enum.sort(expected_ids)
+        assert "linux" in response["supported_platforms"] == (@capabilities == "desktop")
+
+        if @capabilities != "desktop" do
+          assert Enum.all?(response["builds"], &(&1["type"] in ["app_bundle", "ipa", "apk"]))
+          refute Enum.any?(response["builds"], &("linux" in &1["supported_platforms"]))
+          if @operation == :show, do: assert(response["url"] == hd(response["builds"])["url"])
+        end
+      end
+    end
+
+    test "old clients get upgrade guidance for CLI-only previews", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      preview = AppBuildsFixtures.preview_fixture(project: project, supported_platforms: [:linux])
+      AppBuildsFixtures.app_build_fixture(preview: preview, type: :executable, supported_platforms: [:linux])
+      reject(Storage, :generate_download_url, 3)
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
+        |> json_response(:bad_request)
+
+      assert response["message"] =~ "newer Tuist client"
+    end
+
+    test "legacy install links and platforms reflect only compatible completed builds", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      preview = AppBuildsFixtures.preview_fixture(project: project, supported_platforms: [:android, :macos])
+      AppBuildsFixtures.app_build_fixture(preview: preview, type: :apk, supported_platforms: [:android])
+      AppBuildsFixtures.app_build_fixture(preview: preview, type: :executable, supported_platforms: [:macos])
+      AppBuildsFixtures.app_build_fixture(preview: preview, type: :app_bundle, supported_platforms: [:ios_simulator])
+      stub(Storage, :generate_download_url, fn key, _actor, _opts -> "https://example.com/#{key}" end)
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
+        |> json_response(:ok)
+
+      assert response["supported_platforms"] == ["android"]
+
+      assert response["device_url"] ==
+               url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/app.apk?token=install-token")
+    end
+
+    test "legacy builds without per-build platform metadata retain their preview platforms", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      preview = AppBuildsFixtures.preview_fixture(project: project, supported_platforms: [:ios_simulator])
+      build = AppBuildsFixtures.app_build_fixture(preview: preview, supported_platforms: [])
+      stub(Storage, :generate_download_url, fn key, _actor, _opts -> "https://example.com/#{key}" end)
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/#{preview.id}")
+        |> json_response(:ok)
+
+      assert response["supported_platforms"] == ["ios_simulator"]
+      assert [%{"id" => build_id, "supported_platforms" => []}] = response["builds"]
+      assert build_id == build.id
+    end
+
+    for mixed <- [false, true], capabilities <- [nil, "desktop"] do
+      @mixed mixed
+      @capabilities capabilities
+      test "latest selects an eligible build before limiting with mixed=#{mixed} and #{inspect(capabilities)}", %{
+        conn: conn,
+        user: user,
+        project: project,
+        account: account
+      } do
+        [source, compatible, native] =
+          for date <- [~U[2020-01-01 00:00:00Z], ~U[2021-01-01 00:00:00Z], ~U[2022-01-01 00:00:00Z]] do
+            AppBuildsFixtures.preview_fixture(project: project, supported_platforms: [:macos], inserted_at: date)
+          end
+
+        AppBuildsFixtures.app_build_fixture(
+          preview: source,
+          binary_id: "original",
+          build_version: "1",
+          supported_platforms: [:macos]
+        )
+
+        AppBuildsFixtures.app_build_fixture(preview: compatible, supported_platforms: [:macos])
+        AppBuildsFixtures.app_build_fixture(preview: native, type: :executable, supported_platforms: [:macos])
+
+        if @mixed do
+          AppBuildsFixtures.app_build_fixture(preview: native, supported_platforms: [:ios_simulator])
+        end
+
+        stub(Storage, :generate_download_url, fn key, _actor, _opts -> "https://example.com/#{key}" end)
+        conn = Authentication.put_current_user(conn, user)
+        conn = if @capabilities, do: put_req_header(conn, "x-tuist-preview-capabilities", @capabilities), else: conn
+
+        response =
+          conn
+          |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/latest?binary_id=original&build_version=1")
+          |> json_response(:ok)
+
+        expected = if @capabilities, do: native, else: compatible
+        assert response["preview"]["id"] == expected.id
+      end
+    end
+  end
+
   describe "POST /api/projects/:account_handle/:project_handle/previews/complete" do
     test "completes multipart upload", %{
       conn: conn,
@@ -647,17 +1022,22 @@ defmodule TuistWeb.PreviewsControllerTest do
                "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.png"),
                "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/icon.png"),
                "device_url" =>
-                 "itms-services://?action=download-manifest&url=#{url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/manifest.plist")}",
+                 "itms-services://?action=download-manifest&url=" <>
+                   URI.encode_www_form(
+                     url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/manifest.plist?token=install-token")
+                   ),
                "bundle_identifier" => "dev.tuist.app",
                "display_name" => "App",
                "git_commit_sha" => "commit-sha",
                "git_branch" => "main",
                "track" => "",
+               "release_notes" => nil,
                "version" => "1.0.0",
                "builds" => [
                  %{
                    "id" => app_build.id,
                    "type" => "app_bundle",
+                   "supported_architectures" => [],
                    "supported_platforms" => ["ios"],
                    "url" => "https://mocked-url.com",
                    "inserted_at" => DateTime.to_iso8601(app_build.inserted_at),
@@ -772,7 +1152,7 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["supported_platforms"] == ["android"]
 
       assert response["device_url"] ==
-               url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/app.apk")
+               url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/app.apk?token=install-token")
     end
 
     test "returns error when project doesn't exist", %{
@@ -984,7 +1364,200 @@ defmodule TuistWeb.PreviewsControllerTest do
     end
   end
 
+  describe "GET /api/projects/:account_handle/:project_handle/previews/tracks" do
+    test "lists all project tracks beyond a preview page, excluding untracked builds and other projects", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      tracks = Enum.map(1..25, &"track-#{String.pad_leading(to_string(&1), 2, "0")}")
+      Enum.each(tracks, &AppBuildsFixtures.preview_fixture(project: project, track: &1))
+      AppBuildsFixtures.preview_fixture(project: project, track: "QA")
+      AppBuildsFixtures.preview_fixture(project: project, track: "qa")
+      AppBuildsFixtures.preview_fixture(project: project, track: "")
+      AppBuildsFixtures.preview_fixture(track: "private-other-project")
+      AppBuildsFixtures.preview_fixture(project: project, track: "hidden", bundle_identifier: nil)
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/tracks")
+        |> json_response(:ok)
+
+      assert response["total_count"] == 28
+      assert Enum.map(response["tracks"], &String.downcase(&1["name"])) == ["qa" | tracks]
+      assert hd(response["tracks"])["count"] == 2
+      assert Enum.all?(tl(response["tracks"]), &(&1["count"] == 1))
+    end
+
+    test "returns an empty list when a project has no named tracks", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      AppBuildsFixtures.preview_fixture(project: project, track: "")
+
+      assert conn
+             |> Authentication.put_current_user(user)
+             |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/tracks")
+             |> json_response(:ok) == %{"total_count" => 1, "tracks" => []}
+    end
+
+    test "requires preview-read authorization", %{conn: conn, project: project, account: account} do
+      other_user = AccountsFixtures.user_fixture()
+      AppBuildsFixtures.preview_fixture(project: project, track: "secret")
+
+      response =
+        conn
+        |> Authentication.put_current_user(other_user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews/tracks")
+        |> json_response(:forbidden)
+
+      assert response["message"] =~ "not authorized to read preview"
+    end
+  end
+
   describe "GET /api/projects/:account_handle/:project_handle/previews" do
+    test "search matches display names before pagination and combines with a track", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      matches =
+        Enum.map(1..22, fn _ ->
+          AppBuildsFixtures.preview_fixture(project: project, display_name: "Blueprint App", track: "QA")
+        end)
+
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Blueprint App", track: "beta")
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Other App", track: "QA")
+      AppBuildsFixtures.preview_fixture(display_name: "Blueprint App", track: "QA")
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{
+          "search" => "BLUEprint",
+          "track" => "qa",
+          "page" => 2,
+          "page_size" => 20
+        })
+        |> json_response(:ok)
+
+      assert response["pagination_metadata"]["total_count"] == 22
+      assert length(response["previews"]) == 2
+      assert Enum.all?(response["previews"], &(&1["id"] in Enum.map(matches, fn preview -> preview.id end)))
+    end
+
+    test "search matches full release notes before pagination and combines with a track", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      matches =
+        Enum.map(1..22, fn _ ->
+          AppBuildsFixtures.preview_fixture(
+            project: project,
+            display_name: "Atlas",
+            track: "QA",
+            release_notes: "Build 204\nFix CHECKOUT"
+          )
+        end)
+
+      AppBuildsFixtures.preview_fixture(project: project, track: "beta", release_notes: "Fix checkout")
+      AppBuildsFixtures.preview_fixture(project: project, track: "QA", release_notes: nil)
+      AppBuildsFixtures.preview_fixture(track: "QA", release_notes: "Fix checkout")
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{
+          "search" => "checkout",
+          "track" => "qa",
+          "page" => 2,
+          "page_size" => 20
+        })
+        |> json_response(:ok)
+
+      assert response["pagination_metadata"]["total_count"] == 22
+      assert length(response["previews"]) == 2
+      assert Enum.all?(response["previews"], &(&1["id"] in Enum.map(matches, fn preview -> preview.id end)))
+    end
+
+    test "search treats wildcard characters literally and an empty search returns all names", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Build 100%_ready")
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Other App", release_notes: "Build 100%_ready")
+      AppBuildsFixtures.preview_fixture(project: project, display_name: "Unrelated", release_notes: "Build 100XXready")
+      authenticated = Authentication.put_current_user(conn, user)
+
+      filtered =
+        authenticated
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{"search" => "%_"})
+        |> json_response(:ok)
+
+      assert filtered["pagination_metadata"]["total_count"] == 2
+      assert Enum.sort(Enum.map(filtered["previews"], & &1["display_name"])) == ["Build 100%_ready", "Other App"]
+
+      unfiltered =
+        authenticated
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{"search" => ""})
+        |> json_response(:ok)
+
+      assert unfiltered["pagination_metadata"]["total_count"] == 3
+    end
+
+    test "omitting track or sending an empty track returns all tracks", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      untracked = AppBuildsFixtures.preview_fixture(project: project, track: "")
+      AppBuildsFixtures.preview_fixture(project: project, track: "beta")
+      authenticated_conn = Authentication.put_current_user(conn, user)
+      all = authenticated_conn |> get(~p"/api/projects/#{account.name}/#{project.name}/previews") |> json_response(:ok)
+      assert all["pagination_metadata"]["total_count"] == 2
+
+      untracked_response =
+        authenticated_conn
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews", %{"track" => ""})
+        |> json_response(:ok)
+
+      assert untracked_response["pagination_metadata"]["total_count"] == 2
+      assert untracked.id in Enum.map(untracked_response["previews"], & &1["id"])
+    end
+
+    test "filters tracks before pagination and returns build notes", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      qa = AppBuildsFixtures.preview_fixture(project: project, track: "QA", release_notes: "Test sign-in")
+      AppBuildsFixtures.preview_fixture(project: project, track: "beta")
+      AppBuildsFixtures.preview_fixture(project: project, track: "")
+      AppBuildsFixtures.preview_fixture(track: "QA")
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{account.name}/#{project.name}/previews?track=QA&page_size=1")
+        |> json_response(:ok)
+
+      assert [%{"id" => id, "track" => "QA", "release_notes" => "Test sign-in"}] = response["previews"]
+      assert id == qa.id
+      assert response["pagination_metadata"]["total_count"] == 1
+      refute response["pagination_metadata"]["has_next_page"]
+    end
+
     test "lists a single latest preview for a given display name", %{
       conn: conn,
       user: user,
@@ -1052,17 +1625,24 @@ defmodule TuistWeb.PreviewsControllerTest do
                  "qr_code_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/qr-code.png"),
                  "icon_url" => url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/icon.png"),
                  "device_url" =>
-                   "itms-services://?action=download-manifest&url=#{url(~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/manifest.plist")}",
+                   "itms-services://?action=download-manifest&url=" <>
+                     URI.encode_www_form(
+                       url(
+                         ~p"/#{account.name}/#{project.name}/previews/#{preview_two.id}/manifest.plist?token=install-token"
+                       )
+                     ),
                  "bundle_identifier" => "dev.tuist.app",
                  "display_name" => "App",
                  "git_commit_sha" => "commit-sha-two",
                  "git_branch" => "main",
                  "track" => "",
+                 "release_notes" => nil,
                  "version" => "1.0.0",
                  "builds" => [
                    %{
                      "id" => app_build_two.id,
                      "type" => "app_bundle",
+                     "supported_architectures" => [],
                      "supported_platforms" => ["ios"],
                      "url" => "https://mocked-url.com",
                      "inserted_at" => DateTime.to_iso8601(app_build_two.inserted_at),

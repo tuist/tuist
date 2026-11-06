@@ -22,6 +22,10 @@ defmodule TuistWeb.API.Schemas.Shards.ShardPlan do
         type: :integer,
         description: "The number of shards."
       },
+      reporting_version: %Schema{
+        type: :integer,
+        description: "The persisted reporting contract: 0 for legacy reports, 1 for immutable attempt-ordered reports."
+      },
       upload_url: %Schema{
         type: :string,
         description: "The API URL to start a multipart upload for the shard bundle."

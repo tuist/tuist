@@ -2,12 +2,14 @@
 {
   "title": "Get started",
   "titleTemplate": ":title · Get started · Guides · Tuist",
-  "description": "Pick the Tuist path that matches how your app is built today: Xcode, generated Xcode projects, Gradle, or Bazel."
+  "description": "Pick the Tuist path that matches how your app is built today: Xcode, generated Xcode projects, Gradle, Elixir, Rust, Bazel, or Once."
 }
 ---
 # Get started {#get-started}
 
 Pick the path that matches how your app is built today. Each one walks through what to install, how to enable caching, insights, and testing features, and how to verify the setup end-to-end. You can adopt them independently, or combine them if you ship on more than one platform.
+
+Most paths use the <.localized_link href="/guides/install-tuist">Tuist command-line interface</.localized_link>. Elixir uses the Hex package, and Once connects through its native Tuist provider; neither requires the Tuist CLI for its integration.
 
 ## Xcode project {#existing-xcode-project}
 
@@ -27,10 +29,26 @@ Connect a Gradle project to Tuist's remote cache, build insights, and test insig
 
 <.localized_link href="/guides/get-started/gradle-project">Start with a Gradle project →</.localized_link>
 
+## Elixir project {#elixir-project}
+
+Connect an Elixir project to Tuist's build insights, test insights, flaky test detection, and test sharding through the `tuist_ex` Hex package.
+
+<.localized_link href="/guides/get-started/elixir-project">Start with an Elixir project →</.localized_link>
+
+## Rust project {#rust-project}
+
+Run Cargo through the Tuist CLI to report builds and individual test results, including doctests, and investigate flaky tests.
+
+<.localized_link href="/guides/get-started/rust-project">Start with a Rust project →</.localized_link>
+
 ## Bazel project {#bazel-project}
 
 Point a Bazel workspace at Tuist's Remote Execution API cache and Build Event Service to share cache hits and insights across your team and CI.
 
 <.localized_link href="/guides/get-started/bazel-project">Start with a Bazel project →</.localized_link>
 
-Before any of these, <.localized_link href="/guides/install-tuist">install the Tuist command-line interface</.localized_link>.
+## Once project {#once-project}
+
+Connect Once's cacheable scripts and build graphs to Tuist for shared caching, live build and test insights, hosted test sharding, and application previews.
+
+<.localized_link href="/guides/get-started/once-project">Start with a Once project →</.localized_link>

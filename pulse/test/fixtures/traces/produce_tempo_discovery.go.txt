@@ -1,0 +1,119 @@
+package vparquet4
+
+import (
+	"context"
+	"encoding/json"
+	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/tempopb"
+	cv "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	tv "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/common"
+	"os"
+	"sort"
+	"strings"
+	"testing"
+)
+
+func TestPulseDiscoveryOracle(t *testing.T) {
+	a := batch(1, "worker", "one", 1, 0, 10_000_000_000, 11_000_000_000)
+	b := batch(2, "frontend", "two", 1, 0, 20_000_000_000, 21_000_000_000)
+	a.ScopeSpans[0].Spans[0].Attributes = []*cv.KeyValue{value("request.kind", "api"), {Key: "retries", Value: &cv.AnyValue{Value: &cv.AnyValue_IntValue{IntValue: -9223372036854775808}}}, {Key: "cached", Value: &cv.AnyValue{Value: &cv.AnyValue_BoolValue{BoolValue: false}}}, {Key: "mixed", Value: &cv.AnyValue{Value: &cv.AnyValue_BoolValue{BoolValue: false}}}, value("same", "false"), value("unicode", "café"), value("empty", ""), {Key: "opaque", Value: &cv.AnyValue{Value: &cv.AnyValue_BytesValue{BytesValue: []byte("abc")}}}}
+	b.ScopeSpans[0].Spans[0].Attributes = []*cv.KeyValue{value("request.kind", "rpc"), {Key: "retries", Value: &cv.AnyValue{Value: &cv.AnyValue_IntValue{IntValue: 9223372036854775807}}}, {Key: "cached", Value: &cv.AnyValue{Value: &cv.AnyValue_BoolValue{BoolValue: true}}}, value("mixed", "false"), value("same", "true"), value("empty", "")}
+	all := &tempopb.Trace{}
+	all.ResourceSpans = append(all.ResourceSpans, a, b)
+	var rows []*Trace
+	for _, r := range all.ResourceSpans {
+		tr := &tempopb.Trace{ResourceSpans: []*tv.ResourceSpans{r}}
+		row, _ := traceToParquet(&backend.BlockMeta{}, r.ScopeSpans[0].Spans[0].TraceId, tr, nil)
+		rows = append(rows, row)
+	}
+	block := makeBackendBlockWithTraces(t, rows)
+	ctx := context.Background()
+	opts := common.DefaultSearchOptions()
+	type Case struct {
+		Mode     string      `json:"mode"`
+		Scope    string      `json:"scope"`
+		Key      string      `json:"key"`
+		Response interface{} `json:"response"`
+	}
+	cases := []Case{}
+	for _, scope := range []string{"resource", "span"} {
+		set := map[string]bool{}
+		err := block.SearchTags(ctx, traceql.AttributeScopeFromString(scope), func(k string, _ traceql.AttributeScope) { set[k] = true }, func(uint64) {}, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		keys := []string{}
+		for k := range set {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		cases = append(cases, Case{"names", scope, "", map[string]interface{}{"scopes": []interface{}{map[string]interface{}{"name": scope, "tags": keys}}}})
+	}
+	for _, name := range []string{"resource.service.name", "resource.absent", "span.request.kind", "span.retries", "span.cached", "span.same", "span.mixed", "span.empty", "span.unicode"} {
+		attr, err := traceql.ParseIdentifier(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		set := map[tempopb.TagValue]bool{}
+		err = block.SearchTagValuesV2(ctx, attr, traceql.MakeCollectTagValueFunc(func(v tempopb.TagValue) bool { set[v] = true; return false }), func(uint64) {}, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		vals := []tempopb.TagValue{}
+		for v := range set {
+			vals = append(vals, v)
+		}
+		sort.Slice(vals, func(i, j int) bool {
+			if vals[i].Type == vals[j].Type {
+				return vals[i].Value < vals[j].Value
+			}
+			return vals[i].Type < vals[j].Type
+		})
+		scope, key, _ := strings.Cut(name, ".")
+		cases = append(cases, Case{"values", scope, key, map[string]interface{}{"tagValues": vals}})
+	}
+	// Optional one-off public protobuf consumer check, not a replay dependency.
+	for _, c := range cases {
+		wire, err := os.ReadFile("/tmp/pulse-tempo-discovery/" + c.Scope + "-" + c.Key + ".protobuf")
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got, want proto.Message
+		if c.Mode == "names" {
+			got = &tempopb.SearchTagsV2Response{}
+			want = &tempopb.SearchTagsV2Response{}
+		} else {
+			got = &tempopb.SearchTagValuesV2Response{}
+			want = &tempopb.SearchTagValuesV2Response{}
+		}
+		expected, _ := json.Marshal(c.Response)
+		if err := json.Unmarshal(expected, want); err != nil {
+			t.Fatal(err)
+		}
+		if err := proto.Unmarshal(wire, got); err != nil {
+			t.Fatal(err)
+		}
+		actualJSON, _ := json.Marshal(got)
+		expectedJSON, _ := json.Marshal(want)
+		if string(actualJSON) != string(expectedJSON) {
+			t.Fatalf("protobuf consumer mismatch %s.%s got %s want %s", c.Scope, c.Key, actualJSON, expectedJSON)
+		}
+	}
+	raw, _ := json.MarshalIndent(cases, "", "  ")
+	if err := os.WriteFile("/tmp/pulse-tempo-discovery/oracle.json", append(raw, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+	wire, err := proto.Marshal(all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("/tmp/pulse-tempo-discovery/input.protobuf", wire, 0644); err != nil {
+		t.Fatal(err)
+	}
+}

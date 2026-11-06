@@ -11,11 +11,12 @@ defmodule TuistWeb.PreviewLive do
   alias Tuist.AppBuilds.AppBuild
   alias Tuist.Authorization
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.Helpers.PreviewInstallURLs
   alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
-    preview =
-      get_current_preview(preview_id)
+    preview = get_current_preview(preview_id, selected_project)
 
     layout =
       if TuistWeb.Authentication.authenticated?(socket.assigns) or
@@ -31,6 +32,7 @@ defmodule TuistWeb.PreviewLive do
     current_user = Map.get(socket.assigns, :current_user)
 
     can_delete_preview = Authorization.authorize(:preview_delete, current_user, preview.project) == :ok
+    desktop_preview = AppBuilds.desktop_preview?(preview)
 
     {
       :ok,
@@ -43,13 +45,27 @@ defmodule TuistWeb.PreviewLive do
         :preview,
         preview
       )
+      |> assign(:desktop_preview, desktop_preview)
+      |> assign(:cli_preview, Enum.any?(preview.app_builds, &(&1.type == :executable)))
+      |> assign(
+        OpenGraph.project_image_assigns(selected_project,
+          title: preview.display_name || dgettext("dashboard_previews", "Preview"),
+          subtitle:
+            Enum.map_join(
+              preview.supported_platforms || [],
+              " · ",
+              &(&1 |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize())
+            ),
+          badge: dgettext("dashboard_previews", "App preview")
+        )
+      )
       |> assign(
         :user_agent,
         user_agent
       )
       |> assign(
         :run_button_href,
-        run_button_href(preview, user_agent)
+        if(desktop_preview, do: nil, else: run_button_href(preview, user_agent))
       )
       |> assign(
         :preview_url,
@@ -80,7 +96,7 @@ defmodule TuistWeb.PreviewLive do
     case {user_agent.os.family, AppBuilds.latest_ipa_app_build_for_preview(preview)} do
       {"iOS", %AppBuild{}} ->
         {String.to_atom("itms-services"),
-         "//?action=download-manifest&url=#{url(~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}/manifest.plist")}"}
+         PreviewInstallURLs.itms_services_path(preview.project.account.name, preview.project.name, preview)}
 
       {"iOS", _} ->
         nil
@@ -112,8 +128,9 @@ defmodule TuistWeb.PreviewLive do
     end
   end
 
-  defp get_current_preview(preview_id) do
+  defp get_current_preview(preview_id, selected_project) do
     case AppBuilds.preview_by_id(preview_id,
+           project_id: selected_project.id,
            preload: [:created_by_account, :app_builds, project: [:account]]
          ) do
       {:error, :not_found} ->

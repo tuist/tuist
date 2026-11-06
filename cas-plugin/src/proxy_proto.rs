@@ -37,9 +37,11 @@
 //! it. Asked by a runner's teardown before the image is measured, so the
 //! promoted master carries a bounded store; see `Proxy::prune_ondisk`.
 //! PREPARE_ACTION (op 7): payload = root digest from RESOLVE. Runs only for a
-//! global query, after the proxy has registered the closure guard. Returns the
-//! same statuses as FETCH_OBJECT. An older proxy rejects this new operation;
-//! clients must not retry it as an ordinary object fetch.
+//! global query, after the proxy has registered the graph instructions and its
+//! closure guard. Completed guards may be gone; retained instructions still
+//! permit validated repair after pruning. Returns the same statuses as
+//! FETCH_OBJECT. An older proxy rejects this new operation; clients must not
+//! retry it as an ordinary object fetch.
 //! PUBLISH_WAIT (op 8): payload = u32 big-endian milliseconds the caller will
 //! wait | utf8 path of a write-ahead publication record. PUBLISH, answered once
 //! the publication is done. status 1 = nothing is owed for this record any more,
@@ -54,9 +56,9 @@ use std::time::Duration;
 /// Bumped on any incompatible change to the frame layout below — or to its
 /// semantics: v2 resolves reply before the value graph is materialized, which
 /// is only safe with a client that self-heals demand loads via FETCH_OBJECT.
-/// The proxy rejects a mismatched version (→ the plugin degrades to a local
-/// miss) instead of misparsing, so a stale proxy left running across a CLI
-/// upgrade can't corrupt a build.
+/// The proxy also accepts v1, whose layout is identical, materializing the
+/// complete graph before replying because those clients cannot self-heal.
+/// Unknown versions still degrade to a local miss rather than being misparsed.
 pub const PROTOCOL_VERSION: u8 = 2;
 
 pub const OP_RESOLVE: u8 = 1;

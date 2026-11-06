@@ -1,0 +1,39 @@
+name: Runners Acceptance Tests
+
+on:
+  pull_request:
+    paths:
+      - .github/scripts/runners-acceptance/**
+      - .github/workflows/runners-acceptance*.yml
+      - .github/workflows/runners-docker-cache-probe.yml
+      - .github/scripts/docker-build-cache-benchmark.sh
+      - .github/workflows/server-production-deployment.yml
+      - .github/workflows/server-deployment.yml
+  push:
+    branches: [main]
+    paths:
+      - .github/scripts/runners-acceptance/**
+      - .github/workflows/runners-acceptance*.yml
+      - .github/workflows/runners-docker-cache-probe.yml
+      - .github/scripts/docker-build-cache-benchmark.sh
+      - .github/workflows/server-production-deployment.yml
+      - .github/workflows/server-deployment.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: node --test .github/scripts/runners-acceptance/acceptance.test.cjs
+      - name: Check Linux acceptance scripts
+        run: shellcheck -x -P .github/scripts/runners-acceptance .github/scripts/runners-acceptance/linux-*.sh .github/scripts/runners-acceptance/gate.sh

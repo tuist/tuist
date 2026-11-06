@@ -18,11 +18,15 @@ export class DataSource extends DataSourceWithBackend<TuistQuery, TuistDataSourc
     return this.getResource('projects');
   }
 
-  async getDimensionValues(entity: 'builds' | 'tests', dimension: string, project: string): Promise<string[]> {
+  async getDimensionValues(
+    entity: 'builds' | 'tests' | 'gradle/builds' | 'build-health',
+    dimension: string,
+    project: string
+  ): Promise<string[]> {
     if (!project) {
       return [];
     }
-    return this.getResource('dimension-values', { entity, dimension, project });
+    return this.getResource('dimension-values', { entity, dimension, project: getTemplateSrv().replace(project) });
   }
 
   filterQuery(query: TuistQuery): boolean {
@@ -32,6 +36,10 @@ export class DataSource extends DataSourceWithBackend<TuistQuery, TuistDataSourc
   applyTemplateVariables(query: TuistQuery, scopedVars: ScopedVars): TuistQuery {
     const srv = getTemplateSrv();
     const replace = (value?: string) => (value ? srv.replace(value, scopedVars) : value);
+    const replaceFilter = (value?: string) => {
+      const replaced = replace(value);
+      return replaced === '__tuist_all__' ? undefined : replaced;
+    };
     return {
       ...query,
       projectHandle: replace(query.projectHandle),
@@ -40,6 +48,8 @@ export class DataSource extends DataSourceWithBackend<TuistQuery, TuistDataSourc
       configuration: replace(query.configuration),
       category: replace(query.category),
       status: replace(query.status),
+      gitBranch: replaceFilter(query.gitBranch),
+      workload: replaceFilter(query.workload),
     };
   }
 
@@ -59,6 +69,14 @@ export class DataSource extends DataSourceWithBackend<TuistQuery, TuistDataSourc
         return toValues(await this.getDimensionValues('builds', 'scheme', project));
       case 'testSchemes':
         return toValues(await this.getDimensionValues('tests', 'scheme', project));
+      case 'buildBranches':
+        return toValues(await this.getDimensionValues('build-health', 'git_branch', project));
+      case 'buildWorkloads':
+        return toValues(await this.getDimensionValues('build-health', 'workload', project));
+      case 'gradleBranches':
+        return toValues(await this.getDimensionValues('gradle/builds', 'git_branch', project));
+      case 'gradleWorkloads':
+        return toValues(await this.getDimensionValues('gradle/builds', 'workload', project));
       case 'configurations':
         return toValues(await this.getDimensionValues('builds', 'configuration', project));
       default:

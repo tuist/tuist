@@ -68,6 +68,33 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
                    end
     end
 
+    test "loads a run that was not found on a previous request", %{conn: conn, cache: cache} do
+      # Given
+      run = %{id: run_id} = CommandEventsFixtures.command_event_fixture()
+      project_with_account = ProjectsFixtures.project_fixture(preload: [:account])
+      plug_opts = LoaderPlug.init([])
+
+      expect(CommandEvents, :get_command_event_by_id, 1, fn ^run_id -> {:error, :not_found} end)
+      expect(CommandEvents, :get_command_event_by_id, 1, fn ^run_id -> {:ok, run} end)
+
+      stub(CommandEvents, :get_project_for_command_event, fn ^run, [preload: :account] ->
+        {:ok, project_with_account}
+      end)
+
+      request =
+        %{conn | path_params: %{"run_id" => run_id}}
+        |> assign(:cache, cache)
+        |> assign(:caching, true)
+
+      assert_raise NotFoundError, fn -> LoaderPlug.call(request, plug_opts) end
+
+      # When
+      response = LoaderPlug.call(request, plug_opts)
+
+      # Then
+      assert response.assigns[:selected_run].id == run_id
+    end
+
     test "raises a service-unavailable error when the store rejects the read", %{conn: conn} do
       # Given
       plug_opts = LoaderPlug.init([])
@@ -86,6 +113,18 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
         LoaderPlug.call(conn, plug_opts)
       end
     end
+  end
+
+  test "a warmed public loader cannot hide a privacy change", %{conn: conn, cache: cache} do
+    project = ProjectsFixtures.project_fixture(visibility: :public)
+    outsider = AccountsFixtures.user_fixture(preload: [:account])
+    request = %{conn | path_params: %{"account_handle" => project.account.name, "project_handle" => project.name}}
+    request = request |> assign(:cache, cache) |> assign(:caching, true)
+    first = LoaderPlug.call(request, [])
+    assert Tuist.Authorization.authorize(:run_read, outsider, first.assigns.selected_project) == :ok
+    project |> Ecto.Changeset.change(visibility: :private) |> Tuist.Repo.update!()
+    second = LoaderPlug.call(request, [])
+    assert Tuist.Authorization.authorize(:run_read, outsider, second.assigns.selected_project) == {:error, :forbidden}
   end
 
   describe "call/2 when the 'account_handle' and 'project_handle' path params are present" do
@@ -320,6 +359,26 @@ defmodule TuistWeb.Plugs.LoaderPlugTest do
         |> assign(:cache, cache)
         |> LoaderPlug.call(plug_opts)
       end
+    end
+
+    test "loads a project created after a previous request did not find it", %{conn: conn, cache: cache} do
+      # Given
+      account = ProjectsFixtures.project_fixture(preload: [:account]).account
+      project_name = "app-#{System.unique_integer([:positive])}"
+      slug = "#{account.name}/#{project_name}"
+      plug_opts = LoaderPlug.init([])
+
+      request = assign(%{conn | query_params: %{"project_id" => slug}}, :cache, cache)
+
+      assert_raise NotFoundError, fn -> LoaderPlug.call(request, plug_opts) end
+
+      project = ProjectsFixtures.project_fixture(account_id: account.id, name: project_name)
+
+      # When
+      response = LoaderPlug.call(request, plug_opts)
+
+      # Then
+      assert response.assigns[:selected_project].id == project.id
     end
   end
 end

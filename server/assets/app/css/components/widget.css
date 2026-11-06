@@ -16,13 +16,19 @@
   gap: var(--noora-spacing-5);
   min-height: 154px;
 
+  /* Its tooltip opens inside it, so while open the widget rises above the
+     widgets and cards that follow it, which would otherwise paint over it. */
+  &:has(.noora-tooltip [data-state="open"]) {
+    z-index: var(--noora-z-index-2);
+  }
+
   & [data-part="background"] {
     position: absolute;
     top: 0;
-    right: 0;
     bottom: 0;
-    left: 0;
     z-index: var(--noora-z-index-1);
+    inset-inline-end: 0;
+    inset-inline-start: 0;
 
     & svg {
       width: 100%;
@@ -68,7 +74,7 @@
     }
 
     & > [data-part="legend"] {
-      margin-right: var(--noora-spacing-3);
+      margin-inline-end: var(--noora-spacing-3);
       border-radius: var(--noora-radius-1);
       width: 6px;
       height: 16px;

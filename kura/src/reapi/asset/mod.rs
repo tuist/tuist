@@ -163,7 +163,7 @@ impl AssetService {
             .authorize_request(
                 request,
                 GrpcRequestSpec {
-                    operation: "artifact.read",
+                    operation: "asset.read",
                     namespace_id: Some(namespace),
                 },
             )
@@ -210,7 +210,7 @@ impl AssetService {
             .authorize_request(
                 request,
                 GrpcRequestSpec {
-                    operation: "artifact.write",
+                    operation: "asset.write",
                     namespace_id: Some(namespace),
                 },
             )

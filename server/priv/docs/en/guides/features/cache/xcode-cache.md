@@ -35,9 +35,29 @@ Once you have a `Tuist.swift` file referencing your `fullHandle`, you can set up
 tuist setup cache
 ```
 
-This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) to run a local cache service on startup that the Swift [build system](https://github.com/swiftlang/swift-build) uses to share compilation artifacts. This command needs to be run once in both your local and CI environments.
+This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) to run a local cache service on startup that the Swift [build system](https://github.com/swiftlang/swift-build) uses to share compilation artifacts. Run it initially on your developer machine and as part of each CI job's setup.
 
-To set up the cache on the CI, make sure you are <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
+To set up the cache on the CI, make sure you are <.localized_link href="/guides/server/authentication#continuous-integration">authenticated</.localized_link>.
+
+### Updating the cache components {#updating-the-cache-components}
+
+The cache proxy uses a stable launcher rather than a path pinned to the Tuist installation that last ran setup. Once installed, `tuist setup cache` and cache-enabled `tuist generate` advance a usable target to newer Tuist releases. Projects pinned to an older Tuist therefore do not downgrade the shared proxy. Generation only updates an existing launcher target: it does not install a service, authenticate, replace the plugin, or restart the proxy. Custom plugin, proxy, socket, or registry overrides skip automatic advancement.
+
+The running proxy adopts the new target only after at least 30 seconds without cache requests, with no requests or background work in flight and its publication spools drained. It then exits and launchd starts the selected CLI, preserving the service's arguments and credential environment. Only the proxy that actually adopts the target atomically refreshes the on-disk plugin from its bundle; setup does not install a newer plugin while the older proxy is still draining. If the installed plugin is missing, explicit idle setup restarts the selected proxy to retry its refresh. There is still only one proxy owning the registry and spools. An unavailable target or undrained uploads defer the switch rather than interrupting active requests. Credential refresh follows the selected CLI even before the switch, so removing an older CLI installation does not strand uploads waiting to drain.
+
+An existing installation created before the stable launcher needs one explicit migration. Run the following when no builds are running:
+
+```bash
+tuist setup cache
+```
+
+After that migration, updating Tuist and running your usual `tuist generate` is enough to advance the proxy and installed plugin; you do not need to rerun setup for each CLI release. Explicit setup is still needed to select a different Xcode, including an Xcode updated at the same path. Setup can replace the shared service when its configuration changes, so wait for all builds on the machine to finish first. The proxy supports the previous plugin protocol as well as the current one, so a compatible plugin already loaded in Xcode keeps working across a proxy upgrade. Fully quit and reopen Xcode to load the newest plugin, but a compatible loaded plugin does not require an immediate restart. Regenerate projects when a release changes generated build settings.
+
+Keep the selected Tuist installation available: the launcher uses it for startup, configuration, and credential refresh. Older installations can be removed once the launcher has advanced. If the selected executable was deleted or is no longer executable, `tuist setup cache` can repair the target using an available installation, even an older release, without first tearing down the cache. Stable executable aliases are preserved across package-manager upgrades; symlinks are resolved only when comparing installation identity. At startup the proxy records the version actually launched, including in-place updates or deliberate rollbacks, while retaining the highest version used to prevent unrelated older checkouts from switching a usable installation.
+
+Source-built CLIs without a release version and explicit `TUIST_CAS_PLUGIN_PATH` or `TUIST_CAS_PROXY_PATH` setups use an explicit launch configuration instead of automatic version selection. Rerun setup after rebuilding those components. Setup checks their freshness and disables managed target advancement only after its replacement is ready.
+
+`tuist teardown cache` stops the service before removing the launcher target, while retaining the stable plugin for existing projects. If stopping the service fails, its launcher remains available for restart and another teardown attempt. Generation cannot recreate the service after successful teardown.
 
 ### Configure Xcode Build Settings {#configure-xcode-build-settings}
 
@@ -50,16 +70,17 @@ COMPILATION_CACHE_ENABLE_CACHING = YES
 COMPILATION_CACHE_ENABLE_PLUGIN = YES
 COMPILATION_CACHE_PLUGIN_PATH = $HOME/.local/state/tuist/libtuist_cas_plugin.dylib
 COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/cas-proxy.sock
+COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES = YES
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 OTHER_SWIFT_FLAGS = $(inherited) -cas-plugin-option tuist-instance=your-org/your-project
 ```
 
-Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, and `COMPILATION_CACHE_REMOTE_SERVICE_PATH` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
+Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, `COMPILATION_CACHE_REMOTE_SERVICE_PATH`, and `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
 
 > [!NOTE]
-> **Plugin Path**
+> **Plugin path**
 >
-> `libtuist_cas_plugin.dylib` is the compilation cache plugin that ships with Tuist, next to the `tuist` executable. `tuist setup cache` copies it to `$HOME/.local/state/tuist/libtuist_cas_plugin.dylib`, and `COMPILATION_CACHE_PLUGIN_PATH` points at that copy. The path is the same on every machine and doesn't change when you update Tuist, so you can commit the setting with your project. Each run of `tuist setup cache` updates the copy to the plugin of the Tuist that ran it.
+> `libtuist_cas_plugin.dylib` is the compilation cache plugin that ships with Tuist, next to the `tuist` executable. `tuist setup cache` copies it to `$HOME/.local/state/tuist/libtuist_cas_plugin.dylib`, and `COMPILATION_CACHE_PLUGIN_PATH` points at that copy. The path is the same on every machine and doesn't change when you update Tuist, so you can commit the setting with your project. Setup and the newly launched proxy refresh the copy from the selected Tuist bundle; running setup from an older checkout does not downgrade a newer plugin.
 
 > [!NOTE]
 > **One socket for every project**
@@ -71,6 +92,11 @@ Note that `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH`, an
 >
 > It is easy to read this setting as "where the cache service lives" and treat it as optional. It is also the switch that decides whether C, Objective-C, precompiled modules and precompiled headers are shared at all: the build system only runs its caching for those when a remote cache service is configured. Leave it out and you still get Swift compilations shared, but every C/Objective-C file and every module is recompiled on any machine that has not built the project before.
 
+> [!NOTE]
+> **Concurrent cache lookups**
+>
+> `COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES` runs the remote cache lookups the build system makes for each compilation alongside the rest of the build, instead of a few at a time on the build's execution lanes. Builds that miss or restore many compilations from a distant cache finish sooner.
+
 You can also specify these settings when running `xcodebuild` by adding the following flags, such as:
 
 ```
@@ -79,6 +105,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_PLUGIN=YES \
     COMPILATION_CACHE_PLUGIN_PATH=$HOME/.local/state/tuist/libtuist_cas_plugin.dylib \
     COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/cas-proxy.sock \
+    COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES=YES \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
     'OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=your-org/your-project'
 ```
@@ -87,9 +114,24 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 > **Prefix mapping on Xcode 27 and later**
 >
 > On Xcode 27 and later, `tuist setup cache` also prints `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. They make compilation cache keys independent of where the project and `DerivedData` live. Add them as user-defined build settings. Enabling them changes every cache key, so the next build populates the cache again. `tuist generate` sets them for you when `enableCaching` is on.
+>
+> The compiler also writes the mapped paths into the code coverage data, and Xcode can't resolve them, so a coverage report would leave out every source compiled with prefix mapping. The printed settings, along with the `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*` ones, turn prefix mapping off in builds that gather code coverage. `tuist generate` does the same. Those builds still use the compilation cache, but their cache keys depend on the project and `DerivedData` paths.
+>
+> When you pass these settings to `xcodebuild` on the command line, single-quote the values that contain `$(...)`, as with `OTHER_SWIFT_FLAGS` above. Otherwise the shell expands them to empty strings and prefix mapping is turned off:
+>
+> ```
+> xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
+>     'SWIFT_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))' \
+>     SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES \
+>     'CLANG_ENABLE_PREFIX_MAPPING=$(TUIST_PREFIX_MAPPING_FOR_COVERAGE_$(CLANG_COVERAGE_MAPPING))' \
+>     CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES \
+>     TUIST_PREFIX_MAPPING_FOR_COVERAGE_=YES \
+>     TUIST_PREFIX_MAPPING_FOR_COVERAGE_NO=YES \
+>     TUIST_PREFIX_MAPPING_FOR_COVERAGE_YES=NO
+> ```
 
 > [!NOTE]
-> **Generated Projects**
+> **Generated projects**
 >
 > Setting the settings manually is not needed if your project is generated by Tuist.
 >
@@ -106,6 +148,48 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 >     )
 > )
 > ```
+
+### Coverage with prefix mapping {#coverage-with-prefix-mapping}
+
+By default, generated projects disable prefix mapping for coverage builds to keep Xcode's coverage reports and `xccov` working. You can turn it on to keep coverage compilations shareable across checkouts:
+
+```swift
+let tuist = Tuist(
+    project: .tuist(
+        generationOptions: .options(
+            enableCaching: true,
+            coverage: .coverage(prefixMapping: true)
+        )
+    )
+)
+```
+
+The `TUIST_COVERAGE_PREFIX_MAPPING` environment variable (`1` or `0`) takes precedence over `prefixMapping`. This option applies on Xcode 27 and later and requires `enableCaching`. The coverage `tuist test` uploads supports it: Tuist measures the run with `llvm-cov`, which reads the sources with mapped paths, and ties them back to your repository's files. Xcode's own coverage report and `xccov` can still omit those sources, and so can an upload that falls back to the result bundle's `xccov` report because the `llvm-cov` export failed. Mapped `#filePath` values can also affect tests that locate fixtures relative to source files; resolve fixtures through explicit runtime checkout paths instead. If you process coverage yourself, pair each instrumented binary with its target's `$(TARGET_TEMP_DIR)/compilation-prefix-map.json`, which maps virtual prefixes back to local directories. Do not reuse one target's map for every binary when per-project mapping is enabled.
+
+The coverage-prefix settings participate in binary-cache and selective-testing hashes because they control paths written into coverage artifacts. Changing this option, or setting `TUIST_COVERAGE_PREFIX_MAPPING` differently, invalidates those hashes even for ordinary builds. Keep the value consistent between developers and CI jobs if they should share binary caches and selective-testing results.
+
+### Debugging generated projects {#debugging-generated-projects}
+
+Restored native modules need linked debug information as well as access to the compilation cache. Tuist warms Debug and Release modules with dSYMs and per-slice source-identity metadata, then verifies the metadata against the consumer's declared sources before replacing a target. Missing or incompatible metadata keeps that target's sources. Script-generated `.generated(...)` sources have declaration fingerprints rather than verifiable content checksums, so those targets stay source-built and are not published to the native module cache. Generated resource accessors with actual content checksums remain eligible. Unsupported debug information skips publication of the affected target without blocking unrelated products; source mutation and cancellation still fail the warm. The cache format changes, so artifacts warmed by older versions need rewarming.
+
+For verified replacements, Tuist prepares source relocations in consumer-owned dSYM UUID plists and links debug-only companions for static cached code. It does not rewrite cached binaries or install producer-source paths in LLDB's persistent global source map. Explicit debugger initializers and module-loader settings remain authoritative. Debug symbols and source relocation do not repair source-relative runtime file access or native Xcode coverage reports; coverage variant selection and LLVM export remain separate features.
+
+With `enableCaching: true`, Tuist configures LLDB source maps for Run and Test actions. When an action has a custom LLDB initializer, Tuist writes its resolved source map first, then sources the custom initializer so it can extend or override the map. Otherwise it loads `~/.lldbinit-Xcode` if the file exists, falling back to `~/.lldbinit`, before replacing the source map. It loads only one home file, restoring per-user debugger setup without double sourcing. The replacement removes stale mappings from previous runs and takes precedence over home-file source maps; put source-map entries that should survive in the action's custom initializer. Other home settings are preserved. Tuist's cache-specific module search paths, loader settings, and Clang flags are applied afterwards and take precedence over user values for those settings. Home-file errors remain visible without stopping later commands from loading, and commands are not echoed. This initializer preservation also applies when Tuist configures debugging for binaries restored from the module cache, even without `enableCaching` and on earlier Xcode versions.
+
+On Xcode 27 and later, generated projects leave Xcode's per-project prefix mappings (`SWIFT_ENABLE_PROJECT_PREFIX_MAPPING` and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`) off unless a project sets them. Their prefixes, such as `/^src`, name a different directory in every project, and LLDB resolves them against the debugged target's project only. Sources are recorded under workspace-wide prefixes instead: `/^root` for the Tuist root directory, `/^spm` for the Swift package scratch directory, and `/^intermediates` and `/^products` for build outputs. Each one names the same directory in every project, so breakpoints resolve in sources from any project in the workspace.
+
+Paths outside the Tuist root aren't mapped. The cache keys of a project outside the root depend on where it's checked out, so other checkouts and machines miss the cache for it. To keep its keys independent of the checkout location, turn the per-project mappings on in that project's manifest:
+
+```swift
+let checkoutIndependentSettings = Settings.settings(base: [
+    "SWIFT_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
+    "CLANG_ENABLE_PROJECT_PREFIX_MAPPING": "YES",
+])
+```
+
+Pass these settings to that `Project`. When you debug a target from another project, LLDB then can't find that project's sources. Manifest project-base settings take precedence over project-level xcconfig values, so set them in the manifest itself.
+
+Changing these settings changes compilation-cache keys, binary-cache hashes, and selective-testing hashes, so those caches need warming again. Keep the choice consistent across your team.
 
 ### Cache upload policy {#cache-upload-policy}
 
@@ -178,19 +262,13 @@ Compilation cache settings aren't part of <.localized_link href="/guides/feature
 > [!NOTE]
 > **Prefix mapping settings are hashed**
 >
-> On Xcode 27 and later, `enableCaching: true` also sets `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`. These settings are part of module cache hashes, so on Xcode 27 and later, turning `enableCaching` on or off changes your targets' hashes.
+> On Xcode 27 and later, `enableCaching: true` also sets `SWIFT_ENABLE_PREFIX_MAPPING`, `SWIFT_ENABLE_PROJECT_PREFIX_MAPPING`, `CLANG_ENABLE_PREFIX_MAPPING`, `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`, and the `TUIST_PREFIX_MAPPING_FOR_COVERAGE_*` settings. These settings are part of module cache hashes, so on Xcode 27 and later, turning `enableCaching` on or off changes your targets' hashes.
 
 ### Reusing parts of large outputs {#reusing-parts-of-large-outputs}
 
-The Xcode cache can reduce transfers with content-defined chunking. Instead of treating each large output as unrelated to earlier versions, it splits the compressed output at boundaries determined by its contents. After an edit, matching chunks can be reused even when their offsets have changed.
+When the server supports it, the Xcode cache transfers large outputs in chunks and only sends or fetches the chunks that changed since an earlier version. Chunks are kept in a small local cache, separate from `DerivedData`, so they survive cleaning the compilation cache. Small outputs, older servers, and older clients use ordinary whole-output transfers.
 
-Uploads send only chunks that the server is missing. Downloads first obtain the exact cached action and the output's chunk recipe, then reuse verified chunks stored on the local machine and fetch the missing pieces. The complete reconstructed output is verified before it is restored to the compiler cache.
-
-The transfer-chunk cache is separate from `DerivedData`, so its chunks can survive cleaning the compilation cache or restarting the local cache service. It is disposable and bounded to at most one gibibyte of chunk payload, with an additional temporary staging file of at most two mebibytes. Evicted or damaged chunks are downloaded again when needed. Keeping the compilation cache itself is still faster than reconstructing its contents.
-
-The client uses chunked transfers only when the server advertises compatible support. Older clients can still read complete outputs, and clients connected to older or unsupported servers retain ordinary transfers. Small outputs stay on the existing whole-output path.
-
-This reduces transferred bytes, not compiler invalidation. Changing a source file can still require compilation; chunking helps publish or restore the resulting output. Savings depend on the output and the edit, and a cold machine with no matching chunks must download all of the output.
+This reduces how much is downloaded and uploaded, not how much is recompiled. A cold machine with no matching chunks still downloads the whole output.
 
 ### Continuous integration {#continuous-integration}
 

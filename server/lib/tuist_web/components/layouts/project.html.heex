@@ -4,12 +4,15 @@
     current_user={@current_user}
     selected_account={@selected_account}
     latest_app_release={@latest_app_release}
+    current_path={@current_path}
+    selected_project={@selected_project}
   />
   <section class="layout__main">
     <TuistWeb.AppLayoutComponents.project_sidebar
       :if={Map.get(assigns, :sidebar_enabled?, true)}
       current_path={@current_path}
       selected_project={@selected_project}
+      previews_available={Map.get(assigns, :previews_available, false)}
       selected_account={@selected_account}
       selected_run={@selected_run}
       current_user={@current_user}

@@ -1,7 +1,7 @@
 import SwiftUI
 
 public struct NooraButton: View {
-    private let title: String
+    private let title: LocalizedStringKey
     private let icon: NooraIcon.Icon?
     private let isLoading: Bool
     private let isDisabled: Bool
@@ -18,7 +18,7 @@ public struct NooraButton: View {
     }
 
     public init(
-        title: String,
+        title: LocalizedStringKey,
         icon: NooraIcon.Icon? = nil,
         isLoading: Bool = false,
         isDisabled: Bool = false,

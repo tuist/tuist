@@ -224,4 +224,21 @@ struct CacheTests {
             #expect(secondPath.hasSuffix("-aaaaaaaaaaaa1111111111111111111111111111.tar.gz"))
         }
     }
+
+    @Test
+    func archivePathsAreSharedAcrossEquivalentProviderLocationSpellings() async throws {
+        try await withTemporaryDirectory { root in
+            let cache = try await Cache(root: root)
+            let revision = "abcdef1234567890abcdef1234567890abcdef12"
+
+            #expect(
+                cache.archivePath(url: "https://github.com/example/flow.git", revision: revision)
+                    == cache.archivePath(url: "https://github.com/example/flow", revision: revision)
+            )
+            #expect(
+                cache.archivePath(url: "https://source.example.com/example/flow.git", revision: revision)
+                    != cache.archivePath(url: "https://source.example.com/example/flow", revision: revision)
+            )
+        }
+    }
 }

@@ -6,8 +6,6 @@ defmodule Atlas.LettersTest do
   alias Atlas.Accounts.Account
   alias Atlas.Audit
   alias Atlas.Audit.Activity
-  alias Atlas.Authorization.Roles
-  alias Atlas.Authorization.UserRole
   alias Atlas.Documents.Storage
   alias Atlas.Letters
   alias Atlas.Letters.Config
@@ -505,6 +503,113 @@ defmodule Atlas.LettersTest do
     assert sent.sent_at == ~U[2026-09-30 12:37:00Z]
   end
 
+  test "status synchronization records a sent letter without resubmitting it" do
+    {letter, _executive} = insert_provider_letter!("sending")
+
+    expect(Pingen, :get_letter, fn id ->
+      assert id == letter.pingen_letter_id
+      {:ok, provider_delivery(letter, "sent")}
+    end)
+
+    stub(Pingen, :send_letter, fn _, _ -> flunk("status checks must never send a letter") end)
+
+    assert {:ok, sent} = Letters.sync_delivery(letter.id)
+    assert sent.status == "sent"
+    assert sent.sent_at == ~U[2026-10-01 15:31:43Z]
+    assert sent.last_checked_at
+
+    activity = Repo.get_by!(Activity, action: "letter.delivery_checked", target_id: letter.id)
+    assert activity.interface == "worker"
+  end
+
+  test "status checks expose action-required failures and clear them after provider recovery" do
+    {letter, executive} = insert_provider_letter!("sending")
+    expect(Pingen, :get_letter, fn _ -> {:ok, provider_delivery(letter, "action_required")} end)
+
+    assert {:ok, blocked} = Letters.check_delivery(letter.id, executive)
+    assert blocked.status == "failed"
+    assert blocked.pingen_status == "action_required"
+    assert blocked.last_error =~ "requires action"
+
+    expect(Pingen, :get_letter, fn _ -> {:ok, provider_delivery(letter, "sent")} end)
+    assert {:ok, sent} = Letters.sync_delivery(letter.id)
+    assert sent.status == "sent"
+    assert is_nil(sent.last_error)
+  end
+
+  test "polls cannot overwrite a terminal webhook outcome from a stale letter snapshot" do
+    {letter, executive} = insert_provider_letter!("sending")
+    Repo.update!(Ecto.Changeset.change(letter, status: "delivered", delivered_at: ~U[2026-10-02 12:00:00Z]))
+    expect(Pingen, :get_letter, fn _ -> {:ok, provider_delivery(letter, "processing")} end)
+
+    assert {:ok, delivered} = Letters.check_delivery(letter, executive)
+    assert delivered.status == "delivered"
+    assert delivered.delivered_at == ~U[2026-10-02 12:00:00Z]
+  end
+
+  test "a processing response does not regress a sent letter or change its timestamp" do
+    {letter, executive} = insert_provider_letter!("sent", sent_at: ~U[2026-10-01 15:31:43Z])
+    expect(Pingen, :get_letter, fn _ -> {:ok, provider_delivery(letter, "processing")} end)
+
+    assert {:ok, sent} = Letters.check_delivery(letter, executive)
+    assert sent.status == "sent"
+    assert sent.sent_at == letter.sent_at
+  end
+
+  test "delivery check candidates exclude drafts, terminal outcomes and unsubmitted letters" do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    {pending, _} = insert_provider_letter!("sending")
+    {blocked, _} = insert_provider_letter!("failed", pingen_status: "action_required")
+    {sent, _} = insert_provider_letter!("sent", sent_at: DateTime.add(now, -600))
+    insert_provider_letter!("sending", last_checked_at: now)
+    insert_provider_letter!("sent", sent_at: DateTime.add(now, -31 * 24 * 60 * 60))
+    insert_provider_letter!("delivered")
+    insert_provider_letter!("undeliverable")
+    insert_provider_letter!("failed", pingen_status: "cancelled")
+    insert_provider_letter!("awaiting_delivery_confirmation")
+    insert_provider_letter!("sending", pingen_letter_id: nil)
+
+    assert MapSet.new(Letters.list_delivery_check_candidate_ids()) == MapSet.new([pending.id, blocked.id, sent.id])
+    assert length(Letters.list_delivery_check_candidate_ids(limit: 1)) == 1
+  end
+
+  test "a failed provider status check preserves stored state" do
+    {letter, executive} = insert_provider_letter!("sending")
+    expect(Pingen, :get_letter, fn _ -> {:error, {:pingen_letter_status_failed, 503}} end)
+
+    assert {:error, {:pingen_letter_status_failed, 503}} = Letters.check_delivery(letter.id, executive)
+    assert Letters.get_letter(letter.id).status == "sending"
+    assert is_nil(Letters.get_letter(letter.id).last_checked_at)
+  end
+
+  defp insert_provider_letter!(status, attrs \\ []) do
+    executive = insert_user!(%{role: :executive})
+
+    attrs_for_request =
+      Map.put(recipient_attrs(), "certificate_purpose", "Status check #{System.unique_integer([:positive])}")
+
+    {:ok, letter} = Letters.prepare_tax_certificate(insert_tax_account!(), attrs_for_request, executive)
+
+    letter =
+      letter
+      |> Ecto.Changeset.change(Keyword.merge([status: status, pingen_letter_id: "provider-#{letter.id}"], attrs))
+      |> Repo.update!()
+
+    {letter, executive}
+  end
+
+  defp provider_delivery(letter, status) do
+    %{
+      id: letter.pingen_letter_id,
+      status: status,
+      tracking_number: nil,
+      submitted_at: ~U[2026-10-01 15:31:43Z],
+      delivered_at: nil,
+      undeliverable_at: nil,
+      raw: %{}
+    }
+  end
+
   defp recipient_attrs do
     %{
       "recipient_name" => "Finanzamt Berlin",
@@ -557,14 +662,7 @@ defmodule Atlas.LettersTest do
       |> User.changeset(Map.merge(defaults, attrs))
       |> Repo.insert!()
 
-    if role == :executive do
-      executive_role = Roles.ensure_executive_role!()
-
-      %UserRole{}
-      |> UserRole.changeset(%{user_id: user.id, role_id: executive_role.id})
-      |> Repo.insert!()
-    end
-
+    AtlasWeb.ConnCase.assign_role_or_scopes(user, role, nil)
     user
   end
 end

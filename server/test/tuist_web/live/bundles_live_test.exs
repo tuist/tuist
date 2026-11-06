@@ -8,6 +8,8 @@ defmodule TuistWeb.BundlesLiveTest do
 
   alias TuistTestSupport.Fixtures.BundlesFixtures
 
+  @render_async_timeout 1_000
+
   test "renders empty view when no bundles are available", %{
     conn: conn,
     organization: organization,
@@ -48,6 +50,76 @@ defmodule TuistWeb.BundlesLiveTest do
     assert has_element?(lv, "#bundles-table span", "cccc222")
   end
 
+  test "shows flavor tags and filters by exact tag membership", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    BundlesFixtures.bundle_fixture(
+      project: project,
+      custom_tags: ["paid", "release", "nightly"],
+      git_commit_sha: "aaaa111"
+    )
+
+    BundlesFixtures.bundle_fixture(project: project, custom_tags: ["paid-extra"], git_commit_sha: "bbbb222")
+    BundlesFixtures.bundle_fixture(project: project, git_commit_sha: "cccc333")
+    BundlesFixtures.bundle_fixture(custom_tags: ["other-project"])
+
+    path = ~p"/#{organization.account.name}/#{project.name}/bundles"
+    {:ok, lv, _html} = live(conn, path)
+
+    assert has_element?(lv, "#bundles-table .noora-badge[data-color='success']", "paid")
+    assert has_element?(lv, "#bundles-table .noora-badge[data-color='information']", "+2")
+    refute has_element?(lv, "#bundles-table .noora-badge", "release")
+    refute has_element?(lv, "#bundles-table .noora-badge", "nightly")
+    refute has_element?(lv, "#filter-dropdown", "other-project")
+
+    render_click(lv, "add_filter", %{"value" => "custom_tags"})
+
+    lv
+    |> element("#filter-custom_tags-value-popover form")
+    |> render_submit(%{"type" => "change_value", "payload_filter_id" => "custom_tags", "value" => "paid"})
+
+    assert has_element?(lv, "#bundles-table span", "aaaa111")
+    refute has_element?(lv, "#bundles-table span", "bbbb222")
+    refute has_element?(lv, "#bundles-table span", "cccc333")
+
+    render_patch(
+      lv,
+      path <> "?" <> URI.encode_query(%{"filter_custom_tags_op" => "!=~", "filter_custom_tags_val" => "paid"})
+    )
+
+    refute has_element?(lv, "#bundles-table span", "aaaa111")
+    assert has_element?(lv, "#bundles-table span", "bbbb222")
+    assert has_element?(lv, "#bundles-table span", "cccc333")
+
+    render_patch(
+      lv,
+      path <> "?" <> URI.encode_query(%{"filter_custom_tags_op" => "=~", "filter_custom_tags_val" => "missing"})
+    )
+
+    refute has_element?(lv, "#bundles-table span", "aaaa111")
+    refute has_element?(lv, "#bundles-table span", "bbbb222")
+    refute has_element?(lv, "#bundles-table span", "cccc333")
+  end
+
+  test "rejects invalid tag filters instead of silently broadening results", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    BundlesFixtures.bundle_fixture(project: project)
+    path = ~p"/#{organization.account.name}/#{project.name}/bundles"
+
+    for {operator, tag} <- [{"=~", " "}, {"=~", String.duplicate("a", 51)}, {">", "paid"}] do
+      query = URI.encode_query(%{"filter_custom_tags_op" => operator, "filter_custom_tags_val" => tag})
+
+      assert_raise TuistWeb.Errors.BadRequestError, fn ->
+        live(conn, path <> "?" <> query)
+      end
+    end
+  end
+
   test "defaults download size to 0 MB when last bundle has only install size", %{
     conn: conn,
     organization: organization,
@@ -63,6 +135,8 @@ defmodule TuistWeb.BundlesLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
+
+    render_async(lv, @render_async_timeout)
 
     # Then
     assert has_element?(lv, "span", "0 MB")
@@ -132,6 +206,8 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles?bundle-size-branch=main")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
     assert has_element?(lv, "span", "2.0 KB")
   end
@@ -162,6 +238,8 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles?bundle-size-branch=any")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
     assert has_element?(lv, "span", "3.0 KB")
   end
@@ -181,6 +259,8 @@ defmodule TuistWeb.BundlesLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
+
+    render_async(lv, @render_async_timeout)
 
     # Then - should show data from feature branch since no main branch bundles exist
     assert has_element?(lv, "span", "5.0 KB")
@@ -215,6 +295,8 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
     assert has_element?(lv, "#widget-download-size span", "No change")
   end
@@ -246,11 +328,13 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
     assert has_element?(lv, "#widget-download-size span", "No change")
   end
 
-  test "download is 0.0% when previous bundle download_size is 0", %{
+  test "shows a 100.0% trend when previous bundle download_size is 0", %{
     conn: conn,
     organization: organization,
     project: project
@@ -277,8 +361,10 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
-    assert has_element?(lv, "#widget-download-size span", "0.0%")
+    assert has_element?(lv, "#widget-download-size span", "+100.0%")
   end
 
   test "handles cursor mismatch when sort order changes", %{

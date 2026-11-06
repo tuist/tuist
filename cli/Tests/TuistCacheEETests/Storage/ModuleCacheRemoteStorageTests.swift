@@ -326,7 +326,7 @@ struct ModuleCacheRemoteStorageTests {
             contents: Data(repeating: 0x41, count: 1_400_000)
         )
         try FileManager.default.setAttributes(
-            [.modificationDate: Calendar.current.date(byAdding: .hour, value: -1, to: Date())!],
+            [.modificationDate: Calendar.current.date(byAdding: .hour, value: -2, to: Date())!],
             ofItemAtPath: staleEntry.pathString
         )
 

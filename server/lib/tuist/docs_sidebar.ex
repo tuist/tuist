@@ -16,6 +16,12 @@ defmodule Tuist.Docs.Sidebar do
   end
 
   @strings_dir Path.expand("../../priv/docs/strings", __DIR__)
+  @strings_paths @strings_dir |> Path.join("*.json") |> Path.wildcard() |> Enum.sort()
+  @strings_paths_digest :erlang.md5(@strings_paths)
+
+  for path <- @strings_paths do
+    @external_resource Path.relative_to_cwd(path)
+  end
 
   extract_texts = fn extract_texts, map, prefix ->
     map
@@ -67,6 +73,12 @@ defmodule Tuist.Docs.Sidebar do
     end
 
   @translations translations
+
+  def __mix_recompile__? do
+    @strings_dir |> Path.join("*.json") |> Path.wildcard() |> Enum.sort() |> :erlang.md5() != @strings_paths_digest
+  end
+
+  def __phoenix_recompile__?, do: __mix_recompile__?()
 
   def tree do
     guides_tree() ++ resources_tree() ++ references_tree() ++ cli_tree()
@@ -139,7 +151,12 @@ defmodule Tuist.Docs.Sidebar do
 
     Enum.map(tree, fn
       %Group{label: label, items: items} = group ->
-        %{group | label: translate(label, nil, maps), items: Enum.map(items, &localize_item(&1, locale, maps))}
+        %{
+          group
+          | category: group.category || label,
+            label: translate(label, nil, maps),
+            items: Enum.map(items, &localize_item(&1, locale, maps))
+        }
     end)
   end
 
@@ -209,9 +226,24 @@ defmodule Tuist.Docs.Sidebar do
                 icon: "brand_gradle"
               },
               %Item{
+                label: "Elixir project",
+                slug: "/en/guides/get-started/elixir-project",
+                icon: "brand_elixir"
+              },
+              %Item{
+                label: "Rust project",
+                slug: "/en/guides/get-started/rust-project",
+                icon: "brand_rust"
+              },
+              %Item{
                 label: "Bazel project",
                 slug: "/en/guides/get-started/bazel-project",
                 icon: "brand_bazel"
+              },
+              %Item{
+                label: "Once project",
+                slug: "/en/guides/get-started/once-project",
+                icon: "brand_once"
               }
             ]
           }
@@ -228,7 +260,10 @@ defmodule Tuist.Docs.Sidebar do
               %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache", icon: "brand_apple"},
               %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache", icon: "brand_apple"},
               %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache", icon: "brand_gradle"},
-              %Item{label: "Bazel cache", slug: "/en/guides/features/cache/bazel-cache", icon: "brand_bazel"}
+              %Item{label: "Bazel cache", slug: "/en/guides/features/cache/bazel-cache", icon: "brand_bazel"},
+              %Item{label: "Elixir cache", slug: "/en/guides/features/cache/elixir", icon: "brand_elixir"},
+              %Item{label: "Rust cache", slug: "/en/guides/features/cache/rust", icon: "brand_rust"},
+              %Item{label: "Once cache", slug: "/en/guides/features/cache/once", icon: "brand_once"}
             ]
           },
           %Item{
@@ -243,7 +278,10 @@ defmodule Tuist.Docs.Sidebar do
                 icon: "brand_apple"
               },
               %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle", icon: "brand_gradle"},
-              %Item{label: "Bazel", slug: "/en/guides/features/build-insights/bazel", icon: "brand_bazel"}
+              %Item{label: "Bazel", slug: "/en/guides/features/build-insights/bazel", icon: "brand_bazel"},
+              %Item{label: "Elixir", slug: "/en/guides/features/build-insights/elixir", icon: "brand_elixir"},
+              %Item{label: "Rust", slug: "/en/guides/features/build-insights/rust", icon: "brand_rust"},
+              %Item{label: "Once", slug: "/en/guides/features/build-insights/once", icon: "brand_once"}
             ]
           }
         ]
@@ -270,7 +308,10 @@ defmodule Tuist.Docs.Sidebar do
             items: [
               %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode", icon: "brand_apple"},
               %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle", icon: "brand_gradle"},
-              %Item{label: "Bazel", slug: "/en/guides/features/test-insights/bazel", icon: "brand_bazel"}
+              %Item{label: "Bazel", slug: "/en/guides/features/test-insights/bazel", icon: "brand_bazel"},
+              %Item{label: "Elixir", slug: "/en/guides/features/test-insights/elixir", icon: "brand_elixir"},
+              %Item{label: "Rust", slug: "/en/guides/features/test-insights/rust", icon: "brand_rust"},
+              %Item{label: "Once", slug: "/en/guides/features/test-insights/once", icon: "brand_once"}
             ]
           },
           %Item{
@@ -296,6 +337,42 @@ defmodule Tuist.Docs.Sidebar do
                 label: "Bazel",
                 slug: "/en/guides/features/test-insights/flaky-tests/bazel",
                 icon: "brand_bazel"
+              },
+              %Item{
+                label: "Elixir",
+                slug: "/en/guides/features/test-insights/flaky-tests/elixir",
+                icon: "brand_elixir"
+              },
+              %Item{
+                label: "Rust",
+                slug: "/en/guides/features/test-insights/flaky-tests/rust",
+                icon: "brand_rust"
+              },
+              %Item{
+                label: "Once",
+                slug: "/en/guides/features/test-insights/flaky-tests/once",
+                icon: "brand_once"
+              }
+            ]
+          },
+          %Item{
+            label: "Coverage",
+            slug: "/en/guides/features/test-code-coverage",
+            items: [
+              %Item{
+                label: "Xcode",
+                slug: "/en/guides/features/test-code-coverage/xcode",
+                icon: "brand_apple"
+              },
+              %Item{
+                label: "Generated Xcode project",
+                slug: "/en/guides/features/test-code-coverage/generated-xcode-project",
+                icon: "brand_apple"
+              },
+              %Item{
+                label: "Elixir",
+                slug: "/en/guides/features/test-code-coverage/elixir",
+                icon: "brand_elixir"
               }
             ]
           },
@@ -309,7 +386,10 @@ defmodule Tuist.Docs.Sidebar do
                 slug: "/en/guides/features/test-sharding/generated-xcode-project",
                 icon: "brand_apple"
               },
-              %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle", icon: "brand_gradle"}
+              %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle", icon: "brand_gradle"},
+              %Item{label: "Elixir", slug: "/en/guides/features/test-sharding/elixir", icon: "brand_elixir"},
+              %Item{label: "Rust", slug: "/en/guides/features/test-sharding/rust", icon: "brand_rust"},
+              %Item{label: "Once", slug: "/en/guides/features/test-sharding/once", icon: "brand_once"}
             ]
           }
         ]
@@ -339,7 +419,13 @@ defmodule Tuist.Docs.Sidebar do
                     label: "GitLab CI",
                     slug: "/en/guides/features/runners/ci-providers/gitlab-ci",
                     icon: "brand_gitlab"
-                  }
+                  },
+                  %Item{
+                    label: "Bitrise",
+                    slug: "/en/guides/features/runners/ci-providers/bitrise",
+                    icon: "brand_bitrise"
+                  },
+                  %Item{label: "API", slug: "/en/guides/features/runners/ci-providers/api"}
                 ]
               },
               %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"},
@@ -348,6 +434,11 @@ defmodule Tuist.Docs.Sidebar do
                 label: "Docker",
                 slug: "/en/guides/features/runners/docker",
                 icon: "brand_docker"
+              },
+              %Item{
+                label: "Once remote execution",
+                slug: "/en/guides/features/runners/once",
+                icon: "brand_once"
               }
             ]
           }
@@ -357,7 +448,30 @@ defmodule Tuist.Docs.Sidebar do
         label: "Bundles",
         weight: :medium,
         items: [
-          %Item{label: "Previews", slug: "/en/guides/features/previews"},
+          %Item{
+            label: "Previews",
+            slug: "/en/guides/features/previews",
+            items: [
+              %Item{
+                label: "Build and publish",
+                items: [
+                  %Item{label: "Xcode", slug: "/en/guides/features/previews/xcode", icon: "brand_apple"},
+                  %Item{label: "Gradle", slug: "/en/guides/features/previews/gradle", icon: "brand_gradle"},
+                  %Item{label: "Bazel", slug: "/en/guides/features/previews/bazel", icon: "brand_bazel"},
+                  %Item{label: "Once", slug: "/en/guides/features/previews/once", icon: "brand_once"}
+                ]
+              },
+              %Item{label: "Supported types", slug: "/en/guides/features/previews/types", icon: "package"},
+              %Item{
+                label: "Run previews",
+                items: [
+                  %Item{label: "CLI", slug: "/en/guides/features/previews/run/cli", icon: "devices_code"},
+                  %Item{label: "macOS app", slug: "/en/guides/features/previews/run/macos", icon: "device_desktop"},
+                  %Item{label: "iPhone app", slug: "/en/guides/features/previews/run/ios", icon: "device_mobile"}
+                ]
+              }
+            ]
+          },
           %Item{
             label: "Insights",
             text_path: "sidebars.guides.items.develop.items.bundle-insights",
@@ -525,12 +639,15 @@ defmodule Tuist.Docs.Sidebar do
               }
             ]
           },
+          %Item{label: "Grafana", slug: "/en/guides/integrations/grafana"},
           %Item{label: "Slack", slug: "/en/guides/integrations/slack"},
           %Item{label: "Webhooks", slug: "/en/guides/integrations/webhooks"},
           %Item{
             label: "Git forges",
             items: [
-              %Item{label: "GitHub", slug: "/en/guides/integrations/gitforge/github"}
+              %Item{label: "GitHub", slug: "/en/guides/integrations/gitforge/github"},
+              %Item{label: "Origin", slug: "/en/guides/integrations/gitforge/origin"},
+              %Item{label: "Entire", slug: "/en/guides/integrations/gitforge/entire"}
             ]
           }
         ]
@@ -639,6 +756,12 @@ defmodule Tuist.Docs.Sidebar do
               %Item{label: "From v3 to v4", slug: "/en/references/migrations/from-v3-to-v4"}
             ]
           }
+        ]
+      },
+      %Group{
+        label: "Libraries",
+        items: [
+          %Item{label: "Elixir", url: "https://hexdocs.pm/tuist_ex", icon: "brand_elixir"}
         ]
       }
     ]

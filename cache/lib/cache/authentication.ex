@@ -14,6 +14,12 @@ defmodule Cache.Authentication do
 
   @failure_cache_ttl 3
   @success_cache_ttl 600
+  # How long a settled server answer may still be served while the server
+  # cannot answer, counted from when it was confirmed. Matches Kura.
+  @confirmed_cache_ttl 1500
+  @unavailable_backoff 3
+  @request_timeout_ms 3_000
+  @pool_timeout_ms 1_000
   @cache_name :cas_auth_cache
 
   def child_spec(_) do
@@ -166,9 +172,13 @@ defmodule Cache.Authentication do
     end
   end
 
-  # Grants are complete and say which action they cover, so they are the whole
-  # answer. Tuist's server mints these; the shape is agreed with the cache
+  # Grants say which action they cover, so for a project they name they are the
+  # whole answer. Tuist's server mints these; the shape is agreed with the cache
   # nodes that read them back.
+  #
+  # A cache token's grants are complete. An access token's cover only the
+  # subject's most recently used projects when it was minted, so a project they
+  # leave out may still be reachable and is asked of the server.
   defp verify_granted_project(grants, claims, requested_handle, action) do
     account_handle = account_handle_of(requested_handle)
 
@@ -179,8 +189,11 @@ defmodule Cache.Authentication do
       payment_required?(Map.get(claims, "cache_payment_required", []), account_handle) ->
         {:error, :payment_required, account_handle}
 
-      true ->
+      Map.get(claims, "typ") == "cache" or granted?(grants, requested_handle, :read) ->
         {:error, :not_granted}
+
+      true ->
+        {:error, :project_not_in_jwt}
     end
   end
 
@@ -241,32 +254,64 @@ defmodule Cache.Authentication do
     options = request_options(headers)
 
     cache
-    |> Cachex.fetch(cache_key, fn -> fetch_projects(cache_key, options) end)
+    |> Cachex.fetch(cache_key, fn -> fetch_projects(cache, cache_key, options) end)
     |> unwrap_fetch_result()
   end
 
-  defp fetch_projects(cache_key, options) do
+  # Settled answers (an allowed request, or a write refused on a readable
+  # project) are also kept under a confirmed key for longer than they are
+  # fresh, and served from there only while the server cannot answer, so an
+  # outage does not fail every build. Only a fresh answer writes the confirmed
+  # key, so the window counts from the server's last confirmation and serving
+  # it never extends it. Any other definitive answer deletes the confirmed keys
+  # of both actions, and a 401 voids every confirmed key of that credential
+  # through its marker.
+  defp fetch_projects(cache, cache_key, options) do
     start_time = System.monotonic_time()
     :telemetry.execute([:cache, :auth, :server, :request], %{}, %{})
 
-    result = Req.get(options)
+    # Finch raises when no connection can be checked out in time, which is
+    # what a server that drops packets leads to; it is an outage like any other.
+    result =
+      try do
+        Req.get(options)
+      rescue
+        error -> {:error, error}
+      end
 
     duration = System.monotonic_time() - start_time
     :telemetry.execute([:cache, :auth, :server, :response], %{duration: duration}, %{})
 
+    handle_server_response(cache, cache_key, result)
+  end
+
+  defp handle_server_response(cache, cache_key, result) do
     case result do
-      {:ok, %{status: 200, body: %{"projects" => projects} = body}} ->
-        result = project_access_result(cache_key, projects, Map.get(body, "payment_required", []))
-        ttl = if result == :ok, do: success_ttl(), else: failure_ttl()
-        {:commit, result, expire: ttl}
+      {:ok, %{status: 200, body: %{} = body}} when is_map_key(body, "projects") or is_map_key(body, "cache_grants") ->
+        {result, ttl} = project_access_result(cache_key, body)
+
+        if ttl == success_ttl() do
+          confirm(cache, cache_key, result)
+        else
+          forget_confirmed(cache, cache_key)
+        end
+
+        {:commit, result, ttl: ttl}
 
       {:ok, %{status: 403}} ->
         :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :forbidden})
-        {:commit, {:error, 403, "You don't have access to this project"}, expire: failure_ttl()}
+        forget_confirmed(cache, cache_key)
+        {:commit, {:error, 403, "You don't have access to this project"}, ttl: failure_ttl()}
 
       {:ok, %{status: 401}} ->
         :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :unauthorized})
-        {:commit, {:error, 401, "Unauthorized"}, expire: failure_ttl()}
+        forget_confirmed(cache, cache_key)
+        invalidate_credential(cache, cache_key)
+        {:commit, {:error, 401, "Unauthorized"}, ttl: failure_ttl()}
+
+      {:ok, %{status: status}} when status in [200, 500, 502, 503, 504] ->
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: "status_#{status}"})
+        without_server(cache, cache_key)
 
       {:ok, %{status: status}} ->
         :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: "status_#{status}"})
@@ -275,7 +320,52 @@ defmodule Cache.Authentication do
       {:error, reason} ->
         :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :network_error})
         Logger.warning("Failed to fetch accessible projects: #{inspect(reason)}")
-        {:ignore, {:error, 500, "Failed to fetch accessible projects"}}
+        without_server(cache, cache_key)
+    end
+  end
+
+  # Under the marker's lock, so an answer sent before a 401 on another key of
+  # the same credential cannot mark a revoked credential valid again.
+  defp confirm(cache, {token_key, _handle, _action} = cache_key, result) do
+    Cachex.transaction(cache, [{:credential, token_key}], fn worker ->
+      case Cachex.get(worker, {:credential, token_key}) do
+        {:ok, :invalid} ->
+          :ok
+
+        _ ->
+          Cachex.put(worker, {:confirmed, cache_key}, result, ttl: confirmed_ttl())
+          Cachex.put(worker, {:credential, token_key}, :valid, ttl: confirmed_ttl())
+      end
+    end)
+  end
+
+  # Update only: a marker written for every unknown token would keep one
+  # entry per random token for the whole confirmed window.
+  defp invalidate_credential(cache, {token_key, _handle, _action}) do
+    Cachex.transaction(cache, [{:credential, token_key}], fn worker ->
+      Cachex.update(worker, {:credential, token_key}, :invalid)
+    end)
+  end
+
+  # Refused reads mean refused writes, and a write is refused here only when
+  # the project is not readable either, so both actions lose their answer.
+  defp forget_confirmed(cache, {token_key, handle, _action}) do
+    Cachex.del(cache, {:confirmed, {token_key, handle, :read}})
+    Cachex.del(cache, {:confirmed, {token_key, handle, :write}})
+  end
+
+  # A stale answer is committed for no longer than its confirmed key has left,
+  # so requests in the meantime do not each ask a server that is down. Without
+  # one, the 503 is not kept: clients retry it, and the first retry after a
+  # short blip should reach the server rather than a remembered failure.
+  defp without_server(cache, {token_key, _handle, _action} = cache_key) do
+    with {:ok, credential} when credential != :invalid <- Cachex.get(cache, {:credential, token_key}),
+         {:ok, confirmed} when not is_nil(confirmed) <- Cachex.get(cache, {:confirmed, cache_key}),
+         {:ok, remaining} when is_integer(remaining) and remaining > 0 <- Cachex.ttl(cache, {:confirmed, cache_key}) do
+      :telemetry.execute([:cache, :auth, :server, :stale], %{}, %{})
+      {:commit, confirmed, ttl: min(unavailable_backoff(), remaining)}
+    else
+      _ -> {:ignore, {:error, 503, "Authentication backend unavailable"}}
     end
   end
 
@@ -292,9 +382,17 @@ defmodule Cache.Authentication do
   defp build_headers(auth_header, conn) do
     base_headers = [{"authorization", auth_header}]
 
+    # The id is the client's: forward it only when it looks like one, so a
+    # client cannot send the server arbitrary bytes under a credential whose
+    # confirmed answer would be served if the server fails on them.
     case Plug.Conn.get_req_header(conn, "x-request-id") do
-      [request_id | _] -> [{"x-request-id", request_id} | base_headers]
-      _ -> base_headers
+      [request_id | _] when byte_size(request_id) in 1..200 ->
+        if Regex.match?(~r/\A[A-Za-z0-9._:-]+\z/, request_id),
+          do: [{"x-request-id", request_id} | base_headers],
+          else: base_headers
+
+      _ ->
+        base_headers
     end
   end
 
@@ -310,7 +408,15 @@ defmodule Cache.Authentication do
       )
 
     Keyword.merge(
-      [url: url, headers: headers, finch: Cache.Finch, retry: false, cache: false],
+      [
+        url: url,
+        headers: headers,
+        finch: Cache.Finch,
+        retry: false,
+        cache: false,
+        receive_timeout: @request_timeout_ms,
+        pool_timeout: @pool_timeout_ms
+      ],
       req_options
     )
   end
@@ -327,37 +433,70 @@ defmodule Cache.Authentication do
     to_timeout(second: @failure_cache_ttl)
   end
 
+  defp confirmed_ttl do
+    to_timeout(second: @confirmed_cache_ttl)
+  end
+
+  defp unavailable_backoff do
+    to_timeout(second: @unavailable_backoff)
+  end
+
   def generate_cache_key(auth_header) do
     :sha256
     |> :crypto.hash(auth_header)
     |> Base.encode16(case: :lower)
   end
 
-  defp project_access_result({_auth_key, requested_handle, _action}, projects, payment_required) do
-    project_handles =
-      projects
-      |> Enum.map(fn
-        handle when is_binary(handle) -> String.downcase(handle)
-        _ -> nil
-      end)
-      |> Enum.reject(&is_nil/1)
-      |> MapSet.new()
-
+  defp project_access_result({_auth_key, requested_handle, action}, body) do
     account_handle = account_handle_of(requested_handle)
 
     cond do
-      MapSet.member?(project_handles, requested_handle) ->
+      server_allows?(body, requested_handle, action) ->
         :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :server})
-        :ok
+        {:ok, success_ttl()}
 
-      payment_required?(payment_required, account_handle) ->
+      payment_required?(Map.get(body, "payment_required", []), account_handle) ->
         :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :payment_required})
-        payment_required_error(account_handle)
+        {payment_required_error(account_handle), failure_ttl()}
+
+      # A write the grants refuse on a project they let the credential read is
+      # a settled answer, not a transient one: a read-only credential keeps
+      # uploading for its whole build, and holding the refusal only as long as
+      # other failures would ask the server again every few seconds. It is held
+      # as long as an allowed answer is, which is also how long a revocation
+      # takes to reach this node.
+      read_only_write?(body, requested_handle, action) ->
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :forbidden})
+        {{:error, 403, "You don't have access to this project"}, success_ttl()}
 
       true ->
-        {:error, 403, "You don't have access to this project"}
+        {{:error, 403, "You don't have access to this project"}, failure_ttl()}
     end
   end
+
+  defp read_only_write?(%{"cache_grants" => grants}, requested_handle, :write) do
+    granted?(grants, requested_handle, :read)
+  end
+
+  defp read_only_write?(_body, _requested_handle, _action), do: false
+
+  # `projects` lists what the credential reaches without saying what it may do
+  # there, so a read-only token, a viewer, or a member of an account that keeps
+  # writes to tokens is listed alongside writers. The server sends the grants
+  # beside it to say which action each project allows, and they decide.
+  #
+  # A server older than the grants sends `projects` alone, and refusing writes
+  # it lists would stop every opaque credential, CI project tokens included,
+  # from uploading until the server catches up. Those are answered as before.
+  defp server_allows?(%{"cache_grants" => grants}, requested_handle, action) do
+    granted?(grants, requested_handle, action)
+  end
+
+  defp server_allows?(%{"projects" => projects}, requested_handle, _action) when is_list(projects) do
+    Enum.any?(projects, &(is_binary(&1) and String.downcase(&1) == requested_handle))
+  end
+
+  defp server_allows?(_body, _requested_handle, _action), do: false
 
   defp cache_result(cache, cache_key, result, ttl) do
     Cachex.put(cache, cache_key, result, ttl: ttl)

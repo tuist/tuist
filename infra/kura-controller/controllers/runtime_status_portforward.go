@@ -1,0 +1,277 @@
+package controllers
+
+import (
+	"bufio"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"strconv"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/httpstream"
+	httpstreamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/portforward"
+	"k8s.io/client-go/transport/spdy"
+)
+
+// runtimeStatusTimeout bounds one /status/rollout sample, however the pod is
+// reached.
+const runtimeStatusTimeout = 2 * time.Second
+
+type unavailableRuntimeStatusClient struct {
+	reason string
+}
+
+func (c unavailableRuntimeStatusClient) Status(context.Context, corev1.Pod) (runtimeStatus, error) {
+	return runtimeStatus{}, errors.New(c.reason)
+}
+
+// portForwardRuntimeStatusClient reads /status/rollout through the API
+// server's pod port-forward, which reaches the pod through its node's kubelet.
+// It serves pods whose IP the controller cannot route to.
+type portForwardRuntimeStatusClient struct {
+	config  *rest.Config
+	rest    rest.Interface
+	timeout time.Duration
+}
+
+func NewPortForwardRuntimeStatusClient(config *rest.Config) (*portForwardRuntimeStatusClient, error) {
+	config = rest.CopyConfig(config)
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return &portForwardRuntimeStatusClient{
+		config:  config,
+		rest:    clientset.CoreV1().RESTClient(),
+		timeout: runtimeStatusTimeout,
+	}, nil
+}
+
+func (c *portForwardRuntimeStatusClient) Status(ctx context.Context, pod corev1.Pod) (runtimeStatus, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	target := c.rest.Post().
+		Resource("pods").
+		Namespace(pod.Namespace).
+		Name(pod.Name).
+		SubResource("portforward").
+		URL()
+	connection, err := c.dial(ctx, target)
+	if err != nil {
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
+		return runtimeStatus{}, fmt.Errorf("port-forward to %s/%s: %w", pod.Namespace, pod.Name, err)
+	}
+	defer connection.Close()
+
+	status, err := requestRuntimeStatusOverStream(ctx, connection, httpPort)
+	if err != nil && ctx.Err() != nil {
+		return runtimeStatus{}, ctx.Err()
+	}
+	return status, err
+}
+
+// dial upgrades a port-forward request over SPDY on a connection that lives
+// no longer than ctx: its transport closes the connection when ctx ends, which
+// also ends an upgrade the API server accepted and never answered.
+func (c *portForwardRuntimeStatusClient) dial(ctx context.Context, target *url.URL) (httpstream.Connection, error) {
+	tlsConfig, err := rest.TLSConfigFor(c.config)
+	if err != nil {
+		return nil, err
+	}
+	var dialer net.Dialer
+	upgrader, err := httpstreamspdy.NewRoundTripperWithConfig(httpstreamspdy.RoundTripperConfig{
+		UpgradeTransport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+			DialContext: func(_ context.Context, network, address string) (net.Conn, error) {
+				conn, err := dialer.DialContext(ctx, network, address)
+				if err != nil {
+					return nil, err
+				}
+				context.AfterFunc(ctx, func() { _ = conn.Close() })
+				return conn, nil
+			},
+		},
+		PingPeriod: 5 * time.Second,
+	})
+	if err != nil {
+		return nil, err
+	}
+	wrapper, err := rest.HTTPWrappersForConfig(c.config, upgrader)
+	if err != nil {
+		return nil, err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	connection, _, err := spdy.Negotiate(upgrader, &http.Client{Transport: wrapper}, request, portforward.PortForwardProtocolV1Name)
+	return connection, err
+}
+
+// requestRuntimeStatusOverStream sends one GET /status/rollout over a
+// port-forward connection, using the error and data stream pair the
+// port-forward protocol opens per forwarded connection.
+func requestRuntimeStatusOverStream(ctx context.Context, connection httpstream.Connection, port int32) (runtimeStatus, error) {
+	headers := http.Header{}
+	headers.Set(corev1.StreamType, corev1.StreamTypeError)
+	headers.Set(corev1.PortHeader, strconv.Itoa(int(port)))
+	headers.Set(corev1.PortForwardRequestIDHeader, "0")
+	errorStream, err := connection.CreateStream(headers)
+	if err != nil {
+		return runtimeStatus{}, fmt.Errorf("creating error stream: %w", err)
+	}
+	_ = errorStream.Close()
+	defer connection.RemoveStreams(errorStream)
+
+	forwardErr := make(chan error, 1)
+	go func() {
+		message, err := io.ReadAll(errorStream)
+		switch {
+		case err != nil:
+			forwardErr <- fmt.Errorf("reading error stream: %w", err)
+		case len(message) > 0:
+			forwardErr <- fmt.Errorf("forwarding port %d: %s", port, message)
+		default:
+			forwardErr <- nil
+		}
+	}()
+
+	headers.Set(corev1.StreamType, corev1.StreamTypeData)
+	dataStream, err := connection.CreateStream(headers)
+	if err != nil {
+		return runtimeStatus{}, fmt.Errorf("creating data stream: %w", err)
+	}
+	defer connection.RemoveStreams(dataStream)
+	defer func() { _ = dataStream.Reset() }()
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://localhost:%d/status/rollout", port), nil)
+	if err != nil {
+		return runtimeStatus{}, err
+	}
+	request.Close = true
+	if err := request.Write(dataStream); err != nil {
+		return runtimeStatus{}, forwardError(ctx, forwardErr, err)
+	}
+	response, err := http.ReadResponse(bufio.NewReader(dataStream), request)
+	if err != nil {
+		return runtimeStatus{}, forwardError(ctx, forwardErr, err)
+	}
+	return decodeRuntimeStatus(response)
+}
+
+// forwardError prefers the reason the kubelet reported on the error stream,
+// such as a refused pod port, over the bare stream error it causes.
+func forwardError(ctx context.Context, forwardErr <-chan error, streamErr error) error {
+	select {
+	case err := <-forwardErr:
+		if err != nil {
+			return err
+		}
+	case <-ctx.Done():
+	}
+	return streamErr
+}
+
+// Retire uses the same kubelet path as node-local status, retaining end-to-end
+// peer mTLS inside the tunnel. This also works when NetworkPolicy allows the
+// controller's public health checks but excludes it from the peer port.
+func (c *portForwardRuntimeStatusClient) Retire(ctx context.Context, pod corev1.Pod, serverName, incarnation string, tlsData map[string][]byte) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	target := c.rest.Post().Resource("pods").Namespace(pod.Namespace).Name(pod.Name).SubResource("portforward").URL()
+	connection, err := c.dial(ctx, target)
+	if err != nil {
+		return false, err
+	}
+	defer connection.Close()
+	return retirePublicConnectionsOverStream(ctx, connection, pod, serverName, incarnation, tlsData)
+}
+
+func (c *portForwardRuntimeStatusClient) Prepare(ctx context.Context, pod corev1.Pod, serverName, incarnation string, target migrationTarget, tlsData map[string][]byte) (bool, error) {
+	return c.peerOperation(ctx, pod, func(ctx context.Context, r tlsPublicConnectionRetirer) (bool, error) {
+		return r.Prepare(ctx, pod, serverName, incarnation, target, tlsData)
+	})
+}
+
+func (c *portForwardRuntimeStatusClient) Rebind(ctx context.Context, pod corev1.Pod, serverName, incarnation string, target, replacement migrationTarget, tlsData map[string][]byte) error {
+	_, err := c.peerOperation(ctx, pod, func(ctx context.Context, r tlsPublicConnectionRetirer) (bool, error) {
+		return true, r.Rebind(ctx, pod, serverName, incarnation, target, replacement, tlsData)
+	})
+	return err
+}
+
+func (c *portForwardRuntimeStatusClient) Abort(ctx context.Context, pod corev1.Pod, serverName, incarnation string, target migrationTarget, tlsData map[string][]byte) error {
+	_, err := c.peerOperation(ctx, pod, func(ctx context.Context, r tlsPublicConnectionRetirer) (bool, error) {
+		return true, r.Abort(ctx, pod, serverName, incarnation, target, tlsData)
+	})
+	return err
+}
+
+// peerOperation runs one migration request against the pod's peer port through
+// the kubelet tunnel, with peer mTLS inside it.
+func (c *portForwardRuntimeStatusClient) peerOperation(ctx context.Context, pod corev1.Pod, operation func(context.Context, tlsPublicConnectionRetirer) (bool, error)) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	endpoint := c.rest.Post().Resource("pods").Namespace(pod.Namespace).Name(pod.Name).SubResource("portforward").URL()
+	connection, err := c.dial(ctx, endpoint)
+	if err != nil {
+		return false, err
+	}
+	defer connection.Close()
+	return peerOperationOverStream(connection, func(r tlsPublicConnectionRetirer) (bool, error) {
+		return operation(ctx, r)
+	})
+}
+
+func retirePublicConnectionsOverStream(ctx context.Context, connection httpstream.Connection, pod corev1.Pod, serverName, incarnation string, tlsData map[string][]byte) (bool, error) {
+	return peerOperationOverStream(connection, func(r tlsPublicConnectionRetirer) (bool, error) {
+		return r.Retire(ctx, pod, serverName, incarnation, tlsData)
+	})
+}
+
+func peerOperationOverStream(connection httpstream.Connection, operation func(tlsPublicConnectionRetirer) (bool, error)) (bool, error) {
+
+	headers := http.Header{}
+	headers.Set(corev1.StreamType, corev1.StreamTypeError)
+	headers.Set(corev1.PortHeader, strconv.Itoa(int(peerPort)))
+	headers.Set(corev1.PortForwardRequestIDHeader, "0")
+	errorStream, err := connection.CreateStream(headers)
+	if err != nil {
+		return false, err
+	}
+	_ = errorStream.Close()
+	defer connection.RemoveStreams(errorStream)
+	headers.Set(corev1.StreamType, corev1.StreamTypeData)
+	stream, err := connection.CreateStream(headers)
+	if err != nil {
+		return false, err
+	}
+	defer connection.RemoveStreams(stream)
+	defer func() { _ = stream.Reset() }()
+	local, tunnel := net.Pipe()
+	defer local.Close()
+	defer tunnel.Close()
+	// net.Pipe supplies real deadlines to TLS/HTTP. Closing the SPDY connection
+	// and both pipe ends bounds all copies, including cancellation mid-handshake.
+	go func() { _, _ = io.Copy(stream, tunnel); _ = stream.Close() }()
+	go func() { _, _ = io.Copy(tunnel, stream); _ = tunnel.Close() }()
+	go func() {
+		message, _ := io.ReadAll(io.LimitReader(errorStream, 4096))
+		if len(message) != 0 {
+			_ = local.Close()
+		}
+	}()
+	retirer := tlsPublicConnectionRetirer{dialContext: func(context.Context, string, string) (net.Conn, error) { return local, nil }}
+	return operation(retirer)
+}

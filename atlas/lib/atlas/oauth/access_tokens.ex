@@ -13,7 +13,7 @@ defmodule Atlas.OAuth.AccessTokens do
   @behaviour Boruta.Oauth.AccessTokens
 
   import Boruta.Config, only: [repo: 0]
-  import Ecto.Query, only: [from: 2]
+  import Ecto.Query, only: [dynamic: 1, from: 2]
 
   alias Atlas.OAuth.Clients
   alias Boruta.Ecto.Errors
@@ -23,6 +23,7 @@ defmodule Atlas.OAuth.AccessTokens do
   alias Boruta.Oauth
   alias Boruta.Oauth.AccessTokens
   alias Boruta.Oauth.Client
+  alias Boruta.Oauth.Error, as: OAuthError
 
   @impl AccessTokens
   def get_by(attrs) do
@@ -74,19 +75,74 @@ defmodule Atlas.OAuth.AccessTokens do
       agent_token: params[:agent_token]
     }
 
-    changeset =
-      apply(
-        Token,
-        changeset_method(options),
-        [%Token{resource_owner: params[:resource_owner]}, token_attributes]
-      )
+    with {:ok, token} <-
+           repo().transaction(fn ->
+             # Preauthorization runs before token creation in Boruta. Claim the
+             # one-time grant in the same transaction as its replacement so two
+             # replicas cannot both mint credentials from the same stale read.
+             consume_grant!(params)
 
-    with {:ok, token} <- repo().insert(changeset),
+             # Changeset construction mints the JWT (and may persist a Guardian
+             # record), so it belongs inside this transaction too.
+             changeset =
+               apply(Token, changeset_method(options), [
+                 %Token{resource_owner: params[:resource_owner]},
+                 token_attributes
+               ])
+
+             case repo().insert(changeset) do
+               {:ok, token} -> token
+               {:error, changeset} -> repo().rollback(changeset)
+             end
+           end),
          {:ok, token} <- token |> to_oauth_schema() |> TokenStore.put() do
       {:ok, token}
     else
       {:error, %Ecto.Changeset{} = changeset} ->
         {:error, "Could not create access token : #{Errors.message_from_changeset(changeset)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp consume_grant!(%{previous_code: value, client: %Client{id: client_id}}) when is_binary(value) do
+    query =
+      from t in Token,
+        where: t.value == ^value and t.client_id == ^client_id and t.type in ["code", "preauthorized_code"],
+        where: is_nil(t.revoked_at),
+        where: t.expires_at > fragment("extract(epoch FROM statement_timestamp())::bigint")
+
+    consume_grant!(query, :revoked_at)
+  end
+
+  defp consume_grant!(%{previous_token: value, client: %Client{id: client_id, refresh_token_ttl: ttl}})
+       when is_binary(value) do
+    query =
+      from t in Token,
+        where: t.value == ^value and t.client_id == ^client_id and t.type == "access_token",
+        where: is_nil(t.revoked_at) and is_nil(t.refresh_token_revoked_at),
+        where:
+          fragment("? + (? * interval '1 second') > (statement_timestamp() AT TIME ZONE 'UTC')", t.inserted_at, ^ttl)
+
+    consume_grant!(query, :refresh_token_revoked_at)
+  end
+
+  defp consume_grant!(_params), do: :ok
+
+  defp consume_grant!(query, field) do
+    # Boruta's timestamp columns have no timezone and contain UTC wall time.
+    # Normalize the database clock instead of implicitly using its session zone.
+    case repo().update_all(query, set: [{field, dynamic(fragment("statement_timestamp() AT TIME ZONE 'UTC'"))}]) do
+      {1, _} ->
+        :ok
+
+      {0, _} ->
+        repo().rollback(%OAuthError{
+          status: :bad_request,
+          error: :invalid_grant,
+          error_description: "Grant is already consumed, revoked, or expired."
+        })
     end
   end
 

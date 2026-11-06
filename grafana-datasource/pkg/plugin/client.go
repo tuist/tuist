@@ -30,11 +30,19 @@ func newTuistClient(settings backend.DataSourceInstanceSettings) (*tuistClient, 
 	}
 
 	baseURL := firstNonEmpty(s.URL, "https://tuist.dev")
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, fmt.Errorf("unsupported default API transport")
+	}
+	transport, err := certificateTrustTransport(base, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return &tuistClient{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		token:   settings.DecryptedSecureJSONData["apiToken"],
-		http:    &http.Client{Timeout: 30 * time.Second},
+		http:    &http.Client{Timeout: 30 * time.Second, Transport: transport, CheckRedirect: secureRedirect},
 	}, nil
 }
 
@@ -46,7 +54,7 @@ func (c *tuistClient) get(ctx context.Context, path string, query url.Values, ou
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return err
+		return apiRequestError{cause: err}
 	}
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
@@ -55,21 +63,24 @@ func (c *tuistClient) get(ctx context.Context, path string, query url.Values, ou
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return err
+		return apiRequestError{cause: err}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return apiRequestError{cause: err}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("tuist API %s returned %d: %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
+		return fmt.Errorf("tuist API returned HTTP %d", resp.StatusCode)
 	}
 	if out == nil {
 		return nil
 	}
-	return json.Unmarshal(body, out)
+	if err := json.Unmarshal(body, out); err != nil {
+		return apiResponseError{cause: err}
+	}
+	return nil
 }
 
 func (c *tuistClient) durationMetrics(ctx context.Context, entity, projectHandle string, from, to int64, qm queryModel) (*durationMetrics, error) {
@@ -112,6 +123,9 @@ func (c *tuistClient) dimensionValues(ctx context.Context, entity, dimension, pr
 		Values []string `json:"values"`
 	}
 	path := fmt.Sprintf("/api/projects/%s/%s/metrics/dimensions/%s/values", projectHandle, entity, dimension)
+	if entity == "build-health" {
+		path = fmt.Sprintf("/api/projects/%s/builds/metrics/health/dimensions/%s/values", projectHandle, dimension)
+	}
 	if err := c.get(ctx, path, nil, &out); err != nil {
 		return nil, err
 	}
@@ -131,4 +145,29 @@ func setIfNotEmpty(q url.Values, key, value string) {
 	if strings.TrimSpace(value) != "" {
 		q.Set(key, value)
 	}
+}
+
+func (c *tuistClient) buildHealthMetrics(ctx context.Context, qm queryModel, from, to int64, view string) (*buildHealthMetrics, error) {
+	q := url.Values{"from": {strconv.FormatInt(from, 10)}, "to": {strconv.FormatInt(to, 10)}, "view": {view}}
+	switch qm.Environment {
+	case "ci":
+		q.Set("is_ci", "true")
+	case "local":
+		q.Set("is_ci", "false")
+	}
+	setIfNotEmpty(q, "git_branch", qm.GitBranch)
+	setIfNotEmpty(q, "workload", qm.Workload)
+	setIfNotEmpty(q, "status", qm.Status)
+	if qm.SlowBuildThresholdMS != nil {
+		q.Set("slow_build_threshold_ms", strconv.FormatInt(*qm.SlowBuildThresholdMS, 10))
+	}
+	var out buildHealthMetrics
+	path := fmt.Sprintf("/api/projects/%s/gradle/builds/metrics", qm.ProjectHandle)
+	if !strings.HasPrefix(qm.QueryType, "gradle") {
+		path = fmt.Sprintf("/api/projects/%s/builds/metrics/health", qm.ProjectHandle)
+	}
+	if err := c.get(ctx, path, q, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }

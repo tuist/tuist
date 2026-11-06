@@ -28,6 +28,14 @@ defmodule TuistWeb.Marketing.MarketingChangelogLiveTest do
       assert html =~ latest_entry.title
     end
 
+    test "falls back to the first page when the page param is not a positive integer", %{conn: conn} do
+      for query <- ["page=1'%20ORDER%20BY%201--%20-", "page[]=1", "page=-1"] do
+        {:ok, _lv, html} = live(conn, "/changelog?#{query}")
+
+        assert length(find(html, ~s([data-part="timeline"] > [data-part="entry"]))) == 10
+      end
+    end
+
     test "load more appends the next page of entries", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/changelog")
 
@@ -35,6 +43,40 @@ defmodule TuistWeb.Marketing.MarketingChangelogLiveTest do
 
       assert length(find(html, ~s([data-part="timeline"] > [data-part="entry"]))) == 20
       assert_patched(lv, "/changelog?page=2")
+    end
+
+    @tag :locale
+    test "load more keeps a localized page on its own locale", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, "/ja/changelog")
+
+      lv |> element(~s([data-part="more"] button)) |> render_click()
+
+      assert_patched(lv, "/ja/changelog?page=2")
+    end
+
+    @tag :locale
+    test "category pills keep a localized page on its own locale", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, "/ja/changelog")
+
+      lv
+      |> element(~s([data-part="categories"] > [data-part="category"]), "OSS")
+      |> render_click()
+
+      assert_patched(lv, "/ja/changelog?category=OSS")
+    end
+
+    @tag :locale
+    test "entry links keep a localized page on its own locale", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, "/ja/changelog")
+
+      latest_entry = List.first(Changelog.get_entries())
+
+      hrefs =
+        html
+        |> find(~s([data-part="timeline"] [data-part="entry"] a[href*="#{latest_entry.id}"]))
+        |> Floki.attribute("href")
+
+      assert hrefs == ["/ja/changelog/#{latest_entry.id}"]
     end
 
     test "category pills filter the timeline", %{conn: conn} do

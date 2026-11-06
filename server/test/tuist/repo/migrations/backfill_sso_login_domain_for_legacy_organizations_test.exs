@@ -1,3 +1,5 @@
+# Historical schema and data changes roll back with each serialized sandbox transaction.
+# excellent_migrations:safety-assured-for-this-file operation_query
 Code.require_file(
   Path.expand(
     "../../../../priv/repo/migrations/20260910120000_backfill_sso_login_domain_for_legacy_organizations.exs",
@@ -8,10 +10,17 @@ Code.require_file(
 defmodule Tuist.Repo.Migrations.BackfillSsoLoginDomainForLegacyOrganizationsTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
+  alias Ecto.Adapters.SQL
   alias Tuist.Accounts
   alias Tuist.Repo
   alias Tuist.Repo.Migrations.BackfillSsoLoginDomainForLegacyOrganizations
   alias TuistTestSupport.Fixtures.AccountsFixtures
+
+  setup do
+    # Recreate the historical schema only within this serialized sandbox transaction.
+    Repo.query!("ALTER TABLE organizations ADD COLUMN sso_legacy_email_domain_fallback boolean NOT NULL DEFAULT false")
+    :ok
+  end
 
   test "seeds the domain its members share, ready to verify" do
     organization = legacy_organization(["ada@acme.test", "grace@acme.test", "alan@acme.test"])
@@ -30,7 +39,11 @@ defmodule Tuist.Repo.Migrations.BackfillSsoLoginDomainForLegacyOrganizationsTest
 
     backfilled = reload(organization)
     assert is_nil(backfilled.sso_login_domain_verified_at)
-    assert backfilled.sso_legacy_email_domain_fallback
+
+    assert %{rows: [[true]]} =
+             SQL.query!(Repo, "SELECT sso_legacy_email_domain_fallback FROM organizations WHERE id = $1", [
+               backfilled.id
+             ])
   end
 
   test "answers nothing for a membership split across domains" do
@@ -79,10 +92,14 @@ defmodule Tuist.Repo.Migrations.BackfillSsoLoginDomainForLegacyOrganizationsTest
         sso_organization_id: tenant,
         oauth2_client_id: "client-id",
         oauth2_client_secret: "client-secret",
-        sso_legacy_email_domain_fallback: Keyword.get(opts, :legacy, true),
         sso_login_domain: Keyword.get(opts, :sso_login_domain),
         sso_login_domain_verification_token: Keyword.get(opts, :sso_login_domain_verification_token)
       )
+
+    Repo.query!("UPDATE organizations SET sso_legacy_email_domain_fallback = $1 WHERE id = $2", [
+      Keyword.get(opts, :legacy, true),
+      organization.id
+    ])
 
     for email <- member_emails do
       Accounts.add_user_to_organization(AccountsFixtures.user_fixture(email: email), organization)

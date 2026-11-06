@@ -3,6 +3,71 @@ defmodule Tuist.VCS.GitHubAppInstallationTest do
 
   alias Tuist.VCS.GitHubAppInstallation
 
+  describe "changeset/2 API URL" do
+    @attrs %{account_id: 1, client_url: "https://github.internal.example.com", private_key: "pem"}
+
+    test "normalizes the optional API URL without changing the browser URL" do
+      changeset =
+        GitHubAppInstallation.changeset(Map.put(@attrs, :api_url, "  https://proxy.example.com/api/v3/  "))
+
+      assert changeset.valid?
+      installation = Ecto.Changeset.apply_changes(changeset)
+      assert installation.api_url == "https://proxy.example.com/api/v3"
+      assert installation.client_url == @attrs.client_url
+    end
+
+    test "defaults to no API override and permits clearing it" do
+      assert GitHubAppInstallation.changeset(@attrs).valid?
+
+      for value <- [nil, "", "   "] do
+        existing = %GitHubAppInstallation{api_url: "https://proxy.example.com/api/v3"}
+        changeset = GitHubAppInstallation.changeset(existing, Map.put(@attrs, :api_url, value))
+        assert changeset.valid?
+        assert Ecto.Changeset.get_field(changeset, :api_url) == nil
+      end
+    end
+
+    test "rejects malformed API URLs and embedded credentials, queries, and fragments" do
+      for url <- [
+            "not-a-url",
+            "https://user:password@proxy.example.com/api/v3",
+            "https://proxy.example.com/api/v3?token=secret",
+            "https://proxy.example.com/api/v3#fragment"
+          ] do
+        changeset = GitHubAppInstallation.changeset(Map.put(@attrs, :api_url, url))
+        refute changeset.valid?
+        assert changeset.errors[:api_url]
+      end
+    end
+
+    test "rejects API overrides for the shared github.com App" do
+      changeset =
+        GitHubAppInstallation.changeset(%{
+          account_id: 1,
+          client_url: "https://github.com",
+          installation_id: "123",
+          api_url: "https://proxy.example.com/api/v3"
+        })
+
+      refute changeset.valid?
+      assert changeset.errors[:api_url]
+    end
+
+    test "installation setup updates preserve the API override" do
+      existing = %GitHubAppInstallation{
+        client_url: @attrs.client_url,
+        api_url: "https://proxy.example.com/api/v3",
+        private_key: "pem"
+      }
+
+      changeset =
+        GitHubAppInstallation.update_changeset(existing, %{installation_id: "123", api_url: "https://other.com"})
+
+      assert Ecto.Changeset.get_field(changeset, :api_url) == existing.api_url
+      assert Ecto.Changeset.get_field(changeset, :installation_id) == "123"
+    end
+  end
+
   describe "enterprise?/1" do
     test "false for the default github.com client_url" do
       refute GitHubAppInstallation.enterprise?(%GitHubAppInstallation{client_url: "https://github.com"})

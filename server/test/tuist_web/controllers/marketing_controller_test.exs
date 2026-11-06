@@ -5,12 +5,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias Plug.CSRFProtection.InvalidCSRFTokenError
   alias Tuist.AppStore
   alias Tuist.Atlas.Email
-  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Releases
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.CacheGlobe
+  alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Newsletter
+  alias Tuist.Marketing.Stats
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Utilities.MarketingMarkdown
 
   @iphone_user_agent "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
@@ -32,6 +36,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /" do
+    test "marketing responses do not advertise server software", %{conn: conn} do
+      for method <- [:get, :head], path <- ["/", "/about", "/customers/delivery-hero"] do
+        response = dispatch(conn, @endpoint, method, path)
+
+        assert response.status == if(path == "/customers/delivery-hero", do: 302, else: 200)
+        assert get_resp_header(response, "server") == []
+        assert get_resp_header(response, "x-powered-by") == []
+      end
+    end
+
     test "includes agent discovery link headers on the homepage", %{conn: conn} do
       conn = get(conn, "/")
 
@@ -42,6 +56,68 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert link_header =~ ~s(profile="https://www.rfc-editor.org/info/rfc9727")
       assert link_header =~ ~s(</api/spec>; rel="service-desc"; type="application/json")
       assert link_header =~ ~s(</api/docs>; rel="service-doc"; type="text/html")
+    end
+
+    test "shows today's cache download count linking to the globe page", %{conn: conn} do
+      stub(Stats, :get_globe, fn ->
+        Map.merge(CacheGlobe.empty(), %{
+          downloads: 658_422,
+          recent_downloads: 1_200,
+          updated_at: "2026-10-13T12:00:00Z",
+          observed_at: "2026-10-13T11:58:00Z",
+          status: :available
+        })
+      end)
+
+      html = conn |> get("/") |> html_response(200)
+
+      assert [eyebrow] = html |> LazyHTML.from_document() |> LazyHTML.query("#home-hero-cache-count") |> Enum.to_list()
+      assert LazyHTML.attribute(eyebrow, "href") == ["/globe"]
+      assert LazyHTML.attribute(eyebrow, "data-recent-downloads") == ["1200"]
+      assert LazyHTML.text(eyebrow) =~ "Cache download requests today:"
+      assert LazyHTML.text(eyebrow) =~ "658,422"
+    end
+
+    test "renders the customer stories carousel with OpenAI's quote first", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200) |> LazyHTML.from_document()
+
+      slides = html |> LazyHTML.query("#customers-carousel [data-part=slide]") |> Enum.to_list()
+
+      assert Enum.flat_map(slides, &LazyHTML.attribute(&1, "data-company")) ==
+               ["openai", "monzo", "toss", "trendyol", "monday", "delivery-hero"]
+
+      assert [first | rest] = slides
+      assert LazyHTML.attribute(first, "data-active") == ["true"]
+      assert LazyHTML.attribute(first, "inert") == []
+      assert Enum.all?(rest, &(LazyHTML.attribute(&1, "inert") != []))
+      assert LazyHTML.text(first) =~ "Tuist has made a meaningful difference to developer productivity"
+      assert LazyHTML.text(first) =~ "Eric Burke"
+      assert first |> LazyHTML.query("a") |> Enum.count() == 0
+
+      assert html |> LazyHTML.query("#customers-carousel a[href='/customers/monzo']") |> Enum.count() == 1
+
+      assert html
+             |> LazyHTML.query("#customers-carousel a[href^='https://deliveryhero.jobs/']")
+             |> Enum.count() == 1
+
+      tabs = html |> LazyHTML.query("#customers-carousel [role=tab]") |> Enum.to_list()
+
+      assert Enum.flat_map(tabs, &LazyHTML.attribute(&1, "aria-label")) ==
+               ["OpenAI", "Monzo", "Toss", "Trendyol", "monday.com", "Delivery Hero"]
+
+      assert Enum.flat_map(tabs, &LazyHTML.attribute(&1, "aria-selected")) ==
+               ["true", "false", "false", "false", "false", "false"]
+
+      assert LazyHTML.attribute(first, "aria-labelledby") == ["customers-tab-openai"]
+      assert first |> LazyHTML.query("[data-part=logo]") |> Enum.count() == 0
+    end
+
+    test "omits the cache download count while the globe has no data", %{conn: conn} do
+      stub(Stats, :get_globe, fn -> CacheGlobe.empty() end)
+
+      html = conn |> get("/") |> html_response(200)
+
+      refute html =~ "home-hero-cache-count"
     end
 
     test "describes the site and the product with structured data", %{conn: conn} do
@@ -64,12 +140,209 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
     end
 
+    test "links the get started CTA to the docs", %{conn: conn} do
+      html = conn |> get("/") |> html_response(200)
+      document = Floki.parse_document!(html)
+
+      assert Floki.attribute(document, ~s([data-part="cta"] a[data-variant="primary"]), "href") ==
+               ["https://tuist.dev/en/docs/"]
+    end
+
     test "rejects requests that only accept JSON as not acceptable", %{conn: conn} do
       assert_error_sent 406, fn ->
         conn
         |> put_req_header("accept", "application/json")
         |> get("/")
       end
+    end
+  end
+
+  describe "marketing languages" do
+    @describetag :locale
+
+    test "deep links select their language regardless of browser or session preferences", %{conn: conn} do
+      for {path, language, direction} <- [
+            {"/about", "en", "ltr"},
+            {"/zh_Hans", "zh-Hans", "ltr"},
+            {"/ja", "ja", "ltr"},
+            {"/ar", "ar", "rtl"}
+          ] do
+        document =
+          conn
+          |> init_test_session(%{locale: "ko"})
+          |> put_req_cookie("tuist_locale", "es")
+          |> put_req_header("accept-language", "zh-TW,ja;q=0.9")
+          |> get(path)
+          |> html_response(200)
+          |> Floki.parse_document!()
+
+        assert Floki.attribute(document, "html", "lang") == [language]
+        assert Floki.attribute(document, "html", "dir") == [direction]
+
+        assert Floki.attribute(document, "link[rel='canonical']", "href") ==
+                 [Tuist.Environment.app_url(path: path)]
+      end
+    end
+
+    test "only the root temporarily redirects, preserving tracking and language preferences", %{conn: conn} do
+      for method <- [:get, :head] do
+        response =
+          conn
+          |> put_req_header("accept-language", "ja;q=0,zh-TW;q=0.9,zh-CN;q=1")
+          |> dispatch(@endpoint, method, "/?utm_source=google")
+
+        assert redirected_to(response, 302) == "/zh_Hans?utm_source=google"
+        assert get_resp_header(response, "cache-control") == ["private, no-store"]
+        refute Map.has_key?(response.resp_cookies, "tuist_locale")
+      end
+    end
+
+    test "unsupported or absent browser languages render an uncached English root", %{conn: conn} do
+      for header <- ["", "fr-FR", "ja;q=0,en;q=1"] do
+        response = conn |> put_req_header("accept-language", header) |> get("/")
+        assert html_response(response, 200) =~ ~s(lang="en")
+        assert get_resp_header(response, "cache-control") == ["private, no-store"]
+      end
+    end
+
+    test "the switcher remembers explicit choices, including English, without redirect loops", %{conn: conn} do
+      document = conn |> get("/?utm_source=google") |> html_response(200) |> Floki.parse_document!()
+
+      for {locale, language} <- [{"en", "en"}, {"ja", "ja"}, {"zh_Hans", "zh-Hans"}, {"yue_Hant", "yue-Hant"}] do
+        assert Floki.attribute(document, "#footer-locale-dropdown a[data-value='#{locale}']", "data-glossia-language") ==
+                 [language]
+      end
+
+      assert length(Floki.find(document, "a[data-glossia-language]")) == length(Localization.languages())
+      [japanese_link] = Floki.attribute(document, "#footer-locale-dropdown a[data-value='ja']", "href")
+      assert japanese_link == "/ja?set_locale=ja"
+
+      chosen =
+        conn
+        |> put_req_header("accept-language", "zh-CN")
+        |> get(japanese_link <> "&utm_source=google&utm_content[]=first&utm_content[]=second")
+
+      assert %URI{path: "/ja", query: query} = URI.parse(redirected_to(chosen, 302))
+
+      assert query |> URI.query_decoder() |> Enum.to_list() == [
+               {"utm_source", "google"},
+               {"utm_content[]", "first"},
+               {"utm_content[]", "second"}
+             ]
+
+      assert chosen.resp_cookies["tuist_locale"].value == "ja"
+      assert chosen.resp_cookies["tuist_locale"].http_only
+      assert get_resp_header(chosen, "cache-control") == ["private, no-store"]
+
+      returning = chosen |> recycle() |> put_req_header("accept-language", "zh-CN") |> get("/")
+      assert redirected_to(returning, 302) == "/ja"
+
+      document = chosen |> recycle() |> get("/ja") |> html_response(200) |> Floki.parse_document!()
+      [english_link] = Floki.attribute(document, "#footer-locale-dropdown a[data-value='en']", "href")
+      english = chosen |> recycle() |> put_req_header("accept-language", "zh-CN") |> get(english_link)
+      assert redirected_to(english, 302) == "/"
+      assert english.resp_cookies["tuist_locale"].value == "en"
+
+      returning = english |> recycle() |> put_req_header("accept-language", "zh-CN") |> get("/")
+      assert html_response(returning, 200) =~ ~s(lang="en")
+      assert get_resp_header(returning, "cache-control") == ["private, no-store"]
+    end
+
+    test "invalid preferences cannot select a redirect target or overwrite an explicit choice", %{conn: conn} do
+      response =
+        conn
+        |> put_req_cookie("tuist_locale", "//evil.example")
+        |> put_req_header("accept-language", "ja")
+        |> get("/")
+
+      assert redirected_to(response, 302) == "/ja"
+
+      for query <- ["set_locale=//evil.example", "set_locale=ja", "set_locale[]=en"] do
+        response = get(conn, "/es?#{query}")
+        assert html_response(response, 200)
+        refute Map.has_key?(response.resp_cookies, "tuist_locale")
+      end
+    end
+
+    test "translated pages share query-free alternates and an English fallback", %{conn: conn} do
+      languages = [
+        {"ar", "/ar"},
+        {"en", ""},
+        {"es", "/es"},
+        {"ja", "/ja"},
+        {"ka", "/ka"},
+        {"ko", "/ko"},
+        {"ru", "/ru"},
+        {"tr", "/tr"},
+        {"yue-Hant", "/yue_Hant"},
+        {"zh-Hans", "/zh_Hans"},
+        {"zh-Hant", "/zh_Hant"}
+      ]
+
+      for page <- ["/", "/about"], {language, prefix} <- languages do
+        path = if page == "/", do: if(prefix == "", do: "/", else: prefix), else: prefix <> page
+        document = conn |> get(path <> "?utm_source=google") |> html_response(200) |> Floki.parse_document!()
+
+        assert Floki.attribute(document, "html", "lang") == [language]
+
+        assert Floki.attribute(document, "link[rel='canonical']", "href") ==
+                 [Tuist.Environment.app_url(path: path)]
+
+        alternates = Floki.find(document, "link[rel='alternate'][hreflang]")
+        assert length(alternates) == length(languages) + 1
+
+        for {target_language, target_prefix} <- languages do
+          target_path =
+            if page == "/",
+              do: if(target_prefix == "", do: "/", else: target_prefix),
+              else: target_prefix <> page
+
+          assert Floki.attribute(alternates, "[hreflang='#{target_language}']", "href") ==
+                   [Tuist.Environment.app_url(path: target_path)]
+        end
+
+        assert Floki.attribute(alternates, "[hreflang='x-default']", "href") ==
+                 [Tuist.Environment.app_url(path: page)]
+
+        assert Floki.find(document, "link[type='text/markdown'][hreflang]") == []
+
+        if page == "/" do
+          website =
+            document
+            |> Floki.find("script[type='application/ld+json']")
+            |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+            |> Enum.find(&(&1["@type"] == "WebSite"))
+
+          assert website["inLanguage"] == language
+        end
+      end
+    end
+  end
+
+  describe "Markdown-only problem and comparison guides" do
+    test "does not register standalone marketing browser routes" do
+      for page <- MarketingMarkdown.decision_guides() do
+        case Phoenix.Router.route_info(TuistWeb.Router, "GET", page.path, "") do
+          :error -> :ok
+          route -> refute Map.get(route, :type) == :marketing, page.path
+        end
+      end
+    end
+
+    test "does not link the Markdown-only guides from browser navigation", %{conn: conn} do
+      document = conn |> get("/") |> html_response(200) |> Floki.parse_document!()
+      links = Floki.attribute(document, "a", "href")
+
+      for page <- MarketingMarkdown.decision_guides() do
+        refute page.path in links
+        refute MarketingMarkdown.alternate_path(page.path) in links
+      end
+
+      assert Floki.find(document, "#footer-locale-dropdown") != []
+    end
+
+    test "legacy feature redirects remain intact", %{conn: conn} do
+      assert conn |> get("/flaky-tests") |> redirected_to(301) == "/tests"
     end
   end
 
@@ -123,6 +396,26 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       end
     end
 
+    test "does not advertise Markdown-only problem and comparison guides", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+
+      for page <- MarketingMarkdown.decision_guides() do
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: page.path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: "/ko" <> page.path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: MarketingMarkdown.alternate_path(page.path))}</loc>"
+      end
+    end
+
+    test "includes individual changelog entries", %{conn: conn} do
+      xml = conn |> get("/sitemap.xml") |> response(200)
+      entry = List.first(Changelog.get_entries())
+
+      for locale <- Localization.all_locales() do
+        path = Localization.localized_href("/changelog/#{entry.id}", locale)
+        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+      end
+    end
+
     test "carries lastmod for dated content and omits it elsewhere", %{conn: conn} do
       xml = conn |> get("/sitemap.xml") |> response(200)
 
@@ -154,8 +447,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "/marketing/assets/bundle.css"
     end
 
-    test "anonymous responses stay publicly cacheable", %{conn: conn} do
-      conn = get(conn, "/")
+    test "anonymous deep links stay publicly cacheable", %{conn: conn} do
+      conn = get(conn, "/about")
 
       assert get_resp_header(conn, "cache-control") == ["public, max-age=60, stale-while-revalidate=86400"]
     end
@@ -189,23 +482,11 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /pricing" do
-    test "shows the remote cache hit pricing without the flag", %{conn: conn} do
-      stub(FeatureFlags, :usage_based_pricing_page_enabled?, fn nil -> false end)
-
-      html = conn |> get("/pricing") |> html_response(200)
-
-      assert html =~ "+ $0.5 per additional unit"
-      refute html =~ "Cache egress"
-      refute html =~ "What counts as cache egress and requests?"
-    end
-
-    test "shows usage-based pricing with the flag", %{conn: conn} do
-      stub(FeatureFlags, :usage_based_pricing_page_enabled?, fn nil -> true end)
-
+    test "shows usage-based pricing", %{conn: conn} do
       html = conn |> get("/pricing") |> html_response(200)
 
       assert html =~ "Cache egress"
-      assert html =~ "+ $0.35 per additional GB"
+      assert html =~ "+ $0.10 per additional GB"
       assert html =~ "Cache requests"
       assert html =~ "+ $0.01 per additional 1,000"
       assert html =~ "Test Insights"
@@ -214,14 +495,32 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       refute html =~ "+ $0.5 per additional unit"
     end
 
-    test "previews usage-based pricing for a signed-in user it is enabled for", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-      user_id = user.id
-      stub(FeatureFlags, :usage_based_pricing_page_enabled?, fn %{id: ^user_id} -> true end)
+    test "shows Tuist Runners pricing", %{conn: conn} do
+      html = conn |> get("/pricing") |> html_response(200)
 
-      html = conn |> log_in_user(user) |> get("/pricing") |> html_response(200)
+      assert html =~ ~r/id="pricing-runners-title">\s*Tuist Runners\s*</
+      assert html =~ "2 GB / vCPU"
+      assert html =~ "4 GB / vCPU"
+      # Every rate, as written, in the screen-reader list.
+      assert html =~ "All Tuist Runners machines and rates"
+      assert html =~ "1 vCPU · 2 GB: $0.001/min"
+      assert html =~ "16 vCPU · 48 GB: $0.10/min"
+      assert html =~ "8 vCPU · 24 GB"
+      assert html =~ "16 vCPU · 48 GB"
+      assert html =~ "See every machine and rate"
+      assert html =~ "+ from $0.05/min on macOS and $0.001/min on Linux"
+      refute html =~ "$0.075"
+      assert html =~ "16 vCPU · 64 GB"
+      assert html =~ "$0.0192"
+      assert html =~ "100 GB of cache volumes free"
+      refute html =~ "Prepay and save 20%"
+      assert html =~ "Yearly and volume discounts"
+      assert html =~ "How are Tuist Runners billed?"
+      refute html =~ "How Tuist Runners compare"
 
-      assert html =~ "Cache egress"
+      for provider <- ["Namespace", "Blacksmith", "WarpBuild", "Depot", "Bitrise", ">GitHub<"] do
+        refute html =~ provider
+      end
     end
   end
 

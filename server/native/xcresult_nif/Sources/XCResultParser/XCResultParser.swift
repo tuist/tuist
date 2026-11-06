@@ -34,7 +34,7 @@ public struct XCResultParser: Sendable {
         self.fileSystem = fileSystem
         self.execute = execute
         self.ipsCrashReportParser = ipsCrashReportParser
-        self.coverageParser = coverageParser ?? XcodeCoverageParser(fileSystem: fileSystem, execute: execute)
+        self.coverageParser = coverageParser ?? XcodeCoverageParser(fileSystem: fileSystem)
     }
 
     private func secondsToMilliseconds(_ seconds: Double) -> Int {
@@ -92,24 +92,41 @@ public struct XCResultParser: Sendable {
         attachmentsDirectory: AbsolutePath? = nil
     ) async throws -> TestSummary? {
         let testOutput = try await loadTestOutput(path: path)
-        return try await parseTestOutput(
+        let summary = try await parseTestOutput(
             testOutput,
             rootDirectory: rootDirectory,
             attachmentsDirectory: attachmentsDirectory,
             xcresultPath: path
         )
+        let bundle = URL(fileURLWithPath: path.pathString)
+        return summary
+            .applying(executionModes: TestExecutionModes.read(fromResultBundle: bundle))
+            .applying(coverageEvidence: Self.coverageEvidence(inResultBundle: bundle))
+    }
+
+    /// The evidence a client wrote into the bundle, tied to the repository by the coverage
+    /// manifest beside it. Nil without either: evidence over paths nobody can place is no use.
+    static func coverageEvidence(inResultBundle bundle: URL) -> TestCoverageEvidence? {
+        guard let evidence = TestCoverageEvidence.read(fromResultBundle: bundle),
+              let data = try? Data(contentsOf: bundle.appendingPathComponent(XcodeCoverageManifest.fileName)),
+              let manifest = try? JSONDecoder().decode(XcodeCoverageManifest.self, from: data)
+        else { return nil }
+        return evidence.inRepository(manifest: manifest)
     }
 
     /// Reads the bundle's code coverage against the ``XcodeCoverageManifest`` the client wrote
-    /// into it. Nil for a bundle without a manifest, which has no coverage to tie to a repository.
-    public func parseCoverage(path: AbsolutePath) async throws -> XcodeCoverageReport? {
+    /// into it, streamed to `output` as one JSON object per source file. Nil for a bundle without
+    /// a manifest, which has no coverage to tie to a repository, and for one whose manifest says
+    /// the client measured and sent the coverage itself.
+    public func parseCoverage(path: AbsolutePath, into output: AbsolutePath) async throws -> XcodeCoverageSummary? {
         let manifestPath = path.appending(component: XcodeCoverageManifest.fileName)
         guard try await fileSystem.exists(manifestPath) else { return nil }
         let manifest = try JSONDecoder().decode(
             XcodeCoverageManifest.self,
             from: Data(try await fileSystem.readTextFile(at: manifestPath).utf8)
         )
-        return try await coverageParser.parse(resultBundlePath: path, manifest: manifest)
+        guard !manifest.clientReported else { return nil }
+        return try await coverageParser.parse(resultBundlePath: path, manifest: manifest, into: output)
     }
 
     public func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses {
@@ -161,12 +178,18 @@ public struct XCResultParser: Sendable {
         let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
 
         if node.nodeType == "Test Case", let name = node.name, !isRunnerError(node), !isUnattributedIssues(node) {
+            let argumentNodes = (node.children ?? []).filter { $0.nodeType == "Arguments" }
+            let status: TestStatus = if argumentNodes.isEmpty {
+                testStatus(from: node.result)
+            } else {
+                argumentNodes.contains(where: { argumentStatus($0) == .failed }) ? .failed : .passed
+            }
             results.append(
                 TestResultStatuses.TestCaseStatus(
                     name: name,
                     testSuite: extractSuiteName(from: node.nodeIdentifier),
                     module: currentModule,
-                    status: testStatus(from: node.result)
+                    status: status
                 )
             )
         }
@@ -494,15 +517,12 @@ public struct XCResultParser: Sendable {
                 )
             }
 
-            let argFailures: [TestCaseFailure]
-            let argStatus: TestStatus
-            if !argRepetitions.isEmpty {
-                argFailures = argRepetitions.filter { $0.status == .failed }.flatMap(\.failures)
-                argStatus = argRepetitions.contains(where: { $0.status == .failed }) ? .failed : .passed
+            let argFailures: [TestCaseFailure] = if !argRepetitions.isEmpty {
+                argRepetitions.filter { $0.status == .failed }.flatMap(\.failures)
             } else {
-                argFailures = extractFailures(from: argNode, rootDirectory: rootDirectory)
-                argStatus = testStatus(from: argNode.result)
+                extractFailures(from: argNode, rootDirectory: rootDirectory)
             }
+            let argStatus = argumentStatus(argNode)
             let argDuration = argNode.durationInSeconds.map { secondsToMilliseconds($0) }
                 ?? argRepetitions.compactMap(\.duration).max() ?? 0
             return TestCaseArgument(
@@ -564,6 +584,20 @@ public struct XCResultParser: Sendable {
             repetitions: repetitions,
             arguments: arguments
         )
+    }
+
+    /// Xcode rolls a parameterized test's argument up as failed when any attempt failed, even under
+    /// `-retry-tests-on-failure` where a passing retry passes it for xcodebuild ("Failed after 2 retry"
+    /// with a passed "Retry 1"). Retried attempts are named "Retry N", and for those the last attempt
+    /// decides; fixed iterations ("Repetition N") fail on any failed iteration, as xcodebuild does.
+    private func argumentStatus(_ argNode: TestNode) -> TestStatus {
+        let repetitions = (argNode.children ?? []).filter { $0.nodeType == "Repetition" && $0.result != nil }
+        guard let lastAttempt = repetitions.last else { return testStatus(from: argNode.result) }
+
+        if repetitions.contains(where: { $0.name?.hasPrefix("Retry ") == true }) {
+            return testStatus(from: lastAttempt.result)
+        }
+        return repetitions.contains(where: { testStatus(from: $0.result) == .failed }) ? .failed : .passed
     }
 
     private func mergeRepetitions(

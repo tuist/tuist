@@ -5,6 +5,8 @@ defmodule TuistWeb.BuildRunLive do
 
   import Phoenix.Component
   import TuistWeb.Components.BuildTimeline
+  import TuistWeb.Components.CacheBreakdown
+  import TuistWeb.Components.CacheOutputList
   import TuistWeb.Components.EmptyTabStateBackground
   import TuistWeb.Components.ErrorCardSection
   import TuistWeb.Components.MachineMetricsCharts
@@ -28,6 +30,7 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.Tests
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.RunnerJobLive
   alias TuistWeb.RunnerWorkflowsLive
   alias TuistWeb.Utilities.Query
@@ -77,6 +80,7 @@ defmodule TuistWeb.BuildRunLive do
     socket =
       socket
       |> assign(:run, run)
+      |> assign(:failure_category, Tuist.BuildMetrics.failure_category(run.project_id, "xcode", run.id))
       |> assign(:timeline, AsyncResult.loading())
       |> assign(:timeline_version, 0)
       |> assign(:machine_metrics, run.machine_metrics)
@@ -99,6 +103,13 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:expanded_target_names, MapSet.new())
       |> assign(:task_cas_outputs_map, %{})
       |> assign_build_data(run)
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: if(run.scheme == "", do: dgettext("dashboard_builds", "Build Run"), else: run.scheme),
+          subtitle: Enum.join(Enum.reject([run.configuration, run.git_branch], &(&1 in [nil, ""])), " · "),
+          badge: run.status |> to_string() |> String.capitalize()
+        )
+      )
 
     {:ok, socket}
   end
@@ -111,7 +122,7 @@ defmodule TuistWeb.BuildRunLive do
       end
 
     test_run =
-      case Tests.get_latest_test_by_build_run_id(run.id) do
+      case Tests.get_latest_test_by_build_run_id(run.id, run.project_id) do
         {:ok, test} -> test
         {:error, :not_found} -> nil
       end
@@ -127,6 +138,10 @@ defmodule TuistWeb.BuildRunLive do
 
     socket
     |> assign(:command_event, command_event)
+    |> assign(
+      :tuist_generation_version,
+      CommandEvents.get_generation_versions(run.project_id, [run.generation_id])[run.generation_id]
+    )
     |> assign(:binary_cache_command_event, binary_cache_command_event)
     |> assign(:has_binary_cache_data, has_binary_cache_data)
     |> assign(:ci_run_url, ci_run_url)
@@ -237,6 +252,7 @@ defmodule TuistWeb.BuildRunLive do
       {:noreply,
        socket
        |> assign(:run, run)
+       |> assign(:failure_category, Tuist.BuildMetrics.failure_category(run.project_id, "xcode", run.id))
        |> assign(:machine_metrics, run.machine_metrics)
        |> assign_build_data(run)
        |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, run)
@@ -536,6 +552,10 @@ defmodule TuistWeb.BuildRunLive do
     {:noreply,
      socket
      |> assign(:run, refreshed_run)
+     |> assign(
+       :failure_category,
+       Tuist.BuildMetrics.failure_category(refreshed_run.project_id, "xcode", refreshed_run.id)
+     )
      |> assign(:machine_metrics, refreshed_run.machine_metrics)
      |> assign_build_data(refreshed_run)
      |> TuistWeb.BuildTimelineLoader.select_tab(socket.assigns.selected_tab, refreshed_run)
@@ -928,14 +948,17 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp issue_title(title, issue, run) do
-    if not is_nil(issue.path) and String.contains?(title, issue.path) and
+    if not is_nil(issue.path) and issue.path != "" and String.contains?(title, issue.path) and
          not is_nil(run.project.vcs_connection) and
-         run.project.vcs_connection.provider == :github and not is_nil(run.git_commit_sha) do
+         run.project.vcs_connection.provider == :github and run.git_commit_sha not in [nil, ""] do
+      href =
+        "https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{issue.path}"
+
+      # The title, path, and commit SHA come from the client, so escape them
+      # before building the link.
       title
-      |> String.replace(
-        issue.path,
-        ~s(<a href="https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{issue.path}" target="_blank">#{issue.path}</a>)
-      )
+      |> escape()
+      |> String.replace(escape(issue.path), ~s(<a href="#{escape(href)}" target="_blank">#{escape(issue.path)}</a>))
       |> raw()
     else
       title
@@ -945,18 +968,26 @@ defmodule TuistWeb.BuildRunLive do
   defp issue_message(issue, run) do
     if not is_nil(issue.path) and issue.path != "" and
          not is_nil(run.project.vcs_connection) and
-         run.project.vcs_connection.provider == :github and not is_nil(run.git_commit_sha) do
+         run.project.vcs_connection.provider == :github and run.git_commit_sha not in [nil, ""] do
+      location = "#{issue.path}#L#{issue.starting_line}"
+
+      href =
+        "https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{location}"
+
+      # The message, path, and commit SHA come from the client, so escape them
+      # before building the link.
       raw(
         dgettext("dashboard_builds", "%{message} in %{link}",
-          message: issue.message,
-          link:
-            ~s(<a href="https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{issue.path}#L#{issue.starting_line}" target="_blank">#{issue.path}#L#{issue.starting_line}</a>)
+          message: escape(issue.message),
+          link: ~s(<a href="#{escape(href)}" target="_blank">#{escape(location)}</a>)
         )
       )
     else
       issue.message
     end
   end
+
+  defp escape(value), do: value |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp issue_title_for_type(issue, run, type) do
@@ -1306,8 +1337,7 @@ defmodule TuistWeb.BuildRunLive do
   #
   # See `TuistWeb.TestRunLive.cached_run_query/4` for why the key is a
   # list with a SHA-256 flop_params fragment rather than a tuple with
-  # a phash2, and for why `locking: false` is required to keep the
-  # `:tuist` cache's Locksmith GenServer off the CLI-token auth path.
+  # a phash2.
   defp cached_build_run_query(run_id, tab, flop_params, func) do
     cache_key = [
       :build_run_flop,
@@ -1583,15 +1613,6 @@ defmodule TuistWeb.BuildRunLive do
     end
   end
 
-  defp url?(value) when is_binary(value) do
-    case URI.parse(value) do
-      %URI{scheme: scheme} when scheme in ["http", "https"] -> true
-      _ -> false
-    end
-  end
-
-  defp url?(_), do: false
-
   defp define_binary_cache_filters do
     [
       %Filter.Filter{
@@ -1624,7 +1645,7 @@ defmodule TuistWeb.BuildRunLive do
        when not is_nil(command_event) do
     page = Query.bounded_page(params["binary-cache-page"])
     sort_by = params["binary-cache-sort-by"] || "name"
-    sort_order = params["binary-cache-sort-order"] || "asc"
+    sort_order = Atom.to_string(Query.sort_order(params["binary-cache-sort-order"], :asc))
     filter_text = params["binary-cache-filter"] || ""
 
     filters = Filter.Operations.decode_filters_from_query(params, available_filters)
@@ -1634,7 +1655,7 @@ defmodule TuistWeb.BuildRunLive do
       page: page,
       page_size: @binary_cache_page_size,
       order_by: [ensure_binary_cache_sort_by(sort_by)],
-      order_directions: [String.to_atom(sort_order)]
+      order_directions: [Query.sort_order(sort_order, :asc)]
     }
 
     {filtered_analytics, meta} = Xcode.binary_cache_analytics(command_event, flop_params)
@@ -1657,7 +1678,7 @@ defmodule TuistWeb.BuildRunLive do
     socket
     |> assign(:binary_cache_page, Query.bounded_page(params["binary-cache-page"]))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
-    |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
+    |> assign(:binary_cache_sort_order, Atom.to_string(Query.sort_order(params["binary-cache-sort-order"], :asc)))
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
     |> assign(:binary_cache_active_filters, filters)
   end

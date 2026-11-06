@@ -16,7 +16,8 @@ defmodule Tuist.AppBuilds.AppBuild do
       values: [
         app_bundle: 0,
         ipa: 1,
-        apk: 2
+        apk: 2,
+        executable: 3
       ]
 
     field :supported_platforms, {:array, Ecto.Enum},
@@ -30,11 +31,14 @@ defmodule Tuist.AppBuilds.AppBuild do
         visionos: 6,
         visionos_simulator: 7,
         macos: 8,
-        android: 9
+        android: 9,
+        linux: 10
       ]
 
+    field :supported_architectures, {:array, :string}, default: []
     field :binary_id, :string
     field :build_version, :string
+    field :artifact_storage_key, :string
 
     timestamps(type: :utc_datetime)
   end
@@ -46,10 +50,13 @@ defmodule Tuist.AppBuilds.AppBuild do
       :type,
       :inserted_at,
       :supported_platforms,
+      :supported_architectures,
       :binary_id,
       :build_version
     ])
     |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))
+    |> validate_subset(:supported_architectures, ["arm64", "x86_64"])
+    |> validate_length(:supported_architectures, max: 2)
     |> validate_required([:preview_id, :type])
     |> unique_constraint([:binary_id, :build_version],
       name: :app_builds_binary_id_build_version_non_apk_index

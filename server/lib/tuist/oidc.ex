@@ -1,15 +1,19 @@
 defmodule Tuist.OIDC do
   @moduledoc """
-  Generic OIDC token validation for CI providers.
+  OIDC token validation for CI and workload identity providers.
 
   Supported providers:
   - GitHub Actions
   - CircleCI
   - Bitrise
+  - Configured workload identity providers
   """
 
+  alias Tuist.Accounts.OIDCTrustPolicy
   alias Tuist.KeyValueStore
+  alias Tuist.OIDC.Workload
 
+  @clock_skew_seconds 60
   @jwks_cache_ttl to_timeout(minute: 15)
 
   @github_actions_issuer "https://token.actions.githubusercontent.com"
@@ -19,22 +23,63 @@ defmodule Tuist.OIDC do
   @circleci_issuer_prefix "https://oidc.circleci.com/org/"
   @audience "tuist"
 
-  def claims(token) when is_binary(token) do
-    with {:ok, issuer} <- peek_issuer(token),
-         {:ok, provider} <- provider(issuer),
-         {:ok, jwks_uri} <- jwks_uri(provider, issuer),
-         {:ok, claims} <- verify(token, jwks_uri),
-         :ok <- validate_audience(claims, provider),
-         {:ok, repository} <- repository_from_claims(claims, provider) do
-      {:ok, %{repository: repository}}
+  def claims(token, account_handle \\ nil)
+
+  def claims(token, account_handle) when is_binary(token) and byte_size(token) <= 16_384 do
+    with {:ok, issuer} <- peek_issuer(token) do
+      case provider(issuer) do
+        {:ok, provider} ->
+          builtin_claims(token, issuer, provider)
+
+        error ->
+          if OIDCTrustPolicy.reserved_issuer?(issuer), do: error, else: Workload.claims(token, issuer, account_handle)
+      end
     end
   end
 
-  def claims(_), do: {:error, :invalid_token}
+  def claims(_, _), do: {:error, :invalid_token}
+
+  @doc """
+  The verified claims of a GitHub Actions token minted for `audience`.
+  Unlike `claims/2`, it accepts no other provider and returns every claim.
+  """
+  def github_actions_claims(token, audience)
+      when is_binary(token) and byte_size(token) <= 16_384 and is_binary(audience) do
+    with {:ok, issuer} <- peek_issuer(token),
+         {:ok, :github_actions} <- provider(issuer),
+         {:ok, claims} <- verify(token, @github_actions_jwks_uri),
+         :ok <- audience_includes(claims, audience) do
+      {:ok, claims}
+    else
+      {:ok, _provider} -> {:error, :unsupported_provider}
+      {:error, reason, _detail} -> {:error, reason}
+      error -> error
+    end
+  end
+
+  def github_actions_claims(_, _), do: {:error, :invalid_token}
+
+  defp audience_includes(%{"aud" => audience}, audience), do: :ok
+
+  defp audience_includes(%{"aud" => audiences}, audience) when is_list(audiences) do
+    if audience in audiences, do: :ok, else: {:error, :invalid_audience}
+  end
+
+  defp audience_includes(_claims, _audience), do: {:error, :invalid_audience}
+
+  defp builtin_claims(token, issuer, provider) do
+    with {:ok, jwks_uri} <- jwks_uri(provider, issuer),
+         {:ok, claims} <- verify(token, jwks_uri),
+         :ok <- validate_audience(claims, provider) do
+      identity_from_claims(claims, provider)
+    end
+  end
 
   defp peek_issuer(token) do
-    %JOSE.JWT{fields: %{"iss" => issuer}} = JOSE.JWT.peek_payload(token)
-    {:ok, issuer}
+    case JOSE.JWT.peek_payload(token) do
+      %JOSE.JWT{fields: %{"iss" => issuer}} when is_binary(issuer) and byte_size(issuer) in 1..512 -> {:ok, issuer}
+      _ -> {:error, :invalid_token}
+    end
   rescue
     _ -> {:error, :invalid_token}
   end
@@ -69,6 +114,12 @@ defmodule Tuist.OIDC do
   defp jwks_uri(:bitrise, _issuer), do: {:ok, "#{@bitrise_issuer}/.well-known/jwks"}
 
   defp jwks_uri(:circleci, issuer), do: {:ok, "#{issuer}/.well-known/jwks-pub.json"}
+
+  defp identity_from_claims(claims, provider) do
+    with {:ok, repository} <- repository_from_claims(claims, provider) do
+      {:ok, %{repository: repository}}
+    end
+  end
 
   defp repository_from_claims(claims, :github_actions) do
     case claims["repository"] do
@@ -105,7 +156,8 @@ defmodule Tuist.OIDC do
     with {:ok, kid} <- peek_kid(token),
          {:ok, jwks} <- fetch_jwks(jwks_uri),
          {:ok, claims} <- verify_signature(token, jwks, kid),
-         :ok <- validate_expiration(claims) do
+         :ok <- validate_expiration(claims),
+         :ok <- validate_not_before(claims) do
       {:ok, claims}
     end
   end
@@ -124,7 +176,7 @@ defmodule Tuist.OIDC do
     cache_key = ["oidc", "jwks", jwks_uri]
 
     KeyValueStore.get_or_update(cache_key, [ttl: @jwks_cache_ttl], fn ->
-      case Req.get(jwks_uri, connect_options: [timeout: 10_000]) do
+      case Req.get(jwks_uri, connect_options: [timeout: 10_000], redirect: false) do
         {:ok, %{status: 200, body: body}} -> {:ok, body}
         _ -> {:error, :jwks_fetch_failed, jwks_uri}
       end
@@ -161,6 +213,13 @@ defmodule Tuist.OIDC do
   end
 
   defp validate_expiration(_), do: {:error, :token_expired}
+
+  defp validate_not_before(%{"nbf" => nbf}) when is_integer(nbf) do
+    if nbf <= DateTime.to_unix(DateTime.utc_now()) + @clock_skew_seconds, do: :ok, else: {:error, :token_not_yet_valid}
+  end
+
+  defp validate_not_before(%{"nbf" => _}), do: {:error, :invalid_token}
+  defp validate_not_before(_), do: :ok
 
   defp validate_audience(%{"aud" => @audience}, provider) when provider in [:github_actions, :bitrise] do
     :ok

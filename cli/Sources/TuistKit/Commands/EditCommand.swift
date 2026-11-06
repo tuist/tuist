@@ -3,7 +3,7 @@ import Foundation
 import TuistGenerator
 import TuistSupport
 
-public struct EditCommand: AsyncParsableCommand {
+public struct EditCommand: AsyncParsableCommand, ProjectPathProviding {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -19,7 +19,7 @@ public struct EditCommand: AsyncParsableCommand {
         completion: .directory,
         envKey: .editPath
     )
-    var path: String?
+    public var path: String?
 
     @Flag(
         name: [.long, .customShort("P")],
