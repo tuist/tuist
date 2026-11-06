@@ -621,8 +621,8 @@ func TestPrefetchOnlyInstallsMasterAndNextJobReusesIt(t *testing.T) {
 	}
 }
 
-// A speculative prefetch only uses free space above the reserve, never evicts a
-// resident master, and marks a lineage no job used here as speculative until a
+// A speculative prefetch only uses free space above the reserve and a checkout
+// volume's capacity, never evicts a resident master, and marks a lineage no job used here as speculative until a
 // job clones it.
 func TestLocalSparePrefetchUsesOnlyFreeSpace(t *testing.T) {
 	b, remote := newLocal(t)
@@ -647,16 +647,21 @@ func TestLocalSparePrefetchUsesOnlyFreeSpace(t *testing.T) {
 	wanted.ImageDigest = strings.Repeat("c", 40)
 	wanted.ContentDigest = strings.Repeat("b", 64)
 	wanted.HeadSizeBytes = 1_000
-	free := uint64(2_000)
+	// The restore needs twice the head, 2,000 bytes, on top of a checkout
+	// volume's capacity, which is more than the 10-byte reserve.
+	var free uint64
 	b.FreeBytes = func(string) (uint64, error) { return free, nil }
 
-	if err := b.PrefetchSpare(context.Background(), wanted); !errors.Is(err, ErrCapacity) {
-		t.Fatal("speculative prefetch without room for the restore above the reserve", err)
+	for _, refused := range []uint64{10 + 2_000, CheckoutCapacity + 1_999} {
+		free = refused
+		if err := b.PrefetchSpare(context.Background(), wanted); !errors.Is(err, ErrCapacity) {
+			t.Fatal("speculative prefetch without room for the restore above a checkout's capacity", free, err)
+		}
 	}
 	if !b.HasMaster(resident.Identity) || remote.downloads != 0 {
 		t.Fatal("speculative prefetch evicted a resident master or downloaded")
 	}
-	free = 2_010
+	free = CheckoutCapacity + 2_000
 	if err := b.PrefetchSpare(context.Background(), wanted); err != nil {
 		t.Fatal(err)
 	}
