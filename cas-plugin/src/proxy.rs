@@ -259,40 +259,26 @@ fn tags_path(record_path: &str) -> std::path::PathBuf {
 /// remembered and a later acceptance decides again.
 const SPOOL_LEDGER_MAX: usize = 100_000;
 
-/// How long the periodic sweep leaves a record alone after its publication
-/// failed once: doubled per further failure up to `SPOOL_RETRY_MAX`. A record
-/// is deleted only by a publication that succeeded, so a failure that does not
-/// clear itself (a token the server no longer accepts, a value graph pruned
-/// from the store before it was uploaded) used to cost one probe per record per
-/// 10s sweep for as long as the proxy lived.
-const SPOOL_RETRY_BASE: Duration = Duration::from_secs(20);
-const SPOOL_RETRY_MAX: Duration = Duration::from_secs(60 * 60);
-/// How many failed records the backoff remembers; past it a record retries on
-/// every sweep as before. The map is in memory, so a restart retries everything
-/// once and starts the backoff over, which is fine: it bounds the steady state.
-const SPOOL_RETRIES_MAX: usize = SPOOL_LEDGER_MAX;
 /// A record still spooled this long after the build wrote it is dropped by the
-/// periodic sweep. Far past any build's or CI job's lifetime: a day-old record
-/// is a publication that failed every retry, and holding it keeps its store
-/// handle open (`reclaim_idle` spares a store that owes publications) and the
-/// probes going. Drains do not drop records: a promote gate reads an empty spool
-/// as "everything landed", which a dropped record would fake.
-const SPOOL_RECORD_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
-
-/// A record whose last publication failed: how often, and when the periodic
-/// sweep may enqueue it again.
-#[derive(Clone, Copy, Debug)]
-struct SpoolRetry {
-    failures: u32,
-    due: Instant,
-}
+/// periodic sweep. An hour-old record is a publication that failed every
+/// retry of every sweep since, and holding it keeps its store
+/// handle open (`reclaim_idle` spares a store that owes publications) and every
+/// sweep reading it. Drains do not drop records: a promote gate reads an empty
+/// spool as "everything landed", which a dropped record would fake.
+const SPOOL_RECORD_MAX_AGE: Duration = Duration::from_secs(60 * 60);
 
 /// Which records a sweep of the spool enqueues.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Sweep {
-    /// The maintenance tick: records backing off are left for a later sweep,
-    /// and records past `SPOOL_RECORD_MAX_AGE` are dropped.
+    /// The maintenance tick: drops records past `SPOOL_RECORD_MAX_AGE` and
+    /// enqueues the rest.
     Periodic,
+    /// The maintenance tick once the window of a credential refusal ran out:
+    /// drops expired records like `Periodic`, then enqueues only the newest,
+    /// whose publication probes the refusal. The newest is the record most
+    /// likely to still have its value graph in the store, which it needs to
+    /// reach the upload that probes.
+    Probe,
     /// A drain: every record, now. Its caller has a deadline of its own.
     Everything,
 }
@@ -601,30 +587,11 @@ fn remove_record(record_path: &str) {
     let _ = std::fs::remove_file(tags_path(record_path));
 }
 
-/// The record path a publisher item names (its last field).
-fn publication_record_path(item: &[u8]) -> Option<String> {
-    let (_, rest) = take_u16_field(item)?;
-    let (_, rest) = take_u16_field(rest)?;
-    let (_, rest) = take_u16_field(rest)?;
-    let (_, record_path) = take_u16_field(rest)?;
-    Some(String::from_utf8_lossy(record_path).into_owned())
-}
-
-/// How long a record waits after its `failures`th failed publication.
-fn spool_retry_wait(failures: u32) -> Duration {
-    SPOOL_RETRY_BASE
-        .saturating_mul(1u32 << failures.saturating_sub(1).min(16))
-        .min(SPOOL_RETRY_MAX)
-}
-
-/// Whether a spooled record is older than `SPOOL_RECORD_MAX_AGE`. Read from the
-/// file's modification time, which the claim rename keeps. A record whose time
-/// cannot be read is not expired: dropping is the exception, not the default.
-fn record_expired(entry: &std::fs::DirEntry, now: std::time::SystemTime) -> bool {
-    entry
-        .metadata()
-        .and_then(|metadata| metadata.modified())
-        .ok()
+/// Whether a spooled record is older than `SPOOL_RECORD_MAX_AGE`, by the file's
+/// modification time, which the claim rename keeps. A record whose time cannot
+/// be read is not expired: dropping is the exception, not the default.
+fn record_expired(modified: Option<std::time::SystemTime>, now: std::time::SystemTime) -> bool {
+    modified
         .and_then(|modified| now.duration_since(modified).ok())
         .is_some_and(|age| age > SPOOL_RECORD_MAX_AGE)
 }
@@ -771,6 +738,9 @@ const NEGATIVE_TTL: Duration = Duration::from_secs(60);
 // A publication skipped because the remote refused the credential. Reported once
 // by the remote that refused it, not once per spooled record.
 const CREDENTIAL_REFUSED: &str = "remote refused the cache credential";
+/// A node of the record's value graph is not in the local store, so nothing
+/// can upload it: the store was pruned or wiped after the record was written.
+const LOCAL_GRAPH_MISSING: &str = "value graph missing from the local store";
 
 /// How long a path may go without a request before its in-memory caches are
 /// reclaimed and its store's handle released by the maintenance loop. Well
@@ -2587,8 +2557,6 @@ pub struct Proxy {
     spool_cleaner: Prefetcher,
     // The first decision about each accepted record, until it is on disk.
     spool_ledger: SpoolLedger,
-    // record identity -> its failed publications, read by the periodic sweep.
-    spool_retries: Mutex<HashMap<PathBuf, SpoolRetry>>,
     // Whether a build's put waits for its upload; see `publish_and_wait`.
     upload_wait: UploadWaitBreaker,
     // Resolves/publishes that arrived with no declared instance and no primed
@@ -2695,7 +2663,6 @@ impl Proxy {
             publisher: Prefetcher::new(),
             spool_cleaner: Prefetcher::new(),
             spool_ledger: SpoolLedger::default(),
-            spool_retries: Mutex::new(HashMap::new()),
             upload_wait: UploadWaitBreaker::default(),
             materializer: Prefetcher::new(),
             prematerializer: Prefetcher::new(),
@@ -2716,7 +2683,7 @@ impl Proxy {
         let proxy_addr = proxy as *const Proxy as usize;
         proxy.publisher.configure(8, move |item| {
             let proxy = unsafe { &*(proxy_addr as *const Proxy) };
-            proxy.run_publication(&item, || proxy.publish_item(&item));
+            proxy.publish_item(&item);
         });
         proxy.spool_cleaner.configure(1, move |item| {
             let proxy = unsafe { &*(proxy_addr as *const Proxy) };
@@ -4329,46 +4296,6 @@ impl Proxy {
         self.stalls.watch(&spool_owner(record_path), "removing a spooled publication", || {
             remove_record(record_path)
         });
-        self.spool_retries
-            .lock()
-            .unwrap()
-            .remove(&record_identity(record_path));
-    }
-
-    /// Runs one publisher item and records how it went for the periodic sweep:
-    /// a record still on disk afterwards is a failed publication (the rule
-    /// `publish_and_wait` reads by too), one that is gone was published or
-    /// dropped. Wrapping the item rather than `publish_item` keeps every exit of
-    /// a publication, the early ones included, under the same bookkeeping.
-    fn run_publication(&self, item: &[u8], publish: impl FnOnce()) {
-        publish();
-        if let Some(record_path) = publication_record_path(item) {
-            self.settle_spool_retry(&record_path);
-        }
-    }
-
-    fn settle_spool_retry(&self, record_path: &str) {
-        let identity = record_identity(record_path);
-        let kept = self
-            .stalls
-            .watch(&spool_owner(record_path), "reading a spooled publication", || {
-                Path::new(record_path).exists()
-            });
-        let mut retries = self.spool_retries.lock().unwrap();
-        if !kept {
-            retries.remove(&identity);
-            return;
-        }
-        let failures = retries.get(&identity).map_or(0, |retry| retry.failures) + 1;
-        if retries.len() < SPOOL_RETRIES_MAX || retries.contains_key(&identity) {
-            retries.insert(
-                identity,
-                SpoolRetry {
-                    failures,
-                    due: Instant::now() + spool_retry_wait(failures),
-                },
-            );
-        }
     }
 
     /// The spool cleaner's work: removes a rejected record, after which a later
@@ -4681,6 +4608,15 @@ impl Proxy {
                 // armed it, and every publication queued behind it fails for the
                 // same reason. Saying so per record buries the line that
                 // explains them in thousands of copies of itself.
+                // No retry brings the graph back; only a rebuild does, and that
+                // spools a record of its own.
+                if reason == LOCAL_GRAPH_MISSING {
+                    self.remove_spooled(&record_path);
+                    crate::log_line(&format!(
+                        "proxy dropped a publication whose {reason}: {record_path}"
+                    ));
+                    return;
+                }
                 if reason != "remote shedding writes" && reason != CREDENTIAL_REFUSED {
                     crate::log_line(&format!("proxy publish failed ({reason}); record kept"));
                 }
@@ -5051,10 +4987,6 @@ impl Proxy {
     /// only the store each instance used last, and a record spooled under
     /// another is owed all the same. Reading a spool opens nothing; a store is
     /// opened only to publish a record, and released once it goes idle again.
-    ///
-    /// A record whose publication failed is left alone until its backoff has
-    /// run out (`spool_retries`), and one older than `SPOOL_RECORD_MAX_AGE` is
-    /// dropped. Only here: a drain enqueues everything (see `Sweep`).
     pub fn sweep(&self) {
         let paths: Vec<(String, String)> = self
             .path_instance
@@ -5064,7 +4996,23 @@ impl Proxy {
             .map(|(cas_path, instance)| (cas_path.clone(), instance.clone()))
             .collect();
         for (cas_path, instance) in paths {
-            self.sweep_path(&cas_path, &instance, Sweep::Periodic);
+            // A refused credential stops the requests (`CredentialBreaker`), not
+            // the work in front of them: each record would still be read, and
+            // its tags with it, before the publication saw the refusal. So the
+            // spool is not read while the refusal holds, and one record probes
+            // it once its window runs out. The breaker closes on any other
+            // answer, and the next tick enqueues the rest. No client yet means
+            // nothing was refused, and building one here could resolve the
+            // endpoint on this thread.
+            let gate = self
+                .current_remote(&instance)
+                .map_or(reapi::PublicationGate::Open, |remote| remote.publication_gate());
+            let sweep = match gate {
+                reapi::PublicationGate::Open => Sweep::Periodic,
+                reapi::PublicationGate::ProbeDue => Sweep::Probe,
+                reapi::PublicationGate::Refusing => continue,
+            };
+            self.sweep_path(&cas_path, &instance, sweep);
         }
     }
 
@@ -5080,48 +5028,41 @@ impl Proxy {
         let Ok(entries) = std::fs::read_dir(&spool) else {
             return;
         };
-        let now = Instant::now();
-        let wall_now = std::time::SystemTime::now();
+        let now = std::time::SystemTime::now();
         let mut expired = 0usize;
+        let mut newest: Option<(std::time::SystemTime, String, PathBuf)> = None;
         for entry in entries.flatten() {
-            if let Some(name) = entry.file_name().to_str() {
-                // A sidecar is not a record. Publishing one would fail to
-                // decode and delete it, throwing away the tags it exists to
-                // carry, and the record beside it would then resolve live.
-                if name.ends_with(TAGS_SUFFIX) {
-                    continue;
-                }
-                if sweep == Sweep::Periodic {
-                    let record_path = entry.path();
-                    if record_expired(&entry, wall_now) {
-                        self.remove_spooled(&record_path.to_string_lossy());
-                        expired += 1;
-                        continue;
-                    }
-                    let backing_off = self
-                        .spool_retries
-                        .lock()
-                        .unwrap()
-                        .get(&record_identity(&record_path.to_string_lossy()))
-                        .is_some_and(|retry| retry.due > now);
-                    if backing_off {
-                        continue;
-                    }
-                }
-                // Claims are ours alone now; reclaim anything.
-                let base = name.split_once(".claim-").map(|(b, _)| b.to_string());
-                let path = match base {
-                    Some(base) => {
-                        let claimed = spool.join(format!("{base}.claim-{}", std::process::id()));
-                        if std::fs::rename(entry.path(), &claimed).is_err() {
-                            continue;
-                        }
-                        claimed
-                    }
-                    None => entry.path(),
-                };
-                self.enqueue_publish(cas_path, instance, &path.to_string_lossy());
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            // A sidecar is not a record. Publishing one would fail to decode
+            // and delete it, throwing away the tags it exists to carry, and the
+            // record beside it would then resolve live.
+            if name.ends_with(TAGS_SUFFIX) {
+                continue;
             }
+            if sweep == Sweep::Everything {
+                self.enqueue_spooled(cas_path, instance, &spool, &name, entry.path());
+                continue;
+            }
+            let modified = entry.metadata().and_then(|metadata| metadata.modified()).ok();
+            if record_expired(modified, now) {
+                self.remove_spooled(&entry.path().to_string_lossy());
+                expired += 1;
+                continue;
+            }
+            match sweep {
+                Sweep::Probe => {
+                    let modified = modified.unwrap_or(std::time::UNIX_EPOCH);
+                    if newest.as_ref().is_none_or(|(newest, _, _)| modified > *newest) {
+                        newest = Some((modified, name, entry.path()));
+                    }
+                }
+                _ => self.enqueue_spooled(cas_path, instance, &spool, &name, entry.path()),
+            }
+        }
+        if let Some((_, name, path)) = newest {
+            self.enqueue_spooled(cas_path, instance, &spool, &name, path);
         }
         if expired > 0 {
             crate::log_line(&format!(
@@ -5129,6 +5070,29 @@ impl Proxy {
                 SPOOL_RECORD_MAX_AGE.as_secs() / 3600
             ));
         }
+    }
+
+    /// Enqueues one spooled record, reclaiming it first if a process that is
+    /// gone had claimed it: claims are ours alone now.
+    fn enqueue_spooled(
+        &self,
+        cas_path: &str,
+        instance: &str,
+        spool: &Path,
+        name: &str,
+        path: PathBuf,
+    ) {
+        let path = match name.split_once(".claim-") {
+            Some((base, _)) => {
+                let claimed = spool.join(format!("{base}.claim-{}", std::process::id()));
+                if std::fs::rename(&path, &claimed).is_err() {
+                    return;
+                }
+                claimed
+            }
+            None => path,
+        };
+        self.enqueue_publish(cas_path, instance, &path.to_string_lossy());
     }
 
     /// Waits for everything this machine recorded under `cas_path` to reach the
@@ -7116,6 +7080,9 @@ unsafe fn read_node_frame(
     if !load_error.is_null() {
         (state.up.llcas_string_dispose)(load_error);
     }
+    if result == LLCAS_LOOKUP_RESULT_NOTFOUND {
+        return Err(LOCAL_GRAPH_MISSING.into());
+    }
     if result != LLCAS_LOOKUP_RESULT_SUCCESS {
         return Err("local load".into());
     }
@@ -7716,8 +7683,11 @@ mod tests {
             None,
         );
         proxy.publisher.configure(1, move |item| {
-            let Some(record_path) = publication_record_path(&item) else { return };
-            proxy.run_publication(&item, || publish(&record_path));
+            let Some((_, rest)) = take_u16_field(&item) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, record_path)) = take_u16_field(rest) else { return };
+            publish(&String::from_utf8_lossy(record_path));
         });
         proxy
     }
@@ -7955,8 +7925,11 @@ mod tests {
             None,
         );
         proxy.publisher.configure(1, move |item| {
-            let Some(record_path) = publication_record_path(&item) else { return };
-            proxy.run_publication(&item, || publish(&record_path));
+            let Some((_, rest)) = take_u16_field(&item) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, record_path)) = take_u16_field(rest) else { return };
+            publish(&String::from_utf8_lossy(record_path));
         });
         opened_path_state(proxy, &dir.join("cas").to_string_lossy());
         proxy
@@ -13304,9 +13277,14 @@ mod tests {
         );
     }
 
-    /// A registry proxy over one uploading store with one spooled record, whose
-    /// publisher runs `publish` in place of a publication.
-    fn spool_retry_fixture<F>(name: &str, publish: F) -> (TempCasDir, PathBuf, &'static Proxy)
+    /// A registry proxy over one uploading store holding `records`, each spooled
+    /// `age` ago, whose publisher hands each record path to `publish` in place
+    /// of a publication.
+    fn spool_fixture<F>(
+        name: &str,
+        records: &[(&str, Duration)],
+        publish: F,
+    ) -> (TempCasDir, String, &'static Proxy)
     where
         F: Fn(&str) + Send + Sync + 'static,
     {
@@ -13321,81 +13299,119 @@ mod tests {
         )
         .unwrap();
         std::fs::create_dir_all(spool_dir(&store)).unwrap();
-        let record = spool_dir(&store).join("1234-0");
-        std::fs::write(&record, b"record").unwrap();
+        for (record, age) in records {
+            let path = spool_dir(&store).join(record);
+            std::fs::write(&path, b"record").unwrap();
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(&path)
+                .unwrap()
+                .set_modified(std::time::SystemTime::now() - *age)
+                .unwrap();
+        }
         let proxy = upstream_registry_proxy(&registry);
         proxy.publisher.configure(1, move |item| {
-            let Some(record_path) = publication_record_path(&item) else { return };
-            proxy.run_publication(&item, || publish(&record_path));
+            let Some((_, rest)) = take_u16_field(&item) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, rest)) = take_u16_field(rest) else { return };
+            let Some((_, record_path)) = take_u16_field(rest) else { return };
+            publish(&String::from_utf8_lossy(record_path));
         });
-        (dir, record, proxy)
+        (dir, store, proxy)
     }
 
-    // A failed publication keeps its record, and the periodic sweep used to
-    // re-enqueue it every 10s for as long as the proxy lived. Now each failure
-    // doubles how long the sweep leaves the record alone, and a publication
-    // that lands forgets the failures.
+    fn published_records() -> (Arc<Mutex<Vec<String>>>, impl Fn(&str) + Send + Sync + 'static) {
+        let published = Arc::new(Mutex::new(Vec::new()));
+        let recorded = published.clone();
+        (published, move |record_path: &str| {
+            let name = Path::new(record_path).file_name().unwrap().to_string_lossy();
+            recorded.lock().unwrap().push(name.into_owned());
+        })
+    }
+
+    // The breaker stops a refused credential's requests, not the reads in front
+    // of them: every record and its tags were read on every tick before the
+    // publication saw the refusal, ~2 cores on a machine with ~293k records.
     #[test]
-    fn the_sweep_backs_off_a_record_whose_publication_keeps_failing() {
-        let attempts = Arc::new(AtomicU64::new(0));
-        let counted = attempts.clone();
-        let (_dir, record, proxy) = spool_retry_fixture("sweep-backoff", move |record_path| {
-            // The third attempt publishes; the record stays until then.
-            if counted.fetch_add(1, Ordering::SeqCst) + 1 == 3 {
-                remove_record(record_path);
-            }
-        });
-        let identity = record_identity(&record.to_string_lossy());
-        let retry = |proxy: &Proxy| proxy.spool_retries.lock().unwrap().get(&identity).copied();
+    fn the_sweep_reads_no_record_while_the_remote_refuses_publications() {
+        let (published, publish) = published_records();
+        let (_dir, store, proxy) =
+            spool_fixture("sweep-refused", &[("1234-0", Duration::ZERO)], publish);
+        proxy.remote_for("tuist/app").refuse_publications_at(reapi::now_ms());
 
         proxy.sweep();
         assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
-        assert_eq!(attempts.load(Ordering::SeqCst), 1);
-        let first = retry(proxy).expect("a failed publication is remembered");
-        assert_eq!(first.failures, 1);
-        assert!(first.due > Instant::now(), "and is not due again yet");
 
-        proxy.sweep();
-        assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
-        assert_eq!(attempts.load(Ordering::SeqCst), 1, "a record backing off is left alone");
+        assert!(published.lock().unwrap().is_empty());
+        assert!(spool_dir(&store).join("1234-0").exists(), "and the record is kept");
+    }
 
-        proxy.spool_retries.lock().unwrap().get_mut(&identity).unwrap().due =
-            Instant::now() - Duration::from_secs(1);
-        proxy.sweep();
-        assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
-        assert_eq!(attempts.load(Ordering::SeqCst), 2, "a record past its backoff is retried");
-        let second = retry(proxy).expect("still failing");
-        assert_eq!(second.failures, 2);
-        assert!(
-            second.due >= Instant::now() + SPOOL_RETRY_BASE * 2 - Duration::from_secs(5),
-            "and waits twice as long"
+    // Once the refusal's window runs out, one publication probes it. The
+    // breaker closes on any answer but another refusal, and the next tick
+    // enqueues the rest.
+    #[test]
+    fn a_refusal_whose_window_ran_out_is_probed_by_the_newest_record_alone() {
+        let (published, publish) = published_records();
+        let (_dir, _store, proxy) = spool_fixture(
+            "sweep-probe",
+            &[
+                ("1234-0", Duration::from_secs(30 * 60)),
+                ("1234-1", Duration::from_secs(10 * 60)),
+                ("1234-2", Duration::from_secs(20 * 60)),
+            ],
+            publish,
         );
+        let remote = proxy.remote_for("tuist/app");
+        remote.refuse_publications_at(reapi::now_ms() - 10 * 60 * 1000);
+        assert_eq!(remote.publication_gate(), reapi::PublicationGate::ProbeDue);
 
-        proxy.spool_retries.lock().unwrap().get_mut(&identity).unwrap().due =
-            Instant::now() - Duration::from_secs(1);
         proxy.sweep();
         assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
-        assert_eq!(attempts.load(Ordering::SeqCst), 3);
-        assert!(!record.exists());
-        assert!(retry(proxy).is_none(), "a publication that landed is forgotten");
+
+        assert_eq!(*published.lock().unwrap(), vec!["1234-1".to_string()]);
     }
 
+    // An hour-old record is a publication that failed every retry. The
+    // periodic sweep drops it instead of reading it on every tick forever.
     #[test]
-    fn the_backoff_doubles_per_failure_up_to_its_cap() {
-        assert_eq!(spool_retry_wait(1), SPOOL_RETRY_BASE);
-        assert_eq!(spool_retry_wait(2), SPOOL_RETRY_BASE * 2);
-        assert_eq!(spool_retry_wait(5), SPOOL_RETRY_BASE * 16);
-        assert_eq!(spool_retry_wait(40), SPOOL_RETRY_MAX);
-        assert_eq!(spool_retry_wait(u32::MAX), SPOOL_RETRY_MAX);
+    fn the_sweep_drops_a_record_older_than_the_age_cap() {
+        let (published, publish) = published_records();
+        let (_dir, store, proxy) = spool_fixture(
+            "sweep-age-cap",
+            &[
+                ("1234-0", SPOOL_RECORD_MAX_AGE + Duration::from_secs(60)),
+                ("1234-1", Duration::ZERO),
+            ],
+            publish,
+        );
+        let tags = spool_dir(&store).join(format!("1234-0{TAGS_SUFFIX}"));
+        std::fs::write(&tags, b"main\nmain").unwrap();
+
+        proxy.sweep();
+        assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
+
+        assert!(!spool_dir(&store).join("1234-0").exists(), "the record is dropped");
+        assert!(!tags.exists(), "with its tags");
+        assert_eq!(
+            *published.lock().unwrap(),
+            vec!["1234-1".to_string()],
+            "and never published, unlike a recent one"
+        );
     }
 
-    // A drain is a runner's teardown waiting for its job's publications, on a
-    // deadline of its own: it retries a failed record at once, backoff or not.
+    // A drain is a runner's teardown, and its promote gate reads an empty spool
+    // as "everything landed": it publishes even a record past the age cap.
     #[test]
-    fn a_drain_retries_a_failed_record_without_waiting_out_its_backoff() {
-        let (dir, registry) = drain_fixture("backoff");
-        let spool = dir.join("cas").join("tuist-spool");
-        std::fs::write(spool.join("1234-0"), b"stuck").expect("record");
+    fn a_drain_never_drops_a_record_for_its_age() {
+        let (dir, registry) = drain_fixture("age-cap");
+        let record = dir.join("cas").join("tuist-spool").join("1234-0");
+        std::fs::write(&record, b"old").expect("record");
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&record)
+            .unwrap()
+            .set_modified(std::time::SystemTime::now() - SPOOL_RECORD_MAX_AGE * 2)
+            .unwrap();
         let attempts = Arc::new(AtomicU64::new(0));
         let counted = attempts.clone();
         let proxy = proxy_with_publisher(registry, move |_| {
@@ -13405,42 +13421,49 @@ mod tests {
         let remaining = proxy.drain_publications(
             &dir.join("cas").to_string_lossy(),
             Some("tuist/mastodon"),
-            Duration::from_millis(2500),
+            Duration::from_millis(500),
         );
 
-        assert_eq!(remaining, 1);
-        assert!(
-            attempts.load(Ordering::SeqCst) >= 2,
-            "the drain retried within its budget, not after the sweep's backoff"
-        );
+        assert_eq!(remaining, 1, "the record is still owed");
+        assert!(attempts.load(Ordering::SeqCst) >= 1, "and was published, not dropped");
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    // A record a day old is a publication that failed every retry. The
-    // periodic sweep drops it instead of probing the remote for it forever.
+    // A record whose value graph left the store (a prune or wipe after it was
+    // written) can never upload, and retrying it cost one GetActionResult per
+    // record per tick. It is dropped on the first attempt.
     #[test]
-    fn the_sweep_drops_a_record_older_than_the_age_cap() {
-        let attempts = Arc::new(AtomicU64::new(0));
-        let counted = attempts.clone();
-        let (_dir, record, proxy) = spool_retry_fixture("sweep-age-cap", move |_| {
-            counted.fetch_add(1, Ordering::SeqCst);
-        });
-        let tags = spool_dir(&record.parent().unwrap().parent().unwrap().to_string_lossy())
-            .join(format!("1234-0{TAGS_SUFFIX}"));
-        std::fs::write(&tags, b"main\nmain").unwrap();
-        std::fs::OpenOptions::new()
-            .write(true)
-            .open(&record)
-            .unwrap()
-            .set_modified(std::time::SystemTime::now() - SPOOL_RECORD_MAX_AGE - Duration::from_secs(60))
+    fn a_publication_whose_graph_left_the_store_drops_its_record() {
+        if run_in_cas_subprocess() {
+            return;
+        }
+        let cache = replay_cache::start();
+        let dir = TempCasDir::new("publish-graph-missing");
+        let proxy = Proxy::new(
+            cache.url.clone(),
+            TokenProvider::from_env(),
+            crate::upstream_path(),
+            Some(dir.0.join("registry")),
+            None,
+        );
+        let state = opened_path_state(proxy, &dir.path());
+        let elsewhere = TempCasDir::new("publish-graph-missing-elsewhere");
+        let missing = store_probe_object(opened_path_state(proxy, &elsewhere.path()), b"pruned");
+        let path = dir.0.join("publication");
+        let record = PublishRecord {
+            key: b"pruned-action".to_vec(),
+            value_digest: missing,
+            spool_path: Some(path.clone()),
+        };
+        std::fs::write(&path, record.encode_body()).unwrap();
+        let item = proxy
+            .publish_item_bytes(&dir.path(), "tuist/pruned", path.to_str().unwrap())
             .unwrap();
 
-        proxy.sweep();
-        assert!(proxy.publisher.wait_idle(Duration::from_secs(10)));
+        proxy.publish_item(&item);
 
-        assert!(!record.exists(), "the record is dropped");
-        assert!(!tags.exists(), "with its tags");
-        assert_eq!(attempts.load(Ordering::SeqCst), 0, "and never published");
+        assert!(!path.exists(), "the record is dropped");
+        assert!(!state.graph_present(&record.value_digest));
     }
 
     // A warm stamps no use, so a store that went idle before its warm started

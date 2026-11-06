@@ -1107,6 +1107,18 @@ struct CredentialBreaker {
     skipped: AtomicU64,
 }
 
+/// Whether a refused credential lets publications through, as the periodic
+/// spool sweep needs to know before it reads any record.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PublicationGate {
+    /// No publication method refuses the current credential.
+    Open,
+    /// A publication method refuses it and its window is still running.
+    Refusing,
+    /// A refused method's window ran out: the next publication probes it.
+    ProbeDue,
+}
+
 struct CredentialRefusal {
     until_ms: u64,
     backoff_ms: u64,
@@ -1158,6 +1170,7 @@ impl CredentialBreaker {
 
     /// Whether `method` refuses `credential` for the current window, without
     /// claiming the window's probe.
+    #[cfg(test)]
     fn refusing(&self, credential: u64, method: &str, now_ms: u64) -> bool {
         self.open.load(Ordering::Relaxed)
             && self
@@ -1166,6 +1179,25 @@ impl CredentialBreaker {
                 .unwrap()
                 .get(&(credential, method.to_owned()))
                 .is_some_and(|refusal| now_ms < refusal.until_ms)
+    }
+
+    /// What the publication methods allow `credential` at `now_ms`. Any method
+    /// still inside its window refuses the publication, which needs all three.
+    fn publication_gate(&self, credential: u64, now_ms: u64) -> PublicationGate {
+        if !self.open.load(Ordering::Relaxed) {
+            return PublicationGate::Open;
+        }
+        let refusals = self.refusals.lock().unwrap();
+        let mut gate = PublicationGate::Open;
+        for method in PUBLICATION_METHODS {
+            if let Some(refusal) = refusals.get(&(credential, method.to_owned())) {
+                if now_ms < refusal.until_ms {
+                    return PublicationGate::Refusing;
+                }
+                gate = PublicationGate::ProbeDue;
+            }
+        }
+        gate
     }
 
     fn observe(&self, credential: u64, method: &str, status: Option<&tonic::Status>) {
@@ -1427,14 +1459,32 @@ impl Remote {
     /// server refused the current credential for it, so the publication can
     /// skip the local work it would spend before reaching that request.
     pub fn publication_refused(&self) -> bool {
-        self.credential().is_ok_and(|credential| {
-            let credential =
-                credential_fingerprint(credential.as_ref().map(|value| value.as_bytes()));
-            let now = now_ms();
-            PUBLICATION_METHODS
-                .iter()
-                .any(|method| self.credentials.refusing(credential, method, now))
-        })
+        self.publication_gate() == PublicationGate::Refusing
+    }
+
+    /// What a refused credential allows publications right now. A credential
+    /// that cannot be read is `Open`: the publication fails on it by itself.
+    pub fn publication_gate(&self) -> PublicationGate {
+        match self.credential() {
+            Ok(credential) => self.credentials.publication_gate(
+                credential_fingerprint(credential.as_ref().map(|value| value.as_bytes())),
+                now_ms(),
+            ),
+            Err(_) => PublicationGate::Open,
+        }
+    }
+
+    /// Records a refusal of the current credential by the first publication
+    /// method, as if the server had answered it at `now_ms`.
+    #[cfg(test)]
+    pub(crate) fn refuse_publications_at(&self, now_ms: u64) {
+        let credential = self.credential().expect("a readable credential");
+        self.credentials.observe_at(
+            credential_fingerprint(credential.as_ref().map(|value| value.as_bytes())),
+            PUBLICATION_METHODS[0],
+            Some(&tonic::Status::permission_denied("refused")),
+            now_ms,
+        );
     }
 
     /// Requests not sent because the server had refused their credential.
