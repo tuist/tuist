@@ -907,6 +907,8 @@ server:
   # managed SES reads SES/{access_key_id,secret_access_key} from each env's vault.
   mailing:
     provider: mailgun
+    # RFC 3339 instant from which a mailgun install sends through SES instead.
+    sesStartsAt: ""
     sesRegion: ""
     domain: ""
     fromAddress: ""

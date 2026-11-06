@@ -715,6 +715,25 @@ if Tuist.Environment.env() in [:prod, :can, :stag] do
     provider ->
       raise "unsupported mailing provider: #{inspect(provider)}"
   end
+
+  # Tuist.Mailer sends through SES from this instant on, without a restart.
+  if ses_starts_at = Tuist.Environment.get([:mailing, :ses_starts_at], secrets) do
+    {:ok, ses_starts_at, _offset} = DateTime.from_iso8601(ses_starts_at)
+
+    ex_aws =
+      for key <- [:region, :access_key_id, :secret_access_key] do
+        case Tuist.Environment.get([:ses, key], secrets) do
+          value when value in [nil, ""] ->
+            raise "TUIST_MAILING_SES_STARTS_AT requires TUIST_SES_#{String.upcase(to_string(key))}"
+
+          value ->
+            {key, value}
+        end
+      end
+
+    config :tuist, Tuist.Mailer,
+      ses_cutover: {ses_starts_at, %{adapter: Bamboo.SesAdapter, ex_aws: ex_aws}}
+  end
 end
 
 otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])

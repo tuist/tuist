@@ -106,7 +106,10 @@ env:
   # Explicitly retain Tuist's managed upstream discovery.
   MCP_PROXY_SERVERS: "tuist-managed"
   ATLAS_ALLOWED_EMAIL_DOMAIN: "tuist.dev"
-  ATLAS_MAILER_PROVIDER: "ses"
+  # Mailgun until ATLAS_SES_STARTS_AT, then SES without a restart, after 30
+  # days' notice of the subprocessor change. Afterwards set the provider to ses.
+  ATLAS_MAILER_PROVIDER: "mailgun"
+  ATLAS_SES_STARTS_AT: "2026-12-06T00:00:00Z"
   ATLAS_SES_REGION: "eu-west-1"
   ATLAS_APPLE_APP_IDS: "U6LC622NKF.dev.tuist.atlas"
   # Add ATLAS_ANDROID_APP_LINK_SHA256 only after provisioning the stable distribution key.
