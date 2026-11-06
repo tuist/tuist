@@ -7096,6 +7096,43 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_run_shard_targets_the_platform_of_the_resolved_simulator() async throws {
+        for (platform, runtimeName, expectedDestination) in [
+            ("tvos", "tvOS 18.5", "platform=tvOS Simulator,id=simulator-id"),
+            ("watchos", "watchOS 11.5", "platform=watchOS Simulator,id=simulator-id"),
+        ] {
+            try await withMockedEnvironment {
+                Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "0"
+                // Given
+                let path = try temporaryPath()
+                try givenShardWithFailingMutedTest(path: path, onlyMutedTestsFailed: false)
+                let arguments = givenXcodebuildWritingDerivedData()
+                simulatorController.reset()
+                given(simulatorController)
+                    .findAvailableDevice(deviceName: .value("Simulator"), version: .any)
+                    .willReturn(.test(device: .test(udid: "simulator-id"), runtime: .test(name: runtimeName)))
+
+                // When
+                try await AlertController.$current.withValue(AlertController()) {
+                    try await testRun(
+                        runId: "run-\(platform)",
+                        path: path,
+                        deviceName: "Simulator",
+                        platform: platform,
+                        action: .testWithoutBuilding,
+                        resultBundlePath: path.appending(component: "Shard.xcresult"),
+                        shardIndex: 0,
+                        mode: .remote
+                    )
+                }
+
+                // Then
+                let destination = arguments.value.firstIndex(of: "-destination").map { arguments.value[$0 + 1] }
+                XCTAssertEqual(destination, expectedDestination)
+            }
+        }
+    }
+
     func test_run_shard_collects_coverage_under_a_run_scoped_derived_data_when_none_is_passed() async throws {
         for uploadsCoverage in [true, false] {
             try await withMockedEnvironment {

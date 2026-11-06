@@ -1662,7 +1662,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             if let destination {
                 arguments += [
                     "-destination",
-                    "platform=iOS Simulator,id=\(destination.device.udid)",
+                    platformDestination("id=\(destination.device.udid)", simulator: destination),
                 ]
             } else if let platform {
                 let buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
