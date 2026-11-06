@@ -34,8 +34,11 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
     default: nil,
     doc: "The coverage selection's requested tests per module name, which adds their columns."
 
+  attr :module_names, :list, default: nil, doc: "The target names the copied JSON keeps to."
+
   def selective_testing_tab(assigns) do
-    assigns = assign(assigns, :selective_testing_json, selective_testing_targets_json(assigns.run))
+    assigns =
+      assign(assigns, :selective_testing_json, selective_testing_targets_json(assigns.run, assigns.module_names))
 
     ~H"""
     <div class="tuist-selective-testing-tab">
@@ -272,13 +275,13 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
     end
   end
 
-  defp selective_testing_targets_json(nil), do: "[]"
+  defp selective_testing_targets_json(nil, _module_names), do: "[]"
 
-  defp selective_testing_targets_json(run) do
+  defp selective_testing_targets_json(run, module_names) do
     run = Tuist.ClickHouseRepo.preload(run, xcode_targets: Xcode.xcode_targets_preload_query(run))
 
     run.xcode_targets
-    |> Enum.filter(&(&1.selective_testing_hash != nil))
+    |> Enum.filter(&(&1.selective_testing_hash != nil and (is_nil(module_names) or &1.name in module_names)))
     |> Enum.sort_by(& &1.name)
     |> Enum.map(&target_to_json_map(&1, run))
     |> :json.format(fn

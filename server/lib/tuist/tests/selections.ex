@@ -80,6 +80,9 @@ defmodule Tuist.Tests.Selections do
   def module_counts(%Run{requested_modules: requested, skipped_modules: skipped}),
     do: %{ran: length(requested), total: length(requested) + map_size(skipped)}
 
+  @doc "An impact run's test modules: those hashing left, then those it skipped."
+  def modules(%Run{requested_modules: requested, skipped_modules: skipped}), do: requested ++ Map.keys(skipped)
+
   @doc "The share of an impact run's test modules hashing skipped."
   def module_skip_rate(%Run{} = run) do
     %{ran: ran, total: total} = module_counts(run)

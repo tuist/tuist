@@ -31,7 +31,11 @@ defmodule Tuist.Xcode do
     {:ok, xcode_graph}
   end
 
-  def selective_testing_analytics(run, flop_params \\ %{}) do
+  @doc """
+  The run's targets that selective testing hashed, as a page of `flop_params`.
+  `:names` restricts them to those target names.
+  """
+  def selective_testing_analytics(run, flop_params \\ %{}, opts \\ []) do
     {start_dt, end_dt} = event_date_range(run)
 
     base_query =
@@ -75,7 +79,9 @@ defmodule Tuist.Xcode do
       )
 
     {targets, meta} =
-      Tuist.ClickHouseFlop.validate_and_run!(base_query, flop_params, for: XcodeTarget)
+      base_query
+      |> where_names(opts[:names])
+      |> Tuist.ClickHouseFlop.validate_and_run!(flop_params, for: XcodeTarget)
 
     test_modules =
       Enum.map(targets, fn target ->
@@ -203,23 +209,24 @@ defmodule Tuist.Xcode do
     {analytics, meta}
   end
 
-  def selective_testing_counts(run) do
+  @doc "Counts of the run's selective testing hits and misses. `:names` restricts them to those target names."
+  def selective_testing_counts(run, opts \\ []) do
     {start_dt, end_dt} = event_date_range(run)
 
     result =
-      ClickHouseRepo.one(
-        from(xt in XcodeTarget,
-          where: xt.command_event_id == ^run.id,
-          where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
-          where: not is_nil(xt.selective_testing_hash),
-          select: %{
-            local: fragment("countIf(selective_testing_hit = 'local')"),
-            remote: fragment("countIf(selective_testing_hit = 'remote')"),
-            miss: fragment("countIf(selective_testing_hit = 'miss')"),
-            total: count(xt.id)
-          }
-        )
+      from(xt in XcodeTarget,
+        where: xt.command_event_id == ^run.id,
+        where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
+        where: not is_nil(xt.selective_testing_hash),
+        select: %{
+          local: fragment("countIf(selective_testing_hit = 'local')"),
+          remote: fragment("countIf(selective_testing_hit = 'remote')"),
+          miss: fragment("countIf(selective_testing_hit = 'miss')"),
+          total: count(xt.id)
+        }
       )
+      |> where_names(opts[:names])
+      |> ClickHouseRepo.one()
 
     %{
       selective_testing_local_hits_count: result.local || 0,
@@ -229,6 +236,9 @@ defmodule Tuist.Xcode do
       total_modules_count: result.total || 0
     }
   end
+
+  defp where_names(query, nil), do: query
+  defp where_names(query, names), do: where(query, [xt], xt.name in ^names)
 
   def binary_cache_counts(run) do
     {start_dt, end_dt} = event_date_range(run)

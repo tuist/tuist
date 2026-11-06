@@ -1871,6 +1871,7 @@
         <.selective_testing_tab
           title={dgettext("dashboard_tests", "Modules")}
           selection_targets={Map.new(@selection_targets, &{&1.module_name, &1})}
+          module_names={Tuist.Tests.Selections.modules(@selection_run)}
           project={@selected_project}
           selective_testing_analytics={@selective_testing_analytics}
           selective_testing_filter={@selective_testing_filter}

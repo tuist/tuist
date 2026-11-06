@@ -604,7 +604,13 @@ defmodule TuistWeb.TestRunLive do
         else: socket
 
     if socket.assigns.command_event do
-      {analytics, meta} = load_selective_testing_data(socket.assigns.command_event, params)
+      {analytics, meta} =
+        load_selective_testing_data(
+          socket.assigns.command_event,
+          params,
+          selection_module_names(socket.assigns.selection_run)
+        )
+
       assign_selective_testing_data(socket, analytics, meta, params)
     else
       socket |> assign_selective_testing_defaults() |> assign_param_defaults(params)
@@ -836,8 +842,17 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_cases_sort_order, params["test-cases-sort-order"] || "asc")
   end
 
-  defp load_selective_testing_data(run, params) do
-    counts = Xcode.selective_testing_counts(run)
+  # The CLI hashes every test target in the scheme, also those the
+  # invocation didn't request, so a selection's Modules tab keeps to the
+  # impact run's modules.
+  defp selection_module_names(%{} = selection_run) do
+    if Selections.selection?(selection_run), do: Selections.modules(selection_run)
+  end
+
+  defp selection_module_names(nil), do: nil
+
+  defp load_selective_testing_data(run, params, names) do
+    counts = Xcode.selective_testing_counts(run, names: names)
     filters = Filter.Operations.decode_filters_from_query(params, define_selective_testing_filters())
 
     text_filters = build_flop_filters(params["selective-testing-filter"])
@@ -851,7 +866,7 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [ensure_allowed_sort_order(params["selective-testing-sort-order"])]
     }
 
-    {filtered_analytics, meta} = Xcode.selective_testing_analytics(run, flop_params)
+    {filtered_analytics, meta} = Xcode.selective_testing_analytics(run, flop_params, names: names)
 
     analytics = Map.merge(filtered_analytics, counts)
 

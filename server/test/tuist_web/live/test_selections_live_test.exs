@@ -300,7 +300,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "#selection-tracked-files", "**/Package.resolved")
     end
 
-    test "shows the module-level selection's hits next to the selection's modules", %{
+    test "shows the module-level selection's hits next to the selection's modules, only for its modules", %{
       conn: conn,
       organization: organization,
       project: project
@@ -313,7 +313,8 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       graph = XcodeFixtures.xcode_graph_fixture(command_event_id: command_event.id)
       xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: graph.id)
 
-      for {name, hit} <- [{"AuthTests", :miss}, {"CoreTests", :remote}] do
+      # CoreTests is in the scheme but wasn't requested, so it's out of the selection.
+      for {name, hit} <- [{"AuthTests", :miss}, {"BillingTests", :remote}, {"CoreTests", :miss}] do
         XcodeFixtures.xcode_target_fixture(
           xcode_project_id: xcode_project.id,
           name: name,
@@ -329,7 +330,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "[data-part='coverage-selection'] #selective-testing-table")
       refute has_element?(lv, "#selection-modules-table")
 
-      [auth, core] =
+      [auth, billing] =
         lv
         |> element("#selective-testing-table")
         |> render()
@@ -341,9 +342,14 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert auth =~ "AuthTests"
       assert auth =~ "Missed"
       assert auth =~ "0 / 1"
-      assert core =~ "CoreTests"
-      assert core =~ "Remote"
-      assert core =~ "–"
+      assert billing =~ "BillingTests"
+      assert billing =~ "Remote"
+      assert billing =~ "–"
+      refute has_element?(lv, "#selective-testing-table", "CoreTests")
+      refute render(lv) =~ "CoreTests-hash"
+      assert render(lv) =~ "Modules (2)"
+      assert has_element?(lv, "#widget-optimization-summary-total-modules", "2")
+      assert has_element?(lv, "#widget-optimization-summary-selective-test-misses", "1")
     end
 
     test "shows a fallback that found its baseline as a selection", %{
