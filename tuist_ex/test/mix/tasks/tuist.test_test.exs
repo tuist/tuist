@@ -316,8 +316,10 @@ defmodule Mix.Tasks.Tuist.TestTest do
             :ok
           end)
 
-          Mimic.stub(TuistEx.Analytics.Subprocess, :run, fn _mix, args, _env ->
-            send(owner, {:retried, args})
+          Mimic.stub(TuistEx.Analytics.Subprocess, :run, fn _mix, args, env ->
+            {_name, results} = List.keyfind(env, "TUIST_EX_RETRY_RESULTS", 0)
+            skipped = File.read!(Path.join(Path.dirname(results), "skipped"))
+            send(owner, {:retried, args, :erlang.binary_to_term(skipped)})
             1
           end)
 
@@ -353,7 +355,8 @@ defmodule Mix.Tasks.Tuist.TestTest do
             assert output =~ "CartTest: add/2 hangs"
             assert output =~ "only muted tests failed" == passes?
             assert_received {:args, args}
-            assert ["--exclude", "test:test add/2 hangs"] -- args == []
+            assert ["--exclude", "tuist_quarantine:skipped"] -- args == []
+            refute Enum.any?(args, &String.starts_with?(&1, "test:"))
             assert_received {:submitted, payload}
             # The run's status is its tests'.
             assert payload.status == if(passes? or failed == [], do: "success", else: "failure")
@@ -361,8 +364,11 @@ defmodule Mix.Tasks.Tuist.TestTest do
 
           # ExUnit keeps a failure on record until the test passes, so
           # `--failed` would rerun a test that failed before it was skipped.
-          assert_received {:retried, ["tuist.test", "--failed" | retry_args]}
-          assert ["--exclude", "test:test add/2 hangs"] -- retry_args == []
+          # The retry tags the same tests, which it reads from where its
+          # results go.
+          assert_received {:retried, ["tuist.test", "--failed" | retry_args], skipped}
+          assert ["--exclude", "tuist_quarantine:skipped"] -- retry_args == []
+          assert skipped == MapSet.new([{"CartTest", "add/2", "hangs"}])
 
           Mimic.stub(TuistEx.Analytics.Args, :run_wrapped, fn "test", Mix.Tasks.Test, args ->
             send(owner, {:args, args})
