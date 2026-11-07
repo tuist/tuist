@@ -44,6 +44,20 @@ Authentication cache fills use separate ephemeral ETS claim tables containing on
 
 Authenticated-subject snapshots are also stored in the separate ephemeral node-local `auth_subjects` Cachex cache. Keys are HMAC digests of full credentials; values contain resolved user/account/project state, scopes and project restrictions, verified credential expiry and an absolute monotonic freshness deadline. Entries are pruned to 10,000 and expire within 60 seconds of fill start or sooner at credential expiry; hits never renew them. Ordinary reads and selected uploads accept that bounded revocation/activity/scope staleness. Credential creation, privilege changes and runner-shell upgrades authenticate fresh. These disposable copies are not exported separately; their underlying customer records are covered below. They do not survive restart and do not depend on cross-node invalidation.
 
+The Bazel marketing showcase keeps disposable analytics derivatives for the
+configured public showcase project in shared Redis (`marketing-bazel:` digest
+keys), with a dedicated node-local Cachex fallback. Values expire after one
+minute without renewal on reads: dashboard aggregates/redacted recent runs,
+the selected invocation/bootstrap and its timeline steps (without machine
+metrics). Project/account authorization records are not stored in these values;
+each operation checks current visibility and SSO eligibility before cache access.
+The fallback targets 32 entries and skips values larger than 2 MiB. Admission
+state contains only digest keys, loader closures and waiting processes; soft
+timeouts retain occupied slots until work finishes, and restart discards it.
+These are not separately exported records; export the underlying
+account/project and Bazel invocation
+data described below. No new customer collection or source retention is added.
+
 ## Exportable Data
 
 ### Pulse observability storage

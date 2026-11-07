@@ -7,10 +7,11 @@ const locales = ['ar', 'en', 'es', 'ja', 'ka', 'ko', 'ru', 'tr', 'yue_Hant', 'zh
 const methods = ['GET', 'HEAD'];
 const writes = ['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 
-function expression(name) {
+function expression(name, key = 'expression') {
   const content = readFileSync(new URL(name, import.meta.url), 'utf8');
-  assert.ok(content.includes('  expression: |-\n'));
-  return content.split('  expression: |-\n')[1].split('\n  action:')[0].trim();
+  const match = content.match(new RegExp(`^( +)${key}: \\|-\\n((?:\\1  [^\\n]*\\n?)+)`, 'm'));
+  assert.ok(match, `${name}: ${key}`);
+  return match[2].trim();
 }
 
 const apiRule = expression('skip-sbfm-api-paths.yaml');
@@ -39,8 +40,13 @@ function evaluate(source, request) {
   }
   if (source.startsWith('(') && source.endsWith(')')) return evaluate(source.slice(1, -1), request);
   if (source.startsWith('not ')) return !evaluate(source.slice(4), request);
+  if (source === 'cf.client.bot') return request[source];
+  if (source === 'http.response.headers["x-tuist-public"][0] eq "1"') return request.publicHeader === '1';
 
   let match;
+  if ((match = source.match(/^http\.request\.uri\.path matches r"([^"]+)"$/))) {
+    return new RegExp(match[1]).test(request[field]);
+  }
   if ((match = source.match(/^(http\.[\w.]+) in \{(.*?)\}$/s))) {
     assert.ok(Object.hasOwn(request, match[1]));
     return [...match[2].matchAll(/"([^"]+)"/g)].some((item) => item[1] === request[match[1]]);
@@ -133,39 +139,115 @@ test('marketing route shapes across locales and guide roots', () => {
     '/changelog', '/changelog/2026.09.05-bazel-build-insights', '/customers', '/cache', '/previews', '/pricing',
     '/compute', '/tests', '/about', '/brand', '/download', '/newsletter', '/newsletter/issues/12', '/privacy',
     '/data-processing-addendum', '/trademark-guidelines'];
-  const english = pages.filter((path) => !['/blog/2026/09/09/bazel', '/blog/2026/09/09/bazel/iframe.html',
-    '/changelog/2026.09.05-bazel-build-insights', '/newsletter/issues/12'].includes(path));
-  checkPaths([...english, '/', '/customers/acme', '/blog/rss.xml', '/changelog/atom.xml', '/rss.xml',
-    '/case-studies', '/case-studies/acme', '/flaky-tests', '/test-insights', '/sitemap-projects.xml',
-    '/sitemaps/projects/1.xml', '/compare', '/compare/github-actions', '/solutions/slow-builds',
+  checkPaths([...pages, '/', '/customers/acme', '/blog/rss.xml', '/blog/atom.xml',
+    '/changelog/rss.xml', '/changelog/atom.xml', '/rss.xml',
+    '/case-studies', '/case-studies/acme', '/flaky-tests', '/test-insights',
+    '/compare', '/compare/github-actions', '/solutions/slow-builds',
     '/build-systems', '/build-systems/bazel'], either, true, methods);
   for (const locale of locales.filter((value) => value !== 'en')) {
-    checkPaths([`/${locale}`, ...english.map((path) => `/${locale}${path}`)], either, true, methods);
-    checkPaths(['/blog/2026/09/09/bazel', '/blog/2026/09/09/bazel/iframe.html',
-      '/changelog/2026.09.05-bazel-build-insights', '/newsletter/issues/12'].map((path) => `/${locale}${path}`), either, false, methods);
+    checkPaths([`/${locale}`, ...pages.map((path) => `/${locale}${path}`),
+      `/${locale}/customers/acme`], either, true, methods);
     checkPaths(['/blog/project/builds', '/changelog/project/builds', '/newsletter/issues/builds']
       .map((path) => `/${locale}${path}`), (p, m) => exempt(marketingRule, p, m), false, methods);
   }
-  // Unsafe broad English prefixes are absent, even for published article shapes.
-  checkPaths(['/blog/2026/09/09/bazel', '/blog/2026/09/09/bazel/iframe.html',
-    '/changelog/2026.09.05-bazel-build-insights', '/newsletter/issues/12'], either, false, methods);
 });
 
 test('combined rules protect deeper dashboards, auth and case-variant account paths', () => {
-  checkPaths(['/tuist/tuist/builds', '/customers/acme/builds', '/es/acme/builds', '/es/customers/acme',
+  checkPaths(['/tuist/tuist/builds', '/customers/acme/builds', '/es/acme/builds', '/es/customers/acme/builds',
     '/acme/blog/builds', '/sitemaps/other/1.xml', '/users/log_in', '/auth/callback', '/ops/og-gallery',
     '/blogs/acme/builds', '/changelogs/acme/builds', '/globe', '/en', '/xx/blog/2026/09/09/bazel',
     '/blog/acme/builds', '/Blog/acme/builds', '/changelog/acme/builds', '/Changelog/acme/builds',
-    '/newsletter/issues/builds', '/Newsletter/issues/builds'], either, false, methods);
+    '/newsletter/issues/builds', '/Newsletter/issues/builds', '/es/Customers/builds',
+    '/blog/2026/09/09/bazel/builds', '/blog/2026/09/09/bazel%2Fbuilds',
+    '/es/blog/2026/09/09/bazel/iframe.html/builds', '/newsletter/issues/12/builds'], either, false, methods);
   assert.equal(either('/newsletter/verify'), true); // Existing two-segment root exemption.
   assert.equal(exempt(marketingRule, '/newsletter/verify'), false);
   assert.equal(either('/es/newsletter/verify'), false);
-  checkPaths(['/blog/acme', '/Blog/acme', '/changelog/acme', '/Changelog/acme',
-    '/newsletter/issues/12', '/Newsletter/issues/12', '/sitemaps/projects/builds',
+  checkPaths(['/sitemap-projects.xml', '/sitemaps/projects/1.xml', '/sitemaps/projects/999999.xml'],
+    either, false, methods);
+  checkPaths(['/blog/acme', '/Blog/acme', '/Changelog/acme',
+    '/Newsletter/issues/12', '/sitemaps/projects/builds',
     '/sitemaps/projects/builds/1.xml'], (p, m) => exempt(marketingRule, p, m), false, methods);
 });
 
 test('marketing rule permits only reads on dashboard host', () => {
   checkPaths(['/pricing', '/newsletter'], (p, m) => exempt(marketingRule, p, m), false, writes);
   assert.equal(exempt(marketingRule, '/pricing', 'GET', 'search.tuist.dev'), false);
+});
+
+test('Bazel timeline JSON is an exact public read route with crawler-class counters', () => {
+  const path = '/blog/bazel/timeline.json';
+  const excluded = [`${path}/`, `${path}/builds`, `${path}.bak`,
+    '/blog/bazel/timelineXjson', '/Blog/bazel/timeline.json', '/es/blog/bazel/timeline.json'];
+  checkPaths([path], (p, m) => exempt(marketingRule, p, m), true, methods);
+  checkPaths([path], either, false, writes);
+  checkPaths(excluded, either, false, methods);
+  for (const method of methods) {
+    assert.equal(exempt(marketingRule, path, method, 'search.tuist.dev'), false);
+  }
+
+  for (const [index, file] of ['public-pages-rate-limit.yaml', 'verified-crawlers-rate-limit.yaml'].entries()) {
+    const counter = expression(file, 'countingExpression');
+    const request = { [field]: path, 'http.host': 'tuist.dev', 'cf.client.bot': index === 1 };
+    for (const method of methods) {
+      request['http.request.method'] = method;
+      assert.equal(evaluate(counter, request), true, `${file}: ${method} ${path}`);
+      for (const rejected of excluded) {
+        assert.equal(evaluate(counter, { ...request, [field]: rejected }), false, `${file}: ${method} ${rejected}`);
+      }
+      assert.equal(evaluate(counter, { ...request, 'cf.client.bot': index !== 1 }), false);
+      assert.equal(evaluate(counter, { ...request, 'http.host': 'search.tuist.dev' }), false);
+    }
+    for (const method of writes) {
+      assert.equal(evaluate(counter, { ...request, 'http.request.method': method }), false, `${file}: ${method}`);
+    }
+  }
+});
+
+test('both crawler classes count header-free public reads and retain existing public counters', () => {
+  const files = ['public-pages-rate-limit.yaml', 'verified-crawlers-rate-limit.yaml'];
+  const counts = files.map((file) => expression(file, 'countingExpression'));
+  assert.equal(counts[0].replace('not cf.client.bot', 'cf.client.bot'), counts[1]);
+  const marketingPattern = marketingRule.match(/matches r"([^"]+)"/)[1];
+  assert.ok(counts[0].includes(`matches r"${marketingPattern}"`));
+
+  for (const [index, file] of files.entries()) {
+    const rule = expression(file);
+    const request = { 'http.host': 'tuist.dev', 'cf.client.bot': index === 1, publicHeader: undefined };
+    for (const method of methods) {
+      request['http.request.method'] = method;
+      assert.equal(evaluate(rule, request), true, `${file}: ${method}`);
+      for (const path of ['/pricing', '/blog/2026/11/06/continuous-localization', '/es/customers/acme',
+        '/newsletter/issues/12', '/robots.txt',
+        '/llms-full.txt', '/marketing-markdown/missing', '/en/docs/guides/install-tuist', '/ar/docs-markdown/']) {
+        request[field] = path;
+        assert.equal(evaluate(counts[index], request), true, `${file}: ${method} ${path}`);
+      }
+    }
+    request['cf.client.bot'] = index !== 1;
+    assert.equal(evaluate(rule, request), false, `${file}: opposite crawler class`);
+    assert.equal(evaluate(counts[index], request), false, `${file}: opposite class must not count`);
+    request['cf.client.bot'] = index === 1;
+    for (const method of writes) {
+      request['http.request.method'] = method;
+      assert.equal(evaluate(rule, request), false, `${file}: ${method}`);
+      for (const publicHeader of [undefined, '1']) {
+        request.publicHeader = publicHeader;
+        assert.equal(evaluate(counts[index], request), false, `${file}: ${method} must not count`);
+      }
+    }
+    request['http.request.method'] = 'GET';
+    request[field] = '/tuist/tuist';
+    request.publicHeader = '1';
+    assert.equal(evaluate(counts[index], request), true);
+    request.publicHeader = undefined;
+    assert.equal(evaluate(counts[index], request), false);
+  }
+});
+
+test('all expressions fit Cloudflare limits', () => {
+  for (const rule of [apiRule, marketingRule, ...['public-pages-rate-limit.yaml', 'verified-crawlers-rate-limit.yaml']
+    .flatMap((file) => [expression(file), expression(file, 'countingExpression')])]) {
+    assert.ok(Buffer.byteLength(rule) <= 4096);
+  }
 });
