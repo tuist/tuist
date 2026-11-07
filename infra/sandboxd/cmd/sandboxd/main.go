@@ -212,6 +212,28 @@ func main() {
 		logger.Error("recovering sandboxes", "error", err)
 		os.Exit(1)
 	}
+	// Remote-execution daemons keep their old tags: the server places
+	// executions on the tag most nodes report, so a node that dropped it
+	// during an OnDelete rollout would take no work until most nodes rolled.
+	if templateTag != "" && executionSlots == 0 {
+		inUse := map[string]bool{}
+		for _, sb := range manager.List() {
+			if sb.Template == templateName {
+				inUse[sb.TemplateTag] = true
+			}
+		}
+		for _, snap := range manager.DiskSnapshots() {
+			if snap.Template == templateName {
+				inUse[snap.TemplateTag] = true
+			}
+		}
+		removed, err := store.RemoveStaleTags(templateName, templateTag, func(tag string) bool { return inUse[tag] })
+		if err != nil {
+			logger.Warn("removing stale template tags", "template", templateName, "removed", removed, "error", err)
+		} else if len(removed) > 0 {
+			logger.Info("removed stale template tags", "template", templateName, "tags", removed)
+		}
+	}
 
 	go func() {
 		for _, shape := range prebuild {

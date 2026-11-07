@@ -293,6 +293,42 @@ func (s *Store) Resolve(name, tag string) (Template, error) {
 	}
 }
 
+// RemoveStaleTags deletes every tag directory of template `name` other than
+// `current` and the tags `inUse` reports, and returns the tags it removed.
+// The init container seeds a new tag directory on every template upgrade and
+// nothing else deletes the old ones, so without this they fill the node's data
+// disk until the kubelet evicts the Pods sharing it. Sandboxes hard-link or
+// reflink what they use from a template, so removing a tag never takes files
+// from a sandbox that was created from it.
+func (s *Store) RemoveStaleTags(name, current string, inUse func(tag string) bool) ([]string, error) {
+	name, err := safepath.Segment(name)
+	if err != nil {
+		return nil, fmt.Errorf("template name: %w", err)
+	}
+	entries, err := os.ReadDir(filepath.Join(s.Dir, name))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var removed []string
+	for _, e := range entries {
+		if !e.IsDir() || e.Name() == current || inUse(e.Name()) {
+			continue
+		}
+		dir, err := safepath.Under(s.Dir, name, e.Name())
+		if err != nil {
+			continue
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			return removed, err
+		}
+		removed = append(removed, e.Name())
+	}
+	return removed, nil
+}
+
 // CleanPartialBuilds removes shape directories an interrupted build left
 // behind.
 func (s *Store) CleanPartialBuilds() error {

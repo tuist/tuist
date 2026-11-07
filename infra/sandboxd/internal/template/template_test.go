@@ -356,6 +356,41 @@ func TestBuilderEnsureCallerCancellationDoesNotAbortBuild(t *testing.T) {
 	}
 }
 
+func TestRemoveStaleTagsKeepsCurrentAndInUseTags(t *testing.T) {
+	dir := t.TempDir()
+	store := &Store{Dir: dir}
+	for _, tag := range []string{"old", "paused", "current"} {
+		seedTemplate(t, dir, "default", tag)
+	}
+	other := seedTemplate(t, dir, "bazel", "old")
+	// An interrupted seed leaves a tag directory without a rootfs.
+	if err := os.MkdirAll(filepath.Join(dir, "default", "partial"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := store.RemoveStaleTags("default", "current", func(tag string) bool { return tag == "paused" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(removed, ",") != "old,partial" {
+		t.Fatalf("removed %v, want [old partial]", removed)
+	}
+	list, err := store.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var left []string
+	for _, tmpl := range list {
+		left = append(left, tmpl.Name+"/"+tmpl.Tag)
+	}
+	if strings.Join(left, ",") != "bazel/old,default/current,default/paused" {
+		t.Fatalf("left %v", left)
+	}
+	if !vm.Exists(other.Rootfs()) {
+		t.Fatal("another template's tags must be left alone")
+	}
+}
+
 func TestCleanPartialBuilds(t *testing.T) {
 	dataDir := t.TempDir()
 	tmpl := seedTemplate(t, filepath.Join(dataDir, "templates"), "default", "t1")
