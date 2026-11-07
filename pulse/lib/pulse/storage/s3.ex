@@ -93,6 +93,7 @@ defmodule Pulse.Storage.S3 do
   alias Pulse.Storage.S3.ManifestCache
   alias Pulse.Storage.S3.ManifestOwner
   alias Pulse.Storage.S3.MetadataCache
+  alias Pulse.Storage.S3.MetricCatalog
   alias Pulse.Storage.S3.MetricFooterReader
   alias Pulse.Storage.S3.MetricMetadataStore
   alias Pulse.Storage.S3.MetricTiers
@@ -1351,17 +1352,100 @@ defmodule Pulse.Storage.S3 do
   end
 
   defp scan_manifest(manifest, signal, start_ts, end_ts, opts, tenant, config, limit) do
-    if signal == :traces and opts[:tempo_search] != nil do
-      tempo_search(manifest, start_ts, opts, tenant, config)
-    else
-      opts = put_trace_window(signal, manifest, start_ts, end_ts, opts, tenant, config)
+    cond do
+      signal == :traces and opts[:tempo_search] != nil ->
+        tempo_search(manifest, start_ts, opts, tenant, config)
 
-      with {:ok, segments} <- query_segments(manifest, signal, start_ts, end_ts, opts, tenant, config),
-           :ok <- check_deadline(opts[:deadline_ms]),
-           :ok <- check_scan_budget(signal, segments, opts),
-           do: scan_segments(signal, config, segments, start_ts, end_ts, opts, limit)
+      signal == :metrics and opts[:metric_discovery] != nil ->
+        discover_metrics(manifest, start_ts, end_ts, opts, tenant, config)
+
+      true ->
+        scan_manifest_segments(manifest, signal, start_ts, end_ts, opts, tenant, config, limit)
     end
   end
+
+  defp scan_manifest_segments(manifest, signal, start_ts, end_ts, opts, tenant, config, limit) do
+    opts = put_trace_window(signal, manifest, start_ts, end_ts, opts, tenant, config)
+
+    with {:ok, segments} <- query_segments(manifest, signal, start_ts, end_ts, opts, tenant, config),
+         :ok <- check_deadline(opts[:deadline_ms]),
+         :ok <- check_scan_budget(signal, segments, opts),
+         do: scan_segments(signal, config, segments, start_ts, end_ts, opts, limit)
+  end
+
+  # Discovery reads the hourly series catalogs in the window first, then only
+  # the sample segments none of them covers (`MetricCatalog`). Catalogs list
+  # a series for its whole hour, so an edge hour with a catalog widens the
+  # window to the full hour, for its uncovered segments as well.
+  defp discover_metrics(manifest, start_ts, end_ts, opts, tenant, config) do
+    catalog_opts = opts |> Keyword.put(:metric_tier, :catalog) |> Keyword.put(:matchers, [])
+
+    with {:ok, catalogs} <- query_segments(manifest, :metrics, start_ts, end_ts, catalog_opts, tenant, config) do
+      case Enum.filter(catalogs, &MetricCatalog.catalog_hour/1) do
+        [] -> scan_manifest_segments(manifest, :metrics, start_ts, end_ts, opts, tenant, config, nil)
+        catalogs -> discover_with_catalogs(manifest, catalogs, start_ts, end_ts, opts, tenant, config)
+      end
+    end
+  end
+
+  defp discover_with_catalogs(manifest, catalogs, start_ts, end_ts, opts, tenant, config) do
+    # Each catalogued hour with the lineages of its catalogs.
+    hours =
+      catalogs
+      |> Enum.group_by(&MetricCatalog.catalog_hour/1, &MetricCatalog.lineage(&1.key))
+      |> Map.new(fn {hour, lineages} -> {hour, MapSet.new(lineages)} end)
+
+    start_ts = if Map.has_key?(hours, MetricTiers.hour(start_ts)), do: MetricTiers.hour(start_ts), else: start_ts
+
+    end_ts =
+      if Map.has_key?(hours, MetricTiers.hour(end_ts)),
+        do: MetricTiers.hour(end_ts) + MetricTiers.hour_ns() - 1,
+        else: end_ts
+
+    with :ok <- NIF.ensure_metric_catalog_api!(),
+         {:ok, samples} <- query_segments(manifest, :metrics, start_ts, end_ts, opts, tenant, config),
+         :ok <- check_deadline(opts[:deadline_ms]),
+         {:ok, native} <- start_native_query(:metrics, start_ts, end_ts, opts) do
+      catalogs = Enum.sort_by(catalogs, & &1.key)
+      ctx = scan_ctx(:metrics, config, catalogs, start_ts, end_ts, opts, nil, native)
+      state = %{batches: [], count: 0, top: [], bytes: 0, decoded_bytes: 0, rows: 0, fold: nil, covers: %{}}
+
+      catalogs
+      |> scan_sources(Map.put(ctx, :catalogs?, true), state)
+      |> scan_uncovered(samples, hours, ctx, length(catalogs))
+      |> finish_scan(native, nil, :metric_discovery)
+    end
+  end
+
+  # Continue the same native scan and budgets over every sample segment that
+  # some catalog hour in the window does not cover.
+  defp scan_uncovered({:ok, state}, samples, hours, ctx, visited) do
+    uncovered = Enum.reject(samples, &catalogued?(&1, hours, state.covers, ctx.start_ts, ctx.end_ts))
+    consumed = %{max_scan_segments: visited, max_scan_bytes: state.bytes, max_scan_rows: state.rows}
+
+    with :ok <- check_scan_budget(:metrics, uncovered, remaining_budget(ctx.opts, consumed)) do
+      ctx = %{ctx | segments: uncovered, indexed: List.to_tuple(uncovered), offset: visited}
+      scan_sources(uncovered, ctx, state)
+    end
+  end
+
+  defp scan_uncovered(error, _samples, _hours, _ctx, _visited), do: error
+
+  # Covered when every hour of the segment inside the window has a catalog
+  # covering it; unknown or very long spans are read.
+  defp catalogued?(%{min_ts: min, max_ts: max} = segment, hours, covers, start_ts, end_ts)
+       when is_integer(min) and is_integer(max) do
+    first = MetricTiers.hour(max(min, start_ts))
+    last = MetricTiers.hour(min(max, end_ts))
+
+    first <= last and last - first <= 48 * MetricTiers.hour_ns() and
+      Enum.all?(first..last//MetricTiers.hour_ns(), fn hour ->
+        Map.has_key?(hours, hour) and
+          MetricCatalog.covered?(segment, hour, Map.get(covers, hour, MapSet.new()), hours[hour])
+      end)
+  end
+
+  defp catalogued?(_segment, _hours, _covers, _start_ts, _end_ts), do: false
 
   # Limited traces may stop at a strict timestamp boundary. Actual visited
   # objects are still charged for bytes/rows/segments in scan_segments/7.
@@ -2261,6 +2345,8 @@ defmodule Pulse.Storage.S3 do
 
   defp remember(state, _key, _blob), do: state
 
+  # Catalogs charge the rows discovery reads from them, known only once read.
+  defp stored_rows(%{catalogs?: true}, _segment), do: 0
   defp stored_rows(%{signal: :metrics, metric_discovery?: false}, _segment), do: 0
   defp stored_rows(%{signal: :logs, log_discovery?: false}, _segment), do: 0
   defp stored_rows(_ctx, segment), do: segment.row_count || 0
@@ -2328,6 +2414,7 @@ defmodule Pulse.Storage.S3 do
     end
   end
 
+  defp scan_row_count(%{catalogs?: true}, _segment, _blob), do: {:ok, 0}
   defp scan_row_count(%{signal: :metrics, metric_discovery?: false}, _segment, _blob), do: {:ok, 0}
   # Log reads charge the rows their stream selector and line filters select
   # (charge_matched_rows/3), once known.
@@ -2356,6 +2443,31 @@ defmodule Pulse.Storage.S3 do
   end
 
   defp scanned_row_count(_signal, segment, _blob), do: {:ok, segment.row_count || 0}
+
+  defp continue_or_halt(state, blob, index, %{native: native, catalogs?: true} = ctx) do
+    hour = MetricCatalog.catalog_hour(elem(ctx.indexed, index))
+
+    case native_result(NIF.metric_discovery_add_catalog(native, blob)) do
+      {:ok, {rows, covers}} ->
+        covers =
+          Map.update(
+            state.covers,
+            hour,
+            MetricCatalog.parse_covers(covers),
+            &MapSet.union(&1, MetricCatalog.parse_covers(covers))
+          )
+
+        state = %{state | rows: state.rows + rows, covers: covers}
+
+        case check_visited_budget(ctx.offset + index + 1, state.rows, ctx) do
+          :ok -> {:cont, {:ok, state}}
+          error -> {:halt, error}
+        end
+
+      {:error, _} = error ->
+        {:halt, error}
+    end
+  end
 
   defp continue_or_halt(state, blob, _index, %{native: native, metric_discovery?: true}) do
     case native_result(NIF.metric_discovery_add(native, blob)) do

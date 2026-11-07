@@ -187,6 +187,32 @@ defmodule Pulse.Codec.NIF do
   def metric_segment_parquet_row_count(_blob), do: :erlang.nif_error(:nif_not_loaded)
 
   @doc false
+  # Hourly series catalogs (`Pulse.Storage.S3.MetricCatalog`).
+  def ensure_metric_catalog_api! do
+    version =
+      try do
+        metric_catalog_api_version()
+      rescue
+        ErlangError -> :unavailable
+      end
+
+    if version != 1,
+      do:
+        raise(
+          "codec native artifact cannot build or read metric series catalogs; rebuild with PULSE_NIF_FORCE_BUILD=1 or install matching release artifacts"
+        )
+
+    :ok
+  end
+
+  def metric_catalog_api_version, do: :erlang.nif_error(:nif_not_loaded)
+  def metric_catalog_new(_start, _end), do: :erlang.nif_error(:nif_not_loaded)
+  def metric_catalog_add(_builder, _blob, _source), do: :erlang.nif_error(:nif_not_loaded)
+  def metric_catalog_finish(_builder, _covers), do: :erlang.nif_error(:nif_not_loaded)
+  def metric_catalog_covers(_blob), do: :erlang.nif_error(:nif_not_loaded)
+  def metric_discovery_add_catalog(_state, _blob), do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc false
   # Hour finalization and rollups (`Pulse.Storage.S3.MetricTiers`).
   def ensure_metric_tier_api! do
     version =

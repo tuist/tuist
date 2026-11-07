@@ -752,6 +752,53 @@ postings/range reads or representative client/provider capacity acceptance.
 HTTP transport bounds query/forms to 32KiB each and checks raw duplicate scalars
 before any silent form normalization. See [operator contract](metric-discovery.md).
 
+#### Hourly series catalogs
+
+Sample-backed discovery charges every stored sample, and a remote-write
+tenant exceeds the one-million-row cap within half an hour of four local
+scrape targets (production is ~32x that). Every system we compared answers
+label APIs from a per-period series index instead: Prometheus TSDB blocks and
+Mimir/Thanos store-gateways read a block's symbol table and postings offset
+table (Mimir rounds `start`/`end` to 2 h–24 h blocks), VictoriaMetrics keeps a
+per-day inverted index in `indexdb`, and Loki ships per-period TSDB indexes.
+Their recent data comes from stateful ingesters, which Pulse deliberately does
+not have.
+
+`Pulse.Storage.S3.MetricCatalog` (native `metric_catalog.rs`, catalog API 1)
+writes immutable `-rollup-catalog-<lineage>-` objects per tenant and UTC hour,
+registered in the metrics manifest like rollups. Each lists the hour's distinct canonical series
+plus label-name, label-pair and metric-to-label-name sections in their own row
+groups with exact `kind`/`name` statistics, and names in its footer the sample
+segment keys it covers. Discovery picks the smallest section that answers the
+request, reads only the row groups that can hold it, then continues the same
+native accumulator and budgets over the sample segments no catalog covers;
+edge hours with a catalog widen to the whole hour. Releases that predate
+catalogs see a rollup key spanning the hour: sample reads and rollup planning
+skip it and finalization retires it unread, so a rolling deploy or rollback
+only costs those hours their catalogs (checked against pulse@1.42.0).
+
+The catalog is log-structured so maintenance writes stay proportional to new
+series, not to all series per pass: a delta lists only series the hour's
+active catalogs lack, and the eighth catalog (or a settled hour) merges them,
+retiring the merged objects in one conditional manifest transition. The union
+of an hour's active catalogs therefore never shrinks, which lets consolidation
+and finalization stamp outputs with the catalogs' lineage (manifest `cg`) when
+every source was covered, without coupling them to the catalog writer. An
+hour's first catalog starts the lineage and its deltas and merges keep it; a
+stamp counts only while a catalog of its lineage is active, so an older
+release retiring the hour's catalogs voids the stamps instead of leaving
+segments wrongly covered. Writers that drop the stamp only cause another
+read. The grouping lane catalogs the current and
+previous hour before grouping; the historical lane catalogs older hours after
+finalization, so stalled historical reads never block recent grouping. No new
+mutable authority, lock or node-local state is introduced: concurrent deltas
+only duplicate series, and racing merges conflict on their sources.
+
+Remaining costs: catalogs are fetched whole (no range reads yet), merged hour
+catalogs are rewritten up to every eighth pass, and a series-section read still
+grows with the window's hourly series. Uncatalogued data is at most about one
+compaction interval of samples.
+
 ### Remote Write 2.0 source starts
 
 The experimental public protocol moved from per-series `created_timestamp`

@@ -31,6 +31,10 @@ defmodule Pulse.Storage.S3.MetricTiers do
   a selector reads only the segments holding its metric instead of every
   ingested segment, and a partitioned finalization reads each one once.
 
+  Outputs whose sources the hour's series catalogs all covered carry their
+  lineage, so catalog maintenance and discovery need not read them
+  (`Pulse.Storage.S3.MetricCatalog`).
+
   Options: `:settle_ms` (600_000), `:target_rows` (32_768),
   `:rollup_target_rows` (65_536), `:max_rows` (4_000_000), `:max_sources`
   (8192), `:grace_ms` (3_600_000), `:concurrency` (8). Consolidation:
@@ -47,6 +51,7 @@ defmodule Pulse.Storage.S3.MetricTiers do
   alias Pulse.Storage.S3.Manifest
   alias Pulse.Storage.S3.Manifest.Segment
   alias Pulse.Storage.S3.ManifestOwner
+  alias Pulse.Storage.S3.MetricCatalog
   alias Pulse.Storage.S3.ObjectCache
   alias Pulse.Storage.S3.Retention
 
@@ -174,7 +179,7 @@ defmodule Pulse.Storage.S3.MetricTiers do
       |> Enum.group_by(&hour(&1.min_ts))
       |> Enum.sort_by(&elem(&1, 0), :desc)
       |> Enum.find_value(&hour_batch(&1, min_rows, max_rows, max_sources))
-      |> consolidate_batch(tenant, config, opts)
+      |> consolidate_batch(root, tenant, config, opts)
     end
   end
 
@@ -201,14 +206,16 @@ defmodule Pulse.Storage.S3.MetricTiers do
     |> Enum.reverse()
   end
 
-  defp consolidate_batch(nil, _tenant, _config, _opts), do: {:ok, %{hour: nil}}
+  defp consolidate_batch(nil, _root, _tenant, _config, _opts), do: {:ok, %{hour: nil}}
 
-  defp consolidate_batch({start, sources}, tenant, config, opts) do
+  defp consolidate_batch({start, sources}, root, tenant, config, opts) do
     max_rows = Keyword.get(opts, :consolidate_max_rows, 1_000_000)
     build_opts = Keyword.put(opts, :max_rows, max_rows)
 
     case build(tenant, config, start, sources, nil, build_opts, :grouped) do
       {:ok, outputs} ->
+        outputs = mark_catalogued(outputs, root, start, sources, tenant, config)
+
         case publish(tenant, config, Enum.map(sources, & &1.key), outputs, Keyword.get(opts, :grace_ms, 3_600_000)) do
           :ok ->
             {:ok,
@@ -256,6 +263,7 @@ defmodule Pulse.Storage.S3.MetricTiers do
          :ok <- check_sources(sources, opts),
          :ok <- if(samples == [], do: {:empty, start}, else: :ok),
          {:ok, count, outputs} <- build_partitions(tenant, config, start, samples, partitions(samples, opts), opts) do
+      outputs = mark_catalogued(outputs, root, start, samples, tenant, config)
       grace = Keyword.get(opts, :grace_ms, 3_600_000)
 
       case publish(tenant, config, Enum.map(sources, & &1.key), outputs, grace) do
@@ -324,15 +332,30 @@ defmodule Pulse.Storage.S3.MetricTiers do
     if length(sources) > Keyword.get(opts, :max_sources, 8192), do: {:error, :too_many_sources}, else: :ok
   end
 
+  @doc false
   # Every active segment of `tier` overlapping the hour, from manifest metadata only.
-  defp segments(%{version: 4} = root, start, finish, tier, tenant, config) do
+  def segments(%{version: 4} = root, start, finish, tier, tenant, config) do
     opts = [start_ts: start, end_ts: finish, metrics_filter: Segment.metrics_filter([], tier)]
     JournalManifest.query(root, tenant, "metrics", opts, config)
   end
 
-  defp segments(root, start, finish, tier, _tenant, _config) do
+  def segments(root, start, finish, tier, _tenant, _config) do
     filter = Segment.metrics_filter([], tier)
     {:ok, root |> Manifest.prune_by_time(start, finish) |> Enum.filter(&Segment.matches_metrics?(&1, filter))}
+  end
+
+  # Grouped and final outputs hold exactly their sources' rows of the hour,
+  # so they are covered wherever every source was (`MetricCatalog`).
+  defp mark_catalogued(outputs, root, hour, sources, tenant, config) do
+    case MetricCatalog.covering_lineage(root, hour, sources, tenant, config) do
+      nil ->
+        outputs
+
+      lineage ->
+        Enum.map(outputs, fn output ->
+          if Segment.metric_tier(output) in [:grouped, :final], do: %{output | catalog: lineage}, else: output
+        end)
+    end
   end
 
   # Accumulate the sources natively, then encode and upload one output at a
