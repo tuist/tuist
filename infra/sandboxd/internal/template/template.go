@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/safepath"
@@ -197,6 +198,27 @@ func shapeVersion(dir string) string {
 	return meta.FirecrackerVersion
 }
 
+// ownedByDaemon reports whether every entry of a shape directory belongs
+// to the daemon's uid. One a jail uid owns may already have been rewritten
+// by a sandbox in that slot, so the shape is rebuilt rather than chowned.
+func ownedByDaemon(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil {
+			return false
+		}
+		st, ok := info.Sys().(*syscall.Stat_t)
+		if !ok || int(st.Uid) != os.Geteuid() {
+			return false
+		}
+	}
+	return true
+}
+
 // seedKernel reads the kernel name from the template-level metadata.json
 // the image ships, if any.
 func (t Template) seedKernel() string {
@@ -344,9 +366,10 @@ func (s *Store) RemoveStaleTags(name, current string, inUse func(tag string) boo
 }
 
 // CleanPartialBuilds removes shape directories an interrupted build left
-// behind, and shapes snapshotted by a different Firecracker version, which
-// that version cannot load; the next create rebuilds them. Sandboxes linked
-// to a removed memfile keep their own hard link.
+// behind, shapes snapshotted by a different Firecracker version, which
+// that version cannot load, and shapes holding a file the daemon does not
+// own; the next create rebuilds them. Sandboxes linked to a removed memfile
+// keep their own hard link.
 func (s *Store) CleanPartialBuilds(firecrackerVersion string) error {
 	templates, err := s.List()
 	if err != nil {
@@ -362,7 +385,7 @@ func (s *Store) CleanPartialBuilds(firecrackerVersion string) error {
 				continue
 			}
 			dir := filepath.Join(t.Dir, shapesDir, e.Name())
-			if strings.HasSuffix(e.Name(), buildSuffix) || !vm.Exists(filepath.Join(dir, ReadyFile)) || shapeVersion(dir) != firecrackerVersion {
+			if strings.HasSuffix(e.Name(), buildSuffix) || !vm.Exists(filepath.Join(dir, ReadyFile)) || shapeVersion(dir) != firecrackerVersion || !ownedByDaemon(dir) {
 				if err := os.RemoveAll(dir); err != nil {
 					return err
 				}

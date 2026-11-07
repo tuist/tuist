@@ -478,9 +478,14 @@ existing socket and the jailer's `mknod` fails on an existing node.
 
 Template artifacts are hard-linked into jails (`vmlinux`, `mem`,
 `snapshot`) and must stay world-readable; the daemon never chowns a hard
-link. Firecracker opens the `File` memory backend read-only, so sharing the
-template memfile across sandboxes is safe; the first pause replaces the
-link with the sandbox's own memory file.
+link. The build hands every shape file to root before marking it ready: a
+jail uid is a reused slot, so a template file it owned could be rewritten
+by a later sandbox in that slot for every sandbox restored after it.
+Startup deletes a shape holding any file the daemon does not own, and the
+next create rebuilds it instead of trusting its contents. Firecracker
+opens the `File` memory backend read-only, so sharing the template memfile
+across sandboxes is safe; the first pause replaces the link with the
+sandbox's own memory file.
 
 ### Startup and recovery
 
