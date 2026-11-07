@@ -248,5 +248,59 @@ class ContractTests(unittest.TestCase):
             check("2.0.0", True)
 
 
+class EgressRecoveryTests(unittest.TestCase):
+    def test_recovery_requires_published_latest_version_and_uses_tag_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            env = dict(os.environ, GIT_AUTHOR_NAME="Test", GIT_COMMITTER_NAME="Test",
+                       GIT_AUTHOR_EMAIL="test@example.com", GIT_COMMITTER_EMAIL="test@example.com",
+                       RECOVERY_VERSION=VERSION, GITHUB_REPOSITORY="tuist/tuist",
+                       GITHUB_OUTPUT=str(root / "output"))
+
+            def git(*args):
+                return subprocess.check_output(["git", *args], cwd=root, env=env, text=True).strip()
+
+            git("init", "-q")
+            git("commit", "--allow-empty", "-qm", "release source")
+            source = git("rev-parse", "HEAD")
+            git("tag", f"condukt@{VERSION}")
+            git("tag", "condukt@1.9.0")  # Numeric, not lexical, version ordering.
+            git("commit", "--allow-empty", "-qm", "later workflow fix")
+            self.assertNotEqual(source, git("rev-parse", "HEAD"))
+            bin_path = root / "bin"
+            bin_path.mkdir()
+            for command, body in {
+                "gh": 'printf "%s\\n" "${DRAFT:-false}"',
+                "curl": 'printf "%s\\n" "${HEX_RESPONSE}"; exit "${HTTP_EXIT:-0}"',
+            }.items():
+                path = bin_path / command
+                path.write_text("#!/usr/bin/env bash\n" + body + "\n")
+                path.chmod(0o755)
+            env.update(PATH=f"{bin_path}:{env['PATH']}", HEX_RESPONSE=json.dumps({
+                "version": VERSION, "has_docs": True, "retirement": None}))
+
+            def recover(success, **overrides):
+                output = root / "output"
+                output.unlink(missing_ok=True)
+                result = subprocess.run(["bash", str(SCRIPTS / "condukt-egress-recovery.sh")],
+                                        cwd=root, env=dict(env, **overrides), capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
+                if success:
+                    self.assertEqual(output.read_text(),
+                                     f"version={VERSION}\nsource-sha={source}\negress-only=true\n")
+                else:
+                    self.assertFalse(output.exists())
+
+            recover(True)
+            recover(False, RECOVERY_VERSION="1.9.0")
+            recover(False, RECOVERY_VERSION="1.15.0\negress-only=true")
+            recover(False, DRAFT="true")
+            recover(False, HTTP_EXIT="22")
+            recover(False, HEX_RESPONSE='{"version":"1.15.0","has_docs":false}')
+            recover(False, HEX_RESPONSE='{"version":"1.14.0","has_docs":true}')
+            git("tag", "condukt@1.16.0")
+            recover(False)
+
+
 if __name__ == "__main__":
     unittest.main()

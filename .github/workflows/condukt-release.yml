@@ -9,6 +9,11 @@ on:
       - .github/scripts/condukt*
       - mise/tasks/release/components.json
   workflow_dispatch:
+    inputs:
+      egress_version:
+        description: "Recover only the egress image for the latest published Condukt version (e.g. 1.15.0)"
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -24,18 +29,28 @@ jobs:
     timeout-minutes: 10
     outputs:
       should-release: ${{ steps.plan.outputs.condukt-should-release }}
-      version: ${{ steps.plan.outputs.condukt-next-version-number }}
+      version: ${{ steps.recovery.outputs.version || steps.plan.outputs.condukt-next-version-number }}
       tag: ${{ steps.plan.outputs.condukt-next-version }}
+      source-sha: ${{ steps.recovery.outputs.source-sha || github.sha }}
+      egress-only: ${{ steps.recovery.outputs.egress-only }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/mise
+        if: inputs.egress_version == ''
         with:
           install_args: "--locked git-cliff jq"
       - id: plan
+        if: inputs.egress_version == ''
         run: mise run --skip-tools release:check condukt
+      - id: recovery
+        if: github.event_name == 'workflow_dispatch' && inputs.egress_version != ''
+        env:
+          RECOVERY_VERSION: ${{ inputs.egress_version }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/condukt-egress-recovery.sh
 
   validate:
     needs: plan
@@ -183,15 +198,18 @@ jobs:
 
   publish-egress-image:
     needs: [plan, publish]
+    if: >-
+      always() && !cancelled() && needs.plan.result == 'success' &&
+      (needs.publish.result == 'success' || needs.plan.outputs.egress-only == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.plan.outputs.source-sha }}
           persist-credentials: false
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -211,7 +229,7 @@ jobs:
             ghcr.io/tuist/condukt-egress:latest
           labels: |
             org.opencontainers.image.source=https://github.com/tuist/tuist
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ needs.plan.outputs.source-sha }}
             org.opencontainers.image.version=${{ needs.plan.outputs.version }}
             org.opencontainers.image.licenses=MIT
           cache-from: type=gha,scope=condukt-egress
