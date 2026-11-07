@@ -39,7 +39,9 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w" -o /out/runner-shell-agent ./cmd/runner-shell-agent && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
-    go build -trimpath -ldflags="-s -w" -o /out/tuist-cache-volume ./cmd/tuist-cache-volume
+    go build -trimpath -ldflags="-s -w" -o /out/tuist-cache-volume ./cmd/tuist-cache-volume && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/tuist-node-shim ./cmd/tuist-node-shim
 
 FROM --platform=$BUILDPLATFORM golang:1.26.10-bookworm AS gitlab-runner-builder
 WORKDIR /src
@@ -455,6 +457,12 @@ ARG RUNNER_ARCH=x64
 RUN curl -fSL "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${RUNNER_ARCH}-${RUNNER_VERSION}.tar.gz" \
         -o /tmp/actions-runner.tar.gz \
     && tar xzf /tmp/actions-runner.tar.gz \
+    # Each bundled node becomes node.real; the shim takes its name below, so a
+    # shim change leaves this layer untouched. A missing directory fails the
+    # build: a runner release that changes its node externals needs the shim too.
+    && for node in node20 node20_alpine node24 node24_alpine; do \
+         mv "externals/${node}/bin/node" "externals/${node}/bin/node.real" || exit 1; \
+       done \
     && rm /tmp/actions-runner.tar.gz
 
 USER root
@@ -466,6 +474,12 @@ COPY --from=job-runner-builder /out/tuist-job-runner /usr/local/bin/tuist-job-ru
 COPY --from=runner-shell-agent-builder /out/runner-shell-agent /usr/local/bin/runner-shell-agent
 COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /usr/local/bin/tuist-cache-volume
 COPY --from=runner-shell-agent-builder /out/tuist-cache-volume /home/runner/actions-runner/externals/tuist-cache-volume
+# Points JavaScript actions' GitHub Actions cache at this host's cache agent while
+# it answers (cmd/tuist-node-shim), in job containers too through /__e.
+COPY --from=runner-shell-agent-builder --chown=runner:runner /out/tuist-node-shim /home/runner/actions-runner/externals/node20/bin/node
+COPY --from=runner-shell-agent-builder --chown=runner:runner /out/tuist-node-shim /home/runner/actions-runner/externals/node20_alpine/bin/node
+COPY --from=runner-shell-agent-builder --chown=runner:runner /out/tuist-node-shim /home/runner/actions-runner/externals/node24/bin/node
+COPY --from=runner-shell-agent-builder --chown=runner:runner /out/tuist-node-shim /home/runner/actions-runner/externals/node24_alpine/bin/node
 
 # Global Buildkite hooks execute with the job-scoped report token. The poller
 # and metrics sidecar hold the dispatch SA token; run-job.sh never receives it.
