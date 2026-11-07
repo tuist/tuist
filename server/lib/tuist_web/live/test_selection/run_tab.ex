@@ -719,6 +719,16 @@ defmodule TuistWeb.TestSelection.RunTab do
       </.card_section>
       <.card_section data-part="selection-tracked-files-section">
         <dl data-part="details">
+          <div :if={@selection_run.reason != ""}>
+            <dt>{dgettext("dashboard_tests", "Reason")}</dt>
+            <dd id="selection-reason">
+              {"#{fallback_label(@selection_run.reason)} (#{@selection_run.reason})"}
+            </dd>
+          </div>
+          <div :if={@selection_run.matched_path != ""}>
+            <dt>{dgettext("dashboard_tests", "Matched path")}</dt>
+            <dd id="selection-matched-path">{@selection_run.matched_path}</dd>
+          </div>
           <div>
             <dt>{dgettext("dashboard_tests", "Tracked files")}</dt>
             <dd id="selection-tracked-files">{Enum.join(@tracked_file_globs, ", ")}</dd>

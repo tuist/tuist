@@ -293,6 +293,33 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       assert has_element?(lv, "#selection-rule-trace-table", "unaffected")
       assert has_element?(lv, "#selection-rule-trace-table", "done")
       assert has_element?(lv, "#selection-tracked-files", "**/Package.resolved")
+      refute has_element?(lv, "#selection-reason")
+    end
+
+    test "shows a fallback's reason and matched path in Debug", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      stub(Tuist.Accounts, :tuist_operator?, fn _user -> true end)
+
+      %{test_run: test_run} =
+        selection(project,
+          outcome: "fallback",
+          reason: "tracked_file_changed",
+          matched_path: "Package.resolved",
+          rule_trace: [%{rule: "tracked_files", selected: 0, skipped: 0, verdict: "abort"}]
+        )
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations&selection-tab=debug"
+        )
+
+      assert has_element?(lv, "#selection-reason", "Tracked file changed (tracked_file_changed)")
+      assert has_element?(lv, "#selection-matched-path", "Package.resolved")
+      assert has_element?(lv, "#selection-rule-trace-table", "abort")
     end
 
     test "shows the module-level selection's hits next to the selection's modules", %{
