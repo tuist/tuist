@@ -14,24 +14,25 @@ import TuistTesting
 import TuistTestSupport
 import XCTest
 
-/// Coverage-based test selection end to end. Each test records a full run of the Shop fixture on
-/// `main` against a fresh project, makes changes, runs `tuist test` again and checks a few tests
-/// each change must or mustn't run. XCTest rather than Swift Testing, so selection can skip these
-/// tests one by one once it applies to this suite.
+/// Coverage-based test selection end to end. The test records a full run of the Shop fixture on
+/// `main` against a fresh project, makes changes, runs `tuist test` after each and checks a few
+/// tests each change must or mustn't run. XCTest rather than Swift Testing, so selection can skip
+/// these tests one by one once it applies to this suite.
 final class CoverageTestSelectionAcceptanceTests: XCTestCase {
-    /// The changes that need only an unsharded baseline share one, since recording it is the
-    /// slowest step. Each starts from the baseline commit on a branch of its own, so none sees
-    /// another's commits. The project's evidence is shared, though: a test's version recorded on any
-    /// branch counts wherever its files have the same content. No two changes may give a file the
-    /// same content, or one change's run records the evidence that lets a later one skip the tests
-    /// it asserts ran, depending on whether the server ingested it before the later run asked.
+    /// The changes share one baseline, since recording it is the slowest step. Each starts from the
+    /// baseline commit on a branch of its own, so none sees another's commits. The project's
+    /// evidence is shared, though: a test's version recorded on any branch counts wherever its files
+    /// have the same content. No two changes may give a file the same content, or one change's run
+    /// records the evidence that lets a later one skip the tests it asserts ran, depending on
+    /// whether the server ingested it before the later run asked.
     func test_changes_select_against_one_baseline() async throws {
         try await withShop { shop in
             do {
                 // The only parallel run: the evidence of processes in simulator clones, which Xcode
                 // deletes after the run, maps back to build products. Only the baseline records the
-                // evidence the UI change relies on, so the changes run serially.
-                try await shop.recordBaseline(parallelTesting: true)
+                // evidence the UI change relies on, so the changes run serially. Sharded, so the
+                // server must merge the shards' evidence into one baseline.
+                try await shop.recordBaseline(sharded: true, parallelTesting: true)
             } catch {
                 XCTFail("Recording the baseline failed, so no change ran: \(error)")
                 return
@@ -43,6 +44,7 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
                 ("A Swift Testing change", swiftTestingTestsRunWithoutEvidence),
                 ("A merge checkout", mergeCheckoutFindsTheBaselineThroughItsAncestors),
                 ("An app change", appChangeRunsTheUITestsThatLaunchedIt),
+                ("A sharded checkout", shardedCheckoutSelectsLikeAnUnshardedOne),
             ]
             for (name, change) in changes {
                 do {
@@ -157,22 +159,23 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
         XCTAssertFalse(run.ran("ShopUITests/testShowsCatalog"), run.output)
     }
 
-    /// The same source change as the first test, with the baseline and the checkout both run as two
-    /// shards from prebuilt test products: the selection must match an unsharded run's.
-    func test_sharded_runs_select_like_unsharded_ones() async throws {
-        try await withShop { shop in
-            try await shop.recordBaseline(sharded: true)
-            try shop.git.run("checkout", "-q", "-b", "feature/discount")
-            try shop.git.edit("Core/Sources/Discount.swift", replacing: "(100 - percent)", with: "(-percent + 100)")
-            try shop.git.commitAll("Refactor the discount calculation")
+    /// A source change whose checkout runs as two shards from prebuilt test products: the selection
+    /// must match an unsharded run's.
+    private func shardedCheckoutSelectsLikeAnUnshardedOne(_ shop: Shop) async throws {
+        try shop.git.run("checkout", "-q", "-b", "feature/discount-grouping")
+        try shop.git.edit(
+            "Core/Sources/Discount.swift",
+            replacing: "price.cents * (100 - percent) / 100",
+            with: "(price.cents * (100 - percent)) / 100"
+        )
+        try shop.git.commitAll("Group the discount product")
 
-            let run = try await shop.test(sharded: true)
+        let run = try await shop.test(sharded: true)
 
-            XCTAssertTrue(run.selected, run.output)
-            XCTAssertTrue(run.ran("DiscountTests/testTenPercentOff"), run.output)
-            XCTAssertFalse(run.ran("ReceiptTests/testListsItems"), run.output)
-            XCTAssertFalse(run.ran("SharedAppUITests/testShowsTotal"), run.output)
-        }
+        XCTAssertTrue(run.selected, run.output)
+        XCTAssertTrue(run.ran("DiscountTests/testTenPercentOff"), run.output)
+        XCTAssertFalse(run.ran("ReceiptTests/testListsItems"), run.output)
+        XCTAssertFalse(run.ran("SharedAppUITests/testShowsTotal"), run.output)
     }
 
     private func withShop(_ body: (Shop) async throws -> Void) async throws {
@@ -303,7 +306,7 @@ private struct Shop {
             // every suite in the one catch-all shard.
             try await TuistTest.run(TestCommand.self, [
                 "Shop", "--build-only", "--shard-total", "2", "--shard-granularity", "module",
-                "--shard-reference", reference, "--derived-data-path", derivedData("plan").pathString,
+                "--shard-reference", reference, "--derived-data-path", derivedData("build").pathString,
             ] + options)
             let matrix = try JSONSerialization.jsonObject(
                 with: Data(contentsOf: directory.appending(component: ".tuist-shard-matrix.json").url)
@@ -318,7 +321,7 @@ private struct Shop {
             }
         } else {
             try await TuistTest.run(TestCommand.self, [
-                "Shop", "--derived-data-path", derivedData("test").pathString,
+                "Shop", "--derived-data-path", derivedData("build").pathString,
             ] + options)
         }
         let output = Logger.testingLogHandler.collected[.trace, <=] + "\n" + ui()
