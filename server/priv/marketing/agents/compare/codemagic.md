@@ -17,7 +17,7 @@ Codemagic also publishes [CLI tools](https://docs.codemagic.io/knowledge-codemag
 | Reuse Xcode compilation outputs | [Xcode Cache](/en/docs-markdown/guides/features/cache/xcode-cache) connects compatible local, CI, and agent builds to a remote cache; requires Xcode 26+. | Its caching guide restores the compilation-cache directory between workflow builds. Measure archive transfer and compatibility, not just a warm-job hit rate. |
 | Understand expensive build and test work | [Build Insights](/en/docs-markdown/guides/features/build-insights), [Tests](/marketing-markdown/tests), and authorized [MCP access](/en/docs-markdown/guides/features/agentic-coding/mcp) expose recorded toolchain work and outcomes. | Build logs can expose Xcode cache metrics. Evaluate the specific diagnostic records and integrations needed rather than assuming all analytics are absent. |
 | Manage signing and store publishing | Tuist caching and insights complement an existing delivery workflow; they are not a replacement for its signing and publishing responsibilities. | Codemagic documents App Store Connect publishing and tooling for certificates, profiles, and Xcode projects. |
-| Skip unchanged test targets | Selective testing requires Tuist-generated Xcode projects and works at test-target granularity. | Evaluate Codemagic's current test execution options independently; compilation caching does not itself establish equivalent test selection. |
+| Skip unchanged test targets | Selective testing requires Tuist-generated Xcode projects and works at test-target granularity by default. An account-enabled early-access coverage strategy can select individual XCTest/XCUITest tests with coverage uploads and TestCoverageAttribution. | Evaluate Codemagic's current test execution options independently; compilation caching does not itself establish equivalent test selection. |
 
 ## Choose Tuist when
 
@@ -30,9 +30,5 @@ Enable [Tuist Xcode Cache](/en/docs-markdown/guides/features/cache/xcode-cache) 
 ## Sources and review
 
 Sources checked on **2026-10-08**: [Codemagic caching](https://docs.codemagic.io/knowledge-codemagic/caching/), [machines](https://docs.codemagic.io/knowledge-codemagic/machine-type/), [App Store Connect publishing](https://docs.codemagic.io/yaml-publishing/app-store-connect/), [CLI tools](https://docs.codemagic.io/knowledge-codemagic/codemagic-cli-tools/), and [Tuist Xcode Cache](/en/docs-markdown/guides/features/cache/xcode-cache). This comparison is written by Tuist and describes the cited mechanisms, not every vendor feature.
-
-## Limitations
-
-No benchmark or cheapest-provider claim is established. Cache compatibility, transfer costs, and workflow scope matter. Generated projects are required for Tuist module caching and selective testing, not ordinary Xcode compilation caching. Tuist Runners are optional and invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. Licenses and self-hosting terms are component-specific. Recheck current capabilities before buying.
 
 Related: [Bitrise](/marketing-markdown/compare/bitrise), [Appcircle](/marketing-markdown/compare/appcircle), and [all comparisons](/marketing-markdown/compare).

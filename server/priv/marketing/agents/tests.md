@@ -11,7 +11,7 @@ Growing suites take longer on one CI machine. Parallel jobs end up uneven. Inter
 - **Test Insights** collects reported runs into a shared history of failures, durations, and slow tests. It is the foundation for the other features.
 - **Flaky tests** detects tests with inconsistent outcomes on the same code. Where supported, a flaky test can be **quarantined**: muted (it runs, but its failure does not fail the run) or skipped. Quarantine can be manual or automated.
 - **Test sharding** splits the tests that need to run across parallel CI runners, balanced with recent timing history, and merges results back into one view.
-- **Selective testing** skips test targets whose hashed inputs have not changed since the last successful run.
+- **Selective testing** skips test targets whose hashed inputs have not changed since the last successful run by default. An account-enabled early-access coverage strategy can additionally select individual XCTest/XCUITest tests.
 
 Sharding spreads work; selective testing removes work; insights explain what happened. They combine: a generated project can skip unchanged targets and shard the rest.
 
@@ -20,12 +20,16 @@ Sharding spreads work; selective testing removes work; insights explain what hap
 | Feature | Xcode project | Tuist-generated Xcode projects | Gradle | Bazel | Elixir |
 | --- | --- | --- | --- | --- | --- |
 | [Test Insights](/en/docs-markdown/guides/features/test-insights) | Yes | Yes | Yes | Yes (`tuist bazel test`) | Yes (`tuist_ex` Hex package) |
-| [Flaky-test detection](/en/docs-markdown/guides/features/test-insights/flaky-tests) | Yes | Yes | Yes | Yes | Yes, with test retries |
-| Quarantine (mute or skip) | Yes, via `tuist xcodebuild test` | Yes, via `tuist test` | Yes | Yes | Not applied yet |
+| [Flaky-test detection](/en/docs-markdown/guides/features/test-insights/flaky-tests) | Yes | Yes | Yes | Yes | Yes, including cross-run detection without retries |
+| Quarantine (mute or skip) | Yes, via `tuist xcodebuild test` | Yes, via `tuist test` | Yes | Yes, via `tuist bazel test` | Yes, with a recent authenticated `tuist_ex` integration |
 | [Test sharding](/en/docs-markdown/guides/features/test-sharding) | Yes | Yes | Yes | No | Yes |
 | [Selective testing](/en/docs-markdown/guides/features/selective-testing) | No | Yes, via `tuist test` | No | No | No |
 
-Selective testing requires Tuist-generated Xcode projects because it reuses the project-graph hashing behind the module cache. Support for other build systems is planned but not available.
+Selective testing requires Tuist-generated Xcode projects. The default strategy reuses the project-graph hashing behind the module cache. The early-access [coverage strategy](/en/docs-markdown/guides/features/selective-testing/generated-xcode-project) needs account enablement, coverage uploads, and TestCoverageAttribution.
+
+[Rust](/en/docs-markdown/guides/features/test-insights/rust) also reports Cargo test outcomes and doctests, supports cross-run flaky detection and mute/skip quarantine, and offers target-level sharding within one package. Stable libtest reporting does not provide per-test durations or failure bodies; Cargo sharding is not build-once distribution. [Once](/en/docs-markdown/guides/features/test-insights/once) support is in canary; hosted sharding needs a release exposing the hosted-plan commands, not Once 0.71.0's portable plans alone. Once does not enforce Tuist quarantine. Neither integration provides Tuist selective testing.
+
+[Elixir quarantine](/en/docs-markdown/guides/features/test-insights/flaky-tests/elixir) requires authenticated policy lookup. Failed lookups run all tests; `--no-quarantine` disables enforcement. Muting has restrictions with umbrella-root runs and `--warnings-as-errors`.
 
 ## When it fits
 
@@ -41,13 +45,6 @@ Selective testing requires Tuist-generated Xcode projects because it reuses the 
 3. Configure flaky-test automations or quarantine where supported.
 4. Follow the sharding guide for your toolchain; it needs insights history to balance shards (Xcode uses the last 30 days of timings).
 5. For generated projects, run tests with `tuist test` to enable selective testing; it combines with the module cache.
-
-## Limitations
-
-- Analytics and balancing depend on uploaded results. Missing history is not evidence that a test passes or that shards are balanced.
-- Sharding needs multiple runners and can raise total compute usage even when wall-clock time falls.
-- Selective testing works at test-target granularity from modeled inputs. It is not line-level test impact analysis and does not apply to other toolchains.
-- Quarantine hides failures, it does not fix them. A muted run can be reported as passing; skipped tests produce no new results.
 
 ## Pricing
 

@@ -24,7 +24,7 @@ Tuist is a build platform for engineering teams and their coding agents. It supp
 The following solutions are part of Tuist:
 
 - [🚝 **Cache**](https://tuist.dev/en/docs/guides/features/cache): Speed up builds across environments with a content-addressable store.
-- [✅ **Selective testing**](https://tuist.dev/en/docs/guides/features/selective-testing): Run tests faster by selecting them based on the file changes.
+- [✅ **Selective testing**](https://tuist.dev/en/docs/guides/features/selective-testing): Skip unchanged test targets in Tuist-generated Xcode projects; an account-enabled early-access coverage strategy can select individual XCTest/XCUITest tests.
 - [📦 **Registry**](https://tuist.dev/en/docs/guides/features/registry): Speed up the resolution of [Swift Package Index](https://swiftpackageindex.com/)-indexed packages.
 - [📈 **Build insights**](https://tuist.dev/en/docs/guides/features/build-insights): Get actionable insights from your projects, builds, and test runs to make informed decisions.
 - [📱 **Bundle insights**](https://tuist.dev/en/docs/guides/features/bundle-size): Analyze your built apps and get suggestions to improve them.

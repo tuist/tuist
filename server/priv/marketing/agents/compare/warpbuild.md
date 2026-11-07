@@ -29,8 +29,4 @@ Keep the machine shape fixed and record one representative workflow with [Tuist 
 
 Sources checked on **2026-10-08**: WarpBuild's [cloud runners](https://www.warpbuild.com/docs/ci/cloud-runners), [caching](https://www.warpbuild.com/docs/ci/features/caching), [observability](https://www.warpbuild.com/docs/ci/features/observability), [MCP](https://www.warpbuild.com/docs/ci/mcp), and [Tuist Build Insights](/en/docs-markdown/guides/features/build-insights). This comparison is written by Tuist, not a vendor-wide feature audit.
 
-## Limitations
-
-Benchmark results, machine images, and integration scope change. MCP presence does not establish equivalent data or actions. Tuist module caching and selective testing require generated Xcode projects; ordinary compilation caching requires Xcode 26+. Licenses and self-hosting terms are component-specific. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No guaranteed speedup or cheapest-provider claim is made.
-
 Related: [Blacksmith](/marketing-markdown/compare/blacksmith), [Namespace](/marketing-markdown/compare/namespace), and [all comparisons](/marketing-markdown/compare).

@@ -24,7 +24,7 @@ Use that evidence to decide whether to split a highly connected module, correct 
 
 [Remote caching](/marketing-markdown/cache) reuses outputs keyed by compatible inputs. Tuist normally directs clients to a nearby regional endpoint. The cache serves developer machines and agent environments as well as CI; it does not require Tuist Runners. Configure trusted producers and verify that another environment can consume their outputs.
 
-The integration matters: whole-module caching requires Tuist-generated Xcode projects; the Xcode compilation cache works with existing projects on Xcode 26 or later; Gradle and Bazel use their own build-cache integrations. Elixir has Build Insights but no Tuist remote build cache.
+The integration matters: whole-module caching requires Tuist-generated Xcode projects; the Xcode compilation cache works with existing projects on Xcode 26 or later; Gradle and Bazel use their own build-cache integrations. Elixir caches supported compiled dependencies remotely; application source files are not cached.
 
 ## Investigate with an agent
 
@@ -38,9 +38,5 @@ Ask for an evidence-backed bottleneck, one proposed change, and a before/after m
 2. Measure a representative cold build and repeat build, including queue and transfer time.
 3. Change one source of unnecessary work or enable the matching [cache integration](/marketing-markdown/cache).
 4. Compare end-to-end duration and total compute consumption, not just hit rate. Repeat on a developer or agent machine as well as CI.
-
-## Limitations
-
-Caching helps only when compatible outputs exist and downloading them is worthwhile. A highly changed workload, serial linker bottleneck, or external service wait may need another intervention. A graph change can improve one build while making others worse; validate representative edits. Faster compute is sometimes the right answer, but no integration guarantees a speedup or lower costs. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing).
 
 Related: [slow tests](/marketing-markdown/solutions/slow-tests), [rising CI costs](/marketing-markdown/solutions/ci-costs), and [compare approaches](/marketing-markdown/compare).

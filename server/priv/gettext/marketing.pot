@@ -589,11 +589,6 @@ msgstr ""
 msgid "Tuist Digest Newsletter"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:984
-#, elixir-autogen, elixir-format
-msgid "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:452
 #, elixir-autogen, elixir-format
 msgid "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up 'Test Apps' for speeding up our development on each module."
@@ -2989,4 +2984,9 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:34
 #, elixir-autogen, elixir-format
 msgid "Tuist · Build platform for Xcode, Gradle, and Bazel teams and agents"
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:984
+#, elixir-autogen, elixir-format
+msgid "Air includes community support through the forum. Pro includes standard support through Slack and email. Enterprise includes priority support through Slack and email."
 msgstr ""

@@ -30,8 +30,4 @@ Record a representative suite with [Tuist Test Insights](/en/docs-markdown/guide
 
 Sources checked on **2026-10-08**: CircleCI's [Test Insights](https://circleci.com/docs/guides/insights/insights-tests/index.md), [dynamic test splitting](https://circleci.com/docs/guides/test/use-dynamic-test-splitting/index.md), [MCP overview](https://circleci.com/docs/guides/toolkit/circleci-mcp-overview/index.md), and [Tuist Tests](/marketing-markdown/tests). This comparison is written by Tuist and acknowledges overlapping test and agent capabilities.
 
-## Limitations
-
-Test frameworks, plan availability, scheduling mechanisms, and detection definitions differ. Parallel execution does not guarantee lower total cost. Tuist selective testing requires generated Xcode projects and does not currently cover Gradle or Bazel; Elixir quarantine is not applied yet. Public source does not imply uniform licenses or unrestricted self-hosting. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No universal speed or cost advantage is established.
-
 Related: [Buildkite](/marketing-markdown/compare/buildkite), [Develocity](/marketing-markdown/compare/develocity), and [all comparisons](/marketing-markdown/compare).

@@ -59,7 +59,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       markdown = MarketingMarkdown.get(path)
 
       assert String.starts_with?(markdown, "# Tuist")
-      if path not in @build_system_paths, do: assert(markdown =~ "## Limitations")
+      refute markdown =~ "## Limitations"
       refute markdown =~ "](/"
       refute markdown =~ "<script"
       refute markdown =~ "<html"
@@ -179,7 +179,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       assert markdown =~ "https://github.com/tuist/tuist"
       assert markdown =~ "https://github.com/tuist/tuist/blob/main/CONTRIBUTING.md"
       assert markdown =~ MarketingMarkdown.alternate_path("/openness")
-      assert markdown =~ "2026-10-09"
+      assert markdown =~ ~r/Sources reviewed on \*\*\d{4}-\d{2}-\d{2}\*\*/
       assert MarketingMarkdown.get("/") =~ MarketingMarkdown.alternate_path(path)
       assert MarketingMarkdown.source(path) == nil
     end
@@ -210,7 +210,9 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert once =~ "Script annotations or wrapper configuration"
     assert once =~ "without rewriting the project into a new build language"
     assert once =~ "npm run build"
-    assert once =~ "remote execution coming soon"
+    assert once =~ "remote execution requires an enabled account"
+    assert once =~ "linux/amd64"
+    assert once =~ "does not ingest Once's raw action log stream"
     refute once =~ "## Limitations"
 
     assert MarketingMarkdown.get("/build-systems/index") == nil
@@ -258,7 +260,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert markdown =~ "A closed hosted service"
   end
 
-  test "problem guides connect diagnosis, agent investigation, experiments, and limitations" do
+  test "problem guides connect diagnosis, agent investigation, and experiments" do
     mcp_docs = File.read!(Path.expand("../../../priv/docs/en/guides/features/agentic-coding/mcp.md", __DIR__))
 
     for slug <- ["slow-builds", "flaky-tests", "slow-tests", "ci-costs"] do
@@ -269,7 +271,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       assert markdown =~ "## Diagnose"
       assert markdown =~ "## Investigate with an agent"
       assert markdown =~ "## First experiment"
-      assert markdown =~ "## Limitations"
+      refute markdown =~ "## Limitations"
       assert MarketingMarkdown.get("/") =~ MarketingMarkdown.alternate_path(path)
 
       for [_match, tool] <- Regex.scan(~r/`((?:list|get|update)_[a-z_]+)`/, markdown) do
@@ -280,7 +282,9 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/solutions/slow-builds") =~ "Xcode 26"
     assert MarketingMarkdown.get("/solutions/slow-tests") =~ "test-target granularity"
     assert MarketingMarkdown.get("/solutions/slow-tests") =~ "not Bazel today"
-    assert MarketingMarkdown.get("/solutions/flaky-tests") =~ "quarantine is not applied there yet"
+    assert MarketingMarkdown.get("/solutions/flaky-tests") =~ "cross-run detection without retries"
+    assert MarketingMarkdown.get("/solutions/flaky-tests") =~ "mute/skip quarantine"
+    assert MarketingMarkdown.get("/solutions/slow-builds") =~ "Elixir caches supported compiled dependencies remotely"
 
     assert MarketingMarkdown.get("/solutions/ci-costs") =~
              "access is invite-only, and per-minute rates are on the [pricing page]"
@@ -292,8 +296,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
       assert markdown =~ "written by Tuist"
       assert markdown =~ ~r/Sources checked on \*\*\d{4}-\d{2}-\d{2}\*\*/
       assert markdown =~ "https://"
-      assert markdown =~ "## Limitations"
-      assert markdown =~ "invite-only"
+      refute markdown =~ "## Limitations"
     end
 
     for {slug, vendor} <- @providers do
@@ -353,7 +356,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
 
     namespace = MarketingMarkdown.get("/compare/namespace")
     assert namespace =~ "separate Bazel remote cache supports local builds and external CI"
-    assert namespace =~ "does not provide that execution service"
+    assert namespace =~ "tuist bazel setup --remote-execution"
     assert namespace =~ "https://namespace.so/docs/bazel"
 
     assert MarketingMarkdown.get("/compare/blacksmith") =~ "JUnit results take precedence"
@@ -373,13 +376,15 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/compare/warpbuild") =~ "approximately one minute"
     assert MarketingMarkdown.get("/compare/runs-on") =~ "macOS is not yet supported"
     assert MarketingMarkdown.get("/compare/ubicloud") =~ "Transparent Cache"
-    assert MarketingMarkdown.get("/compare/ubicloud") =~ "deprecated"
+    assert MarketingMarkdown.get("/compare/ubicloud") =~ "instead of the older replacement actions"
     assert MarketingMarkdown.get("/compare/ubicloud") =~ "AGPL-3.0"
     assert MarketingMarkdown.get("/compare/cirun") =~ "Linux runners on AWS"
     assert MarketingMarkdown.get("/compare/cirun") =~ "https://docs.cirun.io/caching/s3-compatible"
     assert MarketingMarkdown.get("/compare/buildjet") =~ "official, self-hosted, and BuildJet runners"
 
-    for slug <- ["appcircle", "bitrise", "buildkite", "circleci", "develocity", "warpbuild"] do
+    assert MarketingMarkdown.get("/compare/runs-on") =~ "Bazel action outputs and Gradle task outputs"
+
+    for slug <- ["appcircle", "bitrise", "buildbuddy", "buildkite", "circleci", "develocity", "namespace", "warpbuild"] do
       assert MarketingMarkdown.get("/compare/" <> slug) =~ "MCP"
     end
   end
@@ -400,7 +405,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert home =~ "Bazel action outputs"
     assert home =~ "For Elixir"
     assert home =~ "Xcode compilation outputs"
-    assert home =~ "not the scope of the build and test platform"
+    assert home =~ "macOS/Linux command-line distributions"
 
     for path <- [
           "/",
@@ -451,7 +456,11 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/compute") =~ "invite-only"
     assert MarketingMarkdown.get("/compute") =~ "Per-minute macOS and Linux rates are listed on the [pricing page]"
     assert MarketingMarkdown.get("/tests") =~ "Tuist-generated Xcode projects"
+    assert MarketingMarkdown.get("/tests") =~ "early-access"
+    assert MarketingMarkdown.get("/tests") =~ "recent authenticated `tuist_ex`"
     assert MarketingMarkdown.get("/previews") =~ "device builds must be correctly signed"
+    assert MarketingMarkdown.get("/previews") =~ "not in a sandbox"
+    assert MarketingMarkdown.get("/compute") =~ "/ci-providers/bitrise"
     assert MarketingMarkdown.get("/pricing") =~ "does not duplicate numeric rates"
   end
 end

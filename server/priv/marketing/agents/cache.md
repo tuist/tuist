@@ -10,6 +10,8 @@ A local build cache only helps the machine that filled it. Fresh CI machines, ne
 
 Tuist hosts a remote cache keyed by build inputs. On a hit, the build downloads the stored output instead of rebuilding it; on a miss, it builds normally and can upload the result for others. The Tuist server tells clients which cache endpoint to use, normally the closest region. On [Tuist Runners](/marketing-markdown/compute), the cache sits on the runner's private network and is the same cache developer machines use.
 
+Account admins can restrict cache uploads to "CI and account tokens only" so developers consume outputs from trusted producers. Gradle can also disable pushes locally. Enterprise teams can place [self-hosted Kura cache nodes](/en/docs-markdown/guides/features/cache/self-hosting) near CI or offices, connected to hosted or self-hosted Tuist.
+
 ## Choose the integration
 
 The following integrations have separate, non-interchangeable settings:
@@ -36,13 +38,6 @@ It helps less when most builds change most inputs, when local incremental builds
 2. Configure the integration above and [authenticate CI](/en/docs-markdown/guides/server/authentication), preferably with OIDC or a project token rather than a personal login.
 3. Build once to populate the cache, then build the same inputs from another environment.
 4. Check hit rate and transfer in the project's cache dashboards and [Build Insights](/en/docs-markdown/guides/features/build-insights).
-
-## Limitations
-
-- Changed inputs or different toolchain versions and settings produce misses. A remote cache never guarantees a hit or removes all compilation.
-- Downloads cost latency and bandwidth; the benefit depends on artifact size, distance to the cache, and how expensive the work is to rebuild.
-- Choose trusted producers. Account admins can set cache uploads to "CI and account tokens only" so developers download but do not upload; Gradle can also disable pushes locally.
-- [Self-hosted cache nodes](/en/docs-markdown/guides/features/cache/self-hosting) (Kura) can run near your CI or offices and connect to hosted or self-hosted Tuist. They require the Enterprise plan and add infrastructure to operate.
 
 ## Pricing
 

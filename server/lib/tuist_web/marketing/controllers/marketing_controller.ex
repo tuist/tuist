@@ -983,7 +983,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       {dgettext("marketing", "What support is included with each plan?"),
        dgettext(
          "marketing",
-         "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
+         "Air includes community support through the forum. Pro includes standard support through Slack and email. Enterprise includes priority support through Slack and email."
        )},
       {dgettext("marketing", "How can I estimate the cost for my project?"),
        dgettext(

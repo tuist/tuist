@@ -6,7 +6,7 @@ Choose Tuist to understand and reduce build and test work across local developer
 
 Both offer ways to avoid repeated work. Namespace's [GitHub Actions caching guide](https://namespace.so/docs/solutions/github-actions/caching) describes runner-attached NVMe Cache Volumes, an Actions-cache option, and an artifacts option. Its volume integrations cover container images, checkouts, toolchain downloads, actions, and build systems including Gradle and Bazel.
 
-Namespace also documents a separate [Bazel remote cache and remote execution service](https://namespace.so/docs/bazel). Its cache shares action results across local, CI, and Devbox builds, including GitHub-hosted runners; caching can be configured without remote execution. Runner independence and local Bazel reuse are therefore not unique to Tuist. Its remote execution runs actions on Namespace workers; Tuist's Bazel cache does not provide that execution service.
+Namespace also documents a separate [Bazel remote cache and remote execution service](https://namespace.so/docs/bazel). Its cache shares action results across local, CI, and Devbox builds, including GitHub-hosted runners; caching can be configured without remote execution. Runner independence and local Bazel reuse are therefore not unique to Tuist. Both platforms treat caching and remote execution as separate configuration choices.
 
 Tuist's [Cache](/marketing-markdown/cache) reuses toolchain-keyed build outputs, while optional [runner cache volumes](/en/docs-markdown/guides/features/runners/cache-volumes) persist selected directories. Build-output caching and directory persistence solve different problems; Tuist offers both too.
 
@@ -15,10 +15,10 @@ Tuist's [Cache](/marketing-markdown/cache) reuses toolchain-keyed build outputs,
 | Decision | Tuist | Namespace evidence to evaluate |
 | --- | --- | --- |
 | Build-output reuse outside the runner fleet | Tuist Cache serves compatible developer, CI, and agent builds through regional endpoints independently of Tuist Runners. | Cache Volumes attach storage to Namespace runners, but its separate Bazel remote cache supports local builds and external CI. Compare the specific integration; not all Namespace caches are runner-bound. |
-| Execute Bazel actions remotely | Tuist's Bazel cache reuses outputs; it does not execute actions remotely. | Namespace offers remote execution as well as caching, with separate worker and platform configuration. |
+| Execute Bazel actions remotely | Tuist has a separate opt-in Linux execution integration via `tuist bazel setup --remote-execution`, requiring account enablement and available capacity. | Namespace offers remote execution as well as caching, with separate worker and platform configuration. |
 | Avoid expensive downloads during CI setup | Tuist Runners have separate cache volumes and a colocated build cache, subject to invitation. | Namespace documents local NVMe volumes and caching for checkouts, toolchains, actions, and container images. |
 | Share state between jobs | Use the build system's artifact keys or runner volume configuration as appropriate. | Namespace documents custom volume tags for sharing across profiles and repositories, with branch and job write controls. |
-| Explain a slow build or flaky test | Tuist exposes toolchain-specific [build insights](/en/docs-markdown/guides/features/build-insights), [test history](/marketing-markdown/tests), and [MCP tools](/en/docs-markdown/guides/features/agentic-coding/mcp). | Inspect the evidence available for your specific toolchain, not just job duration; the caching guide is not an audit of Namespace's observability or agent features. |
+| Explain a slow build or flaky test | Tuist exposes toolchain-specific [build insights](/en/docs-markdown/guides/features/build-insights), [test history](/marketing-markdown/tests), and [MCP tools](/en/docs-markdown/guides/features/agentic-coding/mcp). | Namespace also provides hosted [MCP](https://namespace.so/docs/reference/mcp) for build/job investigation, compute/CI usage analysis, and Devbox management, including a read-only endpoint. Compare toolchain records and permissions. |
 | Inspect implementation and follow fixes | Tuist publishes [source](https://github.com/tuist/tuist), [issues](https://github.com/tuist/tuist/issues), and [changes](https://github.com/tuist/tuist/pulls). | Ask which components are public and what can be inspected or contributed to. A public integration action alone does not establish the licensing of the hosted service. |
 
 ## Choose Tuist when
@@ -33,10 +33,6 @@ Keep the current runner configuration and enable a supported [Tuist Cache integr
 
 ## Sources and review
 
-Sources checked on **2026-10-08**: [Namespace Cache Volumes](https://namespace.so/docs/solutions/github-actions/caching), [Bazel caching and remote execution](https://namespace.so/docs/bazel), [pricing and billing units](https://namespace.so/pricing), [Tuist Cache](/marketing-markdown/cache), [Tuist Runners](/marketing-markdown/compute), [runner cache volumes](/en/docs-markdown/guides/features/runners/cache-volumes), and [Tuist MCP documentation](/en/docs-markdown/guides/features/agentic-coding/mcp). This comparison is written by Tuist and evaluates the documented mechanisms, not every Namespace product.
-
-## Limitations
-
-No performance benchmark or price comparison is established here. A volume cache and a remote build-artifact cache cannot be compared by hit rate alone. Input compatibility, trust policy, locality, and workload determine reuse. Toolchain support varies. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. Source visibility does not imply every component has the same license or self-hosting terms. Recheck vendor capabilities before buying.
+Sources checked on **2026-11-07**: [Namespace Cache Volumes](https://namespace.so/docs/solutions/github-actions/caching), [Bazel caching and remote execution](https://namespace.so/docs/bazel), [pricing and billing units](https://namespace.so/pricing), [Namespace MCP](https://namespace.so/docs/reference/mcp), [Tuist Cache](/marketing-markdown/cache), [Tuist Runners](/marketing-markdown/compute), [runner cache volumes](/en/docs-markdown/guides/features/runners/cache-volumes), and [Tuist MCP documentation](/en/docs-markdown/guides/features/agentic-coding/mcp). This comparison is written by Tuist and evaluates the documented mechanisms, not every Namespace product.
 
 Related: [comparison overview](/marketing-markdown/compare), [Tuist and Bitrise](/marketing-markdown/compare/bitrise), and [rising CI costs](/marketing-markdown/solutions/ci-costs).

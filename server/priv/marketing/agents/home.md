@@ -40,9 +40,9 @@ Keep the build systems that fit the organization and use one productivity platfo
 
 - [Xcode](/marketing-markdown/build-systems/xcode): shared compilation outputs and build/test evidence; generated-project features remain a separate path.
 - [Gradle](/marketing-markdown/build-systems/gradle): shared cacheable task outputs and task/test insights.
-- [Bazel](/marketing-markdown/build-systems/bazel): remote action caching and build/test reporting, not a Tuist remote execution service.
+- [Bazel](/marketing-markdown/build-systems/bazel): remote action caching and build/test reporting; Linux remote execution is a separate opt-in for enabled accounts.
 - [Mix / Elixir](/marketing-markdown/build-systems/elixir): compiled dependency caching, compilation insights, ExUnit history, flaky detection, and test sharding.
-- [Once](/marketing-markdown/build-systems/once): make scripts cacheable and add caching without rewriting project sources or native build definitions, even without a native cache integration; Tuist support is in canary, with remote execution coming soon.
+- [Once](/marketing-markdown/build-systems/once): make scripts cacheable and add caching without rewriting project sources or native build definitions, even without a native cache integration; Tuist support is in canary, with eligible Linux remote execution for enabled accounts.
 
 ## Why Tuist
 
@@ -59,7 +59,7 @@ Keep the build systems that fit the organization and use one productivity platfo
 | Rebuilding code another machine already built | [Cache](/marketing-markdown/cache) | Shares compatible module, Xcode compilation, Gradle task, Bazel action, and Elixir dependency outputs. Rust compilation caching is experimental; Once support is in canary. |
 | Slow, queued, or self-maintained CI machines | [Compute](/marketing-markdown/compute) | Tuist Runners: managed macOS and Linux CI runners next to the same cache. Invite-only. |
 | Slow, flaky, or opaque test suites | [Tests](/marketing-markdown/tests) | Test insights, flaky-test detection and quarantine, test sharding, selective testing. |
-| Sharing development builds for review | [Previews](/marketing-markdown/previews) | Uploads an iOS or Android build and returns a link to install and run it. |
+| Sharing development builds for review | [Previews](/marketing-markdown/previews) | Shares supported mobile apps, macOS apps, and macOS/Linux command-line distributions through a link. |
 | Not knowing why builds are slow | [Build Insights](/en/docs-markdown/guides/features/build-insights) | Records local and CI build durations, cache behavior, and failures. |
 | App size growing unnoticed | [Bundle Insights](/en/docs-markdown/guides/features/bundle-insights) | Tracks Apple and Android bundle size over time and can fail checks on regressions. |
 | Slow Swift package resolution | [Swift package registry](/en/docs-markdown/guides/features/package-registries/swift) | Serves Swift Package Index packages through the registry protocol instead of Git clones. |
@@ -82,7 +82,9 @@ Keep the build systems that fit the organization and use one productivity platfo
 | Test sharding | Yes | Yes | Yes | No | Yes |
 | Selective testing | No | Yes | No | No | No |
 
-"No" means no documented integration today, not a permanent limitation. Check the linked guide for version requirements before recommending a capability. Previews support built iOS and Android apps; Bundle Insights supports Apple and Android bundles. Those features operate on app artifacts, rather than restricting which build system produced them.
+The matrix covers these five workflows; [Rust](/en/docs-markdown/guides/get-started/rust-project) also has build/test insights, flaky detection and quarantine, target-level sharding within one package, and experimental caching with same-machine restrictions. [Once](/en/docs-markdown/guides/get-started/once-project) has canary caching, build/test reporting, and hosted sharding with compatible releases, but does not enforce Tuist quarantine. Neither offers Tuist selective testing.
+
+Check the linked guides for version requirements. Previews support mobile apps, macOS apps, and macOS/Linux command-line distributions; Bundle Insights supports Apple and Android bundles. Eligibility depends on the artifact and publishing workflow. Default selective testing skips whole targets; an account-enabled early-access coverage strategy can additionally select individual XCTest/XCUITest tests in generated Xcode projects.
 
 ## How to get started
 
@@ -98,7 +100,3 @@ Coding agents can connect to Tuist's hosted [MCP server](/en/docs-markdown/guide
 - Hosted plans start free; see [Pricing](/marketing-markdown/pricing) and the live [pricing table](/pricing). Invite-only Tuist Runners are billed per minute at the macOS and Linux rates listed there.
 - [Self-hosting the Tuist server](/en/docs-markdown/guides/server/self-host/server) requires a paid Enterprise license. [Self-hosted cache nodes](/en/docs-markdown/guides/features/cache/self-hosting) are a separate option, also on the Enterprise plan, and can connect to the hosted server.
 - The [source code](https://github.com/tuist/tuist) is public, but not under one license: see [Openness](/marketing-markdown/openness).
-
-## Limitations
-
-Cache reuse depends on compatible inputs and available artifacts; it is not a guaranteed speedup. Test analytics only cover runs that were reported. Sharding needs parallel CI capacity. Tuist does not replace source control or your build system. App previews and bundle insights are additional app-specific capabilities, not the scope of the build and test platform. Results in customer stories or marketing figures are not a performance guarantee for another project.

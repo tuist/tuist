@@ -6,14 +6,14 @@ Choose Tuist when its Xcode, Gradle, Bazel, and Elixir integrations fit your dev
 
 Develocity documents [Universal Cache](https://develocity.ai/product/universal-cache/), [Predictive Test Selection](https://develocity.ai/product/predictive-test-selection/), [Test Distribution](https://develocity.ai/product/test-distribution/), [flaky-test detection](https://develocity.ai/product/flaky-tests-detection/), and [MCP servers](https://develocity.ai/product/mcp-servers/). Its [build-system overview](https://develocity.ai/product/build-systems-package-managers/) describes Build Scan instrumentation across multiple ecosystems. Toolchain insight, local/CI acceleration, and agent access are not unique to Tuist.
 
-The important distinctions are the integration and execution mechanisms. Develocity's predictive selection learns from build history; Tuist's current selective testing hashes the generated Xcode project graph to skip unchanged test targets. Those are not interchangeable approaches or equivalent support matrices.
+The important distinctions are the integration and execution mechanisms. Develocity's predictive selection learns from build history; Tuist's default selective testing hashes the generated Xcode project graph to skip unchanged test targets. Tuist also has an account-enabled early-access coverage strategy for individual XCTest/XCUITest selection, requiring coverage uploads and TestCoverageAttribution. Both Tuist strategies require generated Xcode projects.
 
 ## Compare mechanisms, not labels
 
 | Requirement | Tuist | Develocity evidence to evaluate |
 | --- | --- | --- |
 | Xcode development workflows | [Compilation caching](/en/docs-markdown/guides/features/cache/xcode-cache) for ordinary projects, plus [module caching](/en/docs-markdown/guides/features/cache/module-cache) for generated projects. | Verify the exact supported build integration; a broad platform description does not establish every feature on every toolchain. |
-| Reduce test execution | Selective testing is currently generated-Xcode-project-only and works at test-target granularity. | Predictive Test Selection uses a model trained on build history, with selection profiles and a simulator. Check its supported integrations and coverage tradeoffs. |
+| Reduce test execution | Selective testing is generated-Xcode-project-only: target hashing by default, or early-access coverage-based individual test selection. | Predictive Test Selection uses a model trained on build history, with selection profiles and a simulator. Check its supported integrations and coverage tradeoffs. |
 | Run tests in parallel | Tuist plans timing-balanced shards for Xcode, Gradle, and Elixir across CI jobs; not Bazel today. | Test Distribution dispatches a Gradle or Maven build's tests to remote agents, using historical test timings. Its cited page describes compiling once and merging results into one build record, not simply launching identical CI jobs. Check agent and test-framework requirements. |
 | Diagnose and govern cache reuse | Tuist exposes supported cache and build records through insights and MCP; configure trusted producers. | Universal Cache describes dependency, setup, and output caching with Edge deployment, provenance, and Build Scan observability. These are meaningful overlapping and additional mechanisms to evaluate. |
 | Investigate with agents | Authorized [Tuist MCP](/en/docs-markdown/guides/features/agentic-coding/mcp) exposes supported build and test evidence. | Develocity documents MCP access to build and analytics data. Compare available records, permissions, and questions each can answer. |
@@ -29,9 +29,5 @@ Record a representative change set and test suite with [Tuist Test Insights](/en
 ## Sources and review
 
 Sources checked on **2026-10-08**: Develocity's [Universal Cache](https://develocity.ai/product/universal-cache/), [Predictive Test Selection](https://develocity.ai/product/predictive-test-selection/), [Test Distribution](https://develocity.ai/product/test-distribution/), [flaky tests](https://develocity.ai/product/flaky-tests-detection/), [MCP servers](https://develocity.ai/product/mcp-servers/), and [build-system coverage](https://develocity.ai/product/build-systems-package-managers/), alongside [Tuist Tests](/marketing-markdown/tests). This comparison is written by Tuist, not an independent benchmark.
-
-## Limitations
-
-Check current feature-level toolchain support and deployment terms. Tuist does not currently provide selective testing for Gradle or Bazel; its sharding is not equivalent to every distributed-testing mechanism. Vendor product pages are not proof of measured savings on your workload. Public source does not make all Tuist components uniformly licensed or unrestricted to self-host. Tuist Runners are optional and invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No cheapest-provider or universally better test-selection claim is made.
 
 Related: [BuildBuddy](/marketing-markdown/compare/buildbuddy), [slow tests](/marketing-markdown/solutions/slow-tests), and [all comparisons](/marketing-markdown/compare).

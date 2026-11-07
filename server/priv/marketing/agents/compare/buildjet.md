@@ -29,8 +29,4 @@ Enable a [supported Tuist output cache](/marketing-markdown/cache) in the curren
 
 Sources checked on **2026-10-08**: [BuildJet Cache](https://buildjet.com/for-github-actions/docs/guides/migrating-to-buildjet-cache), [runner hardware](https://buildjet.com/for-github-actions/docs/runners/hardware), and [Tuist Cache](/marketing-markdown/cache). This comparison is written by Tuist and recognizes BuildJet's cross-runner cache support.
 
-## Limitations
-
-No benchmark, lowest-price ranking, or complete feature audit is established. Cache storage limits, keys, retention, and trust policy affect results. Tuist capabilities vary by toolchain; module caching and selective testing require generated Xcode projects. Component licenses and self-hosting terms differ. Tuist Runners are optional and invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote.
-
 Related: [Ubicloud](/marketing-markdown/compare/ubicloud), [Depot](/marketing-markdown/compare/depot), and [all comparisons](/marketing-markdown/compare).
