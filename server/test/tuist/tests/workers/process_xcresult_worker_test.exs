@@ -474,8 +474,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
 
       # xcodebuild finished but the selection resolved to zero tests, so the
       # bundle carries a plan name and a duration and nothing else. The parser
-      # calls that "skipped" vacuously, from an empty test-case list; Xcode
-      # itself reports the run as passing with no issues.
+      # calls that "skipped" vacuously, from an empty test-case list; xcodebuild
+      # itself exits 0 with no issues.
       expect_local_parse(%{
         "test_plan_name" => "AppTests",
         "status" => "skipped",
@@ -519,6 +519,42 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         assert attrs.status == "failure"
         assert attrs.test_modules == []
         assert [%{"target" => "AppModuleTests"}] = attrs.run_errors
+        {:ok, %{id: test_run_id}}
+      end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+    end
+
+    test "keeps a run whose testing was cancelled because the build failed failing", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      # A scheme build post-action exited 1, so Xcode cancelled testing and ran nothing. The
+      # parser reads the bundle's build errors and fails the run; there are no test modules.
+      expect_local_parse(%{
+        "test_plan_name" => "TuistUnitTests",
+        "status" => "failure",
+        "duration" => 229_726,
+        "test_modules" => [],
+        "run_destinations" => [],
+        "errors" => [
+          %{"target" => nil, "message" => "Testing cancelled because the build failed."},
+          %{"target" => nil, "message" => "Exited with status code 1"}
+        ]
+      })
+
+      expect(Tuist.Tests, :create_test, fn attrs ->
+        assert attrs.status == "failure"
+        assert attrs.test_modules == []
+
+        assert [
+                 %{"message" => "Testing cancelled because the build failed."},
+                 %{"message" => "Exited with status code 1"}
+               ] = attrs.run_errors
+
         {:ok, %{id: test_run_id}}
       end)
 

@@ -24,12 +24,13 @@ private struct XCResultToolStub {
     }
 }
 
-/// Routes the two xcresulttool reads `parse` performs (`get test-results
-/// tests` and `get log --type action`) to separate canned payloads, so tests
-/// can exercise an empty/absent action log independently of the test results.
+/// Routes the xcresulttool reads `parse` performs (`get test-results tests`,
+/// `get log --type action` and `get build-results`) to separate canned payloads,
+/// so tests can exercise each independently of the test results.
 private struct RoutingXCResultToolStub {
     let testResultsJSON: String
     let actionLogJSON: String
+    var buildResultsJSON: String = ""
 
     func callAsFunction(_ arguments: [String]) async throws -> XCResultToolOutput {
         let command = arguments.last ?? ""
@@ -38,6 +39,8 @@ private struct RoutingXCResultToolStub {
                 actionLogJSON
             } else if command.contains("test-results tests") {
                 testResultsJSON
+            } else if command.contains("get build-results") {
+                buildResultsJSON
             } else {
                 ""
             }
@@ -139,6 +142,131 @@ struct XCResultParserTests {
 
         let resolved = try #require(summary)
         #expect(resolved.testModules.isEmpty)
+    }
+
+    /// Testing cancelled because the build failed, here because a scheme build post-action
+    /// exited 1. xcresulttool records it as it does a zero-test selection (no test nodes,
+    /// `result: "unknown"`, `totalTestCount: 0`); the build results are what differ.
+    @Test
+    func parse_failsARunWhoseTestingWasCancelledBecauseTheBuildFailed() async throws {
+        let parser = XCResultParser(
+            execute: RoutingXCResultToolStub(
+                testResultsJSON: """
+                {"devices": [], "testNodes": [], "testPlanConfigurations": []}
+                """,
+                actionLogJSON: "",
+                buildResultsJSON: """
+                {
+                  "actionTitle": "Testing workspace Tuist with scheme TuistUnitTests",
+                  "errorCount": 2,
+                  "errors": [
+                    {"issueType": "Uncategorized", "message": "Testing cancelled because the build failed."},
+                    {"issueType": "Uncategorized", "message": "Exited with status code 1"}
+                  ],
+                  "status": "succeeded",
+                  "warningCount": 0,
+                  "warnings": []
+                }
+                """
+            ).callAsFunction
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/cancelled.xcresult"), rootDirectory: nil)
+        )
+
+        #expect(summary.testModules.isEmpty)
+        #expect(summary.status == .failed)
+        #expect(summary.errors.map(\.message) == [
+            "Testing cancelled because the build failed.",
+            "Exited with status code 1",
+        ])
+        #expect(summary.errors.allSatisfy { $0.target == nil })
+    }
+
+    /// A selection that resolved to zero tests builds cleanly, so it is not failed.
+    @Test
+    func parse_doesNotFailAZeroTestSelectionWhoseBuildHadNoErrors() async throws {
+        let parser = XCResultParser(
+            execute: RoutingXCResultToolStub(
+                testResultsJSON: """
+                {"devices": [], "testNodes": [{"nodeType": "Test Plan", "name": "Foo", "result": "unknown", "children": []}], "testPlanConfigurations": []}
+                """,
+                actionLogJSON: "",
+                buildResultsJSON: """
+                {"errorCount": 0, "errors": [], "status": "succeeded", "warningCount": 0, "warnings": []}
+                """
+            ).callAsFunction
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/zero.xcresult"), rootDirectory: nil)
+        )
+
+        #expect(summary.testModules.isEmpty)
+        #expect(summary.status != .failed)
+        #expect(summary.errors.isEmpty)
+    }
+
+    /// Once tests ran, their results decide the run; the build results are not read.
+    @Test
+    func parse_ignoresBuildResultsWhenTestsRan() async throws {
+        let parser = XCResultParser(
+            execute: RoutingXCResultToolStub(
+                testResultsJSON: parameterizedTestJSON(
+                    firstAttemptName: "First Run",
+                    secondAttemptName: "Retry 1",
+                    argumentDetails: "Failed after 2 retry"
+                ),
+                actionLogJSON: "",
+                buildResultsJSON: """
+                {"errorCount": 1, "errors": [{"issueType": "Uncategorized", "message": "Unexpected"}]}
+                """
+            ).callAsFunction
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+        )
+
+        #expect(summary.status == .passed)
+        #expect(summary.errors.isEmpty)
+    }
+
+    /// A real bundle whose scheme build post-action exited 1, so Xcode cancelled testing
+    /// ("** TEST INTERRUPTED **"). xcresulttool reports it as `result: "unknown"` with
+    /// `totalTestCount: 0`, as it does `zero-tests.xcresult`; only the build results differ.
+    @Test
+    func parse_failsARealBundleWhoseTestingWasCancelledBecauseTheBuildFailed() async throws {
+        let summary = try await parseFixture("cancelled-build")
+
+        #expect(summary.testModules.isEmpty)
+        #expect(summary.status == .failed)
+        #expect(Set(summary.errors.map(\.message)) == [
+            "Testing cancelled because the build failed.",
+            "Exited with status code 1",
+        ])
+        #expect(summary.errors.allSatisfy { $0.target == nil })
+    }
+
+    /// A real bundle from a selection that resolved to zero tests (the only test skipped,
+    /// xcodebuild exiting 0). Its build has no errors, so it is not failed.
+    @Test
+    func parse_doesNotFailARealZeroTestBundle() async throws {
+        let summary = try await parseFixture("zero-tests")
+
+        #expect(summary.testModules.isEmpty)
+        #expect(summary.status == .skipped)
+        #expect(summary.errors.isEmpty)
+    }
+
+    private func parseFixture(_ name: String) async throws -> TestSummary {
+        let zipPath = try fixtureZipPath("\(name).xcresult")
+        return try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-parser-tests") { workDir in
+            try await fileSystem.unzip(zipPath, to: workDir)
+            let xcresult = workDir.appending(component: "\(name).xcresult")
+            return try #require(try await parser.parse(path: xcresult, rootDirectory: nil))
+        }
     }
 
     @Test
