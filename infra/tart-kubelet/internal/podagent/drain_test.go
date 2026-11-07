@@ -12,7 +12,7 @@ const drainTestUID = "b1abef64-43be-40c8-b78d-49d18c261fed"
 func TestDrainSurvivesReconcileRestartAndRequiresMatchingAcknowledgement(t *testing.T) {
 	dir := t.TempDir()
 	for i := 0; i < 2; i++ {
-		waiting, err := requestGuestDrain(dir, drainTestUID)
+		waiting, err := requestGuestDrain(dir, drainTestUID, false)
 		if err != nil || !waiting {
 			t.Fatalf("pending drain: %v %v", waiting, err)
 		}
@@ -20,13 +20,13 @@ func TestDrainSurvivesReconcileRestartAndRequiresMatchingAcknowledgement(t *test
 	if err := os.WriteFile(filepath.Join(dir, "drain-complete"), []byte("another-pod\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if waiting, err := requestGuestDrain(dir, drainTestUID); err != nil || !waiting {
+	if waiting, err := requestGuestDrain(dir, drainTestUID, false); err != nil || !waiting {
 		t.Fatalf("stale acknowledgement: %v %v", waiting, err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "drain-complete"), []byte(drainTestUID+"\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if waiting, err := requestGuestDrain(dir, drainTestUID); err != nil || waiting {
+	if waiting, err := requestGuestDrain(dir, drainTestUID, false); err != nil || waiting {
 		t.Fatalf("completed drain: %v %v", waiting, err)
 	}
 }
@@ -51,7 +51,7 @@ func TestDrainRejectsSymlinksAndFIFOs(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				waiting, _ := requestGuestDrain(dir, drainTestUID)
+				waiting, _ := requestGuestDrain(dir, drainTestUID, false)
 				if !waiting {
 					t.Fatal("unsafe guest file accepted as acknowledgement")
 				}
@@ -61,5 +61,38 @@ func TestDrainRejectsSymlinksAndFIFOs(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestDrainEndsWithoutAcknowledgementWhenTheGuestNeverServed(t *testing.T) {
+	dir := t.TempDir()
+	if waiting, err := requestGuestDrain(dir, drainTestUID, true); err != nil || waiting {
+		t.Fatalf("guest that never served: %v %v", waiting, err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "drain-request"))
+	if err != nil || string(data) != drainTestUID+"\n" {
+		t.Fatalf("drain request not written before reading the marker: %q %v", data, err)
+	}
+}
+
+func TestDrainWaitsForAGuestThatServed(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "serving"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if waiting, err := requestGuestDrain(dir, drainTestUID, true); err != nil || !waiting {
+		t.Fatalf("serving guest: %v %v", waiting, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "drain-complete"), []byte(drainTestUID+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if waiting, err := requestGuestDrain(dir, drainTestUID, true); err != nil || waiting {
+		t.Fatalf("acknowledged drain: %v %v", waiting, err)
+	}
+}
+
+func TestDrainWithoutTheMarkerAnnotationIgnoresAMissingMarker(t *testing.T) {
+	if waiting, err := requestGuestDrain(t.TempDir(), drainTestUID, false); err != nil || !waiting {
+		t.Fatalf("legacy guest: %v %v", waiting, err)
 	}
 }
