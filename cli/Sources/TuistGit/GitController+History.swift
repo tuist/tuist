@@ -35,7 +35,13 @@ extension GitController {
         var baseHead: String?
         var localBaseHead: String?
         if let baseBranch {
-            let resolved = await resolveMergeBase(git: git, head: head, baseBranch: baseBranch, limits: limits)
+            let resolved = await resolveMergeBase(
+                git: git,
+                workingDirectory: workingDirectory,
+                head: head,
+                baseBranch: baseBranch,
+                limits: limits
+            )
             mergeBase = resolved.sha
             reasons = resolved.reasons
             // Read after any deepening, which fetches the base branch again and can move it.
@@ -90,14 +96,9 @@ extension GitController {
                 "--since=\(limits.windowDays).days.ago",
             ] + heads
         )
-        guard let shallowFile = try? await capture(arguments: git + ["rev-parse", "--git-path", "shallow"]),
-              let path = try? AbsolutePath(
-                  validating: shallowFile.trimmingCharacters(in: .whitespacesAndNewlines),
-                  relativeTo: workingDirectory
-              ),
-              let boundary = try? String(contentsOfFile: path.pathString, encoding: .utf8)
+        guard let boundary = await shallowCommits(git: git, workingDirectory: workingDirectory)
         else { return GitHistoryParser.parseCommits(output) }
-        let boundarySHAs = Set(boundary.split(whereSeparator: \.isNewline).map(String.init))
+        let boundarySHAs = Set(boundary)
         let commits = GitHistoryParser.parseCommits(output)
         let windowBoundary = commits.map(\.sha).filter(boundarySHAs.contains)
         guard !windowBoundary.isEmpty else { return commits }
@@ -111,10 +112,24 @@ extension GitController {
         }
     }
 
+    /// The commits a shallow clone's `shallow` file lists, which it has without their parents, or
+    /// nil when the clone is not shallow.
+    private func shallowCommits(git: [String], workingDirectory: AbsolutePath) async -> [String]? {
+        guard let shallowFile = try? await capture(arguments: git + ["rev-parse", "--git-path", "shallow"]),
+              let path = try? AbsolutePath(
+                  validating: shallowFile.trimmingCharacters(in: .whitespacesAndNewlines),
+                  relativeTo: workingDirectory
+              ),
+              let contents = try? String(contentsOfFile: path.pathString, encoding: .utf8)
+        else { return nil }
+        return contents.split(whereSeparator: \.isNewline).map(String.init)
+    }
+
     /// The merge base between the head and the base branch, fetching the base ref when the
     /// checkout lacks it and deepening a shallow clone in growing steps until the budget runs out.
     private func resolveMergeBase(
         git: [String],
+        workingDirectory: AbsolutePath,
         head: String,
         baseBranch: String,
         limits: GitHistoryLimits
@@ -192,10 +207,18 @@ extension GitController {
         let maxDepth = max(limits.windowCommits, 50)
         var depth = 0
         var step = 50
+        var nameShallowCommits = true
         while Date() < deadline, depth < maxDepth {
             step = min(step, maxDepth - depth)
             let deepen = git + ["fetch", "--no-tags", "--filter=blob:none", "--deepen=\(step)", "origin", baseRefspec]
-            guard await fetch(arguments: deepen, deadline: deadline) == .succeeded else { break }
+            let outcome = await deepenStep(
+                deepen,
+                git: git,
+                workingDirectory: workingDirectory,
+                nameShallowCommits: &nameShallowCommits,
+                deadline: deadline
+            )
+            guard outcome == .succeeded else { break }
             if let sha = await resolve(ref) { return MergeBaseResolution(sha: sha, ref: ref, reasons: []) }
             depth += step
             step *= 2
@@ -205,6 +228,24 @@ extension GitController {
             ref: ref,
             reasons: ["shallow clone: the merge base with \(baseBranch) was not found within \(limits.deepenBudgetSeconds)s"]
         )
+    }
+
+    /// One deepen of the base branch, naming the checkout's own shallow commits too, such as a pull
+    /// request's merge commit: Git 2.54 and later deepen only the shallow commits a fetch's wants
+    /// reach, so the head's side would otherwise stay cut off from the base branch. A remote that
+    /// refuses commits by SHA deepens the base branch alone from then on, as before.
+    private func deepenStep(
+        _ deepen: [String],
+        git: [String],
+        workingDirectory: AbsolutePath,
+        nameShallowCommits: inout Bool,
+        deadline: Date
+    ) async -> FetchOutcome {
+        let boundary = nameShallowCommits ? await shallowCommits(git: git, workingDirectory: workingDirectory) ?? [] : []
+        let outcome = await fetch(arguments: deepen + boundary, deadline: deadline)
+        guard outcome == .failed, !boundary.isEmpty else { return outcome }
+        nameShallowCommits = false
+        return await fetch(arguments: deepen, deadline: deadline)
     }
 
     /// The merge base, the base branch's ref it was resolved against, and why either is missing.

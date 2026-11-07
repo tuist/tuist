@@ -952,6 +952,86 @@ struct GitControllerTests {
         ])
     }
 
+    /// `actions/checkout`'s default: `refs/pull/N/merge` at depth 1. The merge commit is one of the
+    /// checkout's shallow commits, outside the base branch's history, so it is named on the deepen
+    /// too, or Git 2.54 and later leave it without parents.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitHistory_finds_the_merge_base_of_a_depth_one_merge_checkout() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        try #require(Environment.mocked).variables = [
+            "PATH": ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin",
+        ]
+        let origin = path.appending(component: "origin")
+        let checkout = path.appending(component: "checkout")
+        try await FileSystem().makeDirectory(at: origin)
+        try await FileSystem().makeDirectory(at: checkout)
+        let git = { (directory: AbsolutePath, arguments: [String]) in
+            try await CommandRunner().capture(
+                arguments: ["git", "-C", directory.pathString, "-c", "user.name=T", "-c", "user.email=t@tuist.dev"]
+                    + arguments
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        _ = try await git(origin, ["init", "--quiet", "--initial-branch=main"])
+        _ = try await git(origin, ["config", "uploadpack.allowFilter", "true"])
+        _ = try await git(origin, ["commit", "--quiet", "--allow-empty", "-m", "base"])
+        _ = try await git(origin, ["checkout", "--quiet", "-b", "feature"])
+        _ = try await git(origin, ["commit", "--quiet", "--allow-empty", "-m", "feature"])
+        _ = try await git(origin, ["checkout", "--quiet", "main"])
+        _ = try await git(origin, ["commit", "--quiet", "--allow-empty", "-m", "main"])
+        let baseHead = try await git(origin, ["rev-parse", "HEAD"])
+        _ = try await git(origin, ["merge", "--quiet", "--no-ff", "feature", "-m", "Merge feature into main"])
+        _ = try await git(origin, ["update-ref", "refs/pull/1/merge", "HEAD"])
+        _ = try await git(origin, ["reset", "--quiet", "--hard", "HEAD^1"])
+        _ = try await git(checkout, ["init", "--quiet"])
+        _ = try await git(checkout, ["remote", "add", "origin", "file://\(origin.pathString)"])
+        _ = try await git(checkout, ["fetch", "--quiet", "--depth=1", "origin", "+refs/pull/1/merge:refs/remotes/pull/1/merge"])
+        _ = try await git(checkout, ["checkout", "--quiet", "--detach", "refs/remotes/pull/1/merge"])
+        let mergeCommit = try await git(checkout, ["rev-parse", "HEAD"])
+
+        let history = try await GitController(commandRunner: CommandRunner()).gitHistory(
+            workingDirectory: checkout,
+            headSHA: mergeCommit,
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowCommits: 100, deepenBudgetSeconds: 30)
+        )
+
+        #expect(history.mergeBaseSHA == baseHead)
+        #expect(history.fallbackReason == nil)
+    }
+
+    @Test(.inTemporaryDirectory) func gitHistory_deepens_the_base_branch_alone_when_the_remote_refuses_commits_by_sha(
+    ) async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let git = ["git", "-C", path.pathString]
+        try await FileSystem().makeDirectory(at: path.appending(component: ".git"))
+        try await FileSystem().writeText("merge\nbasehead\n", at: path.appending(components: ".git", "shallow"))
+        commandRunner.succeedCommand(git + ["rev-parse", "--show-object-format"], output: "sha1\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--git-path", "shallow"], output: ".git/shallow\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--is-shallow-repository"], output: "true\n")
+        commandRunner.succeedCommand(git + ["rev-parse", "--verify", "--quiet", "origin/main^{commit}"], output: "basehead\n")
+        let deepen = git + [
+            "fetch", "--no-tags", "--filter=blob:none", "--deepen=50", "origin", "+main:refs/remotes/origin/main",
+        ]
+        commandRunner.errorCommand(deepen + ["merge", "basehead"])
+        commandRunner.succeedCommand(deepen)
+        commandRunner.errorCommand(git + ["merge-base", "origin/main", "merge"])
+        commandRunner.succeedCommand(
+            git + ["log", "--format=%H %P %ct", "--max-count=10", "--since=30.days.ago", "merge", "basehead"],
+            output: "basehead base 1700000200\nmerge basehead feature 1700000100\n"
+        )
+
+        let history = try await subject.gitHistory(
+            workingDirectory: path,
+            headSHA: "merge",
+            baseBranch: "main",
+            limits: GitHistoryLimits(windowDays: 30, windowCommits: 10)
+        )
+
+        #expect(commandRunner.called(deepen + ["merge", "basehead"]))
+        #expect(commandRunner.called(deepen))
+        #expect(history.mergeBaseSHA == nil)
+    }
+
     @Test(.inTemporaryDirectory) func gitHistory_leaves_out_boundary_commits_whose_parents_cannot_be_read() async throws {
         let path = try #require(FileSystem.temporaryTestDirectory)
         let git = ["git", "-C", path.pathString]
