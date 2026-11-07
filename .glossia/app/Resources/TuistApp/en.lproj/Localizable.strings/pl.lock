@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "ea8512e89d3738a58c6c2a36664a948470b4ddfa7b75841e5d55ec5391146cec",
+  "hash": "b08719ec778a6ae15951608c6b899e3fb9aa35e8baace9c2124b614102ac2a99",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,17 +11,17 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "Preamble": {
-                  "content_hash": "1cdbe02e1a5c1cabce722c11afd0aea5925d3ac29d3e1694d9b01c58e595f7d7"
+                  "content_hash": "ce8fd5945e2b1c39fa6e04f9e0fdef1f1bb2ecc61673756983e2660ae87b7816"
                 }
               },
               "sections_omitted": 0
             }
           },
-          "hash": "f95967d22fe0d06077a0a0380c101928e09c8bbc509d8621a6af36040750927e",
+          "hash": "1cc95c65a519d65cc71485359a254b053dda18aa06354516fb13bb7c78bbfa46",
           "kind": "source",
           "label": "app/Resources/TuistApp/en.lproj/Localizable.strings",
           "metadata": {
-            "content_hash": "46b86481bc7322ae6992931df351ea91e80a233e7829fcbe5393fe1c83d2329b"
+            "content_hash": "61760c03365e09d6daec06c40338ea64b714e94a65e87a82a5af3e88d2fa9bc4"
           }
         },
         {
@@ -164,14 +164,14 @@
         }
       ],
       "details": {},
-      "hash": "ea8512e89d3738a58c6c2a36664a948470b4ddfa7b75841e5d55ec5391146cec",
+      "hash": "b08719ec778a6ae15951608c6b899e3fb9aa35e8baace9c2124b614102ac2a99",
       "kind": "translation_input",
       "label": "app/Resources/TuistApp/en.lproj/Localizable.strings",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "772bfb96f91a5ab50fa0fe139cff76ac28b9edb5ed2cd4a81e7298911c1a0460",
+  "output_hash": "d294c055de9107199481f10e91d600e0a861c751ed851da9f47d099dc4d015da",
   "output_path": "app/Resources/TuistApp/pl.lproj/Localizable.strings",
   "protection_state": "recorded",
   "provider": "",
@@ -189,8 +189,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "ca4feaa61b067aae5ee5a9248c9eaa5c839a90c4",
+  "source_commit_sha": "14f76aad4328165c570066fba81bb1dbd0ec7292",
   "source_path": "app/Resources/TuistApp/en.lproj/Localizable.strings",
-  "translated_at": "2026-11-06T18:02:42.232177Z",
-  "translation_session_id": "01a1b201-9078-74d7-ade6-b43aaf72c649"
+  "translated_at": "2026-11-07T00:25:07.616396Z",
+  "translation_session_id": "01a1b362-2585-7d10-9c8f-ab1290485006"
 }

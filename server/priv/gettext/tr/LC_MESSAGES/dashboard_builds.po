@@ -17,12 +17,12 @@ msgstr "Language: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8
 msgid "%{hit_rate}%"
 msgstr "%{hit_rate}%"
 
-#: lib/tuist_web/live/build_run_live.ex:970
+#: lib/tuist_web/live/build_run_live.ex:980
 #: lib/tuist_web/live/mix_build_live.ex:482
 #: lib/tuist_web/live/mix_build_live.ex:488
 #, elixir-autogen, elixir-format
 msgid "%{message} in %{link}"
-msgstr "%{link} içindeki %{message}"
+msgstr "%{link} içinde %{message}"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:238
 #, elixir-autogen, elixir-format
@@ -83,7 +83,7 @@ msgstr "Önbellek anahtarlarını yazma ortalama gecikmesi"
 #: lib/tuist_web/live/build_entity_live.html.heex:602
 #: lib/tuist_web/live/cargo_build_runs_live.ex:46
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:71
-#: lib/tuist_web/live/generate_runs_live.ex:286
+#: lib/tuist_web/live/generate_runs_live.ex:289
 #: lib/tuist_web/live/generate_runs_live.html.heex:84
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:35
 #: lib/tuist_web/live/once_runs_live.ex:907
@@ -96,9 +96,9 @@ msgstr "Dal"
 #: lib/tuist_web/live/bazel_build_invocation_live.ex:13
 #: lib/tuist_web/live/bazel_invocation_live.ex:63
 #: lib/tuist_web/live/build_run_live.html.heex:226
-#: lib/tuist_web/live/cargo_build_live.html.heex:42
-#: lib/tuist_web/live/mix_build_live.html.heex:378
-#: lib/tuist_web/live/once_run_live.ex:289
+#: lib/tuist_web/live/cargo_build_live.html.heex:47
+#: lib/tuist_web/live/mix_build_live.html.heex:383
+#: lib/tuist_web/live/once_run_live.ex:298
 #, elixir-autogen, elixir-format
 msgid "Build Details"
 msgstr "Derleme Ayrıntıları"
@@ -119,19 +119,19 @@ msgstr "Derleme Çalıştırması"
 msgid "Build Runs"
 msgstr "Derleme Çalıştırmaları"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:244
+#: lib/tuist_web/live/bazel_invocation_live.ex:249
 #: lib/tuist_web/live/bazel_invocations_live.ex:460
 #: lib/tuist_web/live/bazel_invocations_live.ex:472
-#: lib/tuist_web/live/build_run_live.ex:1210
+#: lib/tuist_web/live/build_run_live.ex:1221
 #: lib/tuist_web/live/build_run_live.html.heex:286
 #: lib/tuist_web/live/build_run_live.html.heex:472
 #: lib/tuist_web/live/build_run_live.html.heex:488
 #: lib/tuist_web/live/build_run_live.html.heex:531
-#: lib/tuist_web/live/cargo_build_live.html.heex:76
+#: lib/tuist_web/live/cargo_build_live.html.heex:81
 #: lib/tuist_web/live/cargo_builds_live.html.heex:313
 #: lib/tuist_web/live/cargo_builds_live.html.heex:343
-#: lib/tuist_web/live/mix_build_live.html.heex:415
-#: lib/tuist_web/live/once_run_live.ex:323
+#: lib/tuist_web/live/mix_build_live.html.heex:420
+#: lib/tuist_web/live/once_run_live.ex:332
 #: lib/tuist_web/live/once_runs_live.ex:680
 #: lib/tuist_web/live/once_runs_live.ex:692
 #: lib/tuist_web/live/xcode_builds_live.html.heex:698
@@ -174,27 +174,27 @@ msgstr "Derlenebilir klasörler"
 #: lib/tuist_web/helpers/build_entity_labels.ex:62
 #: lib/tuist_web/live/builds_live.ex:15
 #: lib/tuist_web/live/builds_live.ex:19
-#: lib/tuist_web/live/cargo_build_live.html.heex:3
+#: lib/tuist_web/live/cargo_build_live.html.heex:8
 #: lib/tuist_web/live/cargo_builds_live.html.heex:80
-#: lib/tuist_web/live/mix_build_live.html.heex:3
+#: lib/tuist_web/live/mix_build_live.html.heex:8
 #: lib/tuist_web/live/xcode_builds_live.html.heex:211
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr "Derlemeler"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:253
+#: lib/tuist_web/live/bazel_invocation_live.ex:258
 #: lib/tuist_web/live/build_run_live.html.heex:293
-#: lib/tuist_web/live/cargo_build_live.html.heex:82
-#: lib/tuist_web/live/mix_build_live.html.heex:422
-#: lib/tuist_web/live/once_run_live.ex:329
+#: lib/tuist_web/live/cargo_build_live.html.heex:87
+#: lib/tuist_web/live/mix_build_live.html.heex:427
+#: lib/tuist_web/live/once_run_live.ex:338
 #, elixir-autogen, elixir-format
 msgid "Built at"
-msgstr "Derlenme zamanı"
+msgstr "Derlenme tarihi"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:239
+#: lib/tuist_web/live/bazel_invocation_live.ex:244
 #: lib/tuist_web/live/build_run_live.html.heex:282
-#: lib/tuist_web/live/cargo_build_live.html.heex:69
-#: lib/tuist_web/live/mix_build_live.html.heex:411
+#: lib/tuist_web/live/cargo_build_live.html.heex:74
+#: lib/tuist_web/live/mix_build_live.html.heex:416
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:44
 #, elixir-autogen, elixir-format
 msgid "Built by"
@@ -206,14 +206,14 @@ msgid "Bundle ID"
 msgstr "Paket Kimliği"
 
 #: lib/tuist_web/live/build_run_live.html.heex:917
-#: lib/tuist_web/live/cargo_build_live.html.heex:182
-#: lib/tuist_web/live/mix_build_live.html.heex:107
+#: lib/tuist_web/live/cargo_build_live.html.heex:187
+#: lib/tuist_web/live/mix_build_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "CAS Outputs"
 msgstr "CAS Çıktıları"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1177
-#: lib/tuist_web/live/mix_build_live.html.heex:311
+#: lib/tuist_web/live/mix_build_live.html.heex:316
 #, elixir-autogen, elixir-format
 msgid "CAS output"
 msgstr "CAS çıktısı"
@@ -227,7 +227,7 @@ msgstr "CAS çıktıları"
 #: lib/tuist_web/live/build_run_live.html.heex:1513
 #, elixir-autogen, elixir-format
 msgid "CAS outputs will appear here when using Tuist cache"
-msgstr "Tuist önbelleği kullanılırken CAS çıktıları burada görünecek"
+msgstr "Tuist önbelleği kullanılırken CAS çıktıları burada görünecektir"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:79
 #: lib/tuist_web/components/reapi_cache_outputs.ex:90
@@ -246,7 +246,7 @@ msgstr "CI"
 
 #: lib/tuist_web/live/build_run_live.html.heex:101
 #: lib/tuist_web/live/build_run_live.html.heex:120
-#: lib/tuist_web/live/mix_build_live.html.heex:38
+#: lib/tuist_web/live/mix_build_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "CI Run"
 msgstr "CI Çalıştırması"
@@ -257,14 +257,14 @@ msgid "Cache Runs"
 msgstr "Önbellek Çalıştırmaları"
 
 #: lib/tuist_web/live/build_run_live.html.heex:842
-#: lib/tuist_web/live/cargo_build_live.html.heex:117
-#: lib/tuist_web/live/mix_build_live.html.heex:80
+#: lib/tuist_web/live/cargo_build_live.html.heex:122
+#: lib/tuist_web/live/mix_build_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Cache Summary"
 msgstr "Önbellek Özeti"
 
 #: lib/tuist_web/live/build_run_live.html.heex:893
-#: lib/tuist_web/live/cargo_build_live.html.heex:158
+#: lib/tuist_web/live/cargo_build_live.html.heex:163
 #: lib/tuist_web/live/mix_build_live.ex:286
 #, elixir-autogen, elixir-format
 msgid "Cache downloads"
@@ -282,7 +282,7 @@ msgstr "Önbellek isabetleri"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:237
 #: lib/tuist_web/live/build_run_live.html.heex:1136
-#: lib/tuist_web/live/mix_build_live.html.heex:262
+#: lib/tuist_web/live/mix_build_live.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "Cache key"
 msgstr "Önbellek anahtarı"
@@ -293,15 +293,15 @@ msgid "Cache misses"
 msgstr "Önbellek ıskalamaları"
 
 #: lib/tuist_web/live/build_run_live.html.heex:901
-#: lib/tuist_web/live/cargo_build_live.html.heex:169
+#: lib/tuist_web/live/cargo_build_live.html.heex:174
 #: lib/tuist_web/live/mix_build_live.ex:287
 #, elixir-autogen, elixir-format
 msgid "Cache uploads"
 msgstr "Önbellek yüklemeleri"
 
 #: lib/tuist_web/live/build_run_live.html.heex:912
-#: lib/tuist_web/live/cargo_build_live.html.heex:177
-#: lib/tuist_web/live/mix_build_live.html.heex:106
+#: lib/tuist_web/live/cargo_build_live.html.heex:182
+#: lib/tuist_web/live/mix_build_live.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "Cacheable Tasks"
 msgstr "Önbelleklenebilir Görevler"
@@ -316,7 +316,7 @@ msgstr "Önbelleklenebilir hedefler"
 msgid "Cacheable targets:"
 msgstr "Önbelleklenebilir hedefler:"
 
-#: lib/tuist_web/live/mix_build_live.html.heex:162
+#: lib/tuist_web/live/mix_build_live.html.heex:167
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks"
 msgstr "Önbelleklenebilir görevler"
@@ -338,7 +338,7 @@ msgstr "Tuist önbelleği kullanılırken önbelleklenebilir görevler burada g�
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:81
 #: lib/tuist_web/live/build_run_live.html.heex:931
-#: lib/tuist_web/live/mix_build_live.html.heex:129
+#: lib/tuist_web/live/mix_build_live.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks:"
 msgstr "Önbelleklenebilir görevler:"
@@ -361,18 +361,18 @@ msgstr "Temizle"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:89
 #: lib/tuist_web/helpers/build_entity_labels.ex:92
-#: lib/tuist_web/live/bazel_invocation_live.ex:220
+#: lib/tuist_web/live/bazel_invocation_live.ex:225
 #: lib/tuist_web/live/build_run_live.html.heex:234
-#: lib/tuist_web/live/cargo_build_live.html.heex:50
+#: lib/tuist_web/live/cargo_build_live.html.heex:55
 #: lib/tuist_web/live/cargo_build_runs_live.ex:25
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:58
 #: lib/tuist_web/live/cargo_builds_live.html.heex:435
-#: lib/tuist_web/live/generate_runs_live.ex:265
+#: lib/tuist_web/live/generate_runs_live.ex:268
 #: lib/tuist_web/live/generate_runs_live.html.heex:58
-#: lib/tuist_web/live/mix_build_live.html.heex:386
+#: lib/tuist_web/live/mix_build_live.html.heex:391
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:20
 #: lib/tuist_web/live/mix_builds_live.html.heex:685
-#: lib/tuist_web/live/once_run_live.ex:297
+#: lib/tuist_web/live/once_run_live.ex:306
 #: lib/tuist_web/live/run_detail_live.html.heex:115
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:291
 #, elixir-autogen, elixir-format
@@ -390,8 +390,8 @@ msgstr "Commit SHA"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:96
 #: lib/tuist_web/helpers/build_entity_labels.ex:97
-#: lib/tuist_web/live/build_run_live.ex:1181
-#: lib/tuist_web/live/build_run_live.ex:1218
+#: lib/tuist_web/live/build_run_live.ex:1192
+#: lib/tuist_web/live/build_run_live.ex:1229
 #: lib/tuist_web/live/build_run_live.html.heex:473
 #: lib/tuist_web/live/build_run_live.html.heex:496
 #: lib/tuist_web/live/build_run_live.html.heex:551
@@ -399,7 +399,7 @@ msgstr "Commit SHA"
 #: lib/tuist_web/live/build_run_live.html.heex:633
 #: lib/tuist_web/live/build_run_live.html.heex:696
 #: lib/tuist_web/live/mix_build_live.ex:503
-#: lib/tuist_web/live/mix_build_live.html.heex:627
+#: lib/tuist_web/live/mix_build_live.html.heex:632
 #, elixir-autogen, elixir-format
 msgid "Compilation duration"
 msgstr "Derleme süresi"
@@ -413,7 +413,7 @@ msgstr "Derleme süresi"
 msgid "Compressed Size"
 msgstr "Sıkıştırılmış Boyut"
 
-#: lib/tuist_web/live/build_run_live.ex:1435
+#: lib/tuist_web/live/build_run_live.ex:1446
 #, elixir-autogen, elixir-format
 msgid "Compressed Size (MB)"
 msgstr "Sıkıştırılmış Boyut (MB)"
@@ -480,7 +480,7 @@ msgstr "Cihaz"
 #: lib/tuist_web/components/reapi_cache_outputs.ex:202
 #: lib/tuist_web/components/reapi_cache_outputs.ex:291
 #: lib/tuist_web/helpers/cargo_cache.ex:63
-#: lib/tuist_web/live/build_run_live.ex:1408
+#: lib/tuist_web/live/build_run_live.ex:1419
 #: lib/tuist_web/live/build_run_live.html.heex:1299
 #: lib/tuist_web/live/build_run_live.html.heex:1452
 #, elixir-autogen, elixir-format
@@ -491,7 +491,7 @@ msgstr "İndir"
 #: lib/tuist_web/live/run_detail_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Download result"
-msgstr "İndirme sonucu"
+msgstr "Sonucu indir"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:125
 #: lib/tuist_web/components/reapi_cache_outputs.ex:106
@@ -508,7 +508,7 @@ msgstr "İndirme hızı"
 #: lib/tuist_web/live/bazel_invocations_live.ex:520
 #: lib/tuist_web/live/bazel_invocations_live.ex:537
 #: lib/tuist_web/live/cargo_build_live.ex:131
-#: lib/tuist_web/live/cargo_build_live.html.heex:318
+#: lib/tuist_web/live/cargo_build_live.html.heex:323
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:13
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:21
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:92
@@ -555,19 +555,19 @@ msgstr "Ortam:"
 #: lib/tuist_web/live/build_run_live.html.heex:361
 #: lib/tuist_web/live/build_run_live.html.heex:788
 #: lib/tuist_web/live/build_run_live.html.heex:795
-#: lib/tuist_web/live/cargo_build_live.html.heex:31
-#: lib/tuist_web/live/cargo_build_live.html.heex:356
-#: lib/tuist_web/live/cargo_build_live.html.heex:368
-#: lib/tuist_web/live/mix_build_live.html.heex:70
-#: lib/tuist_web/live/mix_build_live.html.heex:476
-#: lib/tuist_web/live/mix_build_live.html.heex:705
-#: lib/tuist_web/live/mix_build_live.html.heex:712
+#: lib/tuist_web/live/cargo_build_live.html.heex:36
+#: lib/tuist_web/live/cargo_build_live.html.heex:361
+#: lib/tuist_web/live/cargo_build_live.html.heex:373
+#: lib/tuist_web/live/mix_build_live.html.heex:75
+#: lib/tuist_web/live/mix_build_live.html.heex:481
+#: lib/tuist_web/live/mix_build_live.html.heex:710
+#: lib/tuist_web/live/mix_build_live.html.heex:717
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr "Hatalar"
 
 #: lib/tuist_web/live/build_run_live.html.heex:351
-#: lib/tuist_web/live/mix_build_live.html.heex:466
+#: lib/tuist_web/live/mix_build_live.html.heex:471
 #, elixir-autogen, elixir-format
 msgid "Errors and Warnings"
 msgstr "Hatalar ve Uyarılar"
@@ -587,19 +587,19 @@ msgstr "Harici"
 #: lib/tuist_web/live/build_entity_live.ex:1193
 #: lib/tuist_web/live/build_entity_live.html.heex:438
 #: lib/tuist_web/live/build_entity_live.html.heex:582
-#: lib/tuist_web/live/build_run_live.ex:1247
+#: lib/tuist_web/live/build_run_live.ex:1258
 #: lib/tuist_web/live/build_run_live.html.heex:263
 #: lib/tuist_web/live/build_run_live.html.heex:578
-#: lib/tuist_web/live/cargo_build_live.html.heex:61
-#: lib/tuist_web/live/cargo_build_live.html.heex:307
+#: lib/tuist_web/live/cargo_build_live.html.heex:66
+#: lib/tuist_web/live/cargo_build_live.html.heex:312
 #: lib/tuist_web/live/cargo_build_runs_live.ex:39
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:66
 #: lib/tuist_web/live/cargo_builds_live.html.heex:443
-#: lib/tuist_web/live/generate_runs_live.ex:278
+#: lib/tuist_web/live/generate_runs_live.ex:281
 #: lib/tuist_web/live/generate_runs_live.html.heex:81
-#: lib/tuist_web/live/mix_build_live.html.heex:404
+#: lib/tuist_web/live/mix_build_live.html.heex:409
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:31
-#: lib/tuist_web/live/once_run_live.ex:1271
+#: lib/tuist_web/live/once_run_live.ex:1280
 #: lib/tuist_web/live/run_detail_live.html.heex:144
 #: lib/tuist_web/live/xcode_build_runs_live.ex:226
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:89
@@ -620,88 +620,88 @@ msgstr "Başarısız"
 msgid "Failed builds"
 msgstr "Başarısız derlemeler"
 
-#: lib/tuist_web/live/build_run_live.ex:986
+#: lib/tuist_web/live/build_run_live.ex:997
 #, elixir-autogen, elixir-format
 msgid "Failed compiling C file %{path}"
 msgstr "C dosyası %{path} derlenemedi"
 
-#: lib/tuist_web/live/build_run_live.ex:989
-#: lib/tuist_web/live/build_run_live.ex:1025
+#: lib/tuist_web/live/build_run_live.ex:1000
+#: lib/tuist_web/live/build_run_live.ex:1036
 #, elixir-autogen, elixir-format
 msgid "Failed compiling Swift file %{path}"
 msgstr "Swift dosyası %{path} derlenemedi"
 
-#: lib/tuist_web/live/build_run_live.ex:1022
+#: lib/tuist_web/live/build_run_live.ex:1033
 #, elixir-autogen, elixir-format
 msgid "Failed compiling XIB file %{path}"
 msgstr "XIB dosyası %{path} derlenemedi"
 
-#: lib/tuist_web/live/build_run_live.ex:1004
+#: lib/tuist_web/live/build_run_live.ex:1015
 #, elixir-autogen, elixir-format
 msgid "Failed compiling assets catalog %{path}"
-msgstr "Varlıklar kataloğu %{path} derlenemedi"
+msgstr "Varlık kataloğu %{path} derlenemedi"
 
-#: lib/tuist_web/live/build_run_live.ex:1007
+#: lib/tuist_web/live/build_run_live.ex:1018
 #, elixir-autogen, elixir-format
 msgid "Failed compiling storyboard %{path}"
-msgstr "%{path} storyboard dosyası derlenemedi"
+msgstr "%{path} storyboard derlenemedi"
 
-#: lib/tuist_web/live/build_run_live.ex:1001
+#: lib/tuist_web/live/build_run_live.ex:1012
 #, elixir-autogen, elixir-format
 msgid "Failed copying Swift libraries %{path}"
 msgstr "Swift kütüphaneleri %{path} kopyalanamadı"
 
-#: lib/tuist_web/live/build_run_live.ex:1016
+#: lib/tuist_web/live/build_run_live.ex:1027
 #, elixir-autogen, elixir-format
 msgid "Failed copying resource file %{path}"
 msgstr "Kaynak dosya %{path} kopyalanamadı"
 
-#: lib/tuist_web/live/build_run_live.ex:995
+#: lib/tuist_web/live/build_run_live.ex:1006
 #, elixir-autogen, elixir-format
 msgid "Failed creating static library %{path}"
 msgstr "Statik kütüphane %{path} oluşturulamadı"
 
-#: lib/tuist_web/live/build_run_live.ex:992
+#: lib/tuist_web/live/build_run_live.ex:1003
 #, elixir-autogen, elixir-format
 msgid "Failed executing script %{script_name}"
 msgstr "%{script_name} betiği çalıştırılamadı"
 
-#: lib/tuist_web/live/build_run_live.ex:998
+#: lib/tuist_web/live/build_run_live.ex:1009
 #, elixir-autogen, elixir-format
 msgid "Failed linking %{path}"
 msgstr "%{path} bağlanamadı"
 
-#: lib/tuist_web/live/build_run_live.ex:1013
+#: lib/tuist_web/live/build_run_live.ex:1024
 #, elixir-autogen, elixir-format
 msgid "Failed linking storyboards %{path}"
-msgstr "Storyboard dosyaları %{path} birleştirilemedi"
+msgstr "Storyboard'lar %{path} birleştirilemedi"
 
-#: lib/tuist_web/live/build_run_live.ex:1019
+#: lib/tuist_web/live/build_run_live.ex:1030
 #, elixir-autogen, elixir-format
 msgid "Failed merging Swift module %{path}"
 msgstr "Swift modülü %{path} birleştirilemedi"
 
-#: lib/tuist_web/live/build_run_live.ex:1028
+#: lib/tuist_web/live/build_run_live.ex:1039
 #, elixir-autogen, elixir-format
 msgid "Failed precompiling bridging header %{path}"
 msgstr "Köprü başlığı %{path} ön derlenemedi"
 
-#: lib/tuist_web/live/build_run_live.ex:1040
+#: lib/tuist_web/live/build_run_live.ex:1051
 #, elixir-autogen, elixir-format
 msgid "Failed processing %{path}"
 msgstr "%{path} işlenemedi"
 
-#: lib/tuist_web/live/build_run_live.ex:1034
+#: lib/tuist_web/live/build_run_live.ex:1045
 #, elixir-autogen, elixir-format
 msgid "Failed validating %{path}"
 msgstr "%{path} doğrulanamadı"
 
-#: lib/tuist_web/live/build_run_live.ex:1031
+#: lib/tuist_web/live/build_run_live.ex:1042
 #, elixir-autogen, elixir-format
 msgid "Failed validating embedded binary %{path}"
-msgstr "Gömülü ikili dosya %{path} doğrulanamadı"
+msgstr "Gömülü ikili %{path} doğrulanamadı"
 
-#: lib/tuist_web/live/build_run_live.ex:1010
+#: lib/tuist_web/live/build_run_live.ex:1021
 #, elixir-autogen, elixir-format
 msgid "Failed writing auxiliary file %{path}"
 msgstr "Yardımcı dosya %{path} yazılamadı"
@@ -711,15 +711,15 @@ msgstr "Yardımcı dosya %{path} yazılamadı"
 #: lib/tuist_web/live/build_run_live.html.heex:625
 #: lib/tuist_web/live/build_run_live.html.heex:641
 #: lib/tuist_web/live/build_run_live.html.heex:665
-#: lib/tuist_web/live/mix_build_live.html.heex:619
+#: lib/tuist_web/live/mix_build_live.html.heex:624
 #, elixir-autogen, elixir-format
 msgid "File"
 msgstr "Dosya"
 
 #: lib/tuist_web/live/build_run_live.html.heex:443
 #: lib/tuist_web/live/build_run_live.html.heex:604
-#: lib/tuist_web/live/mix_build_live.html.heex:555
-#: lib/tuist_web/live/mix_build_live.html.heex:570
+#: lib/tuist_web/live/mix_build_live.html.heex:560
+#: lib/tuist_web/live/mix_build_live.html.heex:575
 #, elixir-autogen, elixir-format
 msgid "File Breakdown"
 msgstr "Dosya Dağılımı"
@@ -734,7 +734,7 @@ msgstr "Dosya Dağılımı"
 #: lib/tuist_web/live/build_run_live.html.heex:1425
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:35
 #: lib/tuist_web/live/generate_runs_live.html.heex:38
-#: lib/tuist_web/live/mix_build_live.html.heex:218
+#: lib/tuist_web/live/mix_build_live.html.heex:223
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Filter"
@@ -744,12 +744,12 @@ msgstr "Filtrele"
 #: lib/tuist_web/live/run_detail_live.html.heex:30
 #, elixir-autogen, elixir-format
 msgid "Generate Runs"
-msgstr "Çalıştırmaları Oluştur"
+msgstr "Çalıştırmalar Oluştur"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:264
 #, elixir-autogen, elixir-format
 msgid "Hash"
-msgstr "Karma Değer"
+msgstr "Karma"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:400
 #, elixir-autogen, elixir-format
@@ -759,20 +759,20 @@ msgstr "Başlıklar"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:242
 #: lib/tuist_web/helpers/build_entity_labels.ex:109
 #: lib/tuist_web/helpers/cargo_cache.ex:58
-#: lib/tuist_web/live/build_run_live.ex:1383
-#: lib/tuist_web/live/build_run_live.ex:1610
+#: lib/tuist_web/live/build_run_live.ex:1394
+#: lib/tuist_web/live/build_run_live.ex:1621
 #: lib/tuist_web/live/build_run_live.html.heex:1111
-#: lib/tuist_web/live/mix_build_live.html.heex:252
-#: lib/tuist_web/live/run_detail_live.ex:348
-#: lib/tuist_web/live/run_detail_live.ex:381
-#: lib/tuist_web/live/test_run_live.ex:1418
+#: lib/tuist_web/live/mix_build_live.html.heex:257
+#: lib/tuist_web/live/run_detail_live.ex:351
+#: lib/tuist_web/live/run_detail_live.ex:384
+#: lib/tuist_web/live/test_run_live.ex:1431
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr "İsabet"
 
 #: lib/tuist_web/live/build_run_live.html.heex:870
-#: lib/tuist_web/live/cargo_build_live.html.heex:146
-#: lib/tuist_web/live/generate_runs_live.ex:294
+#: lib/tuist_web/live/cargo_build_live.html.heex:151
+#: lib/tuist_web/live/generate_runs_live.ex:297
 #: lib/tuist_web/live/generate_runs_live.html.heex:61
 #: lib/tuist_web/live/mix_build_live.ex:285
 #, elixir-autogen, elixir-format
@@ -806,17 +806,17 @@ msgstr "Anahtar"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:252
 #: lib/tuist_web/components/runs/module_cache_tab.ex:547
 #: lib/tuist_web/helpers/build_entity_labels.ex:101
-#: lib/tuist_web/live/build_run_live.ex:1387
-#: lib/tuist_web/live/build_run_live.ex:1615
+#: lib/tuist_web/live/build_run_live.ex:1398
+#: lib/tuist_web/live/build_run_live.ex:1626
 #: lib/tuist_web/live/build_run_live.html.heex:934
 #: lib/tuist_web/live/build_run_live.html.heex:1114
 #: lib/tuist_web/live/cargo_build_runs_live.ex:65
 #: lib/tuist_web/live/cargo_builds_live.ex:154
 #: lib/tuist_web/live/mix_build_live.ex:335
 #: lib/tuist_web/live/mix_build_live.ex:352
-#: lib/tuist_web/live/run_detail_live.ex:353
-#: lib/tuist_web/live/run_detail_live.ex:386
-#: lib/tuist_web/live/test_run_live.ex:1423
+#: lib/tuist_web/live/run_detail_live.ex:356
+#: lib/tuist_web/live/run_detail_live.ex:389
+#: lib/tuist_web/live/test_run_live.ex:1436
 #: lib/tuist_web/live/xcode_builds_live.ex:400
 #: lib/tuist_web/live/xcode_builds_live.ex:403
 #: lib/tuist_web/live/xcode_builds_live.html.heex:127
@@ -826,12 +826,12 @@ msgstr "Yerel"
 
 #: lib/tuist_web/live/build_run_live.html.heex:780
 #: lib/tuist_web/live/build_run_live.html.heex:833
-#: lib/tuist_web/live/cargo_build_live.html.heex:414
-#: lib/tuist_web/live/mix_build_live.html.heex:697
-#: lib/tuist_web/live/mix_build_live.html.heex:751
+#: lib/tuist_web/live/cargo_build_live.html.heex:419
+#: lib/tuist_web/live/mix_build_live.html.heex:702
+#: lib/tuist_web/live/mix_build_live.html.heex:756
 #, elixir-autogen, elixir-format
 msgid "Looks like you're having a great day!"
-msgstr "Harika bir gün geçiriyor gibi görünüyorsunuz!"
+msgstr "Harika bir gün geçiriyor gibi görünüyorsun!"
 
 #: lib/tuist_web/live/build_run_live.html.heex:339
 #, elixir-autogen, elixir-format
@@ -841,18 +841,18 @@ msgstr "Mac cihazı"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:258
 #: lib/tuist_web/components/runs/module_cache_tab.ex:573
 #: lib/tuist_web/helpers/cargo_cache.ex:61
-#: lib/tuist_web/live/build_run_live.ex:1389
-#: lib/tuist_web/live/build_run_live.ex:1616
+#: lib/tuist_web/live/build_run_live.ex:1400
+#: lib/tuist_web/live/build_run_live.ex:1627
 #: lib/tuist_web/live/build_run_live.html.heex:944
 #: lib/tuist_web/live/build_run_live.html.heex:1126
 #: lib/tuist_web/live/mix_build_live.ex:336
 #: lib/tuist_web/live/mix_build_live.ex:370
-#: lib/tuist_web/live/run_detail_live.ex:354
-#: lib/tuist_web/live/run_detail_live.ex:387
-#: lib/tuist_web/live/test_run_live.ex:1424
+#: lib/tuist_web/live/run_detail_live.ex:357
+#: lib/tuist_web/live/run_detail_live.ex:390
+#: lib/tuist_web/live/test_run_live.ex:1437
 #, elixir-autogen, elixir-format
 msgid "Missed"
-msgstr "Kaçırıldı"
+msgstr "Kaçırılan"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:231
 #: lib/tuist_web/helpers/build_entity_labels.ex:15
@@ -861,15 +861,15 @@ msgstr "Kaçırıldı"
 #: lib/tuist_web/live/build_run_live.html.heex:471
 #: lib/tuist_web/live/build_run_live.html.heex:480
 #: lib/tuist_web/live/build_run_live.html.heex:520
-#: lib/tuist_web/live/mix_build_live.html.heex:618
+#: lib/tuist_web/live/mix_build_live.html.heex:623
 #, elixir-autogen, elixir-format
 msgid "Module"
 msgstr "Modül"
 
 #: lib/tuist_web/live/build_run_live.html.heex:438
 #: lib/tuist_web/live/build_run_live.html.heex:450
-#: lib/tuist_web/live/mix_build_live.html.heex:560
-#: lib/tuist_web/live/mix_build_live.html.heex:569
+#: lib/tuist_web/live/mix_build_live.html.heex:565
+#: lib/tuist_web/live/mix_build_live.html.heex:574
 #, elixir-autogen, elixir-format
 msgid "Module Breakdown"
 msgstr "Modül Dağılımı"
@@ -882,7 +882,7 @@ msgid "Module Cache"
 msgstr "Modül Önbelleği"
 
 #: lib/tuist_web/helpers/cargo_cache.ex:86
-#: lib/tuist_web/live/build_run_live.ex:1226
+#: lib/tuist_web/live/build_run_live.ex:1237
 #: lib/tuist_web/live/cargo_build_live.ex:132
 #: lib/tuist_web/live/mix_build_live.ex:500
 #, elixir-autogen, elixir-format
@@ -899,7 +899,7 @@ msgstr "CAS çıktısı bulunamadı"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:309
 #: lib/tuist_web/live/build_run_live.html.heex:1210
-#: lib/tuist_web/live/mix_build_live.html.heex:331
+#: lib/tuist_web/live/mix_build_live.html.heex:336
 #, elixir-autogen, elixir-format
 msgid "No cacheable tasks found"
 msgstr "Önbelleğe alınabilir görev bulunamadı"
@@ -918,7 +918,7 @@ msgstr "Önbelleğe alınabilir görev bulunamadı"
 #: lib/tuist_web/live/build_run_live.html.heex:1063
 #: lib/tuist_web/live/build_run_live.html.heex:1354
 #: lib/tuist_web/live/build_run_live.html.heex:1371
-#: lib/tuist_web/live/mix_build_live.html.heex:196
+#: lib/tuist_web/live/mix_build_live.html.heex:201
 #, elixir-autogen, elixir-format
 msgid "No data"
 msgstr "Veri yok"
@@ -940,8 +940,8 @@ msgid "No data yet"
 msgstr "Henüz veri yok"
 
 #: lib/tuist_web/live/build_run_live.html.heex:831
-#: lib/tuist_web/live/cargo_build_live.html.heex:411
-#: lib/tuist_web/live/mix_build_live.html.heex:749
+#: lib/tuist_web/live/cargo_build_live.html.heex:416
+#: lib/tuist_web/live/mix_build_live.html.heex:754
 #, elixir-autogen, elixir-format
 msgid "No errors detected"
 msgstr "Hata tespit edilmedi"
@@ -958,8 +958,8 @@ msgid "No modules found"
 msgstr "Modül bulunamadı"
 
 #: lib/tuist_web/live/build_run_live.html.heex:778
-#: lib/tuist_web/live/cargo_build_live.html.heex:412
-#: lib/tuist_web/live/mix_build_live.html.heex:695
+#: lib/tuist_web/live/cargo_build_live.html.heex:417
+#: lib/tuist_web/live/mix_build_live.html.heex:700
 #, elixir-autogen, elixir-format
 msgid "No warnings detected"
 msgstr "Uyarı tespit edilmedi"
@@ -967,7 +967,7 @@ msgstr "Uyarı tespit edilmedi"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:662
 #: lib/tuist_web/live/build_run_live.html.heex:320
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:76
-#: lib/tuist_web/live/mix_build_live.html.heex:437
+#: lib/tuist_web/live/mix_build_live.html.heex:442
 #: lib/tuist_web/live/run_detail_live.html.heex:167
 #: lib/tuist_web/live/run_detail_live.html.heex:173
 #, elixir-autogen, elixir-format
@@ -976,32 +976,32 @@ msgstr "Yok"
 
 #: lib/tuist_web/live/build_entity_live.html.heex:41
 #: lib/tuist_web/live/build_run_live.html.heex:168
-#: lib/tuist_web/live/cargo_build_live.html.heex:28
-#: lib/tuist_web/live/mix_build_live.html.heex:49
+#: lib/tuist_web/live/cargo_build_live.html.heex:33
+#: lib/tuist_web/live/mix_build_live.html.heex:54
 #: lib/tuist_web/live/run_detail_live.html.heex:85
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "Genel Bakış"
 
 #: lib/tuist_web/components/build_status_filter.ex:43
-#: lib/tuist_web/live/bazel_invocation_live.ex:959
+#: lib/tuist_web/live/bazel_invocation_live.ex:964
 #: lib/tuist_web/live/build_entity_live.ex:516
 #: lib/tuist_web/live/build_entity_live.ex:1192
 #: lib/tuist_web/live/build_entity_live.html.heex:433
 #: lib/tuist_web/live/build_entity_live.html.heex:577
-#: lib/tuist_web/live/build_run_live.ex:1246
+#: lib/tuist_web/live/build_run_live.ex:1257
 #: lib/tuist_web/live/build_run_live.html.heex:256
 #: lib/tuist_web/live/build_run_live.html.heex:573
-#: lib/tuist_web/live/cargo_build_live.html.heex:60
-#: lib/tuist_web/live/cargo_build_live.html.heex:306
+#: lib/tuist_web/live/cargo_build_live.html.heex:65
+#: lib/tuist_web/live/cargo_build_live.html.heex:311
 #: lib/tuist_web/live/cargo_build_runs_live.ex:38
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:65
 #: lib/tuist_web/live/cargo_builds_live.html.heex:442
-#: lib/tuist_web/live/generate_runs_live.ex:277
+#: lib/tuist_web/live/generate_runs_live.ex:280
 #: lib/tuist_web/live/generate_runs_live.html.heex:79
-#: lib/tuist_web/live/mix_build_live.html.heex:397
+#: lib/tuist_web/live/mix_build_live.html.heex:402
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:26
-#: lib/tuist_web/live/once_run_live.ex:1265
+#: lib/tuist_web/live/once_run_live.ex:1274
 #: lib/tuist_web/live/once_runs_live.ex:893
 #: lib/tuist_web/live/once_runs_live.ex:1361
 #: lib/tuist_web/live/run_detail_live.html.heex:137
@@ -1033,8 +1033,8 @@ msgstr "Ürün adı"
 #: lib/tuist_web/live/build_entity_live.ex:606
 #: lib/tuist_web/live/build_entity_live.ex:609
 #: lib/tuist_web/live/build_entity_live.ex:610
-#: lib/tuist_web/live/build_run_live.ex:1197
-#: lib/tuist_web/live/build_run_live.ex:1234
+#: lib/tuist_web/live/build_run_live.ex:1208
+#: lib/tuist_web/live/build_run_live.ex:1245
 #: lib/tuist_web/live/build_run_live.html.heex:691
 #, elixir-autogen, elixir-format
 msgid "Project"
@@ -1068,11 +1068,11 @@ msgstr "Çalıştırılma zamanı"
 #: lib/tuist_web/live/build_entity_live.html.heex:612
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:84
 #: lib/tuist_web/live/cargo_builds_live.html.heex:448
-#: lib/tuist_web/live/generate_runs_live.ex:321
+#: lib/tuist_web/live/generate_runs_live.ex:324
 #: lib/tuist_web/live/generate_runs_live.html.heex:87
 #: lib/tuist_web/live/once_runs_live.ex:918
 #: lib/tuist_web/live/run_detail_live.html.heex:152
-#: lib/tuist_web/live/xcode_build_runs_live.ex:312
+#: lib/tuist_web/live/xcode_build_runs_live.ex:310
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:112
 #: lib/tuist_web/live/xcode_builds_live.html.heex:930
 #, elixir-autogen, elixir-format
@@ -1088,15 +1088,15 @@ msgstr "Son Derlemeler"
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:246
 #: lib/tuist_web/components/runs/module_cache_tab.ex:560
-#: lib/tuist_web/live/build_run_live.ex:1388
-#: lib/tuist_web/live/build_run_live.ex:1614
+#: lib/tuist_web/live/build_run_live.ex:1399
+#: lib/tuist_web/live/build_run_live.ex:1625
 #: lib/tuist_web/live/build_run_live.html.heex:939
 #: lib/tuist_web/live/build_run_live.html.heex:1120
 #: lib/tuist_web/live/mix_build_live.ex:334
 #: lib/tuist_web/live/mix_build_live.ex:361
-#: lib/tuist_web/live/run_detail_live.ex:352
-#: lib/tuist_web/live/run_detail_live.ex:385
-#: lib/tuist_web/live/test_run_live.ex:1422
+#: lib/tuist_web/live/run_detail_live.ex:355
+#: lib/tuist_web/live/run_detail_live.ex:388
+#: lib/tuist_web/live/test_run_live.ex:1435
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr "Uzak"
@@ -1117,7 +1117,7 @@ msgstr "Çalıştır"
 #: lib/tuist_web/live/run_detail_live.html.heex:177
 #, elixir-autogen, elixir-format
 msgid "Run duration"
-msgstr "Çalışma süresi"
+msgstr "Çalıştırma süresi"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:91
 #: lib/tuist_web/live/xcode_build_runs_live.ex:200
@@ -1137,16 +1137,16 @@ msgstr "Şema:"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:163
 #: lib/tuist_web/components/reapi_cache_outputs.ex:139
 #: lib/tuist_web/components/runs/module_cache_tab.ex:203
-#: lib/tuist_web/live/bazel_invocation_live.ex:591
+#: lib/tuist_web/live/bazel_invocation_live.ex:596
 #: lib/tuist_web/live/build_entity_live.html.heex:509
 #: lib/tuist_web/live/build_run_live.html.heex:461
 #: lib/tuist_web/live/build_run_live.html.heex:615
 #: lib/tuist_web/live/build_run_live.html.heex:1072
 #: lib/tuist_web/live/build_run_live.html.heex:1380
-#: lib/tuist_web/live/cargo_build_live.html.heex:272
-#: lib/tuist_web/live/mix_build_live.html.heex:209
-#: lib/tuist_web/live/mix_build_live.html.heex:587
-#: lib/tuist_web/live/once_run_live.ex:753
+#: lib/tuist_web/live/cargo_build_live.html.heex:277
+#: lib/tuist_web/live/mix_build_live.html.heex:214
+#: lib/tuist_web/live/mix_build_live.html.heex:592
+#: lib/tuist_web/live/once_run_live.ex:762
 #: lib/tuist_web/live/xcode_builds_live.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "Search..."
@@ -1169,7 +1169,7 @@ msgstr "Seçici Test"
 msgid "Size"
 msgstr "Boyut"
 
-#: lib/tuist_web/live/build_run_live.ex:1427
+#: lib/tuist_web/live/build_run_live.ex:1438
 #, elixir-autogen, elixir-format
 msgid "Size (MB)"
 msgstr "Boyut (MB)"
@@ -1182,10 +1182,10 @@ msgstr "Boyut (MB)"
 #: lib/tuist_web/live/build_run_live.html.heex:476
 #: lib/tuist_web/live/build_run_live.html.heex:629
 #: lib/tuist_web/live/build_run_live.html.heex:1396
-#: lib/tuist_web/live/cargo_build_live.html.heex:279
+#: lib/tuist_web/live/cargo_build_live.html.heex:284
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:16
 #: lib/tuist_web/live/generate_runs_live.html.heex:17
-#: lib/tuist_web/live/mix_build_live.html.heex:596
+#: lib/tuist_web/live/mix_build_live.html.heex:601
 #: lib/tuist_web/live/once_runs_live.ex:846
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:18
 #, elixir-autogen, elixir-format
@@ -1193,8 +1193,8 @@ msgid "Sort by:"
 msgstr "Sırala:"
 
 #: lib/tuist_web/live/build_run_live.html.heex:316
-#: lib/tuist_web/live/cargo_build_live.html.heex:91
-#: lib/tuist_web/live/mix_build_live.html.heex:433
+#: lib/tuist_web/live/cargo_build_live.html.heex:96
+#: lib/tuist_web/live/mix_build_live.html.heex:438
 #: lib/tuist_web/live/run_detail_live.html.heex:164
 #, elixir-autogen, elixir-format
 msgid "Source"
@@ -1207,24 +1207,24 @@ msgstr "Kaynaklar"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:268
 #: lib/tuist_web/components/reapi_cache_outputs.ex:198
-#: lib/tuist_web/live/bazel_invocation_live.ex:229
+#: lib/tuist_web/live/bazel_invocation_live.ex:234
 #: lib/tuist_web/live/build_entity_live.ex:511
 #: lib/tuist_web/live/build_entity_live.ex:1157
 #: lib/tuist_web/live/build_entity_live.ex:1219
 #: lib/tuist_web/live/build_entity_live.html.heex:573
-#: lib/tuist_web/live/build_run_live.ex:1242
-#: lib/tuist_web/live/build_run_live.ex:1404
+#: lib/tuist_web/live/build_run_live.ex:1253
+#: lib/tuist_web/live/build_run_live.ex:1415
 #: lib/tuist_web/live/build_run_live.html.heex:253
 #: lib/tuist_web/live/build_run_live.html.heex:1449
-#: lib/tuist_web/live/cargo_build_live.html.heex:56
-#: lib/tuist_web/live/cargo_build_live.html.heex:302
+#: lib/tuist_web/live/cargo_build_live.html.heex:61
+#: lib/tuist_web/live/cargo_build_live.html.heex:307
 #: lib/tuist_web/live/cargo_build_runs_live.ex:34
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:61
 #: lib/tuist_web/live/cargo_builds_live.html.heex:438
-#: lib/tuist_web/live/generate_runs_live.ex:273
-#: lib/tuist_web/live/mix_build_live.html.heex:394
+#: lib/tuist_web/live/generate_runs_live.ex:276
+#: lib/tuist_web/live/mix_build_live.html.heex:399
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:23
-#: lib/tuist_web/live/once_run_live.ex:310
+#: lib/tuist_web/live/once_run_live.ex:319
 #: lib/tuist_web/live/run_detail_live.html.heex:134
 #: lib/tuist_web/live/xcode_build_runs_live.ex:221
 #: lib/tuist_web/live/xcode_builds_live.ex:451
@@ -1254,7 +1254,7 @@ msgstr "Swift sürümü"
 #: lib/tuist_web/live/build_entity_live.ex:605
 #: lib/tuist_web/live/build_entity_live.ex:607
 #: lib/tuist_web/live/build_entity_live.ex:608
-#: lib/tuist_web/live/build_run_live.ex:1189
+#: lib/tuist_web/live/build_run_live.ex:1200
 #: lib/tuist_web/live/build_run_live.html.heex:688
 #, elixir-autogen, elixir-format
 msgid "Target"
@@ -1273,20 +1273,20 @@ msgstr "Hedef ayarları"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:209
 #: lib/tuist_web/helpers/build_entity_labels.ex:14
 #: lib/tuist_web/live/build_run_live.html.heex:1100
-#: lib/tuist_web/live/mix_build_live.html.heex:246
+#: lib/tuist_web/live/mix_build_live.html.heex:251
 #, elixir-autogen, elixir-format
 msgid "Task"
 msgstr "Görev"
 
 #: lib/tuist_web/live/build_run_live.html.heex:848
-#: lib/tuist_web/live/cargo_build_live.html.heex:124
+#: lib/tuist_web/live/cargo_build_live.html.heex:129
 #: lib/tuist_web/live/mix_build_live.ex:283
 #, elixir-autogen, elixir-format
 msgid "Task hits"
 msgstr "Görev isabetleri"
 
 #: lib/tuist_web/live/build_run_live.html.heex:859
-#: lib/tuist_web/live/cargo_build_live.html.heex:135
+#: lib/tuist_web/live/cargo_build_live.html.heex:140
 #: lib/tuist_web/live/mix_build_live.ex:284
 #, elixir-autogen, elixir-format
 msgid "Task misses"
@@ -1295,7 +1295,7 @@ msgstr "Görev ıskalamaları"
 #: lib/tuist_web/live/run_detail_live.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "Test Details"
-msgstr "Test Ayrıntıları"
+msgstr "Test Detayları"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:4
 #, elixir-autogen, elixir-format
@@ -1311,7 +1311,7 @@ msgstr "Test: %{scheme}"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:286
 #, elixir-autogen, elixir-format
 msgid "The average build duration with individual percentile intervals."
-msgstr "Tek tek yüzde dilim aralıklarıyla ortalama derleme süresi."
+msgstr "Bireysel yüzde dilimi aralıklarıyla ortalama derleme süresi."
 
 #: lib/tuist_web/live/cargo_builds_live.html.heex:121
 #: lib/tuist_web/live/xcode_builds_live.html.heex:255
@@ -1323,7 +1323,7 @@ msgstr "Başarısız olan derleme sayısı."
 #: lib/tuist_web/live/xcode_builds_live.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "The percentage of builds that succeeded."
-msgstr "Başarıyla tamamlanan derlemelerin yüzdesi."
+msgstr "Başarılı olan derleme yüzdesi."
 
 #: lib/tuist_web/live/build_run_live.html.heex:872
 #, elixir-autogen, elixir-format
@@ -1339,12 +1339,12 @@ msgstr "Toplam derleme sayısı."
 #: lib/tuist_web/live/build_run_live.html.heex:964
 #, elixir-autogen, elixir-format
 msgid "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
-msgstr "Önbelleğe alınabilir görevleri benzersiz şekilde tanımlayan önbellek anahtarlarının önbellekten okunma süresi."
+msgstr "Önbelleğe alınabilir görevleri benzersiz şekilde tanımlayan önbellek anahtarlarını önbellekten okuma süresi."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1020
 #, elixir-autogen, elixir-format
 msgid "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
-msgstr "Önbelleğe alınabilir görevleri benzersiz şekilde tanımlayan önbellek anahtarlarının önbelleğe yazılma süresi."
+msgstr "Önbelleğe alınabilir görevleri benzersiz şekilde tanımlayan önbellek anahtarlarını önbelleğe yazma süresi."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1342
 #, elixir-autogen, elixir-format
@@ -1370,7 +1370,7 @@ msgstr "Yerel veya uzak önbellekten alınan toplam modül sayısı."
 #: lib/tuist_web/components/runs/module_cache_tab.ex:57
 #, elixir-autogen, elixir-format
 msgid "Total number of modules that could have been taken from the cache if it was fully populated."
-msgstr "Önbellek tamamen dolu olsaydı önbellekten alınabilecek modül sayısı."
+msgstr "Önbellek tamamen doluysa önbellekten alınabilecek toplam modül sayısı."
 
 #: lib/tuist_web/live/build_run_live.html.heex:895
 #, elixir-autogen, elixir-format
@@ -1389,7 +1389,7 @@ msgstr "Arama teriminizi değiştirmeyi deneyin"
 
 #: lib/tuist_web/live/build_run_live.html.heex:586
 #: lib/tuist_web/live/build_run_live.html.heex:718
-#: lib/tuist_web/live/cargo_build_live.html.heex:335
+#: lib/tuist_web/live/cargo_build_live.html.heex:340
 #, elixir-autogen, elixir-format
 msgid "Try updating your search"
 msgstr "Aramanızı güncellemeyi deneyin"
@@ -1403,12 +1403,12 @@ msgstr "Tuist sürümü"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:228
 #: lib/tuist_web/components/cargo_cache_inspection.ex:275
 #: lib/tuist_web/components/reapi_cache_outputs.ex:209
-#: lib/tuist_web/live/build_run_live.ex:1370
-#: lib/tuist_web/live/build_run_live.ex:1417
+#: lib/tuist_web/live/build_run_live.ex:1381
+#: lib/tuist_web/live/build_run_live.ex:1428
 #: lib/tuist_web/live/build_run_live.html.heex:674
 #: lib/tuist_web/live/build_run_live.html.heex:1131
 #: lib/tuist_web/live/build_run_live.html.heex:1463
-#: lib/tuist_web/live/mix_build_live.html.heex:259
+#: lib/tuist_web/live/mix_build_live.html.heex:264
 #, elixir-autogen, elixir-format
 msgid "Type"
 msgstr "Tür"
@@ -1433,7 +1433,7 @@ msgstr "Tür:"
 #: lib/tuist_web/live/cargo_build_live.ex:129
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:112
 #: lib/tuist_web/live/cargo_builds_live.ex:155
-#: lib/tuist_web/live/mix_build_live.html.heex:446
+#: lib/tuist_web/live/mix_build_live.html.heex:451
 #: lib/tuist_web/live/mix_build_runs_live.html.heex:70
 #: lib/tuist_web/live/once_runs_live.ex:956
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:76
@@ -1461,7 +1461,7 @@ msgstr "Bilinmeyen şema"
 #: lib/tuist_web/components/reapi_cache_outputs.ex:203
 #: lib/tuist_web/components/reapi_cache_outputs.ex:300
 #: lib/tuist_web/helpers/cargo_cache.ex:64
-#: lib/tuist_web/live/build_run_live.ex:1409
+#: lib/tuist_web/live/build_run_live.ex:1420
 #: lib/tuist_web/live/build_run_live.html.heex:1316
 #: lib/tuist_web/live/build_run_live.html.heex:1458
 #, elixir-autogen, elixir-format
@@ -1474,100 +1474,100 @@ msgstr "Yükle"
 #: lib/tuist_web/live/build_run_live.html.heex:1357
 #, elixir-autogen, elixir-format
 msgid "Upload throughput"
-msgstr "Yükleme hızı"
+msgstr "Yükleme verimliliği"
 
 #: lib/tuist_web/live/build_entity_live.html.heex:489
 #: lib/tuist_web/live/build_run_live.html.heex:408
 #: lib/tuist_web/live/cargo_builds_live.html.heex:373
-#: lib/tuist_web/live/mix_build_live.html.heex:524
+#: lib/tuist_web/live/mix_build_live.html.heex:529
 #: lib/tuist_web/live/once_runs_live.ex:735
 #: lib/tuist_web/live/xcode_builds_live.html.heex:803
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr "Daha fazla göster"
 
-#: lib/tuist_web/live/build_run_live.ex:1044
+#: lib/tuist_web/live/build_run_live.ex:1055
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling C file %{path}"
-msgstr "C dosyası %{path} derlenirken uyarı"
+msgstr "%{path} C dosyası derlenirken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1047
-#: lib/tuist_web/live/build_run_live.ex:1083
+#: lib/tuist_web/live/build_run_live.ex:1058
+#: lib/tuist_web/live/build_run_live.ex:1094
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling Swift file %{path}"
-msgstr "Swift dosyası %{path} derlenirken uyarı"
+msgstr "%{path} Swift dosyası derlenirken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1080
+#: lib/tuist_web/live/build_run_live.ex:1091
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling XIB file %{path}"
-msgstr "XIB dosyası %{path} derlenirken uyarı"
+msgstr "%{path} XIB dosyası derlenirken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1062
+#: lib/tuist_web/live/build_run_live.ex:1073
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling assets catalog %{path}"
-msgstr "%{path} varlık kataloğu derlenirken uyarı"
+msgstr "Varlıklar kataloğu %{path} derlenirken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1065
+#: lib/tuist_web/live/build_run_live.ex:1076
 #, elixir-autogen, elixir-format
 msgid "Warning when compiling storyboard %{path}"
-msgstr "%{path} storyboard dosyası derlenirken uyarı"
+msgstr "Storyboard %{path} derlenirken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1059
+#: lib/tuist_web/live/build_run_live.ex:1070
 #, elixir-autogen, elixir-format
 msgid "Warning when copying Swift libraries %{path}"
-msgstr "%{path} Swift kütüphaneleri kopyalanırken uyarı"
+msgstr "Swift kütüphaneleri %{path} kopyalanırken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1074
+#: lib/tuist_web/live/build_run_live.ex:1085
 #, elixir-autogen, elixir-format
 msgid "Warning when copying resource file %{path}"
-msgstr "%{path} kaynak dosyası kopyalanırken uyarı"
+msgstr "Kaynak dosyası %{path} kopyalanırken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1053
+#: lib/tuist_web/live/build_run_live.ex:1064
 #, elixir-autogen, elixir-format
 msgid "Warning when creating static library %{path}"
-msgstr "%{path} statik kütüphanesi oluşturulurken uyarı"
+msgstr "Statik kütüphane %{path} oluşturulurken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1050
+#: lib/tuist_web/live/build_run_live.ex:1061
 #, elixir-autogen, elixir-format
 msgid "Warning when executing script %{script_name}"
-msgstr "%{script_name} betiği çalıştırılırken uyarı"
+msgstr "Betik %{script_name} çalıştırılırken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1056
+#: lib/tuist_web/live/build_run_live.ex:1067
 #, elixir-autogen, elixir-format
 msgid "Warning when linking %{path}"
 msgstr "%{path} bağlanırken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1071
+#: lib/tuist_web/live/build_run_live.ex:1082
 #, elixir-autogen, elixir-format
 msgid "Warning when linking storyboards %{path}"
-msgstr "%{path} storyboard dosyaları bağlanırken uyarı"
+msgstr "Storyboardlar %{path} bağlanırken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1077
+#: lib/tuist_web/live/build_run_live.ex:1088
 #, elixir-autogen, elixir-format
 msgid "Warning when merging Swift module %{path}"
 msgstr "Swift modülü %{path} birleştirilirken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1086
+#: lib/tuist_web/live/build_run_live.ex:1097
 #, elixir-autogen, elixir-format
 msgid "Warning when precompiling bridging header %{path}"
 msgstr "Köprü başlığı %{path} ön derlenirken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1098
+#: lib/tuist_web/live/build_run_live.ex:1109
 #, elixir-autogen, elixir-format
 msgid "Warning when processing %{path}"
 msgstr "%{path} işlenirken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1092
+#: lib/tuist_web/live/build_run_live.ex:1103
 #, elixir-autogen, elixir-format
 msgid "Warning when validating %{path}"
 msgstr "%{path} doğrulanırken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1089
+#: lib/tuist_web/live/build_run_live.ex:1100
 #, elixir-autogen, elixir-format
 msgid "Warning when validating embedded binary %{path}"
-msgstr "Gömülü ikili %{path} doğrulanırken uyarı"
+msgstr "Gömülü ikili dosya %{path} doğrulanırken uyarı"
 
-#: lib/tuist_web/live/build_run_live.ex:1068
+#: lib/tuist_web/live/build_run_live.ex:1079
 #, elixir-autogen, elixir-format
 msgid "Warning when writing auxiliary file %{path}"
 msgstr "Yardımcı dosya %{path} yazılırken uyarı"
@@ -1576,13 +1576,13 @@ msgstr "Yardımcı dosya %{path} yazılırken uyarı"
 #: lib/tuist_web/live/build_run_live.html.heex:398
 #: lib/tuist_web/live/build_run_live.html.heex:737
 #: lib/tuist_web/live/build_run_live.html.heex:744
-#: lib/tuist_web/live/cargo_build_live.html.heex:30
-#: lib/tuist_web/live/cargo_build_live.html.heex:357
-#: lib/tuist_web/live/cargo_build_live.html.heex:369
-#: lib/tuist_web/live/mix_build_live.html.heex:65
-#: lib/tuist_web/live/mix_build_live.html.heex:514
-#: lib/tuist_web/live/mix_build_live.html.heex:653
-#: lib/tuist_web/live/mix_build_live.html.heex:660
+#: lib/tuist_web/live/cargo_build_live.html.heex:35
+#: lib/tuist_web/live/cargo_build_live.html.heex:362
+#: lib/tuist_web/live/cargo_build_live.html.heex:374
+#: lib/tuist_web/live/mix_build_live.html.heex:70
+#: lib/tuist_web/live/mix_build_live.html.heex:519
+#: lib/tuist_web/live/mix_build_live.html.heex:658
+#: lib/tuist_web/live/mix_build_live.html.heex:665
 #, elixir-autogen, elixir-format
 msgid "Warnings"
 msgstr "Uyarılar"
@@ -1627,12 +1627,12 @@ msgstr "p50 derleme süresi"
 #: lib/tuist_web/live/build_run_live.html.heex:960
 #, elixir-autogen, elixir-format
 msgid "p50 latency reading cache keys"
-msgstr "Önbellek anahtarlarını okuma p50 gecikmesi"
+msgstr "Önbellek anahtarlarını okurken p50 gecikmesi"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1016
 #, elixir-autogen, elixir-format
 msgid "p50 latency writing cache keys"
-msgstr "Önbellek anahtarlarını yazma p50 gecikmesi"
+msgstr "Önbellek anahtarlarını yazarken p50 gecikmesi"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:489
 #, elixir-autogen, elixir-format
@@ -1648,12 +1648,12 @@ msgstr "p90 derleme süresi"
 #: lib/tuist_web/live/build_run_live.html.heex:959
 #, elixir-autogen, elixir-format
 msgid "p90 latency reading cache keys"
-msgstr "p90 önbellek anahtarı okuma gecikmesi"
+msgstr "Önbellek anahtarlarını okurken p90 gecikmesi"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1015
 #, elixir-autogen, elixir-format
 msgid "p90 latency writing cache keys"
-msgstr "p90 önbellek anahtarı yazma gecikmesi"
+msgstr "Önbellek anahtarlarını yazarken p90 gecikmesi"
 
 #: lib/tuist_web/live/xcode_builds_live.html.heex:475
 #, elixir-autogen, elixir-format
@@ -1669,24 +1669,24 @@ msgstr "p99 derleme süresi"
 #: lib/tuist_web/live/build_run_live.html.heex:958
 #, elixir-autogen, elixir-format
 msgid "p99 latency reading cache keys"
-msgstr "p99 önbellek anahtarı okuma gecikmesi"
+msgstr "Önbellek anahtarlarını okurken p99 gecikmesi"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1014
 #, elixir-autogen, elixir-format
 msgid "p99 latency writing cache keys"
-msgstr "p99 önbellek anahtarı yazma gecikmesi"
+msgstr "Önbellek anahtarlarını yazarken p99 gecikmesi"
 
 #: lib/tuist_web/live/build_entity_live.ex:645
 #: lib/tuist_web/live/xcode_builds_live.ex:397
 #, elixir-autogen, elixir-format
 msgid "since last month"
-msgstr "son bir aydır"
+msgstr "geçen aydan beri"
 
 #: lib/tuist_web/live/build_entity_live.ex:643
 #: lib/tuist_web/live/xcode_builds_live.ex:394
 #, elixir-autogen, elixir-format
 msgid "since last week"
-msgstr "son bir haftadır"
+msgstr "geçen haftadan beri"
 
 #: lib/tuist_web/live/xcode_builds_live.ex:395
 #, elixir-autogen, elixir-format
@@ -1697,11 +1697,11 @@ msgstr "geçen yıldan beri"
 #: lib/tuist_web/live/build_run_live.html.heex:401
 #: lib/tuist_web/live/build_run_live.html.heex:747
 #: lib/tuist_web/live/build_run_live.html.heex:798
-#: lib/tuist_web/live/cargo_build_live.html.heex:371
-#: lib/tuist_web/live/mix_build_live.html.heex:479
-#: lib/tuist_web/live/mix_build_live.html.heex:517
-#: lib/tuist_web/live/mix_build_live.html.heex:663
-#: lib/tuist_web/live/mix_build_live.html.heex:715
+#: lib/tuist_web/live/cargo_build_live.html.heex:376
+#: lib/tuist_web/live/mix_build_live.html.heex:484
+#: lib/tuist_web/live/mix_build_live.html.heex:522
+#: lib/tuist_web/live/mix_build_live.html.heex:668
+#: lib/tuist_web/live/mix_build_live.html.heex:720
 #, elixir-autogen, elixir-format
 msgid "•"
 msgstr "•"
@@ -1758,7 +1758,7 @@ msgstr "Son 7 gün"
 #: lib/tuist_web/live/xcode_builds_live.ex:396
 #, elixir-autogen, elixir-format
 msgid "since last period"
-msgstr "son dönemden bu yana"
+msgstr "son dönemden beri"
 
 #: lib/tuist_web/live/build_entity_live.ex:642
 #: lib/tuist_web/live/xcode_builds_live.ex:393
@@ -1766,7 +1766,7 @@ msgstr "son dönemden bu yana"
 msgid "since yesterday"
 msgstr "dünden beri"
 
-#: lib/tuist_web/live/generate_runs_live.ex:302
+#: lib/tuist_web/live/generate_runs_live.ex:305
 #: lib/tuist_web/live/run_detail_live.html.heex:125
 #, elixir-autogen, elixir-format
 msgid "Cache Endpoint"
@@ -1794,7 +1794,7 @@ msgstr "Nesiller"
 msgid "Tag:"
 msgstr "Etiket:"
 
-#: lib/tuist_web/live/xcode_build_runs_live.ex:288
+#: lib/tuist_web/live/xcode_build_runs_live.ex:286
 #, elixir-autogen, elixir-format
 msgid "Tags"
 msgstr "Etiketler"
@@ -1820,7 +1820,7 @@ msgstr "Derlemeyi indir"
 #: lib/tuist_web/live/xcode_build_runs_live.html.heex:99
 #, elixir-autogen, elixir-format
 msgid "Failed processing"
-msgstr "İşleme başarısız oldu"
+msgstr "İşleme başarısız"
 
 #: lib/tuist_web/live/build_run_live.html.heex:276
 #: lib/tuist_web/live/xcode_build_runs_live.ex:227
@@ -1852,7 +1852,7 @@ msgstr "Oturumu indir"
 #: lib/tuist_web/live/xcode_builds_live.html.heex:522
 #, elixir-autogen, elixir-format
 msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme, configuration, or other properties to narrow down the dataset."
-msgstr "10.000 girdi sınırına ulaşıldı, veriler yalnızca %{date} tarihine kadar dahil edilmiştir. Veri kümesini daraltmak için şema, yapılandırma veya diğer özelliklere göre filtrelemeyi deneyin."
+msgstr "10.000 kayıt sınırına ulaşıldı, veriler yalnızca %{date} tarihine kadar dahil edilmiştir. Veri kümesini daraltmak için şema, yapılandırma veya diğer özelliklere göre filtrelemeyi deneyin."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:78
 #, elixir-autogen, elixir-format
@@ -1862,12 +1862,12 @@ msgstr "İndirildi"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:168
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average download throughput from the remote cache during this run."
-msgstr "Bu çalıştırma sırasında uzak önbellekten yapılan indirmelerin zaman ağırlıklı ortalama aktarım hızı."
+msgstr "Bu çalışma sırasında uzak önbellekten yapılan indirmelerin zaman ağırlıklı ortalama hızı."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:184
 #, elixir-autogen, elixir-format
 msgid "Time-weighted average upload throughput to the remote cache during this run."
-msgstr "Bu çalıştırma sırasında uzak önbelleğe yapılan yüklemelerin zaman ağırlıklı ortalama aktarım hızı."
+msgstr "Bu çalışma sırasında uzak önbelleğe yapılan yüklemelerin zaman ağırlıklı ortalama hızı."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:91
 #, elixir-autogen, elixir-format
@@ -1877,7 +1877,7 @@ msgstr "Yüklendi"
 #: lib/tuist_web/components/runs/module_cache_tab.ex:80
 #, elixir-autogen, elixir-format
 msgid "Total data downloaded from the remote cache during this run (%{count} artifacts)."
-msgstr "Bu çalıştırma sırasında uzak önbellekten indirilen toplam veri (%{count} yapıt)."
+msgstr "Bu çalışma sırasında uzak önbellekten indirilen toplam veri (%{count} artefakt)."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:93
 #, elixir-autogen, elixir-format
@@ -1892,7 +1892,7 @@ msgstr "Ek karma girdileri"
 #: lib/tuist_web/components/build_timeline.ex:199
 #, elixir-autogen, elixir-format
 msgid "Build steps. Drag across a time range to focus. Press Escape to cancel a drag. Use the left and right arrow keys to inspect steps. Use plus and minus to zoom, and Home to reset."
-msgstr "Derleme adımları. Odaklanmak için bir zaman aralığını sürükleyin. Sürüklemeyi iptal etmek için Escape tuşuna basın. Adımları incelemek için sol ve sağ ok tuşlarını kullanın. Yakınlaştırmak için artı ve eksi tuşlarını, sıfırlamak için Home tuşunu kullanın."
+msgstr "Derleme adımları. Odaklanmak için bir zaman aralığı sürükleyin. Sürüklemeyi iptal etmek için Escape tuşuna basın. Adımları incelemek için sol ve sağ ok tuşlarını kullanın. Yakınlaştırmak için artı ve eksi, sıfırlamak için Home tuşunu kullanın."
 
 #: lib/tuist_web/components/build_timeline.ex:309
 #: lib/tuist_web/components/build_timeline.ex:320
@@ -1938,7 +1938,7 @@ msgstr "Adımları veya hedefleri ara…"
 
 #: lib/tuist_web/components/build_timeline.ex:247
 #: lib/tuist_web/live/cargo_build_live.ex:133
-#: lib/tuist_web/live/cargo_build_live.html.heex:313
+#: lib/tuist_web/live/cargo_build_live.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "Started after"
 msgstr "Sonra başlatıldı"
@@ -1949,10 +1949,10 @@ msgstr "Sonra başlatıldı"
 msgid "Succeeded"
 msgstr "Başarılı oldu"
 
-#: lib/tuist_web/live/bazel_invocation_live.ex:190
+#: lib/tuist_web/live/bazel_invocation_live.ex:195
 #: lib/tuist_web/live/build_run_live.html.heex:174
 #: lib/tuist_web/live/gradle_build_live.html.heex:76
-#: lib/tuist_web/live/mix_build_live.html.heex:55
+#: lib/tuist_web/live/mix_build_live.html.heex:60
 #, elixir-autogen, elixir-format
 msgid "Timeline"
 msgstr "Zaman çizelgesi"
@@ -1998,7 +1998,7 @@ msgstr "Günlük"
 #: lib/tuist_web/components/build_timeline.ex:79
 #, elixir-autogen, elixir-format
 msgid "No log recorded for this step."
-msgstr "Bu adım için kaydedilmiş günlük yok."
+msgstr "Bu adım için kaydedilmiş bir günlük yok."
 
 #: lib/tuist_web/components/build_timeline.ex:281
 #, elixir-autogen, elixir-format
@@ -2058,7 +2058,7 @@ msgstr "Yazma"
 #: lib/tuist_web/components/build_timeline.ex:156
 #, elixir-autogen, elixir-format
 msgid "This build has no recorded step timings. Recorded steps are retained for 90 days."
-msgstr "Bu derleme için kayıtlı adım süreleri bulunmuyor. Kayıtlı adımlar 90 gün boyunca saklanır."
+msgstr "Bu derlemenin kaydedilmiş adım süreleri yok. Kaydedilmiş adımlar 90 gün boyunca saklanır."
 
 #: lib/tuist_web/components/runs/module_cache_tab.ex:331
 #, elixir-autogen, elixir-format
@@ -2109,7 +2109,7 @@ msgstr "Analiz/kurulum"
 #: lib/tuist_web/components/build_timeline.ex:340
 #, elixir-autogen, elixir-format
 msgid "Artifact transforms"
-msgstr "Yapıt dönüşümleri"
+msgstr "Yapı dönüştürmeleri"
 
 #: lib/tuist_web/components/build_timeline.ex:68
 #, elixir-autogen, elixir-format
@@ -2204,7 +2204,7 @@ msgstr "%{duration} sn"
 #: lib/tuist_web/live/mix_build_live.ex:461
 #, elixir-autogen, elixir-format
 msgid "Compilation failed"
-msgstr "Derleme başarısız oldu"
+msgstr "Derleme başarısız"
 
 #: lib/tuist_web/live/mix_build_live.ex:462
 #, elixir-autogen, elixir-format
@@ -2212,13 +2212,13 @@ msgid "Compilation warning"
 msgstr "Derleme uyarısı"
 
 #: lib/tuist_web/live/mix_build_live.ex:502
-#: lib/tuist_web/live/mix_build_live.html.heex:633
+#: lib/tuist_web/live/mix_build_live.html.heex:638
 #, elixir-autogen, elixir-format
 msgid "Compile-time dependencies"
 msgstr "Derleme zamanı bağımlılıkları"
 
 #: lib/tuist_web/live/mix_build_live.ex:501
-#: lib/tuist_web/live/mix_build_live.html.heex:636
+#: lib/tuist_web/live/mix_build_live.html.heex:641
 #, elixir-autogen, elixir-format
 msgid "Compile-time dependents"
 msgstr "Derleme zamanı bağımlıları"
@@ -2228,7 +2228,7 @@ msgstr "Derleme zamanı bağımlıları"
 msgid "Elixir / OTP"
 msgstr "Elixir / OTP"
 
-#: lib/tuist_web/live/mix_build_live.html.heex:460
+#: lib/tuist_web/live/mix_build_live.html.heex:465
 #: lib/tuist_web/live/mix_builds_live.ex:215
 #: lib/tuist_web/live/mix_builds_live.html.heex:469
 #, elixir-autogen, elixir-format
@@ -2245,14 +2245,14 @@ msgstr "%{path} Elixir dosyasının derlenmesi başarısız oldu"
 msgid "Mix Build"
 msgstr "Mix Derlemesi"
 
-#: lib/tuist_web/live/mix_build_live.html.heex:443
+#: lib/tuist_web/live/mix_build_live.html.heex:448
 #: lib/tuist_web/live/mix_builds_live.ex:214
 #: lib/tuist_web/live/mix_builds_live.html.heex:489
 #, elixir-autogen, elixir-format
 msgid "Mix environment"
 msgstr "Mix ortamı"
 
-#: lib/tuist_web/live/mix_build_live.html.heex:461
+#: lib/tuist_web/live/mix_build_live.html.heex:466
 #: lib/tuist_web/live/mix_builds_live.ex:213
 #: lib/tuist_web/live/mix_builds_live.html.heex:479
 #, elixir-autogen, elixir-format
@@ -2292,10 +2292,10 @@ msgstr "Uyarılar / Hatalar"
 #: lib/tuist_web/components/build_timeline.ex:311
 #, elixir-autogen, elixir-format
 msgid "Writing to disk"
-msgstr "Disk'e yazma"
+msgstr "Diske yazma"
 
 #: lib/tuist_web/live/mix_build_live.ex:65
-#: lib/tuist_web/live/mix_build_live.html.heex:28
+#: lib/tuist_web/live/mix_build_live.html.heex:33
 #, elixir-autogen, elixir-format
 msgid "mix compile"
 msgstr "mix compile"
@@ -2303,7 +2303,7 @@ msgstr "mix compile"
 #: lib/tuist_web/components/build_health.ex:222
 #, elixir-autogen, elixir-format
 msgid "Infrastructure / tooling"
-msgstr "Altyapı / Araçlar"
+msgstr "Altyapı / araçlar"
 
 #: lib/tuist_web/components/build_health.ex:223
 #, elixir-autogen, elixir-format
@@ -2352,21 +2352,21 @@ msgstr "Kaydedilen derleme verilerinden çıkarılmıştır. Doğrulama; derleme
 #: lib/tuist_web/live/mix_build_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "Avg. latency reading cache artifacts"
-msgstr "Önbellek yapıtlarını okurken ortalama gecikme"
+msgstr "Ort. önbellek yapıtlarını okuma gecikmesi"
 
 #: lib/tuist_web/live/mix_build_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "Avg. latency writing cache artifacts"
 msgstr "Önbellek yapıtlarını yazma ortalama gecikmesi"
 
-#: lib/tuist_web/live/mix_build_live.html.heex:260
+#: lib/tuist_web/live/mix_build_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Dependency compilation"
 msgstr "Bağımlılık derleme"
 
-#: lib/tuist_web/live/mix_build_live.html.heex:60
-#: lib/tuist_web/live/mix_build_live.html.heex:119
-#: lib/tuist_web/live/mix_build_live.html.heex:356
+#: lib/tuist_web/live/mix_build_live.html.heex:65
+#: lib/tuist_web/live/mix_build_live.html.heex:124
+#: lib/tuist_web/live/mix_build_live.html.heex:361
 #, elixir-autogen, elixir-format
 msgid "Mix cache"
 msgstr "Karışık önbellek"
@@ -2401,8 +2401,8 @@ msgstr "Önbellek yapıtlarını okuma p99 gecikmesi"
 msgid "p99 latency writing cache artifacts"
 msgstr "Önbellek yapıtlarını yazma p99 gecikmesi"
 
-#: lib/tuist_web/live/mix_build_live.html.heex:311
-#: lib/tuist_web/live/mix_build_live.html.heex:357
+#: lib/tuist_web/live/mix_build_live.html.heex:316
+#: lib/tuist_web/live/mix_build_live.html.heex:362
 #, elixir-autogen, elixir-format
 msgid "Dependency bundle"
 msgstr "Bağımlılık paketi"
@@ -2410,12 +2410,12 @@ msgstr "Bağımlılık paketi"
 #: lib/tuist_web/components/reapi_cache_outputs.ex:237
 #, elixir-autogen, elixir-format
 msgid "Only actual CAS transfers reported by Kura appear here. Local snapshot copies are not remote CAS outputs; compressed sizes are unavailable."
-msgstr "Burada yalnızca Kura tarafından bildirilen gerçek CAS aktarımları görünür. Yerel anlık görüntü kopyaları uzak CAS çıktıları değildir; sıkıştırılmış boyutlar mevcut değildir."
+msgstr "Burada yalnızca Kura tarafından bildirilen gerçek CAS aktarımları görünür. Yerel anlık kopyalar uzak CAS çıktıları değildir; sıkıştırılmış boyutlar mevcut değildir."
 
 #: lib/tuist_web/components/reapi_cache_outputs.ex:113
 #, elixir-autogen, elixir-format
 msgid "Time-weighted CAS transfer throughput reported by Kura through the shared REAPI analytics pipeline, excluding action-cache metadata and local copies."
-msgstr "Paylaşılan REAPI analitik hattı üzerinden Kura tarafından bildirilen, eylem önbelleği meta verileri ve yerel kopyalar hariç, zaman ağırlıklı CAS aktarım hızı."
+msgstr "Kura tarafından paylaşılan REAPI analitik hattı üzerinden bildirilen, eylem önbelleği meta verileri ve yerel kopyalar hariç, zaman ağırlıklı CAS aktarım hızı."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:16
 #: lib/tuist_web/helpers/build_entity_labels.ex:17
@@ -2441,7 +2441,7 @@ msgid "Build path"
 msgstr "Derleme yolu"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:212
-#: lib/tuist_web/live/cargo_build_live.html.heex:29
+#: lib/tuist_web/live/cargo_build_live.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Cache"
 msgstr "Önbellek"
@@ -2457,7 +2457,7 @@ msgid "Capability"
 msgstr "Yetenek"
 
 #: lib/tuist_web/live/build_entity_live.ex:1226
-#: lib/tuist_web/live/cargo_build_live.html.heex:95
+#: lib/tuist_web/live/cargo_build_live.html.heex:100
 #, elixir-autogen, elixir-format
 msgid "Commit"
 msgstr "Commit"
@@ -2509,7 +2509,7 @@ msgstr "Ölçülen süreler"
 #: lib/tuist_web/helpers/build_entity_labels.ex:110
 #, elixir-autogen, elixir-format
 msgid "Miss"
-msgstr "Isıskama"
+msgstr "Iskarta"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:7
 #: lib/tuist_web/helpers/build_entity_labels.ex:11
@@ -2538,7 +2538,7 @@ msgstr "Kayıtlı süre yok"
 #: lib/tuist_web/live/toolchain_cache_live.ex:379
 #, elixir-autogen, elixir-format
 msgid "No recorded lookups"
-msgstr "Kayıtlı arama yok"
+msgstr "Kayıtlı aramalar yok"
 
 #: lib/tuist_web/live/build_entity_live.ex:40
 #: lib/tuist_web/live/build_entity_live.ex:210
@@ -2589,7 +2589,7 @@ msgstr "Önceki"
 #: lib/tuist_web/live/build_entity_live.html.heex:626
 #, elixir-autogen, elixir-format
 msgid "Recorded at"
-msgstr "Kaydedildi"
+msgstr "Kaydedilme zamanı"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:107
 #, elixir-autogen, elixir-format
@@ -2629,30 +2629,30 @@ msgstr "Görevler"
 #: lib/tuist_web/live/build_entity_live.html.heex:637
 #, elixir-autogen, elixir-format
 msgid "This page remains available independently of individual build history."
-msgstr "Bu sayfa, bireysel derleme geçmişinden bağımsız olarak erişilebilir durumda kalır."
+msgstr "Bu sayfa, tekil derleme geçmişinden bağımsız olarak erişilebilir durumda kalır."
 
 #: lib/tuist_web/live/build_entity_live.html.heex:462
 #, elixir-autogen, elixir-format
 msgid "Try another period or report a new build."
-msgstr "Başka bir dönem deneyin veya yeni bir derleme bildirin."
+msgstr "Farklı bir dönem deneyin veya yeni bir derleme bildirin."
 
 #: lib/tuist_web/live/xcode_build_runs_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "Reported name"
-msgstr "Bildirilen ad"
+msgstr "Bildirim adı"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:329
 #, elixir-autogen, elixir-format
 msgid "%{percentile} latency reading cache keys"
-msgstr "%{percentile} gecikme önbellek anahtarlarını okuma"
+msgstr "%{percentile} gecikme önbellek anahtarlarını okurken"
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:332
 #, elixir-autogen, elixir-format
 msgid "%{percentile} latency writing cache keys"
-msgstr "%{percentile} gecikme önbellek anahtarlarını yazma"
+msgstr "%{percentile} gecikme önbellek anahtarlarını yazarken"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:239
-#: lib/tuist_web/live/cargo_build_live.html.heex:251
+#: lib/tuist_web/live/cargo_build_live.html.heex:244
+#: lib/tuist_web/live/cargo_build_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "About compiler jobs"
 msgstr "Derleyici işleri hakkında"
@@ -2682,12 +2682,12 @@ msgstr "Derleme"
 msgid "Build script"
 msgstr "Derleme betiği"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:161
+#: lib/tuist_web/live/cargo_build_live.html.heex:166
 #, elixir-autogen, elixir-format
 msgid "Bytes downloaded from the remote cache, including protocol metadata."
 msgstr "Protokol meta verileri dahil olmak üzere uzak önbellekten indirilen bayt sayısı."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:171
+#: lib/tuist_web/live/cargo_build_live.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "Bytes uploaded to the remote cache."
 msgstr "Uzak önbelleğe yüklenen bayt sayısı."
@@ -2705,12 +2705,12 @@ msgstr "Önbellek incelemesi eksik"
 #: lib/tuist_web/components/cargo_cache_inspection.ex:50
 #, elixir-autogen, elixir-format
 msgid "Cache verification detected divergent outputs"
-msgstr "Önbellek doğrulaması farklı çıktılar tespit etti"
+msgstr "Önbellek doğrulama, farklı çıktılar tespit etti"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:138
+#: lib/tuist_web/live/cargo_build_live.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "Cacheable tasks that compiled instead of reusing cached outputs, including cold builds and verification rebuilds."
-msgstr "Önbelleğe alınabilen ancak önbellekteki çıktıları yeniden kullanmak yerine derlenen görevler; soğuk derlemeler ve doğrulama amaçlı yeniden derlemeler dahil."
+msgstr "Önbelleğe alınmış çıktıları yeniden kullanmak yerine derlenen, soğuk derlemeler ve doğrulama derlemeleri dahil önbelleklenebilir görevler."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:41
 #, elixir-autogen, elixir-format
@@ -2720,9 +2720,9 @@ msgstr "Cargo Önbelleği"
 #: lib/tuist_web/helpers/cargo_cache.ex:72
 #, elixir-autogen, elixir-format
 msgid "Checked the cache but could not reuse cached outputs."
-msgstr "Önbellek kontrol edildi ancak önbellekteki çıktılar yeniden kullanılamadı."
+msgstr "Önbellek kontrol edildi ancak önbelleğe alınmış çıktılar yeniden kullanılamadı."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:127
+#: lib/tuist_web/live/cargo_build_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Compilation actions restored from the local or remote cache."
 msgstr "Derleme eylemleri yerel veya uzak önbellekten geri yüklendi."
@@ -2730,26 +2730,26 @@ msgstr "Derleme eylemleri yerel veya uzak önbellekten geri yüklendi."
 #: lib/tuist_web/helpers/cargo_cache.ex:75
 #, elixir-autogen, elixir-format
 msgid "Compiled to learn the task inputs for future cache reuse."
-msgstr "Gelecekte önbellek yeniden kullanımı için görev girdilerini öğrenmek amacıyla derlendi."
+msgstr "Gelecekteki önbellek yeniden kullanımı için görev girdilerini öğrenmek amacıyla derlendi."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:233
 #, elixir-autogen, elixir-format
 msgid "Compiler"
 msgstr "Derleyici"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:201
 #: lib/tuist_web/live/cargo_build_live.html.heex:206
-#: lib/tuist_web/live/cargo_build_live.html.heex:231
+#: lib/tuist_web/live/cargo_build_live.html.heex:211
+#: lib/tuist_web/live/cargo_build_live.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "Compiler jobs"
 msgstr "Derleyici işleri"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:221
+#: lib/tuist_web/live/cargo_build_live.html.heex:226
 #, elixir-autogen, elixir-format
 msgid "Compiler jobs and diagnostics below cover only these displayed invocations."
-msgstr "Aşağıdaki derleyici işleri ve tanılama bilgileri yalnızca bu görüntülenen çağrıları kapsar."
+msgstr "Aşağıdaki derleyici işleri ve tanılama yalnızca bu görüntülenen çağrıları kapsar."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:210
+#: lib/tuist_web/live/cargo_build_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "Compiler jobs could not be loaded."
 msgstr "Derleyici işleri yüklenemedi."
@@ -2757,20 +2757,20 @@ msgstr "Derleyici işleri yüklenemedi."
 #: lib/tuist_web/components/cargo_cache_inspection.ex:127
 #, elixir-autogen, elixir-format
 msgid "Completed remote CAS bytes divided by their summed operation durations, including connection, retry and verification time. Operations can overlap; this is not whole-build network throughput."
-msgstr "Tamamlanan uzak CAS baytlarının, bağlantı, yeniden deneme ve doğrulama süresi dahil olmak üzere toplam işlem sürelerine bölünmesi. İşlemler örtüşebilir; bu, tüm derleme ağ verimliliği değildir."
+msgstr "Tamamlanan uzak CAS baytları, bağlantı, yeniden deneme ve doğrulama süresi dahil olmak üzere toplam işlem sürelerine bölünmüştür. İşlemler örtüşebilir; bu, tüm derlemenin ağ throughput'u değildir."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:140
 #, elixir-autogen, elixir-format
 msgid "Completed remote CAS bytes divided by their summed upload-attempt durations, including presence checks. Already-present blobs and failed attempts are excluded. Operations can overlap."
-msgstr "Tamamlanan uzak CAS baytlarının, varlık kontrolleri dahil olmak üzere toplam yükleme girişimi sürelerine bölünmesi. Zaten mevcut olan blob'lar ve başarısız girişimler hariç tutulur. İşlemler örtüşebilir."
+msgstr "Tamamlanan uzak CAS baytları, varlık kontrolleri dahil olmak üzere toplam yükleme deneme sürelerine bölünmüştür. Zaten mevcut olan blob'lar ve başarısız denemeler hariç tutulur. İşlemler örtüşebilir."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:20
-#: lib/tuist_web/live/cargo_build_live.html.heex:293
+#: lib/tuist_web/live/cargo_build_live.html.heex:298
 #, elixir-autogen, elixir-format
 msgid "Crate"
 msgstr "Kasa"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:298
+#: lib/tuist_web/live/cargo_build_live.html.heex:303
 #, elixir-autogen, elixir-format
 msgid "Crate root: %{path}"
 msgstr "Kasa kökü: %{path}"
@@ -2780,12 +2780,12 @@ msgstr "Kasa kökü: %{path}"
 msgid "Detailed cache records were not collected"
 msgstr "Ayrıntılı önbellek kayıtları toplanmadı"
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:241
+#: lib/tuist_web/live/cargo_build_live.html.heex:246
 #, elixir-autogen, elixir-format
 msgid "Each row is one rustc invocation for a crate, which can contain many source files. The path is its crate root. A crate can have multiple jobs for different targets or configurations. Durations can overlap. Started after is relative to the Cargo command."
-msgstr "Her satır, birden fazla kaynak dosya içerebilen bir kasa için bir rustc çağrısını temsil eder. Yol, kasanın köküdür. Bir kasa, farklı hedefler veya yapılandırmalar için birden fazla işe sahip olabilir. Süreler örtüşebilir. Başlangıç zamanı, Cargo komutuna göredir."
+msgstr "Her satır, birçok kaynak dosya içerebilen bir kasa için tek bir rustc çağrısını temsil eder. Yol, kasanın köküdür. Bir kasa, farklı hedefler veya yapılandırmalar için birden fazla işe sahip olabilir. Süreler örtüşebilir. 'Sonra başlatıldı', Cargo komutuna görelidir."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:331
+#: lib/tuist_web/live/cargo_build_live.html.heex:336
 #, elixir-autogen, elixir-format
 msgid "Fresh Cargo artifacts do not invoke rustc. No compiler work is inferred for them."
 msgstr "Güncel Cargo yapıtları rustc'yi çağırmaz. Bunlar için derleyici işi çıkarılmaz."
@@ -2793,24 +2793,24 @@ msgstr "Güncel Cargo yapıtları rustc'yi çağırmaz. Bunlar için derleyici i
 #: lib/tuist_web/components/cargo_cache_inspection.ex:52
 #, elixir-autogen, elixir-format
 msgid "Fresh compiler outputs were retained instead of the divergent cached outputs."
-msgstr "Yeni derleyici çıktıları, tutarsız önbelleklenen çıktılar yerine korundu."
+msgstr "Farklılaşmış önbellek çıktıları yerine derleyicinin güncel çıktıları korundu."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:65
 #, elixir-autogen, elixir-format
 msgid "Inspection records are bounded and best-effort. The tables, charts and measurements below cover only captured records; the summary above retains the aggregate totals."
-msgstr "İnceleme kayıtları sınırlıdır ve en iyi çabayla sunulur. Aşağıdaki tablolar, grafikler ve ölçümler yalnızca yakalanan kayıtları kapsar; yukarıdaki özet toplu sayıları içerir."
+msgstr "İnceleme kayıtları sınırlıdır ve en iyi çabayla sunulur. Aşağıdaki tablolar, grafikler ve ölçümler yalnızca yakalanan kayıtları kapsar; yukarıdaki özet ise toplam değerleri içerir."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:92
 #, elixir-autogen, elixir-format
 msgid "Measured per-key cache-agent lookup latency for recorded tasks, including local and remote resolution. Repeated reads of a key are averaged; cumulative build timings are not used as latency samples."
-msgstr "Kaydedilen görevler için yerel ve uzak çözümlemeyi de içeren, anahtar başına önbellek-aracısı arama gecikmesi ölçüldü. Bir anahtarın tekrarlanan okumaları ortalanır; kümülatif derleme süreleri gecikme örnekleri olarak kullanılmaz."
+msgstr "Kaydedilen görevler için yerel ve uzak çözümlemeyi de kapsayan, anahtar başına önbellek aracısı arama gecikmesi ölçüldü. Bir anahtarın tekrarlanan okumaları ortalanır; kümülatif derleme süreleri gecikme örnekleri olarak kullanılmaz."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:108
 #, elixir-autogen, elixir-format
 msgid "Measured per-key cache-agent store latency for recorded tasks. This includes local storage and queueing, not completion of background remote publication. Repeated writes of a key are averaged."
-msgstr "Kaydedilen görevler için anahtar başına önbellek-aracısı depolama gecikmesi ölçüldü. Bu, arka plandaki uzak yayınlamanın tamamlanmasını değil, yerel depolamayı ve kuyruğa almayı içerir. Bir anahtarın tekrarlanan yazmaları ortalanır."
+msgstr "Kaydedilen görevler için anahtar başına önbellek aracısı depolama gecikmesi ölçüldü. Bu ölçüm, arka plandaki uzak yayınlamanın tamamlanmasını değil, yerel depolama ve kuyruğa alma işlemlerini kapsar. Bir anahtarın tekrarlanan yazmaları ortalanır."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:327
+#: lib/tuist_web/live/cargo_build_live.html.heex:332
 #, elixir-autogen, elixir-format
 msgid "No compiler jobs found"
 msgstr "Derleyici işi bulunamadı"
@@ -2818,12 +2818,12 @@ msgstr "Derleyici işi bulunamadı"
 #: lib/tuist_web/live/cargo_builds_live.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Only the 10,000 most recent builds are shown. Narrow the date range or filters to see the full dataset."
-msgstr "Yalnızca en son 10.000 derleme gösterilir. Tam veri kümesini görmek için tarih aralığını veya filtreleri daraltın."
+msgstr "Yalnızca son 10.000 derleme gösterilmektedir. Tam veri kümesini görmek için tarih aralığını veya filtreleri daraltın."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:150
+#: lib/tuist_web/live/cargo_build_live.html.heex:155
 #, elixir-autogen, elixir-format
 msgid "Percentage of cacheable tasks that reused cached outputs instead of compiling."
-msgstr "Önbelleklenebilir görevlerin, derleme yapmak yerine önbelleklenen çıktıları yeniden kullanma yüzdesi."
+msgstr "Önbelleğe alınabilir görevlerin, derleme yapmak yerine önbelleklenen çıktıları yeniden kullandığı yüzde."
 
 #: lib/tuist_web/components/cargo_cache_inspection.ex:80
 #, elixir-autogen, elixir-format
@@ -2833,14 +2833,14 @@ msgstr "Sorgulanan eylemler:"
 #: lib/tuist_web/helpers/cargo_cache.ex:78
 #, elixir-autogen, elixir-format
 msgid "Rebuilt to compare fresh outputs with cached outputs and verify cache correctness."
-msgstr "Yeni derleme çıktılarını önbellekteki çıktılarla karşılaştırarak önbellek doğruluğunu kontrol etmek için yeniden oluşturuldu."
+msgstr "Önbellek doğruluğunu doğrulamak ve yeni çıktıları önbelleğe alınmış çıktılarla karşılaştırmak için yeniden derlendi."
 
 #: lib/tuist_web/helpers/cargo_cache.ex:69
 #, elixir-autogen, elixir-format
 msgid "Reused cached outputs instead of compiling."
-msgstr "Derlemek yerine önbellekteki çıktıları yeniden kullandı."
+msgstr "Derlemek yerine önbelleğe alınmış çıktılar yeniden kullanıldı."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:112
+#: lib/tuist_web/live/cargo_build_live.html.heex:117
 #: lib/tuist_web/live/cargo_build_runs_live.ex:54
 #: lib/tuist_web/live/cargo_build_runs_live.html.heex:109
 #: lib/tuist_web/live/cargo_builds_live.html.heex:200
@@ -2860,7 +2860,7 @@ msgstr "Rust sürümü:"
 msgid "Showing the first 50 recorded CAS references."
 msgstr "Kaydedilen ilk 50 CAS referansı gösteriliyor."
 
-#: lib/tuist_web/live/cargo_build_live.html.heex:219
+#: lib/tuist_web/live/cargo_build_live.html.heex:224
 #, elixir-autogen, elixir-format
 msgid "Showing the first 500 compiler jobs"
 msgstr "İlk 500 derleyici işi gösteriliyor"
@@ -2935,7 +2935,7 @@ msgstr "Görev yürütmeleri"
 #: lib/tuist_web/live/build_entity_live.ex:836
 #, elixir-autogen, elixir-format
 msgid "Module compilation records derived from compiled files, including those without measured timing. A file defining multiple modules contributes one record per module, not independent compilation work."
-msgstr "Derlenmiş dosyalardan türetilen modül derleme kayıtları; ölçülen süresi olmayanlar dahil. Birden fazla modül tanımlayan bir dosya, bağımsız derleme işi olarak değil, modül başına bir kayıt katkısında bulunur."
+msgstr "Derlenmiş dosyalardan türetilen modül derleme kayıtları; ölçülen süresi olmayanlar dahil. Birden fazla modül tanımlayan bir dosya, bağımsız derleme işi başına değil, modül başına bir kayıt katkısında bulunur."
 
 #: lib/tuist_web/live/build_entity_live.ex:832
 #, elixir-autogen, elixir-format
@@ -2945,17 +2945,17 @@ msgstr "Raporlanan dosya derlemeleri; ölçülen süresi olmayanlar dahil."
 #: lib/tuist_web/live/build_entity_live.ex:819
 #, elixir-autogen, elixir-format
 msgid "Task executions with a recorded success or failure. Cache hits, skipped, up-to-date and no-source tasks are excluded, regardless of timing availability."
-msgstr "Kayıtlı başarı veya başarısızlığı olan görev yürütmeleri. Önbellek isabetleri, atlanan, güncel ve kaynağı olmayan görevler, zamanlama verisinin mevcut olup olmadığından bağımsız olarak hariç tutulur."
+msgstr "Kayıtlı başarı veya başarısızlığı olan görev yürütmeleri. Önbellek isabetleri, atlanan, güncel ve kaynağı olmayan görevler, süre bilgisinin mevcut olup olmadığından bağımsız olarak hariç tutulur."
 
 #: lib/tuist_web/live/build_entity_live.ex:826
 #, elixir-autogen, elixir-format
 msgid "Uncached action executions with a recorded success or failure. Cached, skipped, cancelled and unknown outcomes are excluded, regardless of timing availability."
-msgstr "Kayıtlı başarı veya başarısızlığı olan önbelleğe alınmamış eylem yürütmeleri. Önbellekten gelen, atlanan, iptal edilen ve sonucu bilinmeyen durumlar, zamanlama verisinin mevcut olup olmadığından bağımsız olarak hariç tutulur."
+msgstr "Kayıtlı başarı veya başarısızlığı olan önbelleklenmemiş eylem yürütmeleri. Önbelleklenmiş, atlanan, iptal edilen ve bilinmeyen sonuçlar, süre bilgisinin mevcut olup olmadığından bağımsız olarak hariç tutulur."
 
 #: lib/tuist_web/live/build_entity_live.ex:812
 #, elixir-autogen, elixir-format
 msgid "BEP-reported action executions, not cache lookups. Reporting must publish all actions for complete execution coverage; missing timing remains unavailable."
-msgstr "BEP tarafından raporlanan eylem yürütmeleri; önbellek aramaları değil. Tam yürütme kapsamı için tüm eylemler yayınlanmalıdır; eksik zamanlama verisi kullanılamaz."
+msgstr "BEP tarafından raporlanan eylem yürütmeleri; önbellek aramaları değil. Tam yürütme kapsamı için tüm eylemlerin yayımlanması gerekir; eksik süre bilgisi kullanılamaz."
 
 #: lib/tuist_web/live/build_entity_live.ex:600
 #, elixir-autogen, elixir-format
@@ -2966,7 +2966,7 @@ msgstr "Birincil çıktı"
 #: lib/tuist_web/live/build_entity_live.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "Last ran at"
-msgstr "Son çalıştırma"
+msgstr "Son çalıştırma zamanı"
 
 #: lib/tuist_web/live/build_entity_live.html.heex:430
 #, elixir-autogen, elixir-format
@@ -2996,7 +2996,7 @@ msgstr "Seçilen dönemde kayıtlı etkinliği olan benzersiz görevler. Grafik,
 #: lib/tuist_web/live/build_entity_live.ex:975
 #, elixir-autogen, elixir-format
 msgid "Measured file compilation durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
-msgstr "Seçilen dönemde ölçülen dosya derleme süreleri. Eksik ölçümler hariç tutulur; gerçek sıfır ölçümler dahil edilir."
+msgstr "Seçilen dönemde ölçülen dosya derleme süreleri. Eksik ölçümler hariç tutulur; gerçek ölçülen sıfır değerler dahil edilir."
 
 #: lib/tuist_web/live/build_entity_live.ex:863
 #, elixir-autogen, elixir-format
@@ -3021,12 +3021,12 @@ msgstr "Seçilen dönemde kaydedilen görev yürütme hataları. Bilinmeyen sonu
 #: lib/tuist_web/live/build_entity_live.ex:968
 #, elixir-autogen, elixir-format
 msgid "Measured action durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
-msgstr "Seçilen dönemde ölçülen eylem süreleri. Eksik ölçümler hariç tutulur; gerçekten ölçülen sıfır değerler dahil edilir."
+msgstr "Seçilen dönemde ölçülen eylem süreleri. Eksik ölçümler hariç tutulur; gerçek sıfır ölçümleri dahil edilir."
 
 #: lib/tuist_web/live/build_entity_live.ex:961
 #, elixir-autogen, elixir-format
 msgid "Measured task durations during the selected period. Missing measurements are excluded; genuine measured zeros are included."
-msgstr "Seçilen dönemde ölçülen görev süreleri. Eksik ölçümler hariç tutulur; gerçekten ölçülen sıfır değerler dahil edilir."
+msgstr "Seçilen dönemde ölçülen görev süreleri. Eksik ölçümler hariç tutulur; gerçek sıfır ölçümleri dahil edilir."
 
 #: lib/tuist_web/live/build_entity_live.ex:925
 #, elixir-autogen, elixir-format
@@ -3041,7 +3041,7 @@ msgstr "Başarısız modül derlemeleri"
 #: lib/tuist_web/live/build_entity_live.ex:947
 #, elixir-autogen, elixir-format
 msgid "Measured compilation time for module builds, not total build time. Cache resolutions and modules without compilation work do not contribute timing samples."
-msgstr "Modül derlemeleri için ölçülen derleme süresi, toplam derleme süresi değildir. Önbellek çözümlemeleri ve derleme işi içermeyen modüller zamanlama örneklerine katkıda bulunmaz."
+msgstr "Toplam derleme süresi değil, modül derlemeleri için ölçülen derleme süresi. Önbellek çözümlemeleri ve derleme işi içermeyen modüller zaman örneklerine katkıda bulunmaz."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:94
 #, elixir-autogen, elixir-format
@@ -3057,7 +3057,7 @@ msgstr "Modül derlemeleri"
 #: lib/tuist_web/live/build_entity_live.ex:805
 #, elixir-autogen, elixir-format
 msgid "Module builds with recorded compilation work during the selected period. Module-cache resolutions and modules without compilation work are excluded."
-msgstr "Seçilen dönemde kaydedilmiş derleme işi olan modül derlemeleri. Modül-önbellek çözümlemeleri ve derleme işi içermeyen modüller hariç tutulur."
+msgstr "Seçilen dönemde kaydedilmiş derleme işi içeren modül derlemeleri. Modül-önbellek çözümlemeleri ve derleme işi içermeyen modüller hariç tutulur."
 
 #: lib/tuist_web/live/build_entity_live.ex:843
 #, elixir-autogen, elixir-format
@@ -3067,17 +3067,17 @@ msgstr "Seçilen dönemde kaydedilen modül derleme hataları. Bilinmeyen sonuç
 #: lib/tuist_web/helpers/build_entity_labels.ex:23
 #, elixir-autogen, elixir-format
 msgid "Search actions..."
-msgstr "Eylemlerde ara..."
+msgstr "Eylemleri ara..."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:24
 #, elixir-autogen, elixir-format
 msgid "Search files..."
-msgstr "Dosyalarda ara..."
+msgstr "Dosyaları ara..."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:25
 #, elixir-autogen, elixir-format
 msgid "Search modules..."
-msgstr "Modüllerde ara..."
+msgstr "Modülleri ara..."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:22
 #, elixir-autogen, elixir-format
@@ -3108,7 +3108,7 @@ msgstr "Bu dönemde yürütme yok"
 #: lib/tuist_web/live/build_entity_live.ex:703
 #, elixir-autogen, elixir-format
 msgid "No reported default-branch graph"
-msgstr "Bildirilen varsayılan dal grafiği yok"
+msgstr "Raporlanan varsayılan dal grafiği yok"
 
 #: lib/tuist_web/live/build_entity_live.ex:667
 #, elixir-autogen, elixir-format
@@ -3134,12 +3134,12 @@ msgstr "Son yürütmeler"
 #: lib/tuist_web/live/build_entity_live.ex:664
 #, elixir-autogen, elixir-format
 msgid "Latest recorded module count from a generated-project graph on the default branch (%{branch}) before the end of the selected period, independent of environment. The chart carries that reported count forward until another scoped snapshot arrives. Historical graphs without scoped count metadata remain unavailable."
-msgstr "Seçilen dönemin sonunda, varsayılan daldaki (%{branch}) oluşturulmuş proje grafiğinden kaydedilen en son modül sayısı; ortamdan bağımsızdır. Grafik, başka bir kapsamlandırılmış anlık görüntü gelene kadar bu bildirilen sayıyı taşır. Kapsamlandırılmış sayaç meta verisi olmayan geçmiş grafikler kullanılamaz."
+msgstr "Seçilen dönemin sonunda, varsayılan daldaki (%{branch}) oluşturulmuş proje grafiğinden kaydedilen en son modül sayısı; ortamdan bağımsızdır. Grafik, kapsamı belirli başka bir anlık görüntü gelene kadar bu bildirilen sayıyı ileri taşır. Kapsamı belirli sayaç meta verisi olmayan geçmiş grafikler kullanılamaz."
 
 #: lib/tuist_web/components/build_metadata.ex:120
 #, elixir-autogen, elixir-format
 msgid "Available logical processors"
-msgstr "Kullanılabilir mantıksal işlemci çekirdeği sayısı"
+msgstr "Kullanılabilir mantıksal işlemciler"
 
 #: lib/tuist_web/components/build_metadata.ex:61
 #: lib/tuist_web/components/build_metadata.ex:77
@@ -3200,7 +3200,7 @@ msgstr "Makine modeli"
 #: lib/tuist_web/components/build_metadata.ex:130
 #, elixir-autogen, elixir-format
 msgid "Maximum Gradle workers"
-msgstr "Maksimum Gradle işçi sayısı"
+msgstr "Maksimum Gradle işçisi"
 
 #: lib/tuist_web/components/build_metadata.ex:129
 #, elixir-autogen, elixir-format
@@ -3230,7 +3230,7 @@ msgstr "İşlem yerel ayarı"
 #: lib/tuist_web/components/build_metadata.ex:121
 #, elixir-autogen, elixir-format
 msgid "Reported OS memory"
-msgstr "Rapor edilen işletim sistemi belleği"
+msgstr "Bildirilen OS belleği"
 
 #: lib/tuist_web/components/build_metadata.ex:133
 #, elixir-autogen, elixir-format
@@ -3243,12 +3243,12 @@ msgid "Runner name"
 msgstr "Çalıştırıcı adı"
 
 #: lib/tuist_web/live/build_run_live.html.heex:334
-#: lib/tuist_web/live/cargo_build_live.html.heex:111
+#: lib/tuist_web/live/cargo_build_live.html.heex:116
 #, elixir-autogen, elixir-format
 msgid "Tuist CLI version"
 msgstr "Tuist CLI sürümü"
 
-#: lib/tuist_web/live/mix_build_live.html.heex:459
+#: lib/tuist_web/live/mix_build_live.html.heex:464
 #, elixir-autogen, elixir-format
 msgid "tuist_ex version"
 msgstr "tuist_ex sürümü"
@@ -3261,37 +3261,37 @@ msgstr "Tuist generator sürümü"
 #: lib/tuist_web/live/build_entity_live.ex:783
 #, elixir-autogen, elixir-format
 msgid "Crate compilations"
-msgstr "Kasa derlemeleri"
+msgstr "Crate derlemeleri"
 
 #: lib/tuist_web/live/build_entity_live.ex:617
 #, elixir-autogen, elixir-format
 msgid "Crate kind"
-msgstr "Kasa türü"
+msgstr "Crate türü"
 
 #: lib/tuist_web/live/build_entity_live.ex:616
 #, elixir-autogen, elixir-format
 msgid "Crate name"
-msgstr "Kasa adı"
+msgstr "Crate adı"
 
 #: lib/tuist_web/live/build_entity_live.ex:615
 #, elixir-autogen, elixir-format
 msgid "Crate root"
-msgstr "Kasa kökü"
+msgstr "Crate kökü"
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:12
 #, elixir-autogen, elixir-format
 msgid "Crates"
-msgstr "Kasalar"
+msgstr "Crates"
 
 #: lib/tuist_web/live/build_entity_live.ex:885
 #, elixir-autogen, elixir-format
 msgid "Distinct crates with recorded activity during the selected period. The chart shows distinct crates per day, not a cumulative total. Identity uses recorded root, name and kind, not a complete workspace inventory. Paths are not normalized; build configurations are not distinguished. Missing observations do not establish removals."
-msgstr "Seçilen dönemde kayıtlı etkinliği olan benzersiz kasalar. Grafik, kümülatif toplam yerine günlük benzersiz kasaları gösterir. Kimlik, eksiksiz çalışma alanı envanteri yerine kayıtlı kök, ad ve türü kullanır. Yollar normalleştirilmez; derleme yapılandırmaları ayırt edilmez. Eksik gözlemler kaldırma olarak değerlendirilmez."
+msgstr "Seçilen dönemde kayıtlı etkinliği olan benzersiz paketler. Grafik, kümülatif toplam yerine günlük benzersiz paket sayısını gösterir. Kimlik, eksiksiz bir çalışma alanı envanteri yerine kayıtlı kök, ad ve türü kullanır. Yollar normalize edilmez; derleme yapılandırmaları ayırt edilmez. Eksik gözlemler, kaldırma işlemini kanıtlamaz."
 
 #: lib/tuist_web/live/build_entity_live.ex:940
 #, elixir-autogen, elixir-format
 msgid "Measured duration of each rustc invocation, not per-source-file timing, total build time or cache-hit time. Genuine measured zeros are included."
-msgstr "Her rustc çağrısının ölçülen süresi; kaynak dosya başına zamanlama, toplam derleme süresi veya önbellek isabet süresi değildir. Gerçek ölçülen sıfır değerler dahildir."
+msgstr "Her rustc çağrısının ölçülen süresi; kaynak dosya başına zamanlama, toplam derleme süresi veya önbellek isabeti süresi değildir. Gerçek ölçülen sıfır değerleri dahildir."
 
 #: lib/tuist_web/live/build_entity_live.ex:851
 #, elixir-autogen, elixir-format
@@ -3301,12 +3301,12 @@ msgstr "Seçilen dönemde kaydedilen rustc çağrı hataları. Bilinmeyen sonuç
 #: lib/tuist_web/live/build_entity_live.ex:798
 #, elixir-autogen, elixir-format
 msgid "Recorded rustc invocations, not per-file compilations or cache hits. Only crates with a reported root, name and kind are included."
-msgstr "Dosya başına derlemeler veya önbellek isabetleri değil, kaydedilen rustc çağrıları. Yalnızca bildirilen bir köke, ada ve türe sahip crate'ler dahil edilir."
+msgstr "Kaydedilen rustc çağrıları; dosya başına derlemeler veya önbellek isabetleri değildir. Rapor edilen kök, ad ve türe sahip paketler yalnızca dahil edilir."
 
 #: lib/tuist_web/helpers/build_entity_labels.ex:26
 #, elixir-autogen, elixir-format
 msgid "Search crates..."
-msgstr "Crate'lerde ara..."
+msgstr "Paketlerde ara..."
 
 #: lib/tuist_web/components/build_timeline.ex:103
 #, elixir-autogen, elixir-format
