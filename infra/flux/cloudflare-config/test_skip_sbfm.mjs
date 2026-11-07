@@ -175,6 +175,35 @@ test('marketing rule permits only reads on dashboard host', () => {
   assert.equal(exempt(marketingRule, '/pricing', 'GET', 'search.tuist.dev'), false);
 });
 
+test('Bazel timeline JSON is an exact public read route with crawler-class counters', () => {
+  const path = '/blog/bazel/timeline.json';
+  const excluded = [`${path}/`, `${path}/builds`, `${path}.bak`,
+    '/blog/bazel/timelineXjson', '/Blog/bazel/timeline.json', '/es/blog/bazel/timeline.json'];
+  checkPaths([path], (p, m) => exempt(marketingRule, p, m), true, methods);
+  checkPaths([path], either, false, writes);
+  checkPaths(excluded, either, false, methods);
+  for (const method of methods) {
+    assert.equal(exempt(marketingRule, path, method, 'search.tuist.dev'), false);
+  }
+
+  for (const [index, file] of ['public-pages-rate-limit.yaml', 'verified-crawlers-rate-limit.yaml'].entries()) {
+    const counter = expression(file, 'countingExpression');
+    const request = { [field]: path, 'http.host': 'tuist.dev', 'cf.client.bot': index === 1 };
+    for (const method of methods) {
+      request['http.request.method'] = method;
+      assert.equal(evaluate(counter, request), true, `${file}: ${method} ${path}`);
+      for (const rejected of excluded) {
+        assert.equal(evaluate(counter, { ...request, [field]: rejected }), false, `${file}: ${method} ${rejected}`);
+      }
+      assert.equal(evaluate(counter, { ...request, 'cf.client.bot': index !== 1 }), false);
+      assert.equal(evaluate(counter, { ...request, 'http.host': 'search.tuist.dev' }), false);
+    }
+    for (const method of writes) {
+      assert.equal(evaluate(counter, { ...request, 'http.request.method': method }), false, `${file}: ${method}`);
+    }
+  }
+});
+
 test('both crawler classes count header-free public reads and retain existing public counters', () => {
   const files = ['public-pages-rate-limit.yaml', 'verified-crawlers-rate-limit.yaml'];
   const counts = files.map((file) => expression(file, 'countingExpression'));
