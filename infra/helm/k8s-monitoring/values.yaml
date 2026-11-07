@@ -2229,15 +2229,22 @@ k8s-monitoring:
             regex = "hubble_drop_total|up|scrape_samples_scraped"
             action = "keep"
           }
-          // Cilium runs IPv4-only, so every IPv6 packet reaching a node,
-          // whatever its L4 protocol, is dropped as UNSUPPORTED_L3_PROTOCOL
-          // with its raw address as `source`. Most of it is router and
-          // neighbour discovery from the hosting network. Per node, those addresses grow without bound and are
-          // most of the job's series, while saying nothing about workload
-          // traffic.
+          // Both reasons key each drop by the raw address of a sender
+          // outside the cluster, so per node the series grow without bound
+          // while saying nothing about workload traffic:
+          // - UNSUPPORTED_L3_PROTOCOL: Cilium runs IPv4-only, so every IPv6
+          //   packet reaching a node is dropped, whatever its L4 protocol.
+          //   Most of it is router and neighbour discovery from the hosting
+          //   network.
+          // - POLICY_DENY: the `world` ingressDeny host policies (platform
+          //   `cluster-ports-no-world`, tuist `*-metrics-no-world`) turning
+          //   away Internet scanners. The per-agent count stays in
+          //   cilium_drop_count_total ("Policy denied by denylist").
+          // POLICY_DENIED, a different reason, is kept: it is the
+          // allow-list denial the Kura runbook attributes by source.
           rule {
             source_labels = ["__name__", "reason"]
-            regex = "hubble_drop_total;UNSUPPORTED_L3_PROTOCOL"
+            regex = "hubble_drop_total;(UNSUPPORTED_L3_PROTOCOL|POLICY_DENY)"
             action = "drop"
           }
         }
