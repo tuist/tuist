@@ -6,6 +6,7 @@ defmodule Tuist.OIDC do
   - GitHub Actions
   - CircleCI
   - Bitrise
+  - Amp orbs, through account-connected Amp workspaces
   - Configured workload identity providers
   """
 
@@ -21,7 +22,10 @@ defmodule Tuist.OIDC do
   @github_actions_jwks_uri "https://token.actions.githubusercontent.com/.well-known/jwks"
   @bitrise_issuer "https://token.builds.bitrise.io"
   @circleci_issuer_prefix "https://oidc.circleci.com/org/"
+  @amp_issuer "https://ampcode.com/api/workload-identity"
   @audience "tuist"
+  # Amp recommends an audience that names the relying service.
+  @amp_audience "https://tuist.dev"
 
   def claims(token, account_handle \\ nil)
 
@@ -58,6 +62,12 @@ defmodule Tuist.OIDC do
   end
 
   def github_actions_claims(_, _), do: {:error, :invalid_token}
+
+  @doc """
+  Verifies an Amp token against the account's custom trust policies, which
+  predate Amp workspace connections and also cover personal threads.
+  """
+  def amp_policy_claims(token, account_handle), do: Workload.claims(token, @amp_issuer, account_handle)
 
   defp audience_includes(%{"aud" => audience}, audience), do: :ok
 
@@ -98,6 +108,7 @@ defmodule Tuist.OIDC do
   end
 
   defp provider(@bitrise_issuer), do: {:ok, :bitrise}
+  defp provider(@amp_issuer), do: {:ok, :amp}
 
   defp provider(@circleci_issuer_prefix <> org_id = issuer) do
     if org_id == "" do
@@ -113,7 +124,17 @@ defmodule Tuist.OIDC do
 
   defp jwks_uri(:bitrise, _issuer), do: {:ok, "#{@bitrise_issuer}/.well-known/jwks"}
 
+  defp jwks_uri(:amp, _issuer), do: {:ok, amp_jwks_uri()}
+
   defp jwks_uri(:circleci, issuer), do: {:ok, "#{issuer}/.well-known/jwks-pub.json"}
+
+  defp amp_jwks_uri, do: "#{@amp_issuer}/jwks.json"
+
+  # Workspace connections follow Amp's trust guidance and accept only tokens
+  # printed by `amp orb id-token`. Other tokens, and personal threads without
+  # a workspace, can still match the account's custom trust policies.
+  defp identity_from_claims(%{"token_use" => "exchanged"} = claims, :amp), do: {:ok, amp_identity(claims)}
+  defp identity_from_claims(_claims, :amp), do: {:ok, %{amp_workspace_id: nil, amp_project_id: nil}}
 
   defp identity_from_claims(claims, provider) do
     with {:ok, repository} <- repository_from_claims(claims, provider) do
@@ -144,6 +165,17 @@ defmodule Tuist.OIDC do
     case claims["oidc.circleci.com/vcs-origin"] do
       "github.com/" <> repo -> {:ok, repo}
       _ -> {:error, :missing_repository_claim}
+    end
+  end
+
+  defp amp_identity(claims) do
+    %{amp_workspace_id: amp_uuid(claims["workspace_id"]), amp_project_id: amp_uuid(claims["project_id"])}
+  end
+
+  defp amp_uuid(value) do
+    case Ecto.UUID.cast(value) do
+      {:ok, uuid} -> uuid
+      :error -> nil
     end
   end
 
@@ -220,6 +252,8 @@ defmodule Tuist.OIDC do
 
   defp validate_not_before(%{"nbf" => _}), do: {:error, :invalid_token}
   defp validate_not_before(_), do: :ok
+
+  defp validate_audience(claims, :amp), do: audience_includes(claims, @amp_audience)
 
   defp validate_audience(%{"aud" => @audience}, provider) when provider in [:github_actions, :bitrise] do
     :ok
