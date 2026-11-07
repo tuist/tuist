@@ -102,6 +102,7 @@ ENV MIX_ENV="prod"
 # its source comes in after the Hex dependencies are fetched and compiled.
 # A noora change then recompiles noora alone instead of every dependency.
 COPY noora/mix.exs noora/mix.lock /noora/
+COPY condukt/mix.exs /condukt/mix.exs
 
 # install mix dependencies
 COPY atlas/mix.exs atlas/mix.lock ./
@@ -113,7 +114,7 @@ RUN mix deps.get --only $MIX_ENV
 # a COPY with a variable reads, so it keys it on the whole build context,
 # and that differs between checkouts.
 COPY atlas/config/config.exs atlas/config/prod.exs config/
-RUN mix deps.compile
+RUN mix deps.compile --skip-local-deps
 
 # Noora's modules read README.md and the component contracts at compile
 # time. The aube-built priv/static from the noora-assets stage overlays the
@@ -123,6 +124,10 @@ COPY noora/components /noora/components
 COPY noora/lib /noora/lib
 COPY --from=noora-assets /noora/priv/static /noora/priv/static
 RUN mix deps.compile noora --force
+
+COPY condukt/lib /condukt/lib
+COPY condukt/priv /condukt/priv
+RUN mix deps.compile condukt
 
 # Copied before the code because they rarely change: every instruction after
 # the one an edit invalidates runs again.

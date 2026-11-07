@@ -18,6 +18,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 | [kura/](kura/AGENTS.md) | Rust distributed cache mesh |
 | [cas-plugin/](cas-plugin/AGENTS.md) | Xcode CAS plugin and per-machine proxy |
 | [tuist_ex/](tuist_ex/AGENTS.md) | Elixir build and test instrumentation |
+| [condukt/](condukt/AGENTS.md) | Elixir agent framework and native sandboxes |
 | [tuist_common/](tuist_common/AGENTS.md) | Shared Elixir utilities |
 | [atlas/](atlas/AGENTS.md) | Internal operations app |
 | [atlas-native/](atlas-native/AGENTS.md) | Once-based Rust, Android, and iOS Atlas clients |
@@ -55,7 +56,7 @@ nearest `AGENTS.md` before working in a subsystem. Paths below are repository-re
 Use conventional commits with the affected subsystem as scope, for example
 `fix(cli): resolve cache artifact upload issue`. Established scopes are `app`,
 `android`, `server`, `atlas`, `atlas-native`, `codebase-search`, `cache`, `registry`,
-`slack`, `pulse`, `kura`, `cli`, `tuist-ex`, `noora`, `skills`, `search`, `status`,
+`slack`, `pulse`, `kura`, `cli`, `tuist-ex`, `noora`, `condukt`, `skills`, `search`, `status`,
 `grafana-datasource`, `docs`, and `handbook`.
 
 PR descriptions must explain what changed, why, the root cause for fixes, relevant

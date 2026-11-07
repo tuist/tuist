@@ -9,6 +9,7 @@ on:
       - tuist_common/**
       - tuist_ex/**
       - noora/**
+      - condukt/**
       - .github/workflows/server.yml
       - .github/actions/setup-server-mix/action.yml
       - .github/actions/mise/action.yml
@@ -22,6 +23,7 @@ on:
       - tuist_common/**
       - tuist_ex/**
       - noora/**
+      - condukt/**
       - .github/workflows/server.yml
       - .github/actions/setup-server-mix/action.yml
       - .github/actions/mise/action.yml
