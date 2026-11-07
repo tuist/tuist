@@ -28,6 +28,24 @@ defmodule PulseWeb.CompatControllerTest do
                build_conn() |> post("/api/v1/query_exemplars", %{"query" => "up"}) |> json_response(200)
     end
 
+    test "exemplar bounds accept Grafana's millisecond values like Prometheus, not infinities" do
+      ms = %{"query" => "up", "start" => "1794005868134", "end" => "1794007668135"}
+
+      assert %{"status" => "success", "data" => []} =
+               build_conn() |> get("/api/v1/query_exemplars", ms) |> json_response(200)
+
+      assert %{"errorType" => "bad_data"} =
+               build_conn() |> get("/api/v1/query_exemplars", %{ms | "start" => "1e400"}) |> json_response(400)
+    end
+
+    test "Loki drilldown limits report the features and limits Pulse applies", %{conn: conn} do
+      assert %{
+               "limits" => %{"volume_enabled" => true, "max_entries_limit_per_query" => 0, "retention_period" => "0s"},
+               "pattern_ingester_enabled" => true,
+               "version" => "3.5.0"
+             } = conn |> get("/loki/api/v1/drilldown-limits") |> json_response(200)
+    end
+
     test "format_query formats the supported grammar over GET and form POST", %{conn: conn} do
       assert %{"data" => "sum(rate(up[5m]))"} =
                conn |> get("/api/v1/format_query", %{"query" => "sum(rate(up[5m]))"}) |> json_response(200)

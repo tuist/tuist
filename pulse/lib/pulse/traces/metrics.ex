@@ -60,7 +60,7 @@ defmodule Pulse.Traces.Metrics do
   def query(tenant, text, window, instant) do
     with {:ok, parsed} <- parse(text),
          {:ok, window} <- window(window, instant) do
-      QueryRunner.run(tenant, :raw, fn deadline ->
+      QueryRunner.run(tenant, :traces, fn deadline ->
         run(tenant, parsed, window, QueryRunner.storage_opts(deadline))
       end)
     end

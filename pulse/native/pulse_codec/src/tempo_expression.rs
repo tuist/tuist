@@ -371,6 +371,13 @@ impl Expression {
                     }
                     None
                 }
+                // `!= nil` (present, any type) and `= nil` (absent).
+                "resource.any" | "span.any" | "none.any" | "instrumentation.any" => {
+                    if !["=", "!="].contains(&op.as_str()) || wanted != "nil" {
+                        return None;
+                    }
+                    None
+                }
                 _ => return None,
             };
             events |= scope.starts_with("event.")
@@ -886,7 +893,7 @@ fn run(
                         .span
                         .get(key.as_str())
                         .or_else(|| owners.resource.get(key.as_str()))
-                        .map_or(Ok(false), |raw| {
+                        .map_or(Ok(value_type == "any" && op == "="), |raw| {
                             attribute_matches(raw, value_type, op, wanted, regex.as_ref())
                         })?;
                     (matched, None)
@@ -899,7 +906,7 @@ fn run(
                         owners.span
                     };
                     match owner.get(key.as_str()) {
-                        None => (false, None),
+                        None => (scope.ends_with(".any") && op == "=", None),
                         Some(raw) => {
                             let matched = attribute_matches(
                                 raw,
@@ -1268,7 +1275,9 @@ fn attribute_matches(
     regex: Option<&regex::Regex>,
 ) -> Res<bool> {
     let value = object(raw)?;
-    if value_type == "string" {
+    if value_type == "any" {
+        Ok(op == "!=")
+    } else if value_type == "string" {
         match field(&value, b"stringValue") {
             Ok(text) => {
                 let text = string(text)?;

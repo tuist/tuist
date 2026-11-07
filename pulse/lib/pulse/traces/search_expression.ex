@@ -32,6 +32,7 @@ defmodule Pulse.Traces.SearchExpression do
   @int_scopes Enum.map(@owners, &(&1 <> ".int")) ++ ["intrinsic"]
   @float_scopes Enum.map(@owners, &(&1 <> ".float"))
   @bool_scopes Enum.map(@owners, &(&1 <> ".bool"))
+  @any_scopes ~w(resource.any span.any none.any instrumentation.any)
   @hint ~r/\Awith\s*\(\s*most_recent\s*=\s*true\s*\)\s*\z/
   @comparisons ~w(= != < <= > >=)
   @max_int 9_223_372_036_854_775_807
@@ -216,6 +217,26 @@ defmodule Pulse.Traces.SearchExpression do
     end
   end
 
+  # Grafana's Traces Drilldown combines `true` and `nestedSetParent<0` (root
+  # spans: no parent ID, which span:parentID reports as zeros) with filters.
+  defp primary([{:word, "true"} | rest], _depth) when rest == [] or hd(rest) in ["&&", "||", ")"],
+    do: {:ok, [{"constant", "", "true", ""}], rest}
+
+  defp primary([{:word, field}, "<", {:word, "0"} | rest], _depth)
+       when field in ["nestedSetParent", "span:nestedSetParent"],
+       do: {:ok, [{"intrinsic.string", "span:parentID", "=", "0000000000000000"}], rest}
+
+  # `attr != nil` (present with any type) and `attr = nil` (absent).
+  defp primary([{:word, field}, op, {:word, "nil"} | rest], _depth) when op in ["=", "!="] do
+    case field(field) do
+      {:ok, scope, key} when scope in ~w(resource span none instrumentation) ->
+        {:ok, [{scope <> ".any", key, op, "nil"}], rest}
+
+      _ ->
+        {:error, :unsupported_trace_selector}
+    end
+  end
+
   defp primary([{:word, field}, op, literal | rest], _depth) do
     with {:ok, predicate} <- predicate(field, op, literal), do: {:ok, [predicate], rest}
   end
@@ -394,7 +415,7 @@ defmodule Pulse.Traces.SearchExpression do
       scope in ["constant", "intrinsic.string"] or
         (scope == "intrinsic" and key == "kind") or
         (scope == "select" and key == "intrinsic" and op == "name") or
-        String.ends_with?(scope, [".bool", ".float"])
+        String.ends_with?(scope, [".bool", ".float", ".any"])
     end)
   end
 
@@ -477,6 +498,9 @@ defmodule Pulse.Traces.SearchExpression do
   defp valid_leaf?({scope, key, op, value}) when scope in @bool_scopes do
     byte_size(key) in 1..256 and op in ["=", "!="] and value in ["true", "false"]
   end
+
+  defp valid_leaf?({scope, key, op, "nil"}) when scope in @any_scopes,
+    do: byte_size(key) in 1..256 and op in ["=", "!="]
 
   defp valid_leaf?(_), do: false
 
