@@ -188,6 +188,7 @@ defmodule Tuist.Tests.Coverage.Reported do
       run_ids: run_ids,
       hits: hits,
       indexed: skipping.indexed,
+      whole_targets: skipping.whole_targets,
       observed: observed,
       blobs: run_blobs(project.id, run_ids),
       excluded: ExcludedPaths.compile(excluded),
@@ -446,17 +447,18 @@ defmodule Tuist.Tests.Coverage.Reported do
     %{skipping | gaps: skipping.gaps ++ selected}
   end
 
-  defp tuist_skipped(_context, {_runs, [], [], _clean}), do: %{skipped: [], gaps: [], baseline: [], indexed: %{}}
+  defp tuist_skipped(_context, {_runs, [], [], _clean}),
+    do: %{skipped: [], gaps: [], baseline: [], indexed: %{}, whole_targets: %{}}
 
   defp tuist_skipped(%{project: project, repository_id: repository_id, sha: sha} = context, runs) do
     # A commit that changes a tracked file carries nothing.
     if changes_tracked_files?(context),
-      do: %{skipped: [], gaps: [:tracked_file_changed], baseline: [], indexed: %{}},
+      do: %{skipped: [], gaps: [:tracked_file_changed], baseline: [], indexed: %{}, whole_targets: %{}},
       else: skipped_tests(project, repository_id, sha, runs)
   end
 
   defp skipped_tests(_project, repository_id, _sha, _runs) when repository_id in [nil, 0],
-    do: %{skipped: [], gaps: [:no_ancestor], baseline: [], indexed: %{}}
+    do: %{skipped: [], gaps: [:no_ancestor], baseline: [], indexed: %{}, whole_targets: %{}}
 
   defp skipped_tests(project, repository_id, sha, {runs, hits, skips, clean}) do
     # An identifier naming a test needs no target's tests to resolve it.
@@ -491,7 +493,14 @@ defmodule Tuist.Tests.Coverage.Reported do
         |> Enum.map(&Map.get(list_gaps, &1.name, :target_without_history))
         |> Enum.uniq(),
       baseline: baseline,
-      indexed: indexed
+      indexed: indexed,
+      # Each target a `Module` identifier skipped whole, with the run its tests are taken from.
+      whole_targets:
+        by_target
+        |> Enum.filter(&match?([_module], &1))
+        |> Enum.map(&hd/1)
+        |> Map.new(&{&1, listed[&1]})
+        |> Map.reject(fn {_module, run_id} -> is_nil(run_id) end)
     }
   end
 
@@ -845,12 +854,108 @@ defmodule Tuist.Tests.Coverage.Reported do
       |> target_units(context, hashes, source_runs)
       |> check(context, tracked_now)
 
-    carried_modules = MapSet.new(target_units, & &1.module)
+    executed_units =
+      others
+      |> Enum.filter(&Map.has_key?(context.whole_targets, &1.module_name))
+      |> Enum.group_by(& &1.module_name)
+      |> executed_target_units(context, tracked_now, source_runs)
+
+    carried_modules = MapSet.new(target_units ++ executed_units, & &1.module)
 
     {test_units, test_reasons} =
-      test_units(others ++ Enum.reject(in_hits, &MapSet.member?(carried_modules, &1.module_name)), context, tracked_now)
+      (others ++ in_hits)
+      |> Enum.reject(&MapSet.member?(carried_modules, &1.module_name))
+      |> test_units(context, tracked_now)
 
-    {target_units ++ test_units, Map.merge(target_reasons, test_reasons)}
+    {target_units ++ executed_units ++ test_units, Map.merge(target_reasons, test_reasons)}
+  end
+
+  # A target skipped whole that no hash carried (coverage-based test
+  # selection pruned it, or a `-skip-testing:Module` named it) carries whole
+  # from the run its tests are taken from when every file that run's
+  # processes executed for it has the same blob here: its tests then execute
+  # the same code, so what they covered there holds. Its target evidence is
+  # everything the processes executed, all threads and every test included,
+  # so this needs nothing per test: it carries the Swift Testing tests that
+  # running in parallel leaves with files but no lines. Otherwise its tests
+  # are carried one by one, as any skipped test.
+  defp executed_target_units(by_module, _context, _tracked_now, _source_runs) when by_module == %{}, do: []
+
+  defp executed_target_units(by_module, context, tracked_now, source_runs) do
+    candidates =
+      for {module, tests} <- by_module,
+          run_id = context.whole_targets[module],
+          source = source_runs[run_id],
+          source != nil do
+        %{
+          kind: :target,
+          key: {:module, module},
+          module: module,
+          tests: tests,
+          scopes: [{"target", module}],
+          run_id: run_id,
+          source: Map.put(source, :run_id, run_id)
+        }
+      end
+
+    held =
+      context.project.id
+      |> evidence_runs(Enum.map(candidates, & &1.module), candidates |> Enum.map(& &1.run_id) |> Enum.uniq(), "target")
+      |> MapSet.new()
+
+    {kept, _reasons} =
+      candidates
+      |> Enum.filter(&MapSet.member?(held, {&1.module, &1.run_id}))
+      |> check(context, tracked_now)
+
+    unchanged = unchanged_executions(context, kept)
+    Enum.filter(kept, &MapSet.member?(unchanged, &1.key))
+  end
+
+  # The units whose target scope, in their source run, executed only files
+  # with the same blob at the commit. A file the source run did not report
+  # is one its repository's Git does not track (a submodule's), which never
+  # counts.
+  defp unchanged_executions(context, units) do
+    units
+    |> Enum.group_by(& &1.run_id)
+    |> Enum.reduce(MapSet.new(), fn {run_id, run_units}, unchanged ->
+      reported = context.project.id |> source_files([run_id]) |> Map.get(run_id, %{})
+      sha = hd(run_units).source.sha
+
+      executed =
+        run_units
+        |> Enum.flat_map(& &1.scopes)
+        |> touched_files(context.project.id, run_id)
+        |> Enum.group_by(fn {{_kind, module}, _path, _lines?} -> module end, fn {_scope, path, _lines?} -> path end)
+
+      paths = executed |> Map.values() |> Enum.concat() |> Enum.uniq() |> Enum.filter(&Map.has_key?(reported, &1))
+      then_blobs = blobs_then(context.repository_id, sha, reported, paths)
+
+      now_blobs =
+        Map.merge(
+          blobs_now(context.repository_id, context.sha, Enum.reject(paths, &Map.has_key?(context.blobs, &1))),
+          context.blobs
+        )
+
+      Enum.reduce(run_units, unchanged, fn unit, unchanged ->
+        same? =
+          executed
+          |> Map.get(unit.module, [])
+          |> Enum.filter(&Map.has_key?(reported, &1))
+          |> Enum.all?(&(is_binary(then_blobs[&1]) and then_blobs[&1] == now_blobs[&1]))
+
+        if same?, do: MapSet.put(unchanged, unit.key), else: unchanged
+      end)
+    end)
+  end
+
+  # The blob each path had in a source run: the one the run reported, or
+  # else its commit's listing's.
+  defp blobs_then(repository_id, sha, reported, paths) do
+    reported_blobs = for path <- paths, blob = reported[path].git_blob_id, blob != "", into: %{}, do: {path, blob}
+    missing = Enum.reject(paths, &Map.has_key?(reported_blobs, &1))
+    Map.merge(blobs_now(repository_id, sha, missing), reported_blobs)
   end
 
   # A target selective testing skipped carries whole. Its evidence is

@@ -3,7 +3,9 @@ import Foundation
 
 /// What TestCoverageAttribution (https://github.com/tuist/TestCoverageAttribution) wrote for one test
 /// process: the instrumented images with the sections that name their functions, and one record
-/// per scope with the coverage counters that moved in it.
+/// per scope with the coverage counters that moved in it. Code built with function-entry tracking
+/// also gets one function record per Swift Testing test case and the floor (`functions.bin`, with
+/// its images in `functions.tsv`), which name the functions each test's task entered.
 struct CoverageObserverOutput {
     enum RecordKind: UInt8 {
         case gap = 0
@@ -21,6 +23,17 @@ struct CoverageObserverOutput {
         var counters: [Int: [UInt32]]
         /// How much each of `counters` moved, in the same order.
         var deltas: [Int: [UInt64]] = [:]
+    }
+
+    /// The functions one Swift Testing test case's task entered, or with `floor` what no test's task
+    /// ran (GCD, threads, detached tasks, a suite's setup), as offsets from the base of each image in
+    /// ``functionImages``.
+    struct FunctionRecord: Equatable {
+        var floor: Bool
+        var module: String
+        var suite: String
+        var name: String
+        var offsets: [Int: [UInt32]]
     }
 
     struct Image {
@@ -46,10 +59,15 @@ struct CoverageObserverOutput {
 
     var images: [Int: Image]
     var records: [Record]
+    /// The images of ``functionRecords`` by index, as paths.
+    var functionImages: [Int: String] = [:]
+    var functionRecords: [FunctionRecord] = []
 
-    init(images: [Int: Image], records: [Record]) {
+    init(images: [Int: Image], records: [Record], functionImages: [Int: String] = [:], functionRecords: [FunctionRecord] = []) {
         self.images = images
         self.records = records
+        self.functionImages = functionImages
+        self.functionRecords = functionRecords
     }
 
     init(directory: URL) throws {
@@ -78,6 +96,12 @@ struct CoverageObserverOutput {
         }
         self.images = images
         records = Self.parseRecords(try Data(contentsOf: directory.appendingPathComponent("records.bin")))
+        if let list = try? String(contentsOf: directory.appendingPathComponent("functions.tsv"), encoding: .utf8),
+           let data = try? Data(contentsOf: directory.appendingPathComponent("functions.bin"))
+        {
+            functionImages = Self.parseFunctionImages(list)
+            functionRecords = Self.parseFunctionRecords(data)
+        }
     }
 
     /// The functions a record's counters belong to, per image path.
@@ -92,6 +116,30 @@ struct CoverageObserverOutput {
             }
         }
         return result
+    }
+
+    /// The same output with every image path, those of the counter records and of the function
+    /// records, transformed: what points an image a deleted simulator clone held at its build product.
+    func mappingImagePaths(_ transform: (String) -> String) -> CoverageObserverOutput {
+        var output = self
+        for (index, image) in images {
+            output.images[index]?.path = transform(image.path)
+        }
+        output.functionImages = functionImages.mapValues(transform)
+        return output
+    }
+
+    /// The files of the functions a record's counters belong to, from each image's function-to-file
+    /// table.
+    func files(of record: Record, filesByFunction: [String: [String: Set<String>]]) -> Set<String> {
+        var files: Set<String> = []
+        for (image, functions) in functions(of: record) {
+            guard let table = filesByFunction[image] else { continue }
+            for function in functions {
+                files.formUnion(table[function] ?? [])
+            }
+        }
+        return files
     }
 
     // MARK: - Launches
@@ -151,6 +199,45 @@ struct CoverageObserverOutput {
                 kind: kind, overlapped: flags & 1 == 1, module: module, suite: suite, name: name, counters: counters,
                 deltas: deltas
             ))
+        }
+        return records
+    }
+
+    /// See `list_function_images()` in TestCoverageAttribution's observer: `index\tguards\tpath`.
+    static func parseFunctionImages(_ text: String) -> [Int: String] {
+        var images: [Int: String] = [:]
+        for line in text.split(separator: "\n") {
+            let fields = line.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
+            guard fields.count == 3, let index = Int(fields[0]) else { continue }
+            images[index] = String(fields[2])
+        }
+        return images
+    }
+
+    static let functionRecordKind: UInt8 = 3
+
+    /// See `write_functions_record()` in TestCoverageAttribution's observer: the header and names of
+    /// a counter record, then per image its index, a count and that many u32 offsets. As with
+    /// ``parseRecords(_:)``, a truncated tail or another version ends the list.
+    static func parseFunctionRecords(_ data: Data) -> [FunctionRecord] {
+        var reader = ByteReader(data)
+        var records: [FunctionRecord] = []
+        while !reader.isAtEnd {
+            guard reader.u8() == Self.functionRecordKind, let flags = reader.u8(), reader.u8() == Self.recordVersion,
+                  reader.u8() != nil, let module = reader.string(), let suite = reader.string(), let name = reader.string(),
+                  let imageCount = reader.u32()
+            else { break }
+            var offsets: [Int: [UInt32]] = [:]
+            var complete = true
+            for _ in 0 ..< imageCount {
+                guard let index = reader.u32(), let count = reader.u32(), let values = reader.u32Array(Int(count)) else {
+                    complete = false
+                    break
+                }
+                offsets[Int(index), default: []] += values
+            }
+            guard complete else { break }
+            records.append(FunctionRecord(floor: flags & 2 == 2, module: module, suite: suite, name: name, offsets: offsets))
         }
         return records
     }

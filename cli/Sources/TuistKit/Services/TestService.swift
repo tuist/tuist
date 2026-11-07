@@ -1996,6 +1996,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         destinationSimulator: SimulatorDeviceAndRuntime? = nil
     ) async throws -> Bool {
         let graphTraverser = GraphTraverser(graph: graph)
+        let functionTrackingTargets = UploadResultBundleService.uploadsCoverage(config: config)
+            ? TaskAttributionTargets.identifiers(graph: graph) : []
 
         guard !schemes.isEmpty else {
             return false
@@ -2110,6 +2112,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         mode: mode,
                         stressNewTests: stressNewTests,
                         destinationSimulator: destinationSimulator,
+                        functionTrackingTargets: functionTrackingTargets,
                         selectiveTestingTargets: Set(
                             initialTestTargets(
                                 mapperEnvironment: mapperEnvironment,
@@ -2722,6 +2725,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         mode: TestProcessingMode = .local,
         stressNewTests: StressNewTestsMode? = nil,
         destinationSimulator: SimulatorDeviceAndRuntime? = nil,
+        functionTrackingTargets: Set<String> = [],
         selectiveTestingTargets: Set<GraphTarget>,
         stressWithheldTargetNames: inout Set<String>
     ) async throws {
@@ -2892,7 +2896,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     skipTestTargets: skipTestTargets,
                     testPlanConfiguration: testPlanConfiguration,
                     passthroughXcodeBuildArguments: UploadResultBundleService.uploadsCoverage(config: config)
-                        ? AtomicCoverageCounters.adding(to: passthroughXcodeBuildArguments)
+                        ? FunctionEntryTracking.adding(
+                            to: AtomicCoverageCounters.adding(to: passthroughXcodeBuildArguments),
+                            targets: evidenceSession == nil ? [] : functionTrackingTargets
+                        )
                         : passthroughXcodeBuildArguments
                 )
             }
