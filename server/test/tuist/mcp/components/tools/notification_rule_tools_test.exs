@@ -49,6 +49,7 @@ defmodule Tuist.MCP.Components.Tools.NotificationRuleToolsTest do
     assert %{"structuredContent" => %{"deleted" => true}} = DeleteNotificationRule.call(conn, %{"rule_id" => id})
     assert Notifications.list_rules(user) == []
     assert DeleteNotificationRule.annotations().destructiveHint
+    assert UpdateNotificationRule.annotations().destructiveHint
   end
 
   test "rejects other users' rules and projects, and dashboard requests", %{user: user, conn: conn} do
