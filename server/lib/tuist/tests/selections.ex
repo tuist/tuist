@@ -39,7 +39,7 @@ defmodule Tuist.Tests.Selections do
   @doc "Why an impact run skips a test."
   def skipped_reasons, do: @skipped_reasons
 
-  @doc "Why an impact run fell back to default selective testing (`Run.reason`)."
+  @doc "Why coverage evidence wasn't applied to an impact run (`Run.reason`): on a fallback, or a selection of nothing without a baseline."
   def fallback_reasons, do: @fallback_reasons
 
   @doc "Whether the impact run fell back to default selective testing."
