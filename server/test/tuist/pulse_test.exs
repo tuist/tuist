@@ -210,7 +210,7 @@ defmodule Tuist.PulseTest do
     }
 
     values = [
-      ["1793966400000000001", Jason.encode!(event)],
+      ["1793966400000000001", JSON.encode!(event)],
       ["1793966400000000002", "plain", %{"trace_id" => "metadata-trace", "private" => "secret"}]
     ]
 
@@ -1032,7 +1032,7 @@ defmodule Tuist.PulseTest do
 
         assert {:cont, {_, response}} =
                  request.into.(
-                   {:data, Jason.encode!(empty_body("metrics"))},
+                   {:data, JSON.encode!(empty_body("metrics"))},
                    {request, %Req.Response{status: 200, body: ""}}
                  )
 
@@ -1401,8 +1401,8 @@ defmodule Tuist.PulseTest do
       assert Phoenix.HTML.safe_to_string(Phoenix.HTML.html_escape(event["extra"]["html"])) =~ "&lt;script&gt;"
       refute Map.has_key?(event, "request")
       refute Map.has_key?(event, "user")
-      refute Jason.encode!(event) =~ "private"
-      refute Jason.encode!(event) =~ "invented"
+      refute JSON.encode!(event) =~ "private"
+      refute JSON.encode!(event) =~ "invented"
     end
 
     test "metadata bounds deep, wide, multibyte and serialization-expanding input with visible markers", ctx do
@@ -1425,12 +1425,12 @@ defmodule Tuist.PulseTest do
         record = put_in(record, ["event", section], value)
         stub(Req, :request, fn _ -> response(error_page([record], 1)) end)
         assert {:ok, %{event: event}} = Pulse.error_event(ctx.user, ctx.account, issue_id(), hex(1, 32), %{})
-        encoded = Jason.encode!(event[section])
+        encoded = JSON.encode!(event[section])
         assert byte_size(encoded) <= 4096
         assert encoded =~ "[TRUNCATED]"
         refute encoded =~ "private"
         assert String.valid?(encoded)
-        assert Jason.decode!(encoded) == event[section]
+        assert JSON.decode!(encoded) == event[section]
       end
     end
 
@@ -1458,9 +1458,9 @@ defmodule Tuist.PulseTest do
         }
       }
 
-      size = byte_size(Jason.encode!(sections["modules"]))
+      size = byte_size(JSON.encode!(sections["modules"]))
       sections = put_in(sections, ["modules", "d"], String.duplicate("x", 4096 - size))
-      assert byte_size(Jason.encode!(sections["modules"])) == 4096
+      assert byte_size(JSON.encode!(sections["modules"])) == 4096
       record = update_in(event_row(1, 10)["event"], &Map.merge(&1, sections))
       stub(Req, :request, fn _ -> response(error_page([record], 1)) end)
       assert {:ok, %{event: event}} = Pulse.error_event(ctx.user, ctx.account, issue_id(), hex(1, 32), %{})
@@ -1605,7 +1605,7 @@ defmodule Tuist.PulseTest do
           %{
             "type" => "text",
             "text" =>
-              Jason.encode!(%{
+              JSON.encode!(%{
                 "results" => rows,
                 "matched_results" => count,
                 "matched_events" => count,

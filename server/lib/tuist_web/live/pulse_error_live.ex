@@ -541,12 +541,16 @@ defmodule TuistWeb.PulseErrorLive do
 
   defp metadata_value(value) when is_map(value) or is_list(value) do
     value
-    |> Jason.encode!(pretty: true)
+    |> :json.format(fn
+      nil, _encoder, _state -> "null"
+      value, encoder, state -> :json.format_value(value, encoder, state)
+    end)
+    |> IO.iodata_to_binary()
     |> Lumis.highlight!(language: "json", formatter: :html_linked)
     |> Phoenix.HTML.raw()
   end
 
-  defp metadata_value(value), do: Jason.encode!(value, pretty: true)
+  defp metadata_value(value), do: JSON.encode!(value)
 
   attr :label, :string, required: true
   attr :value, :any, default: nil

@@ -137,24 +137,28 @@ defmodule Tuist.Pulse do
 
       signal
       |> widget_queries()
-      |> Enum.flat_map(fn {id, query, unit} ->
-        Enum.map([{:instant, window}, {:range, window}, {:previous, previous_window}], fn {period, window} ->
-          fn ->
-            mode = if period == :previous, do: :instant, else: period
-            {path, params} = analytics_request(signal, id, query, mode, window)
-
-            with {:ok, body} <- request(client, path, params),
-                 {:ok, values, warnings} <- analytics_result(signal, mode, body, window) do
-              {:ok, {id, unit, period, values, warnings}}
-            end
-          end
-        end)
-      end)
+      |> Enum.flat_map(&analytics_tasks(client, signal, &1, window, previous_window))
       |> Tasks.parallel_tasks(max_concurrency: 3)
       |> analytics_widgets(signal)
     else
       false -> {:error, :forbidden}
       error -> error
+    end
+  end
+
+  defp analytics_tasks(client, signal, widget, window, previous_window) do
+    Enum.map([{:instant, window}, {:range, window}, {:previous, previous_window}], fn {period, window} ->
+      fn -> analytics_sample(client, signal, widget, period, window) end
+    end)
+  end
+
+  defp analytics_sample(client, signal, {id, query, unit}, period, window) do
+    mode = if period == :previous, do: :instant, else: period
+    {path, params} = analytics_request(signal, id, query, mode, window)
+
+    with {:ok, body} <- request(client, path, params),
+         {:ok, values, warnings} <- analytics_result(signal, mode, body, window) do
+      {:ok, {id, unit, period, values, warnings}}
     end
   end
 
@@ -514,14 +518,14 @@ defmodule Tuist.Pulse do
   end
 
   defp decode_body(body) when is_binary(body) and byte_size(body) <= 8_388_608 do
-    case Jason.decode(body) do
+    case JSON.decode(body) do
       {:ok, %{} = decoded} -> {:ok, decoded}
       _ -> {:error, :malformed_response}
     end
   end
 
   defp decode_body(body) when is_map(body) do
-    if byte_size(Jason.encode!(body)) <= 8_388_608, do: {:ok, body}, else: {:error, :query_result_limit}
+    if byte_size(JSON.encode!(body)) <= 8_388_608, do: {:ok, body}, else: {:error, :query_result_limit}
   end
 
   defp decode_body(body) when is_binary(body), do: {:error, :query_result_limit}
@@ -647,7 +651,7 @@ defmodule Tuist.Pulse do
         end
 
       fields =
-        case Jason.decode(line) do
+        case JSON.decode(line) do
           {:ok, %{} = fields} -> fields
           _ -> %{}
         end
@@ -658,17 +662,20 @@ defmodule Tuist.Pulse do
          "service" => text(labels["service_name"]) || "",
          "level" => text(labels["level"]) || text(labels["severity_text"]) || text(fields["level"]) || "",
          "message" => log_message(line, fields),
-         "trace_id" =>
-           text(metadata["trace_id"]) || text(labels["trace_id"]) || text(fields["trace_id"]) ||
-             nested_text(fields, "contexts", "trace", "trace_id") || ""
+         "trace_id" => log_trace_id(metadata, labels, fields)
        }}
     end
   end
 
   defp log_row(_entry, _labels), do: :error
 
+  defp log_trace_id(metadata, labels, fields) do
+    text(metadata["trace_id"]) || text(labels["trace_id"]) || text(fields["trace_id"]) ||
+      nested_text(fields, "contexts", "trace", "trace_id") || ""
+  end
+
   defp log_message(line, fields) do
-    case Jason.decode(line) do
+    case JSON.decode(line) do
       {:ok, %{} = event} ->
         text(event["message"]) || nested_text(fields, "logentry", "formatted") ||
           nested_text(fields, "logentry", "message") || exception_message(event) || "Structured log"

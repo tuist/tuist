@@ -119,11 +119,11 @@ defmodule Tuist.Pulse.Errors do
     with {:ok, body} <- call.(tool, args),
          {:ok, page} <- page(body),
          %{"results" => rows, "snapshot_id" => current, "matched_results" => count, "next_cursor" => cursor} <- page,
-         true <- is_list(rows) and is_binary(current) and is_integer(count) and count in 0..5000,
+         true <- valid_page?(rows, current, count),
          true <- snapshot in [nil, current] and expected in [nil, count],
          true <- length(acc) + length(rows) <= count do
       rows = acc ++ rows
-      bytes = bytes + byte_size(Jason.encode!(page))
+      bytes = bytes + byte_size(JSON.encode!(page))
 
       cond do
         bytes > 33_554_432 ->
@@ -132,7 +132,7 @@ defmodule Tuist.Pulse.Errors do
         is_nil(cursor) and length(rows) == count ->
           {:ok, rows}
 
-        is_binary(cursor) and byte_size(cursor) in 1..4096 and page["results"] != [] and cursor != args["cursor"] ->
+        valid_cursor?(cursor, page["results"], args["cursor"]) ->
           fetch_pages(tool, Map.put(args, "cursor", cursor), call, rows, current, count, pages + 1, bytes)
 
         true ->
@@ -146,13 +146,19 @@ defmodule Tuist.Pulse.Errors do
 
   defp fetch_pages(_, _, _, _, _, _, _, _), do: {:error, :query_result_limit}
 
+  defp valid_page?(rows, snapshot, count),
+    do: is_list(rows) and is_binary(snapshot) and is_integer(count) and count in 0..5000
+
+  defp valid_cursor?(cursor, rows, previous),
+    do: is_binary(cursor) and byte_size(cursor) in 1..4096 and rows != [] and cursor != previous
+
   defp page(%{
          "jsonrpc" => "2.0",
          "id" => 1,
          "result" => %{"isError" => false, "content" => [%{"type" => "text", "text" => text}]}
        })
        when is_binary(text) and byte_size(text) <= 2_097_152 do
-    case Jason.decode(text) do
+    case JSON.decode(text) do
       {:ok, %{} = page} -> {:ok, page}
       _ -> {:error, :malformed_response}
     end
@@ -196,28 +202,12 @@ defmodule Tuist.Pulse.Errors do
   end
 
   defp project_event(%{"event" => event} = row, issue) when is_map(event) do
-    if (is_nil(issue) or row["issue_id"] == issue) and issue_id?(row["issue_id"]) and event_id?(row["event_id"]) and
-         ns?(row["timestamp_ns"]) and
-         is_binary(row["project"]) and is_binary(row["service"]) do
-      exceptions = Map.get(event, "exception", event["sentry.interfaces.Exception"])
-
-      exceptions =
-        case exceptions do
-          %{"values" => values} -> values
-          %{} = exception -> [exception]
-          values -> values
-        end
-
-      exceptions = if is_list(exceptions), do: exceptions |> Enum.filter(&is_map/1) |> Enum.take(-10), else: []
+    if valid_event?(row, issue) do
+      exceptions = event_exceptions(event)
       title = title(event, List.last(exceptions) || %{})
       culprit = culprit(List.last(exceptions) || %{})
 
-      exceptions =
-        Enum.map(exceptions, fn ex ->
-          frames = ex |> Map.get("stacktrace", ex["sentry.interfaces.Stacktrace"]) |> object() |> Map.get("frames", [])
-          frames = if is_list(frames), do: frames |> Enum.filter(&is_map/1) |> Enum.take(-100), else: []
-          %{"type" => text(ex["type"]), "value" => display(ex["value"]), "frames" => Enum.map(frames, &frame/1)}
-        end)
+      exceptions = Enum.map(exceptions, &project_exception/1)
 
       last = List.last(exceptions) || %{}
 
@@ -259,6 +249,31 @@ defmodule Tuist.Pulse.Errors do
   end
 
   defp project_event(_, _), do: {:error, :malformed_response}
+
+  defp event_exceptions(event) do
+    exceptions =
+      case Map.get(event, "exception", event["sentry.interfaces.Exception"]) do
+        %{"values" => values} -> values
+        %{} = exception -> [exception]
+        values -> values
+      end
+
+    if is_list(exceptions), do: exceptions |> Enum.filter(&is_map/1) |> Enum.take(-10), else: []
+  end
+
+  defp valid_event?(row, issue) do
+    (is_nil(issue) or row["issue_id"] == issue) and issue_id?(row["issue_id"]) and event_id?(row["event_id"]) and
+      ns?(row["timestamp_ns"]) and is_binary(row["project"]) and is_binary(row["service"])
+  end
+
+  defp project_exception(exception) do
+    frames =
+      exception |> Map.get("stacktrace", exception["sentry.interfaces.Stacktrace"]) |> object() |> Map.get("frames", [])
+
+    frames = if is_list(frames), do: frames |> Enum.filter(&is_map/1) |> Enum.take(-100), else: []
+    %{"type" => text(exception["type"]), "value" => display(exception["value"]), "frames" => Enum.map(frames, &frame/1)}
+  end
+
   defp object(value) when is_map(value), do: value
   defp object(_), do: %{}
   defp text(value) when is_binary(value), do: String.slice(value, 0, 4096)
@@ -297,7 +312,7 @@ defmodule Tuist.Pulse.Errors do
   # section's final JSON is at most 4096 bytes (16384 across section values).
   defp metadata(value) do
     {safe, _remaining} = metadata(value, 0, 200)
-    if byte_size(Jason.encode!(safe)) <= 4096, do: safe, else: %{"[TRUNCATED]" => "[TRUNCATED]"}
+    if byte_size(JSON.encode!(safe)) <= 4096, do: safe, else: %{"[TRUNCATED]" => "[TRUNCATED]"}
   end
 
   defp metadata(_, depth, remaining) when depth > 5 or remaining <= 0, do: {"[TRUNCATED]", max(remaining - 1, 0)}
@@ -427,14 +442,14 @@ defmodule Tuist.Pulse.Errors do
       "{",
       value
       |> Enum.sort()
-      |> Enum.map(fn {key, value} -> [Jason.encode!(key), ":", canonical(value)] end)
+      |> Enum.map(fn {key, value} -> [JSON.encode!(key), ":", canonical(value)] end)
       |> Enum.intersperse(","),
       "}"
     ]
   end
 
   defp canonical(value) when is_list(value), do: ["[", value |> Enum.map(&canonical/1) |> Enum.intersperse(","), "]"]
-  defp canonical(value), do: Jason.encode!(value)
+  defp canonical(value), do: JSON.encode!(value)
 
   defp frame(frame) do
     strings = Map.new(~w(filename module function), &{&1, text(frame[&1])})

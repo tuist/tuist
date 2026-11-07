@@ -392,7 +392,7 @@ defmodule TuistWeb.PulseLiveTest do
       "environment" => "production",
       "release" => "1.2.3",
       "tags" => %{"deployment.region" => "eu-central", "worker" => "<script>tag</script>"},
-      "contexts" => %{"runtime" => %{"name" => "Elixir", "version" => "1.20.2", "jit" => true}},
+      "contexts" => %{"runtime" => %{"name" => "Elixir", "version" => "1.20.2", "jit" => true, "missing" => nil}},
       "extra" => %{"attempt" => 0, "details" => %{"message" => "<script>extra</script>", "retried" => false}},
       "modules" => %{"phoenix" => "1.8.1", "ecto" => "3.13.0"},
       "exception" => %{
@@ -480,6 +480,7 @@ defmodule TuistWeb.PulseLiveTest do
     assert has_element?(occurrence, "#pulse-stacktrace", "RootCause")
     assert has_element?(occurrence, "[data-part='metadata-grid']", event["span_id"])
     assert has_element?(occurrence, "#pulse-event-contexts", "true")
+    assert has_element?(occurrence, "#pulse-event-contexts", ~s("missing": null))
     assert has_element?(occurrence, "#pulse-event-extra code.language-json .string", "<script>extra</script>")
     assert has_element?(occurrence, "#pulse-event-modules", "3.13.0")
     refute html =~ "<script>"
@@ -515,17 +516,11 @@ defmodule TuistWeb.PulseLiveTest do
   end
 
   defp chart_data(html) do
-    html |> Floki.parse_document!() |> Floki.find("#pulse-chart > [data-part='data']") |> Floki.text() |> Jason.decode!()
+    html |> Floki.parse_document!() |> Floki.find("#pulse-chart > [data-part='data']") |> Floki.text() |> JSON.decode!()
   end
 
   defp analytics(signal) do
-    ids =
-      case signal do
-        "metrics" -> ~w(reporting healthy unhealthy)
-        "logs" -> ~w(entries errors warnings)
-        "traces" -> ~w(spans errors duration_p95)
-        "errors" -> ~w(events fatal services)
-      end
+    ids = analytics_ids(signal)
 
     %{
       warnings: [],
@@ -541,6 +536,11 @@ defmodule TuistWeb.PulseLiveTest do
         end)
     }
   end
+
+  defp analytics_ids("metrics"), do: ~w(reporting healthy unhealthy)
+  defp analytics_ids("logs"), do: ~w(entries errors warnings)
+  defp analytics_ids("traces"), do: ~w(spans errors duration_p95)
+  defp analytics_ids("errors"), do: ~w(events fatal services)
 
   defp result("metrics") do
     %{

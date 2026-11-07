@@ -90,7 +90,7 @@ defmodule TuistWeb.PulseChartsLiveTest do
   end
 
   defp chart_data(html) do
-    html |> Floki.parse_document!() |> Floki.find("#pulse-chart > [data-part='data']") |> Floki.text() |> Jason.decode!()
+    html |> Floki.parse_document!() |> Floki.find("#pulse-chart > [data-part='data']") |> Floki.text() |> JSON.decode!()
   end
 
   defp points, do: [[1_790_000_000_000, 0], [1_790_000_010_000, nil], [1_790_000_020_000, 12]]

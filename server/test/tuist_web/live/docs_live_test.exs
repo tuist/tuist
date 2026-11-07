@@ -527,10 +527,12 @@ defmodule TuistWeb.DocsLiveTest do
     @describetag :locale
 
     test "navigation segments follow the page language rather than the previous session", %{conn: conn} do
-      for {locale, previous_locale, guides, references, resources, builds} <- [
-            {"ka", "en", "სახელმძღვანელოები", "მითითებები", "რესურსები", "ბილდები"},
-            {"en", "ka", "Guides", "References", "Resources", "Builds"}
-          ] do
+      for {locale, previous_locale} <- [{"ka", "en"}, {"en", "ka"}] do
+        [guides, references, resources, builds] =
+          Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
+            Enum.map(["Guides", "References", "Resources", "Builds"], &Gettext.dgettext(TuistWeb.Gettext, "docs", &1))
+          end)
+
         conn = init_test_session(conn, %{locale: previous_locale})
         {:ok, view, html} = live(conn, "/#{locale}/docs")
         document = Floki.parse_document!(html)
@@ -547,7 +549,12 @@ defmodule TuistWeb.DocsLiveTest do
     test "an explicit docs language overrides the signed-in user's preference", %{conn: conn} do
       user = user_fixture()
 
-      for {locale, preferred_locale, builds} <- [{"en", "ka", "Builds"}, {"ka", "en", "ბილდები"}] do
+      for {locale, preferred_locale} <- [{"en", "ka"}, {"ka", "en"}] do
+        builds =
+          Gettext.with_locale(TuistWeb.Gettext, locale, fn ->
+            Gettext.dgettext(TuistWeb.Gettext, "docs", "Builds")
+          end)
+
         {:ok, user} = Accounts.update_user_preferred_locale(user, preferred_locale)
         conn = conn |> log_in_user(user) |> get("/#{locale}/docs")
         document = conn |> html_response(200) |> Floki.parse_document!()
