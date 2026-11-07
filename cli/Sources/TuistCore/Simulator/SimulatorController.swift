@@ -146,7 +146,9 @@ public struct SimulatorController: SimulatorControlling {
     public func devices() async throws -> [SimulatorDevice] {
         let output = try await commandRunner
             .runAndCollectOutput(arguments: ["/usr/bin/xcrun", "simctl", "list", "devices", "--json"])
-        let data = output.standardOutput.data(using: .utf8)!
+        guard let data = output.standardOutput.data(using: .utf8), !data.isEmpty else {
+            return []
+        }
         let json = try JSONSerialization.jsonObject(with: data, options: [])
         guard let dictionary = json as? [String: Any],
               let devicesJSON = dictionary["devices"] as? [String: [[String: Any]]]
@@ -169,7 +171,9 @@ public struct SimulatorController: SimulatorControlling {
     func runtimes() async throws -> [SimulatorRuntime] {
         let output = try await commandRunner
             .runAndCollectOutput(arguments: ["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"])
-        let data = output.standardOutput.data(using: .utf8)!
+        guard let data = output.standardOutput.data(using: .utf8), !data.isEmpty else {
+            return []
+        }
         let json = try JSONSerialization.jsonObject(with: data, options: [])
         guard let dictionary = json as? [String: Any],
               let runtimesJSON = dictionary["runtimes"] as? [Any]

@@ -48,6 +48,32 @@ struct SimulatorControllerTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
+    ) func devices_should_returnEmptyList_whenOutputIsEmpty() async throws {
+        commandRunner.succeedCommand(
+            ["/usr/bin/xcrun", "simctl", "list", "devices", "--json"],
+            output: ""
+        )
+
+        let devices = try await subject.devices()
+        #expect(devices.isEmpty)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func runtimes_should_returnEmptyList_whenOutputIsEmpty() async throws {
+        commandRunner.succeedCommand(
+            ["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"],
+            output: ""
+        )
+
+        let runtimes = try await subject.runtimes()
+        #expect(runtimes.isEmpty)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
     ) func devicesAndRuntimes_should_returnListOfSimulatorDeviceAndRuntimesFromJson() async throws {
         // Given
         let expectedDeviceAndRuntime = try #require(createSystemStubs(devices: true, runtimes: true).first)
