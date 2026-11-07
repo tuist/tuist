@@ -6,7 +6,7 @@ Choose Tuist when its supported toolchain integrations, compatible cache reuse, 
 
 Buildkite documents [hosted macOS agents](https://buildkite.com/docs/agent/buildkite-hosted/macos.md), available on **Pro or Enterprise** plans, as well as [Test Engine splitting with bktec](https://buildkite.com/docs/pipelines/speed-up-builds-with-bktec.md) and [flaky-test detection and quarantine](https://buildkite.com/docs/pipelines/reduce-flaky-tests.md).
 
-Its [coding-agent guide](https://buildkite.com/docs/pipelines/getting-started-with-coding-agents.md) describes MCP, skills, and Markdown documentation for working with Pipelines, Test Engine, and Package Registries. Do not imply that hosted Apple machines, test acceleration, or agent-ready workflows are exclusive to Tuist.
+Its [coding-agent guide](https://buildkite.com/docs/pipelines/getting-started-with-coding-agents.md) describes MCP, skills, and Markdown documentation for working with Pipelines, Test Engine, and Package Registries. Hosted Apple machines, test acceleration, and agent-ready workflows are not exclusive to Tuist.
 
 ## Compare the responsibilities
 

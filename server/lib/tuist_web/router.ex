@@ -618,6 +618,14 @@ defmodule TuistWeb.Router do
           metadata: @marketing_route_metadata,
           private: private
     end
+
+    # Problem, comparison, and build-system guides are authored in English only,
+    # so they have no localized routes.
+    for guide_path <- TuistWeb.Utilities.MarketingMarkdown.guide_page_paths() do
+      get guide_path, MarketingController, :guide,
+        metadata: @marketing_route_metadata,
+        private: %{locale: "en"}
+    end
   end
 
   # The newsletter forms are submitted from cached marketing pages whose

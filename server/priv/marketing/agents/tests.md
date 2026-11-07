@@ -52,3 +52,5 @@ Selective testing requires Tuist-generated Xcode projects because it reuses the 
 ## Pricing
 
 Billing depends on the account's model: newer plans meter passing test cases reported to Test Insights and list selective testing as unlimited; older plans meter test usage differently. Check the live [pricing table](/pricing) and the [pricing guide](/marketing-markdown/pricing).
+
+Related: [slow tests](/marketing-markdown/solutions/slow-tests) and [flaky tests](/marketing-markdown/solutions/flaky-tests).

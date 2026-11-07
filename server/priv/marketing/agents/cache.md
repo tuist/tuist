@@ -47,3 +47,5 @@ It helps less when most builds change most inputs, when local incremental builds
 ## Pricing
 
 Billing depends on the account's model: newer plans meter cache downloads (egress and requests) while uploads and storage are free; older plans meter module cache usage differently. Check the live [pricing table](/pricing) and [pricing guide](/marketing-markdown/pricing); do not estimate cost from team size.
+
+Related: [slow builds](/marketing-markdown/solutions/slow-builds) and [build-system guides](/marketing-markdown/build-systems).

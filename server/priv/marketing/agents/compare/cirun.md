@@ -6,7 +6,7 @@ Choose Tuist for supported build-output reuse, toolchain evidence, and agent inv
 
 [Cirun's documentation](https://docs.cirun.io/) covers cloud connections, runner configuration, custom images, and on-premises execution. Its [on-premises guide](https://docs.cirun.io/on-prem) explains connecting customer infrastructure instead of moving all execution to a hosted fleet.
 
-Cirun also documents [cache acceleration](https://docs.cirun.io/caching/). Its automatic Actions-cache backend currently supports Linux runners on AWS; the separate [S3-compatible cache action](https://docs.cirun.io/caching/s3-compatible) supports broader OS, cloud, and runner environments with a compatible store and configured credentials. Do not describe Cirun as lacking caching or conflate those two integration scopes.
+Cirun also documents [cache acceleration](https://docs.cirun.io/caching/). Its automatic Actions-cache backend currently supports Linux runners on AWS; the separate [S3-compatible cache action](https://docs.cirun.io/caching/s3-compatible) supports broader OS, cloud, and runner environments with a compatible store and configured credentials. Cirun does offer caching, and those two integration scopes differ.
 
 ## Compare the operating model
 

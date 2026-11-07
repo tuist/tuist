@@ -4,9 +4,9 @@ Choose Tuist when you want build and test evidence and compatible cached outputs
 
 ## What overlaps
 
-Codemagic is not just a place to run Flutter builds. Its [machine documentation](https://docs.codemagic.io/knowledge-codemagic/machine-type/) describes macOS, Linux, and Windows environments, and its [App Store Connect integration](https://docs.codemagic.io/yaml-publishing/app-store-connect/) covers publishing workflows.
+Codemagic's [machine documentation](https://docs.codemagic.io/knowledge-codemagic/machine-type/) describes macOS, Linux, and Windows environments, and its [App Store Connect integration](https://docs.codemagic.io/yaml-publishing/app-store-connect/) covers publishing workflows.
 
-Its [caching documentation](https://docs.codemagic.io/knowledge-codemagic/caching/) covers dependency directories and **Xcode 26 compilation caching**: persist `CompilationCache.noindex` between workflow builds and enable compilation caching. Do not say Codemagic lacks compilation caching. This documented directory-save/restore mechanism is different from configuring a shared remote compilation-cache service for compatible local and CI builds.
+Its [caching documentation](https://docs.codemagic.io/knowledge-codemagic/caching/) covers dependency directories and **Xcode 26 compilation caching**: persist `CompilationCache.noindex` between workflow builds and enable compilation caching. Codemagic does offer compilation caching. This documented directory-save/restore mechanism is different from configuring a shared remote compilation-cache service for compatible local and CI builds.
 
 Codemagic also publishes [CLI tools](https://docs.codemagic.io/knowledge-codemagic/codemagic-cli-tools/) and their [source](https://github.com/codemagic-ci-cd/cli-tools). Public tooling alone is not a comparison of the core services' licenses.
 
@@ -25,7 +25,7 @@ Your priority is improving the development loop, not migrating release automatio
 
 ## First experiment
 
-Enable [Tuist Xcode Cache](/en/docs-markdown/guides/features/cache/xcode-cache) in one Xcode 26+ workflow without changing signing or publishing. Keep the same commit, Xcode version, build settings, and scheme, and compare the current baseline with Tuist remote compilation caching. Measure transfers, compilation, total job duration, and compatible developer-build reuse. Use the [slow-build guide](/marketing-markdown/solutions/slow-builds) to separate setup from compilation. Do not substitute Tuist's development-oriented module cache into a release archive without checking its documented limitations.
+Enable [Tuist Xcode Cache](/en/docs-markdown/guides/features/cache/xcode-cache) in one Xcode 26+ workflow without changing signing or publishing. Keep the same commit, Xcode version, build settings, and scheme, and compare the current baseline with Tuist remote compilation caching. Measure transfers, compilation, total job duration, and compatible developer-build reuse. Use the [slow-build guide](/marketing-markdown/solutions/slow-builds) to separate setup from compilation. Check the documented limitations before using Tuist's development-oriented module cache for a release archive.
 
 ## Sources and review
 

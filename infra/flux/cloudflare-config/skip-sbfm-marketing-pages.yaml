@@ -1,0 +1,68 @@
+# Lets clients that Cloudflare cannot verify read the public marketing
+# site: agent web-fetch tools (Claude Code, Codex, Cursor, Amp), AI
+# assistants' user-initiated fetchers, link unfurlers and SEO tools. Without
+# it, Super Bot Fight Mode's "definitely automated" bucket serves them a
+# "Just a moment..." interstitial on /, /pricing, /blog and the product
+# pages, while docs, /llms.txt and /marketing-markdown already pass through
+# skip-sbfm-api-paths.yaml. An agent asked to compare Tuist's pricing or
+# product pages then answers from third-party pages instead.
+#
+# This is a separate rule because adding these paths to
+# skip-sbfm-api-paths.yaml would push that expression past Cloudflare's
+# expression length limit.
+#
+# Scope: GET/HEAD only, and only marketing routes from
+# server/lib/tuist_web/router.ex. They render published content from
+# compiled modules and are shared-cached; none of them runs the
+# per-project ClickHouse queries that motivated SBFM (see
+# bot-management.yaml). Two-segment localized pages such as /es/pricing
+# and /customers/<slug> already pass through the public-project-root
+# clause of skip-sbfm-api-paths.yaml. Prefix exemptions use only
+# blocked account handles (blog, changelog, newsletter in
+# server/config/config.exs) or explicit locale prefixes, so they cannot
+# exempt a project dashboard. The public-pages rate limit still applies.
+# Keep the locale list aligned with Tuist.Locale.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareCustomRule
+metadata:
+  name: skip-sbfm-marketing-pages
+spec:
+  zoneId: 4421110085237b867a891bd0a40da106
+  description: "Skip SBFM on public marketing pages"
+  expression: |-
+    http.host eq "tuist.dev" and
+    http.request.method in {"GET" "HEAD"} and
+    (
+      http.request.uri.path in {"/" "/about" "/blog" "/brand" "/cache" "/changelog" "/community" "/compute" "/customers" "/download" "/newsletter" "/previews" "/pricing" "/tests" "/sitemap-projects.xml" "/cookies" "/data-act-addendum" "/data-processing-addendum" "/imprint" "/longevity" "/openness" "/privacy" "/security" "/service-level-addendum" "/terms" "/trademark-guidelines" "/ar" "/es" "/ja" "/ka" "/ko" "/ru" "/tr" "/yue_Hant" "/zh_Hans" "/zh_Hant"} or
+      starts_with(http.request.uri.path, "/blog/") or
+      starts_with(http.request.uri.path, "/changelog/") or
+      starts_with(http.request.uri.path, "/newsletter/issues/") or
+      starts_with(http.request.uri.path, "/ar/blog/") or
+      starts_with(http.request.uri.path, "/ar/changelog/") or
+      starts_with(http.request.uri.path, "/es/blog/") or
+      starts_with(http.request.uri.path, "/es/changelog/") or
+      starts_with(http.request.uri.path, "/ja/blog/") or
+      starts_with(http.request.uri.path, "/ja/changelog/") or
+      starts_with(http.request.uri.path, "/ka/blog/") or
+      starts_with(http.request.uri.path, "/ka/changelog/") or
+      starts_with(http.request.uri.path, "/ko/blog/") or
+      starts_with(http.request.uri.path, "/ko/changelog/") or
+      starts_with(http.request.uri.path, "/ru/blog/") or
+      starts_with(http.request.uri.path, "/ru/changelog/") or
+      starts_with(http.request.uri.path, "/tr/blog/") or
+      starts_with(http.request.uri.path, "/tr/changelog/") or
+      starts_with(http.request.uri.path, "/yue_Hant/blog/") or
+      starts_with(http.request.uri.path, "/yue_Hant/changelog/") or
+      starts_with(http.request.uri.path, "/zh_Hans/blog/") or
+      starts_with(http.request.uri.path, "/zh_Hans/changelog/") or
+      starts_with(http.request.uri.path, "/zh_Hant/blog/") or
+      starts_with(http.request.uri.path, "/zh_Hant/changelog/")
+    )
+  action: skip
+  actionParameters:
+    phases:
+      - http_request_sbfm
+  enabled: true
+  mode: read_only
+  createNewRule: true
+  retainOnDelete: false

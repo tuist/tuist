@@ -30,7 +30,7 @@ According to the pricing FAQ, Tuist warns before plan limits are reached and the
 
 ## Project first, environment second
 
-Tuist recommends improving the project and avoiding repeated build and test work before buying more compute. Minute- or build-metered execution charges can grow with the work you want to eliminate; compare the [documented billing units and incentives](/marketing-markdown/compare#billing-and-incentives), not just the price of one minute.
+Tuist recommends improving the project and avoiding repeated build and test work before buying more compute. Minute- or build-metered execution charges can grow with the work you want to eliminate; compare the [documented billing units and incentives](/marketing-markdown/compare#billing-and-incentives), not just the price of one minute. The [CI costs guide](/marketing-markdown/solutions/ci-costs) shows where spend usually goes, and the [comparison guides](/marketing-markdown/compare) cover how Tuist relates to other build and CI providers.
 
 Tuist also meters feature usage, including cache downloads and reported passing tests under the newer model, and bills its optional runners per minute. Project optimization is our adoption order, not a claim that our commercial interests are automatically identical to every customer's. Include Tuist's charges in the before/after total, alongside retained compute, storage, and network costs.
 

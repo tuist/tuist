@@ -38,7 +38,7 @@ Tuist Cache is independent of Tuist Runners. Clients normally receive a nearby r
 
 ## Investigate with an agent
 
-Use the authorized [Tuist MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp) to compare build operations, cache behavior, and test attempts. On Tuist Runners, `list_runner_jobs`, `list_runner_job_steps`, and `list_runner_job_metrics` add execution evidence. Give the agent your actual invoice rates and allowances separately; it should not infer prices or a complete bill from Tuist timing data.
+Use the authorized [Tuist MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp) to compare build operations, cache behavior, and test attempts. On Tuist Runners, `list_runner_jobs`, `list_runner_job_steps`, and `list_runner_job_metrics` add execution evidence. Provide your actual invoice rates and allowances separately; Tuist timing data alone does not establish prices or a complete bill.
 
 Ask for the largest observed source of avoidable work, one intervention, and the evidence needed to validate it. Reading insights is not automatic cost optimization or authorization to resize machines.
 

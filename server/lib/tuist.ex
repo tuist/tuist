@@ -23,6 +23,7 @@ defmodule Tuist do
       Marketing.Blog,
       Marketing.Blog.CoverArtwork,
       Marketing.Content,
+      Marketing.MDExConverter,
       Marketing.Pages,
       Docs,
       Docs.OgImage,

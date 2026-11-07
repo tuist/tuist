@@ -4,7 +4,7 @@ Choose Tuist when the priority is understanding and reducing supported build and
 
 ## What overlaps
 
-[RunsOn](https://runs-on.com/docs/) manages ephemeral GitHub Actions runners in the customer's AWS account. Its [Magic Cache](https://runs-on.com/docs/performance/caching/) changes the Actions cache backend to S3 in that account, while preserving compatible workflow cache actions. It is not just a cheaper machine without caching.
+[RunsOn](https://runs-on.com/docs/) manages ephemeral GitHub Actions runners in the customer's AWS account. Its [Magic Cache](https://runs-on.com/docs/performance/caching/) changes the Actions cache backend to S3 in that account, while preserving compatible workflow cache actions.
 
 Its [pricing](https://runs-on.com/pricing/) separates an annual license, tiered by runner volume, from infrastructure billed directly by AWS. RunsOn states it does not add per-minute markup; do not categorize that license as a runtime-metered fee.
 

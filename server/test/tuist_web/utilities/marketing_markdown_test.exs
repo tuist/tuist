@@ -133,7 +133,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/AGENTS") == nil
   end
 
-  test "problem and comparison discovery metadata derives from Markdown-only guides" do
+  test "problem and comparison discovery metadata derives from the authored guides" do
     assert Enum.map(MarketingMarkdown.decision_guides(), & &1.path) ==
              Enum.sort(
                [
@@ -330,7 +330,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   test "comparisons retain researched overlaps and integration-specific qualifications" do
     codemagic = MarketingMarkdown.get("/compare/codemagic")
     assert codemagic =~ "CompilationCache.noindex"
-    assert codemagic =~ "Do not say Codemagic lacks compilation caching"
+    assert codemagic =~ "Codemagic does offer compilation caching"
 
     depot = MarketingMarkdown.get("/compare/depot")
     assert depot =~ "local workstations is not supported yet"
@@ -392,7 +392,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
 
   test "billing comparisons cite units, scope, exceptions, and Tuist's own metering" do
     overview = MarketingMarkdown.get("/compare")
-    assert overview =~ "## Billing and incentives"
+    assert overview =~ "## Compare total costs"
     assert overview =~ "included allowances and fixed commitments"
     assert overview =~ "per-build charge for Docker builds"
     assert overview =~ "per-second/vCPU metering for Depot CI"
@@ -400,8 +400,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert overview =~ "Hosted-agent vCPU minutes"
     assert overview =~ "annual license tiers"
     assert overview =~ "rather than a universal per-build fee"
-    assert overview =~ "do not prove that a provider deliberately keeps builds slow"
-    assert overview =~ "Tuist itself has"
+    assert overview =~ "Several providers also offer project-level acceleration"
+    assert overview =~ "Tuist has"
 
     for url <- [
           "https://namespace.so/pricing",

@@ -4,7 +4,7 @@ Choose Tuist to understand and reduce build and test work across local developer
 
 ## What overlaps
 
-Both offer ways to avoid repeated work. Namespace's [GitHub Actions caching guide](https://namespace.so/docs/solutions/github-actions/caching) describes runner-attached NVMe Cache Volumes, an Actions-cache option, and an artifacts option. Its volume integrations cover container images, checkouts, toolchain downloads, actions, and build systems including Gradle and Bazel. It is not accurate to describe Namespace as only faster hardware.
+Both offer ways to avoid repeated work. Namespace's [GitHub Actions caching guide](https://namespace.so/docs/solutions/github-actions/caching) describes runner-attached NVMe Cache Volumes, an Actions-cache option, and an artifacts option. Its volume integrations cover container images, checkouts, toolchain downloads, actions, and build systems including Gradle and Bazel.
 
 Namespace also documents a separate [Bazel remote cache and remote execution service](https://namespace.so/docs/bazel). Its cache shares action results across local, CI, and Devbox builds, including GitHub-hosted runners; caching can be configured without remote execution. Runner independence and local Bazel reuse are therefore not unique to Tuist. Its remote execution runs actions on Namespace workers; Tuist's Bazel cache does not provide that execution service.
 

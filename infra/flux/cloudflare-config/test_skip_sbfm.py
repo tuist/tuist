@@ -8,8 +8,8 @@ import unittest
 PATH_FIELD = "http.request.uri.path"
 
 
-def rule_expression():
-    rule = pathlib.Path(__file__).with_name("skip-sbfm-api-paths.yaml").read_text()
+def rule_expression(file_name="skip-sbfm-api-paths.yaml"):
+    rule = pathlib.Path(__file__).with_name(file_name).read_text()
     return rule.split("  expression: |-\n", 1)[1].split("\n  action:", 1)[0].strip()
 
 
@@ -86,7 +86,7 @@ class SbfmExemptionTest(unittest.TestCase):
             "/marketing-markdown/source/openness", "/robots.txt", "/llms.txt",
             "/llms-full.txt", "/sitemap.xml", "/geofeed.csv",
         ]
-        for locale in ["en", "es", "ja", "ka", "ko", "ru", "yue_Hant", "zh_Hans", "zh_Hant"]:
+        for locale in ["ar", "en", "es", "ja", "ka", "ko", "ru", "tr", "yue_Hant", "zh_Hans", "zh_Hant"]:
             for section in ["docs", "docs-markdown"]:
                 paths.extend([
                     f"/{locale}/{section}", f"/{locale}/{section}/",
@@ -159,6 +159,37 @@ class SbfmExemptionTest(unittest.TestCase):
             with self.subTest(path=path, method=method):
                 self.assertTrue(self.exempt(path, method))
         self.assertTrue(self.exempt("/search", "POST", host="search.tuist.dev"))
+
+
+class SbfmMarketingExemptionTest(unittest.TestCase):
+    def exempt(self, path, method="GET", host="tuist.dev"):
+        return evaluate_expression(rule_expression("skip-sbfm-marketing-pages.yaml"), method, path, host)
+
+    def test_marketing_pages_are_exempt(self):
+        paths = [
+            "/", "/pricing", "/cache", "/tests", "/compute", "/previews", "/blog",
+            "/blog/2026/09/09/bazel", "/changelog", "/changelog/2026.09.05-bazel-build-insights",
+            "/newsletter/issues/12", "/privacy", "/sitemap-projects.xml",
+            "/es", "/tr", "/ja/blog/2026/09/09/bazel", "/zh_Hant/changelog/2026.09.05-bazel-build-insights",
+        ]
+        for path in paths:
+            for method in ["GET", "HEAD"]:
+                with self.subTest(path=path, method=method):
+                    self.assertTrue(self.exempt(path, method))
+
+    def test_dashboards_authentication_and_writes_remain_protected(self):
+        for path in [
+            "/tuist/tuist/builds", "/customers/acme/builds", "/es/acme/builds",
+            "/users/log_in", "/auth/callback", "/ops/og-gallery", "/blogs/acme/builds",
+            "/newsletter/verify", "/en", "/xx/blog/2026/09/09/bazel",
+        ]:
+            with self.subTest(path=path):
+                self.assertFalse(self.exempt(path))
+        for method in ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]:
+            with self.subTest(method=method):
+                self.assertFalse(self.exempt("/pricing", method))
+                self.assertFalse(self.exempt("/newsletter", method))
+        self.assertFalse(self.exempt("/pricing", host="search.tuist.dev"))
 
 
 if __name__ == "__main__":

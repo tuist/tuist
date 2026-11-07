@@ -28,7 +28,7 @@ The integration matters: whole-module caching requires Tuist-generated Xcode pro
 
 ## Investigate with an agent
 
-Connect the [Tuist MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp) and give the agent a baseline build and a slow build. For Xcode, `list_xcode_build_steps` and `list_xcode_build_cache_tasks` expose timing and reuse evidence. For Gradle, use `list_gradle_build_tasks` and `list_gradle_build_steps`; for Bazel, use `get_bazel_invocation` and `list_bazel_build_steps`.
+Connect the [Tuist MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp) and give your agent a baseline build and a slow build. For Xcode, `list_xcode_build_steps` and `list_xcode_build_cache_tasks` expose timing and reuse evidence. For Gradle, use `list_gradle_build_tasks` and `list_gradle_build_steps`; for Bazel, use `get_bazel_invocation` and `list_bazel_build_steps`.
 
 Ask for an evidence-backed bottleneck, one proposed change, and a before/after measurement. Missing or expired data is not proof that an operation was fast. Tool access requires authorization; Gradle and Bazel integrations need their own authentication in addition to MCP access. Review changes before applying them.
 

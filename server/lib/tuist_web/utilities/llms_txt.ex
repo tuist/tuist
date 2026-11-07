@@ -5,8 +5,8 @@ defmodule TuistWeb.Utilities.LlmsTxt do
 
   The file provides a curated map for agents that use it, not a guarantee of
   search discovery or citations. It points at documentation Markdown twins
-  (`/:locale/docs-markdown/*`), landing-page guides, and Markdown-only problem
-  and comparison guides. These guides do not introduce standalone browser pages.
+  (`/:locale/docs-markdown/*`), landing-page guides, and the problem, comparison,
+  and build-system guides.
 
   Only English is indexed. The file lives at a single URL, so a translated
   variant would have nowhere to be served from.
