@@ -62,7 +62,17 @@ defmodule TuistWeb.SandboxesLiveTest do
 
       assert html =~ "Run agents in sandboxes"
       assert has_element?(lv, ~s([data-provider="amp"] a[href="/#{account.name}/settings/integrations"]), "Connect")
+      assert has_element?(lv, ~s([data-provider="claude"] a[href="/#{account.name}/settings/integrations"]), "Connect")
       assert has_element?(lv, ~s([data-provider="cli"]), "Coming soon")
+    end
+
+    test "shows a connected Claude Managed Agents environment", %{conn: conn, account: account} do
+      agent_environment_fixture(account: account)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sandboxes")
+
+      assert has_element?(lv, ~s([data-provider="claude"]), "Connected")
+      refute has_element?(lv, ~s([data-provider="claude"] a))
     end
 
     test "shows a connected Amp integration", %{conn: conn, account: account} do

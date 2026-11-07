@@ -113,7 +113,8 @@ defmodule TuistWeb.SandboxesLive do
       counts: counts,
       total: counts |> Map.values() |> Enum.sum(),
       usage: Map.put(Concurrency.usage(account.id), :disk_mb, Concurrency.disk_usage_mb(account.id)),
-      amp_integration: account.id |> AmpIntegrations.get() |> AmpIntegrations.public_status()
+      amp_integration: account.id |> AmpIntegrations.get() |> AmpIntegrations.public_status(),
+      claude_connected: account |> Sandboxes.list_agent_environments() |> Enum.any?(&(&1.kind == :managed_agents))
     )
   end
 
@@ -263,6 +264,7 @@ defmodule TuistWeb.SandboxesLive do
   attr :account, :map, required: true
   attr :amp_integration, :map, default: nil
   attr :can_manage_integrations, :boolean, required: true
+  attr :claude_connected, :boolean, default: false
 
   def providers(assigns) do
     assigns = assign(assigns, :amp_connected, not is_nil(assigns.amp_integration) and assigns.amp_integration.enabled)
@@ -300,7 +302,7 @@ defmodule TuistWeb.SandboxesLive do
           </span>
         </div>
       </div>
-      <div data-part="provider" data-provider="claude" data-disabled>
+      <div data-part="provider" data-provider="claude">
         <div data-part="provider-icon"><.brand_claude /></div>
         <div data-part="provider-text">
           <span data-part="provider-title">Claude</span>
@@ -309,11 +311,21 @@ defmodule TuistWeb.SandboxesLive do
           </span>
         </div>
         <div data-part="provider-action">
-          <.badge
-            label={dgettext("dashboard_sandboxes", "Coming soon")}
-            color="neutral"
-            style="light-fill"
+          <.status_badge
+            :if={@claude_connected}
+            status="success"
+            label={dgettext("dashboard_sandboxes", "Connected")}
           />
+          <.button
+            :if={not @claude_connected and @can_manage_integrations}
+            variant="secondary"
+            size="small"
+            label={dgettext("dashboard_sandboxes", "Connect")}
+            navigate={~p"/#{@account.name}/settings/integrations"}
+          />
+          <span :if={not @claude_connected and not @can_manage_integrations} data-part="provider-note">
+            {dgettext("dashboard_sandboxes", "An admin can connect it")}
+          </span>
         </div>
       </div>
       <div data-part="provider" data-provider="cli" data-disabled>
