@@ -398,7 +398,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             testPlan: testPlanConfiguration?.testPlan,
             includedTargets: Set(testTargets.map(\.target)),
-            excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
+            excludedTargets: Set(skipTestTargets.filter { $0.class == nil && $0.method == nil }.map(\.target)),
             skipUITests: skipUITests,
             skipUnitTests: skipUnitTests,
             configuration: configuration,
