@@ -272,15 +272,19 @@ defmodule Tuist.Tests.SelectionsTest do
   end
 
   describe "a fallback for a diff too large" do
-    test "lists only the tests of the modules hashing skipped, like any fallback that stored no counts", %{
-      project: project
-    } do
+    test "lists the baseline's tests under its reason, like any fallback with a baseline", %{project: project} do
       %{run: run, test_run: test_run} =
         run(project, outcome: "fallback", reason: "diff_too_large", selected: [], rule_trace: [])
 
       {rows, _meta} = Selections.run_tests(run, test_run.id)
 
-      assert Enum.map(rows, &{&1.name, &1.decision, &1.reason}) == [{"test_total()", "skipped", "module_skipped"}]
+      assert rows |> Enum.map(&{&1.name, &1.decision, &1.reason}) |> Enum.sort() == [
+               {"test_load()", "selected", "diff_too_large"},
+               {"test_refresh()", "selected", "diff_too_large"},
+               {"test_reset()", "selected", "diff_too_large"},
+               {"test_total()", "skipped", "module_skipped"}
+             ]
+
       assert Selections.run_summary(run, test_run.id).skipped_duration == 1000
     end
   end
@@ -352,7 +356,7 @@ defmodule Tuist.Tests.SelectionsTest do
   end
 
   describe "counted_by_module?/1 and module_counts/1" do
-    test "count the modules of a fallback that stored no test counts, whatever its reason" do
+    test "count the modules of a run without a baseline, whatever its reason" do
       run = %Tuist.TestImpactAnalysis.Run{
         outcome: "fallback",
         reason: "tracked_file_changed",
@@ -369,8 +373,11 @@ defmodule Tuist.Tests.SelectionsTest do
         assert Selections.skip_rate(run) == 25.0
       end
 
-      refute Selections.counted_by_module?(%{run | requested_count: 19})
-      assert Selections.counted_fallback?(%{run | reason: "no_baseline", requested_count: 19})
+      with_baseline = %{run | baseline_sha: "c1"}
+      refute Selections.counted_by_module?(with_baseline)
+      assert Selections.counted_fallback?(with_baseline)
+      assert Selections.selection?(with_baseline)
+      assert Selections.skip_rate(with_baseline) == 0.0
       assert Selections.module_counts(run) == %{ran: 3, total: 4}
       assert Selections.module_skip_rate(run) == 25.0
     end

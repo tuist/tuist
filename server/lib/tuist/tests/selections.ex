@@ -45,13 +45,15 @@ defmodule Tuist.Tests.Selections do
   @doc "Whether the impact run fell back to default selective testing."
   def fallback?(%{outcome: outcome}), do: outcome == "fallback"
 
+  @doc "Whether the server confirmed an impact run's baseline: only then does it store `baseline_sha`."
+  def has_baseline?(%Run{baseline_sha: baseline}), do: baseline not in [nil, ""]
+
   @doc """
-  Whether an impact run reads by module rather than by test: one that stored
-  no test counts, such as a fallback to default selective testing that ended
-  before the baseline. One that found a baseline counts the tests in the
-  modules hashing skipped and reads like any selection.
+  Whether an impact run reads by module rather than by test: one without a
+  baseline, which has no tests to count. One with a baseline counts the
+  tests in the modules hashing skipped and reads like any selection.
   """
-  def counted_by_module?(%Run{} = run), do: run.requested_count == 0 and module_counts(run).total > 0
+  def counted_by_module?(%Run{} = run), do: not has_baseline?(run) and module_counts(run).total > 0
 
   @doc """
   Whether an impact run fell back to default selective testing after finding
@@ -59,10 +61,10 @@ defmodule Tuist.Tests.Selections do
   left ran, and the run reads like a selection, its tests derived from the
   baseline.
   """
-  def counted_fallback?(%Run{} = run), do: fallback?(run) and run.requested_count > 0
+  def counted_fallback?(%Run{} = run), do: fallback?(run) and has_baseline?(run)
 
-  @doc "Whether an impact run shows as a selection: one, or a fallback that found its baseline."
-  def selection?(%Run{} = run), do: not fallback?(run) or counted_fallback?(run)
+  @doc "Whether an impact run shows as a selection: one with a baseline, whatever its reason."
+  def selection?(%Run{} = run), do: has_baseline?(run)
 
   @doc """
   The test modules an impact run ran out of those requested: the ones hashing
@@ -83,7 +85,8 @@ defmodule Tuist.Tests.Selections do
   defmacrop run_skip_rate_avg(r) do
     quote do
       fragment(
-        "avg(multiIf(? > 0, ? / ?, length(?) + length(mapKeys(?)) > 0, length(mapKeys(?)) / (length(?) + length(mapKeys(?))), 0))",
+        "avg(multiIf(ifNull(?, '') != '', if(? > 0, ? / ?, 0), length(?) + length(mapKeys(?)) > 0, length(mapKeys(?)) / (length(?) + length(mapKeys(?))), 0))",
+        unquote(r).baseline_sha,
         unquote(r).requested_count,
         unquote(r).skipped_count,
         unquote(r).requested_count,
@@ -191,7 +194,7 @@ defmodule Tuist.Tests.Selections do
   @doc """
   An impact run's skip rate: its skipped tests, those in the modules hashing
   skipped included, out of its requested ones, and the share of modules
-  hashing skipped for a run that stored no test counts.
+  hashing skipped for a run without a baseline.
   """
   def skip_rate(%Run{} = run) do
     if counted_by_module?(run),
@@ -456,8 +459,6 @@ defmodule Tuist.Tests.Selections do
   defp selected_query(%Run{id: id, project_id: project_id}) do
     from(t in RunTest, where: t.project_id == ^project_id and t.test_impact_run_id == ^id)
   end
-
-  defp has_baseline?(%Run{baseline_sha: baseline}), do: baseline not in [nil, ""]
 
   # The baseline run's tests in `modules` (by default the requested ones),
   # with their average duration there.

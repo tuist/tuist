@@ -27,7 +27,7 @@ defmodule TuistWeb.API.Schemas.Tests.TestImpact.Run do
       reason: %Schema{
         type: :string,
         description:
-          "Why the run fell back, such as `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`."
+          "Why coverage evidence wasn't applied: set on a fallback, and on a selection of nothing whose baseline wasn't confirmed. One of `diff_too_large`, `history_unknown`, `no_baseline`, `baseline_too_old`, `no_baseline_evidence`, `history_unavailable`, `diff_unavailable`, or `tracked_file_changed`."
       },
       matched_path: %Schema{
         type: :string,

@@ -490,7 +490,7 @@
       <.card_section data-part="test-details-section">
         <div data-part="metadata-grid">
           <div data-part="metadata-row">
-            <div :if={@selection_run.requested_count > 0} data-part="metadata">
+            <div :if={Tuist.Tests.Selections.has_baseline?(@selection_run)} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Selected tests")}</div>
               <span data-part="value">
                 {dgettext("dashboard_tests", "%{selected} of %{requested} tests",
@@ -499,7 +499,7 @@
                 )}
               </span>
             </div>
-            <div :if={@selection_run.requested_count > 0} data-part="metadata">
+            <div :if={Tuist.Tests.Selections.has_baseline?(@selection_run)} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Skipped tests")}</div>
               <span data-part="value">{@selection_run.skipped_count}</span>
             </div>

@@ -121,7 +121,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "#test-selection-runs-table", "Tracked file changed")
     end
 
-    test "counts modules for a run that fell back for a diff too large, like any fallback without counts", %{
+    test "counts tests for a fallback with a baseline, even one that stored no counts", %{
       conn: conn,
       organization: organization,
       project: project
@@ -130,10 +130,9 @@ defmodule TuistWeb.TestSelectionsLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection")
 
-      assert has_element?(lv, "#test-selection-runs-table", "Diff too large")
-      assert has_element?(lv, "#test-selection-runs-table", "2 / 3 modules")
-      assert has_element?(lv, "#test-selection-runs-table", "33.3%")
-      refute has_element?(lv, "#test-selection-runs-table", "All")
+      assert has_element?(lv, "#test-selection-runs-table", "0 / 0")
+      assert has_element?(lv, "#test-selection-runs-table", "0.0%")
+      refute has_element?(lv, "#test-selection-runs-table", "modules")
     end
 
     test "opens a run's test run on its Selective Testing tab", %{
@@ -156,7 +155,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       organization: organization,
       project: project
     } do
-      selection(project, outcome: "fallback", reason: "history_unavailable")
+      selection(project, outcome: "fallback", reason: "history_unavailable", baseline_sha: nil)
 
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-selection")
@@ -466,16 +465,8 @@ defmodule TuistWeb.TestSelectionsLiveTest do
       refute has_element?(lv, "[data-part='selection-debug-card']")
     end
 
-    test "explains a fallback", %{conn: conn, organization: organization, project: project} do
-      stub(Tuist.Accounts, :tuist_operator?, fn _user -> true end)
-
-      %{test_run: test_run} =
-        selection(project,
-          outcome: "fallback",
-          reason: "tracked_file_changed",
-          matched_path: "Package.resolved",
-          rule_trace: [%{rule: "tracked_files", selected: 0, skipped: 0, verdict: "abort"}]
-        )
+    test "explains a run without a baseline", %{conn: conn, organization: organization, project: project} do
+      %{test_run: test_run} = selection(project, outcome: "fallback", reason: "no_baseline", baseline_sha: nil)
 
       {:ok, lv, _html} =
         live(
@@ -483,9 +474,7 @@ defmodule TuistWeb.TestSelectionsLiveTest do
           ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=test-optimizations"
         )
 
-      assert has_element?(lv, "#test-selection-fallback", "Tracked file changed")
-      assert has_element?(lv, "#test-selection-fallback", "Package.resolved")
-      assert has_element?(lv, "#selection-rule-trace-table", "abort")
+      assert has_element?(lv, "#test-selection-fallback", "No baseline")
       refute has_element?(lv, "#selection-tests-table")
     end
 

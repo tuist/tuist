@@ -16,7 +16,8 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   the counts cover all of them: once the baseline is confirmed, the
   baseline's tests in skipped modules count as requested and skipped, and a
   fallback counts the tests of the modules left as selected. Runs that end
-  before the baseline is confirmed record zeros.
+  before the baseline is confirmed record zeros and no `baseline_sha`, with
+  the reason there's none, even a selection of nothing.
 
   Skipped tests are never stored. A skip list is the baseline's tests in the
   modules left to decide (`requested_modules`) less the selected ones:
@@ -109,7 +110,8 @@ defmodule Tuist.TestImpactAnalysis.Runs do
 
   # Nothing to decide, so no diff and no rules: only what hashing skipped,
   # counted once the baseline is confirmed.
-  defp nothing_left_attrs(_project, _params, _commit_sha, nil), do: %{}
+  defp nothing_left_attrs(_project, params, _commit_sha, nil),
+    do: %{reason: to_string(Map.get(params, :fallback_reason) || :no_baseline)}
 
   defp nothing_left_attrs(project, params, commit_sha, baseline_sha) do
     case resolve(project, scope(params, commit_sha), baseline_sha) do
@@ -124,8 +126,8 @@ defmodule Tuist.TestImpactAnalysis.Runs do
           skipped_count: module_skipped
         }
 
-      {:fallback, _reason, _extra} ->
-        %{baseline_sha: nil}
+      {:fallback, reason, extra} ->
+        Map.put(extra, :reason, to_string(reason))
     end
   end
 
@@ -207,8 +209,8 @@ defmodule Tuist.TestImpactAnalysis.Runs do
           skipped_count: module_skipped
         }
 
-      {:fallback, _reason, _extra} ->
-        %{}
+      {:fallback, _reason, extra} ->
+        extra
     end
   end
 
@@ -254,7 +256,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
   defp resolve(project, scope, baseline_sha) do
     case Baselines.resolve(project, scope, baseline_sha: baseline_sha) do
       {:ok, baseline} -> {:ok, baseline}
-      {:error, reason} -> {:fallback, reason, %{}}
+      {:error, reason} -> {:fallback, reason, %{baseline_sha: nil}}
     end
   end
 

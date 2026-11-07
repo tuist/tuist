@@ -156,12 +156,7 @@ defmodule TuistWeb.TestSelection.RunTab do
 
   # Debug is for Tuist operators only.
   defp tabs(run, operator?) do
-    tabs =
-      cond do
-        !Selections.selection?(run) and !has_baseline?(run) -> []
-        !Selections.selection?(run) -> ["debug"]
-        true -> @tabs
-      end
+    tabs = if Selections.selection?(run), do: @tabs, else: []
 
     if operator?, do: tabs, else: List.delete(tabs, "debug")
   end
@@ -286,7 +281,10 @@ defmodule TuistWeb.TestSelection.RunTab do
             />
           </div>
         </.card_section>
-        <.card_section :if={has_baseline?(@selection_run)} data-part="selection-details-section">
+        <.card_section
+          :if={Selections.has_baseline?(@selection_run)}
+          data-part="selection-details-section"
+        >
           <dl data-part="details">
             <div>
               <dt>{dgettext("dashboard_tests", "Baseline")}</dt>
@@ -782,8 +780,6 @@ defmodule TuistWeb.TestSelection.RunTab do
       do: [run.reason | Selections.skipped_reasons()],
       else: Selections.selected_reasons() ++ Selections.skipped_reasons()
   end
-
-  defp has_baseline?(run), do: run.baseline_sha not in [nil, ""]
 
   defp decision_filter_label("any"), do: dgettext("dashboard_tests", "Any")
   defp decision_filter_label(decision), do: decision_label(decision)

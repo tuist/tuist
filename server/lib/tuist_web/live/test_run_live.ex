@@ -149,8 +149,8 @@ defmodule TuistWeb.TestRunLive do
   end
 
   # Read the original build's lookups without attributing them to this test command.
-  # An impact run that counted no tests, its baseline not confirmed, has nothing for coverage to
-  # show, so the Selective Testing tab shows module hashing's table alone when the run has one.
+  # An impact run without a baseline has nothing for coverage to show, so the Selective Testing
+  # tab shows module hashing's table alone when the run has one.
   defp hash_only_selection?(selection_run, has_selective_testing_data),
     do: has_selective_testing_data == true and Selections.counted_by_module?(selection_run)
 
