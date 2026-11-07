@@ -110,13 +110,49 @@ defmodule TuistEx.Analytics.EnvTest do
 
     github = fn sha -> &%{"GITHUB_REF" => "refs/pull/7/merge", "GITHUB_SHA" => sha}[&1] end
 
-    assert Env.git_commit_sha(github.("merge-commit"), git.("pull-request-head")) ==
-             "pull-request-head"
-
     # A checkout of the pull request's head keeps GITHUB_REF at the merge ref;
     # when that head is itself a merge commit, its second parent is not the
     # pull request.
     assert Env.git_commit_sha(github.("another-commit"), git.("main")) == "merge-commit"
+  end
+
+  @tag :tmp_dir
+  test "reads the pull request's head on GitHub's merge commit", %{tmp_dir: tmp_dir} do
+    event = Path.join(tmp_dir, "event.json")
+
+    environment = fn sha ->
+      &%{
+        "GITHUB_REF" => "refs/pull/7/merge",
+        "GITHUB_SHA" => sha,
+        "GITHUB_EVENT_PATH" => event
+      }[&1]
+    end
+
+    git = fn second_parent ->
+      fn
+        "rev-parse", ["HEAD"] ->
+          "merge-commit"
+
+        "cat-file", ["-p", "HEAD"] ->
+          Enum.join(
+            ["tree t", "parent base" | List.wrap(second_parent && "parent #{second_parent}")] ++
+              ["", "Merge"],
+            "\n"
+          )
+      end
+    end
+
+    File.write!(event, ~s({"pull_request": {"head": {"sha": "payload-head"}}}))
+    assert Env.git_commit_sha(environment.("merge-commit"), git.("parent-head")) == "payload-head"
+
+    # Without a pull request in the payload, the merge commit's object names it.
+    File.write!(event, ~s({"action": "synchronize"}))
+    assert Env.git_commit_sha(environment.("merge-commit"), git.("parent-head")) == "parent-head"
+    assert Env.git_commit_sha(environment.("merge-commit"), git.(nil)) == "merge-commit"
+
+    # Outside a checkout there is no commit.
+    assert Env.git_commit_sha(environment.("merge-commit"), fn _subcommand, _args -> nil end) ==
+             nil
   end
 
   test "takes the branch from the CI provider before git" do
