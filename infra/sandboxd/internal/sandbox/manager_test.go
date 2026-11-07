@@ -122,7 +122,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	m := New(Config{
 		JailBase: jailBase, FirecrackerBin: "/fc", JailerBin: "/jailer", JailerEnabled: true, UIDBase: 10000,
-		DNS: []string{"10.128.0.10"}, DefaultTemplate: "default", BootTimeout: 5 * time.Second, StopWorkerGrace: 2 * time.Second,
+		DNS: []string{"10.128.0.10"}, DefaultTemplate: "default", BootTimeout: 5 * time.Second, StopWorkerGrace: 2 * time.Second, FirecrackerVersion: "v1.16.1",
 		SnapshotDir: filepath.Join(dataDir, "snapshots"),
 	}, Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: net, Slots: slots, Agent: agent,
@@ -174,7 +174,7 @@ func TestLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if meta.State != protocol.StateRunning || meta.Slot != 0 || meta.Generation != 0 || meta.Hostname != "sbx-abc123def456" || meta.Template != "default" || meta.Tag != "t1" || meta.WorkspaceGB != 20 {
+	if meta.State != protocol.StateRunning || meta.Slot != 0 || meta.Generation != 0 || meta.Hostname != "sbx-abc123def456" || meta.Template != "default" || meta.Tag != "t1" || meta.WorkspaceGB != 20 || meta.FirecrackerVersion != "v1.16.1" {
 		t.Fatalf("metadata %+v", meta)
 	}
 	// Instance 0 was the template build; instance 1 is the sandbox.
@@ -496,7 +496,9 @@ func TestRecover(t *testing.T) {
 	}
 	write("wasrunning", Metadata{ID: "wasrunning", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, Hostname: "sbx-wasrunning", State: protocol.StateRunning, Slot: 3, Generation: 2}, "mem", "snapshot", "mem.new", "rootfs.ext4", "workspace.ext4", "vmlinux")
 	write("nosnapshot", Metadata{ID: "nosnapshot", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StateRunning, Slot: 1})
-	write("waspaused", Metadata{ID: "waspaused", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 0, Generation: 1}, "mem", "snapshot")
+	write("waspaused", Metadata{ID: "waspaused", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 0, Generation: 1, FirecrackerVersion: "v1.16.1"}, "mem", "snapshot")
+	write("sameversion", Metadata{ID: "sameversion", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 5, Generation: 2, FirecrackerVersion: "v1.16.1"}, "mem", "snapshot", "rootfs.ext4", "workspace.ext4", "vmlinux")
+	write("oldversion", Metadata{ID: "oldversion", Template: "default", Tag: "t1", VCPUs: 2, MemoryMB: 4096, State: protocol.StatePaused, Slot: 4, Generation: 3, FirecrackerVersion: "v1.16.0"}, "mem", "snapshot", "rootfs.ext4", "workspace.ext4", "vmlinux")
 	write("tmpl-default-t1-2x4096", Metadata{}, "mem")
 	h.net.Existing = []string{"sbx-stale", "sbx-tmpl-deadbeef"}
 
@@ -507,7 +509,7 @@ func TestRecover(t *testing.T) {
 	for _, info := range h.m.List() {
 		byID[info.ID] = info
 	}
-	if len(byID) != 3 {
+	if len(byID) != 5 {
 		t.Fatalf("recovered %v", byID)
 	}
 	// A sandbox that was running when the daemon died has disks newer than
@@ -518,6 +520,14 @@ func TestRecover(t *testing.T) {
 	}
 	if byID["waspaused"].ColdBoot {
 		t.Fatalf("a cleanly paused sandbox must keep its memory image: %+v", byID["waspaused"])
+	}
+	// Another Firecracker version cannot load the memory image a clean
+	// pause left, so the sandbox cold boots on its disks instead.
+	if byID["oldversion"].State != protocol.StatePaused || !byID["oldversion"].ColdBoot {
+		t.Fatalf("oldversion %+v", byID["oldversion"])
+	}
+	if byID["sameversion"].ColdBoot {
+		t.Fatalf("a memory image this Firecracker wrote must be kept: %+v", byID["sameversion"])
 	}
 	if byID["nosnapshot"].State != protocol.StateError || byID["nosnapshot"].Error == "" {
 		t.Fatalf("nosnapshot %+v", byID["nosnapshot"])
@@ -588,6 +598,11 @@ func TestRecover(t *testing.T) {
 	}
 	if !vm.Exists(filepath.Join(root, "mem")) || !vm.Exists(filepath.Join(root, "snapshot")) {
 		t.Fatal("pause after a cold boot must write a fresh memory image")
+	}
+	// Recovery compares this against the running binary; a pause that left
+	// it out would cold boot every sandbox after each daemon restart.
+	if meta, _ = LoadMetadata(root); meta.FirecrackerVersion != "v1.16.1" {
+		t.Fatalf("pause must record the Firecracker version: %+v", meta)
 	}
 }
 
