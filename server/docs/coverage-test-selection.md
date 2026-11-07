@@ -97,7 +97,7 @@ A commit's measured set is only written once its runs' coverage is folded, so a 
 The runs request resolves the same baseline again (`baseline_sha:` fixed) to confirm it and read its full runs, and records the baseline's runs on the impact run (`baseline_run_ids`), so every shard read later derives its skip list from the tests the decision saw.
 
 - **A window over the cap applies no coverage.** `no_baseline` and `baseline_too_old` are reasons: the run executes every test hashing left. Selection resumes once a full run ([without selection](#baselines-come-from-runs-without-selection)) lands within reach.
-- **A large diff applies no coverage.** Above 5,000 changed files the run records `diff_too_large`, keeps its baseline, and executes every test hashing left.
+- **A large diff applies no coverage.** Above 5,000 changed files the run records `diff_too_large`, keeps its baseline and counts its tests, and executes every test hashing left.
 - **Every run refreshes evidence.** Every run uploads test-scoped evidence for the tests it executed, so any later checkout that reproduces it can use it. Skipped tests write nothing. Evidence expires with coverage retention (`TUIST_COVERAGE_FILE_RETENTION_DAYS`, 90 days by default), and a test whose versions all expired runs as `no_evidence`. There's no required nightly run: the default branch's runs are the baselines.
 
 ## Impact analysis rules

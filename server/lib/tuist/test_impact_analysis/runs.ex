@@ -14,8 +14,9 @@ defmodule Tuist.TestImpactAnalysis.Runs do
 
   The request lists every test module in scope, each `skipped` or not, and
   the counts cover all of them: once the baseline is confirmed, the
-  baseline's tests in skipped modules count as requested and skipped. Runs
-  that end before that record zeros.
+  baseline's tests in skipped modules count as requested and skipped, and a
+  fallback counts the tests of the modules left as selected. Runs that end
+  before the baseline is confirmed record zeros.
 
   Skipped tests are never stored. A skip list is the baseline's tests in the
   modules left to decide (`requested_modules`) less the selected ones:
@@ -184,6 +185,30 @@ defmodule Tuist.TestImpactAnalysis.Runs do
         result ->
           {:selected, input, result, baseline, skipped_modules}
       end
+    else
+      {:diff_fallback, reason} -> {:fallback, reason, diff_fallback_attrs(project, params, commit_sha, baseline_sha)}
+      fallback -> fallback
+    end
+  end
+
+  # Without a diff the rules can't run, so every test of the modules left
+  # runs: counted like a rule fallback once the baseline is confirmed.
+  defp diff_fallback_attrs(project, params, commit_sha, baseline_sha) do
+    case resolve(project, scope(params, commit_sha), baseline_sha) do
+      {:ok, baseline} ->
+        skipped_modules = skipped_modules(project, params, baseline)
+        module_skipped = total(skipped_modules)
+        requested = project.id |> Input.baseline_test_counts(baseline.run_ids, params.decided_modules) |> total()
+
+        %{
+          skipped_modules: skipped_modules,
+          requested_count: requested + module_skipped,
+          selected_count: requested,
+          skipped_count: module_skipped
+        }
+
+      {:fallback, _reason, _extra} ->
+        %{}
     end
   end
 
@@ -196,7 +221,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
              {:ok, diff} <- Storage.get_diff(project.id, commit_sha, baseline_sha) do
           {:ok, diff.changed_files, diff.changed_files_count}
         else
-          _ -> {:fallback, :diff_unavailable, %{}}
+          _ -> {:diff_fallback, :diff_unavailable}
         end
 
       files ->
@@ -223,7 +248,7 @@ defmodule Tuist.TestImpactAnalysis.Runs do
     end
   end
 
-  defp within_diff_limit(count) when count > @changed_files_limit, do: {:fallback, :diff_too_large, %{}}
+  defp within_diff_limit(count) when count > @changed_files_limit, do: {:diff_fallback, :diff_too_large}
   defp within_diff_limit(_count), do: :ok
 
   defp resolve(project, scope, baseline_sha) do
