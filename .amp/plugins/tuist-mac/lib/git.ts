@@ -3,7 +3,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { exec, execText } from './run.ts'
 
-export async function headCommit(root: string): Promise<string> {
+// The commit the Mac checks out: the newest commit of HEAD the remote has,
+// through the branch's upstream or else the default branch. Local commits
+// past it reach the Mac in the worktree patch, so they need no push.
+export async function baseCommit(root: string): Promise<string> {
+	for (const ref of ['@{upstream}', 'refs/remotes/origin/HEAD']) {
+		try {
+			return await execText('git', ['merge-base', 'HEAD', ref], { cwd: root })
+		} catch {}
+	}
 	return execText('git', ['rev-parse', 'HEAD'], { cwd: root })
 }
 

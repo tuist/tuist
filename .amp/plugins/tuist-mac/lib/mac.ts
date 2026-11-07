@@ -1,23 +1,18 @@
-import { randomBytes } from 'node:crypto'
-import type { SandboxClient } from './sandbox.ts'
+import { ApiError, type LogLine, type SandboxClient } from './sandbox.ts'
 
-// Commands run on the Mac through the sandbox exec API. One exec is a single
-// HTTP request, and tuist.dev's proxy ends a response after about 100 seconds,
-// well short of a build. So a command starts in its own session (outside the
-// exec's process group, which the guest kills when the exec returns), and
-// short execs wait for it in turns of WAIT_SECONDS.
+// Long commands go through the sandbox commands API: the server starts the
+// command detached in the guest and streams its output as ND-JSON, so a build
+// outlives any one HTTP request. Short steps use a single foreground exec.
 //
-// PROTOTYPE: this deliberately steps outside the exec's process-group fence. A
-// server-side asynchronous exec (start, then poll or stream by command ID)
-// would replace it.
-const WAIT_SECONDS = 50
-const STATE = '/tmp/tuist-mac'
 // Kept under macOS's ARG_MAX (1 MiB for argv and environment), since the
 // guest runs every exec as `/bin/bash -lc <command>`.
 const CHUNK = 256 * 1024
-// The exec API caps each stream at 1 MiB; ask for less.
+// A long log keeps its start and end.
 const LOG_HEAD = 20_000
 const LOG_TAIL = 200_000
+// How long a command waits for its host while CI holds it, and how long a
+// running command's log stream keeps reconnecting without progress.
+const HOST_WAIT_MS = 15 * 60_000
 
 export interface RunResult {
 	exitCode: number
@@ -32,38 +27,59 @@ export class Mac {
 
 	// One foreground exec, for short steps that cannot outlive a request.
 	async exec(command: string, timeoutMs = 60_000, signal?: AbortSignal): Promise<RunResult> {
-		const result = await this.client.exec(this.sandboxId, command, timeoutMs, signal)
+		const result = await waitForHost(() => this.client.exec(this.sandboxId, command, timeoutMs, signal), signal)
 		return { exitCode: result.exit_code ?? 124, output: result.stdout + result.stderr }
 	}
 
 	// Runs `script` with bash in `cwd` until it ends or `timeoutMs` passes,
 	// however long that is, and returns its combined output.
 	async run(script: string, { cwd, timeoutMs, signal }: { cwd: string; timeoutMs: number; signal?: AbortSignal }): Promise<RunResult> {
-		const dir = `${STATE}/${randomBytes(8).toString('hex')}`
-		await this.upload(`${dir}/cmd.sh`, Buffer.from(script))
-		const launch =
-			`set -e; cd ${quote(cwd)}; ` +
-			// perl's setsid gives the command its own session and process group.
-			`perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV or die' -- /bin/bash -c ` +
-			quote(`echo $$ > "$1/pid"; /bin/bash "$1/cmd.sh" > "$1/log" 2>&1 < /dev/null; echo $? > "$1/exit.tmp"; mv "$1/exit.tmp" "$1/exit"`) +
-			` _ ${dir} > /dev/null 2>&1 < /dev/null &\n`
-		const deadline = Date.now() + timeoutMs
-		let first = true
-		const onAbort = () => void this.exec(`kill -TERM -- -$(cat ${dir}/pid) 2>/dev/null; true`).catch(() => {})
+		const command = await waitForHost(() => this.client.startCommand(this.sandboxId, { command: script, cwd, timeout_ms: timeoutMs }), signal)
+		const output = new HeadTail()
+		const offsets = { stdout: 0, stderr: 0 }
+		const onAbort = () => void this.client.cancelCommand(this.sandboxId, command.id).catch(() => {})
 		signal?.addEventListener('abort', onAbort, { once: true })
 		try {
+			// Failed reconnects in a row, and since when; reset by any progress.
+			let failures = 0
+			let failingSince = 0
 			for (;;) {
 				signal?.throwIfAborted()
-				const wait = Math.max(1, Math.min(WAIT_SECONDS, Math.ceil((deadline - Date.now()) / 1000)))
-				const result = await this.exec(`${first ? launch : ''}${waitScript(dir, wait)}`, (wait + 30) * 1000, signal)
-				first = false
-				const done = /^__TM_EXIT_(\d+)__\n/.exec(result.output)
-				if (done) return { exitCode: Number(done[1]), output: result.output.slice(done[0].length) }
-				if (!result.output.startsWith('__TM_RUNNING__')) throw new Error(`Lost track of the Mac command:\n${result.output.slice(0, 2000)}`)
-				if (Date.now() >= deadline) {
-					await this.exec(`kill -TERM -- -$(cat ${dir}/pid) 2>/dev/null; true`).catch(() => {})
-					throw new Error(`Mac command timed out after ${Math.round(timeoutMs / 1000)}s`)
+				let end: LogLine | undefined
+				let failure: unknown
+				try {
+					for await (const line of this.client.logs(this.sandboxId, command.id, offsets, signal)) {
+						if (line.type === 'stdout' || line.type === 'stderr') {
+							output.push(line.data)
+							offsets[line.type] = line.offset
+							failures = 0
+						} else {
+							end = line
+						}
+					}
+				} catch (error) {
+					if (signal?.aborted || (error instanceof ApiError && error.status < 500)) throw error
+					failure = error
 				}
+				if (end?.type === 'exit') {
+					if (end.status === 'timed_out') output.push(`\nMac command timed out after ${Math.round(timeoutMs / 1000)}s\n`)
+					if (end.status === 'lost') output.push('\nThe Mac command was lost (the Mac restarted or was paused).\n')
+					return { exitCode: end.exit_code ?? 124, output: output.text() }
+				}
+				// The server ends a long stream without an exit line; resume it.
+				if (!failure && !end) {
+					failures = 0
+					continue
+				}
+				// A dropped stream, a 5xx, or an `error` line mid-stream, which the
+				// server sends when a read fails, such as while CI holds the host.
+				// The command keeps running; reconnect, and the first read answers
+				// with a plain status (404 for a gone command ends the loop above).
+				if (failures++ === 0) failingSince = Date.now()
+				if (Date.now() - failingSince > HOST_WAIT_MS) {
+					throw failure ?? new Error(`Lost track of the Mac command: ${end?.type === 'error' ? end.message : 'no output'}`)
+				}
+				await new Promise((r) => setTimeout(r, Math.min(30_000, 1000 * 2 ** failures)))
 			}
 		} finally {
 			signal?.removeEventListener('abort', onAbort)
@@ -84,19 +100,44 @@ export class Mac {
 	}
 }
 
-// Waits up to `seconds` for the command, then prints its exit code and log,
-// or a marker that it is still running. A long log keeps its start and end.
-function waitScript(dir: string, seconds: number): string {
-	return `d=${dir}; end=$((SECONDS + ${seconds}))
-while [ ! -f "$d/exit" ] && [ "$SECONDS" -lt "$end" ]; do sleep 0.2; done
-if [ ! -f "$d/exit" ]; then echo __TM_RUNNING__; exit 0; fi
-echo "__TM_EXIT_$(cat "$d/exit")__"
-size=$(wc -c < "$d/log" | tr -d ' ')
-if [ "$size" -gt ${LOG_HEAD + LOG_TAIL} ]; then
-  head -c ${LOG_HEAD} "$d/log"; printf '\\n… %s bytes omitted …\\n' "$((size - ${LOG_HEAD + LOG_TAIL}))"; tail -c ${LOG_TAIL} "$d/log"
-else cat "$d/log"; fi
-rm -rf "$d"
-`
+// Tuist Macs share hosts with CI, which comes first: while CI holds the
+// host, the server refuses new work on the Mac with 503. Wait for the host
+// instead of failing the call.
+async function waitForHost<T>(call: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+	const deadline = Date.now() + HOST_WAIT_MS
+	for (let attempt = 0; ; attempt++) {
+		try {
+			return await call()
+		} catch (error) {
+			if (!(error instanceof ApiError && error.status === 503) || Date.now() >= deadline) throw error
+			signal?.throwIfAborted()
+			await new Promise((r) => setTimeout(r, Math.min(30_000, 2000 * 2 ** attempt)))
+		}
+	}
+}
+
+// Keeps the first LOG_HEAD and the last LOG_TAIL characters of a stream.
+class HeadTail {
+	private head = ''
+	private tail = ''
+	private dropped = 0
+
+	push(data: string) {
+		if (this.head.length < LOG_HEAD) {
+			const room = LOG_HEAD - this.head.length
+			this.head += data.slice(0, room)
+			data = data.slice(room)
+		}
+		this.tail += data
+		if (this.tail.length > LOG_TAIL) {
+			this.dropped += this.tail.length - LOG_TAIL
+			this.tail = this.tail.slice(-LOG_TAIL)
+		}
+	}
+
+	text(): string {
+		return this.dropped ? `${this.head}\n… ${this.dropped} characters omitted …\n${this.tail}` : this.head + this.tail
+	}
 }
 
 export function quote(value: string): string {

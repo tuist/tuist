@@ -2,7 +2,7 @@ import type { PluginAPI, PluginToolResult } from '@ampcode/plugin'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { checkoutScript, headCommit, originURL, syncScript, worktreePatch } from './lib/git.ts'
+import { baseCommit, checkoutScript, originURL, syncScript, worktreePatch } from './lib/git.ts'
 import { Mac, quote } from './lib/mac.ts'
 import { accountHandle, SandboxClient, tuistToken } from './lib/sandbox.ts'
 
@@ -86,8 +86,8 @@ export default function (amp: PluginAPI) {
 		transcriptGroup: { active: 'Starting a Tuist Mac', complete: 'Started a Tuist Mac' },
 		description:
 			"Start a macOS Tuist sandbox (Xcode, simulators, Homebrew) for this thread, or reuse the thread's existing one. " +
-			'Use it when the task needs macOS: Xcode builds, Apple-platform tests, or the iOS Simulator. The Mac starts from the current commit; ' +
-			'tuist_mac_shell then mirrors uncommitted and untracked (non-ignored) changes before each command. ' +
+			'Use it when the task needs macOS: Xcode builds, Apple-platform tests, or the iOS Simulator. The Mac starts from the newest commit the remote has; ' +
+			'tuist_mac_shell then mirrors local commits, uncommitted and untracked (non-ignored) changes before each command. ' +
 			'Tuist pauses an idle Mac and resumes it on the next command; tuist_mac_stop deletes it.',
 		inputSchema: {
 			type: 'object',
@@ -115,7 +115,7 @@ export default function (amp: PluginAPI) {
 				const started = Date.now()
 				const account = await accountHandle(workspace)
 				const api = await client(account)
-				const base = await headCommit(workspace)
+				const base = await baseCommit(workspace)
 				const url = await originURL(workspace)
 				const repo = `${WORK}/${url.replace(/\.git$/, '').split('/').pop() || 'repo'}`
 				const sandbox = await api.create({ platform: 'darwin', vcpus: 8, memory_mb: memoryGB * 1024, workspace_gb: workspaceGB })
