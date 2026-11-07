@@ -64,6 +64,8 @@ final class TestServiceTests: TuistUnitTestCase {
     private var shardService: MockShardServicing!
     private var xcActivityLogController: MockXCActivityLogControlling!
     private var uploadBuildRunService: MockUploadBuildRunServicing!
+    private var resolveTestImpactBaselineService: MockResolveTestImpactBaselineServicing!
+    private var createTestImpactRunService: MockCreateTestImpactRunServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -92,6 +94,8 @@ final class TestServiceTests: TuistUnitTestCase {
         shardService = .init()
         xcActivityLogController = .init()
         uploadBuildRunService = .init()
+        resolveTestImpactBaselineService = .init()
+        createTestImpactRunService = .init()
         given(xcActivityLogController)
             .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
             .willReturn(nil)
@@ -223,7 +227,9 @@ final class TestServiceTests: TuistUnitTestCase {
             shardMatrixOutputService: shardMatrixOutputService,
             shardService: shardService,
             xcActivityLogController: xcActivityLogController,
-            uploadBuildRunService: uploadBuildRunService
+            uploadBuildRunService: uploadBuildRunService,
+            resolveTestImpactBaselineService: resolveTestImpactBaselineService,
+            createTestImpactRunService: createTestImpactRunService
         )
 
         given(simulatorController)
@@ -287,6 +293,8 @@ final class TestServiceTests: TuistUnitTestCase {
         uploadResultBundleService = nil
         derivedDataLocator = nil
         createTestService = nil
+        resolveTestImpactBaselineService = nil
+        createTestImpactRunService = nil
         gitController = nil
         ciController = nil
         testQuarantineService = nil
@@ -1397,6 +1405,19 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_empty_shard_matrix_without_full_handle() async throws {
         try await assertSkippedTestReport(emptyScheme: .removed, action: .build, shardTotal: 2, fullHandle: nil)
+    }
+
+    func test_skipped_report_links_the_coverage_run_when_hashing_skipped_every_module() async throws {
+        try await assertSkippedTestReport(emptyScheme: .workspaceRemoved, testImpactRunID: "impact-run")
+    }
+
+    func test_sharded_skipped_report_links_the_coverage_run_when_hashing_skipped_every_module() async throws {
+        try await assertSkippedTestReport(
+            emptyScheme: .workspaceRemoved,
+            action: .build,
+            shardTotal: 2,
+            testImpactRunID: "impact-run"
+        )
     }
 
     func test_skips_running_tests_when_all_tests_are_cached_with_a_custom_result_bundle_path()
@@ -5080,8 +5101,11 @@ final class TestServiceTests: TuistUnitTestCase {
         case removed, noTargets, noTestPlans, workspaceRemoved
     }
 
-    private func givenSkippedTestsGraph(emptyScheme: EmptyTestScheme, path: AbsolutePath) {
-        givenGenerator()
+    private func givenSkippedTestsGraph(emptyScheme: EmptyTestScheme, path: AbsolutePath, selectsByCoverage: Bool = false) {
+        let testingGenerator = selectsByCoverage
+            ? HashSkippedTestImpactGenerator(generator: generator, skippedModules: ["AppTests"])
+            : nil
+        givenGenerator(testingGenerator)
         let target = Target.test(name: "AppTests", product: .unitTests)
         let testableTarget = TestableTarget.test(target: TargetReference(projectPath: path, name: target.name))
         let initialScheme = Scheme.test(
@@ -5130,14 +5154,19 @@ final class TestServiceTests: TuistUnitTestCase {
         emptyScheme: EmptyTestScheme,
         action: XcodeBuildTestAction = .test,
         shardTotal: Int? = nil,
-        fullHandle: String? = "tuist/tuist"
+        fullHandle: String? = "tuist/tuist",
+        testImpactRunID: String? = nil
     ) async throws {
         try await withMockedDependencies {
             let path = try temporaryPath()
-            givenSkippedTestsGraph(emptyScheme: emptyScheme, path: path)
+            givenSkippedTestsGraph(emptyScheme: emptyScheme, path: path, selectsByCoverage: testImpactRunID != nil)
             given(configLoader)
                 .loadConfig(path: .any)
-                .willReturn(.test(project: .testGeneratedProject(), fullHandle: fullHandle))
+                .willReturn(.test(
+                    project: .testGeneratedProject(),
+                    fullHandle: fullHandle,
+                    testInsights: testImpactRunID == nil ? .init() : .init(selectiveTesting: .init(strategy: .coverage))
+                ))
             gitController.reset()
             given(gitController)
                 .isInGitRepository(workingDirectory: .any)
@@ -5151,6 +5180,26 @@ final class TestServiceTests: TuistUnitTestCase {
             given(xcodebuildController)
                 .version()
                 .willReturn(nil)
+            if let testImpactRunID {
+                given(gitController)
+                    .checkedOutCommit(workingDirectory: .any)
+                    .willReturn(GitCheckedOutCommit(sha: "current-commit", parentSHAs: ["parent"]))
+                given(resolveTestImpactBaselineService)
+                    .resolveTestImpactBaseline(
+                        fullHandle: .any, serverURL: .any, commitSHA: .any, parentSHAs: .any, ancestorSHAs: .any,
+                        platform: .any, scheme: .any, testPlan: .any, destination: .any
+                    )
+                    .willReturn(.baseline(sha: "parent", diffCached: true))
+                given(createTestImpactRunService)
+                    .createTestImpactRun(fullHandle: .any, serverURL: .any, request: .any)
+                    .willReturn(.selected(TestImpactSelection(
+                        runID: testImpactRunID,
+                        requested: 0,
+                        selected: 0,
+                        skipped: 0,
+                        skippedTests: []
+                    )))
+            }
 
             var uploadedReports = 0
             given(createTestService)
@@ -5167,8 +5216,9 @@ final class TestServiceTests: TuistUnitTestCase {
                     coverageEnabled: .any,
                     testImpactRunId: .any
                 )
-                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _, _, _, _, _ in
+                .willProduce { _, _, _, summary, _, _, commit, ref, _, _, _, _, _, _, _, _, _, planId, shardIndex, _, _, _, _, _, _, impactRunId in
                     uploadedReports += 1
+                    XCTAssertEqual(impactRunId, testImpactRunID)
                     XCTAssertEqual(summary.testPlanName, "ProjectSchemeOne")
                     XCTAssertEqual(summary.status, .passed)
                     self.XCTAssertEmpty(summary.testModules)
@@ -5214,6 +5264,14 @@ final class TestServiceTests: TuistUnitTestCase {
             verify(shardMatrixOutputService)
                 .output(.matching { $0.shard_count == 0 && $0.shards.isEmpty })
                 .called(shardTotal != nil ? 1 : 0)
+            verify(createTestImpactRunService)
+                .createTestImpactRun(
+                    fullHandle: .any,
+                    serverURL: .any,
+                    request: .matching { $0.modules.isEmpty && $0.skippedModules == ["AppTests"] }
+                )
+                .called(testImpactRunID != nil ? 1 : 0)
+            XCTAssertStandardOutputNotContains("Coverage-based test selection")
 
             let log = switch emptyScheme {
             case .removed, .noTargets: "The scheme ProjectSchemeOne's test action has no tests to run, finishing early."
@@ -5224,7 +5282,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
-    private func givenGenerator() {
+    private func givenGenerator(_ testingGenerator: Generating? = nil) {
         given(generatorFactory)
             .testing(
                 config: .any,
@@ -5241,7 +5299,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 schemeName: .any,
                 coverage: .any
             )
-            .willReturn(generator)
+            .willReturn(testingGenerator ?? generator)
     }
 
     private struct ShardPlanBuildFixture {
@@ -10241,5 +10299,35 @@ struct TestServiceTargetQueryTests {
                 mode: .local
             )
         }
+    }
+}
+
+/// Records coverage selection the way `TestImpactGraphMapper` does when hashing skipped every test
+/// module, then generates through `generator`.
+private struct HashSkippedTestImpactGenerator: Generating {
+    let generator: MockGenerating
+    let skippedModules: [String]
+
+    func load(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> Graph {
+        try await generator.load(path: path, options: options)
+    }
+
+    func loadWithEnvironment(
+        path: AbsolutePath,
+        options: TuistGeneratedProjectOptions.GenerationOptions?
+    ) async throws -> (Graph, MapperEnvironment) {
+        try await generator.loadWithEnvironment(path: path, options: options)
+    }
+
+    func generate(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> AbsolutePath {
+        try await generator.generate(path: path, options: options)
+    }
+
+    func generateWithGraph(
+        path: AbsolutePath,
+        options: TuistGeneratedProjectOptions.GenerationOptions?
+    ) async throws -> (AbsolutePath, Graph, MapperEnvironment) {
+        _ = await TestImpactSelector.current?.decide(modules: [], skippedModules: skippedModules, platform: nil) { _ in [] }
+        return try await generator.generateWithGraph(path: path, options: options)
     }
 }

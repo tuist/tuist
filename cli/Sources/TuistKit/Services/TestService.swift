@@ -143,6 +143,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let uploadBuildRunService: UploadBuildRunServicing?
     private let stressNewTestsService: StressNewTestsServicing
     private let coverageBuildSourcesService: CoverageBuildSourcesService
+    private let resolveTestImpactBaselineService: ResolveTestImpactBaselineServicing
+    private let createTestImpactRunService: CreateTestImpactRunServicing
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -190,9 +192,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
         xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
         uploadBuildRunService: UploadBuildRunServicing? = UploadBuildRunService(),
         stressNewTestsService: StressNewTestsServicing = StressNewTestsService(),
-        coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService()
+        coverageBuildSourcesService: CoverageBuildSourcesService = CoverageBuildSourcesService(),
+        resolveTestImpactBaselineService: ResolveTestImpactBaselineServicing = ResolveTestImpactBaselineService(),
+        createTestImpactRunService: CreateTestImpactRunServicing = CreateTestImpactRunService()
     ) {
         self.coverageBuildSourcesService = coverageBuildSourcesService
+        self.resolveTestImpactBaselineService = resolveTestImpactBaselineService
+        self.createTestImpactRunService = createTestImpactRunService
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
         self.xcodebuildController = xcodebuildController
@@ -816,7 +822,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 destination: destination,
                 platform: platform.flatMap { try? XcodeGraph.Platform.from(commandLineValue: $0) }
                     ?? destination.flatMap(XcodeGraph.Platform.init(xcodebuildDestination:))
-            )
+            ),
+            gitController: gitController,
+            resolveBaselineService: resolveTestImpactBaselineService,
+            createRunService: createTestImpactRunService
         )
     }
 
@@ -830,6 +839,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         case nil:
             return
         case let .selected(selection, skippedModules):
+            // A run that counted nothing (hashing skipped every module before the baseline was confirmed) has
+            // nothing to add to the selective testing line.
+            guard selection.requested != 0 else { return }
             // The server's counts include the tests in the modules hashing skipped.
             let counts = [
                 selection.selected
@@ -841,10 +853,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let skipped = skippedModules.isEmpty ? "" : " No test selected in: \(skippedModules.joined(separator: ", "))."
             Logger.current.notice("Coverage-based test selection: \(counts.isEmpty ? "tests selected" : counts).\(skipped)")
         case let .fallback(_, reason, matchedPath):
-            let action = reason.map(TestImpactSelector.runAllReasons.contains) == true
-                ? "runs every test" : "fell back to selective testing"
             let path = matchedPath.map { " (\($0))" } ?? ""
-            Logger.current.notice("Coverage-based test selection \(action): \(reason?.rawValue ?? "unknown reason")\(path).")
+            Logger.current.notice(
+                "Coverage-based test selection not applied: \(reason?.rawValue ?? "unknown reason")\(path). Every test of the targets selective testing left runs."
+            )
         }
     }
 
