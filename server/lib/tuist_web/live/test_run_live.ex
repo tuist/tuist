@@ -148,6 +148,11 @@ defmodule TuistWeb.TestRunLive do
     {:ok, socket}
   end
 
+  # An impact run without a baseline has nothing for coverage to show, so the Selective Testing
+  # tab shows module hashing's table alone when the run has one.
+  defp hash_only_selection?(selection_run, has_selective_testing_data),
+    do: has_selective_testing_data == true and Selections.counted_by_module?(selection_run)
+
   # Read the original build's lookups without attributing them to this test command.
   defp binary_cache_command_event(run, command_event) do
     if command_event && Xcode.has_binary_cache_data?(command_event) do
