@@ -50,7 +50,7 @@ defmodule Tuist.Sandboxes.Archives do
 
   @mib 1024 * 1024
   @gib 1024 * @mib
-  @max_archived_bytes_per_account 100 * @gib
+  @max_archived_bytes_per_account 500 * @gib
   # The archived kernel, and room for the archive's framing and an
   # incompressible worst case on top of the disk ceiling.
   @kernel_allowance_bytes 512 * @mib
