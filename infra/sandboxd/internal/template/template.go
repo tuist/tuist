@@ -183,6 +183,20 @@ func (t Template) Artifacts(shape Shape) (Artifacts, error) {
 	}, nil
 }
 
+// shapeVersion is the Firecracker version a shape snapshot was taken with,
+// empty when its metadata is unreadable.
+func shapeVersion(dir string) string {
+	data, err := os.ReadFile(filepath.Join(dir, MetadataFile))
+	if err != nil {
+		return ""
+	}
+	var meta Metadata
+	if json.Unmarshal(data, &meta) != nil {
+		return ""
+	}
+	return meta.FirecrackerVersion
+}
+
 // seedKernel reads the kernel name from the template-level metadata.json
 // the image ships, if any.
 func (t Template) seedKernel() string {
@@ -330,8 +344,10 @@ func (s *Store) RemoveStaleTags(name, current string, inUse func(tag string) boo
 }
 
 // CleanPartialBuilds removes shape directories an interrupted build left
-// behind.
-func (s *Store) CleanPartialBuilds() error {
+// behind, and shapes snapshotted by a different Firecracker version, which
+// that version cannot load; the next create rebuilds them. Sandboxes linked
+// to a removed memfile keep their own hard link.
+func (s *Store) CleanPartialBuilds(firecrackerVersion string) error {
 	templates, err := s.List()
 	if err != nil {
 		return err
@@ -346,7 +362,7 @@ func (s *Store) CleanPartialBuilds() error {
 				continue
 			}
 			dir := filepath.Join(t.Dir, shapesDir, e.Name())
-			if strings.HasSuffix(e.Name(), buildSuffix) || !vm.Exists(filepath.Join(dir, ReadyFile)) {
+			if strings.HasSuffix(e.Name(), buildSuffix) || !vm.Exists(filepath.Join(dir, ReadyFile)) || shapeVersion(dir) != firecrackerVersion {
 				if err := os.RemoveAll(dir); err != nil {
 					return err
 				}

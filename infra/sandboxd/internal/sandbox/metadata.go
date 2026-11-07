@@ -29,6 +29,9 @@ type Metadata struct {
 	Slot        int    `json:"slot"`
 	Generation  int    `json:"generation"`
 	ColdBoot    bool   `json:"cold_boot,omitempty"`
+	// FirecrackerVersion wrote the memory image beside the disks; another
+	// version cannot load it, so recovery turns a mismatch into a cold boot.
+	FirecrackerVersion string `json:"firecracker_version,omitempty"`
 	// DisksSynced records that the last pause flushed the guest page cache
 	// to the disks, so they can be saved without the memory image.
 	DisksSynced bool      `json:"disks_synced,omitempty"`

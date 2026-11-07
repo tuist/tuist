@@ -117,11 +117,13 @@ func main() {
 	if len(dns) == 0 {
 		logger.Warn("no resolvers found in /etc/resolv.conf; guests get no DNS")
 	}
-	fcVersion := "unknown"
-	if v, err := firecracker.BinaryVersion(context.Background(), firecrackerBin); err == nil {
-		fcVersion = v
-	} else {
-		logger.Warn("firecracker version unavailable", "bin", firecrackerBin, "error", err)
+	// Startup discards template shapes and memory images another version
+	// wrote, so a daemon that cannot tell its own version must not start:
+	// guessing would throw away every snapshot on the node.
+	fcVersion, err := firecracker.BinaryVersion(context.Background(), firecrackerBin)
+	if err != nil {
+		logger.Error("reading the firecracker version", "bin", firecrackerBin, "error", err)
+		os.Exit(1)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -157,7 +159,7 @@ func main() {
 		os.Exit(1)
 	}
 	store := &template.Store{Dir: filepath.Join(dataDir, "templates")}
-	if err := store.CleanPartialBuilds(); err != nil {
+	if err := store.CleanPartialBuilds(fcVersion); err != nil {
 		logger.Error("cleaning partial template builds", "error", err)
 		os.Exit(1)
 	}
@@ -203,7 +205,7 @@ func main() {
 		JailBase: jailBase, FirecrackerBin: firecrackerBin, JailerBin: jailerBin, JailerEnabled: jailerEnabled,
 		UIDBase: uidBase, DNS: dns, DefaultTemplate: templateName, DefaultTemplateTag: defaultTemplate.Tag, BootTimeout: bootTimeout,
 		AllowedShapes: allowedShapes,
-		SnapshotDir:   snapshotDir,
+		SnapshotDir:   snapshotDir, FirecrackerVersion: fcVersion,
 	}, sandbox.Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: netManager, Slots: slots, Agent: agent,
 		Metrics: metrics, Events: events, Log: logger,

@@ -54,7 +54,7 @@ reflink, so rootfs clones are instant copy-on-write):
   snapshot            template vmstate, replaced on the first pause
   run/firecracker.socket, v.sock
   firecracker.log     Firecracker and guest console output, drained through a pipe and started over past 8 MiB
-  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation, disks_synced}
+  metadata.json       {id, template, tag, vcpus, memory_mb, state, generation, firecracker_version, disks_synced}
 /data/sandboxes/snapshots/<snapshot_id>/
   vmlinux             hard link to the kernel the source sandbox booted
   rootfs.ext4         reflink clone of the source sandbox's rootfs
@@ -88,6 +88,11 @@ Boot args: `console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw
 rootfstype=ext4 init=/sbin/sbx-init sbx.dns=<ip,ip> sbx.hostname=sandbox`.
 The DNS list is the daemon Pod's own resolvers (cluster DNS), so guests
 resolve both cluster Services and public names through the pod's NAT.
+
+A shape snapshot records the Firecracker version that took it, and startup
+removes shapes another version took, since that version cannot load them; the
+next create rebuilds them. Restored guests keep the boot args baked into their
+memory image until they cold boot.
 
 ## Sandbox lifecycle on the node
 
@@ -493,15 +498,20 @@ journals replayed on mount, and writes still in its page cache (up to ext4's
 5 s commit interval) are lost;
 the next pause writes a fresh pair. A cleanly paused sandbox keeps its
 memory image, because the pause path pauses the VM, snapshots, then kills
-it, so nothing touches the disks afterwards. Jail directories without
+it, so nothing touches the disks afterwards, unless another Firecracker
+version wrote that image (`firecracker_version` in its metadata, empty
+before it was recorded): it is set to `cold_boot` too, because this version
+cannot load it. The daemon exits at startup when it cannot read its own
+Firecracker version. Jail directories without
 `metadata.json` (an interrupted create or template build), `*.building`
-shape directories and every `sbx-*` netns are removed.
+shape directories, shapes another Firecracker version took and every
+`sbx-*` netns are removed.
 
 On SIGTERM the daemon stops every running worker (SIGTERM, then SIGKILL
 after `STOP_WORKER_GRACE`; the SDK worker force-stops its work item and
 Anthropic re-queues the session on its next event) and pauses every running
 sandbox within `SHUTDOWN_TIMEOUT`, so a rollout restores memory rather than
-cold booting. Whatever is still running at the deadline takes the cold-boot
+cold booting, except one that changes the Firecracker version. Whatever is still running at the deadline takes the cold-boot
 path on recovery.
 
 Server deployments publish the daemon image as `sha-<commit>` of the last
