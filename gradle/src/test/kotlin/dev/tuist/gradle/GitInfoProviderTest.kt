@@ -1,9 +1,14 @@
 package dev.tuist.gradle
 
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
+import java.io.File
 import kotlin.test.assertEquals
 
 class GitInfoProviderTest {
+
+    @TempDir
+    lateinit var tempDir: File
 
     @Test
     fun `branch prefers CI environment variable over HEAD`() {
@@ -199,26 +204,37 @@ class GitInfoProviderTest {
         assertEquals(null, provider.remoteUrlOrigin())
     }
 
-    private fun mergeCheckout(ref: String?, githubSha: String? = null, secondParent: () -> String) = ProcessGitInfoProvider(
+    private fun mergeCheckout(
+        ref: String?,
+        githubSha: String? = null,
+        eventPath: String? = null,
+        secondParent: () -> String
+    ) = ProcessGitInfoProvider(
         environmentProvider = { key ->
             when (key) {
                 "GITHUB_REF" -> ref
                 "GITHUB_SHA" -> githubSha
+                "GITHUB_EVENT_PATH" -> eventPath
                 else -> null
             }
         },
         gitCommandRunner = { args ->
             when (args) {
-                listOf("rev-parse", "HEAD^2") -> secondParent()
+                listOf("cat-file", "-p", "HEAD") -> rawMergeCommit(secondParent())
                 listOf("rev-parse", "HEAD") -> "merge-commit"
                 else -> throw RuntimeException("unexpected git ${args.joinToString(" ")}")
             }
         }
     )
 
+    private fun rawMergeCommit(secondParent: String) =
+        "tree t\nparent base\nparent $secondParent\nauthor A <a@tuist.dev> 1700000000 +0000\n" +
+            "committer A <a@tuist.dev> 1700000000 +0000\n\nMerge $secondParent into base\nparent message\n"
+
     @Test
-    fun `commitSha is the pull request's head on a pull request merge checkout`() {
-        assertEquals("pull-request-head", mergeCheckout("refs/pull/123/merge") { "pull-request-head" }.commitSha())
+    fun `commitSha is HEAD on a pull request ref without GitHub's merge commit`() {
+        // Only GITHUB_SHA says HEAD is GitHub's merge commit.
+        assertEquals("merge-commit", mergeCheckout("refs/pull/123/merge") { "pull-request-head" }.commitSha())
     }
 
     @Test
@@ -226,6 +242,32 @@ class GitInfoProviderTest {
         assertEquals(
             "pull-request-head",
             mergeCheckout("refs/pull/123/merge", githubSha = "merge-commit") { "pull-request-head" }.commitSha()
+        )
+    }
+
+    @Test
+    fun `commitSha is the pull request's head as GitHub's event payload names it`() {
+        val event = File(tempDir, "event.json").apply {
+            writeText("""{"pull_request": {"head": {"sha": "payload-head"}, "base": {"sha": "base"}}}""")
+        }
+
+        assertEquals(
+            "payload-head",
+            mergeCheckout("refs/pull/123/merge", githubSha = "merge-commit", eventPath = event.path) {
+                throw RuntimeException("the commit object is not read")
+            }.commitSha()
+        )
+    }
+
+    @Test
+    fun `commitSha reads the merge commit's parents when the event payload names no pull request`() {
+        val event = File(tempDir, "event.json").apply { writeText("""{"action": "synchronize"}""") }
+
+        assertEquals(
+            "pull-request-head",
+            mergeCheckout("refs/pull/123/merge", githubSha = "merge-commit", eventPath = event.path) {
+                "pull-request-head"
+            }.commitSha()
         )
     }
 
@@ -240,14 +282,17 @@ class GitInfoProviderTest {
     }
 
     @Test
-    fun `commitSha falls back to HEAD when the merge commit's second parent is not in the checkout`() {
-        assertEquals("merge-commit", mergeCheckout("refs/pull/123/merge") { throw RuntimeException("shallow") }.commitSha())
+    fun `commitSha falls back to HEAD when HEAD's commit object cannot be read`() {
+        assertEquals(
+            "merge-commit",
+            mergeCheckout("refs/pull/123/merge", githubSha = "merge-commit") { throw RuntimeException("unreadable") }.commitSha()
+        )
     }
 
     @Test
     fun `commitSha is HEAD outside a pull request ref`() {
         for (ref in listOf("refs/heads/main", null)) {
-            assertEquals("merge-commit", mergeCheckout(ref) { "pull-request-head" }.commitSha())
+            assertEquals("merge-commit", mergeCheckout(ref, githubSha = "merge-commit") { "pull-request-head" }.commitSha())
         }
     }
 }

@@ -89,16 +89,39 @@ defmodule TuistEx.Analytics.EnvTest do
   test "reports a pull request's head rather than the merge commit its merge ref checks out" do
     git = fn second_parent ->
       fn
-        "rev-parse", ["HEAD^2"] -> second_parent
-        "rev-parse", ["HEAD"] -> "merge-commit"
+        "cat-file", ["-p", "HEAD"] ->
+          Enum.join(
+            ["tree t", "parent base" | List.wrap(second_parent && "parent #{second_parent}")] ++
+              ["author A <a@tuist.dev> 1700000000 +0000", "", "Merge", "parent message"],
+            "\n"
+          )
+
+        "rev-parse", ["HEAD"] ->
+          "merge-commit"
       end
     end
 
-    pull_request = &%{"GITHUB_REF" => "refs/pull/7/merge"}[&1]
+    pull_request = &%{"GITHUB_REF" => "refs/pull/7/merge", "GITHUB_SHA" => "merge-commit"}[&1]
 
     assert Env.git_commit_sha(pull_request, git.("pull-request-head")) == "pull-request-head"
-    # A shallow checkout lacks the merge commit's parents.
+    # HEAD is not a merge commit.
     assert Env.git_commit_sha(pull_request, git.(nil)) == "merge-commit"
+
+    # Only GITHUB_SHA says HEAD is GitHub's merge commit.
+    assert Env.git_commit_sha(&%{"GITHUB_REF" => "refs/pull/7/merge"}[&1], git.("x")) ==
+             "merge-commit"
+
+    # HEAD's commit object cannot be read.
+    unreadable = fn
+      "cat-file", ["-p", "HEAD"] -> nil
+      "rev-parse", ["HEAD"] -> "merge-commit"
+    end
+
+    assert Env.git_commit_sha(pull_request, unreadable) == "merge-commit"
+
+    # Outside a checkout there is no commit.
+    assert Env.git_commit_sha(pull_request, fn _subcommand, _args -> nil end) == nil
+    assert Env.git_commit_sha(fn _ -> nil end, fn _subcommand, _args -> nil end) == nil
 
     assert Env.git_commit_sha(&%{"GITHUB_REF" => "refs/heads/main"}[&1], git.("x")) ==
              "merge-commit"
@@ -110,13 +133,33 @@ defmodule TuistEx.Analytics.EnvTest do
 
     github = fn sha -> &%{"GITHUB_REF" => "refs/pull/7/merge", "GITHUB_SHA" => sha}[&1] end
 
-    assert Env.git_commit_sha(github.("merge-commit"), git.("pull-request-head")) ==
-             "pull-request-head"
-
     # A checkout of the pull request's head keeps GITHUB_REF at the merge ref;
     # when that head is itself a merge commit, its second parent is not the
     # pull request.
     assert Env.git_commit_sha(github.("another-commit"), git.("main")) == "merge-commit"
+  end
+
+  @tag :tmp_dir
+  test "reads the pull request's head from GitHub's event payload", %{tmp_dir: tmp_dir} do
+    event = Path.join(tmp_dir, "event.json")
+
+    environment =
+      &%{
+        "GITHUB_REF" => "refs/pull/7/merge",
+        "GITHUB_SHA" => "merge-commit",
+        "GITHUB_EVENT_PATH" => event
+      }[&1]
+
+    git = fn
+      "rev-parse", ["HEAD"] -> "merge-commit"
+      "cat-file", ["-p", "HEAD"] -> "tree t\nparent base\nparent parent-head\n\nMerge"
+    end
+
+    File.write!(event, ~s({"pull_request": {"head": {"sha": "payload-head"}}}))
+    assert Env.git_commit_sha(environment, git) == "payload-head"
+
+    File.write!(event, ~s({"action": "synchronize"}))
+    assert Env.git_commit_sha(environment, git) == "parent-head"
   end
 
   test "takes the branch from the CI provider before git" do

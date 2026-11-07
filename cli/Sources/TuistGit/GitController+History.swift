@@ -30,12 +30,21 @@ extension GitController {
             head = try await capture(arguments: git + ["rev-parse", "HEAD"]).trimmingCharacters(in: .whitespacesAndNewlines)
         }
         var reasons: [String] = []
+        let deadline = Date().addingTimeInterval(TimeInterval(limits.deepenBudgetSeconds))
+
+        var headInCheckout = await fetchMissingHead(git: git, head: head, limits: limits, deadline: deadline)
 
         var mergeBase: String?
         var baseHead: String?
         var localBaseHead: String?
         if let baseBranch {
-            let resolved = await resolveMergeBase(git: git, head: head, baseBranch: baseBranch, limits: limits)
+            let resolved = await resolveMergeBase(
+                git: git,
+                head: head,
+                baseBranch: baseBranch,
+                limits: limits,
+                deadline: deadline
+            )
             mergeBase = resolved.sha
             reasons = resolved.reasons
             // Read after any deepening, which fetches the base branch again and can move it.
@@ -49,11 +58,12 @@ extension GitController {
             reasons.append("no base branch is known")
         }
 
-        let commits = try await windowCommits(
-            git: git,
-            workingDirectory: workingDirectory,
-            heads: [head] + [localBaseHead].compactMap { $0 }.filter { $0 != head },
-            limits: limits
+        // A deepen for the merge base can bring a missing head in.
+        if !headInCheckout { headInCheckout = await commitSHA(git: git, ref: head) != nil }
+        if !headInCheckout { reasons.append("\(head.prefix(12)) is not in the checkout") }
+        let heads = (headInCheckout ? [head] : []) + [localBaseHead].compactMap { $0 }.filter { $0 != head }
+        let commits = heads.isEmpty ? [] : try await windowCommits(
+            git: git, workingDirectory: workingDirectory, heads: heads, limits: limits
         )
 
         return GitHistory(
@@ -65,6 +75,17 @@ extension GitController {
             commits: commits,
             fallbackReason: reasons.isEmpty ? nil : reasons.joined(separator: "; ")
         )
+    }
+
+    /// On a pull request's merge checkout the head is the merge commit's second parent, which a
+    /// depth-1 clone does not contain: it is fetched alone, without blobs, within the budget.
+    /// Returns whether the checkout has it.
+    private func fetchMissingHead(git: [String], head: String, limits: GitHistoryLimits, deadline: Date) async -> Bool {
+        if await commitSHA(git: git, ref: head) != nil { return true }
+        guard limits.remoteAccess == .history else { return false }
+        let fetch = git + ["fetch", "--no-tags", "--recurse-submodules=no", "--filter=blob:none", "--depth=1", "origin", head]
+        guard await self.fetch(arguments: fetch, deadline: deadline) == .succeeded else { return false }
+        return await commitSHA(git: git, ref: head) != nil
     }
 
     private func commitSHA(git: [String], ref: String) async -> String? {
@@ -117,9 +138,9 @@ extension GitController {
         git: [String],
         head: String,
         baseBranch: String,
-        limits: GitHistoryLimits
+        limits: GitHistoryLimits,
+        deadline: Date
     ) async -> MergeBaseResolution {
-        let deadline = Date().addingTimeInterval(TimeInterval(limits.deepenBudgetSeconds))
         let shallow = (try? await capture(arguments: git + ["rev-parse", "--is-shallow-repository"]))?
             .trimmingCharacters(in: .whitespacesAndNewlines) == "true"
 
@@ -148,7 +169,7 @@ extension GitController {
             return MergeBaseResolution(sha: nil, ref: nil, reasons: ["the base branch \(baseBranch) is not in the checkout"])
         }
         if ref == nil {
-            var fetch = git + ["fetch", "--no-tags", "--filter=blob:none"]
+            var fetch = git + ["fetch", "--no-tags", "--recurse-submodules=no", "--filter=blob:none"]
             if shallow { fetch.append("--depth=1") }
             fetch += ["origin", baseRefspec]
             if await self.fetch(arguments: fetch, deadline: deadline) == .timedOut {
@@ -194,7 +215,15 @@ extension GitController {
         var step = 50
         while Date() < deadline, depth < maxDepth {
             step = min(step, maxDepth - depth)
-            let deepen = git + ["fetch", "--no-tags", "--filter=blob:none", "--deepen=\(step)", "origin", baseRefspec]
+            let deepen = git + [
+                "fetch",
+                "--no-tags",
+                "--recurse-submodules=no",
+                "--filter=blob:none",
+                "--deepen=\(step)",
+                "origin",
+                baseRefspec,
+            ]
             guard await fetch(arguments: deepen, deadline: deadline) == .succeeded else { break }
             if let sha = await resolve(ref) { return MergeBaseResolution(sha: sha, ref: ref, reasons: []) }
             depth += step

@@ -148,10 +148,22 @@ defmodule TuistEx.Git do
           _ -> "sha1"
         end
 
+      deadline = System.monotonic_time(:millisecond) + limits.deepen_budget_seconds * 1000
+
+      fetch_missing_head(dir, head, limits, deadline)
+
       {merge_base, ref, reasons} =
         if base_branch,
-          do: resolve_merge_base(dir, head, base_branch, limits),
+          do: resolve_merge_base(dir, head, base_branch, limits, deadline),
           else: {nil, nil, ["no base branch is known"]}
+
+      # A deepen for the merge base can bring a missing head in.
+      head_in_checkout? = commit_sha(dir, head) != nil
+
+      reasons =
+        if head_in_checkout?,
+          do: reasons,
+          else: reasons ++ ["#{String.slice(head, 0, 12)} is not in the checkout"]
 
       # Read after any deepening, which fetches the base branch again and can move it.
       local_base_head = if ref, do: commit_sha(dir, ref)
@@ -175,11 +187,40 @@ defmodule TuistEx.Git do
          base_branch: base_branch,
          merge_base_sha: merge_base,
          base_head_sha: base_head,
-         commits: window_commits(dir, Enum.uniq([head | List.wrap(local_base_head)]), limits),
+         commits:
+           window_commits(
+             dir,
+             Enum.uniq(if(head_in_checkout?, do: [head], else: []) ++ List.wrap(local_base_head)),
+             limits
+           ),
          fallback_reason: if(reasons != [], do: Enum.join(reasons, "; "))
        }}
     end
   end
+
+  # On a pull request's merge checkout the head is the merge commit's second
+  # parent, which a depth-1 clone does not contain: it is fetched alone,
+  # without blobs, within the budget.
+  defp fetch_missing_head(dir, head, %{remote_access: :history}, deadline) do
+    if is_nil(commit_sha(dir, head)) do
+      run_until(
+        dir,
+        [
+          "fetch",
+          "--quiet",
+          "--no-tags",
+          "--recurse-submodules=no",
+          "--filter=blob:none",
+          "--depth=1",
+          "origin",
+          head
+        ],
+        deadline
+      )
+    end
+  end
+
+  defp fetch_missing_head(_dir, _head, _limits, _deadline), do: nil
 
   defp commit_sha(dir, ref) do
     case capture(dir, ["rev-parse", "--verify", "--quiet", "#{ref}^{commit}"]) do
@@ -201,6 +242,8 @@ defmodule TuistEx.Git do
   # theirs are read from the commit objects, which the raw format prints
   # regardless of the shallow grafts. When they cannot be read, the boundary
   # commits are left out rather than stored as roots.
+  defp window_commits(_dir, [], _limits), do: []
+
   defp window_commits(dir, heads, limits) do
     case capture(dir, [
            "log",
@@ -255,8 +298,7 @@ defmodule TuistEx.Git do
   # and stop at the window, and never continue past a fetch that failed.
   # Returns the merge base, the base branch's ref it was resolved against, and
   # why either is missing.
-  defp resolve_merge_base(dir, head, base_branch, limits) do
-    deadline = System.monotonic_time(:millisecond) + limits.deepen_budget_seconds * 1000
+  defp resolve_merge_base(dir, head, base_branch, limits, deadline) do
     shallow? = capture(dir, ["rev-parse", "--is-shallow-repository"]) == {:ok, "true\n"}
     refspec = "+#{base_branch}:refs/remotes/origin/#{base_branch}"
 
@@ -264,7 +306,7 @@ defmodule TuistEx.Git do
       case {base_ref(dir, base_branch), limits.remote_access} do
         {nil, :history} ->
           fetch =
-            ["fetch", "--quiet", "--no-tags", "--filter=blob:none"] ++
+            ["fetch", "--quiet", "--no-tags", "--recurse-submodules=no", "--filter=blob:none"] ++
               if(shallow?, do: ["--depth=1"], else: [])
 
           case run_until(dir, fetch ++ ["origin", refspec], deadline) do
@@ -326,6 +368,7 @@ defmodule TuistEx.Git do
                "fetch",
                "--quiet",
                "--no-tags",
+               "--recurse-submodules=no",
                "--filter=blob:none",
                "--deepen=#{step}",
                "origin",
