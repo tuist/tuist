@@ -47,6 +47,35 @@ struct TaskAttributionTargetsTests {
         #expect(TaskAttributionTargets.identifiers(graph: graph) == ["Core", "CoreTests"])
     }
 
+    @Test func leavesOutTheTargetsOfExternalPackages() throws {
+        let path = try AbsolutePath(validating: "/Project")
+        let packagePath = try AbsolutePath(validating: "/Project/.build/checkouts/NIO")
+        let tests = Target.test(
+            name: "CoreTests",
+            product: .unitTests,
+            sources: [SourceFile(path: path.appending(component: "CoreTests.swift"))]
+        )
+        let attribution = Target.test(name: "TestCoverageAttribution", product: .staticFramework)
+        let nio = Target.test(
+            name: "NIO",
+            product: .staticFramework,
+            sources: [SourceFile(path: packagePath.appending(component: "NIO.swift"))]
+        )
+        let graph = Graph.test(
+            projects: [
+                path: Project.test(path: path, targets: [tests, attribution]),
+                packagePath: Project.test(path: packagePath, targets: [nio], type: .external(hash: nil)),
+            ],
+            dependencies: [
+                .target(name: "CoreTests", path: path): [
+                    .target(name: "TestCoverageAttribution", path: path), .target(name: "NIO", path: packagePath),
+                ],
+            ]
+        )
+
+        #expect(TaskAttributionTargets.identifiers(graph: graph) == ["CoreTests"])
+    }
+
     @Test func writesNamesAsC99ExtendedIdentifiers() {
         #expect(TaskAttributionTargets.identifier("Core-iOS Tests") == "Core_iOS_Tests")
         #expect(TaskAttributionTargets.identifier("2D") == "_2D")

@@ -9,8 +9,10 @@ import XcodeGraph
 /// links it has to link the package too, or the link fails. Those are the unit test targets that
 /// link the package, and the static targets only such test targets link, directly or through other
 /// static targets. A static target that an app, a framework, a macro or any other image links is left
-/// out, and so are the package's own targets. The code left out still counts, through the counters,
-/// for every test of the process that ran it.
+/// out. So are the targets of external packages: their files are never evidence, which keeps only the
+/// repository's files, and slowing their code down only perturbs it. The package's own targets are
+/// left out too. The code left out still counts, through the counters, for every test of the process
+/// that ran it.
 public enum TaskAttributionTargets {
     /// TestCoverageAttribution's targets, whose code is the attribution itself.
     static let packageTargets: Set<String> = ["TestCoverageAttribution", "TestCoverageAttributionObserver"]
@@ -44,7 +46,7 @@ public enum TaskAttributionTargets {
         }
 
         let eligible = attributing.union(linkedByAttributing.subtracting(linkedByOthers))
-            .filter { !packageTargets.contains($0.target.name) && hasSwiftSources($0.target) }
+            .filter { !isExternal($0) && !packageTargets.contains($0.target.name) && hasSwiftSources($0.target) }
         let eligibleIdentifiers = Set(eligible.map { identifier($0.target.name) })
         let ineligibleIdentifiers = Set(traverser.allTargets().subtracting(eligible).map { identifier($0.target.name) })
         return eligibleIdentifiers.subtracting(ineligibleIdentifiers)
@@ -70,6 +72,11 @@ public enum TaskAttributionTargets {
             if case let .packageProduct(_, product, _) = $0 { return product == "TestCoverageAttribution" }
             return false
         }
+    }
+
+    private static func isExternal(_ target: GraphTarget) -> Bool {
+        if case .external = target.project.type { return true }
+        return false
     }
 
     private static func hasSwiftSources(_ target: Target) -> Bool {
