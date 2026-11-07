@@ -2794,6 +2794,63 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(testedSchemes, ["ProjectSchemeOneTests"])
     }
 
+    func test_run_excludes_only_whole_target_skips_from_generation() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .value(["SkippedTargetTests"]),
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any,
+                coverage: .any,
+                sdkSelection: .any
+            )
+            .willReturn(generator)
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectSchemeOneTests"),
+                ]
+            )
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOneTests")])),
+                    MapperEnvironment()
+                )
+            }
+
+        // When
+        try await testRun(
+            schemeName: "ProjectSchemeOneTests",
+            path: try temporaryPath(),
+            skipTestTargets: [
+                // A Swift Testing function outside a suite has a method but no class.
+                .init(target: "ProjectSchemeOneTests", class: nil, method: "suitelessTest()"),
+                .init(target: "SkippedTargetTests"),
+            ]
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["ProjectSchemeOneTests"])
+    }
+
     func test_run_filters_test_targets_not_in_scheme() async throws {
         // Given
         // Scheme has only "TargetA" in its test action — "PrunedTarget" was removed by selective testing
