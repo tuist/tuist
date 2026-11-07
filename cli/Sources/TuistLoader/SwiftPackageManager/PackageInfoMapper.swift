@@ -1058,6 +1058,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 }
             }
             dependencies = linkerDependencies + dependencies
+            let cxxStandardLibrary = ProjectDescription.TargetDependency.sdk(name: "c++", type: .library, status: .required)
+            if !dependencies.contains(cxxStandardLibrary), try await hasCxxSources(target: target, targetPath: targetPath) {
+                dependencies.append(cxxStandardLibrary)
+            }
         }
 
         let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
@@ -1152,6 +1156,31 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 usesDirectoryModuleMap: usesDirectoryModuleMap
             )
         )
+    }
+
+    /// Whether the target compiles C++ or Objective-C++ sources. SwiftPM links the C++ standard library into every client of
+    /// such a module, which a client that only compiles Swift, C, or Objective-C would otherwise not link.
+    private func hasCxxSources(target: PackageInfo.Target, targetPath: AbsolutePath) async throws -> Bool {
+        guard target.type.supportsSources else { return false }
+        let cxxExtensions = "{cpp,cc,cxx,mm}"
+        let excludedPaths = try target.exclude.map { targetPath.appending(try RelativePath(validating: $0)) }
+        let sourcePaths = try target.sources?.map { targetPath.appending(try RelativePath(validating: $0)) } ?? [targetPath]
+        for sourcePath in sourcePaths {
+            let candidates: [AbsolutePath] = if try await fileSystem.exists(sourcePath, isDirectory: true) {
+                try await fileSystem.glob(directory: sourcePath, include: ["*.\(cxxExtensions)", "**/*.\(cxxExtensions)"])
+                    .collect()
+            } else if let fileExtension = sourcePath.extension, ["cpp", "cc", "cxx", "mm"].contains(fileExtension) {
+                [sourcePath]
+            } else {
+                []
+            }
+            if candidates.contains(where: { candidate in
+                !excludedPaths.contains(where: { candidate.isDescendantOfOrEqual(to: $0) })
+            }) {
+                return true
+            }
+        }
+        return false
     }
 
     private func prebuiltDependency(
