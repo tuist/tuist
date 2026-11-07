@@ -77,9 +77,10 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
     }
 
     /// A UI test's evidence is what the app process it launched executed, including an app launched
-    /// in a class `setUp` for the whole suite.
+    /// in a class `setUp` for the whole suite. The only test that runs in parallel: the evidence of
+    /// processes in simulator clones, which Xcode deletes after the run, maps back to build products.
     func test_ui_tests_select_by_what_the_app_executed() async throws {
-        try await withShop { shop in
+        try await withShop(parallelTesting: true) { shop in
             try await shop.recordBaseline()
             try shop.git.run("checkout", "-q", "-b", "feature/receipt")
             try shop.git.edit(
@@ -148,7 +149,7 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
         }
     }
 
-    private func withShop(_ body: (Shop) async throws -> Void) async throws {
+    private func withShop(parallelTesting: Bool = false, _ body: (Shop) async throws -> Void) async throws {
         // Only these reach the CLI and, through it, the fixture's xcodebuild. Inheriting the whole
         // environment would hand the fixture this process's own coverage and TestCoverageAttribution
         // variables when the suite runs with coverage.
@@ -159,7 +160,7 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
                         "CoverageTestSelection",
                         fixturesDirectory: TestPaths.fixturesDirectory
                     ) {
-                        try await body(try await Shop.make())
+                        try await body(try await Shop.make(parallelTesting: parallelTesting))
                     }
                 }
             }
@@ -175,6 +176,10 @@ private struct Shop {
     let git: GitRepository
     let fullHandle: String
     let serverURL: URL
+    /// Parallel testing boots simulator clones on every run, which costs more than it saves for a
+    /// fixture this size and, on a busy machine, stalls a launch for minutes or fails to launch the
+    /// UI test runner. Only the test about clones turns it on.
+    let parallelTesting: Bool
 
     struct Run {
         let output: String
@@ -191,7 +196,7 @@ private struct Shop {
         }
     }
 
-    static func make() async throws -> Shop {
+    static func make(parallelTesting: Bool) async throws -> Shop {
         let directory = try XCTUnwrap(TuistTest.fixtureDirectory)
         let fullHandle = try XCTUnwrap(TuistTest.fixtureFullHandle)
         let serverURL = try XCTUnwrap(TuistTest.fixtureServerURL)
@@ -232,13 +237,21 @@ private struct Shop {
             encoding: .utf8
         )
         try git.commitAll("Shop")
-        return Shop(directory: directory, git: git, fullHandle: fullHandle, serverURL: serverURL)
+        return Shop(
+            directory: directory,
+            git: git,
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            parallelTesting: parallelTesting
+        )
     }
 
     /// Runs every test on `main` with `--no-selective-testing`, as a default branch's CI does, and
     /// waits until the server can use the run as a baseline.
     func recordBaseline(sharded: Bool = false) async throws {
-        _ = try await test(sharded: sharded, selectiveTesting: false)
+        let baseline = try await test(sharded: sharded, selectiveTesting: false)
+        // Every assertion that a test didn't run relies on reading the results right.
+        XCTAssertEqual(baseline.tests.count, 19, "Not all of the fixture's 19 tests are in the output:\n\(baseline.output)")
         try await waitForBaseline(at: try git.head())
     }
 
@@ -287,23 +300,31 @@ private struct Shop {
 
     private var passthrough: [String] {
         ["--path", directory.pathString, "--inspect-mode", "local", "--", "-destination", Self.destination]
+            + (parallelTesting ? [] : ["-parallel-testing-enabled", "NO"])
     }
 
     private func derivedData(_ name: String) -> AbsolutePath {
         directory.parentDirectory.appending(components: "derived-data", name)
     }
 
-    /// The tests xcodebuild reported as passed or failed, as `suite/name`. The scheme tests in
-    /// parallel, so every result line names its suite.
+    /// The tests xcodebuild reported as passed or failed, as `suite/name`. A parallel run names the
+    /// suite on every result line; a serial one on the line that starts the suite.
     static func tests(in output: String) -> Set<String> {
-        let pattern = try! NSRegularExpression(pattern: #"[✔✖] \[(\w+)\] (\w+)(?:\(\))? on "#)
-        let range = NSRange(output.startIndex..., in: output)
-        return Set(pattern.matches(in: output, range: range).compactMap { match in
-            guard let suite = Range(match.range(at: 1), in: output),
-                  let name = Range(match.range(at: 2), in: output)
-            else { return nil }
-            return "\(output[suite])/\(output[name])"
-        })
+        let suiteStart = try! Regex(#"^(?:Test Suite '(\w+)'|Suite (\w+)) started"#)
+        let result = try! Regex(#"^\s*[✔✖] (?:\[(\w+)\] )?(\w+)(?:\(\))?[ ,(]"#)
+        var suite: Substring?
+        var tests = Set<String>()
+        for line in output.split(separator: "\n") {
+            if let match = line.firstMatch(of: suiteStart) {
+                suite = match.output[1].substring ?? match.output[2].substring
+            } else if let match = line.firstMatch(of: result),
+                      let name = match.output[2].substring,
+                      let suite = match.output[1].substring ?? suite
+            {
+                tests.insert("\(suite)/\(name)")
+            }
+        }
+        return tests
     }
 
     /// The server ingests a run's coverage after the upload, and a baseline only counts once it has.
@@ -323,7 +344,7 @@ private struct Shop {
                 destination: Self.destination
             )
             if case .baseline = resolution { return }
-            try await Task.sleep(for: .seconds(5))
+            try await Task.sleep(for: .seconds(1))
         }
         XCTFail("The server didn't take the run on \(sha) as a baseline within 5 minutes")
     }
