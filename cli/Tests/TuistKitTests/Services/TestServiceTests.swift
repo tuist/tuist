@@ -2796,27 +2796,21 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_excludes_only_whole_target_skips_from_generation() async throws {
         // Given
+        givenGenerator()
+        configLoader.reset()
         given(configLoader)
             .loadConfig(path: .any)
-            .willReturn(.test(project: .testGeneratedProject()))
-        given(generatorFactory)
-            .testing(
-                config: .any,
-                testPlan: .any,
-                includedTargets: .any,
-                excludedTargets: .value(["SkippedTargetTests"]),
-                skipUITests: .any,
-                skipUnitTests: .any,
-                configuration: .any,
-                ignoreBinaryCache: .any,
-                ignoreSelectiveTesting: .any,
-                cacheStorage: .any,
-                destination: .any,
-                schemeName: .any,
-                coverage: .any,
-                sdkSelection: .any
-            )
-            .willReturn(generator)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "organization/project"))
+        testCaseListService.reset()
+        given(testCaseListService)
+            .listAllTestCases(fullHandle: .any, serverURL: .any, state: .value(.muted))
+            .willReturn([])
+        given(testCaseListService)
+            .listAllTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
+            .willReturn([
+                // A quarantined Swift Testing function outside a suite has a method but no class.
+                try TestIdentifier(target: "ProjectSchemeOneTests", class: nil, method: "suitelessTest()"),
+            ])
         given(buildGraphInspector)
             .testableSchemes(graphTraverser: .any)
             .willReturn(
@@ -2840,14 +2834,28 @@ final class TestServiceTests: TuistUnitTestCase {
         try await testRun(
             schemeName: "ProjectSchemeOneTests",
             path: try temporaryPath(),
-            skipTestTargets: [
-                // A Swift Testing function outside a suite has a method but no class.
-                .init(target: "ProjectSchemeOneTests", class: nil, method: "suitelessTest()"),
-                .init(target: "SkippedTargetTests"),
-            ]
+            skipTestTargets: [.init(target: "SkippedTargetTests")]
         )
 
         // Then
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .value(["SkippedTargetTests"]),
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any,
+                coverage: .any,
+                sdkSelection: .any
+            )
+            .called(1)
         XCTAssertEqual(testedSchemes, ["ProjectSchemeOneTests"])
     }
 
