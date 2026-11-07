@@ -423,7 +423,7 @@ agent so the manager runs end to end without KVM).
 | `SERVER_URL` | | Server base URL; the daemon dials `/api/internal/sandboxes/nodes/connect`. Empty = admin-only. |
 | `TOKEN_PATH` | `/var/run/secrets/tuist/token` | Projected SA token, re-read on every reconnect. |
 | `DATA_DIR` | `/data/sandboxes` | Templates under `templates/`, jails under `jail/`. |
-| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, discovered | Default template and the tag creates use for it when the caller names none; the tag may be omitted only when exactly one version is on the node, since older versions stay on disk across template upgrades. |
+| `TEMPLATE_NAME`, `TEMPLATE_TAG` | `default`, discovered | Default template and the tag creates use for it when the caller names none; the tag may be omitted only when exactly one version is on the node. With a tag set and no `EXECUTION_SLOTS`, startup deletes this template's other tags unless a sandbox or disk snapshot on the node records them; the init container seeds a tag per upgrade and they otherwise fill the runner node's data disk. |
 | `FIRECRACKER_BIN`, `JAILER_BIN` | `/usr/local/bin/{firecracker,jailer}` | |
 | `JAILER_ENABLED` | `true` | `false` runs Firecracker directly under `ip netns exec` with absolute paths (debug only). |
 | `JAIL_UID_BASE` | `10000` | Jail uid/gid = base + slot index. |
