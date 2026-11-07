@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "fc6a710a20c8aae20cd88c4f3e10ea618919c88dfb601c26d83627928f55796e",
+  "hash": "eac5c45eb03d132740cf59fe7f52716ce5ca7c4b51b851873b4e94fa4667d950",
   "hash_tree": {
     "root": {
       "children": [
@@ -29,7 +29,7 @@
                   "content_hash": "93038ab2da21950b27eda2efb09cfecf047da24ba460dc4dda3726bb9a8f7cee"
                 },
                 "## Start from the developer’s experience {#start-from-the-developers-experience}": {
-                  "content_hash": "d0415cdd06acc1ff09a12e7d4f82ddc7dd1738daabd02082faab85ee1bddfce9"
+                  "content_hash": "0ecf53b7c9c621bfc66f003259efebe4e7a968fbefd3fe2a07481af65e45fb39"
                 },
                 "Preamble": {
                   "content_hash": "c6019c96f05a2bbbec8351b9b6e3ed8f9063aa5d73842e9d36f984f4b360e1b8"
@@ -38,11 +38,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "8f7a2b24211a7144e1dd886194e8ee16a2b87ef82d7ff3dc0dab785bb090d073",
+          "hash": "f7bf0e32a9bbf77ecaa5ec090dce8969f863357faa85ec1ee83232a279d8e66f",
           "kind": "source",
           "label": "server/priv/docs/en/contributors/principles.md",
           "metadata": {
-            "content_hash": "74362972083d16737322fea2f65189a8bcff3d51b2b15c05946045dad02da9c6"
+            "content_hash": "ae723d6d0ba920426284efe60f2ab39b34cd78ce4155212b86682b570d615caf"
           }
         },
         {
@@ -245,14 +245,14 @@
         }
       ],
       "details": {},
-      "hash": "fc6a710a20c8aae20cd88c4f3e10ea618919c88dfb601c26d83627928f55796e",
+      "hash": "eac5c45eb03d132740cf59fe7f52716ce5ca7c4b51b851873b4e94fa4667d950",
       "kind": "translation_input",
       "label": "server/priv/docs/en/contributors/principles.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "16509b94f558840901e96835103240ec0fd8700d7e0e48267f561875b60291fb",
+  "output_hash": "af6f6c8529684f307f211e7961147b7b73e0655a3e50b732932e9f60a1d4a799",
   "output_path": "server/priv/docs/ko/contributors/principles.md",
   "protection_state": "recorded",
   "provider": "",
@@ -272,8 +272,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "60710dceeffa0545feeb83543bb9d27f93374c3b",
+  "source_commit_sha": "3a76a23f214a12697c3164887ff481d4fcc9d2d2",
   "source_path": "server/priv/docs/en/contributors/principles.md",
-  "translated_at": "2026-11-04T18:11:44.563642Z",
-  "translation_session_id": "01a1a7c0-a6b3-7f91-8670-bb0e7c022060"
+  "translated_at": "2026-11-06T15:45:37.589051Z",
+  "translation_session_id": "01a1b186-4f71-7643-aa9d-bb098a21373f"
 }

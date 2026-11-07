@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "2feb4a217bd2c3c4471a0993c79b0de1371835057ae99404368abeb4d6dc9b18",
+  "hash": "18bbd2136d7f7dea2a6a7ecdf5142fa9535654bff656fd5b2b5fe70377bcf3d0",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,7 +11,7 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Elixir test insights {#elixir-test-insights}": {
-                  "content_hash": "c94491b1038fee69b0875d7a6e198d8f95ad79eed6bbde929e2cc156b5a71a00"
+                  "content_hash": "9facee07e4fe1f2ceaa6ae113db514788c45c30f00b0fdc0dcac49e035fe027e"
                 },
                 "## Report your test runs {#report-your-test-runs}": {
                   "content_hash": "50a3d73b2a051b86330431d9eb4fc86d6e16c5080986cf2e2dd08512b6ebe776"
@@ -32,11 +32,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "f84e4b2819eff8cba1dc9d2c94cab5a7528cf70b4fac083d81f6b9a1e2f5ca0b",
+          "hash": "f61376f87700f31feda8b6e6a8d8eec14b5a599a73109ee4a9f14686270b4b70",
           "kind": "source",
           "label": "server/priv/docs/en/guides/features/test-insights/elixir.md",
           "metadata": {
-            "content_hash": "f67a2f0c33bb5d04d4a8035387a77036096d0ad94bb4ebb21a3ae35c922ab9c5"
+            "content_hash": "178fef3c294d14aa265c3853d6335fe3361b536a940c4b2b1e9d3e4e116fd0a0"
           }
         },
         {
@@ -97,7 +97,7 @@
                     "sections_omitted": 0
                   },
                   "server/L10N.md": {
-                    "content_hash": "b90386b5a5ee00ab1ccbf8ca74dd067fd0b38277db0100dd75e5142650064c8b",
+                    "content_hash": "8f8f077d93ee5f72ec7ee5143b63688c44bd8d1461a2a3db34eed1c89bfbf6f0",
                     "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
                     "sections": {
                       "# Tuist Server Translation Context": {
@@ -116,7 +116,7 @@
                         "content_hash": "b10d1303f4bf6edb70528bbd966e33273bb5ebf0d49577dddcfc7a4665c818d5"
                       },
                       "## Translation Domains": {
-                        "content_hash": "6672a41127bfba5684565450d95e169825251f98c53ce37285c4887b5f74a247"
+                        "content_hash": "4d711f10d025d172363eaa9f88de7438f0d568a673a96e6809fb010c80b54609"
                       }
                     },
                     "sections_omitted": 0
@@ -145,11 +145,11 @@
                   }
                 }
               },
-              "hash": "2ad83faae676fcebc10cbc6a2ecbc2b132a446dbd7e582cb3ad1fad105dce1cd",
+              "hash": "e56ca9bd72902dec648ca3f1ea701e53e5c2d8bd2512af622d7a0e521c805ae5",
               "kind": "context",
               "label": "project",
               "metadata": {
-                "content_hash": "2e49d7cb0044653103430191f8cbebe00e78ac0ba30e38c113775df09fbaf567"
+                "content_hash": "c94ade8dd26432c231a24f7fe897cc87266fea6b59bf2b7deac9d9a6e6c0bdb8"
               }
             },
             {
@@ -250,21 +250,21 @@
             }
           ],
           "details": {},
-          "hash": "a420a631e4d79bf1e0ae577e3ec723e626232ea379ec4e9a97bebba76913bd83",
+          "hash": "04d09d96cb7cffdf22c5d3d77893caa632a713bb2140a5dc6d69d87c2f0c626c",
           "kind": "context_bundle",
           "label": "context",
           "metadata": {}
         }
       ],
       "details": {},
-      "hash": "2feb4a217bd2c3c4471a0993c79b0de1371835057ae99404368abeb4d6dc9b18",
+      "hash": "18bbd2136d7f7dea2a6a7ecdf5142fa9535654bff656fd5b2b5fe70377bcf3d0",
       "kind": "translation_input",
       "label": "server/priv/docs/en/guides/features/test-insights/elixir.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "779ee25ba79515cc599d2da125d4f4a4bb53757d835d475eca9ec7ebb1cbd06a",
+  "output_hash": "303d8f4603d2e07650ff11c233aacc1c152e6c6c54f6ed406514d8a5cde0c2b4",
   "output_path": "server/priv/docs/ko/guides/features/test-insights/elixir.md",
   "protection_state": "recorded",
   "provider": "",
@@ -287,8 +287,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "4ab73b41c999a401d392145890b4278eb7f6550d",
+  "source_commit_sha": "8ec6a6be63328e9258f842404885ce74b1e75985",
   "source_path": "server/priv/docs/en/guides/features/test-insights/elixir.md",
-  "translated_at": "2026-11-02T14:42:33.365827Z",
-  "translation_session_id": "01a19cb4-523e-7840-ba53-3aeffc96e9f9"
+  "translated_at": "2026-11-06T21:25:52.903064Z",
+  "translation_session_id": "01a1b2bd-2c2f-797e-93eb-b6e2520064e9"
 }

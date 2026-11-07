@@ -1,6 +1,6 @@
 {
   "baseline_schema_version": 1,
-  "hash": "179e44b67b1b995a76d442fbb12bb18b544ae275dc80a5799cf7f7d80683d7c8",
+  "hash": "66ef2802d8ce367534fc6131a454c53557c7f548b84a13214017e3defc631c92",
   "hash_tree": {
     "root": {
       "children": [
@@ -11,13 +11,13 @@
               "omitted_sections_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
               "sections": {
                 "# Languages {#translate}": {
-                  "content_hash": "bd52dd7c28040f6c6a8b120a940b60ca98432fa1de66e655bc70d726f413ba07"
+                  "content_hash": "64c6b4cb417a58e3591a078cf62cbb759a9547c70acd995d4ec09a95fd098221"
                 },
                 "## Directory context {#directory-context}": {
                   "content_hash": "d806df80322db1c88809db1e6219167fe6104a8eb29ab080c85a8f3f75f9ef11"
                 },
                 "## How to help {#how-to-translate}": {
-                  "content_hash": "72aeb03dadd4cfc3402560958aa58ceaf7152e46189d449b39abafcb8c4c7468"
+                  "content_hash": "b41374e54c7fdcd3c53ddee77f4d3207613cf34a74b497f552cccd5bc2bb6c94"
                 },
                 "## L10N.md structure {#l10n-md-structure}": {
                   "content_hash": "ce40bd13b5300a605a758522434ace0ab767a13f511ea89128e73a8caf1e7094"
@@ -29,11 +29,11 @@
               "sections_omitted": 0
             }
           },
-          "hash": "8230a1dd1e68f7d08ec97b345fed808e6ee5a64fdf216ae41c81a16a5e6d0cca",
+          "hash": "e6814af2fd3485acbccc77e44735f9183058758a79f951094caeb6f38592f371",
           "kind": "source",
           "label": "server/priv/docs/en/contributors/languages.md",
           "metadata": {
-            "content_hash": "695d7d547ebd01edb1ec27d942cb1de76e0317881665aed2362108e65812c660"
+            "content_hash": "1b44788a88e958e65f6aa2559048e55a0af50e3a7e516e7e4c89d03fffe4a2f0"
           }
         },
         {
@@ -223,14 +223,14 @@
         }
       ],
       "details": {},
-      "hash": "179e44b67b1b995a76d442fbb12bb18b544ae275dc80a5799cf7f7d80683d7c8",
+      "hash": "66ef2802d8ce367534fc6131a454c53557c7f548b84a13214017e3defc631c92",
       "kind": "translation_input",
       "label": "server/priv/docs/en/contributors/languages.md",
       "metadata": {}
     }
   },
   "model": "",
-  "output_hash": "9c90eae2bb98fff82a86c402243114a47e2a75735d68f28862a45adaa3058120",
+  "output_hash": "c47f8c25710f94818fcd00ebecf97460d120fcdb3528230b3103f1f65a02888e",
   "output_path": "server/priv/docs/zh_Hant/contributors/languages.md",
   "protection_state": "recorded",
   "provider": "",
@@ -248,8 +248,8 @@
       "version": null
     }
   },
-  "source_commit_sha": "6c347061fea76d5caffe166a674f5ca4aaf2c8d4",
+  "source_commit_sha": "3a76a23f214a12697c3164887ff481d4fcc9d2d2",
   "source_path": "server/priv/docs/en/contributors/languages.md",
-  "translated_at": "2026-11-04T17:47:52.565684Z",
-  "translation_session_id": "01a1a7a8-f0b3-71a2-89a5-e7cf7ef2a4b6"
+  "translated_at": "2026-11-06T15:45:37.500839Z",
+  "translation_session_id": "01a1b186-4f71-7643-aa9d-bb098a21373f"
 }
