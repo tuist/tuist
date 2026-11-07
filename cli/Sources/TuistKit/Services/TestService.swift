@@ -2659,6 +2659,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             firstPassFailed: firstPassFailed,
             fullHandle: fullHandle,
             serverURL: serverURL,
+            coverage: UploadResultBundleService.uploadsCoverage(config: config),
             mutedTests: mutedTests,
             resultBundleDirectory: try? await fileSystem.makeTemporaryDirectory(prefix: "stress-new-tests"),
             stressPass: stressPass
@@ -2871,7 +2872,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             resultBundlePath: resultBundlePath,
             xcodebuildArguments: xcodebuildArguments,
             derivedDataPath: projectDerivedDataDirectory,
-            schemeTargets: schemeTargets
+            schemeTargets: schemeTargets,
+            config: config
         )
 
         do {
@@ -3006,7 +3008,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             gitInfo: gitInfo,
             workingDirectory: gitInfoDirectory,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: UploadResultBundleService.uploadsCoverage(config: config)
         )
 
         let test = try await createTestService.createTest(
@@ -3044,7 +3047,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             gitHistory,
             workingDirectory: gitInfoDirectory,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            coverage: UploadResultBundleService.uploadsCoverage(config: config)
         )
     }
 

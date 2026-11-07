@@ -102,14 +102,14 @@ public struct Tuist: Codable, Equatable, Sendable {
     public struct TestInsights: Codable, Equatable, Sendable {
         /// Options for the code coverage of test runs.
         public struct Coverage: Codable, Equatable, Sendable {
-            /// When `true` (default), the code coverage a test run gathered is uploaded with it.
-            /// Set to `false` to upload test runs without their coverage.
+            /// When `true`, the code coverage a test run gathered is uploaded with it.
+            /// When `false` (default), test runs are uploaded without their coverage.
             public let upload: Bool
 
             /// Creates code coverage options.
-            /// - Parameter upload: Whether to upload the code coverage a test run gathered. Defaults to `true`.
+            /// - Parameter upload: Whether to upload the code coverage a test run gathered. Defaults to `false`.
             ///   The `TUIST_COVERAGE_UPLOAD` environment variable takes precedence over this value.
-            public static func coverage(upload: Bool = true) -> Self {
+            public static func coverage(upload: Bool = false) -> Self {
                 Coverage(upload: upload)
             }
         }
