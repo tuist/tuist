@@ -4103,11 +4103,16 @@ final class TestServiceTests: TuistUnitTestCase {
         givenGenerator()
         let projectPath = try givenSchemeWithThreeTestTargets()
 
-        // When: a whole-target skip drops the target; skipping a single class still runs the rest of it.
+        // When: a whole-target skip drops the target; skipping a single class, or a test function outside a
+        // suite (as a quarantined Swift Testing test is), still runs the rest of it.
         try await testRun(
             schemeName: "TestScheme",
             path: try temporaryPath(),
-            skipTestTargets: [try TestIdentifier(string: "TargetB"), try TestIdentifier(string: "TargetC/SomeClass")]
+            skipTestTargets: [
+                try TestIdentifier(string: "TargetB"),
+                try TestIdentifier(string: "TargetC/SomeClass"),
+                try TestIdentifier(target: "TargetA", class: nil, method: "topLevelTest"),
+            ]
         )
 
         // Then
@@ -4118,6 +4123,34 @@ final class TestServiceTests: TuistUnitTestCase {
                 projectPath: [
                     "TargetA": selectiveTestingMiss("TargetA", hash: "hash-a"),
                     "TargetC": selectiveTestingMiss("TargetC", hash: "hash-c"),
+                ],
+            ]
+        )
+    }
+
+    func test_run_with_passthrough_test_filters_only_reports_selected_targets_selective_testing_metadata() async throws {
+        // Given
+        givenGenerator()
+        let projectPath = try givenSchemeWithThreeTestTargets()
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath(),
+            passthroughXcodeBuildArguments: [
+                "-only-testing:TargetA",
+                "-only-testing:TargetB",
+                "-skip-testing", "TargetB",
+            ]
+        )
+
+        // Then
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertEqual(
+            selectiveTestingCacheItems,
+            [
+                projectPath: [
+                    "TargetA": selectiveTestingMiss("TargetA", hash: "hash-a"),
                 ],
             ]
         )
