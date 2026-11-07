@@ -35,6 +35,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Workers.BroadcastTestCreatedWorker
+  alias Tuist.Tests.Workers.SelectiveTestingCountsWorker
   alias Tuist.Tests.XcresultProcessing
 
   require Logger
@@ -463,8 +464,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       })
 
     case Tests.create_test(attrs) do
-      {:ok, _} -> :ok
-      error -> error
+      {:ok, test} ->
+        SelectiveTestingCountsWorker.enqueue(test.id)
+        :ok
+
+      error ->
+        error
     end
   end
 

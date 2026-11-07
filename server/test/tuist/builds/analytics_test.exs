@@ -836,6 +836,100 @@ defmodule Tuist.Builds.AnalyticsTest do
     end
   end
 
+  describe "selective_testing_test_analytics/1" do
+    test "sums skipped tests over requested tests rather than averaging the runs' rates" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      insert_selective_testing_counts(project, [
+        %{ran_at: ~N[2024-04-30 03:00:00], requested_test_count: 10, skipped_test_count: 5},
+        %{ran_at: ~N[2024-04-30 04:00:00], requested_test_count: 30, skipped_test_count: 3},
+        %{ran_at: ~N[2024-04-29 03:00:00], requested_test_count: 20, skipped_test_count: 2}
+      ])
+
+      # When
+      got =
+        Analytics.selective_testing_test_analytics(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      # Then
+      assert got.hit_rate == 10 / 60
+      assert got.values == [0.0, 0.1, 0.2]
+      assert got.dates == [~D[2024-04-28], ~D[2024-04-29], ~D[2024-04-30]]
+    end
+
+    test "compares the period with the one before it" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      insert_selective_testing_counts(project, [
+        %{ran_at: ~N[2024-04-29 03:00:00], requested_test_count: 10, skipped_test_count: 5},
+        %{ran_at: ~N[2024-04-27 03:00:00], requested_test_count: 10, skipped_test_count: 2}
+      ])
+
+      # When
+      got =
+        Analytics.selective_testing_test_analytics(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      # Then
+      assert got.hit_rate == 0.5
+      assert got.trend == 150.0
+    end
+
+    test "is zero for a period with no counted runs and filters by environment" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      insert_selective_testing_counts(project, [
+        %{ran_at: ~N[2024-04-30 03:00:00], requested_test_count: 10, skipped_test_count: 5, is_ci: false}
+      ])
+
+      # When
+      got =
+        Analytics.selective_testing_test_analytics(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now(),
+          is_ci: true
+        )
+
+      # Then
+      assert got.hit_rate == 0.0
+      assert got.trend == 0.0
+      assert got.values == [0.0, 0.0, 0.0]
+    end
+  end
+
+  defp insert_selective_testing_counts(project, rows) do
+    IngestRepo.insert_all(
+      Tuist.Tests.SelectiveTestingCount,
+      Enum.map(rows, fn row ->
+        Map.merge(
+          %{
+            test_run_id: UUIDv7.generate(),
+            project_id: project.id,
+            is_ci: true,
+            scheme: "App",
+            skipped_module_count: 1,
+            skipped_modules_without_history: 0,
+            inserted_at: NaiveDateTime.utc_now()
+          },
+          Map.update!(row, :ran_at, &NaiveDateTime.add(&1, 0, :microsecond))
+        )
+      end)
+    )
+  end
+
   describe "selective_testing_analytics_with_percentiles/1" do
     test "returns selective testing analytics with percentile values" do
       # Given

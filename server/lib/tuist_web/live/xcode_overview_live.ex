@@ -79,7 +79,7 @@ defmodule TuistWeb.XcodeOverviewLive do
       {:ok, %{binary_cache_hit_rate_analytics: Cache.Analytics.cache_hit_rate_analytics(analytics_opts)}}
     end)
     |> PublicOverviewCache.assign_async(:selective_testing_analytics, fn ->
-      {:ok, %{selective_testing_analytics: BuildsAnalytics.selective_testing_analytics(analytics_opts)}}
+      {:ok, %{selective_testing_analytics: BuildsAnalytics.selective_testing_test_analytics(analytics_opts)}}
     end)
     |> assign_build_duration_analytics(project.id, analytics_opts, builds_opts)
     |> PublicOverviewCache.assign_async(:test_analytics, fn ->
