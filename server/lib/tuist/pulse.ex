@@ -18,10 +18,13 @@ defmodule Tuist.Pulse do
   All filtering and sorting precedes pagination. Rows, series and metadata use
   string keys; result envelope keys are atoms. Series follow the metric page.
 
-  Logs require fewer than 5000 matching native-query entries; traces fewer than
-  1000 traces, since a full remote limit cannot prove completeness. Metrics
-  allow at most 5000 series and 361 points per series. Oversized cohorts fail
-  whole, never sort a truncated subset. HTTP bodies cap at 8 MiB before JSON
+  Logs and traces inspect up to 100 native-query matches. When that limit is
+  reached, warnings explicitly scope filtering, sorting and totals to returned
+  results, not the complete time window. Logs always select newest first before
+  local sorting. Metric tables evaluate an instant snapshot at end_at, not a
+  historical grid; analytics provide history. Metrics allow at most 5000 series
+  and 361 points per series;
+  oversized metric cohorts fail whole. HTTP bodies cap at 8 MiB before JSON
   decoding. Native error reads scan at most 5000 occurrences and 32 MiB, collect
   all 2 MiB cursor pages under one snapshot (at most 32 pages), and cap collected
   JSON at 32 MiB.
@@ -36,6 +39,8 @@ defmodule Tuist.Pulse do
   Locals and request/auth/user payloads are not returned. `analytics/4` keeps
   its independent aggregate contract.
   """
+
+  use Gettext, backend: TuistWeb.Gettext
 
   alias Tuist.Accounts
   alias Tuist.Environment
@@ -139,6 +144,7 @@ defmodule Tuist.Pulse do
       |> widget_queries()
       |> Enum.flat_map(&analytics_tasks(client, signal, &1, window, previous_window))
       |> Tasks.parallel_tasks(max_concurrency: 3)
+      |> metric_gauges(signal, window)
       |> analytics_widgets(signal)
     else
       false -> {:error, :forbidden}
@@ -147,9 +153,35 @@ defmodule Tuist.Pulse do
   end
 
   defp analytics_tasks(client, signal, widget, window, previous_window) do
-    Enum.map([{:instant, window}, {:range, window}, {:previous, previous_window}], fn {period, window} ->
+    Enum.map(analytics_periods(signal, window, previous_window), fn {period, window} ->
       fn -> analytics_sample(client, signal, widget, period, window) end
     end)
+  end
+
+  defp analytics_periods("metrics", window, _previous), do: [{:range, window}]
+  defp analytics_periods(_signal, window, previous), do: [{:instant, window}, {:range, window}, {:previous, previous}]
+
+  # A Prometheus range evaluates the same instant expression at both aligned
+  # endpoints. Reuse those observations instead of scanning the source three
+  # times for each gauge. An absent endpoint stays missing, never carried forward.
+  defp metric_gauges(results, "metrics", window) do
+    Enum.flat_map(results, fn
+      {:ok, {id, unit, :range, points, warnings}} = result ->
+        [
+          {:ok, {id, unit, :instant, metric_endpoint(points, window.finish), warnings}},
+          result,
+          {:ok, {id, unit, :previous, metric_endpoint(points, window.start), []}}
+        ]
+
+      error ->
+        [error]
+    end)
+  end
+
+  defp metric_gauges(results, _signal, _window), do: results
+
+  defp metric_endpoint(points, time) do
+    Enum.find_value(points, fn [timestamp, value] -> if timestamp == time, do: value end)
   end
 
   defp analytics_sample(client, signal, {id, query, unit}, period, window) do
@@ -425,15 +457,23 @@ defmodule Tuist.Pulse do
   defp execute(signal, opts, client) do
     {path, params} = request_params(signal, opts.query, opts.finish - opts.seconds, opts.finish, opts.seconds)
 
-    params =
-      if signal == "logs",
-        do: Keyword.put(params, :direction, if(opts.sort_order == "asc", do: "forward", else: "backward")),
-        else: params
-
     with {:ok, body} <- request(client, path, params),
          {:ok, result} <- normalize(signal, body),
          :ok <- complete_result(signal, result) do
       {rows, meta} = Table.page(result.rows, opts)
+
+      result =
+        if signal in ~w(logs traces) and length(result.rows) >= @limit do
+          warning =
+            dgettext(
+              "dashboard_pulse",
+              "Search reached its 100-result limit. Filters, sorting and totals cover only returned results; narrow the native query or time range."
+            )
+
+          %{result | warnings: [warning | result.warnings]}
+        else
+          result
+        end
 
       series =
         if signal == "metrics",
@@ -444,10 +484,10 @@ defmodule Tuist.Pulse do
     end
   end
 
-  # Loki and Tempo have no total count or arbitrary-sort cursor. A full limit
-  # might be truncated, so fail whole instead of sorting an incomplete cohort.
-  defp complete_result("traces", %{rows: rows}) when length(rows) >= 1000, do: {:error, :query_result_limit}
-  defp complete_result("logs", %{rows: rows}) when length(rows) >= 5000, do: {:error, :query_result_limit}
+  # An unexpectedly oversized response still fails rather than escaping bounds.
+  defp complete_result(signal, %{rows: rows}) when signal in ~w(logs traces) and length(rows) > @limit,
+    do: {:error, :query_result_limit}
+
   defp complete_result(_, %{rows: rows}) when length(rows) > 5000, do: {:error, :query_result_limit}
   defp complete_result(_, _), do: :ok
 
@@ -460,7 +500,11 @@ defmodule Tuist.Pulse do
       "params" => %{
         "name" => tool,
         "arguments" => Map.put(args, "tenant", client.tenant),
-        "_meta" => %{"io.modelcontextprotocol/protocolVersion" => "2026-07-28"}
+        "_meta" => %{
+          "io.modelcontextprotocol/protocolVersion" => "2026-07-28",
+          "io.modelcontextprotocol/clientCapabilities" => %{},
+          "io.modelcontextprotocol/clientInfo" => %{"name" => "Tuist", "version" => Environment.version()}
+        }
       }
     }
 
@@ -531,12 +575,12 @@ defmodule Tuist.Pulse do
   defp decode_body(body) when is_binary(body), do: {:error, :query_result_limit}
   defp decode_body(_), do: {:error, :malformed_response}
 
-  defp request_params("metrics", query, start, finish, seconds) do
-    {"/api/v1/query_range", [query: query, start: start, end: finish, step: max(1, ceil(seconds / 360))]}
+  defp request_params("metrics", query, _start, finish, _seconds) do
+    {"/api/v1/query", [query: query, time: finish]}
   end
 
   defp request_params("traces", query, start, finish, _seconds) do
-    {"/api/search", [q: query, start: start, end: finish, limit: 1000]}
+    {"/api/search", [q: query, start: start, end: finish, limit: @limit]}
   end
 
   defp request_params(_signal, query, start, finish, _seconds) do
@@ -545,7 +589,7 @@ defmodule Tuist.Pulse do
        query: query,
        start: Integer.to_string(start * 1_000_000_000),
        end: Integer.to_string(finish * 1_000_000_000),
-       limit: 5000,
+       limit: @limit,
        direction: "backward"
      ]}
   end
@@ -565,6 +609,24 @@ defmodule Tuist.Pulse do
       _ ->
         {:error, :malformed_response}
     end
+  end
+
+  defp results("metrics", %{"status" => "success", "data" => %{"resultType" => "scalar", "result" => value}}) do
+    results("metrics", %{
+      "status" => "success",
+      "data" => %{"resultType" => "vector", "result" => [%{"metric" => %{}, "value" => value}]}
+    })
+  end
+
+  defp results("metrics", %{"status" => "success", "data" => %{"resultType" => "vector", "result" => entries}})
+       when is_list(entries) do
+    entries =
+      Enum.map(entries, fn
+        %{"metric" => labels, "value" => value} -> %{"metric" => labels, "values" => [value]}
+        _ -> nil
+      end)
+
+    results("metrics", %{"status" => "success", "data" => %{"resultType" => "matrix", "result" => entries}})
   end
 
   defp results("metrics", %{"status" => "success", "data" => %{"resultType" => "matrix", "result" => entries}})
