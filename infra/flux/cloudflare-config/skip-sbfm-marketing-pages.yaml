@@ -11,28 +11,19 @@
 # skip-sbfm-api-paths.yaml would push that expression towards Cloudflare's
 # 4096-character expression limit.
 #
-# Scope: GET and HEAD, and only marketing routes from
-# server/lib/tuist_web/router.ex that render published content (the
-# browser marketing pages, feeds, legacy redirects and the project sitemaps).
-# The public-pages rate limit counts GET responses marked x-tuist-public,
-# but not HEAD, docs, or every possible prefix fallthrough. Resolve this
-# protection gap before activating the rule. /globe is left out.
+# Only the case-sensitive, complete marketing route shapes from
+# server/lib/tuist_web/router.ex are exempt. Those routes dispatch before
+# account/project scopes even when historical handles collide. Never use
+# broad prefixes or case-insensitive wildcards: /Blog/acme/builds and
+# /es/customers/builds/123 are not marketing pages. Dated articles, numeric
+# newsletter issues cannot match dashboard routes.
+# Regex is supported by this zone's Business plan. Keep this same pattern
+# in both public-page counting expressions so HEAD, redirects and errors
+# are counted even when the origin omits x-tuist-public. /globe and
+# newsletter verification and database-backed project sitemaps are excluded.
 #
-# Two-segment localized pages such as /es/pricing and /customers/<slug>
-# already pass through the project-root clause of skip-sbfm-api-paths.yaml,
-# as do the English decision guides /compare/<provider>,
-# /solutions/<slug> and /build-systems/<slug>. /compare and /build-systems
-# come with those guide pages; activate this rule only once they are
-# deployed, since until then /compare and /build-systems resolve as
-# account pages.
-# Localized case studies (/es/customers/<slug>) stay challenged: `es` and
-# `customers` are both valid handles, so that prefix could match a project
-# dashboard.
-#
-# Broad blog, changelog and newsletter prefixes are deliberately omitted,
-# including localized ones: historical project names have not been audited.
-# The sitemap clause only matches single-segment XML names under the reserved
-# project handle projects. Articles and newsletter issues may remain challenged.
+# Two-segment guide and localized landing URLs already pass through the
+# guarded project-root clause in skip-sbfm-api-paths.yaml.
 apiVersion: cloudflare.tuist.dev/v1alpha1
 kind: CloudflareCustomRule
 metadata:
@@ -43,22 +34,14 @@ spec:
   expression: |-
     http.host eq "tuist.dev" and
     http.request.method in {"GET" "HEAD"} and
-    (
-      http.request.uri.path in {"/" "/about" "/blog" "/brand" "/cache" "/changelog" "/compute" "/customers" "/download" "/newsletter" "/previews" "/pricing" "/tests" "/community" "/cookies" "/data-act-addendum" "/data-processing-addendum" "/imprint" "/longevity" "/openness" "/privacy" "/security" "/service-level-addendum" "/terms" "/trademark-guidelines" "/compare" "/build-systems" "/case-studies" "/flaky-tests" "/test-insights" "/rss.xml" "/sitemap-projects.xml" "/ar" "/es" "/ja" "/ka" "/ko" "/ru" "/tr" "/yue_Hant" "/zh_Hans" "/zh_Hant"} or
-      http.request.uri.path in {"/blog/rss.xml" "/changelog/atom.xml"} or
-      (starts_with(http.request.uri.path, "/sitemaps/projects/") and
-       ends_with(http.request.uri.path, ".xml") and
-       not http.request.uri.path wildcard "/sitemaps/projects/*/*")
-    )
+    http.request.uri.path matches r"^/(?:(?:(?:ar|es|ja|ka|ko|ru|tr|yue_Hant|zh_Hans|zh_Hant)/)?(?:about|brand|cache|compute|download|previews|pricing|tests|community|cookies|data-act-addendum|data-processing-addendum|imprint|longevity|openness|privacy|security|service-level-addendum|terms|trademark-guidelines|blog(?:/[0-9]{4}/[0-9]{2}/[0-9]{2}/[^/%]+(?:/iframe[.]html)?)?|changelog(?:/[^/%]+)?|customers(?:/[^/%]+)?|newsletter(?:/issues/[0-9]+)?)|ar|es|ja|ka|ko|ru|tr|yue_Hant|zh_Hans|zh_Hant|compare|build-systems|case-studies(?:/[^/%]+)?|flaky-tests|test-insights|rss[.]xml|(?:blog|changelog)/(?:rss|atom)[.]xml)?$"
   action: skip
   actionParameters:
     phases:
       - http_request_sbfm
   enabled: true
-  # New rule: stays read_only until the operator reports the expected
-  # proposed create and the server changes that mark feeds and project
-  # sitemaps public and add the /compare and /build-systems guide pages are
-  # deployed. Activate it in a separate change.
+  # Activate separately after the updated rate limits reconcile and the
+  # operator's proposed create has been inspected.
   mode: read_only
   createNewRule: true
   retainOnDelete: false
