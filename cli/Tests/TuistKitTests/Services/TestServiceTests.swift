@@ -2794,6 +2794,71 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(testedSchemes, ["ProjectSchemeOneTests"])
     }
 
+    func test_run_excludes_only_whole_target_skips_from_generation() async throws {
+        // Given
+        givenGenerator()
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "organization/project"))
+        testCaseListService.reset()
+        given(testCaseListService)
+            .listAllTestCases(fullHandle: .any, serverURL: .any, state: .value(.muted))
+            .willReturn([])
+        given(testCaseListService)
+            .listAllTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
+            .willReturn([
+                // A quarantined Swift Testing function outside a suite has a method but no class.
+                try TestIdentifier(target: "ProjectSchemeOneTests", class: nil, method: "suitelessTest()"),
+            ])
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectSchemeOneTests"),
+                ]
+            )
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path, .test(workspace: .test(schemes: [.test(name: "ProjectSchemeOneTests")])),
+                    MapperEnvironment()
+                )
+            }
+
+        // When
+        try await testRun(
+            schemeName: "ProjectSchemeOneTests",
+            path: try temporaryPath(),
+            skipTestTargets: [.init(target: "SkippedTargetTests")]
+        )
+
+        // Then
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .value(["SkippedTargetTests"]),
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any,
+                coverage: .any,
+                sdkSelection: .any
+            )
+            .called(1)
+        XCTAssertEqual(testedSchemes, ["ProjectSchemeOneTests"])
+    }
+
     func test_run_filters_test_targets_not_in_scheme() async throws {
         // Given
         // Scheme has only "TargetA" in its test action — "PrunedTarget" was removed by selective testing
@@ -4006,6 +4071,175 @@ final class TestServiceTests: TuistUnitTestCase {
             ],
             file: file,
             line: line
+        )
+    }
+
+    /// A scheme testing `TargetA`, `TargetB` and `TargetC`, each carrying a selective-testing hash.
+    private func givenSchemeWithThreeTestTargets() throws -> AbsolutePath {
+        let projectPath = try temporaryPath().appending(component: "Project")
+        let targetNames = ["TargetA", "TargetB", "TargetC"]
+        let scheme = Scheme.test(
+            name: "TestScheme",
+            testAction: .test(
+                targets: targetNames.map {
+                    TestableTarget.test(target: TargetReference(projectPath: projectPath, name: $0))
+                }
+            )
+        )
+        let graph: Graph = .test(
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: targetNames.map { .test(name: $0, bundleId: "dev.tuist.\($0)") },
+                    schemes: [scheme]
+                ),
+            ]
+        )
+
+        var environment = MapperEnvironment()
+        environment.initialGraph = graph
+        environment.targetTestHashes = [
+            projectPath: [
+                "TargetA": "hash-a",
+                "TargetB": "hash-b",
+                "TargetC": "hash-c",
+            ],
+        ]
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in (path, graph, environment) }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willProduce { scheme, _, _, _, _, _ in
+                GraphTarget.test(target: Target.test(name: scheme.name))
+            }
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        return projectPath
+    }
+
+    private func selectiveTestingMiss(_ name: String, hash: String) -> CacheItem {
+        .test(name: name, hash: hash, source: .miss, cacheCategory: .selectiveTests)
+    }
+
+    func test_run_with_test_targets_only_reports_requested_targets_selective_testing_metadata() async throws {
+        // Given
+        givenGenerator()
+        let projectPath = try givenSchemeWithThreeTestTargets()
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath(),
+            testTargets: [try TestIdentifier(string: "TargetA"), try TestIdentifier(string: "TargetB/SomeClass")]
+        )
+
+        // Then
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertEqual(
+            selectiveTestingCacheItems,
+            [
+                projectPath: [
+                    "TargetA": selectiveTestingMiss("TargetA", hash: "hash-a"),
+                    "TargetB": selectiveTestingMiss("TargetB", hash: "hash-b"),
+                ],
+            ]
+        )
+    }
+
+    func test_run_with_skip_test_targets_does_not_report_skipped_targets_selective_testing_metadata() async throws {
+        // Given
+        givenGenerator()
+        let projectPath = try givenSchemeWithThreeTestTargets()
+
+        // When: a whole-target skip drops the target; skipping a single class, or a test function outside a
+        // suite (as a quarantined Swift Testing test is), still runs the rest of it.
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath(),
+            skipTestTargets: [
+                try TestIdentifier(string: "TargetB"),
+                try TestIdentifier(string: "TargetC/SomeClass"),
+                try TestIdentifier(target: "TargetA", class: nil, method: "topLevelTest"),
+            ]
+        )
+
+        // Then
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertEqual(
+            selectiveTestingCacheItems,
+            [
+                projectPath: [
+                    "TargetA": selectiveTestingMiss("TargetA", hash: "hash-a"),
+                    "TargetC": selectiveTestingMiss("TargetC", hash: "hash-c"),
+                ],
+            ]
+        )
+    }
+
+    func test_run_with_passthrough_test_filters_only_reports_selected_targets_selective_testing_metadata() async throws {
+        // Given
+        givenGenerator()
+        let projectPath = try givenSchemeWithThreeTestTargets()
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath(),
+            passthroughXcodeBuildArguments: [
+                "-only-testing:TargetA",
+                "-only-testing:TargetB",
+                "-skip-testing", "TargetB",
+            ]
+        )
+
+        // Then
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertEqual(
+            selectiveTestingCacheItems,
+            [
+                projectPath: [
+                    "TargetA": selectiveTestingMiss("TargetA", hash: "hash-a"),
+                ],
+            ]
+        )
+    }
+
+    func test_run_without_target_filters_reports_every_scheme_test_target_selective_testing_metadata() async throws {
+        // Given
+        givenGenerator()
+        let projectPath = try givenSchemeWithThreeTestTargets()
+
+        // When
+        try await testRun(schemeName: "TestScheme", path: try temporaryPath())
+
+        // Then
+        let selectiveTestingCacheItems = await runMetadataStorage.selectiveTestingCacheItems
+        XCTAssertEqual(
+            selectiveTestingCacheItems,
+            [
+                projectPath: [
+                    "TargetA": selectiveTestingMiss("TargetA", hash: "hash-a"),
+                    "TargetB": selectiveTestingMiss("TargetB", hash: "hash-b"),
+                    "TargetC": selectiveTestingMiss("TargetC", hash: "hash-c"),
+                ],
+            ]
         )
     }
 

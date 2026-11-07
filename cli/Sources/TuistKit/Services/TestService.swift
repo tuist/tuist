@@ -456,7 +456,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config,
             testPlan: testPlanConfiguration?.testPlan,
             includedTargets: Set(testTargets.map(\.target)),
-            excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
+            excludedTargets: Set(skipTestTargets.filter { $0.class == nil && $0.method == nil }.map(\.target)),
             skipUITests: skipUITests,
             skipUnitTests: skipUnitTests,
             configuration: configuration,
@@ -563,7 +563,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                         mapperEnvironment: mapperEnvironment,
                         schemes: [scheme],
                         testPlanConfiguration: testPlanConfiguration,
-                        action: action
+                        action: action,
+                        testTargets: testTargets,
+                        skipTestTargets: skipTestTargets,
+                        passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
                     )
                     try await finishSkippedTests(
                         schemes: [scheme],
@@ -587,7 +590,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 mapperEnvironment: mapperEnvironment,
                 schemes: [scheme],
                 testPlanConfiguration: testPlanConfiguration,
-                action: action
+                action: action,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
 
             switch (
@@ -640,7 +646,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     buildGraphInspector.workspaceSchemes(graphTraverser: GraphTraverser(graph: $0))
                 } ?? schemes,
                 testPlanConfiguration: testPlanConfiguration,
-                action: action
+                action: action,
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets,
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
             )
         }
 
@@ -2214,14 +2223,29 @@ public struct TestService { // swiftlint:disable:this type_body_length
         mapperEnvironment: MapperEnvironment,
         schemes: [Scheme],
         testPlanConfiguration: TestPlanConfiguration?,
-        action: XcodeBuildTestAction
+        action: XcodeBuildTestAction,
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        passthroughXcodeBuildArguments: [String]
     ) async {
+        // Targets the invocation filtered out never run, so reporting them would record them as misses.
+        let requestedTargetNames = Set(
+            testTargets.map(\.target)
+                + XcodeBuildTestCommandService.testIdentifiers(for: "-only-testing", in: passthroughXcodeBuildArguments)
+                .compactMap { try? TestIdentifier(string: $0).target }
+        )
+        let skippedTargetNames = Self.wholeTargetNames(skipTestTargets)
+            .union(passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments))
         let initialTestTargets = initialTestTargets(
             mapperEnvironment: mapperEnvironment,
             schemes: schemes,
             testPlanConfiguration: testPlanConfiguration,
             action: action
         )
+        .filter {
+            (requestedTargetNames.isEmpty || requestedTargetNames.contains($0.target.name))
+                && !skippedTargetNames.contains($0.target.name)
+        }
 
         await RunMetadataStorage.current.update(
             selectiveTestingCacheItems: initialTestTargets.reduce(into: [:]) { result, element in
@@ -2453,11 +2477,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
     }
 
     private func passthroughSkippedTestTargetNames(_ arguments: [String]) -> Set<String> {
-        passthroughSkipTestingValues(arguments)
-            .compactMap { try? TestIdentifier(string: $0) }
-            // Only whole-target skips (no `/Class` or `/Class/Method`) remove a target entirely.
-            .filter { $0.class == nil && $0.method == nil }
-            .reduce(into: Set<String>()) { $0.insert($1.target) }
+        Self.wholeTargetNames(passthroughSkipTestingValues(arguments).compactMap { try? TestIdentifier(string: $0) })
+    }
+
+    /// Only whole-target identifiers (no `/Class` or `/Class/Method`) name a target entirely. A quarantined
+    /// Swift Testing function outside a suite has a method but no class, and its target still runs.
+    private static func wholeTargetNames(_ identifiers: [TestIdentifier]) -> Set<String> {
+        Set(identifiers.filter { $0.class == nil && $0.method == nil }.map(\.target))
     }
 
     private func passthroughSkipTestingValues(_ arguments: [String]) -> [String] {
