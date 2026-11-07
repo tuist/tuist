@@ -228,6 +228,32 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   describe "resident_gib/2" do
+    test "shared disk counts each replica's floor while retaining its ceiling" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      region = region()
+      region = %{region | provisioner_config: Map.put(region.provisioner_config, :shared_disk, true)}
+      instance = %Server{account: %Account{id: 1, name: "air", subscriptions: []}, storage_claim_size: "64Gi"}
+
+      assert Capacity.resident_gib(region, instance) == 16
+      assert Capacity.resident_gib(region(), instance) == 128
+      assert Regions.node_label_selector(region) =~ "tuist.dev/kura-shared-disk=true"
+    end
+
+    test "shared disk never applies to ceiling-backed LVM or thin regions" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      instance = %Server{account: %Account{id: 1, name: "air", subscriptions: []}, storage_claim_size: "64Gi"}
+
+      for extra <- [%{disk_resource: "tuist.dev/kura-disk"}, %{thin_volumes: true}] do
+        region = region()
+        config = region.provisioner_config |> Map.put(:shared_disk, true) |> Map.merge(extra)
+        region = %{region | provisioner_config: config}
+
+        refute Regions.shared_disk?(region)
+        assert Capacity.resident_gib(region, instance) == 128
+        refute Regions.node_label_selector(region) =~ "tuist.dev/kura-shared-disk"
+      end
+    end
+
     test "counts the instance's own claim, not the region's" do
       # us-east co-locates an account's two replicas on one box, so each claim
       # is reserved twice on the same disk.

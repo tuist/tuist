@@ -2,6 +2,13 @@
 
 Owns `KuraInstance` / `KuraGateway` product workload lifecycle, not CAPI node lifecycle. Run `go test ./...` here; align API changes with [chart CRDs](../helm/tuist/crds/).
 
+- [Shared disk capacity](shared-disk-capacity.md) is opt-in and disabled in all
+  regions. `storageFloor` separates the PVC/scheduler floor from the account
+  ceiling. `cmd/disk-agent` owns XFS quotas and read-only runtime budgets;
+  see [allocator invariants](internal/diskallocator/AGENTS.md). Never fund an
+  increase with an unobserved shrink. Require qualified-node placement and
+  compatible runtime enforcement before enabling floor-based requests.
+
 ## Scope
 - Opt-in phase-one serving/recovery: [serving-authority.md](serving-authority.md).
   Serving-authority reconciliation runs on every controller replica, independently

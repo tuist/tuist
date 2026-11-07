@@ -296,6 +296,14 @@ Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of 
 
 - Bazel failure analytics retain bounded structured failure codes as `tuist.detected_failure_category`, and the BuildStarted user as `tuist.reported_user` (128 bytes maximum), within the existing custom metadata limit. Classify compiler/test nonzero exits only with recognized action mnemonics; arbitrary commands remain unknown. Infrastructure evidence takes precedence. Never retain FailureDetail messages or stack traces for classification.
 
+Shared disk is opt-in through paired `KURA_DISK_BUDGET_FILE` and
+`KURA_DISK_VOLUME_ID`. `src/disk_budget.rs` validates node-owned leases;
+`Store` applies targets through ordinary segment retirement and attributes
+contention to `disk_pressure`. Expiry blocks new commits but preserves reads
+and cleanup. Keep configured ceiling telemetry separate from effective ring
+capacity. See `../infra/kura-controller/shared-disk-capacity.md` and the real-XFS
+local harness in `test/e2e/shared-disk/`.
+
 Planned thin-storage migration retires public connection reuse before terminating
 its donor. `/_internal/connections/retire` is internal/mTLS only and requires the
 process's `connection_incarnation` from rollout status. It swaps a bounded

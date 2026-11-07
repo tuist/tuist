@@ -1008,6 +1008,12 @@ REAPI module-cache clients may send `x-tuist-artifact-kind: module` to retain mo
 
 A `GetActionResult` carrying `x-tuist-lookup: presence` only reports whether the entry is still served. It does not extend the lifetime of the entry or of the blobs it references, so a client can check for evicted entries without keeping them alive. Other lookups extend lifetimes as before.
 
+Shared disk is disabled by default. Controller-managed opt-in instances set
+`KURA_DISK_BUDGET_FILE` (read-only host budget JSON) and `KURA_DISK_VOLUME_ID`
+(pod UID) together, with an explicit `KURA_CAS_CAPACITY_BYTES` ceiling. Expired
+budgets refuse new commits while existing reads remain available. See the
+[floor/ceiling policy and local qualification](../infra/kura-controller/shared-disk-capacity.md).
+
 Planned legacy thin-storage moves use a destination-bound write bridge before
 changing endpoints. It verifies on the destination every write acknowledged
 since the bridge pinned the feed; records retained from before the pin are

@@ -48,6 +48,11 @@ type KuraInstanceSpec struct {
 	PeerTLSSecretName string `json:"peerTLSSecretName,omitempty"`
 	StorageClassName  string `json:"storageClassName,omitempty"`
 	StorageSize       string `json:"storageSize,omitempty"`
+	// StorageFloor opts into node-managed shared disk. StorageSize remains
+	// the ceiling; the floor sizes the initial PVC and scheduler request.
+	// Requires a compatible runtime and the node disk allocator. Ignored for
+	// tuist.dev/kura-disk volumes, which reserve their full ceiling.
+	StorageFloor string `json:"storageFloor,omitempty"`
 	// DiskResource is what each replica requests for its claim so the scheduler
 	// bin-packs it against node disk. Empty reserves ephemeral-storage, for
 	// volumes on the node's /data; "tuist.dev/kura-disk" reserves the room the

@@ -302,6 +302,9 @@ spec:
                   type: string
                 storageSize:
                   type: string
+                storageFloor:
+                  type: string
+                  description: Initial PVC and scheduling reservation for opt-in node-managed shared disk; storageSize remains the ceiling.
                 # What each replica requests for its claim: empty reserves
                 # ephemeral-storage (volumes on /data), tuist.dev/kura-disk the
                 # room the kura-volumes driver advertises for a volume group.
