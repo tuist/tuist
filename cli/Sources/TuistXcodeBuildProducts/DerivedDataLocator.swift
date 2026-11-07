@@ -60,11 +60,13 @@ public struct DerivedDataLocator: DerivedDataLocating {
         projectPath.basenameWithoutExt.replacingOccurrences(of: " ", with: "_")
     }
 
-    /// Xcode standardizes the workspace path before hashing it, which drops the `/private` prefix of
-    /// `/private/tmp`, `/private/var` and `/private/etc` (the targets of the `/tmp`, `/var` and `/etc`
-    /// symlinks), so a workspace under `/private/tmp/x` gets the derived data folder of `/tmp/x`.
+    /// Xcode resolves symlinks in the workspace path before hashing it, so a workspace reached through
+    /// a symlink gets the derived data folder of its real path. Like Foundation's resolution, it also
+    /// drops the `/private` prefix of `/private/tmp`, `/private/var` and `/private/etc` (the targets of
+    /// the `/tmp`, `/var` and `/etc` symlinks). Foundation leaves paths that don't exist untouched, so
+    /// that prefix is also dropped explicitly.
     private static func xcodeStandardizedPath(_ projectPath: AbsolutePath) -> String {
-        let path = projectPath.pathString
+        let path = URL(fileURLWithPath: projectPath.pathString).resolvingSymlinksInPath().path
         guard ["tmp", "var", "etc"].contains(where: { path.hasPrefix("/private/\($0)/") }) else { return path }
         return String(path.dropFirst("/private".count))
     }
