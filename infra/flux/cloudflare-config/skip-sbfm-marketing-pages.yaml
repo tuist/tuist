@@ -8,20 +8,31 @@
 # product pages then answers from third-party pages instead.
 #
 # This is a separate rule because adding these paths to
-# skip-sbfm-api-paths.yaml would push that expression past Cloudflare's
-# expression length limit.
+# skip-sbfm-api-paths.yaml would push that expression towards Cloudflare's
+# 4096-character expression limit.
 #
-# Scope: GET/HEAD only, and only marketing routes from
-# server/lib/tuist_web/router.ex. They render published content from
-# compiled modules and are shared-cached; none of them runs the
-# per-project ClickHouse queries that motivated SBFM (see
-# bot-management.yaml). Two-segment localized pages such as /es/pricing
-# and /customers/<slug> already pass through the public-project-root
-# clause of skip-sbfm-api-paths.yaml. Prefix exemptions use only
-# blocked account handles (blog, changelog, newsletter in
-# server/config/config.exs) or explicit locale prefixes, so they cannot
-# exempt a project dashboard. The public-pages rate limit still applies.
-# Keep the locale list aligned with Tuist.Locale.
+# Scope: GET and HEAD, and only marketing routes from
+# server/lib/tuist_web/router.ex that render published content (the
+# browser marketing pages, feeds, legacy redirects and the project sitemaps).
+# The public-pages rate limit counts GET responses marked x-tuist-public,
+# but not HEAD, docs, or every possible prefix fallthrough. Resolve this
+# protection gap before activating the rule. /globe is left out.
+#
+# Two-segment localized pages such as /es/pricing and /customers/<slug>
+# already pass through the project-root clause of skip-sbfm-api-paths.yaml,
+# as do the English decision guides /compare/<provider>,
+# /solutions/<slug> and /build-systems/<slug>. /compare and /build-systems
+# come with those guide pages; activate this rule only once they are
+# deployed, since until then /compare and /build-systems resolve as
+# account pages.
+# Localized case studies (/es/customers/<slug>) stay challenged: `es` and
+# `customers` are both valid handles, so that prefix could match a project
+# dashboard.
+#
+# Broad blog, changelog and newsletter prefixes are deliberately omitted,
+# including localized ones: historical project names have not been audited.
+# The sitemap clause only matches single-segment XML names under the reserved
+# project handle projects. Articles and newsletter issues may remain challenged.
 apiVersion: cloudflare.tuist.dev/v1alpha1
 kind: CloudflareCustomRule
 metadata:
@@ -33,36 +44,21 @@ spec:
     http.host eq "tuist.dev" and
     http.request.method in {"GET" "HEAD"} and
     (
-      http.request.uri.path in {"/" "/about" "/blog" "/brand" "/cache" "/changelog" "/community" "/compute" "/customers" "/download" "/newsletter" "/previews" "/pricing" "/tests" "/sitemap-projects.xml" "/cookies" "/data-act-addendum" "/data-processing-addendum" "/imprint" "/longevity" "/openness" "/privacy" "/security" "/service-level-addendum" "/terms" "/trademark-guidelines" "/ar" "/es" "/ja" "/ka" "/ko" "/ru" "/tr" "/yue_Hant" "/zh_Hans" "/zh_Hant"} or
-      starts_with(http.request.uri.path, "/blog/") or
-      starts_with(http.request.uri.path, "/changelog/") or
-      starts_with(http.request.uri.path, "/newsletter/issues/") or
-      starts_with(http.request.uri.path, "/ar/blog/") or
-      starts_with(http.request.uri.path, "/ar/changelog/") or
-      starts_with(http.request.uri.path, "/es/blog/") or
-      starts_with(http.request.uri.path, "/es/changelog/") or
-      starts_with(http.request.uri.path, "/ja/blog/") or
-      starts_with(http.request.uri.path, "/ja/changelog/") or
-      starts_with(http.request.uri.path, "/ka/blog/") or
-      starts_with(http.request.uri.path, "/ka/changelog/") or
-      starts_with(http.request.uri.path, "/ko/blog/") or
-      starts_with(http.request.uri.path, "/ko/changelog/") or
-      starts_with(http.request.uri.path, "/ru/blog/") or
-      starts_with(http.request.uri.path, "/ru/changelog/") or
-      starts_with(http.request.uri.path, "/tr/blog/") or
-      starts_with(http.request.uri.path, "/tr/changelog/") or
-      starts_with(http.request.uri.path, "/yue_Hant/blog/") or
-      starts_with(http.request.uri.path, "/yue_Hant/changelog/") or
-      starts_with(http.request.uri.path, "/zh_Hans/blog/") or
-      starts_with(http.request.uri.path, "/zh_Hans/changelog/") or
-      starts_with(http.request.uri.path, "/zh_Hant/blog/") or
-      starts_with(http.request.uri.path, "/zh_Hant/changelog/")
+      http.request.uri.path in {"/" "/about" "/blog" "/brand" "/cache" "/changelog" "/compute" "/customers" "/download" "/newsletter" "/previews" "/pricing" "/tests" "/community" "/cookies" "/data-act-addendum" "/data-processing-addendum" "/imprint" "/longevity" "/openness" "/privacy" "/security" "/service-level-addendum" "/terms" "/trademark-guidelines" "/compare" "/build-systems" "/case-studies" "/flaky-tests" "/test-insights" "/rss.xml" "/sitemap-projects.xml" "/ar" "/es" "/ja" "/ka" "/ko" "/ru" "/tr" "/yue_Hant" "/zh_Hans" "/zh_Hant"} or
+      http.request.uri.path in {"/blog/rss.xml" "/changelog/atom.xml"} or
+      (starts_with(http.request.uri.path, "/sitemaps/projects/") and
+       ends_with(http.request.uri.path, ".xml") and
+       not http.request.uri.path wildcard "/sitemaps/projects/*/*")
     )
   action: skip
   actionParameters:
     phases:
       - http_request_sbfm
   enabled: true
+  # New rule: stays read_only until the operator reports the expected
+  # proposed create and the server changes that mark feeds and project
+  # sitemaps public and add the /compare and /build-systems guide pages are
+  # deployed. Activate it in a separate change.
   mode: read_only
   createNewRule: true
   retainOnDelete: false

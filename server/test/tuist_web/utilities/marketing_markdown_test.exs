@@ -156,6 +156,19 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/compare/AGENTS") == nil
   end
 
+  test "homepage and cache guides qualify toolchain support" do
+    home = MarketingMarkdown.get("/")
+    cache = MarketingMarkdown.get("/cache")
+
+    assert home =~ "Elixir"
+    assert home =~ "remote cache"
+    assert home =~ "Once support is in canary"
+    assert home =~ "Rust compilation caching is experimental"
+    refute home =~ "Tuist does not provide remote build caching"
+    assert cache =~ "same-machine restrictions"
+    assert cache =~ "dependency caching"
+  end
+
   test "build-system guides distinguish native capabilities, Tuist infrastructure, and availability" do
     for path <- @build_system_paths do
       markdown = MarketingMarkdown.get(path)
@@ -388,6 +401,19 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert home =~ "For Elixir"
     assert home =~ "Xcode compilation outputs"
     assert home =~ "not the scope of the build and test platform"
+
+    for path <- [
+          "/",
+          "/build-systems/elixir",
+          "/solutions/ci-costs",
+          "/compare",
+          "/compare/appcircle",
+          "/compare/runs-on"
+        ] do
+      markdown = MarketingMarkdown.get(path)
+      assert markdown =~ "compiled dependencies", path
+      assert markdown =~ ~r/[Aa]pplication source files/, path
+    end
   end
 
   test "billing comparisons cite units, scope, exceptions, and Tuist's own metering" do

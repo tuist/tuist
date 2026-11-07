@@ -291,6 +291,9 @@ defmodule TuistWeb.Router do
   pipeline :browser_marketing_feed do
     plug :put_request_kind, "marketing_feed"
     plug :accepts, ["xml"]
+    # Feeds and project sitemaps skip Cloudflare's bot challenge, so the
+    # public-pages rate limit has to count them through this header.
+    plug :mark_public_marketing_page
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
   end
 

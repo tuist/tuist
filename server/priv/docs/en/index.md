@@ -1,13 +1,13 @@
 ---
 {
   "title": "What is Tuist?",
-  "description": "A virtual platform team for developers. Build infrastructure for Xcode, Gradle, Bazel, Elixir, Rust, and Once, with features tailored to each toolchain."
+  "description": "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
 }
 ---
 
-# A virtual platform team for developers who ship
+# A build platform for teams and their coding agents
 
-**Tuist helps teams scale app development and ship faster**, turning the complexity of large codebases into a productive experience that grows with your team. It works with the build systems you already use, on Xcode, Gradle, Bazel, Elixir, Rust, and Once projects. Available features depend on your toolchain: Rust projects get Cargo build and test insights, including doctests, flaky test detection, and experimental compilation caching. Once connects natively for shared caching, build and test insights, sharding, and supported application previews.
+**Tuist is a build platform for engineering teams and their coding agents.** It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. It works with the build systems you already use instead of replacing them. Available features depend on your toolchain: Rust projects get Cargo build and test insights, including doctests, flaky test detection, and experimental compilation caching. Once connects natively for shared caching, build and test insights, sharding, and supported application previews.
 
 Follow one of the <.localized_link href="/guides/get-started">Get Started paths</.localized_link> for your build system. Once connects directly without the Tuist CLI; other paths explain which Tuist tooling to install.
 

@@ -40,7 +40,7 @@ defmodule TuistWeb.OverviewLiveTest do
     # When
     {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
 
-    assert html =~ "Overview · tuist-org/tuist · Tuist"
+    assert html =~ "tuist-org/tuist build and test insights · Tuist"
   end
 
   test "sets the right binary cache hit rate analytics", %{

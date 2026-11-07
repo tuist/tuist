@@ -18,8 +18,15 @@ These resources are reconciled by Flux through the Cloudflare operator. Editing 
 - Do not use a wildcard locale for docs: it would also match dashboards of a project named `docs`. Public content exemptions must not broaden the anonymous deep-dashboard bypass or skip custom firewall/rate-limit phases.
 - Deeper public project dashboards retain the origin Turnstile gate after the scraper-driven ClickHouse overload. Removing SBFM alone does not make them machine-readable; opening them requires bounded data loading like the cached overview.
 
+## Readable marketing pages
+
+- `skip-sbfm-marketing-pages.yaml` is a separate rule so `skip-sbfm-api-paths.yaml` stays under Cloudflare's 4096-character expression limit. It permits GET and HEAD for published marketing routes; two-segment localized pages already match the project-root clause.
+- The existing public-pages limiter counts only GET responses with `x-tuist-public: 1`; HEAD, docs and prefix fallthroughs are not necessarily counted. Resolve and validate these protection gaps before activation. Do not add data-backed live pages such as `/globe`.
+- Do not add broad blog, changelog or newsletter prefixes, including localized prefixes: account handles may collide by case and historical project handles have not been audited. The sitemap clause limits the reserved `projects` project handle to a single XML segment; check historical data and normalization before activation. The existing `/docs/` prefix has a case-variant account collision risk. Articles and newsletter issues can remain challenged pending a safe rule.
+- The rule was created in `read_only`. Activate it in a separate change only after the operator reports the expected proposed create and the server releases that mark feeds public and add the `/compare` and `/build-systems` guide pages are deployed; until then those two paths resolve as account pages.
+
 ## Validation
 
-- Run `python3 infra/flux/cloudflare-config/test_skip_sbfm.py` from the repository root for complete-rule scope regression coverage (public docs/Markdown, project roots, protected dashboards, methods and existing machine paths). `.github/workflows/cloudflare-config-tests.yml` runs this credential-free check on pull requests and main changes.
+- Run `node --test infra/flux/cloudflare-config/test_skip_sbfm.mjs` from the repository root for complete-rule scope regression coverage of both SBFM skip rules (public docs/Markdown, marketing routes, project roots, protected dashboards, methods and existing machine paths). `.github/workflows/cloudflare-config-tests.yml` runs this credential-free check on pull requests and main changes.
 - Render with `kubectl kustomize infra/flux/cloudflare-config` and validate the expression with Cloudflare during rollout. The local regression test checks wildcard/guard semantics, not Cloudflare's API parser or live zone state.
-- Verify cookie-free docs/Markdown GET/HEAD requests, a real search crawler and social unfurler after deployment, plus filtered/deeper challenges and edge rate limits. A spoofed Googlebot user agent does not demonstrate verified-bot behavior.
+- Verify cookie-free docs/Markdown GET/HEAD requests, cookie-free marketing GET requests from an unverified client (for example `curl` with an agent user agent), a real search crawler and social unfurler after deployment, plus filtered/deeper challenges and edge rate limits. A spoofed Googlebot user agent does not demonstrate verified-bot behavior.

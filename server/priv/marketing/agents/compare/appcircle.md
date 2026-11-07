@@ -19,7 +19,7 @@ Appcircle also documents an [MCP server](https://docs.appcircle.io/appcircle-ai/
 
 ## Choose Tuist when
 
-Your bottleneck is understanding or reducing build and test work, and your current CI and delivery tooling already fits. You want compatible cached outputs across laptops, CI, and agents, or a common insights workflow spanning Xcode, Gradle, Bazel, and Elixir. Support differs by feature: Elixir has insights, not Tuist remote build caching.
+Your bottleneck is understanding or reducing build and test work, and your current CI and delivery tooling already fits. You want compatible cached outputs across laptops, CI, and agents, or a common insights workflow spanning Xcode, Gradle, Bazel, and Elixir. Support differs by feature: Elixir's remote cache reuses supported compiled dependencies rather than application source files.
 
 Tuist's [public source](https://github.com/tuist/tuist) also gives engineers a way to inspect implementation and contribute fixes. Evaluate component terms rather than assuming that public source grants every self-hosting right.
 

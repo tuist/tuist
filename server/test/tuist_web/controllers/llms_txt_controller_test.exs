@@ -26,7 +26,7 @@ defmodule TuistWeb.LlmsTxtControllerTest do
       body = conn |> get("/llms.txt") |> response(200)
 
       assert String.starts_with?(body, "# Tuist\n")
-      assert body =~ "\n> Tuist is build infrastructure for productive teams."
+      assert body =~ "\n> Tuist is a build platform for engineering teams and their coding agents."
       assert body =~ "embraces build-system diversity with native depth"
       assert body =~ "one productivity platform rather than a separate product per build system"
       assert body =~ "avoiding unnecessary project work before buying more compute"
@@ -117,7 +117,7 @@ defmodule TuistWeb.LlmsTxtControllerTest do
 
       assert String.starts_with?(
                body,
-               "# Tuist\n\n> Tuist is build infrastructure for productive teams."
+               "# Tuist\n\n> Tuist is a build platform for engineering teams and their coding agents."
              )
     end
 

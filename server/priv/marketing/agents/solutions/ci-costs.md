@@ -17,9 +17,9 @@ Compare equivalent periods and separate more activity from a more expensive job.
 
 ## Project first, environment second
 
-Improve task inputs, dependency boundaries, and costly retries before buying more execution capacity. For Gradle and Bazel, test compatible output reuse; for Elixir, investigate reported compilation and tests because Tuist has no remote build cache there. Keep Xcode-specific selection requirements separate from those integrations.
+Improve task inputs, dependency boundaries, and costly retries before buying more execution capacity. For Gradle and Bazel, test compatible output reuse; for Elixir, investigate reported compilation and tests and try [remote dependency caching](/en/docs-markdown/guides/features/cache/elixir) for supported compiled dependencies, not application source files. Keep Xcode-specific selection requirements separate from those integrations.
 
-The [comparison billing table](/marketing-markdown/compare#billing-and-incentives) cites minute-, resource-, credit-, and build-based charges and their exceptions. Reducing work does not necessarily reduce a fixed subscription or per-build charge. Tuist also meters feature usage; include its charges rather than assuming all interests or savings automatically align.
+The [comparison billing table](/marketing-markdown/compare#compare-total-costs) cites minute-, resource-, credit-, and build-based charges and their exceptions. Reducing work does not necessarily reduce a fixed subscription or per-build charge. Tuist also meters feature usage; include its charges rather than assuming all interests or savings automatically align.
 
 ## Evaluate total cost, not just runtime
 

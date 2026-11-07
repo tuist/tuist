@@ -31,12 +31,12 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign_structured_data(get_organization_structured_data())
     |> assign_structured_data(get_website_structured_data())
     |> assign_structured_data(get_software_application_structured_data())
-    |> assign(:head_title, dgettext("marketing", "Tuist · Build infrastructure for productive teams"))
+    |> assign(:head_title, dgettext("marketing", "Tuist · Build platform for Xcode, Gradle, and Bazel teams and agents"))
     |> assign(
       :head_description,
       dgettext(
         "marketing",
-        "Tuist connects to your existing build tools and CI to speed up builds, optimize testing, and scale compute, so you can focus on shipping software."
+        "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
       )
     )
     |> assign(
@@ -1054,7 +1054,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def compute(conn, _params) do
     conn
-    |> assign(:head_title, "Compute · Runners that spin up in seconds · Tuist")
+    |> assign(:head_title, dgettext("marketing", "Fast macOS and Linux CI runners for teams and coding agents · Tuist"))
     |> assign(
       :head_image,
       SocialCards.image_url("compute")
@@ -1078,7 +1078,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def tests(conn, _params) do
     conn
-    |> assign(:head_title, "Tests · Faster tests you can actually trust · Tuist")
+    |> assign(:head_title, dgettext("marketing", "Flaky test detection, test sharding, and selective testing · Tuist"))
     |> assign(
       :head_image,
       SocialCards.image_url("tests")
@@ -1088,7 +1088,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       :head_description,
       dgettext(
         "marketing",
-        "Run only the tests affected by your changes and flag flaky ones automatically, so a successful build truly means success."
+        "Detect flaky tests, shard slow suites across CI machines, and skip tests a change can't affect in generated Xcode projects."
       )
     )
     |> assign_structured_data(

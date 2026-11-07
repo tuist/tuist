@@ -123,20 +123,31 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "describes the site and the product with structured data", %{conn: conn} do
       html = conn |> get("/") |> html_response(200)
 
-      types =
+      entries =
         ~r|<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>|s
         |> Regex.scan(html, capture: :all_but_first)
-        |> Enum.map(fn [json] -> json |> String.trim() |> JSON.decode!() |> Map.get("@type") end)
+        |> Enum.map(fn [json] -> json |> String.trim() |> JSON.decode!() end)
 
+      types = Enum.map(entries, &Map.get(&1, "@type"))
       assert "Organization" in types
       assert "WebSite" in types
       assert "SoftwareApplication" in types
+
+      for entry <- Enum.filter(entries, &(&1["@type"] in ["Organization", "SoftwareApplication"])) do
+        assert entry["description"] =~ "Once support is in canary"
+        assert entry["description"] =~ "Rust compilation caching is experimental"
+      end
+
+      document = Floki.parse_document!(html)
+      [description] = Floki.attribute(document, ~s(meta[name="description"]), "content")
+      assert description =~ "Once support is in canary"
+      assert description =~ "Rust compilation caching is experimental"
     end
 
     test "gives the homepage a descriptive title and a single h1", %{conn: conn} do
       html = conn |> get("/") |> html_response(200)
 
-      assert html =~ "Tuist · Build infrastructure for productive teams"
+      assert html =~ "Tuist · Build platform for Xcode, Gradle, and Bazel teams and agents"
       assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
     end
 
@@ -367,7 +378,14 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
     test "are linked from the footer and the related product pages", %{conn: conn} do
       expected_links = %{
-        "/" => ["/solutions/slow-builds", "/solutions/slow-tests", "/solutions/flaky-tests", "/solutions/ci-costs", "/build-systems", "/compare"],
+        "/" => [
+          "/solutions/slow-builds",
+          "/solutions/slow-tests",
+          "/solutions/flaky-tests",
+          "/solutions/ci-costs",
+          "/build-systems",
+          "/compare"
+        ],
         "/tests" => ["/solutions/slow-tests", "/solutions/flaky-tests"],
         "/cache" => ["/solutions/slow-builds", "/build-systems"],
         "/pricing" => ["/compare", "/solutions/ci-costs"]
