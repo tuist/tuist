@@ -3796,6 +3796,9 @@ postgresql:
     pooler:
       enabled: false
       instances: 1
+      # Multi-replica poolers require distinct hostnames and retain one
+      # available pod during voluntary evictions and rolling replacement.
+      nodeSelector: {}
       poolMode: transaction
       parameters:
         default_pool_size: "20"
@@ -3813,6 +3816,14 @@ postgresql:
         # tailscale.com/hostname annotation. Must be unique on the tailnet
         # — by convention, "tuist-pg-pooler-<env>".
         hostname: ""
+        # Retain the old standalone endpoint during a ProxyGroup cutover.
+        # First precreate/validate the new -tailnet Service under a different
+        # hostname, then deploy the consumer URL change. Clear only after
+        # the rollback window and all old consumers have finished.
+        standaloneHostname: ""
+        # Hold consumers on the legacy name while the parallel Service and
+        # ACLs are validated. Clear explicitly for the second-phase cutover.
+        consumerHostname: ""
         # tailscale.com/tags annotation override. The operator's
         # PROXY_TAGS default ("tag:k8s") is platform-wide and the
         # tailnet's ACL only permits Tuist-scoped tags; set this to the

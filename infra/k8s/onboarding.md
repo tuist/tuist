@@ -152,6 +152,121 @@ bindings, not live aggregation or policy membership. Reverting the new status
 rule through the same deployment removes this capability without changing
 existing CNPG parent writes; it does not undo a switchover already requested.
 
+## Linux TCP security updates (CVE-2026-98432)
+
+This is a host-kernel issue, not an application-image dependency. Updating the
+server container does not patch it. The
+[Ubuntu advisory](https://ubuntu.com/security/CVE-2026-98432) describes an IPv4
+TCP handshake use-after-free; the
+[demonstrated remote-root exploit](https://www.anthropic.com/research/discovering-vulnerabilities-with-claude)
+targets an MPTCP listener. Absence of MPTCP lowers exposure to that demonstrated
+path, but does not establish immunity to the underlying TCP CVE.
+
+As checked on **2026-10-29**, Ubuntu still marks Noble's generic kernel fix as
+**work in progress** in `6.8.0-149.149`, not released. Recheck the advisory before
+choosing a package. That planned version is not a rollout pin or evidence of a
+published fix. This runbook and listener audit make no live changes on merge.
+
+### Establish listener and kernel coverage
+
+Use normal read access to inventory each workload cluster's Nodes, kernels,
+host-network Pods, hostPorts and NodePort/LoadBalancer Services. Include the
+management cluster, provider-managed hosts outside that inventory, and guest
+kernels (for example Kata); a host patch does not update a VM guest kernel.
+Do not retrieve Secrets or admin kubeconfigs to fill coverage gaps.
+
+For a human-authorized host diagnostic session, run the
+[read-only listener audit](../mise/tasks/k8s/audit-linux-listeners.sh) **on the
+Linux host**, as root with the host's full PID and mount namespaces visible:
+
+```bash
+sudo bash infra/mise/tasks/k8s/audit-linux-listeners.sh
+```
+
+It records the booted kernel, TCP and MPTCP listening sockets, and
+`net.mptcp.enabled` in each distinct process network namespace, plus namespaces
+pinned under `/run/netns` and `/run/docker/netns`. Pass any namespace paths
+pinned elsewhere as additional arguments. It still checks sockets when the
+sysctl is zero. Exit **0** means no MPTCP listener was observed in that snapshot,
+**1** means a listener was observed, and **2** means incomplete diagnostics
+(including process-exit races, permissions or unsupported diagnostics). Rerun
+an incomplete snapshot; never interpret it as a negative. Namespaces hidden in
+other mount/PID namespaces or held only by descriptors can remain invisible;
+reconcile the results with the container-runtime inventory. A host-only scan
+or a restricted debug container is not fleet-wide coverage. Keep raw output
+internal because it contains addresses and process details.
+
+To validate the audit itself, run the integration tests as root on a disposable
+Linux VM with Python 3.12+, MPTCP, iproute2 and util-linux:
+
+```bash
+sudo python3 infra/mise/tasks/k8s/test-audit-linux-listeners.py
+```
+
+The tests create isolated PID/mount/network namespaces and exercise real TCP
+and MPTCP sockets, separate process and pinned namespaces, disabled sysctls,
+and incomplete diagnostics. Do not use a production host as a test runner.
+
+For each listener, distinguish **direct node/NodePort reachability** from a
+**TCP-terminating proxy**. A normal TCP proxy creates a new backend connection
+and does not forward an attacker's IP options; a forwarding/DNAT path does not
+provide that boundary. Check actual routing and Cilium/host/provider policies,
+not just Helm intent. A normal connection probe establishes reachability only
+from its source; a timeout does not prove isolation. Never send exploit packets
+to production. If the view tier cannot inspect sockets or policy, record the
+gap and arrange an explicitly authorized session rather than bypassing access.
+
+Do not ship `net.mptcp.enabled=0` as a complete CVE fix. It is per network
+namespace, does not cover ordinary TCP, and is not proof that existing listeners
+or future Pod/guest namespaces are covered. Any interim listener restriction
+needs its own reviewed allowlist, staging validation and rollback; do not apply
+a blanket ingress rule that cuts off Kura traffic, health checks or node access.
+
+### Gate the kernel rollout
+
+1. **Wait for vendor confirmation.** Require the advisory to mark the exact
+   distribution/kernel flavor fixed and verify that the signed package is
+   available in the approved repository. Do not substitute the upstream commit,
+   an unreleased proposed package, a mainline kernel or a foreign distro build.
+   Record the package version, image revision and affected host/guest inventory.
+   Update the owning provisioning image/template as well as existing machines
+   so replacements cannot reintroduce the vulnerable kernel.
+2. **Qualify in staging, then canary.** For each host class, name the first
+   machine, rollback boot/image and health baseline before starting. Confirm
+   spare scheduling capacity, valid backups, storage replication, and access
+   after reboot. On canary/production, a human must request and approve scoped
+   elevation; agents must not initiate or approve it. Approval to audit or merge
+   this runbook is not approval to drain, install, replace or reboot hosts.
+3. **One host at a time.** Use the owning fleet/CAPI maintenance path. Respect
+   PodDisruptionBudgets and wait for eviction to complete; never bypass them
+   with force or delete local data to make a drain succeed. Quiesce active
+   runner jobs. Coordinate database failover/replication and node-local Kura or
+   cache storage explicitly; a Ready Node is not proof those workloads recovered.
+   Control-plane updates additionally require healthy etcd quorum and a healthy
+   sibling API-server target. Stop for single-node/quorum or capacity blockers.
+4. **Verify the running fix before expanding.** After the approved reboot or
+   replacement, match `uname -r` and the installed package/image to the vendor's
+   fixed release. An installed package with the old kernel still booted is not
+   patched. Require Node readiness, CNI/DNS/storage health, ingress and direct
+   Kura TLS/transfer checks, application reads/writes, replication and runner
+   acceptance to recover. Compare errors and latency with the baseline through
+   the agreed observation window before the next host or environment.
+5. **Stop on regression.** Keep the failed node out of service, halt the wave,
+   and recover through the preselected boot/image and owning controller. If
+   rollback restores a vulnerable kernel, record the reopened exposure and
+   separately approve any traffic restriction. Never reboot a whole pool to
+   recover a failed wave. Close remediation only when the inventory has no
+   unverified hosts/guests or vulnerable replacement images left.
+
+### Communicate only verified remediation
+
+Do not add a server changelog entry saying this is patched while the vendor fix
+is pending or the host rollout is incomplete. After verified remediation, a
+dated hosted-service security/operations notice can state which environments
+were patched. A server release must not imply it updates self-hosters' kernels;
+link the vendor advisory and tell self-hosters to update and reboot their own
+hosts/guests as applicable. Generated `CHANGELOG.md` files are not edited by hand.
+
 ## Prerequisites
 
 - Tailscale on the `tuist.dev` tailnet, with `talosctl` reachable on the mgmt VM at `100.92.208.109:50000` (see [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml) for tailnet onboarding).

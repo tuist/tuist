@@ -1028,7 +1028,7 @@ moves to another device.
 The same for the CNPG pooler the xcresult processor reaches over the tailnet.
 */}}
 {{- define "tuist.poolerTailnetHost" -}}
-{{- include "tuist.tailnetFQDN" (dict "root" . "host" (required "postgresql.cnpg.pooler.tailscale.hostname is required when tailscale.enabled is true" .Values.postgresql.cnpg.pooler.tailscale.hostname)) }}
+{{- include "tuist.tailnetFQDN" (dict "root" . "host" (required "postgresql.cnpg.pooler.tailscale.hostname is required when tailscale.enabled is true" (coalesce .Values.postgresql.cnpg.pooler.tailscale.consumerHostname .Values.postgresql.cnpg.pooler.tailscale.hostname))) }}
 {{- end }}
 
 {{- define "tuist.tailnetFQDN" -}}
