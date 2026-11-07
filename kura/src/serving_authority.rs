@@ -62,6 +62,12 @@ pub struct ServingAuthority {
     // Record versions whose content this destination confirmed against the
     // source while it still served, for exactly one named intent.
     pub(crate) verified_content: Mutex<Option<crate::handover::VerifiedContent>>,
+    // What this destination's forward link applied from the source since its
+    // content walk began, for a source whose own feed no longer reaches back.
+    pub(crate) forward_delta: Mutex<Option<crate::handover::ForwardDelta>>,
+    // The last intent this holder handed over, and when its destination was
+    // first observed serving: public requests are forwarded there briefly.
+    pub(crate) handed_over: Mutex<Option<(crate::handover::Intent, Option<Instant>)>>,
     // A destination rejection retrying cannot change, reported by the frozen
     // source so the controller resumes it before the Quiescing deadline.
     pub(crate) barrier_failure: Mutex<Option<crate::handover::HandoverFailure>>,
@@ -117,6 +123,8 @@ impl ServingAuthority {
             handover_preparation: tokio::sync::Mutex::new(()),
             preparation: Mutex::new(None),
             verified_content: Mutex::new(None),
+            forward_delta: Mutex::new(None),
+            handed_over: Mutex::new(None),
             barrier_failure: Mutex::new(None),
             frozen_failure: Mutex::new(None),
             marker: None,
@@ -164,6 +172,27 @@ impl ServingAuthority {
                 return Err("grant regression".into());
             }
             *observed = Some(grant.clone());
+        }
+        {
+            let mut handed_over = self
+                .handed_over
+                .lock()
+                .map_err(|_| "handed-over intent poisoned")?;
+            if grant.holder == self.identity
+                && let Some(intent) = &grant.handover
+                && matches!(grant.phase.as_str(), "Quiescing" | "Revoking")
+            {
+                if handed_over.as_ref().is_none_or(|(old, _)| old != intent) {
+                    *handed_over = Some((intent.clone(), None));
+                }
+            } else if let Some((intent, moved_at)) = handed_over.as_mut() {
+                if grant.holder == intent.destination && grant.phase == "Serving" {
+                    moved_at.get_or_insert_with(Instant::now);
+                } else if grant.holder == self.identity {
+                    // An abort: this holder serves again.
+                    *handed_over = None;
+                }
+            }
         }
 
         if grant.holder == self.identity && grant.phase == "Fencing" {

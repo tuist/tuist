@@ -11,10 +11,10 @@ use crate::{
     serving_authority::Holder,
     state::SharedState,
     store::manifest_version_ms,
-    sync::feed::SyncPosition,
+    sync::feed::{SyncFeedKind, SyncPosition},
     utils::BackfillRecordKind,
 };
-use axum::{Json, extract::State, http::StatusCode};
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use futures_util::{StreamExt, stream::FuturesOrdered};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -51,6 +51,16 @@ const CONTENT_WALK_DEADLINE_MARGIN_MS: u64 = 30_000;
 // Bounds the records a content-verified destination remembers as missing, so
 // the frozen repair fetches only those; past it, the full walk runs.
 const MAX_DELTA_REPAIR_RECORDS: usize = 100_000;
+// Barrier-delta entries per page the frozen source requests, and the bytes a
+// page may take; every other verification answer stays within 16 KiB.
+const BARRIER_DELTA_PAGE_RECORDS: usize = 512;
+const BARRIER_DELTA_PAGE_BYTES: usize = 256 * 1024;
+const VERIFICATION_ANSWER_BYTES: usize = 16 * 1024;
+// Records the forward link applied that one bridge round confirms against the
+// serving source, and the bodies they may reference.
+const BRIDGE_BATCH_RECORDS: usize = 256;
+const BRIDGE_BATCH_BODY_BYTES: u64 = 64 * 1024 * 1024;
+const BRIDGE_INTERVAL: Duration = Duration::from_millis(100);
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Intent {
@@ -160,6 +170,9 @@ pub struct VerifyRequest {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     records: Vec<Record>,
     receipt: Option<Receipt>,
+    // Sent by the frozen source with begin; older sources omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    records_without_feed_rows: Option<u64>,
 }
 
 fn verification_context(request: &VerifyRequest) -> String {
@@ -375,48 +388,96 @@ async fn verify_inner(
             // every record it confirmed is still held, so only the records it
             // found missing need repair; the full-corpus verification still
             // checks every retained record before any receipt.
-            let (losses_at, delta, feed_from) = authority
+            let (losses_at, delta, feed_from, unfed_unchanged) = authority
                 .verified_content
                 .lock()
                 .map_err(|_| "verified content poisoned")?
                 .as_ref()
                 .filter(|verified| verified.intent_id == request.intent.id)
                 .filter(|verified| verified.frontier_ms.is_some())
-                .map_or((None, None, None), |verified| {
-                    let delta = verified
-                        .complete
+                .map_or((None, None, None, None), |verified| {
+                    // Whether the source committed a record without a feed
+                    // row since the walk began; unknown with an older source.
+                    let unfed_unchanged = verified
+                        .records_without_feed_rows
+                        .zip(request.records_without_feed_rows)
+                        .map(|(walked, frozen)| walked == frozen);
+                    let delta = (verified.complete && unfed_unchanged != Some(false))
                         .then(|| verified.missing.clone())
                         .flatten();
-                    (Some(verified.losses_at), delta, verified.feed_from)
+                    (
+                        Some(verified.losses_at),
+                        delta,
+                        verified.feed_from,
+                        unfed_unchanged,
+                    )
                 });
             // Records the source added after the walk began, whether or not
             // the forward link kept them, join the repair; without the whole
             // range the full walk runs.
             let delta = match (delta, feed_from) {
                 (Some(mut missing), Some(from)) if from.incarnation == receipt.incarnation => {
-                    match crate::sync::replica::feed_records_between(
+                    let limit = MAX_DELTA_REPAIR_RECORDS.saturating_sub(missing.len());
+                    // What this destination's own link applied needs no
+                    // source feed; an older source may have trimmed it.
+                    let added = match forward_delta_between(
                         state,
-                        &request.intent.source_url,
+                        &request,
                         from,
                         receipt.head,
-                        MAX_DELTA_REPAIR_RECORDS.saturating_sub(missing.len()),
-                    )
-                    .await
-                    {
-                        Ok(Some(added)) => {
-                            missing.extend(added);
-                            Some(missing)
-                        }
-                        outcome => {
-                            tracing::info!(event.name = "kura.handover.delta_unavailable", id = %request.intent.id,
-                                error = ?outcome.err().map(|error| bounded_detail(&error)),
-                                "Source feed does not cover the walk; repairing the whole retained index");
-                            None
-                        }
-                    }
+                        limit,
+                    ) {
+                        Some(added) => Some(added),
+                        None => match crate::sync::replica::feed_records_between(
+                            state,
+                            &request.intent.source_url,
+                            from,
+                            receipt.head,
+                            limit,
+                        )
+                        .await
+                        {
+                            Ok(Some(added)) => Some(added),
+                            outcome => {
+                                tracing::info!(event.name = "kura.handover.delta_unavailable", id = %request.intent.id,
+                                    error = ?outcome.err().map(|error| bounded_detail(&error)),
+                                    "Neither the forward link nor the source feed covers the walk; repairing the whole retained index");
+                                None
+                            }
+                        },
+                    };
+                    added.map(|added| {
+                        missing.extend(added);
+                        missing
+                    })
                 }
                 _ => None,
             };
+            // A record confirmed against the serving source, by the walk or
+            // by the bridge after it, needs neither repair nor the frozen
+            // source's verification.
+            let delta = delta.map(|delta| {
+                let verified = authority
+                    .verified_content
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let keys = verified
+                    .as_ref()
+                    .filter(|verified| verified.intent_id == request.intent.id)
+                    .map(|verified| &verified.keys);
+                delta
+                    .into_iter()
+                    .filter(|entry| {
+                        keys.is_none_or(|keys| {
+                            !keys.contains(&content_key(
+                                &entry.record_kind,
+                                &entry.record_id,
+                                entry.version_ms,
+                            ))
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            });
             let record_terminal = |rejection: &Rejection| -> Result<(), Rejection> {
                 if rejection.terminal {
                     *authority
@@ -485,20 +546,38 @@ async fn verify_inner(
                 *hold = Some(request.intent.id.clone());
                 break;
             }
+            // Every record the source retains is one the walk confirmed and
+            // this destination still holds, or one it repaired from this
+            // delta: the source verifies only those inside the barrier.
+            if let Some(verified) = authority
+                .verified_content
+                .lock()
+                .map_err(|_| "verified content poisoned")?
+                .as_mut()
+                .filter(|verified| verified.intent_id == request.intent.id)
+            {
+                verified.barrier_delta = delta.filter(|_| unfed_unchanged == Some(true));
+            }
         }
         // An idempotent begin still has to belong to the current intent.
         require_current_destination(state, &request)?;
-        let preverified = authority
+        let (preverified, barrier_delta) = authority
             .verified_content
             .lock()
             .map_err(|_| "verified content poisoned")?
             .as_ref()
             .filter(|verified| verified.intent_id == request.intent.id)
-            .map_or(0, |verified| verified.keys.len());
+            .map_or((0, None), |verified| {
+                (
+                    verified.keys.len(),
+                    verified.barrier_delta.as_ref().map(Vec::len),
+                )
+            });
         return Ok(serde_json::json!({
             "destination": authority.identity(),
             "max_batch_records": MAX_BATCH_RECORDS,
             "preverified_records": preverified,
+            "barrier_delta_records": barrier_delta,
         }));
     }
     if state
@@ -549,6 +628,163 @@ async fn verify_inner(
         .await?;
     *authority.barrier.lock().map_err(|_| "barrier poisoned")? = Some(receipt.clone());
     Ok(serde_json::json!({"receipt": receipt}))
+}
+
+// How long a request the frozen source cannot admit waits for the switch,
+// how long after it the old holder forwards to the new one, and how often
+// it looks.
+const SWITCH_HOLD: Duration = Duration::from_secs(20);
+const FORWARD_WINDOW: Duration = Duration::from_secs(60);
+const SWITCH_POLL: Duration = Duration::from_millis(25);
+
+/// What a public request this holder could not admit should do.
+pub(crate) enum Switch {
+    /// Admitted here after waiting: an aborted handover or the hold lifting.
+    Local(Option<crate::serving_authority::Permit>),
+    /// The destination serves now; forward to its peer URL.
+    Forward(String),
+    /// Not part of a handover, or the wait ran out: refuse as before.
+    Refuse,
+}
+
+/// Holds a public request the serving authority refused while this holder's
+/// planned handover is in flight, instead of refusing it at once. Nothing is
+/// admitted or committed here, so the barrier and its deadline are untouched.
+pub(crate) async fn await_switch(state: &SharedState, mutation: bool) -> Switch {
+    let authority = &state.runtime.authority;
+    let started = tokio::time::Instant::now();
+    loop {
+        if let Some(url) = forward_target(state) {
+            return Switch::Forward(url);
+        }
+        let in_flight = authority.intent().is_some_and(|grant| {
+            grant.holder == *authority.identity()
+                && grant.handover.is_some()
+                && matches!(grant.phase.as_str(), "Quiescing" | "Revoking")
+        });
+        if !in_flight || state.runtime.is_draining() || started.elapsed() >= SWITCH_HOLD {
+            return Switch::Refuse;
+        }
+        tokio::time::sleep(SWITCH_POLL).await;
+        if let Ok(permit) = authority.admit_request(mutation) {
+            return Switch::Local(permit);
+        }
+    }
+}
+
+/// The new holder's peer URL while this former holder still forwards to it.
+pub(crate) fn forward_target(state: &SharedState) -> Option<String> {
+    let authority = &state.runtime.authority;
+    let handed_over = authority.handed_over.lock().ok()?;
+    let (intent, moved_at) = handed_over.as_ref()?;
+    let moved_at = (*moved_at)?;
+    let grant = authority.intent()?;
+    (grant.holder == intent.destination
+        && grant.phase == "Serving"
+        && moved_at.elapsed() < FORWARD_WINDOW
+        && !state.runtime.is_draining())
+    .then(|| intent.destination_url.clone())
+}
+
+/// Runs a public request forwarded by the former holder through this holder's
+/// own public router: its admission, grant and authorization all apply.
+pub async fn forwarded_public_request(
+    State(state): State<SharedState>,
+    request: axum::extract::Request,
+) -> axum::response::Response {
+    use tower::ServiceExt;
+    let (parts, body) = request.into_parts();
+    let path_and_query = parts
+        .uri
+        .path_and_query()
+        .map(|value| value.as_str())
+        .unwrap_or("/")
+        .strip_prefix(FORWARD_PREFIX)
+        .unwrap_or("/")
+        .to_owned();
+    let Ok(uri) = path_and_query.parse() else {
+        return (StatusCode::BAD_REQUEST, "invalid forwarded path").into_response();
+    };
+    // A fresh request: the outer route's matched path must not reach the
+    // inner router's extractors.
+    let mut forwarded = axum::extract::Request::new(body);
+    *forwarded.method_mut() = parts.method;
+    *forwarded.uri_mut() = uri;
+    *forwarded.version_mut() = parts.version;
+    *forwarded.headers_mut() = parts.headers;
+    crate::http::public_router(state)
+        .oneshot(forwarded)
+        .await
+        .into_response()
+}
+
+pub(crate) const FORWARD_PREFIX: &str = "/_internal/handover/forward";
+
+#[derive(Deserialize, Serialize)]
+pub struct BarrierDeltaRequest {
+    intent: Intent,
+    source: Holder,
+    offset: usize,
+}
+
+/// One page of the records the frozen source must verify in full, once this
+/// destination holds the corpus for the named intent.
+pub async fn barrier_delta(
+    State(state): State<SharedState>,
+    Json(request): Json<BarrierDeltaRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    barrier_delta_page(&state, request)
+        .map(Json)
+        .map_err(|error| (StatusCode::CONFLICT, bounded_detail(&error)))
+}
+
+fn barrier_delta_page(
+    state: &SharedState,
+    request: BarrierDeltaRequest,
+) -> Result<serde_json::Value, String> {
+    let verify = VerifyRequest {
+        begin: false,
+        intent: request.intent,
+        source: request.source,
+        record: None,
+        records: Vec::new(),
+        receipt: None,
+        records_without_feed_rows: None,
+    };
+    require_current_destination(state, &verify)?;
+    if state
+        .store
+        .handover_hold
+        .lock()
+        .map_err(|_| "handover hold poisoned")?
+        .as_deref()
+        != Some(verify.intent.id.as_str())
+    {
+        return Err("retained corpus not held".into());
+    }
+    let authority = &state.runtime.authority;
+    let verified = authority
+        .verified_content
+        .lock()
+        .map_err(|_| "verified content poisoned")?;
+    let delta = verified
+        .as_ref()
+        .filter(|verified| verified.intent_id == verify.intent.id)
+        .and_then(|verified| verified.barrier_delta.as_ref())
+        .ok_or("no barrier delta for this intent")?;
+    let mut entries = Vec::new();
+    let mut bytes = 0usize;
+    for entry in delta.iter().skip(request.offset) {
+        let encoded = serde_json::to_vec(entry).map_err(|e| e.to_string())?.len() + 1;
+        if entries.len() == BARRIER_DELTA_PAGE_RECORDS
+            || (!entries.is_empty() && bytes + encoded > BARRIER_DELTA_PAGE_BYTES)
+        {
+            break;
+        }
+        bytes += encoded;
+        entries.push(entry);
+    }
+    Ok(serde_json::json!({"destination": authority.identity(), "entries": entries}))
 }
 
 fn require_current_destination(state: &SharedState, request: &VerifyRequest) -> Result<(), String> {
@@ -677,6 +913,7 @@ async fn prepare_live_destination(
         record: None,
         records: Vec::new(),
         receipt: None,
+        records_without_feed_rows: None,
     };
     let _preparation = state.runtime.authority.handover_preparation.lock().await;
     require_current_preparation(state, &request, preparation.epoch)?;
@@ -693,7 +930,202 @@ async fn prepare_live_destination(
     // can starve until the deadline while the source keeps accepting writes.
     // Quiescing still repairs, atomically freezes and verifies the full corpus.
     require_current_preparation(state, &request, preparation.epoch)?;
-    require_room_for_barrier(state, &walk)
+    require_room_for_barrier(state, &walk)?;
+    // Confirm what the source took during the walk before reporting, then
+    // keep confirming until Quiescing, so the frozen source verifies only
+    // what arrived in the last moment.
+    let near_deadline = || {
+        crate::utils::now_ms().saturating_add(CONTENT_WALK_DEADLINE_MARGIN_MS)
+            >= request.intent.deadline_ms
+    };
+    while !near_deadline() {
+        require_current_preparation(state, &request, preparation.epoch)?;
+        match bridge_round(state, &request).await {
+            Ok(remaining) if remaining > BRIDGE_BATCH_RECORDS => {}
+            Ok(_) => break,
+            Err(error) => {
+                tracing::info!(event.name = "kura.handover.bridge_stopped", id = %request.intent.id,
+                    error = %bounded_detail(&error),
+                    "Stopped confirming the source's late records; the barrier verifies them");
+                return Ok(());
+            }
+        }
+    }
+    keep_bridging(state, request, preparation.epoch);
+    Ok(())
+}
+
+/// Confirms the next records the forward link applied against the serving
+/// source's content, as the walk confirms retained ones. Returns how many
+/// applied records are still unconfirmed.
+async fn bridge_round(state: &SharedState, request: &VerifyRequest) -> Result<usize, String> {
+    let authority = &state.runtime.authority;
+    let (start, batch, unconfirmed) = {
+        let tracked = authority
+            .forward_delta
+            .lock()
+            .map_err(|_| "forward delta poisoned")?;
+        let tracked = tracked
+            .as_ref()
+            .filter(|tracked| tracked.intent_id == request.intent.id)
+            .ok_or("no forward delta for this intent")?;
+        let entries = tracked
+            .entries
+            .as_ref()
+            .ok_or("forward link left the source's feed")?;
+        let mut batch = Vec::new();
+        let mut bytes = 0u64;
+        for (_, entry) in entries.iter().skip(tracked.bridged) {
+            let size = entry.size.unwrap_or(0);
+            if batch.len() == BRIDGE_BATCH_RECORDS
+                || (!batch.is_empty() && bytes.saturating_add(size) > BRIDGE_BATCH_BODY_BYTES)
+            {
+                break;
+            }
+            bytes = bytes.saturating_add(size);
+            batch.push(entry.clone());
+        }
+        (tracked.bridged, batch, entries.len() - tracked.bridged)
+    };
+    if batch.is_empty() {
+        return Ok(0);
+    }
+    let response = state
+        .peer_request(
+            reqwest::Method::POST,
+            &request.intent.source_url,
+            &format!("{}/_internal/handover/describe", request.intent.source_url),
+        )?
+        .json(&DescribeRequest {
+            intent: request.intent.clone(),
+            source: request.source.clone(),
+            entries: batch.clone(),
+        })
+        .timeout(Duration::from_secs(60))
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("source describe returned {}", response.status()));
+    }
+    let described: Vec<Option<Record>> = response.json().await.map_err(|e| e.to_string())?;
+    if described.len() != batch.len() {
+        return Err("source described a different batch".into());
+    }
+    // A record the source no longer holds at that version is left to the
+    // barrier, like one this destination lacks or holds differently.
+    let records: Vec<Record> = described.into_iter().flatten().collect();
+    let (_, held, _) = held_records(state, &records, true)
+        .await
+        .map_err(|(PageFailure::Fatal(error) | PageFailure::Unreachable(error))| error)?;
+    let mut confirmed = 0usize;
+    if let Some(verified) = authority
+        .verified_content
+        .lock()
+        .map_err(|_| "verified content poisoned")?
+        .as_mut()
+        .filter(|verified| verified.intent_id == request.intent.id)
+    {
+        for (expected, actual) in records.iter().zip(held) {
+            if actual.is_some_and(|actual| {
+                actual.size == expected.size && actual.digest == expected.digest
+            }) && verified.keys.len() < MAX_VERIFIED_CONTENT
+            {
+                verified
+                    .keys
+                    .insert(content_key(&expected.kind, &expected.id, expected.version));
+                confirmed += 1;
+            }
+        }
+    }
+    if let Some(tracked) = authority
+        .forward_delta
+        .lock()
+        .map_err(|_| "forward delta poisoned")?
+        .as_mut()
+        .filter(|tracked| tracked.intent_id == request.intent.id && tracked.bridged == start)
+    {
+        tracked.bridged = start + batch.len();
+    }
+    tracing::debug!(event.name = "kura.handover.bridged", id = %request.intent.id,
+        records = batch.len(), confirmed, "Confirmed records the source took while serving");
+    Ok(unconfirmed - batch.len())
+}
+
+/// Keeps confirming applied records while the named intent still serves. One
+/// task per intent; Quiescing, an abort or drain ends it.
+fn keep_bridging(state: &SharedState, request: VerifyRequest, epoch: u64) {
+    {
+        let mut tracked = state
+            .runtime
+            .authority
+            .forward_delta
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Some(tracked) = tracked
+            .as_mut()
+            .filter(|tracked| tracked.intent_id == request.intent.id && !tracked.bridging)
+        else {
+            return;
+        };
+        tracked.bridging = true;
+    }
+    let state = state.clone();
+    tokio::spawn(
+        async move {
+            loop {
+                tokio::time::sleep(BRIDGE_INTERVAL).await;
+                if state.runtime.is_draining()
+                    || require_current_preparation(&state, &request, epoch).is_err()
+                {
+                    break;
+                }
+                if let Err(error) = bridge_round(&state, &request).await {
+                    tracing::info!(event.name = "kura.handover.bridge_stopped", id = %request.intent.id,
+                        error = %bounded_detail(&error),
+                        "Stopped confirming the source's late records; the barrier verifies them");
+                    break;
+                }
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct DescribeRequest {
+    intent: Intent,
+    source: Holder,
+    entries: Vec<BackfillEntry>,
+}
+
+/// The serving source's current content of named records, for the named
+/// destination of its current intent: the records that destination's forward
+/// link applied after its walk, confirmed before the barrier.
+pub async fn describe(
+    State(state): State<SharedState>,
+    Json(request): Json<DescribeRequest>,
+) -> Result<Json<Vec<Option<Record>>>, (StatusCode, String)> {
+    let conflict = |error: String| (StatusCode::CONFLICT, bounded_detail(&error));
+    require_serving_source(&state, &request.intent, &request.source).map_err(conflict)?;
+    if request.entries.len() > BRIDGE_BATCH_RECORDS {
+        return Err(conflict("describe batch too large".into()));
+    }
+    let rows = request
+        .entries
+        .iter()
+        .map(|entry| {
+            BackfillRecordKind::from_wire_name(&entry.record_kind)
+                .map(|kind| (kind, entry.record_id.clone(), entry.version_ms))
+                .ok_or_else(|| conflict("unknown retained record kind".into()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    // An unreadable record is described as absent and left to the barrier.
+    let records = records_in_order(&state, rows)
+        .map(|record| record.ok().flatten())
+        .collect()
+        .await;
+    Ok(Json(records))
 }
 
 // Quiescing refuses the source's writes until repair converges. A destination
@@ -780,8 +1212,137 @@ pub struct VerifiedContent {
     // What the walk found missing, or None past the repair bound.
     missing: Option<Vec<BackfillEntry>>,
     // This destination's feed cursor on the source when the walk began: every
-    // record the source added since is a feed row after it.
+    // record the source added since with a feed row is after it.
     feed_from: Option<SyncPosition>,
+    // The source's count of records committed without a feed row when the
+    // walk began; older sources omit it.
+    records_without_feed_rows: Option<u64>,
+    // What the frozen source verifies in full once this destination holds
+    // the corpus, or None for the whole corpus.
+    barrier_delta: Option<Vec<BackfillEntry>>,
+}
+
+/// Every record row this destination's forward link applied from the source
+/// since `from`, the cursor its content walk began at. The link reads the
+/// source's feed contiguously, so through `through` this covers the same rows
+/// the source's own feed did, even after an older source trimmed them.
+pub struct ForwardDelta {
+    intent_id: String,
+    peer: String,
+    from: SyncPosition,
+    through: u64,
+    // (seq, record), or None once a gap, re-bootstrap or the bound broke it.
+    entries: Option<Vec<(u64, BackfillEntry)>>,
+    // How many entries the bridge confirmed against the serving source.
+    bridged: usize,
+    bridging: bool,
+}
+
+/// Starts tracking the forward link for this intent and returns the cursor it
+/// starts from. A page the link applies between the two cursor reads makes
+/// the tracker non-contiguous, which only loses the fallback, never a record.
+fn track_forward_delta(
+    state: &SharedState,
+    request: &VerifyRequest,
+) -> Result<Option<SyncPosition>, String> {
+    let peer = &request.intent.source_url;
+    let mut from = state.store.sync_cursor(peer)?;
+    for _ in 0..3 {
+        *state
+            .runtime
+            .authority
+            .forward_delta
+            .lock()
+            .map_err(|_| "forward delta poisoned")? = from.map(|from| ForwardDelta {
+            intent_id: request.intent.id.clone(),
+            peer: peer.clone(),
+            from,
+            through: from.seq,
+            entries: Some(Vec::new()),
+            bridged: 0,
+            bridging: false,
+        });
+        let now = state.store.sync_cursor(peer)?;
+        if now == from {
+            break;
+        }
+        from = now;
+    }
+    Ok(from)
+}
+
+/// Called by the forward link for each page it applied whole, before it
+/// advances its cursor past the page.
+pub(crate) fn note_forward_page(
+    state: &SharedState,
+    peer: &str,
+    position: SyncPosition,
+    page: &crate::http::SyncForwardPage,
+) {
+    let mut tracked = state
+        .runtime
+        .authority
+        .forward_delta
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let Some(tracked) = tracked.as_mut().filter(|tracked| tracked.peer == peer) else {
+        return;
+    };
+    let Some(entries) = tracked.entries.as_mut() else {
+        return;
+    };
+    if position.incarnation != tracked.from.incarnation || position.seq != tracked.through {
+        tracked.entries = None;
+        return;
+    }
+    for entry in page.entries.iter().filter(|entry| {
+        entry.seq > position.seq
+            && matches!(
+                SyncFeedKind::from_wire_name(&entry.kind),
+                Some(SyncFeedKind::Record(_))
+            )
+    }) {
+        if entries.len() == MAX_DELTA_REPAIR_RECORDS {
+            tracked.entries = None;
+            return;
+        }
+        entries.push((
+            entry.seq,
+            BackfillEntry {
+                record_kind: entry.kind.clone(),
+                record_id: entry.record_id.clone(),
+                version_ms: entry.version_ms,
+                size: entry.size,
+            },
+        ));
+    }
+    tracked.through = tracked.through.max(page.next);
+}
+
+/// The records the forward link applied from `from` through `head`, when it
+/// followed the source contiguously that far for this intent.
+fn forward_delta_between(
+    state: &SharedState,
+    request: &VerifyRequest,
+    from: SyncPosition,
+    head: u64,
+    limit: usize,
+) -> Option<Vec<BackfillEntry>> {
+    let tracked = state.runtime.authority.forward_delta.lock().ok()?;
+    let tracked = tracked.as_ref().filter(|tracked| {
+        tracked.intent_id == request.intent.id
+            && tracked.peer == request.intent.source_url
+            && tracked.from == from
+            && tracked.through >= head
+    })?;
+    let added: Vec<_> = tracked
+        .entries
+        .as_ref()?
+        .iter()
+        .filter(|(seq, _)| *seq <= head)
+        .map(|(_, entry)| entry.clone())
+        .collect();
+    (added.len() <= limit).then_some(added)
 }
 
 fn content_key(kind: &str, id: &str, version: u64) -> u128 {
@@ -803,6 +1364,17 @@ pub struct DescriptorRequest {
     source: Holder,
     #[serde(default)]
     after: Option<String>,
+    // The destination's feed cursor on this source when its walk begins,
+    // sent with the first page; older destinations omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    feed_incarnation: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    feed_seq: Option<u64>,
+}
+
+/// The feed consumer that holds this source's feed for a handover's delta.
+fn handover_feed_pin(intent: &Intent) -> String {
+    format!("handover:{}", intent.id)
 }
 
 #[derive(Deserialize, Serialize)]
@@ -812,6 +1384,12 @@ pub struct DescriptorPage {
     // Sent on the first page only; older sources omit it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     oldest_version_ms: Option<u64>,
+    // Sent on the first page only, read before any page; older sources omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    records_without_feed_rows: Option<u64>,
+    // Listed records this page could not hash; older sources omit them.
+    #[serde(default)]
+    unhashed: u64,
 }
 
 /// One page of the serving source's retained content descriptors, hashed from
@@ -826,26 +1404,54 @@ pub async fn descriptors(
         .map_err(|error| (StatusCode::CONFLICT, bounded_detail(&error)))
 }
 
-async fn descriptor_page(
+fn require_serving_source(
     state: &SharedState,
-    request: &DescriptorRequest,
-) -> Result<DescriptorPage, String> {
+    intent: &Intent,
+    source: &Holder,
+) -> Result<(), String> {
     let authority = &state.runtime.authority;
     let grant = authority.intent().ok_or("no handover intent")?;
     if grant.phase != "Serving"
         || grant.holder != *authority.identity()
-        || request.source != *authority.identity()
-        || grant.handover.as_ref() != Some(&request.intent)
-        || crate::utils::now_ms() >= request.intent.deadline_ms
+        || *source != *authority.identity()
+        || grant.handover.as_ref() != Some(intent)
+        || crate::utils::now_ms() >= intent.deadline_ms
     {
         return Err("handover source, phase or intent mismatch".into());
     }
+    Ok(())
+}
+
+async fn descriptor_page(
+    state: &SharedState,
+    request: &DescriptorRequest,
+) -> Result<DescriptorPage, String> {
+    require_serving_source(state, &request.intent, &request.source)?;
     let after = request
         .after
         .as_deref()
         .map(hex::decode)
         .transpose()
         .map_err(|_| "invalid descriptor cursor")?;
+    // The frozen barrier repairs what the source added after the walk began
+    // from its feed, so hold the feed there against the sibling link's trim
+    // until the receipt (or the stale-consumer window). Already trimmed past
+    // it, the barrier falls back to the full repair as before.
+    if after.is_none() {
+        let feed = state.store.sync_feed();
+        if let (Some(incarnation), Some(seq)) = (request.feed_incarnation, request.feed_seq)
+            && incarnation == feed.incarnation()
+            && seq >= feed.floor()
+        {
+            feed.note_consumer_snapshot(&handover_feed_pin(&request.intent), seq);
+        }
+    }
+    let records_without_feed_rows = after.is_none().then(|| {
+        state
+            .store
+            .records_without_feed_rows
+            .load(Ordering::Acquire)
+    });
     let oldest_version_ms = if after.is_none() {
         state.store.backfill_index_oldest_version_ms()?
     } else {
@@ -856,6 +1462,7 @@ async fn descriptor_page(
         .backfill_index_page(after.as_deref(), DESCRIPTOR_PAGE_RECORDS)?;
     let mut records = Vec::new();
     let mut body_bytes = 0u64;
+    let mut unhashed = 0u64;
     let mut hashed = std::pin::pin!(records_in_order(
         state,
         page.entries
@@ -865,10 +1472,15 @@ async fn descriptor_page(
     ));
     for row in &page.entries {
         // Live writes and eviction can retire a row between listing and
-        // hashing; the frozen barrier verifies whatever this pass missed.
-        if let Some(Ok(Some(record))) = hashed.next().await {
-            body_bytes = body_bytes.saturating_add(record.size);
-            records.push(record);
+        // hashing; a row that fails to hash is counted, so the destination
+        // leaves the whole corpus to the frozen barrier.
+        match hashed.next().await {
+            Some(Ok(Some(record))) => {
+                body_bytes = body_bytes.saturating_add(record.size);
+                records.push(record);
+            }
+            Some(Ok(None)) => {}
+            _ => unhashed += 1,
         }
         if body_bytes >= DESCRIPTOR_PAGE_BODY_BYTES {
             let cursor = crate::utils::backfill_index_key(row.version_ms, row.kind, &row.record_id);
@@ -876,6 +1488,8 @@ async fn descriptor_page(
                 records,
                 next_after: Some(hex::encode(cursor)),
                 oldest_version_ms,
+                records_without_feed_rows,
+                unhashed,
             });
         }
     }
@@ -883,6 +1497,8 @@ async fn descriptor_page(
         records,
         next_after: page.next_after.map(hex::encode),
         oldest_version_ms,
+        records_without_feed_rows,
+        unhashed,
     })
 }
 
@@ -908,12 +1524,14 @@ struct CheckedPage {
     held: Vec<Option<Record>>,
     frontier_ms: Option<u64>,
     next: Option<DescriptorRange>,
+    unhashed: u64,
 }
 
 async fn source_descriptor_page(
     state: &SharedState,
     request: &VerifyRequest,
     after: Option<String>,
+    feed_from: Option<SyncPosition>,
 ) -> Result<DescriptorPage, PageFailure> {
     let response = state
         .peer_request(
@@ -929,6 +1547,8 @@ async fn source_descriptor_page(
             intent: request.intent.clone(),
             source: request.source.clone(),
             after,
+            feed_incarnation: feed_from.map(|from| from.incarnation),
+            feed_seq: feed_from.map(|from| from.seq),
         })
         .timeout(Duration::from_secs(120))
         .send()
@@ -988,7 +1608,8 @@ async fn checked_range_page(
     range: DescriptorRange,
     watch: bool,
 ) -> Result<CheckedPage, PageFailure> {
-    let page = source_descriptor_page(state, request, range.after).await?;
+    let page = source_descriptor_page(state, request, range.after, None).await?;
+    let unhashed = page.unhashed;
     let (records, next) = within_range(page, range.stop);
     let (kinds, held, frontier_ms) = held_records(state, &records, watch).await?;
     Ok(CheckedPage {
@@ -997,6 +1618,7 @@ async fn checked_range_page(
         held,
         frontier_ms,
         next,
+        unhashed,
     })
 }
 
@@ -1088,6 +1710,8 @@ async fn verify_content_while_serving(
         complete: false,
         missing: Some(Vec::new()),
         feed_from: None,
+        records_without_feed_rows: None,
+        barrier_delta: None,
     };
     let mut walk = ContentWalk {
         frontier_ms: None,
@@ -1111,10 +1735,13 @@ async fn verify_content_while_serving(
     let cuts = tokio::task::spawn_blocking(move || range_cuts(&local))
         .await
         .map_err(|error| error.to_string())??;
+    // Read before the first page, so the source can hold its feed here, and
+    // tracked from here, so an older source's trimmed feed is no loss.
+    let feed_from = track_forward_delta(state, request)?;
     let first = if near_deadline() {
         None
     } else {
-        match source_descriptor_page(state, request, None).await {
+        match source_descriptor_page(state, request, None, feed_from).await {
             Ok(page) => Some(page),
             Err(PageFailure::Fatal(error)) => return Err(error),
             Err(PageFailure::Unreachable(error)) => {
@@ -1130,8 +1757,10 @@ async fn verify_content_while_serving(
             state.store.watch_retained_evictions(frontier);
             walk.losses_at = state.store.retained_loss_evictions();
             walk.frontier_ms = Some(frontier);
-            verified.feed_from = state.store.sync_cursor(&request.intent.source_url)?;
+            verified.feed_from = feed_from;
         }
+        verified.records_without_feed_rows = first.records_without_feed_rows;
+        let mut unhashed = first.unhashed;
         let watch = walk.frontier_ms.is_some();
         // The first page starts the first range; every cut starts another.
         let (records, first_range) = within_range(first, cuts.first().copied());
@@ -1190,6 +1819,7 @@ async fn verify_content_while_serving(
             if let Some(frontier) = page.frontier_ms {
                 walk.frontier_ms = Some(walk.frontier_ms.map_or(frontier, |at| at.min(frontier)));
             }
+            unhashed += page.unhashed;
             apply_checked_records(
                 &mut verified,
                 &mut walk,
@@ -1205,6 +1835,11 @@ async fn verify_content_while_serving(
             }
         }
         verified.complete = finished;
+        // A retained row the source could not hash is neither confirmed nor
+        // known missing, so the frozen source verifies the whole corpus.
+        if unhashed > 0 {
+            verified.records_without_feed_rows = None;
+        }
     }
     tracing::info!(event.name = "kura.handover.content_verified", id = %request.intent.id,
         verified = verified.keys.len(), unverified, missing = walk.missing_records,
@@ -1328,6 +1963,7 @@ fn descriptor_answer(
         record: None,
         records: Vec::new(),
         receipt: None,
+        records_without_feed_rows: None,
     };
     require_current_destination(state, &request)?;
     if state
@@ -1409,6 +2045,7 @@ async fn send(
         "/_internal/handover/verify",
         request,
         &verification_context(request),
+        VERIFICATION_ANSWER_BYTES,
     )
     .await
 }
@@ -1419,6 +2056,7 @@ async fn send_to(
     path: &str,
     body: &impl Serialize,
     context: &str,
+    limit: usize,
 ) -> Result<serde_json::Value, String> {
     let response = state
         .peer_request(
@@ -1433,7 +2071,8 @@ async fn send_to(
         .map_err(|e| e.to_string())?;
     let status = response.status();
     let bytes =
-        crate::replication::read_bounded_body(response, 16 * 1024, "handover verification").await?;
+        crate::replication::read_bounded_body(response, limit as u64, "handover verification")
+            .await?;
     if !status.is_success() {
         let reason = bounded_detail(&String::from_utf8_lossy(&bytes));
         if status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
@@ -1510,6 +2149,7 @@ async fn descriptor_needs(
         "/_internal/handover/verify-descriptors",
         &batch,
         &format!("descriptors records={count}"),
+        VERIFICATION_ANSWER_BYTES,
     )
     .await?;
     check_destination(&answer, intent)?;
@@ -1593,6 +2233,7 @@ async fn send_records(
         record: if batched { None } else { records.pop() },
         records,
         receipt: None,
+        records_without_feed_rows: None,
     };
     let answer = send(state, intent, &request).await?;
     check_destination(&answer, intent)?;
@@ -1627,6 +2268,10 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
     feed.settle().await;
     let (head, frontier_ms, commits) = feed.barrier_position();
     let floor = feed.floor();
+    let unfed = state
+        .store
+        .records_without_feed_rows
+        .load(Ordering::Acquire);
     let mut receipt = Receipt {
         id: intent.id.clone(),
         source: authority.identity().clone(),
@@ -1649,6 +2294,7 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
             records: Vec::new(),
             record: None,
             receipt: Some(receipt.clone()),
+            records_without_feed_rows: Some(unfed),
         },
     )
     .await?;
@@ -1660,7 +2306,95 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
     let preverified = answer["preverified_records"].as_u64().unwrap_or(0);
     let started = std::time::Instant::now();
     let mut content_verified = 0u64;
-    if preverified > 0 {
+    let barrier_delta = answer["barrier_delta_records"]
+        .as_u64()
+        .map(|records| records as usize);
+    let delta_barrier = barrier_delta.is_some();
+    if let Some(delta_records) = barrier_delta {
+        // The destination confirmed every other retained record while this
+        // source served and still holds it: verify only what it repaired,
+        // reading its list a bounded page at a time.
+        let mut seen = HashSet::new();
+        let mut batch = Vec::with_capacity(batch_size);
+        let mut body_bytes = 0u64;
+        let mut offset = 0usize;
+        let mut page = Vec::new();
+        loop {
+            if page.is_empty() {
+                if offset == delta_records {
+                    break;
+                }
+                let answer = send_to(
+                    state,
+                    intent,
+                    "/_internal/handover/barrier-delta",
+                    &BarrierDeltaRequest {
+                        intent: intent.clone(),
+                        source: receipt.source.clone(),
+                        offset,
+                    },
+                    &format!("barrier delta offset={offset}"),
+                    2 * BARRIER_DELTA_PAGE_BYTES,
+                )
+                .await?;
+                check_destination(&answer, intent)?;
+                let entries: Vec<BackfillEntry> =
+                    serde_json::from_value(answer["entries"].clone()).map_err(|e| e.to_string())?;
+                if entries.is_empty() || offset + entries.len() > delta_records {
+                    return Err("destination barrier delta changed while frozen".into());
+                }
+                offset += entries.len();
+                page = entries;
+                page.reverse();
+            }
+            let entry = page.pop().expect("a delta entry");
+            let kind = BackfillRecordKind::from_wire_name(&entry.record_kind)
+                .ok_or("unknown retained record kind")?;
+            if !seen.insert(content_key(
+                &entry.record_kind,
+                &entry.record_id,
+                entry.version_ms,
+            )) {
+                continue;
+            }
+            // Superseded or removed since: not a retained record.
+            let Some(value) = record(state, kind, &entry.record_id, entry.version_ms).await? else {
+                continue;
+            };
+            if !batch.is_empty() && body_bytes.saturating_add(value.size) > MAX_BATCH_BODY_BYTES {
+                send_records(
+                    state,
+                    intent,
+                    &receipt.source,
+                    std::mem::take(&mut batch),
+                    batch_size > 1,
+                )
+                .await?;
+                body_bytes = 0;
+            }
+            let encoded = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
+            digest.update((encoded.len() as u64).to_be_bytes());
+            digest.update(encoded);
+            body_bytes = body_bytes.saturating_add(value.size);
+            batch.push(value);
+            receipt.records += 1;
+            content_verified += 1;
+            if batch.len() == batch_size {
+                send_records(
+                    state,
+                    intent,
+                    &receipt.source,
+                    std::mem::take(&mut batch),
+                    batch_size > 1,
+                )
+                .await?;
+                body_bytes = 0;
+            }
+        }
+        if !batch.is_empty() {
+            send_records(state, intent, &receipt.source, batch, batch_size > 1).await?;
+        }
+    } else if preverified > 0 {
         // Metadata answers overlap; records named for full verification are
         // still sent one batch at a time, in corpus order.
         let source = receipt.source.clone();
@@ -1778,13 +2512,17 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
         }
     }
     tracing::info!(event.name = "kura.handover.verified", id = %intent.id, records = receipt.records,
-        preverified, content_verified, elapsed_ms = started.elapsed().as_millis() as u64,
+        preverified, content_verified, delta_barrier, elapsed_ms = started.elapsed().as_millis() as u64,
         "Verified the retained corpus inside the barrier");
     let (final_commits, final_floor, mutations) =
         (feed.commits(), feed.floor(), authority.mutations());
-    if final_commits != commits || final_floor != floor || mutations != 0 {
+    let final_unfed = state
+        .store
+        .records_without_feed_rows
+        .load(Ordering::Acquire);
+    if final_commits != commits || final_floor != floor || mutations != 0 || final_unfed != unfed {
         return Err(format!(
-            "source changed or feed trimmed during barrier: commits={commits}->{final_commits} floor={floor}->{final_floor} mutations={mutations} head={head}->{}",
+            "source changed or feed trimmed during barrier: commits={commits}->{final_commits} floor={floor}->{final_floor} mutations={mutations} unfed={unfed}->{final_unfed} head={head}->{}",
             feed.head()
         ));
     }
@@ -1799,6 +2537,7 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
             records: Vec::new(),
             record: None,
             receipt: Some(receipt.clone()),
+            records_without_feed_rows: None,
         },
     )
     .await?;
@@ -1809,6 +2548,7 @@ async fn prepare(state: &SharedState, intent: &Intent) -> Result<Receipt, String
         .store
         .persist_handover_receipt(&serde_json::to_vec(&receipt).map_err(|e| e.to_string())?)
         .await?;
+    feed.forget_consumer(&handover_feed_pin(intent));
     Ok(receipt)
 }
 
@@ -1983,6 +2723,7 @@ mod tests {
             source,
             records: Vec::new(),
             record: None,
+            records_without_feed_rows: None,
         }
     }
 
@@ -3195,6 +3936,7 @@ mod tests {
                 digest: "expected-digest".into(),
             }),
             receipt: None,
+            records_without_feed_rows: None,
         };
         let error = send(&ctx.state, &intent, &request).await.unwrap_err();
         server.abort();
@@ -3309,6 +4051,7 @@ mod tests {
             records: Vec::new(),
             record,
             receipt,
+            records_without_feed_rows: None,
         };
         assert!(
             verify_inner(state, request(true, None, Some(receipt.clone())))
@@ -3749,6 +4492,73 @@ mod tests {
                 .unwrap();
         }
 
+        // Runs the destination's forward link on the source until cancelled.
+        fn follow_source(&self) -> CancellationToken {
+            let cancel = CancellationToken::new();
+            let status = crate::sync::coordinator::LinkStatusCell::new(
+                crate::sync::coordinator::LinkStatus {
+                    kind: crate::sync::coordinator::LinkKind::Replica,
+                    peer: self.intent.source_url.clone(),
+                    region: self.target.state.config.region.clone(),
+                    phase: crate::sync::coordinator::LinkPhase::Forward,
+                    settled: false,
+                    last_success: None,
+                    lag_seconds: None,
+                    lag_entries: 0,
+                    frontier: crate::sync::coordinator::LinkFrontier::Pending,
+                    unsupported: false,
+                },
+            );
+            tokio::spawn(crate::sync::replica::run(
+                self.target.state.clone(),
+                self.intent.source_url.clone(),
+                cancel.clone(),
+                status,
+                Default::default(),
+            ));
+            cancel
+        }
+
+        async fn wait_for_cursor(&self, seq: u64) {
+            tokio::time::timeout(Duration::from_secs(30), async {
+                while self
+                    .target
+                    .state
+                    .store
+                    .sync_cursor(&self.intent.source_url)
+                    .unwrap()
+                    .is_none_or(|cursor| cursor.seq < seq)
+                {
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            })
+            .await
+            .expect("the forward link applies the source's feed");
+        }
+
+        async fn wait_for_bridge(&self, records: usize) {
+            tokio::time::timeout(Duration::from_secs(30), async {
+                loop {
+                    let bridged = self
+                        .target
+                        .state
+                        .runtime
+                        .authority
+                        .forward_delta
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .map_or(0, |tracked| tracked.bridged);
+                    if bridged >= records {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            })
+            .await
+            .expect("the bridge confirms the late records");
+        }
+
         // Renews the named intent in `phase` on both peers, as the controller
         // would, until the returned task is aborted.
         fn keep_granted(&self, phase: &'static str) -> tokio::task::JoinHandle<()> {
@@ -3916,13 +4726,275 @@ mod tests {
 
         let receipt = pair.freeze().await.unwrap();
 
-        assert_eq!(receipt.records, 2);
+        assert_eq!(
+            receipt.records, 1,
+            "only the late record is verified in the barrier"
+        );
         assert_eq!(
             pair.source_requests("/_internal/backfill/entries"),
             listings,
             "the frozen repair never lists the source's whole index"
         );
         assert_eq!(pair.source_requests("/_internal/sync/forward"), 1);
+        assert_eq!(
+            pair.requests("/_internal/handover/verify-descriptors"),
+            0,
+            "the frozen source never walks its whole index"
+        );
+        assert_eq!(
+            pair.requests("/_internal/handover/verify"),
+            3,
+            "begin, the late record in full, and the receipt"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_source_keeps_its_feed_from_the_walk_until_the_barrier() {
+        let pair = ContentPair::new().await;
+        pair.seed("early", &vec![1; 64 * 1024]).await;
+        pair.catch_up_cursor();
+        pair.prepare_while_serving().await.unwrap();
+        // Enough writes for the sibling link's progress to trim the feed
+        // past where the walk began.
+        let late = crate::constants::SYNC_FEED_TRIM_BATCH_ROWS as usize + 64;
+        for index in 0..late {
+            pair.seed(&format!("late-{index}"), &(index as u64).to_be_bytes())
+                .await;
+        }
+        let feed = pair.source.state.store.sync_feed();
+        feed.note_consumer("sibling", feed.head());
+        pair.source
+            .state
+            .store
+            .sync_feed_trim_below_consumers()
+            .await
+            .unwrap();
+        let listings = pair.source_requests("/_internal/backfill/entries");
+
+        let receipt = pair.freeze().await.unwrap();
+
+        assert_eq!(receipt.records as usize, late);
+        assert_eq!(
+            pair.source_requests("/_internal/backfill/entries"),
+            listings,
+            "the frozen repair never lists the source's whole index"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_forward_link_covers_the_delta_after_an_older_source_trims_its_feed() {
+        let pair = ContentPair::new().await;
+        pair.seed("early", &vec![1; 64 * 1024]).await;
+        pair.catch_up_cursor();
+        pair.prepare_while_serving().await.unwrap();
+        let link = pair.follow_source();
+        let late = crate::constants::SYNC_FEED_TRIM_BATCH_ROWS as usize + 64;
+        for index in 0..late {
+            pair.seed(&format!("late-{index}"), &(index as u64).to_be_bytes())
+                .await;
+        }
+        let feed = pair.source.state.store.sync_feed();
+        pair.wait_for_cursor(feed.head()).await;
+        link.cancel();
+        // An older source never pins its feed for the handover, so the
+        // sibling link's progress trims it past where the walk began.
+        feed.forget_consumer(&handover_feed_pin(&pair.intent));
+        feed.note_consumer("sibling", feed.head());
+        pair.source
+            .state
+            .store
+            .sync_feed_trim_below_consumers()
+            .await
+            .unwrap();
+        let listings = pair.source_requests("/_internal/backfill/entries");
+
+        let receipt = pair.freeze().await.unwrap();
+
+        // The bridge may already have confirmed some late records; a full
+        // fallback would verify the early one too.
+        assert!(receipt.records as usize <= late, "{}", receipt.records);
+        assert_eq!(
+            pair.source_requests("/_internal/backfill/entries"),
+            listings,
+            "the frozen repair never lists the source's whole index"
+        );
+    }
+
+    #[tokio::test]
+    async fn records_the_source_takes_while_serving_are_confirmed_before_the_barrier() {
+        let pair = ContentPair::new().await;
+        pair.seed("early", &vec![1; 64 * 1024]).await;
+        pair.catch_up_cursor();
+        let link = pair.follow_source();
+        pair.prepare_while_serving().await.unwrap();
+        let late = 300;
+        for index in 0..late {
+            pair.seed(&format!("late-{index}"), &(index as u64).to_be_bytes())
+                .await;
+        }
+        pair.wait_for_cursor(pair.source.state.store.sync_feed().head())
+            .await;
+        pair.wait_for_bridge(late).await;
+        link.cancel();
+
+        let receipt = pair.freeze().await.unwrap();
+
+        assert_eq!(
+            receipt.records, 0,
+            "every late record was confirmed while the source served"
+        );
+        assert_eq!(pair.requests("/_internal/handover/barrier-delta"), 0);
+        assert!(pair.source_requests("/_internal/handover/describe") > 0);
+    }
+
+    // The production public router, admission included; the counting test
+    // router leaves admission out.
+    async fn serve_public(state: SharedState) -> String {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let app = crate::http::public_router(state);
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        url
+    }
+
+    fn grant_to(holder: &Holder, epoch: u64, phase: &str, handover: Option<Intent>) -> Grant {
+        Grant {
+            epoch,
+            holder: holder.clone(),
+            phase: phase.into(),
+            expires_ms: crate::utils::now_ms() + 14_000,
+            handover,
+            barrier: None,
+            resume_epoch: None,
+            exit_resume: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_write_to_the_frozen_source_waits_and_lands_on_the_new_holder() {
+        let pair = ContentPair::new().await;
+        pair.install("Quiescing");
+        let public = serve_public(pair.source.state.clone()).await;
+        let put = tokio::spawn(
+            reqwest::Client::new()
+                .put(format!("{public}/v1/cache/held"))
+                .body("held-bytes")
+                .send(),
+        );
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert!(!put.is_finished(), "the write waits instead of a 503");
+
+        let destination = pair.target.state.runtime.authority.identity().clone();
+        for state in [&pair.source.state, &pair.target.state] {
+            state
+                .runtime
+                .authority
+                .install(grant_to(&destination, 2, "Serving", None))
+                .unwrap();
+        }
+        let response = put.await.unwrap().unwrap();
+        let status = response.status();
+        let body = response.text().await.unwrap();
+
+        assert_eq!(status, reqwest::StatusCode::OK, "{body}");
+        let read = reqwest::get(format!("{}/v1/cache/held", pair.intent.destination_url))
+            .await
+            .unwrap();
+        assert_eq!(read.status(), reqwest::StatusCode::OK);
+        assert_eq!(read.text().await.unwrap(), "held-bytes");
+        assert_eq!(
+            pair.target_requests
+                .lock()
+                .unwrap()
+                .get("/_internal/handover/forward/v1/cache/held")
+                .copied(),
+            Some(1),
+            "the former holder forwarded it rather than committing it"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_write_held_through_an_aborted_handover_is_served_by_the_source() {
+        let pair = ContentPair::new().await;
+        pair.install("Quiescing");
+        let public = serve_public(pair.source.state.clone()).await;
+        let put = tokio::spawn(
+            reqwest::Client::new()
+                .put(format!("{public}/v1/cache/aborted"))
+                .body("kept")
+                .send(),
+        );
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let source = pair.source.state.runtime.authority.identity().clone();
+        for state in [&pair.source.state, &pair.target.state] {
+            state
+                .runtime
+                .authority
+                .install(grant_to(&source, 1, "Serving", None))
+                .unwrap();
+        }
+
+        assert_eq!(
+            put.await.unwrap().unwrap().status(),
+            reqwest::StatusCode::OK
+        );
+        assert_eq!(
+            pair.requests("/_internal/handover/forward/v1/cache/aborted"),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn a_delta_larger_than_one_verification_answer_is_paged_to_the_frozen_source() {
+        let pair = ContentPair::new().await;
+        pair.seed("early", &vec![1; 64 * 1024]).await;
+        pair.catch_up_cursor();
+        pair.prepare_while_serving().await.unwrap();
+        // Hundreds of late records name far more than 16 KiB of delta.
+        let late = 600;
+        for index in 0..late {
+            pair.seed(&format!("late-{index}"), &(index as u64).to_be_bytes())
+                .await;
+        }
+
+        let receipt = pair.freeze().await.unwrap();
+
+        assert_eq!(receipt.records as usize, late);
+        assert_eq!(
+            pair.requests("/_internal/handover/verify-descriptors"),
+            0,
+            "the frozen source never walks its whole index"
+        );
+        assert!(pair.requests("/_internal/handover/barrier-delta") > 1);
+    }
+
+    #[tokio::test]
+    async fn a_record_the_source_gains_without_a_feed_row_after_the_walk_is_still_repaired() {
+        let pair = ContentPair::new().await;
+        pair.seed("early", &vec![1; 64 * 1024]).await;
+        pair.catch_up_cursor();
+        pair.prepare_while_serving().await.unwrap();
+        // A sibling pull lands on the source without a feed row.
+        pair.source
+            .state
+            .store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "sibling",
+                "application/octet-stream",
+                &[3; 16 * 1024],
+                crate::utils::now_ms(),
+            )
+            .await
+            .unwrap();
+
+        let receipt = pair.freeze().await.unwrap();
+
+        assert_eq!(
+            receipt.records, 2,
+            "the destination holds and verified the whole corpus"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -3960,7 +5032,20 @@ mod tests {
         let renew = pair.keep_granted("Serving");
         pair.prepare_while_serving().await.unwrap();
         renew.abort();
-        pair.seed("late", &vec![2; 32 * 1024]).await;
+        // Arrives without a feed row, so the barrier walks the whole corpus.
+        pair.source
+            .state
+            .store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "late",
+                "application/octet-stream",
+                &[2; 32 * 1024],
+                crate::utils::now_ms(),
+            )
+            .await
+            .unwrap();
 
         let receipt = pair.freeze().await.unwrap();
 
@@ -4010,6 +5095,7 @@ mod tests {
             record: None,
             records: Vec::new(),
             receipt: None,
+            records_without_feed_rows: None,
         }
     }
 
@@ -4184,6 +5270,7 @@ mod tests {
             record: None,
             records: Vec::new(),
             receipt: None,
+            records_without_feed_rows: None,
         };
 
         let walk = verify_content_while_serving(&pair.target.state, &request, 1)
@@ -4231,6 +5318,7 @@ mod tests {
             record: None,
             records: Vec::new(),
             receipt: None,
+            records_without_feed_rows: None,
         };
 
         let walk = verify_content_while_serving(&pair.target.state, &request, 1)
@@ -4321,6 +5409,7 @@ mod tests {
             record: None,
             records: Vec::new(),
             receipt: None,
+            records_without_feed_rows: None,
         };
 
         let walk = verify_content_while_serving(&pair.target.state, &request, 1)

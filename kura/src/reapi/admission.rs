@@ -601,22 +601,36 @@ where
         let state = self.state.clone();
         let mutation = grpc_write_shape_policy(request.uri().path()).is_some()
             || request.uri().path().contains(".Fetch/");
-        let permit = match state.runtime.authority.admit_request(mutation) {
-            Ok(permit) => permit,
-            Err(_) => {
-                return Box::pin(async {
-                    Ok(Status::unavailable("serving grant unavailable")
-                        .into_http::<tonic::body::Body>()
-                        .map(|body| {
-                            body.map_err(|error| -> BoxError { error.into() })
-                                .boxed_unsync()
-                        }))
-                });
-            }
-        };
+        let admitted = state.runtime.authority.admit_request(mutation);
+        // Built now so the inner service is polled ready only once; it runs
+        // only once admitted.
         let future = self.inner.call(request);
 
         Box::pin(async move {
+            let unavailable = |message: &'static str| {
+                Status::unavailable(message)
+                    .into_http::<tonic::body::Body>()
+                    .map(|body| {
+                        body.map_err(|error| -> BoxError { error.into() })
+                            .boxed_unsync()
+                    })
+            };
+            let permit = match admitted {
+                Ok(permit) => permit,
+                // A planned handover in flight: wait for the switch. After
+                // it, retire this connection so the client reconnects along
+                // the new route; gRPC is not forwarded.
+                Err(_) => match crate::handover::await_switch(&state, mutation).await {
+                    crate::handover::Switch::Local(permit) => permit,
+                    crate::handover::Switch::Forward(_) => {
+                        state.runtime.retire_public_connections();
+                        return Ok(unavailable("serving moved to another replica"));
+                    }
+                    crate::handover::Switch::Refuse => {
+                        return Ok(unavailable("serving grant unavailable"));
+                    }
+                },
+            };
             let response = crate::serving_authority::scope(permit.clone(), future).await?;
             if (mutation && crate::migration::acknowledge(&state).await.is_err())
                 || permit.as_ref().is_some_and(|p| p.check().is_err())
