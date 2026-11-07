@@ -513,6 +513,98 @@ struct CachedModuleDebuggingMetadataTests {
         ) != nil)
     }
 
+    /// Package targets such as svgnative declare every header under their root (thousands, for a vendored boost) while
+    /// DWARF observes only the few that contribute code. Admission revalidates only observed files, so publishing the
+    /// others only grows the slice metadata, past its size limit for such targets.
+    @Test(.inTemporaryDirectory)
+    func publishesOnlyObservedSources() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let producer = try await target(at: root.appending(component: "producer"))
+        let consumer = try await target(at: root.appending(component: "consumer"))
+        func withHeaders(_ base: GraphTarget) async throws -> GraphTarget {
+            let directory = base.project.sourceRootPath.appending(components: "include", "vendor")
+            try await FileSystem().makeDirectory(at: directory)
+            let headers = (0 ..< 3).map { directory.appending(component: "Header\($0).hpp") }
+            for header in headers {
+                try await FileSystem().writeText("#pragma once\n", at: header)
+            }
+            var target = base.target
+            target.headers = .test(public: headers)
+            return GraphTarget(path: base.path, target: target, project: base.project)
+        }
+        let producerWithHeaders = try await withHeaders(producer)
+        let consumerWithHeaders = try await withHeaders(consumer)
+        let metadata = try await CachedModuleDebuggingMetadata.capture(target: producerWithHeaders)
+        #expect(metadata.sources.count == 4)
+        let debugPath = "/^root/Feature/Feature.swift"
+        let recorded = try metadata.recording(
+            debugSources: [debugPath],
+            prefixMappings: [["/^root": producer.project.sourceRootPath.pathString]]
+        )
+        #expect(Set(recorded.sources.keys) == ["Feature/Feature.swift"])
+        #expect(Set(recorded.sourcePaths.keys) == ["Feature/Feature.swift"])
+        let artifact = root.appending(component: "Feature.xcframework")
+        try await write(recorded, at: artifact)
+        try await FileSystem().remove(producer.project.sourceRootPath)
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: consumerWithHeaders) == [
+            DebuggerSourceMapping(
+                original: try AbsolutePath(validating: debugPath),
+                current: consumer.project.sourceRootPath.appending(components: "Feature", "Feature.swift")
+            ),
+        ])
+    }
+
+    /// A header-only package target such as svgnative's boost compiles a source without code, so DWARF observes nothing
+    /// and admission compares the declared set instead. Its thousands of headers are not compiled on their own, so only
+    /// the compiled sources are recorded and compared.
+    @Test(.inTemporaryDirectory)
+    func comparesCompiledSourcesOfTargetsWithoutObservedSources() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        func target(at directory: AbsolutePath, headers: Int, extraSource: Bool = false) async throws -> GraphTarget {
+            let base = try await self.target(at: directory)
+            let include = directory.appending(components: "include", "vendor")
+            try await FileSystem().makeDirectory(at: include)
+            let paths = (0 ..< headers).map { include.appending(component: "Header\($0).hpp") }
+            for path in paths {
+                try await FileSystem().writeText("#pragma once\n", at: path)
+            }
+            var target = base.target
+            target.headers = .test(public: paths)
+            if extraSource {
+                let source = directory.appending(components: "Feature", "Extra.cpp")
+                try await FileSystem().writeText("int extra() { return 1; }\n", at: source)
+                target.sources.append(SourceFile(path: source))
+            }
+            return GraphTarget(path: base.path, target: target, project: base.project)
+        }
+        let producer = try await target(at: root.appending(component: "producer"), headers: 3)
+        let recorded = try await CachedModuleDebuggingMetadata.capture(target: producer)
+            .recording(debugSources: ["/^spm/checkouts/Dependency/Dependency.swift"], linkedDebugSymbols: true)
+        #expect(recorded.debugPaths.isEmpty)
+        #expect(Set(recorded.sources.keys) == ["Feature/Feature.swift"])
+        let artifact = root.appending(component: "Feature.xcframework")
+        try await write(recorded, at: artifact)
+        try await FileSystem().remove(producer.project.sourceRootPath)
+
+        let sameSources = try await target(at: root.appending(component: "consumer"), headers: 5)
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: sameSources) == [])
+        let extraSource = try await target(at: root.appending(component: "other"), headers: 3, extraSource: true)
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: artifact, for: extraSource) == nil)
+
+        // Earlier CLIs recorded headers too. Their artifacts keep their hash, so warming never replaces them.
+        let legacyProducer = try await target(at: root.appending(component: "legacy-producer"), headers: 3)
+        let captured = try await CachedModuleDebuggingMetadata.capture(target: legacyProducer)
+        let legacy = CachedModuleDebuggingMetadata(
+            version: captured.version, moduleName: captured.moduleName, sourceRoot: captured.sourceRoot,
+            sources: captured.sources, sourcePaths: captured.sourcePaths, debugPaths: [:]
+        )
+        let legacyArtifact = root.appending(component: "Legacy.xcframework")
+        try await write(legacy, at: legacyArtifact)
+        let legacyConsumer = try await target(at: root.appending(component: "legacy-consumer"), headers: 3)
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: legacyArtifact, for: legacyConsumer) == [])
+        #expect(try await CachedModuleDebuggingMetadata.sourceMappings(at: legacyArtifact, for: sameSources) == nil)
+    }
+
     @Test(.inTemporaryDirectory)
     func rejectsTwoDeclaredFilesClaimingTheSameCompilerAlias() async throws {
         let root = try #require(FileSystem.temporaryTestDirectory)

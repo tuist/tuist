@@ -215,9 +215,15 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
                 throw DebuggingMetadataError.missingSources
             }
         }
+        // Admission revalidates only the observed sources, so only they are published. Without observed sources,
+        // admission compares the declared compiled sources instead, so those are published. Package targets declare
+        // every header under their root, thousands of them for a vendored boost, which would exceed the size limit.
+        let published: (String) -> Bool = paths.isEmpty ? { !Self.isHeader($0) } : { paths[$0] != nil }
         let metadata = Self(
             version: version, moduleName: moduleName, sourceRoot: sourceRoot,
-            sources: sources, sourcePaths: sourcePaths, debugPaths: paths
+            sources: sources.filter { published($0.key) },
+            sourcePaths: sourcePaths.filter { published($0.key) },
+            debugPaths: paths
         )
         guard try JSONEncoder().encode(metadata).count <= Self.maximumSize else { throw DebuggingMetadataError.excessiveSize }
         return metadata
@@ -254,7 +260,9 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
                   Set(original.debugPaths.keys).isSubset(of: Set(original.sources.keys)),
                   Set(original.debugPaths.keys).isSubset(of: Set(declared.keys)),
                   original.debugPaths.values.allSatisfy({ !$0.isEmpty }),
-                  !original.debugPaths.isEmpty || Set(original.sources.keys) == Set(declared.keys)
+                  // Earlier versions recorded headers too, and warming never replaces an artifact whose hash is stored.
+                  !original.debugPaths.isEmpty || Set(original.sources.keys) == Set(declared.keys.filter { !isHeader($0) })
+                  || Set(original.sources.keys) == Set(declared.keys)
             else { return nil }
             slices.append(original)
         }
@@ -283,6 +291,11 @@ public struct CachedModuleDebuggingMetadata: Codable, Equatable, Sendable {
     private static func spellingsOfSharedFiles(_ sourcePaths: [String: String]) -> [[String]] {
         Dictionary(grouping: sourcePaths, by: \.value).values
             .filter { $0.count > 1 }.map { $0.map(\.key).sorted() }.sorted { $0[0] < $1[0] }
+    }
+
+    /// Headers are compiled only through the sources that include them, and they are binary-cache hash inputs.
+    private static func isHeader(_ path: String) -> Bool {
+        ["h", "hh", "hpp", "h++", "hp", "hxx", "ipp", "inl", "tpp"].contains((path as NSString).pathExtension.lowercased())
     }
 
     private static func lowercasedFileName(_ path: String) -> String {
