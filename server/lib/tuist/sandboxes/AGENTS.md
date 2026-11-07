@@ -191,7 +191,7 @@ See [the rollout and recovery contract](../../../../infra/sandbox-image/remote-e
   `archived`, never to `error`, because the object is the only copy. The
   object is deleted once the restored sandbox runs (`delete_restored/1`),
   with the sandbox, or with the account. `archived` rows are outside every
-  node reservation and both limits; accounts stop archiving at 100 GiB of
+  node reservation and both limits; accounts stop archiving at 500 GiB of
   archives. There is no count of paused Orbs per account.
   `Tuist.Sandboxes.Workers.ArchiveSandboxesWorker` (hourly) runs
   `Archives.run/0`, which also aborts uploads abandoned for 45 minutes and
