@@ -190,7 +190,7 @@ Xcode measures only the `run` scope itself. The CLI reads `target` from the raw 
 - **What the CLI does.** In a run that collects evidence, it builds the eligible targets' Swift code with function-entry tracking (`-sanitize=undefined -sanitize-coverage=func,trace-pc-guard,pc-table`, through xcodebuild arguments keyed on `$(TARGET_NAME:c99extidentifier)`, `FunctionEntryTracking`).
 - **What gets recorded.** Each function entry is attributed to the test whose task, child task, `Task {}` or awaited actor runs it, however many tests run at once (`functions.bin`).
 - **Which targets are eligible** (`TaskAttributionTargets`):
-  - the unit test targets that link the package;
+  - the unit test targets that link TestCoverageAttribution 0.4.0 or later, the first to define the callbacks;
   - the static targets only such test targets link.
 
   Tracked code calls back into the package, so any other image that links it would fail to link.
