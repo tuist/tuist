@@ -88,8 +88,8 @@
         min-width: 100%;
 
         & tbody tr td {
-          min-width: 10rem;
           vertical-align: top;
+          min-width: 10rem;
         }
       }
 

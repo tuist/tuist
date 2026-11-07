@@ -392,8 +392,11 @@ defmodule TuistWeb.PulseLiveTest do
       "environment" => "production",
       "release" => "1.2.3",
       "tags" => %{"deployment.region" => "eu-central", "worker" => "<script>tag</script>"},
-      "contexts" => %{"runtime" => %{"name" => "Elixir", "version" => "1.20.2", "jit" => true, "missing" => nil}},
-      "extra" => %{"attempt" => 0, "details" => %{"message" => "<script>extra</script>", "retried" => false}},
+      "contexts" => %{"runtime" => %{"name" => "Elixir", "version" => "1.20.2", "jit" => true}},
+      "extra" => %{
+        "attempt" => 0,
+        "details" => %{"message" => "<script>extra</script>", "retried" => false, "missing" => nil}
+      },
       "modules" => %{"phoenix" => "1.8.1", "ecto" => "3.13.0"},
       "exception" => %{
         "type" => "ArgumentError",
@@ -480,8 +483,16 @@ defmodule TuistWeb.PulseLiveTest do
     assert has_element?(occurrence, "#pulse-stacktrace", "RootCause")
     assert has_element?(occurrence, "[data-part='metadata-grid']", event["span_id"])
     assert has_element?(occurrence, "#pulse-event-contexts", "true")
-    assert has_element?(occurrence, "#pulse-event-contexts", ~s("missing": null))
     assert has_element?(occurrence, "#pulse-event-extra code.language-json .string", "<script>extra</script>")
+
+    details =
+      html
+      |> Floki.parse_document!()
+      |> Floki.find("#pulse-event-extra code.language-json")
+      |> Floki.text()
+      |> JSON.decode!()
+
+    assert details == %{"message" => "<script>extra</script>", "retried" => false, "missing" => nil}
     assert has_element?(occurrence, "#pulse-event-modules", "3.13.0")
     refute html =~ "<script>"
   end

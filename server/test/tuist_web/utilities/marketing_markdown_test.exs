@@ -239,7 +239,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert overview =~ "Some CI and acceleration providers also offer deep integrations"
     assert overview =~ "not proof that any provider wants slow builds"
     assert overview =~ "Tuist's own usage charges"
-    assert overview =~ MarketingMarkdown.alternate_path("/compare") <> "#billing-and-incentives"
+    assert overview =~ MarketingMarkdown.alternate_path("/compare") <> "#compare-total-costs"
   end
 
   test "Bazel positioning combines native depth, organizational breadth, and developer experience" do

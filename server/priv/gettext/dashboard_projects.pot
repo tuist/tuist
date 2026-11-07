@@ -405,8 +405,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bazel_invocation_live.ex:189
 #: lib/tuist_web/live/once_run_live.ex:267
-#: lib/tuist_web/live/overview_live.ex:17
-#: lib/tuist_web/live/overview_live.ex:21
+#: lib/tuist_web/live/overview_live.ex:31
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr ""
@@ -3291,7 +3290,7 @@ msgid "No data yet"
 msgstr ""
 
 #: lib/tuist_web/live/layout_live.ex:173
-#: lib/tuist_web/live/overview_live.ex:22
+#: lib/tuist_web/live/overview_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Project dashboard"
 msgstr ""
@@ -3441,4 +3440,14 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.ex:861
 #, elixir-autogen, elixir-format
 msgid "without a new flaky run"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.ex:17
+#, elixir-autogen, elixir-format
+msgid "%{project} build and test insights · Tuist"
+msgstr ""
+
+#: lib/tuist_web/live/overview_live.ex:23
+#, elixir-autogen, elixir-format
+msgid "Build times and test results for %{project}, tracked with Tuist's build and test insights."
 msgstr ""

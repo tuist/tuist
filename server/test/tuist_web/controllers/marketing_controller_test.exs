@@ -587,7 +587,9 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "How are Tuist Runners billed?"
       refute html =~ "How Tuist Runners compare"
 
-      pricing = html |> Floki.parse_document!() |> Floki.find("#marketing-pricing") |> Floki.raw_html()
+      runners = html |> Floki.parse_document!() |> Floki.find("#marketing-pricing #runners")
+      assert [_] = runners
+      pricing = Floki.raw_html(runners)
 
       for provider <- ["Namespace", "Blacksmith", "WarpBuild", "Depot", "Bitrise", ">GitHub<"] do
         refute pricing =~ provider

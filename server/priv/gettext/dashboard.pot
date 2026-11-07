@@ -210,7 +210,7 @@ msgstr ""
 #: lib/tuist_web/components/app_components.ex:62
 #: lib/tuist_web/live/mix_build_live.html.heex:348
 #: lib/tuist_web/live/pulse_error_live.ex:303
-#: lib/tuist_web/live/pulse_live.ex:550
+#: lib/tuist_web/live/pulse_live.ex:559
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr ""
@@ -261,7 +261,7 @@ msgstr ""
 
 #: lib/tuist_web/components/app_components.ex:53
 #: lib/tuist_web/live/pulse_error_live.ex:294
-#: lib/tuist_web/live/pulse_live.ex:541
+#: lib/tuist_web/live/pulse_live.ex:550
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr ""
@@ -1487,7 +1487,7 @@ msgid "Export"
 msgstr ""
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:42
-#: lib/tuist_web/live/pulse_live.ex:372
+#: lib/tuist_web/live/pulse_live.ex:381
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr ""
@@ -1740,7 +1740,7 @@ msgid "Size"
 msgstr ""
 
 #: lib/tuist_web/live/ops_database_table_live.html.heex:49
-#: lib/tuist_web/live/pulse_live.ex:358
+#: lib/tuist_web/live/pulse_live.ex:367
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
 msgstr ""
@@ -2575,11 +2575,6 @@ msgstr ""
 msgid "Where this account runs follows where its cache traffic comes from. A first placement is a guess, so it is corrected quickly on a clear majority; after that the primary moves only when another region has durably carried most of its runs. An account gains a region when that region's own traffic clears an absolute floor, and gives one up when it falls well below it. Pinning a service region takes the account out of placement's hands entirely."
 msgstr ""
 
-#: lib/tuist_web/components/layout_components.ex:50
-#, elixir-autogen, elixir-format
-msgid "Tuist is build infrastructure for productive teams, integrating into the build toolchains they already use."
-msgstr ""
-
 #: lib/tuist_web/controllers/error_html.ex:105
 #, elixir-autogen, elixir-format
 msgid "503"
@@ -2927,7 +2922,7 @@ msgstr ""
 msgid "Invalid Origin installation request. Please try again."
 msgstr ""
 
-#: lib/tuist_web/live/pulse_live.ex:255
+#: lib/tuist_web/live/pulse_live.ex:264
 #: lib/tuist_web/live/toolchain_cache_live.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Analytics"
@@ -2984,7 +2979,7 @@ msgstr ""
 
 #: lib/tuist_web/live/mix_build_live.ex:278
 #: lib/tuist_web/live/mix_build_live.ex:319
-#: lib/tuist_web/live/pulse_live.ex:565
+#: lib/tuist_web/live/pulse_live.ex:574
 #: lib/tuist_web/live/toolchain_cache_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "No data"
@@ -3180,4 +3175,9 @@ msgstr ""
 #: lib/tuist_web/components/app_layout_components.ex:589
 #, elixir-autogen, elixir-format
 msgid "Traces"
+msgstr ""
+
+#: lib/tuist_web/components/layout_components.ex:50
+#, elixir-autogen, elixir-format
+msgid "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
 msgstr ""
