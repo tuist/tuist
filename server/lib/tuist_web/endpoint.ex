@@ -35,8 +35,11 @@ defmodule TuistWeb.Endpoint do
     websocket: true,
     longpoll: false
 
+  # `auth_token` must be a socket option: Phoenix overwrites a transport-level
+  # value with it, which left every native connection without its bearer.
   socket "/threads/socket", TuistWeb.ThreadsSocket,
-    websocket: [auth_token: true],
+    auth_token: true,
+    websocket: true,
     longpoll: false
 
   plug TuistWeb.Plugs.DrainingPlug

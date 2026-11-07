@@ -28,6 +28,27 @@ defmodule TuistWeb.ThreadsChannelTest do
     assert {:ok, _socket} = connect(ThreadsSocket, %{}, connect_info: %{auth_token: token})
   end
 
+  test "the endpoint hands the native clients' bearer subprotocol to the socket", %{token: token} do
+    handshake = fn credential ->
+      :get
+      |> Plug.Test.conn("/threads/socket/websocket?vsn=2.0.0")
+      |> Plug.Conn.put_req_header("connection", "Upgrade")
+      |> Plug.Conn.put_req_header("upgrade", "websocket")
+      |> Plug.Conn.put_req_header("sec-websocket-version", "13")
+      |> Plug.Conn.put_req_header("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ==")
+      |> Plug.Conn.put_req_header(
+        "sec-websocket-protocol",
+        "phoenix, base64url.bearer.phx." <> Base.url_encode64(credential, padding: false)
+      )
+      |> TuistWeb.Endpoint.call([])
+    end
+
+    # A refused connect answers 403. An accepted one proceeds to the upgrade,
+    # which the test adapter cannot perform and answers with 400.
+    assert handshake.("not-a-token").status == 403
+    assert handshake.(token).status == 400
+  end
+
   test "rejects a genuinely expired user JWT", %{user: user} do
     {:ok, expired, _} = Tuist.Guardian.encode_and_sign(user, %{}, token_type: "access_token", ttl: {-60, :second})
     assert :error = connect(ThreadsSocket, %{}, connect_info: %{auth_token: expired})
