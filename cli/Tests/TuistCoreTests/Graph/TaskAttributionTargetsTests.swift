@@ -23,7 +23,11 @@ struct TaskAttributionTargetsTests {
             target("App", .app),
             target("Plain", .staticFramework),
             target("PlainTests", .unitTests),
-            target("TestCoverageAttribution", .staticFramework),
+            Target.test(
+                name: "TestCoverageAttribution",
+                product: .staticFramework,
+                sources: [SourceFile(path: path.appending(components: "TestCoverageAttribution", "SanitizerCoverage.swift"))]
+            ),
             target("Resources-Only", .staticLibrary, swift: false),
         ]
         let project = Project.test(path: path, targets: targets)
@@ -55,7 +59,11 @@ struct TaskAttributionTargetsTests {
             product: .unitTests,
             sources: [SourceFile(path: path.appending(component: "CoreTests.swift"))]
         )
-        let attribution = Target.test(name: "TestCoverageAttribution", product: .staticFramework)
+        let attribution = Target.test(
+            name: "TestCoverageAttribution",
+            product: .staticFramework,
+            sources: [SourceFile(path: path.appending(components: "TestCoverageAttribution", "SanitizerCoverage.swift"))]
+        )
         let nio = Target.test(
             name: "NIO",
             product: .staticFramework,
@@ -74,6 +82,27 @@ struct TaskAttributionTargetsTests {
         )
 
         #expect(TaskAttributionTargets.identifiers(graph: graph) == ["CoreTests"])
+    }
+
+    /// A package that predates the callbacks would leave tracked code with nothing to link against.
+    @Test func picksNothingWhenThePackageDoesNotDefineTheCallbacks() throws {
+        let path = try AbsolutePath(validating: "/Project")
+        let tests = Target.test(
+            name: "CoreTests",
+            product: .unitTests,
+            sources: [SourceFile(path: path.appending(component: "CoreTests.swift"))]
+        )
+        let attribution = Target.test(
+            name: "TestCoverageAttribution",
+            product: .staticFramework,
+            sources: [SourceFile(path: path.appending(components: "TestCoverageAttribution", "CoverageAttributionTrait.swift"))]
+        )
+        let graph = Graph.test(
+            projects: [path: Project.test(path: path, targets: [tests, attribution])],
+            dependencies: [.target(name: "CoreTests", path: path): [.target(name: "TestCoverageAttribution", path: path)]]
+        )
+
+        #expect(TaskAttributionTargets.identifiers(graph: graph).isEmpty)
     }
 
     @Test func writesNamesAsC99ExtendedIdentifiers() {

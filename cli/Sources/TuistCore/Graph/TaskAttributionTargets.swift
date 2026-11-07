@@ -7,7 +7,8 @@ import XcodeGraph
 ///
 /// Tracked code calls back into TestCoverageAttribution on every function entry, so every image that
 /// links it has to link the package too, or the link fails. Those are the unit test targets that
-/// link the package, and the static targets only such test targets link, directly or through other
+/// link a version of the package that defines the callbacks, and the static targets only such test targets link, directly or
+/// through other
 /// static targets. A static target that an app, a framework, a macro or any other image links is left
 /// out. So are the targets of external packages: their files are never evidence, which keeps only the
 /// repository's files, and slowing their code down only perturbs it. The package's own targets are
@@ -27,11 +28,7 @@ public enum TaskAttributionTargets {
         var linkedByOthers: Set<GraphTarget> = []
 
         for target in traverser.allTargets() where !target.target.product.isStatic {
-            let linksPackage = target.target.product == .unitTests && linksTestCoverageAttribution(
-                target,
-                traverser: traverser,
-                graph: graph
-            )
+            let linksPackage = target.target.product == .unitTests && linksTestCoverageAttribution(target, traverser: traverser)
             if linksPackage { attributing.insert(target) }
             let linked = traverser.transitiveStaticDependencies(from: .target(name: target.target.name, path: target.path))
                 .compactMap { dependency -> GraphTarget? in
@@ -62,15 +59,14 @@ public enum TaskAttributionTargets {
         return identifier.first?.isNumber == true ? "_" + identifier : identifier
     }
 
-    private static func linksTestCoverageAttribution(_ target: GraphTarget, traverser: GraphTraverser, graph: Graph) -> Bool {
-        if traverser.allTargetDependencies(path: target.path, name: target.target.name)
-            .contains(where: { $0.target.name == "TestCoverageAttribution" })
-        {
-            return true
-        }
-        return graph.dependencies[.target(name: target.target.name, path: target.path), default: []].contains {
-            if case let .packageProduct(_, product, _) = $0 { return product == "TestCoverageAttribution" }
-            return false
+    /// Whether the test target links a TestCoverageAttribution that defines SanitizerCoverage's
+    /// callbacks (0.4.0 and later, `SanitizerCoverage.swift`): tracked code linked into a target with
+    /// an older one fails to link. A package Xcode integrates itself shows no sources, so it doesn't
+    /// count.
+    private static func linksTestCoverageAttribution(_ target: GraphTarget, traverser: GraphTraverser) -> Bool {
+        traverser.allTargetDependencies(path: target.path, name: target.target.name).contains {
+            $0.target.name == "TestCoverageAttribution"
+                && $0.target.sources.contains { $0.path.basename == "SanitizerCoverage.swift" }
         }
     }
 
