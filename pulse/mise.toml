@@ -1,6 +1,6 @@
 [tools]
 erlang = "29.1"
-elixir = "1.20.4-otp-29"
+elixir = "1.20.5"
 # git-cliff must be declared here, not just `mise install`ed inline,
 # so mise activates its shim. Without a config-file entry, mise
 # installs the binary but refuses to resolve the shim ("No version is
