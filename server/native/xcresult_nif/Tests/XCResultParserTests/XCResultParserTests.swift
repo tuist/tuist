@@ -233,6 +233,42 @@ struct XCResultParserTests {
         #expect(summary.errors.isEmpty)
     }
 
+    /// A real bundle whose scheme build post-action exited 1, so Xcode cancelled testing
+    /// ("** TEST INTERRUPTED **"). xcresulttool reports it as `result: "unknown"` with
+    /// `totalTestCount: 0`, as it does `zero-tests.xcresult`; only the build results differ.
+    @Test
+    func parse_failsARealBundleWhoseTestingWasCancelledBecauseTheBuildFailed() async throws {
+        let summary = try await parseFixture("cancelled-build")
+
+        #expect(summary.testModules.isEmpty)
+        #expect(summary.status == .failed)
+        #expect(Set(summary.errors.map(\.message)) == [
+            "Testing cancelled because the build failed.",
+            "Exited with status code 1",
+        ])
+        #expect(summary.errors.allSatisfy { $0.target == nil })
+    }
+
+    /// A real bundle from a selection that resolved to zero tests (the only test skipped,
+    /// xcodebuild exiting 0). Its build has no errors, so it is not failed.
+    @Test
+    func parse_doesNotFailARealZeroTestBundle() async throws {
+        let summary = try await parseFixture("zero-tests")
+
+        #expect(summary.testModules.isEmpty)
+        #expect(summary.status == .skipped)
+        #expect(summary.errors.isEmpty)
+    }
+
+    private func parseFixture(_ name: String) async throws -> TestSummary {
+        let zipPath = try fixtureZipPath("\(name).xcresult")
+        return try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-parser-tests") { workDir in
+            try await fileSystem.unzip(zipPath, to: workDir)
+            let xcresult = workDir.appending(component: "\(name).xcresult")
+            return try #require(try await parser.parse(path: xcresult, rootDirectory: nil))
+        }
+    }
+
     @Test
     func parseTestStatuses_derivesModuleNameForUITestBundlesNotJustUnitTestBundles() async throws {
         // xcresulttool reports unit test bundles as "Unit test bundle" and UI
