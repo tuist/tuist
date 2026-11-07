@@ -17,6 +17,7 @@ public struct CacheWarmPlan {
     public static func make(
         targets: [(GraphTarget, String)],
         fingerprints: [String: [String: String]],
+        architectures: [String: [String: [String]]] = [:],
         sdkSelection: BinaryCacheSDKSelection = .all,
         generateOnly: Bool = false,
         useSDKs: Bool = true,
@@ -37,7 +38,8 @@ public struct CacheWarmPlan {
             let requested = Set(candidates.map { target, hash in
                 CacheStorableItem(name: target.target.name, hash: hash, metadata: .init(
                     binaryCacheFingerprints: [variant.rawValue: fingerprints[hash]![variant.rawValue]!],
-                    requiresSDKSlices: true
+                    requiresSDKSlices: true,
+                    binaryCacheArchitectures: architectures[hash]?.filter { $0.key == variant.rawValue } ?? [:]
                 ))
             })
             let hits = try await storage.fetch(requested, cacheCategory: .binaries, preserving: resolvedHashes)

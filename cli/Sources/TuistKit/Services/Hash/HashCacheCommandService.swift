@@ -133,7 +133,9 @@ public struct HashCacheCommandService: HashCacheServicing {
                     for (variant, fingerprint) in destination.sdkSelection
                         .fingerprints(targetContentHash.binaryCacheFingerprints).sorted(by: { $0.key < $1.key })
                     {
-                        Logger.current.info("\(target.target.name) [\(variant)] - \(fingerprint)")
+                        let architectures = targetContentHash.binaryCacheArchitectures[variant]
+                            .map { " (\($0.joined(separator: " ")))" } ?? ""
+                        Logger.current.info("\(target.target.name) [\(variant)] - \(fingerprint)\(architectures)")
                     }
                 }
             }

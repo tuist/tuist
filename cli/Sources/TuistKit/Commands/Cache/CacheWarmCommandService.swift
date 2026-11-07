@@ -275,6 +275,7 @@ import XcodeGraph
             let plan = try await CacheWarmPlan.make(
                 targets: cacheableTargets,
                 fingerprints: hashedGraph.fingerprints,
+                architectures: hashedGraph.architectures,
                 sdkSelection: destination.sdkSelection,
                 generateOnly: generateOnly,
                 useSDKs: !Environment.current.isLegacyModuleCacheEnabled,
@@ -315,6 +316,7 @@ import XcodeGraph
                     configuration: configuration,
                     hashesByTargetToBeCached: batch.targets,
                     fingerprints: batch.fingerprints,
+                    architectures: hashedGraph.architectures,
                     cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
                     noUpload: noUpload,
                     isReleaseConfiguration: isReleaseConfiguration,
@@ -390,6 +392,7 @@ import XcodeGraph
             configuration: String,
             hashesByTargetToBeCached: [(GraphTarget, String)],
             fingerprints: [String: [String: String]],
+            architectures: [String: [String: [String]]],
             cacheStorage: CacheStoring,
             noUpload _: Bool,
             isReleaseConfiguration: Bool,
@@ -408,6 +411,7 @@ import XcodeGraph
                             configuration: configuration,
                             hashesByTargetToBeCached: hashesByTargetToBeCached,
                             fingerprints: fingerprints,
+                            architectures: architectures,
                             cacheStorage: cacheStorage,
                             isReleaseConfiguration: isReleaseConfiguration,
                             instrumentationSettings: instrumentationSettings,
@@ -427,6 +431,7 @@ import XcodeGraph
                         configuration: configuration,
                         hashesByTargetToBeCached: hashesByTargetToBeCached,
                         fingerprints: fingerprints,
+                        architectures: architectures,
                         cacheStorage: cacheStorage,
                         isReleaseConfiguration: isReleaseConfiguration,
                         instrumentationSettings: instrumentationSettings,
@@ -466,6 +471,7 @@ import XcodeGraph
             configuration: String,
             hashesByTargetToBeCached: [(GraphTarget, String)],
             fingerprints: [String: [String: String]],
+            architectures: [String: [String: [String]]],
             cacheStorage: CacheStoring,
             isReleaseConfiguration: Bool,
             instrumentationSettings: [String],
@@ -599,6 +605,7 @@ import XcodeGraph
                 successfullyStoredTargets = try await store(
                     artifactsToStore,
                     fingerprints: fingerprints,
+                    architectures: architectures,
                     cacheStorage: cacheStorage,
                     scratchDirectory: scratchDirectory,
                     requiresSDKSlices: variant != nil
@@ -1361,6 +1368,7 @@ import XcodeGraph
         private func store(
             _ artifacts: [CacheGraphTargetBuiltArtifact],
             fingerprints: [String: [String: String]],
+            architectures: [String: [String: [String]]],
             cacheStorage: CacheStoring,
             scratchDirectory: AbsolutePath,
             requiresSDKSlices: Bool
@@ -1374,7 +1382,9 @@ import XcodeGraph
                             hash: next.hash,
                             metadata: .init(
                                 binaryCacheFingerprints: fingerprints[next.hash] ?? [:],
-                                requiresSDKSlices: requiresSDKSlices
+                                requiresSDKSlices: requiresSDKSlices,
+                                binaryCacheArchitectures: (architectures[next.hash] ?? [:])
+                                    .filter { fingerprints[next.hash]?[$0.key] != nil }
                             )
                         )] = [next.path]
                     }.concurrentMap { storableTarget, paths in
@@ -1464,7 +1474,8 @@ import XcodeGraph
                 hash: $0.value.hash,
                 metadata: .init(
                     binaryCacheFingerprints: sdkSelection.fingerprints($0.value.binaryCacheFingerprints),
-                    requiresSDKSlices: sdkSelection != .all && !$0.value.binaryCacheFingerprints.isEmpty
+                    requiresSDKSlices: sdkSelection != .all && !$0.value.binaryCacheFingerprints.isEmpty,
+                    binaryCacheArchitectures: $0.value.binaryCacheArchitectures
                 )
             ) })
             let cacheItems = try await cacheStorage.fetch(requestedItems, cacheCategory: .binaries)
@@ -1509,6 +1520,10 @@ import XcodeGraph
                     selectedHashesByCacheableTarget.values.map { ($0.hash, $0.binaryCacheFingerprints) },
                     uniquingKeysWith: { first, _ in first }
                 ),
+                architectures: Dictionary(
+                    selectedHashesByCacheableTarget.values.map { ($0.hash, $0.binaryCacheArchitectures) },
+                    uniquingKeysWith: { first, _ in first }
+                ),
                 localHits: localHits
             )
         }
@@ -1528,6 +1543,9 @@ import XcodeGraph
 
         let fingerprints: [String: [String: String]]
 
+        /// Per hash, the architectures of each SDK whose consumers build fewer than the SDK's standard set.
+        let architectures: [String: [String: [String]]]
+
         /// Targets the local cache served, with the path it returned for each.
         let localHits: [CacheStorableItem: AbsolutePath]
 
@@ -1535,9 +1553,11 @@ import XcodeGraph
             targetsToBuild: [(GraphTarget, String)],
             hashes: [GraphTarget: TargetContentHash],
             fingerprints: [String: [String: String]] = [:],
+            architectures: [String: [String: [String]]] = [:],
             localHits: [CacheStorableItem: AbsolutePath] = [:]
         ) {
             self.fingerprints = fingerprints
+            self.architectures = architectures
             self.localHits = localHits
             self.targetsToBuild = targetsToBuild
             targetHashes = Dictionary(

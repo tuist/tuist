@@ -68,9 +68,18 @@ struct BinaryCacheFingerprintHasherTests {
         #expect(original["Shared"]?["ios-device"] != changed["Shared"]?["ios-device"])
     }
 
-    @Test func customDependencyArchitecturesKeepExactHashLookup() async throws {
-        let result = try await fingerprints(destinations: .iOS, leafSettings: ["ARCHS": "arm64"])
+    @Test(arguments: ["$(NATIVE_ARCH_ACTUAL)", "arm64 arm64e"])
+    func unresolvedOrWiderDependencyArchitecturesKeepExactHashLookup(archs: String) async throws {
+        let result = try await fingerprints(destinations: .iOS, leafSettings: ["ARCHS": .string(archs)])
         #expect(result.isEmpty)
+    }
+
+    @Test func narrowerResolvedArchitecturesKeepSDKFingerprints() async throws {
+        let result = try await fingerprints(
+            destinations: .iOS, leafSettings: ["EXCLUDED_ARCHS[sdk=iphonesimulator*]": "x86_64"]
+        )
+        #expect(Set(result["Leaf"].map { Array($0.keys) } ?? []) == ["ios-device", "ios-simulator"])
+        #expect(result["Shared"]?["ios-simulator"] != nil)
     }
 
     @Test(.inTemporaryDirectory, arguments: [false, true])
