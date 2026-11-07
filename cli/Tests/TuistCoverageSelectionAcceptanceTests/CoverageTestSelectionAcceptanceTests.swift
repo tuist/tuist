@@ -14,142 +14,171 @@ import TuistTesting
 import TuistTestSupport
 import XCTest
 
-/// Coverage-based test selection end to end. Each test records a full run of the Shop fixture on
-/// `main` against a fresh project, makes one change, runs `tuist test` again and checks a few tests
-/// that change must or mustn't run. XCTest rather than Swift Testing, so selection can skip these
-/// tests one by one once it applies to this suite.
+/// Coverage-based test selection end to end. The test records a full run of the Shop fixture on
+/// `main` against a fresh project, makes changes, runs `tuist test` after each and checks a few
+/// tests each change must or mustn't run. XCTest rather than Swift Testing, so selection can skip
+/// these tests one by one once it applies to this suite.
 final class CoverageTestSelectionAcceptanceTests: XCTestCase {
-    func test_source_change_runs_the_tests_that_executed_it() async throws {
+    /// The changes share one baseline, since recording it is the slowest step. Each starts from the
+    /// baseline commit on a branch of its own, so none sees another's commits. The project's
+    /// evidence is shared, though: a test's version recorded on any branch counts wherever its files
+    /// have the same content. No two changes may give a file the same content, or one change's run
+    /// records the evidence that lets a later one skip the tests it asserts ran, depending on
+    /// whether the server ingested it before the later run asked.
+    func test_changes_select_against_one_baseline() async throws {
         try await withShop { shop in
-            try await shop.recordBaseline()
-            try shop.git.run("checkout", "-q", "-b", "feature/discount")
-            try shop.git.edit("Core/Sources/Discount.swift", replacing: "(100 - percent)", with: "(-percent + 100)")
-            try shop.git.commitAll("Refactor the discount calculation")
-
-            let run = try await shop.test()
-
-            XCTAssertTrue(run.selected, run.output)
-            XCTAssertTrue(run.ran("DiscountTests/testTenPercentOff"), run.output)
-            XCTAssertTrue(run.ran("RoundingTests/testRoundsDownToWholeCents"), run.output)
-            XCTAssertFalse(run.ran("MoneyTests/testFormatsDollars"), run.output)
+            do {
+                // The only parallel run: the evidence of processes in simulator clones, which Xcode
+                // deletes after the run, maps back to build products. Only the baseline records the
+                // evidence the UI change relies on, so the changes run serially. Sharded, so the
+                // server must merge the shards' evidence into one baseline.
+                try await shop.recordBaseline(sharded: true, parallelTesting: true)
+            } catch {
+                XCTFail("Recording the baseline failed, so no change ran: \(error)")
+                return
+            }
+            let baseline = try shop.git.head()
+            let changes: [(String, (Shop) async throws -> Void)] = [
+                ("A source change", sourceChangeRunsTheTestsThatExecutedIt),
+                ("A test file change", testFileChangeRunsItsSuite),
+                ("A Swift Testing change", swiftTestingTestsRunWithoutEvidence),
+                ("A merge checkout", mergeCheckoutFindsTheBaselineThroughItsAncestors),
+                ("An app change", appChangeRunsTheUITestsThatLaunchedIt),
+                ("A sharded checkout", shardedCheckoutSelectsLikeAnUnshardedOne),
+            ]
+            for (name, change) in changes {
+                do {
+                    try shop.git.run("checkout", "-q", "-f", "--detach", baseline)
+                    try await change(shop)
+                } catch {
+                    XCTFail("\(name) failed: \(error)")
+                }
+            }
         }
     }
 
-    func test_test_file_change_runs_its_suite() async throws {
-        try await withShop { shop in
-            try await shop.recordBaseline()
-            try shop.git.run("checkout", "-q", "-b", "feature/discount-tests")
-            try shop.git.edit(
-                "CoreTests/DiscountTests.swift",
-                replacing: "Money(cents: 1000)), Money(cents: 900))",
-                with: "Money(cents: 1000)), Money(cents: 900), \"10% off $10.00 is $9.00\")"
-            )
-            try shop.git.commitAll("Explain the discount assertion")
+    private func sourceChangeRunsTheTestsThatExecutedIt(_ shop: Shop) async throws {
+        try shop.git.run("checkout", "-q", "-b", "feature/discount")
+        try shop.git.edit("Core/Sources/Discount.swift", replacing: "(100 - percent)", with: "(-percent + 100)")
+        try shop.git.commitAll("Refactor the discount calculation")
 
-            let run = try await shop.test()
+        let run = try await shop.test()
 
-            XCTAssertTrue(run.selected, run.output)
-            XCTAssertTrue(run.ran("DiscountTests/testZeroPercentKeepsPrice"), run.output)
-            XCTAssertFalse(run.ran("MoneyTests/testAddsAmounts"), run.output)
-            XCTAssertFalse(run.ran("RoundingTests/testRoundsDownToWholeCents"), run.output)
-        }
+        XCTAssertTrue(run.selected, run.output)
+        XCTAssertTrue(run.ran("DiscountTests/testTenPercentOff"), run.output)
+        XCTAssertTrue(run.ran("RoundingTests/testRoundsDownToWholeCents"), run.output)
+        XCTAssertFalse(run.ran("MoneyTests/testFormatsDollars"), run.output)
+    }
+
+    private func testFileChangeRunsItsSuite(_ shop: Shop) async throws {
+        try shop.git.run("checkout", "-q", "-b", "feature/discount-tests")
+        try shop.git.edit(
+            "CoreTests/DiscountTests.swift",
+            replacing: "Money(cents: 1000)), Money(cents: 900))",
+            with: "Money(cents: 1000)), Money(cents: 900), \"10% off $10.00 is $9.00\")"
+        )
+        try shop.git.commitAll("Explain the discount assertion")
+
+        let run = try await shop.test()
+
+        XCTAssertTrue(run.selected, run.output)
+        XCTAssertTrue(run.ran("DiscountTests/testZeroPercentKeepsPrice"), run.output)
+        XCTAssertFalse(run.ran("MoneyTests/testAddsAmounts"), run.output)
+        XCTAssertFalse(run.ran("RoundingTests/testRoundsDownToWholeCents"), run.output)
     }
 
     /// Swift Testing tests record no per-test evidence, so a change their target depends on runs them.
-    func test_swift_testing_tests_run_without_evidence() async throws {
-        try await withShop { shop in
-            try await shop.recordBaseline()
-            try shop.git.run("checkout", "-q", "-b", "feature/search")
-            try shop.git.edit(
-                "Catalog/Sources/Search.swift",
-                replacing: "query.isEmpty || name.localizedCaseInsensitiveContains(query)",
-                with: "if query.isEmpty { return true }\n        return name.localizedCaseInsensitiveContains(query)"
-            )
-            try shop.git.commitAll("Return early from an empty search")
+    private func swiftTestingTestsRunWithoutEvidence(_ shop: Shop) async throws {
+        try shop.git.run("checkout", "-q", "-b", "feature/search")
+        try shop.git.edit(
+            "Catalog/Sources/Search.swift",
+            replacing: "query.isEmpty || name.localizedCaseInsensitiveContains(query)",
+            with: "if query.isEmpty { return true }\n        return name.localizedCaseInsensitiveContains(query)"
+        )
+        try shop.git.commitAll("Return early from an empty search")
 
-            let run = try await shop.test()
+        let run = try await shop.test()
 
-            XCTAssertTrue(run.selected, run.output)
-            XCTAssertTrue(run.ran("SearchTests/matchesName"), run.output)
-            XCTAssertTrue(run.ran("CartTests/totalSumsItems"), run.output)
-            XCTAssertFalse(run.ran("ShopUITests/testShowsCatalog"), run.output)
-        }
-    }
-
-    /// A UI test's evidence is what the app process it launched executed, including an app launched
-    /// in a class `setUp` for the whole suite. The only test that runs in parallel: the evidence of
-    /// processes in simulator clones, which Xcode deletes after the run, maps back to build products.
-    func test_ui_tests_select_by_what_the_app_executed() async throws {
-        try await withShop(parallelTesting: true) { shop in
-            try await shop.recordBaseline()
-            try shop.git.run("checkout", "-q", "-b", "feature/receipt")
-            try shop.git.edit(
-                "App/Sources/Receipt.swift",
-                replacing: "var lines = items.map",
-                with: "var lines: [String] = items.map"
-            )
-            try shop.git.commitAll("Spell out the receipt lines' type")
-
-            let run = try await shop.test()
-
-            XCTAssertTrue(run.selected, run.output)
-            XCTAssertTrue(run.ran("RelaunchUITests/testDiscountAfterRelaunch"), run.output)
-            XCTAssertTrue(run.ran("SharedAppUITests/testShowsReceipt"), run.output)
-            XCTAssertFalse(run.ran("ShopUITests/testShowsCatalog"), run.output)
-        }
-    }
-
-    /// The same source change as the first test, with the baseline and the checkout both run as two
-    /// shards from prebuilt test products: the selection must match an unsharded run's.
-    func test_sharded_runs_select_like_unsharded_ones() async throws {
-        try await withShop { shop in
-            try await shop.recordBaseline(sharded: true)
-            try shop.git.run("checkout", "-q", "-b", "feature/discount")
-            try shop.git.edit("Core/Sources/Discount.swift", replacing: "(100 - percent)", with: "(-percent + 100)")
-            try shop.git.commitAll("Refactor the discount calculation")
-
-            let run = try await shop.test(sharded: true)
-
-            XCTAssertTrue(run.selected, run.output)
-            XCTAssertTrue(run.ran("DiscountTests/testTenPercentOff"), run.output)
-            XCTAssertFalse(run.ran("ReceiptTests/testListsItems"), run.output)
-            XCTAssertFalse(run.ran("SharedAppUITests/testShowsTotal"), run.output)
-        }
+        XCTAssertTrue(run.selected, run.output)
+        XCTAssertTrue(run.ran("SearchTests/matchesName"), run.output)
+        XCTAssertTrue(run.ran("CartTests/totalSumsItems"), run.output)
+        XCTAssertFalse(run.ran("ShopUITests/testShowsCatalog"), run.output)
     }
 
     /// A pull request's merge checkout whose parents the server has never seen: `main` moved on
     /// without a run, and the branch head never ran. The CLI sends the checkout's ancestors so the
-    /// server can still find the baseline, and both sides' changes select tests.
-    func test_merge_checkout_finds_the_baseline_through_its_ancestors() async throws {
-        try await withShop { shop in
-            try await shop.recordBaseline()
-            try shop.git.run("checkout", "-q", "-b", "feature/discount")
-            try shop.git.edit("Core/Sources/Discount.swift", replacing: "(100 - percent)", with: "(-percent + 100)")
-            try shop.git.commitAll("Refactor the discount calculation")
-            try shop.git.run("checkout", "-q", "main")
-            try shop.git.edit(
-                "Catalog/Sources/Catalog.swift",
-                replacing: "products.first { $0.sku == sku }",
-                with: "products.first(where: { $0.sku == sku })"
-            )
-            try shop.git.commitAll("Look products up with first(where:)")
-            try shop.git.run("checkout", "-q", "--detach", "main")
-            try shop.git.run("merge", "-q", "--no-ff", "-m", "Merge feature/discount into main", "feature/discount")
+    /// server can still find the baseline, and both sides' changes select tests. The discount
+    /// changes differently from the source change's, which would otherwise have recorded the
+    /// evidence that lets this checkout skip `testTenPercentOff`.
+    private func mergeCheckoutFindsTheBaselineThroughItsAncestors(_ shop: Shop) async throws {
+        try shop.git.run("checkout", "-q", "-b", "feature/discount-order")
+        try shop.git.edit(
+            "Core/Sources/Discount.swift",
+            replacing: "price.cents * (100 - percent)",
+            with: "(100 - percent) * price.cents"
+        )
+        try shop.git.commitAll("Reorder the discount calculation")
+        try shop.git.run("checkout", "-q", "main")
+        try shop.git.edit(
+            "Catalog/Sources/Catalog.swift",
+            replacing: "products.first { $0.sku == sku }",
+            with: "products.first(where: { $0.sku == sku })"
+        )
+        try shop.git.commitAll("Look products up with first(where:)")
+        try shop.git.run("checkout", "-q", "--detach", "main")
+        try shop.git.run("merge", "-q", "--no-ff", "-m", "Merge feature/discount-order into main", "feature/discount-order")
 
-            let run = try await shop.test(environment: [
-                "GITHUB_REF": "refs/pull/1/merge",
-                "GITHUB_BASE_REF": "main",
-                "GITHUB_HEAD_REF": "feature/discount",
-            ])
+        let run = try await shop.test(environment: [
+            "GITHUB_REF": "refs/pull/1/merge",
+            "GITHUB_BASE_REF": "main",
+            "GITHUB_HEAD_REF": "feature/discount-order",
+        ])
 
-            XCTAssertTrue(run.selected, run.output)
-            XCTAssertTrue(run.ran("DiscountTests/testTenPercentOff"), run.output)
-            XCTAssertTrue(run.ran("CatalogLoadingTests/testLookupBySKU"), run.output)
-            XCTAssertFalse(run.ran("MoneyTests/testFormatsDollars"), run.output)
-        }
+        XCTAssertTrue(run.selected, run.output)
+        XCTAssertTrue(run.ran("DiscountTests/testTenPercentOff"), run.output)
+        XCTAssertTrue(run.ran("CatalogLoadingTests/testLookupBySKU"), run.output)
+        XCTAssertFalse(run.ran("MoneyTests/testFormatsDollars"), run.output)
     }
 
-    private func withShop(parallelTesting: Bool = false, _ body: (Shop) async throws -> Void) async throws {
+    /// A UI test's evidence is what the app process it launched executed, including an app launched
+    /// in a class `setUp` for the whole suite.
+    private func appChangeRunsTheUITestsThatLaunchedIt(_ shop: Shop) async throws {
+        try shop.git.run("checkout", "-q", "-b", "feature/receipt")
+        try shop.git.edit(
+            "App/Sources/Receipt.swift",
+            replacing: "var lines = items.map",
+            with: "var lines: [String] = items.map"
+        )
+        try shop.git.commitAll("Spell out the receipt lines' type")
+
+        let run = try await shop.test()
+
+        XCTAssertTrue(run.selected, run.output)
+        XCTAssertTrue(run.ran("RelaunchUITests/testDiscountAfterRelaunch"), run.output)
+        XCTAssertTrue(run.ran("SharedAppUITests/testShowsReceipt"), run.output)
+        XCTAssertFalse(run.ran("ShopUITests/testShowsCatalog"), run.output)
+    }
+
+    /// A source change whose checkout runs as two shards from prebuilt test products: the selection
+    /// must match an unsharded run's.
+    private func shardedCheckoutSelectsLikeAnUnshardedOne(_ shop: Shop) async throws {
+        try shop.git.run("checkout", "-q", "-b", "feature/discount-grouping")
+        try shop.git.edit(
+            "Core/Sources/Discount.swift",
+            replacing: "price.cents * (100 - percent) / 100",
+            with: "(price.cents * (100 - percent)) / 100"
+        )
+        try shop.git.commitAll("Group the discount product")
+
+        let run = try await shop.test(sharded: true)
+
+        XCTAssertTrue(run.selected, run.output)
+        XCTAssertTrue(run.ran("DiscountTests/testTenPercentOff"), run.output)
+        XCTAssertFalse(run.ran("ReceiptTests/testListsItems"), run.output)
+        XCTAssertFalse(run.ran("SharedAppUITests/testShowsTotal"), run.output)
+    }
+
+    private func withShop(_ body: (Shop) async throws -> Void) async throws {
         // Only these reach the CLI and, through it, the fixture's xcodebuild. Inheriting the whole
         // environment would hand the fixture this process's own coverage and TestCoverageAttribution
         // variables when the suite runs with coverage.
@@ -160,7 +189,7 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
                         "CoverageTestSelection",
                         fixturesDirectory: TestPaths.fixturesDirectory
                     ) {
-                        try await body(try await Shop.make(parallelTesting: parallelTesting))
+                        try await body(try await Shop.make())
                     }
                 }
             }
@@ -176,10 +205,6 @@ private struct Shop {
     let git: GitRepository
     let fullHandle: String
     let serverURL: URL
-    /// Parallel testing boots simulator clones on every run, which costs more than it saves for a
-    /// fixture this size and, on a busy machine, stalls a launch for minutes or fails to launch the
-    /// UI test runner. Only the test about clones turns it on.
-    let parallelTesting: Bool
 
     struct Run {
         let output: String
@@ -196,7 +221,7 @@ private struct Shop {
         }
     }
 
-    static func make(parallelTesting: Bool) async throws -> Shop {
+    static func make() async throws -> Shop {
         let directory = try XCTUnwrap(TuistTest.fixtureDirectory)
         let fullHandle = try XCTUnwrap(TuistTest.fixtureFullHandle)
         let serverURL = try XCTUnwrap(TuistTest.fixtureServerURL)
@@ -241,17 +266,18 @@ private struct Shop {
             directory: directory,
             git: git,
             fullHandle: fullHandle,
-            serverURL: serverURL,
-            parallelTesting: parallelTesting
+            serverURL: serverURL
         )
     }
 
     /// Runs every test on `main` with `--no-selective-testing`, as a default branch's CI does, and
     /// waits until the server can use the run as a baseline.
-    func recordBaseline(sharded: Bool = false) async throws {
-        let baseline = try await test(sharded: sharded, selectiveTesting: false)
+    func recordBaseline(sharded: Bool = false, parallelTesting: Bool = false) async throws {
+        let baseline = try await test(sharded: sharded, selectiveTesting: false, parallelTesting: parallelTesting)
         // Every assertion that a test didn't run relies on reading the results right.
-        XCTAssertEqual(baseline.tests.count, 19, "Not all of the fixture's 19 tests are in the output:\n\(baseline.output)")
+        guard baseline.tests.count == 19 else {
+            throw BaselineError(description: "Not all of the fixture's 19 tests are in the output:\n\(baseline.output)")
+        }
         try await waitForBaseline(at: try git.head())
     }
 
@@ -260,7 +286,8 @@ private struct Shop {
     func test(
         environment: [String: String] = [:],
         sharded: Bool = false,
-        selectiveTesting: Bool = true
+        selectiveTesting: Bool = true,
+        parallelTesting: Bool = false
     ) async throws -> Run {
         let mockedEnvironment = try XCTUnwrap(Environment.mocked)
         let previous = mockedEnvironment.variables
@@ -268,6 +295,10 @@ private struct Shop {
         mockedEnvironment.variables.merge(environment) { _, new in new }
 
         let options = (selectiveTesting ? [] : ["--no-selective-testing"]) + passthrough
+            // Parallel testing boots simulator clones on every run, which costs more than it saves
+            // for a fixture this size and, on a busy machine, stalls a launch for minutes or fails
+            // to launch the UI test runner.
+            + (parallelTesting ? [] : ["-parallel-testing-enabled", "NO"])
         Logger.testingLogHandler.flush()
         if sharded {
             let reference = "acceptance-\(UUID().uuidString.prefix(8))"
@@ -275,7 +306,7 @@ private struct Shop {
             // every suite in the one catch-all shard.
             try await TuistTest.run(TestCommand.self, [
                 "Shop", "--build-only", "--shard-total", "2", "--shard-granularity", "module",
-                "--shard-reference", reference, "--derived-data-path", derivedData("plan").pathString,
+                "--shard-reference", reference, "--derived-data-path", derivedData("build").pathString,
             ] + options)
             let matrix = try JSONSerialization.jsonObject(
                 with: Data(contentsOf: directory.appending(component: ".tuist-shard-matrix.json").url)
@@ -290,7 +321,7 @@ private struct Shop {
             }
         } else {
             try await TuistTest.run(TestCommand.self, [
-                "Shop", "--derived-data-path", derivedData("test").pathString,
+                "Shop", "--derived-data-path", derivedData("build").pathString,
             ] + options)
         }
         let output = Logger.testingLogHandler.collected[.trace, <=] + "\n" + ui()
@@ -300,7 +331,6 @@ private struct Shop {
 
     private var passthrough: [String] {
         ["--path", directory.pathString, "--inspect-mode", "local", "--", "-destination", Self.destination]
-            + (parallelTesting ? [] : ["-parallel-testing-enabled", "NO"])
     }
 
     private func derivedData(_ name: String) -> AbsolutePath {
@@ -346,6 +376,11 @@ private struct Shop {
             if case .baseline = resolution { return }
             try await Task.sleep(for: .seconds(1))
         }
-        XCTFail("The server didn't take the run on \(sha) as a baseline within 5 minutes")
+        throw BaselineError(description: "The server didn't take the run on \(sha) as a baseline within 5 minutes")
+    }
+
+    /// Thrown rather than asserted: no change can be checked against a baseline that failed.
+    struct BaselineError: Error, CustomStringConvertible {
+        let description: String
     }
 }
