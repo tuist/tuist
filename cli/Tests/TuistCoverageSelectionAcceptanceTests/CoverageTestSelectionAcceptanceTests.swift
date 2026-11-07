@@ -19,8 +19,8 @@ import XCTest
 /// each change must or mustn't run. XCTest rather than Swift Testing, so selection can skip these
 /// tests one by one once it applies to this suite.
 final class CoverageTestSelectionAcceptanceTests: XCTestCase {
-    /// The changes that need only an unsharded, serial baseline share one, since recording it is
-    /// the slowest step. Each starts from the baseline commit on a branch of its own, so none sees
+    /// The changes that need only an unsharded baseline share one, since recording it is the
+    /// slowest step. Each starts from the baseline commit on a branch of its own, so none sees
     /// another's commits. The project's evidence is shared, though: a test's version recorded on any
     /// branch counts wherever its files have the same content. No two changes may give a file the
     /// same content, or one change's run records the evidence that lets a later one skip the tests
@@ -28,7 +28,10 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
     func test_changes_select_against_one_baseline() async throws {
         try await withShop { shop in
             do {
-                try await shop.recordBaseline()
+                // The only parallel run: the evidence of processes in simulator clones, which Xcode
+                // deletes after the run, maps back to build products. Only the baseline records the
+                // evidence the UI change relies on, so the changes run serially.
+                try await shop.recordBaseline(parallelTesting: true)
             } catch {
                 XCTFail("Recording the baseline failed, so no change ran: \(error)")
                 return
@@ -39,6 +42,7 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
                 ("A test file change", testFileChangeRunsItsSuite),
                 ("A Swift Testing change", swiftTestingTestsRunWithoutEvidence),
                 ("A merge checkout", mergeCheckoutFindsTheBaselineThroughItsAncestors),
+                ("An app change", appChangeRunsTheUITestsThatLaunchedIt),
             ]
             for (name, change) in changes {
                 do {
@@ -135,26 +139,22 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
     }
 
     /// A UI test's evidence is what the app process it launched executed, including an app launched
-    /// in a class `setUp` for the whole suite. The only test that runs in parallel: the evidence of
-    /// processes in simulator clones, which Xcode deletes after the run, maps back to build products.
-    func test_ui_tests_select_by_what_the_app_executed() async throws {
-        try await withShop(parallelTesting: true) { shop in
-            try await shop.recordBaseline()
-            try shop.git.run("checkout", "-q", "-b", "feature/receipt")
-            try shop.git.edit(
-                "App/Sources/Receipt.swift",
-                replacing: "var lines = items.map",
-                with: "var lines: [String] = items.map"
-            )
-            try shop.git.commitAll("Spell out the receipt lines' type")
+    /// in a class `setUp` for the whole suite.
+    private func appChangeRunsTheUITestsThatLaunchedIt(_ shop: Shop) async throws {
+        try shop.git.run("checkout", "-q", "-b", "feature/receipt")
+        try shop.git.edit(
+            "App/Sources/Receipt.swift",
+            replacing: "var lines = items.map",
+            with: "var lines: [String] = items.map"
+        )
+        try shop.git.commitAll("Spell out the receipt lines' type")
 
-            let run = try await shop.test()
+        let run = try await shop.test()
 
-            XCTAssertTrue(run.selected, run.output)
-            XCTAssertTrue(run.ran("RelaunchUITests/testDiscountAfterRelaunch"), run.output)
-            XCTAssertTrue(run.ran("SharedAppUITests/testShowsReceipt"), run.output)
-            XCTAssertFalse(run.ran("ShopUITests/testShowsCatalog"), run.output)
-        }
+        XCTAssertTrue(run.selected, run.output)
+        XCTAssertTrue(run.ran("RelaunchUITests/testDiscountAfterRelaunch"), run.output)
+        XCTAssertTrue(run.ran("SharedAppUITests/testShowsReceipt"), run.output)
+        XCTAssertFalse(run.ran("ShopUITests/testShowsCatalog"), run.output)
     }
 
     /// The same source change as the first test, with the baseline and the checkout both run as two
@@ -175,7 +175,7 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
         }
     }
 
-    private func withShop(parallelTesting: Bool = false, _ body: (Shop) async throws -> Void) async throws {
+    private func withShop(_ body: (Shop) async throws -> Void) async throws {
         // Only these reach the CLI and, through it, the fixture's xcodebuild. Inheriting the whole
         // environment would hand the fixture this process's own coverage and TestCoverageAttribution
         // variables when the suite runs with coverage.
@@ -186,7 +186,7 @@ final class CoverageTestSelectionAcceptanceTests: XCTestCase {
                         "CoverageTestSelection",
                         fixturesDirectory: TestPaths.fixturesDirectory
                     ) {
-                        try await body(try await Shop.make(parallelTesting: parallelTesting))
+                        try await body(try await Shop.make())
                     }
                 }
             }
@@ -202,10 +202,6 @@ private struct Shop {
     let git: GitRepository
     let fullHandle: String
     let serverURL: URL
-    /// Parallel testing boots simulator clones on every run, which costs more than it saves for a
-    /// fixture this size and, on a busy machine, stalls a launch for minutes or fails to launch the
-    /// UI test runner. Only the test about clones turns it on.
-    let parallelTesting: Bool
 
     struct Run {
         let output: String
@@ -222,7 +218,7 @@ private struct Shop {
         }
     }
 
-    static func make(parallelTesting: Bool) async throws -> Shop {
+    static func make() async throws -> Shop {
         let directory = try XCTUnwrap(TuistTest.fixtureDirectory)
         let fullHandle = try XCTUnwrap(TuistTest.fixtureFullHandle)
         let serverURL = try XCTUnwrap(TuistTest.fixtureServerURL)
@@ -267,15 +263,14 @@ private struct Shop {
             directory: directory,
             git: git,
             fullHandle: fullHandle,
-            serverURL: serverURL,
-            parallelTesting: parallelTesting
+            serverURL: serverURL
         )
     }
 
     /// Runs every test on `main` with `--no-selective-testing`, as a default branch's CI does, and
     /// waits until the server can use the run as a baseline.
-    func recordBaseline(sharded: Bool = false) async throws {
-        let baseline = try await test(sharded: sharded, selectiveTesting: false)
+    func recordBaseline(sharded: Bool = false, parallelTesting: Bool = false) async throws {
+        let baseline = try await test(sharded: sharded, selectiveTesting: false, parallelTesting: parallelTesting)
         // Every assertion that a test didn't run relies on reading the results right.
         guard baseline.tests.count == 19 else {
             throw BaselineError(description: "Not all of the fixture's 19 tests are in the output:\n\(baseline.output)")
@@ -288,7 +283,8 @@ private struct Shop {
     func test(
         environment: [String: String] = [:],
         sharded: Bool = false,
-        selectiveTesting: Bool = true
+        selectiveTesting: Bool = true,
+        parallelTesting: Bool = false
     ) async throws -> Run {
         let mockedEnvironment = try XCTUnwrap(Environment.mocked)
         let previous = mockedEnvironment.variables
@@ -296,6 +292,10 @@ private struct Shop {
         mockedEnvironment.variables.merge(environment) { _, new in new }
 
         let options = (selectiveTesting ? [] : ["--no-selective-testing"]) + passthrough
+            // Parallel testing boots simulator clones on every run, which costs more than it saves
+            // for a fixture this size and, on a busy machine, stalls a launch for minutes or fails
+            // to launch the UI test runner.
+            + (parallelTesting ? [] : ["-parallel-testing-enabled", "NO"])
         Logger.testingLogHandler.flush()
         if sharded {
             let reference = "acceptance-\(UUID().uuidString.prefix(8))"
@@ -328,7 +328,6 @@ private struct Shop {
 
     private var passthrough: [String] {
         ["--path", directory.pathString, "--inspect-mode", "local", "--", "-destination", Self.destination]
-            + (parallelTesting ? [] : ["-parallel-testing-enabled", "NO"])
     }
 
     private func derivedData(_ name: String) -> AbsolutePath {
