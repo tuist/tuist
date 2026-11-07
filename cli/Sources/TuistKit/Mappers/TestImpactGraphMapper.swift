@@ -8,9 +8,8 @@ import XcodeGraph
 /// targets whose hash already passed, and before they are pruned.
 ///
 /// It asks `TestImpactSelector.current` about the test targets in scope that hashing left. Modules none
-/// of whose tests was selected are tagged prunable like hash hits, so they aren't built. When selection
-/// says every test runs (a fallback that makes the commit a baseline), the targets hashing tagged are
-/// kept. Without a selector, the graph is unchanged.
+/// of whose tests was selected are tagged prunable like hash hits, so they aren't built. Without a
+/// selector, the graph is unchanged.
 struct TestImpactGraphMapper: GraphMapping {
     private static let prunableTag = "tuist:prunable"
 
@@ -41,31 +40,18 @@ struct TestImpactGraphMapper: GraphMapping {
         }
         let invocation = await selector.invocation
         let affectedModules = TestImpactAffectedModules(graph: graph)
-        let decision = await selector.decide(
+        let unselected = await selector.decide(
             modules: Set(left.map(\.target.name)).sorted(),
             skippedModules: Set(hashSkipped.map(\.target.name)).sorted(),
             platform: (invocation.platform ?? Self.sharedPlatform(of: left.isEmpty ? inScope : left))?.rawValue,
             affectedModules: { affectedModules.affectedModules(path: $0) }
         )
 
-        switch decision {
-        case .unchanged:
-            return (graph, [], environment)
-        case let .prune(modules):
-            let pruned = Set(left.filter { modules.contains($0.target.name) }.map(Self.reference))
-            return (graph.mappingTargets { reference, target in
-                if pruned.contains(reference) { target.metadata.tags.insert(Self.prunableTag) }
-            }, [], environment)
-        case .runAll:
-            let kept = Set(hashSkipped.map(Self.reference))
-            var environment = environment
-            for target in kept {
-                environment.targetTestCacheItems[target.projectPath]?[target.name] = nil
-            }
-            return (graph.mappingTargets { reference, target in
-                if kept.contains(reference) { target.metadata.tags.remove(Self.prunableTag) }
-            }, [], environment)
-        }
+        let pruned = Set(left.filter { unselected.contains($0.target.name) }.map(Self.reference))
+        guard !pruned.isEmpty else { return (graph, [], environment) }
+        return (graph.mappingTargets { reference, target in
+            if pruned.contains(reference) { target.metadata.tags.insert(Self.prunableTag) }
+        }, [], environment)
     }
 
     /// The unit and UI test targets the invocation tests: the scheme's when one is named, narrowed by

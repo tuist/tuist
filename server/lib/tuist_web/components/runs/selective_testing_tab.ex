@@ -29,6 +29,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
   attr :available_filters, :list, required: true
   attr :selective_testing_active_filters, :list, required: true
   attr :title, :string, default: nil
+  attr :summary?, :boolean, default: true, doc: "Whether the hits summary shows above the modules."
 
   attr :selection_targets, :map,
     default: nil,
@@ -40,6 +41,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
     ~H"""
     <div class="tuist-selective-testing-tab">
       <.card
+        :if={@summary?}
         title={dgettext("dashboard_tests", "Summary")}
         icon="chart_arcs"
         data-part="optimization-summary"
