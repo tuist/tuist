@@ -313,6 +313,21 @@ socket, the poller and the caller share a replica:
   redacted before it is logged.
 - Exec output is capped at 1 MiB per stream as frames arrive (the node
   stops streaming past 2 MiB) and returned with invalid UTF-8 replaced.
+- `Tuist.Sandboxes.Commands` (`/:sandbox_id/commands`) runs commands that
+  outlive a request: one exec launches the command detached under
+  `setsid`, outside the node's exec process-group fence, with its output,
+  stdin, pid and exit code in `$HOME/.cache/tuist/commands/<id>` in the
+  guest. A `sandbox_commands` row records each command (never its env).
+  All commands share the residency `commands` (`begin_shared_residency/2`,
+  plus a macOS host hold of the same name), so a sandbox runs several at
+  once but an agent turn refuses them with `:busy`. `release_if_idle/1`
+  ends it under the sandbox row lock once no row is `running`; `start/2`
+  inserts its row before holding, which closes the race with a release.
+  `pause_idle/2` skips a sandbox with running commands. `CommandWatchWorker`
+  kills each command at its deadline and records commands no client reads.
+  The logs endpoint streams ND-JSON by looping `read/3` with 25 s waits,
+  under proxy idle timeouts. Never end the residency with
+  `end_residency/1`; use `end_residency/2`, which leaves a newer one alone.
 - `anthropic_agent_id` is only cached for the environment's own
   `agent_model`; `AgentEnvironment.update_changeset/2` clears it when
   the model or the system prompt changes.
@@ -332,10 +347,13 @@ socket, the poller and the caller share a replica:
   canary and production), and the poller manager only runs pollers for
   flagged accounts. Accounts get the shapes in `Sandbox.shapes/0` and
   workspaces up to 100 GB.
-- `TuistWeb.API.SandboxesController`: account-admin API under
+- `TuistWeb.API.SandboxesController`: API under
   `/api/accounts/:account_handle/sandboxes` (agent environments,
   including `PATCH agent-environments/:id` for the API key, model and
-  system prompt; sandboxes, exec/pause/resume/delete).
+  system prompt; sandboxes, exec, commands, pause/resume/delete). Members
+  (`:sandboxes_use`) reach sandboxes, exec and commands, but only on
+  sandboxes without an agent environment, Amp integration, provider
+  environment or remote-execution purpose; everything else is admin-only.
 - Dashboard: `TuistWeb.SandboxesLive` (`/:account_handle/sandboxes`),
   `SandboxInstancesLive` (`/sandboxes/instances`) and `SandboxLive`
   (`/sandboxes/:sandbox_id`) raise `NotFoundError` unless the flag is on and

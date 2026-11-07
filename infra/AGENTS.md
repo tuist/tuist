@@ -132,6 +132,7 @@ Kustomization ensures the operator and its custom resource definitions
 are ready first.
 See [`flux/cloudflare-config/AGENTS.md`](flux/cloudflare-config/AGENTS.md) for the crawlability and edge-protection boundary.
 `flux/cloudflare-config/skip-sbfm-api-paths.yaml` exempts signed Open Graph images and canonical two-segment public-project root candidates from SBFM. Keep sockets, authentication, operator and scanner-shaped paths excluded; never use an unrestricted `/*/*` wildcard that also admits deeper dashboards. Origin authorization/challenges and edge rate limits remain active. Deploy the bounded cached overview before the root exemption; re-enabling the legacy custom dashboard rule overrides that exemption for unverified crawlers.
+`flux/cloudflare-config/skip-sbfm-marketing-pages.yaml` proposes GET/HEAD access to marketing routes in read-only mode; its rate-limit and handle-collision gaps must be addressed before activation.
 `flux/cloudflare-config/browser-telemetry-bot-filter.yaml` blocks
 Cloudflare-verified bots and explicitly declared crawler/headless user agents
 only when they POST to the production Faro collector;

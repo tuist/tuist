@@ -601,6 +601,17 @@ defmodule Tuist.Authorization do
       desc("Allows users with ops write access to pause, resume and delete any account's sandboxes.")
       allow([:authenticated_as_user, :ops_write_access])
     end
+
+    action :use do
+      desc(
+        "Allows users of an account to create sandboxes through the API and run commands in them. Sandboxes that serve an agent environment, an Amp integration or remote execution stay admin-only."
+      )
+
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to create sandboxes through the API and run commands in them.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
   end
 
   object :organization do

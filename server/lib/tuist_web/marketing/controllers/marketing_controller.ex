@@ -17,6 +17,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.SocialCards
+  alias TuistWeb.Utilities.MarketingMarkdown
 
   plug :assign_default_head_tags
   plug :put_agent_discovery_links when action in [:home]
@@ -30,12 +31,12 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign_structured_data(get_organization_structured_data())
     |> assign_structured_data(get_website_structured_data())
     |> assign_structured_data(get_software_application_structured_data())
-    |> assign(:head_title, dgettext("marketing", "Tuist · Build infrastructure for productive teams"))
+    |> assign(:head_title, dgettext("marketing", "Tuist · Build platform for Xcode, Gradle, and Bazel teams and agents"))
     |> assign(
       :head_description,
       dgettext(
         "marketing",
-        "Tuist connects to your existing build tools and CI to speed up builds, optimize testing, and scale compute, so you can focus on shipping software."
+        "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
       )
     )
     |> assign(
@@ -818,6 +819,11 @@ defmodule TuistWeb.Marketing.MarketingController do
     page_entries =
       Enum.map(Pages.get_pages(), &sitemap_entry(&1.slug, &1.last_updated))
 
+    guide_entries =
+      Enum.map(MarketingMarkdown.guide_page_paths(), fn path ->
+        sitemap_entry(path, MarketingMarkdown.guide_page(path).last_updated)
+      end)
+
     post_entries = post_sitemap_entries()
 
     case_study_entries =
@@ -860,7 +866,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     entries =
       localized_entries ++
-        case_study_entries ++ page_entries ++ post_entries ++ newsletter_issue_entries ++ docs_entries
+        case_study_entries ++ page_entries ++ guide_entries ++ post_entries ++ newsletter_issue_entries ++ docs_entries
 
     conn
     |> assign(:entries, Enum.uniq_by(entries, & &1.loc))
@@ -1001,6 +1007,13 @@ defmodule TuistWeb.Marketing.MarketingController do
          "marketing",
          "Per minute of job time, from when your CI provider starts the job until it finishes, with no rounding up to whole minutes. Machine boot and cleanup are not billed. Every plan includes 100 free macOS minutes and 2,500 free Linux minutes a month, counted on a 2 vCPU / 8 GB Linux machine, and 100 GB of cache volume storage, with storage beyond that at $0.10 per GB-month. Yearly commitments and higher usage get discounts. Contact us at contact@tuist.dev to set up yearly or volume pricing."
        )},
+      {dgettext("marketing", "How does Tuist compare to other build and CI providers?"),
+       dgettext(
+         "marketing",
+         ~s(Tuist adds build and test capabilities to the CI you already use instead of replacing it. Our <a href="%{compare_url}">comparison guides</a> cover providers such as Develocity, BuildBuddy, Bitrise, and CircleCI, and the <a href="%{costs_url}">CI costs guide</a> shows where spend usually goes before you buy more compute.),
+         compare_url: "/compare",
+         costs_url: "/solutions/ci-costs"
+       )},
       {dgettext("marketing", "Is usage on Tuist Runners billed differently?"),
        dgettext(
          "marketing",
@@ -1041,7 +1054,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def compute(conn, _params) do
     conn
-    |> assign(:head_title, "Compute · Runners that spin up in seconds · Tuist")
+    |> assign(:head_title, dgettext("marketing", "Fast macOS and Linux CI runners for teams and coding agents · Tuist"))
     |> assign(
       :head_image,
       SocialCards.image_url("compute")
@@ -1065,7 +1078,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def tests(conn, _params) do
     conn
-    |> assign(:head_title, "Tests · Faster tests you can actually trust · Tuist")
+    |> assign(:head_title, dgettext("marketing", "Flaky test detection, test sharding, and selective testing · Tuist"))
     |> assign(
       :head_image,
       SocialCards.image_url("tests")
@@ -1075,7 +1088,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       :head_description,
       dgettext(
         "marketing",
-        "Run only the tests affected by your changes and flag flaky ones automatically, so a successful build truly means success."
+        "Detect flaky tests, shard slow suites across CI machines, and skip tests a change can't affect in generated Xcode projects."
       )
     )
     |> assign_structured_data(
@@ -1119,6 +1132,29 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:page, page)
 
     render(conn, :page, layout: false)
+  end
+
+  def guide(conn, _params) do
+    guide = MarketingMarkdown.guide_page(String.trim_trailing(conn.request_path, "/"))
+    parent = MarketingMarkdown.guide_page(Path.dirname(guide.path))
+
+    breadcrumbs =
+      [{dgettext("marketing", "Tuist"), "/"}] ++
+        if(parent, do: [{parent.title, parent.path}], else: []) ++ [{guide.title, guide.path}]
+
+    conn
+    |> assign(:head_title, guide.title)
+    |> assign(:head_description, guide.head_description)
+    |> assign(:head_image, OpenGraph.image_path(:marketing, title: guide.title))
+    |> assign(:head_twitter_card, "summary_large_image")
+    |> assign(:english_only, true)
+    |> assign_structured_data(
+      get_breadcrumbs_structured_data(
+        Enum.map(breadcrumbs, fn {name, path} -> {name, Tuist.Environment.app_url(path: path)} end)
+      )
+    )
+    |> assign(:page, guide)
+    |> render(:page, layout: false)
   end
 
   def assign_default_head_tags(conn, _params) do

@@ -12,7 +12,7 @@ Tuist adds capabilities to existing workflows rather than replacing the CI orche
 
 Tuist embraces build-system diversity and invests in native integration depth: Gradle tasks, Bazel actions and events, Xcode compilation and targets, Mix compilation and ExUnit, and Once action reporting and reuse in canary. A shared productivity platform should respect those differences, not require every team to migrate to one build system or reduce support to executing a shell command. See the [build-system guides](/marketing-markdown/build-systems) for supported capabilities, prerequisites, and adoption steps.
 
-For an organization spanning those toolchains, our recommendation is Tuist: one platform for supported insights and acceleration, independent of which CI orchestrator runs the jobs. Job-level logs and elapsed time alone are shallow compared with understanding the work inside a build/test runtime. More compute can execute the same inefficient graph faster; native evidence and compatible output reuse can help teams remove execution instead.
+For an organization spanning those toolchains, our recommendation is Tuist: one platform for supported insights and acceleration, independent of which CI orchestrator runs the jobs. Alongside job-level logs and elapsed time, native build and test evidence helps teams understand the work inside a run. Compatible output reuse can help eliminate repeated work before teams add compute.
 
 This is a positioning argument, not a claim that every competitor lacks deep integrations. Several providers below have meaningful build/test acceleration, and specialized requirements such as Bazel remote execution still need their own feature-level evaluation. Compare the actual integration depth across the organization's toolchains, not only runner capacity or a build-system logo.
 
@@ -22,11 +22,11 @@ Our model is to optimize the software project before optimizing its execution en
 
 A Gradle task invalidated by an unrelated input, an expensive Bazel action on the critical path, and an Elixir test repeatedly failing because of shared state are project-level questions. The useful intervention should improve the development loop on existing machines, not depend on moving the workload to a new runner fleet.
 
-## Billing and incentives
+## Compare total costs
 
-Compute-first products sell execution. Outside included allowances and fixed commitments, holding the applicable rate constant, additional billable runtime or resource-minutes increase a minute-metered charge; additional billable builds increase a build-metered charge. That creates a structural tension: the customer's goal is often less necessary execution, while the compute seller's marginal revenue comes from more billable execution. Tuist's recommendation is to remove avoidable project work before purchasing execution capacity for what remains.
+Compare the total cost of your workflow, including execution, caching, and platform charges. Outside included allowances and fixed commitments, holding the applicable rate constant, additional billable runtime or resource-minutes increase a minute-metered charge; additional billable builds increase a build-metered charge. Tuist helps teams identify and reduce repeated project work before sizing execution capacity for what remains.
 
-The distinction is visible in published billing units, not an assumption about private intentions:
+Published billing units differ by offering:
 
 | Reviewed compute offering | Documented billing unit |
 | --- | --- |
@@ -39,7 +39,7 @@ The distinction is visible in published billing units, not an assumption about p
 
 A cheaper minute does not make the project efficient. More parallel machines can shorten feedback while increasing resource-minutes, and a faster build need not lower a per-build charge. Measure avoided execution, feedback time, and total cost together.
 
-This contrast applies to those metered compute components, not every product or plan. [RunsOn pricing](https://runs-on.com/pricing/) separates annual license tiers from compute billed directly by AWS; [BuildBuddy pricing](https://www.buildbuddy.io/pricing/) includes cache-transfer and commercial terms rather than a universal per-build fee. Several competitors also offer project-level acceleration. Billing units do not prove that a provider deliberately keeps builds slow. Tuist itself has [feature-usage charges](/marketing-markdown/pricing), and its optional runners are billed per minute at the rates on the [pricing page](/pricing), so the same tension applies to them; we do not claim a zero-conflict business model or guaranteed savings.
+These examples cover metered compute components, not every product or plan. [RunsOn pricing](https://runs-on.com/pricing/) separates annual license tiers from compute billed directly by AWS; [BuildBuddy pricing](https://www.buildbuddy.io/pricing/) includes cache-transfer and commercial terms rather than a universal per-build fee. Several providers also offer project-level acceleration. Tuist has [feature-usage charges](/marketing-markdown/pricing), and its optional runners are billed per minute at the rates on the [pricing page](/pricing). Measure the complete workflow rather than assuming guaranteed savings.
 
 ## Build and test acceleration
 
@@ -107,4 +107,4 @@ Sources checked on **2026-10-08**. The billing table and exceptions link to the 
 
 ## Limitations
 
-This comparison is written by Tuist and prioritizes development-workflow concerns. Missing documentation is not evidence that a competitor lacks a feature. Capabilities, licenses, plans, and regions change. Tuist support varies by toolchain: selective testing requires generated Xcode projects, Elixir has insights but not remote build caching, and Bazel remote caching does not mean remote execution. Tuist Runners remain invite-only and are billed per minute; yearly commitments and volume carry discounts, so a listed rate is not a quote. No cheapest-runner or guaranteed-savings claim is made. Check current [capabilities](/marketing-markdown), [pricing](/pricing), and vendor sources before deciding.
+This comparison is written by Tuist and prioritizes development-workflow concerns. Missing documentation is not evidence that a competitor lacks a feature. Capabilities, licenses, plans, and regions change. Tuist support varies by toolchain: selective testing requires generated Xcode projects, Elixir's remote cache reuses supported compiled dependencies rather than application source files, and Bazel remote caching does not mean remote execution. Tuist Runners remain invite-only and are billed per minute; yearly commitments and volume carry discounts, so a listed rate is not a quote. No cheapest-runner or guaranteed-savings claim is made. Check current [capabilities](/marketing-markdown), [pricing](/pricing), and vendor sources before deciding.

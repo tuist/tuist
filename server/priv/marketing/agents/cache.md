@@ -12,7 +12,7 @@ Tuist hosts a remote cache keyed by build inputs. On a hit, the build downloads 
 
 ## Choose the integration
 
-These are four separate integrations, one per build system, not interchangeable settings:
+The following integrations have separate, non-interchangeable settings:
 
 | Integration | Toolchain | What is reused | Requirements and setup |
 | --- | --- | --- | --- |
@@ -21,7 +21,7 @@ These are four separate integrations, one per build system, not interchangeable 
 | [Gradle cache](/en/docs-markdown/guides/features/cache/gradle-cache) | Gradle, including Android | Task outputs through Gradle's build cache | [Tuist Gradle plugin](/en/docs-markdown/guides/install-gradle-plugin) plus `org.gradle.caching=true`. |
 | [Bazel cache](/en/docs-markdown/guides/features/cache/bazel-cache) | Bazel | Action outputs through the Remote Execution API cache | Run `tuist bazel setup` on each machine; it writes `.bazelrc.tuist`. |
 
-Generated Xcode projects can combine the module cache and the Xcode cache: the first skips whole modules, the second speeds up what still compiles. Tuist does not provide remote caching for Elixir.
+Generated Xcode projects can combine the module cache and the Xcode cache: the first skips whole modules, the second speeds up what still compiles. Elixir projects can also use [dependency caching](/en/docs-markdown/guides/features/cache/elixir-advanced). [Rust compilation caching](/en/docs-markdown/guides/features/cache/rust) is experimental with toolchain and same-machine restrictions. Once support is in canary.
 
 ## When it fits
 
@@ -47,3 +47,5 @@ It helps less when most builds change most inputs, when local incremental builds
 ## Pricing
 
 Billing depends on the account's model: newer plans meter cache downloads (egress and requests) while uploads and storage are free; older plans meter module cache usage differently. Check the live [pricing table](/pricing) and [pricing guide](/marketing-markdown/pricing); do not estimate cost from team size.
+
+Related: [slow builds](/marketing-markdown/solutions/slow-builds) and [build-system guides](/marketing-markdown/build-systems).

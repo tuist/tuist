@@ -128,6 +128,8 @@ spec:
         http.request.uri.path in {"/docs" "/marketing-markdown" "/robots.txt" "/llms.txt" "/llms-full.txt" "/sitemap.xml" "/geofeed.csv"} or
         starts_with(http.request.uri.path, "/docs/") or
         starts_with(http.request.uri.path, "/marketing-markdown/") or
+        starts_with(http.request.uri.path, "/ar/docs/") or
+        starts_with(http.request.uri.path, "/ar/docs-markdown/") or
         starts_with(http.request.uri.path, "/en/docs/") or
         starts_with(http.request.uri.path, "/en/docs-markdown/") or
         starts_with(http.request.uri.path, "/es/docs/") or
@@ -140,6 +142,8 @@ spec:
         starts_with(http.request.uri.path, "/ko/docs-markdown/") or
         starts_with(http.request.uri.path, "/ru/docs/") or
         starts_with(http.request.uri.path, "/ru/docs-markdown/") or
+        starts_with(http.request.uri.path, "/tr/docs/") or
+        starts_with(http.request.uri.path, "/tr/docs-markdown/") or
         starts_with(http.request.uri.path, "/yue_Hant/docs/") or
         starts_with(http.request.uri.path, "/yue_Hant/docs-markdown/") or
         starts_with(http.request.uri.path, "/zh_Hans/docs/") or

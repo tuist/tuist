@@ -5,8 +5,8 @@ defmodule TuistWeb.Utilities.LlmsTxt do
 
   The file provides a curated map for agents that use it, not a guarantee of
   search discovery or citations. It points at documentation Markdown twins
-  (`/:locale/docs-markdown/*`), landing-page guides, and Markdown-only problem
-  and comparison guides. These guides do not introduce standalone browser pages.
+  (`/:locale/docs-markdown/*`), landing-page guides, and the problem, comparison,
+  and build-system guides.
 
   Only English is indexed. The file lives at a single URL, so a translated
   variant would have nowhere to be served from.
@@ -19,7 +19,7 @@ defmodule TuistWeb.Utilities.LlmsTxt do
 
   @locale "en"
 
-  @summary "Tuist is build infrastructure for productive teams. It embraces build-system diversity with native depth across Xcode, Gradle, Bazel, and Mix, with Once support in canary, so organizations can adopt one productivity platform rather than a separate product per build system. It prioritizes avoiding unnecessary project work before buying more compute. It integrates into existing build toolchains to share compatible build outputs across developer, CI, and agent environments, surface build and test insights, track flaky tests, and share app previews from a URL. Selective testing skips unchanged test targets in Tuist-generated Xcode projects. Managed runners are optional and currently invite-only."
+  @summary "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental. It embraces build-system diversity with native depth in each toolchain, so organizations can adopt one productivity platform rather than a separate product per build system. It prioritizes avoiding unnecessary project work before buying more compute, shares compatible build outputs across developer, CI, and agent environments, and shares app previews from a URL. Selective testing skips unchanged test targets in Tuist-generated Xcode projects. Managed runners are optional and currently invite-only."
 
   @notes [
     "Every documentation page has a plain-Markdown twin: swap `/docs/` for `/docs-markdown/` in any documentation URL to get the Markdown source instead of the rendered HTML page.",

@@ -1,6 +1,6 @@
 # Tuist with Mix and Elixir
 
-Tuist brings Mix- and ExUnit-native depth to one productivity platform for organizations with diverse build systems. The `tuist_ex` Hex package reports compilation/test evidence and supports flaky-test detection and balanced test sharding alongside the platform's supported Gradle, Bazel, Xcode, and canary Once workflows. Keep your Elixir toolchain and existing task setup; you do not need the Tuist CLI for this integration.
+Tuist brings Mix- and ExUnit-native depth to one productivity platform for organizations with diverse build systems. The `tuist_ex` Hex package caches supported compiled dependencies, reports compilation/test evidence, and supports flaky-test detection and balanced test sharding alongside the platform's supported Gradle, Bazel, Xcode, and canary Once workflows. Keep your Elixir toolchain and existing task setup; you do not need the Tuist CLI for this integration.
 
 ## One productivity platform, native depth
 
@@ -16,6 +16,7 @@ Those capabilities run the project. A single compile or test log does not explai
 
 ## How Tuist augments it
 
+- **Reuse compiled dependencies.** [Dependency caching](/en/docs-markdown/guides/features/cache/elixir) checks local and shared remote outputs for supported dependencies. Application source files are not cached; unsupported compilation continues through Mix normally.
 - **Expose compilation bottlenecks.** [Build insights](/en/docs-markdown/guides/features/build-insights/elixir) reports compilation duration, warnings/errors, per-file timings, and compilation dependencies. Use that evidence to reduce unnecessary compile-time coupling before purchasing more CPU.
 - **Record individual test history.** [Test insights](/en/docs-markdown/guides/features/test-insights/elixir) tracks outcomes and durations at module, describe-block, and test level across runs.
 - **Identify intermittency.** [Flaky-test detection](/en/docs-markdown/guides/features/test-insights/flaky-tests/elixir) compares pass/fail outcomes on the same commit in CI. Optional retries provide evidence within a run; a passing retry is not a repair of the underlying test.

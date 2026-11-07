@@ -123,20 +123,31 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "describes the site and the product with structured data", %{conn: conn} do
       html = conn |> get("/") |> html_response(200)
 
-      types =
+      entries =
         ~r|<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>|s
         |> Regex.scan(html, capture: :all_but_first)
-        |> Enum.map(fn [json] -> json |> String.trim() |> JSON.decode!() |> Map.get("@type") end)
+        |> Enum.map(fn [json] -> json |> String.trim() |> JSON.decode!() end)
 
+      types = Enum.map(entries, &Map.get(&1, "@type"))
       assert "Organization" in types
       assert "WebSite" in types
       assert "SoftwareApplication" in types
+
+      for entry <- Enum.filter(entries, &(&1["@type"] in ["Organization", "SoftwareApplication"])) do
+        assert entry["description"] =~ "Once support is in canary"
+        assert entry["description"] =~ "Rust compilation caching is experimental"
+      end
+
+      document = Floki.parse_document!(html)
+      [description] = Floki.attribute(document, ~s(meta[name="description"]), "content")
+      assert description =~ "Once support is in canary"
+      assert description =~ "Rust compilation caching is experimental"
     end
 
     test "gives the homepage a descriptive title and a single h1", %{conn: conn} do
       html = conn |> get("/") |> html_response(200)
 
-      assert html =~ "Tuist · Build infrastructure for productive teams"
+      assert html =~ "Tuist · Build platform for Xcode, Gradle, and Bazel teams and agents"
       assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
     end
 
@@ -319,26 +330,81 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
-  describe "Markdown-only problem and comparison guides" do
-    test "does not register standalone marketing browser routes" do
+  describe "problem, comparison, and build-system guides" do
+    test "render each guide as an English browser page", %{conn: conn} do
       for page <- MarketingMarkdown.decision_guides() do
-        case Phoenix.Router.route_info(TuistWeb.Router, "GET", page.path, "") do
-          :error -> :ok
-          route -> refute Map.get(route, :type) == :marketing, page.path
+        conn = get(conn, page.path)
+        document = conn |> html_response(200) |> Floki.parse_document!()
+
+        assert document |> Floki.find("h1") |> Floki.text() == page.title
+        content_links = document |> Floki.find("[data-part=content] a") |> Floki.attribute("href")
+        refute Enum.any?(content_links, &String.contains?(&1, ["/marketing-markdown", "/docs-markdown/"])), page.path
+
+        assert Floki.attribute(document, ~s(link[type="text/markdown"]), "href") == [
+                 Tuist.Environment.app_url(path: "/marketing-markdown" <> page.path)
+               ]
+
+        assert Floki.find(document, "link[hreflang]") == []
+        refute match?(%{type: :marketing}, Phoenix.Router.route_info(TuistWeb.Router, "GET", "/ko" <> page.path, ""))
+      end
+    end
+
+    test "point guide links at browser pages and show the review date", %{conn: conn} do
+      document = conn |> get("/compare/develocity") |> html_response(200) |> Floki.parse_document!()
+      links = document |> Floki.find("[data-part=content] a") |> Floki.attribute("href")
+
+      assert "/compare" in links
+      assert "/tests" in links
+      assert "/en/docs/guides/features/agentic-coding/mcp" in links
+      assert document |> Floki.find("[data-part=last-updated]") |> Floki.text() =~ "October 8, 2026"
+    end
+
+    test "send other languages to their homepage from an English-only guide", %{conn: conn} do
+      links =
+        conn
+        |> get("/solutions/slow-builds")
+        |> html_response(200)
+        |> Floki.parse_document!()
+        |> Floki.attribute("a", "href")
+
+      # Tests compile only English unless TUIST_DEV_ALL_LOCALES is set, as in CI.
+      for locale <- Localization.additional_locales() do
+        assert "/#{locale}?set_locale=#{locale}" in links
+        refute "/#{locale}/solutions/slow-builds?set_locale=#{locale}" in links
+      end
+
+      assert "/solutions/slow-builds?set_locale=en" in links
+    end
+
+    test "are linked from the footer and the related product pages", %{conn: conn} do
+      expected_links = %{
+        "/" => [
+          "/solutions/slow-builds",
+          "/solutions/slow-tests",
+          "/solutions/flaky-tests",
+          "/solutions/ci-costs",
+          "/build-systems",
+          "/compare"
+        ],
+        "/tests" => ["/solutions/slow-tests", "/solutions/flaky-tests"],
+        "/cache" => ["/solutions/slow-builds", "/build-systems"],
+        "/pricing" => ["/compare", "/solutions/ci-costs"]
+      }
+
+      for {path, guide_links} <- expected_links do
+        links = conn |> get(path) |> html_response(200) |> Floki.parse_document!() |> Floki.attribute("a", "href")
+
+        for guide_link <- guide_links do
+          assert guide_link in links, "#{path} does not link #{guide_link}"
         end
       end
     end
 
-    test "does not link the Markdown-only guides from browser navigation", %{conn: conn} do
-      document = conn |> get("/") |> html_response(200) |> Floki.parse_document!()
-      links = Floki.attribute(document, "a", "href")
+    test "negotiate the authored Markdown on the browser URL", %{conn: conn} do
+      conn = conn |> put_req_header("accept", "text/markdown") |> get("/compare/develocity")
 
-      for page <- MarketingMarkdown.decision_guides() do
-        refute page.path in links
-        refute MarketingMarkdown.alternate_path(page.path) in links
-      end
-
-      assert Floki.find(document, "#footer-locale-dropdown") != []
+      assert response(conn, 200) =~ "# Tuist and Develocity"
+      assert response(conn, 200) =~ "](#{Tuist.Environment.app_url(path: "/marketing-markdown/compare")})"
     end
 
     test "legacy feature redirects remain intact", %{conn: conn} do
@@ -396,14 +462,17 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       end
     end
 
-    test "does not advertise Markdown-only problem and comparison guides", %{conn: conn} do
+    test "advertises the English guide pages with their review dates", %{conn: conn} do
       xml = conn |> get("/sitemap.xml") |> response(200)
 
       for page <- MarketingMarkdown.decision_guides() do
-        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: page.path)}</loc>"
+        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: page.path)}</loc>"
         refute xml =~ "<loc>#{Tuist.Environment.app_url(path: "/ko" <> page.path)}</loc>"
         refute xml =~ "<loc>#{Tuist.Environment.app_url(path: MarketingMarkdown.alternate_path(page.path))}</loc>"
       end
+
+      assert xml =~
+               ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: "/compare/develocity"))}</loc>\s*<lastmod>2026-10-08</lastmod>|
     end
 
     test "includes individual changelog entries", %{conn: conn} do

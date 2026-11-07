@@ -41,13 +41,13 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
     description =
       dgettext(
         "marketing",
-        "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
+        "Share a remote build cache across laptops, CI, and coding agents. Tuist reuses compatible outputs from Xcode, Gradle, and Bazel builds to avoid repeated work."
       )
 
     {:noreply,
      socket
      |> assign(:hero_column_count, @hero_column_count)
-     |> assign(:head_title, dgettext("marketing", "Cache · Tuist"))
+     |> assign(:head_title, dgettext("marketing", "Remote build cache for Xcode, Gradle, and Bazel · Tuist"))
      |> assign(:head_twitter_card, "summary_large_image")
      |> assign(
        :head_image,

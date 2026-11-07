@@ -196,8 +196,14 @@ Everything below the PR is a human operation:
      -- nsenter --target 1 --mount --uts --ipc --net --pid -- bash
    ```
 
-   On the host, with `V` the control plane's patch version (for example
-   `1.35.10`):
+   On the host, first run `dpkg --audit`. A half-configured unrelated package
+   makes every `apt-get install` exit 100 even when the requested packages
+   install. We saw this with `openssh-server` after unattended-upgrades,
+   because its postinst can't start `ssh.socket` while the boot-time sshd
+   holds :22. Leave that package alone, and check the result with
+   `dpkg -l kubeadm kubelet kubectl` (`ii` or `hi`) instead of apt's exit code.
+
+   Then, with `V` the control plane's patch version (for example `1.35.10`):
 
    ```bash
    V=1.35.10; MINOR=${V%.*}
@@ -212,12 +218,23 @@ Everything below the PR is a human operation:
    kubeadm upgrade node
    apt-get install -y kubelet="$V-*" kubectl="$V-*"
    apt-mark hold kubelet kubeadm kubectl
-   systemctl daemon-reload && systemctl restart kubelet
    # The reservations and eviction thresholds are flags in kubeadm-flags.env;
    # both files should come back unchanged apart from version-specific defaults.
+   # On 1.35, kubeadm drops --pod-infra-container-image (kubelet 1.35 rejects it).
    diff /root/kubeadm-flags.env /var/lib/kubelet/kubeadm-flags.env
    diff /root/config.yaml /var/lib/kubelet/config.yaml
+   dpkg -l kubeadm kubelet kubectl
+   systemctl daemon-reload
+   # The debug shell's exec stream runs through this kubelet, so a direct
+   # restart cuts it mid-command. Restart a few seconds after returning.
+   systemd-run --on-active=3 --unit=tuist-kubelet-restart systemctl restart kubelet
    ```
+
+   Expected noise: `kubeadm upgrade node` warns that it can't read the
+   `kube-proxy` ConfigMap, because the node identity has no access to it.
+   The node keeps the `node.cluster.x-k8s.io/outdated-revision:PreferNoSchedule`
+   taint, because its Machine stays on the old MachineSet. The kubelet log's
+   "Nameserver limits exceeded" errors predate the upgrade.
 
    Exit the debug shell, delete the debug pod (`kubectl get pods | grep node-debugger`),
    and then:
@@ -228,16 +245,28 @@ Everything below the PR is a human operation:
    ```
 
    Wait for that ClickHouse pod to be Ready again. It restarts on its own
-   data and only catches up on the writes it missed.
+   data and only catches up on the writes it missed. Before the next box,
+   check in both pods (`clickhouse-client --password "$TUIST_CLICKHOUSE_PASSWORD"`):
+   - In `system.replicas`, no table is `is_readonly`, `absolute_delay` is 0
+     and `active_replicas` equals `total_replicas`.
+   - `system.replication_queue` has no entries with `last_exception`.
+   - Per-table `sum(rows)` over active `system.parts` agrees between the two
+     pods. Small gaps from live inserts close within a minute.
+     `last_queue_update_exception` keeps the last Keeper error after
+     recovery, so a stale value there is not a failure.
 4. Repeat step 3 for the other box. Never start it before the first replica
    is Ready.
-5. On the management cluster, record the version on both Machines:
+5. On the management cluster, record the version on both Machines. Without
+   `KUBECONFIG`, kubectl falls back to `localhost:8080`:
 
    ```bash
+   export KUBECONFIG=$(mktemp)
+   op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt > "$KUBECONFIG"
    for m in $(kubectl -n org-tuist get machines \
        -l cluster.x-k8s.io/cluster-name=<cluster>,topology.cluster.x-k8s.io/deployment-name=md-clickhouse -o name); do
      kubectl -n org-tuist patch "$m" --type merge -p '{"spec":{"version":"v1.35.10"}}'
    done
+   rm -f "$KUBECONFIG"; unset KUBECONFIG
    ```
 
    The next `topology.version` bump is then accepted.

@@ -49,7 +49,7 @@ defmodule TuistWeb.LayoutComponents do
   defp default_description do
     dgettext(
       "dashboard",
-      "Tuist is build infrastructure for productive teams, integrating into the build toolchains they already use."
+      "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
     )
   end
 

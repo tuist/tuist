@@ -133,7 +133,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/AGENTS") == nil
   end
 
-  test "problem and comparison discovery metadata derives from Markdown-only guides" do
+  test "problem and comparison discovery metadata derives from the authored guides" do
     assert Enum.map(MarketingMarkdown.decision_guides(), & &1.path) ==
              Enum.sort(
                [
@@ -154,6 +154,19 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert MarketingMarkdown.get("/compare/index") == nil
     assert MarketingMarkdown.get("/solutions/AGENTS") == nil
     assert MarketingMarkdown.get("/compare/AGENTS") == nil
+  end
+
+  test "homepage and cache guides qualify toolchain support" do
+    home = MarketingMarkdown.get("/")
+    cache = MarketingMarkdown.get("/cache")
+
+    assert home =~ "Elixir"
+    assert home =~ "remote cache"
+    assert home =~ "Once support is in canary"
+    assert home =~ "Rust compilation caching is experimental"
+    refute home =~ "Tuist does not provide remote build caching"
+    assert cache =~ "same-machine restrictions"
+    assert cache =~ "dependency caching"
   end
 
   test "build-system guides distinguish native capabilities, Tuist infrastructure, and availability" do
@@ -330,7 +343,7 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
   test "comparisons retain researched overlaps and integration-specific qualifications" do
     codemagic = MarketingMarkdown.get("/compare/codemagic")
     assert codemagic =~ "CompilationCache.noindex"
-    assert codemagic =~ "Do not say Codemagic lacks compilation caching"
+    assert codemagic =~ "Codemagic does offer compilation caching"
 
     depot = MarketingMarkdown.get("/compare/depot")
     assert depot =~ "local workstations is not supported yet"
@@ -388,11 +401,24 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert home =~ "For Elixir"
     assert home =~ "Xcode compilation outputs"
     assert home =~ "not the scope of the build and test platform"
+
+    for path <- [
+          "/",
+          "/build-systems/elixir",
+          "/solutions/ci-costs",
+          "/compare",
+          "/compare/appcircle",
+          "/compare/runs-on"
+        ] do
+      markdown = MarketingMarkdown.get(path)
+      assert markdown =~ "compiled dependencies", path
+      assert markdown =~ ~r/[Aa]pplication source files/, path
+    end
   end
 
   test "billing comparisons cite units, scope, exceptions, and Tuist's own metering" do
     overview = MarketingMarkdown.get("/compare")
-    assert overview =~ "## Billing and incentives"
+    assert overview =~ "## Compare total costs"
     assert overview =~ "included allowances and fixed commitments"
     assert overview =~ "per-build charge for Docker builds"
     assert overview =~ "per-second/vCPU metering for Depot CI"
@@ -400,8 +426,8 @@ defmodule TuistWeb.Utilities.MarketingMarkdownTest do
     assert overview =~ "Hosted-agent vCPU minutes"
     assert overview =~ "annual license tiers"
     assert overview =~ "rather than a universal per-build fee"
-    assert overview =~ "do not prove that a provider deliberately keeps builds slow"
-    assert overview =~ "Tuist itself has"
+    assert overview =~ "Several providers also offer project-level acceleration"
+    assert overview =~ "Tuist has"
 
     for url <- [
           "https://namespace.so/pricing",

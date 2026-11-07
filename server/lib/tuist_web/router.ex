@@ -291,6 +291,9 @@ defmodule TuistWeb.Router do
   pipeline :browser_marketing_feed do
     plug :put_request_kind, "marketing_feed"
     plug :accepts, ["xml"]
+    # Feeds and project sitemaps skip Cloudflare's bot challenge, so the
+    # public-pages rate limit has to count them through this header.
+    plug :mark_public_marketing_page
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
   end
 
@@ -618,6 +621,14 @@ defmodule TuistWeb.Router do
           metadata: @marketing_route_metadata,
           private: private
     end
+
+    # Problem, comparison, and build-system guides are authored in English only,
+    # so they have no localized routes.
+    for guide_path <- TuistWeb.Utilities.MarketingMarkdown.guide_page_paths() do
+      get guide_path, MarketingController, :guide,
+        metadata: @marketing_route_metadata,
+        private: %{locale: "en"}
+    end
   end
 
   # The newsletter forms are submitted from cached marketing pages whose
@@ -919,6 +930,12 @@ defmodule TuistWeb.Router do
         post "/", SandboxesController, :create
         get "/:sandbox_id", SandboxesController, :show
         post "/:sandbox_id/exec", SandboxesController, :exec
+        post "/:sandbox_id/commands", SandboxesController, :start_command
+        get "/:sandbox_id/commands", SandboxesController, :index_commands
+        get "/:sandbox_id/commands/:command_id", SandboxesController, :show_command
+        get "/:sandbox_id/commands/:command_id/logs", SandboxesController, :stream_command_logs
+        post "/:sandbox_id/commands/:command_id/stdin", SandboxesController, :write_command_stdin
+        post "/:sandbox_id/commands/:command_id/cancel", SandboxesController, :cancel_command
         post "/:sandbox_id/pause", SandboxesController, :pause
         post "/:sandbox_id/resume", SandboxesController, :resume
         post "/:sandbox_id/archive", SandboxesController, :archive

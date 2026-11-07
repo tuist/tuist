@@ -28,12 +28,12 @@ defmodule TuistWeb.Marketing.MarketingPreviewsLive do
     description =
       dgettext(
         "marketing",
-        "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
+        "Share iOS and Android app builds from a link. Run them on compatible simulators, emulators, or devices, subject to platform and signing requirements."
       )
 
     {:noreply,
      socket
-     |> assign(:head_title, dgettext("marketing", "Previews · Tuist"))
+     |> assign(:head_title, dgettext("marketing", "Share iOS and Android app previews from a link · Tuist"))
      |> assign(:head_twitter_card, "summary_large_image")
      |> assign(
        :head_image,

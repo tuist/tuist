@@ -133,6 +133,15 @@ defmodule Tuist.Sandboxes.Query do
        "The account has reached its sandbox CPU or memory limit. Pause a sandbox before starting more work."}
 
   def error(:sandbox_account_busy), do: {:conflict, "Another sandbox admission is in progress. Retry shortly."}
+  def error(:busy), do: {:conflict, "An agent turn or another command is running in the sandbox."}
+
+  def error(:invalid_command),
+    do:
+      {:bad_request,
+       "Invalid command: it needs a non-empty command, string arguments, environment names of letters, digits and underscores, and stdin data of at most 256 KiB in base64."}
+
+  def error(:stdin_not_attached), do: {:conflict, "The command was not started with stdin attached."}
+  def error(:stdin_closed), do: {:conflict, "The command's stdin is closed."}
   def error(:locked), do: {:conflict, "Another operation on the sandbox is in progress."}
   def error(:no_capacity), do: {:service_unavailable, "No sandbox node has memory or disk left for this sandbox."}
 

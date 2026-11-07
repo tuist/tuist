@@ -220,6 +220,11 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "@context" => "https://schema.org",
       "@type" => "Organization",
       "name" => "Tuist",
+      "description" =>
+        dgettext(
+          "marketing",
+          "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
+        ),
       "url" => Tuist.Environment.app_url(),
       "logo" => Tuist.Environment.app_url(path: "/images/tuist_social.jpeg"),
       "sameAs" => [
@@ -259,7 +264,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "description" =>
         dgettext(
           "marketing",
-          "Tuist is build infrastructure for productive teams. It integrates into existing build toolchains to share a binary cache across machines and CI, run only the tests a change can affect, track flaky tests, and share app previews from a URL."
+          "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
         ),
       "image" => Tuist.Environment.app_url(path: "/images/open-graph/squared.png"),
       "publisher" => get_organization_structured_data(),

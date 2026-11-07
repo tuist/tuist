@@ -4,7 +4,7 @@ Choose Tuist when its Xcode, Gradle, Bazel, and Elixir integrations fit your dev
 
 ## What overlaps
 
-Develocity documents [Universal Cache](https://develocity.ai/product/universal-cache/), [Predictive Test Selection](https://develocity.ai/product/predictive-test-selection/), [Test Distribution](https://develocity.ai/product/test-distribution/), [flaky-test detection](https://develocity.ai/product/flaky-tests-detection/), and [MCP servers](https://develocity.ai/product/mcp-servers/). Its [build-system overview](https://develocity.ai/product/build-systems-package-managers/) describes Build Scan instrumentation across multiple ecosystems. Do not claim that toolchain insight, local/CI acceleration, or agent access is unique to Tuist.
+Develocity documents [Universal Cache](https://develocity.ai/product/universal-cache/), [Predictive Test Selection](https://develocity.ai/product/predictive-test-selection/), [Test Distribution](https://develocity.ai/product/test-distribution/), [flaky-test detection](https://develocity.ai/product/flaky-tests-detection/), and [MCP servers](https://develocity.ai/product/mcp-servers/). Its [build-system overview](https://develocity.ai/product/build-systems-package-managers/) describes Build Scan instrumentation across multiple ecosystems. Toolchain insight, local/CI acceleration, and agent access are not unique to Tuist.
 
 The important distinctions are the integration and execution mechanisms. Develocity's predictive selection learns from build history; Tuist's current selective testing hashes the generated Xcode project graph to skip unchanged test targets. Those are not interchangeable approaches or equivalent support matrices.
 

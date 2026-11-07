@@ -1,6 +1,6 @@
 # Problem-focused marketing guides
 
-These English sources are Markdown-only at `/marketing-markdown/solutions/<slug>`. They do not have standalone browser pages, browser-navigation links, or sitemap entries. Follow the parent `AGENTS.md` for delivery and measurement.
+These English sources are served at `/marketing-markdown/solutions/<slug>` and as English-only browser pages at `/solutions/<slug>`. Follow the parent `AGENTS.md` for delivery and measurement.
 
 - Lead with how Tuist addresses the user's symptom and the supported Tuist adoption path, then explain diagnostic measurements. Map interventions to documented features and toolchain requirements; do not turn troubleshooting advice into competitor recommendations.
 - Make project optimization first and execution-environment optimization second explicit. Use Gradle, Bazel, and Elixir examples as well as Xcode, preserve actual support limits, and distinguish project repair from capacity, locality, and parallelism changes. Cost guidance links to sourced billing units and includes Tuist's own charges, allowances, and fixed-fee exceptions.
@@ -9,4 +9,4 @@ These English sources are Markdown-only at `/marketing-markdown/solutions/<slug>
 - Agent examples must name tools present in the MCP documentation and distinguish reading evidence from authorized writes. Mention separate integration authentication when relevant.
 - Cost guidance must use measured total usage and current commercial terms, not guaranteed savings. Link the live pricing table for runner rates instead of restating them.
 - The marketing maintainers own these guides. Review them alongside changes to linked feature guides; review the complete set quarterly.
-- New files automatically enter the Markdown discovery inventory. Update inventory assertions and test explicit Markdown delivery, English-only content, exclusion from browser routes/navigation and sitemap, and `/llms.txt` discovery.
+- New files automatically enter the Markdown discovery inventory. Update inventory assertions and test explicit Markdown delivery, the English-only browser page and sitemap entry, and `/llms.txt` discovery.

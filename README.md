@@ -19,7 +19,7 @@
 
 # Tuist
 
-Tuist supercharges your build system, whether you build with Xcode, Gradle, or Bazel. At its core, our cache reuses previously-built artifacts across environments to dramatically speed up your builds, and a suite of tools around it helps you keep them fast, reliable, and observable as you scale.
+Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental.
 
 The following solutions are part of Tuist:
 

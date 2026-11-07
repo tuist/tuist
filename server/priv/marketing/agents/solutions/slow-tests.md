@@ -28,7 +28,7 @@ If a suite has a few intrinsically slow tests, changing fixtures or test boundar
 
 An agent connected to the [Tuist MCP server](/en/docs-markdown/guides/features/agentic-coding/mcp) can use `list_test_cases` and `get_test_case` for duration history, then `list_test_case_runs` and `get_test_case_run` to examine individual attempts. Ask it to distinguish consistently slow tests from retry-driven time, and propose one measurable change.
 
-The agent should check the toolchain support matrix before recommending selective testing or sharding. Reading metrics does not itself modify tests or configure CI. For a compilation-heavy job, follow the [slow-build investigation](/marketing-markdown/solutions/slow-builds) too.
+Check the toolchain support matrix before relying on selective testing or sharding. Reading metrics does not itself modify tests or configure CI. For a compilation-heavy job, follow the [slow-build investigation](/marketing-markdown/solutions/slow-builds) too.
 
 ## First experiment
 

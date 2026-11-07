@@ -4,7 +4,7 @@ Choose Tuist when the priority is understanding and reducing supported build and
 
 ## What overlaps
 
-[RunsOn](https://runs-on.com/docs/) manages ephemeral GitHub Actions runners in the customer's AWS account. Its [Magic Cache](https://runs-on.com/docs/performance/caching/) changes the Actions cache backend to S3 in that account, while preserving compatible workflow cache actions. It is not just a cheaper machine without caching.
+[RunsOn](https://runs-on.com/docs/) manages ephemeral GitHub Actions runners in the customer's AWS account. Its [Magic Cache](https://runs-on.com/docs/performance/caching/) changes the Actions cache backend to S3 in that account, while preserving compatible workflow cache actions.
 
 Its [pricing](https://runs-on.com/pricing/) separates an annual license, tiered by runner volume, from infrastructure billed directly by AWS. RunsOn states it does not add per-minute markup; do not categorize that license as a runtime-metered fee.
 
@@ -33,6 +33,6 @@ Sources checked on **2026-10-08**: [RunsOn documentation](https://runs-on.com/do
 
 ## Limitations
 
-Platform support and commercial terms change. Customer-owned infrastructure still needs operational ownership. Tuist's Elixir integration provides insights, not remote build caching, and selective testing requires generated Xcode projects. Public source does not imply unrestricted server self-hosting. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No cheapest-runner claim is made.
+Platform support and commercial terms change. Customer-owned infrastructure still needs operational ownership. Tuist's Elixir cache reuses supported compiled dependencies rather than application source files, and selective testing requires generated Xcode projects. Public source does not imply unrestricted server self-hosting. Tuist Runners are invite-only; their per-minute rates are on the [pricing page](/pricing), with discounts for yearly commitments and volume, so a listed rate is not a quote. No cheapest-runner claim is made.
 
 Related: [Cirun](/marketing-markdown/compare/cirun), [Ubicloud](/marketing-markdown/compare/ubicloud), and [all comparisons](/marketing-markdown/compare).

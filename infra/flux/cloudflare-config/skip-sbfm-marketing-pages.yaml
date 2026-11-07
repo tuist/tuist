@@ -1,0 +1,64 @@
+# Lets clients that Cloudflare cannot verify read the public marketing
+# site: agent web-fetch tools (Claude Code, Codex, Cursor, Amp), AI
+# assistants' user-initiated fetchers, link unfurlers and SEO tools. Without
+# it, Super Bot Fight Mode's "definitely automated" bucket serves them a
+# "Just a moment..." interstitial on /, /pricing, /blog and the product
+# pages, while docs, /llms.txt and /marketing-markdown already pass through
+# skip-sbfm-api-paths.yaml. An agent asked to compare Tuist's pricing or
+# product pages then answers from third-party pages instead.
+#
+# This is a separate rule because adding these paths to
+# skip-sbfm-api-paths.yaml would push that expression towards Cloudflare's
+# 4096-character expression limit.
+#
+# Scope: GET and HEAD, and only marketing routes from
+# server/lib/tuist_web/router.ex that render published content (the
+# browser marketing pages, feeds, legacy redirects and the project sitemaps).
+# The public-pages rate limit counts GET responses marked x-tuist-public,
+# but not HEAD, docs, or every possible prefix fallthrough. Resolve this
+# protection gap before activating the rule. /globe is left out.
+#
+# Two-segment localized pages such as /es/pricing and /customers/<slug>
+# already pass through the project-root clause of skip-sbfm-api-paths.yaml,
+# as do the English decision guides /compare/<provider>,
+# /solutions/<slug> and /build-systems/<slug>. /compare and /build-systems
+# come with those guide pages; activate this rule only once they are
+# deployed, since until then /compare and /build-systems resolve as
+# account pages.
+# Localized case studies (/es/customers/<slug>) stay challenged: `es` and
+# `customers` are both valid handles, so that prefix could match a project
+# dashboard.
+#
+# Broad blog, changelog and newsletter prefixes are deliberately omitted,
+# including localized ones: historical project names have not been audited.
+# The sitemap clause only matches single-segment XML names under the reserved
+# project handle projects. Articles and newsletter issues may remain challenged.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareCustomRule
+metadata:
+  name: skip-sbfm-marketing-pages
+spec:
+  zoneId: 4421110085237b867a891bd0a40da106
+  description: "Skip SBFM on public marketing pages"
+  expression: |-
+    http.host eq "tuist.dev" and
+    http.request.method in {"GET" "HEAD"} and
+    (
+      http.request.uri.path in {"/" "/about" "/blog" "/brand" "/cache" "/changelog" "/compute" "/customers" "/download" "/newsletter" "/previews" "/pricing" "/tests" "/community" "/cookies" "/data-act-addendum" "/data-processing-addendum" "/imprint" "/longevity" "/openness" "/privacy" "/security" "/service-level-addendum" "/terms" "/trademark-guidelines" "/compare" "/build-systems" "/case-studies" "/flaky-tests" "/test-insights" "/rss.xml" "/sitemap-projects.xml" "/ar" "/es" "/ja" "/ka" "/ko" "/ru" "/tr" "/yue_Hant" "/zh_Hans" "/zh_Hant"} or
+      http.request.uri.path in {"/blog/rss.xml" "/changelog/atom.xml"} or
+      (starts_with(http.request.uri.path, "/sitemaps/projects/") and
+       ends_with(http.request.uri.path, ".xml") and
+       not http.request.uri.path wildcard "/sitemaps/projects/*/*")
+    )
+  action: skip
+  actionParameters:
+    phases:
+      - http_request_sbfm
+  enabled: true
+  # New rule: stays read_only until the operator reports the expected
+  # proposed create and the server changes that mark feeds and project
+  # sitemaps public and add the /compare and /build-systems guide pages are
+  # deployed. Activate it in a separate change.
+  mode: read_only
+  createNewRule: true
+  retainOnDelete: false
