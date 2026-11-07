@@ -44,6 +44,13 @@ beside `policy.json` into a build stage):
   Symlinks, file metadata, JKS/PKCS12 format and passwordless PKCS12 readability
   are preserved. Private/enterprise CA anchors remain; stores containing private
   keys are refused without modification. This is not an identity migration tool.
+- `bash macos-guest-trust.sh`: the macOS Tart guest step shared by the runner and
+  xcresult processor Packer templates. It expects `pem-store.sh`, `policy.json`
+  and the `controls/` fixtures uploaded to the `/tmp` paths those templates use,
+  and the guest's `admin` password to be `admin`. It denies the affected system
+  roots and checks the native verifier, then filters `/etc/ssl/cert.pem` and the
+  Homebrew CA bundle. `macos_guest_trust_test.go` fails if either template inlines
+  this step again or if either image stops releasing when the script changes.
 
 PEM tools need Bash (including macOS system Bash), OpenSSL and awk plus standard
 Unix utilities. Java tools also need `keytool`, `realpath` and `stat`. No Python,
@@ -58,7 +65,7 @@ From this directory, with Go 1.26.10, OpenSSL and JDK 21 on PATH:
 ```sh
 GOWORK=off GOTOOLCHAIN=local TRUST_EXPECTED_GO_SDK=go1.26.10 go test -count=1 ./...
 GOWORK=off GOTOOLCHAIN=local TRUST_EXPECTED_GO_SDK=go1.26.10 go run .
-bash -n pem-store.sh && bash -n java-store.sh
+bash -n pem-store.sh && bash -n java-store.sh && bash -n macos-guest-trust.sh
 ```
 
 `verify-go.go` checks eight distinct, cryptographically valid intermediate-key
