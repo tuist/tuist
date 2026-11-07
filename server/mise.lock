@@ -165,6 +165,19 @@ url = "https://get.helm.sh/helm-v3.16.3-darwin-amd64.tar.gz"
 checksum = "sha256:2acc9f8b7943073a9bdadd3f85beee899a874c2df0906253397333f6d81bfdc8"
 url = "https://get.helm.sh/helm-v3.16.3-windows-amd64.tar.gz"
 
+[[tools."http:chrome-for-testing"]]
+version = "157.0.8103.38"
+backend = "http:chrome-for-testing"
+
+[tools."http:chrome-for-testing".options]
+strip_components = "1"
+
+[tools."http:chrome-for-testing"."platforms.macos-arm64"]
+url = "https://storage.googleapis.com/chrome-for-testing-public/157.0.8103.38/mac-arm64/chrome-mac-arm64.zip"
+
+[tools."http:chrome-for-testing"."platforms.macos-x64"]
+url = "https://storage.googleapis.com/chrome-for-testing-public/157.0.8103.38/mac-x64/chrome-mac-x64.zip"
+
 [[tools.kubectl]]
 version = "1.31.3"
 backend = "aqua:kubernetes/kubernetes/kubectl"

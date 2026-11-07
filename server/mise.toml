@@ -40,6 +40,19 @@ macos-x64 = { asset_pattern = "minio.darwin-amd64.RELEASE.*Z" }
 linux-x64 = { asset_pattern = "minio.linux-amd64.RELEASE.*Z" }
 linux-arm64 = { asset_pattern = "minio.linux-arm64.RELEASE.*Z" }
 
+# Chrome for Testing renders Open Graph images in dev. Google Chrome clones its
+# whole app bundle on every launch and only deletes the clone on a clean exit,
+# which the browser pool's kill never gives it; Chrome for Testing has no clone.
+[tools."http:chrome-for-testing"]
+version = "157.0.8103.38"
+os = ["macos"]
+strip_components = 1
+bin_path = "Google Chrome for Testing.app/Contents/MacOS"
+
+[tools."http:chrome-for-testing".platforms]
+macos-arm64 = { url = "https://storage.googleapis.com/chrome-for-testing-public/{{version}}/mac-arm64/chrome-mac-arm64.zip" }
+macos-x64 = { url = "https://storage.googleapis.com/chrome-for-testing-public/{{version}}/mac-x64/chrome-mac-x64.zip" }
+
 [tools."github:ClickHouse/ClickHouse"]
 version = "26.1.2.11-stable"
 version_prefix = "v"

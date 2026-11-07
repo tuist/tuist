@@ -110,18 +110,26 @@ defmodule Tuist.OpenGraphImageRenderer do
     end
   end
 
-  defp find_chrome(nil), do: Enum.find(chrome_candidates(), &chrome_executable?/1)
+  defp find_chrome(nil), do: Enum.find_value(chrome_candidates(), &resolve_chrome/1)
+  defp find_chrome(path), do: resolve_chrome(path)
 
-  defp find_chrome(path) do
-    if chrome_executable?(path), do: path
+  defp resolve_chrome(path) do
+    cond do
+      executable = System.find_executable(path) -> executable
+      File.exists?(path) -> path
+      true -> nil
+    end
   end
 
   # Mirrors the private lookup in `BrowseChrome.Chrome`, which the pool would
-  # otherwise run in every worker init.
+  # otherwise run in every worker init. Chrome for Testing (on PATH through
+  # server/mise.toml) comes first because Google Chrome leaves a clone of its
+  # app bundle behind every time the pool kills it.
   defp chrome_candidates do
     case :os.type() do
       {:unix, :darwin} ->
         [
+          "Google Chrome for Testing",
           "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
           "/Applications/Chromium.app/Contents/MacOS/Chromium",
           "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"
@@ -131,8 +139,6 @@ defmodule Tuist.OpenGraphImageRenderer do
         ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"]
     end
   end
-
-  defp chrome_executable?(path), do: not is_nil(System.find_executable(path)) or File.exists?(path)
 
   # In the release image this points at the `og-chromium` wrapper, which gives
   # Chromium a writable HOME so `--headless=new` can bind its DevTools port.
