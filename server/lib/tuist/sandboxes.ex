@@ -680,7 +680,9 @@ defmodule Tuist.Sandboxes do
         with_fresh(sandbox_id, fn
           %Sandbox{state: :running, residency_work_id: nil} = sandbox
           when is_nil(epoch) or sandbox.residency_epoch == epoch ->
-            do_pause(sandbox)
+            # An agent turn can take over the residency of running commands;
+            # the commands still keep the sandbox up when that turn ends.
+            if commands_running?(sandbox), do: {:ok, :skipped}, else: do_pause(sandbox)
 
           %Sandbox{} ->
             {:ok, :skipped}
@@ -688,6 +690,10 @@ defmodule Tuist.Sandboxes do
       end,
       wait: Keyword.get(opts, :wait, true)
     )
+  end
+
+  defp commands_running?(%Sandbox{id: id}) do
+    Repo.exists?(from(c in Tuist.Sandboxes.SandboxCommand, where: c.sandbox_id == ^id and c.status == :running))
   end
 
   # Every pause flushes the guest's page cache first: an archive or disk
@@ -840,6 +846,7 @@ defmodule Tuist.Sandboxes do
       node_call(sandbox, "exec", args, timeout: timeout_ms + @exec_timeout_slack_ms, on_stream: on_stream)
 
     {stdout, stderr} = drain_output(ref)
+    {stdout, stderr} = if Keyword.get(opts, :raw_output), do: {stdout, stderr}, else: {utf8(stdout), utf8(stderr)}
     Process.delete({ref, :stdout})
     Process.delete({ref, :stderr})
 
@@ -876,18 +883,18 @@ defmodule Tuist.Sandboxes do
 
   # Everything for `ref` is already queued once the call returns, so a
   # non-blocking drain collects it all. Output is bytes; the API returns
-  # strings, so invalid UTF-8 (binary output, or a cut through a
-  # multi-byte character) is replaced.
+  # strings, so unless the caller asks for `raw_output`, invalid UTF-8
+  # (binary output, or a cut through a multi-byte character) is replaced.
   defp drain_output(ref, stdout \\ [], stderr \\ []) do
     receive do
       {^ref, :stdout, data} -> drain_output(ref, [stdout, data], stderr)
       {^ref, :stderr, data} -> drain_output(ref, stdout, [stderr, data])
     after
-      0 ->
-        {stdout |> IO.iodata_to_binary() |> String.replace_invalid(),
-         stderr |> IO.iodata_to_binary() |> String.replace_invalid()}
+      0 -> {IO.iodata_to_binary(stdout), IO.iodata_to_binary(stderr)}
     end
   end
+
+  defp utf8(output), do: String.replace_invalid(output)
 
   def start_worker(%Sandbox{state: :running, node_name: node_name} = sandbox, env)
       when is_binary(node_name) and is_map(env) do
@@ -929,6 +936,74 @@ defmodule Tuist.Sandboxes do
          ) do
       {1, [sandbox]} -> {:ok, sandbox}
       {0, []} -> {:error, :not_running}
+    end
+  end
+
+  @doc """
+  Records `work_id` as the residency of a running sandbox, under the same
+  admission as a turn, when the sandbox has none; answers the sandbox as is
+  when `work_id` already holds it, so several users can share one residency
+  (`Tuist.Sandboxes.Commands`). Answers `{:error, :busy}` when another
+  residency, such as an agent turn or an Orb, holds the sandbox.
+  """
+  def begin_shared_residency(%Sandbox{id: id} = sandbox, work_id) when is_binary(work_id) do
+    timestamp = now()
+    held = from(s in Sandbox, where: s.id == ^id and s.state == :running and s.residency_work_id == ^work_id, select: s)
+
+    # Joining a residency that already holds the sandbox needs no admission:
+    # the sandbox's memory is already counted.
+    case Repo.update_all(held, set: [last_active_at: timestamp, updated_at: timestamp]) do
+      {1, [sandbox]} -> {:ok, sandbox}
+      {0, []} -> admit_shared_residency(sandbox, work_id)
+    end
+  end
+
+  defp admit_shared_residency(%Sandbox{id: id} = sandbox, work_id) do
+    Capacity.admit_turn(sandbox, fn ->
+      timestamp = now()
+
+      query =
+        from(s in Sandbox, where: s.id == ^id and s.state == :running and is_nil(s.residency_work_id), select: s)
+
+      case Repo.update_all(query,
+             set: [residency_work_id: work_id, last_active_at: timestamp, updated_at: timestamp],
+             inc: [residency_epoch: 1]
+           ) do
+        {1, [sandbox]} ->
+          {:ok, sandbox}
+
+        {0, []} ->
+          case Repo.get(Sandbox, id) do
+            %Sandbox{state: :running, residency_work_id: ^work_id} = sandbox -> {:ok, sandbox}
+            %Sandbox{state: :running} -> {:error, :busy}
+            %Sandbox{state: state} -> {:error, {:invalid_state, state}}
+            nil -> {:error, :not_found}
+          end
+      end
+    end)
+  end
+
+  @doc """
+  Ends the residency only while `work_id` still holds it, then schedules the
+  idle pause as `end_residency/1` does. A late call for an earlier residency
+  leaves a newer one alone.
+  """
+  def end_residency(sandbox_id, work_id) when is_binary(sandbox_id) and is_binary(work_id) do
+    timestamp = now()
+    query = from(s in Sandbox, where: s.id == ^sandbox_id and s.residency_work_id == ^work_id, select: s)
+
+    case Repo.update_all(query,
+           set: [residency_work_id: nil, last_active_at: timestamp, updated_at: timestamp],
+           inc: [residency_epoch: 1]
+         ) do
+      {1, [%Sandbox{state: :running} = updated]} ->
+        with {:ok, _job} <- schedule_pause(updated), do: {:ok, updated}
+
+      {1, [updated]} ->
+        {:ok, updated}
+
+      {0, []} ->
+        :ok
     end
   end
 
