@@ -128,10 +128,12 @@ defmodule Atlas.MixProject do
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": [
         "cmd --cd ../noora aube install",
+        "cmd --cd assets npm ci --ignore-scripts",
         "esbuild.install --if-missing"
       ],
       "assets.build": [
         "cmd --cd ../noora aube run build",
+        "cmd --cd assets npm run build:labels",
         "compile",
         "esbuild atlas"
       ],

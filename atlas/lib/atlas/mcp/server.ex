@@ -247,6 +247,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListTuistPostgresTables
   alias Atlas.MCP.Tools.ListUpcomingRenewals
   alias Atlas.MCP.Tools.ManageAccountConnections
+  alias Atlas.MCP.Tools.ManageLabelSession
   alias Atlas.MCP.Tools.MarkAccountNotAccount
   alias Atlas.MCP.Tools.MarkAssetInRepair
   alias Atlas.MCP.Tools.MarkAssetLost
@@ -448,6 +449,7 @@ defmodule Atlas.MCP.Server do
     ListAccountIncidentContacts
   ]
   @hardware_tools [
+    ManageLabelSession,
     ListAssets,
     GetAsset,
     ListAssetFinancings,
@@ -910,7 +912,7 @@ defmodule Atlas.MCP.Server do
 
   @static_tools @static_tools ++
                   @automation_read_tools ++
-                  @automation_write_tools ++ @error_alert_read_tools ++ @error_alert_write_tools
+                  @automation_write_tools ++ @error_alert_read_tools ++ @error_alert_write_tools ++ [ManageLabelSession]
 
   def static_tools, do: @static_tools
 
@@ -1054,6 +1056,8 @@ defmodule Atlas.MCP.Server do
        when module in [ListCodingRepositories, UpdateCodingRepositorySettings],
        do: CodingRepositories.allowed_context?(conn)
 
+  defp personal_connection_tool_allowed?(conn, ManageLabelSession), do: ManageLabelSession.allowed_context?(conn)
+
   defp personal_connection_tool_allowed?(conn, module) when module in [GetMyBusinessProfile, UpdateMyBusinessProfile],
     do: BusinessProfile.allowed_context?(conn)
 
@@ -1171,7 +1175,7 @@ defmodule Atlas.MCP.Server do
   end
 
   defp audit_arguments(name, _arguments)
-       when name in ~w(create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login search_my_gmail get_my_gmail_message get_my_gmail_draft create_my_gmail_draft update_my_gmail_draft send_my_gmail_draft search_my_slack),
+       when name in ~w(manage_label_session create_signal_source ingest_signal decide_signal update_my_business_profile update_coding_repository_settings save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login search_my_gmail get_my_gmail_message get_my_gmail_draft create_my_gmail_draft update_my_gmail_draft send_my_gmail_draft search_my_slack),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments

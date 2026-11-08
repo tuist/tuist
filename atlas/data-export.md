@@ -2,6 +2,43 @@
 
 Atlas's personal LLM connections are separate from Tuist Server customer data and from Atlas's operator-configured inference providers.
 
+## Label printing
+
+`label_sessions` belongs to an Atlas `users.id` through `owner_id` (cascade
+deletion), storing session expiry, a SHA-256 relay capability hash and latest
+relay report: browser client ID, heartbeat, connection claim, printer model/name,
+cartridge, printable zones/dimensions and bounded status/message. `label_jobs`
+belongs to a session (cascade deletion), storing the exact preview PNG in
+PostgreSQL, title/text, preview dimensions, action/state, approved printer/supply/
+zones, approval expiry, dispatch client/time and bounded SDK result. These may
+contain rack/asset identifiers and text supplied by the owner. No object storage
+or Tuist Server account data is added. PNGs are not encrypted separately from
+the existing database/backups.
+
+Sessions expire after eight hours and approvals after ten minutes, but rows are
+not swept on expiry: jobs, images and consumed dispatch history remain until
+owner deletion and follow existing backup retention. An expired session cannot
+read or dispatch. `label.created`, `.submitted`, `.approval_requested`, `.approved`,
+`.dispatched` and `.result` audit events keep actor/interface, session/job IDs and
+dashboard path, not text/images/capabilities. They follow existing audit retention
+and may outlive the owner/session. `mcp.tool_called` omits label tool arguments.
+
+For a verified subject export, select all `label_sessions` by `owner_id`, all
+`label_jobs` by those session IDs, and related `audit_activities` by actor/session
+target (including `manage_label_session` calls). Export metadata as JSON and the
+exact `png` binaries as files; exclude `relay_token_hash` and live credentials.
+MCP session status is not a complete export (expired rows are excluded).
+
+Browser localStorage holds the relay capability per session and Brady SDK
+ownership ID; sessionStorage holds a browser client ID. They remain until browser
+storage is cleared; expired capabilities grant no access. These are device-local
+credentials, not server-exportable personal-data collections. There is no CLI or
+new local credential file. Legacy prototype CLI files/dispatch markers are not
+read, modified or replayed. Operators must handle authorized device-file export
+separately, excluding active credentials.
+SDK analytics are disabled; label images are delivered to the trusted Chrome
+relay and printer over local BLE, not an Atlas-host Bluetooth connection.
+
 ## Managed outbound email delivery
 
 Atlas's managed deployment sends email through SES in Ireland, including support

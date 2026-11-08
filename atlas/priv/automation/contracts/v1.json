@@ -84,6 +84,7 @@
     }
   ],
   "excluded_tools": {
+    "manage_label_session": "Physical printer output and private relay capabilities require owner-specific browser approval and dedicated durable dispatch; they are not generic workflow behaviors.",
     "save_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "check_out_air_gapped_license": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
     "publish_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",

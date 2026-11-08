@@ -270,8 +270,8 @@ jobs:
       - name: Put Once on PATH
         run: dirname "$(mise which once)" >> "$GITHUB_PATH"
 
-      - name: Install PDF text extraction tools
-        run: sudo apt-get update -y && sudo apt-get install -y poppler-utils
+      - name: Install document and label rendering tools
+        run: sudo apt-get update -y && sudo apt-get install -y poppler-utils libvips-tools fonts-dejavu-core
 
       - name: Cache deps
         uses: actions/cache@v6
