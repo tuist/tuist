@@ -2,7 +2,9 @@
 
 Linux x86_64 AppImage and Windows x86_64 per-user NSIS are packaged with
 **cargo-packager 0.11.7**, from native **Once** outputs. The GPUI upgrade needs
-Once's `build_script_sources` support, included in the pinned 0.77.2 release.
+Once's `build_script_sources` support and its build-script debug-assertions fix,
+both included in the pinned 0.77.2 release. The latter enables GPUI's build script
+to generate embedded Windows shaders for optimized builds.
 The existing Swift
 macOS app, DMG release and Sparkle feed are unchanged. macOS is a development
 and graph-qualification host, not a packaging target here.
@@ -61,8 +63,11 @@ declarations with `-C opt-level=3 -C debuginfo=0` on **every first-party target*
 The private graph uses `cargo_dependencies` with the same flags for external
 crates. That schema requires vendored source trees, so `cargo vendor --locked
 --versioned-dirs` only fetches/copies locked source; it never compiles the app.
+Staged sources run `once test --all` before this graph rewrite, with debug
+assertions enabled: GPUI's keyboard/layout tests need its debug-only bounds
+instrumentation. A test failure stops packaging and prints the libtest logs.
 The graph is validated and each first-party flag set is read back before
-`once build cargo_tuist_desktop_bin_Tuist` and `once test --all`. Build scripts
+`once build cargo_tuist_desktop_bin_Tuist`. Build scripts
 receive `OPT_LEVEL=3`, `DEBUG=false`; Once's `PROFILE` remains `debug`, not Cargo's
 release profile. This is an optimized Once build, not a claim of Cargo Release
 profile parity, LTO, stripping, or deterministic/reproducible output.

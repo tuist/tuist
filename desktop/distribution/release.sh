@@ -170,10 +170,10 @@ build() (
         printf '%s\n' "$fmt" > "$root/crates/updater/src/package-kind.txt"
     fi
     export ONCE_CACHE_PROVIDER=local
-    optimize_graph "$root"
+    # GPUI keyboard/layout tests require debug-only bounds instrumentation.
+    # Test the staged sources before switching the graph to shipping flags.
     (
         cd "$root"
-        once build "$BINARY"
         if once test --all; then :; else
             status=$?
             for log in .once/out/*/test/rust-libtest.log; do
@@ -184,6 +184,8 @@ build() (
             exit "$status"
         fi
     )
+    optimize_graph "$root"
+    (cd "$root"; once build "$BINARY")
     name=Tuist
     test "$fmt" != nsis || name=Tuist.exe
     binary=$root/.once/out/$BINARY/$name
