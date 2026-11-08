@@ -1,5 +1,7 @@
 # Tuist: build infrastructure for engineering teams and coding agents
 
+Faster builds. Reliable tests. One platform for your team and coding agents.
+
 Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Shared caching, build and test insights, and app previews connect building, testing, and review, with capabilities and prerequisites that vary by feature.
 
 ## Problem
