@@ -69,6 +69,34 @@ defmodule TuistWeb.API.OIDCAmpControllerTest do
            |> json_response(:forbidden)
 
     assert conn |> exchange(sign(key, %{"project_id" => nil})) |> json_response(:forbidden)
+
+    workspace_subject = %{"sub" => "workspace:#{@workspace_id}"}
+    assert conn |> exchange(sign(key, workspace_subject)) |> json_response(:forbidden)
+  end
+
+  test "requires the subject to name the same workspace and project as the claims", %{
+    conn: conn,
+    key: key,
+    project: project
+  } do
+    {:ok, _} = Accounts.create_amp_workspace_connection(project.account, %{workspace_id: @workspace_id})
+    other_id = "5b3ca4b4-55a2-4d33-9c87-1d0b0f2f3c11"
+
+    assert conn |> exchange(sign(key, %{"sub" => "workspace:#{@workspace_id}"})) |> json_response(:ok)
+
+    assert conn
+           |> exchange(sign(key, %{"sub" => "workspace:#{@workspace_id}:project:#{@project_id}"}))
+           |> json_response(:ok)
+
+    for subject <- [
+          "workspace:#{other_id}:project:#{@project_id}:user:user_1:thread:T-1",
+          "workspace:#{@workspace_id}:project:#{other_id}:user:user_1:thread:T-1",
+          "workspace:#{@workspace_id}#{other_id}",
+          "user:user_1:thread:T-1",
+          nil
+        ] do
+      assert conn |> exchange(sign(key, %{"sub" => subject})) |> json_response(:forbidden)
+    end
   end
 
   test "rejects tokens Amp did not sign", %{conn: conn, other_key: other_key, project: project} do
@@ -142,7 +170,7 @@ defmodule TuistWeb.API.OIDCAmpControllerTest do
       %{
         "iss" => @issuer,
         "aud" => "https://tuist.dev",
-        "sub" => "workspace:#{@workspace_id}:user:user_1:thread:T-1",
+        "sub" => "workspace:#{@workspace_id}:project:#{@project_id}:user:user_1:thread:T-1",
         "exp" => DateTime.to_unix(DateTime.utc_now()) + 600,
         "workspace_id" => @workspace_id,
         "project_id" => @project_id,

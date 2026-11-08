@@ -168,8 +168,28 @@ defmodule Tuist.OIDC do
     end
   end
 
+  # Like Amp's trust recipes, the subject must name the same workspace (and
+  # project) as the custom claims. A subject without a project segment, as
+  # `--subject-scope workspace` mints, proves only the workspace.
   defp amp_identity(claims) do
-    %{amp_workspace_id: amp_uuid(claims["workspace_id"]), amp_project_id: amp_uuid(claims["project_id"])}
+    workspace_id = amp_uuid(claims["workspace_id"])
+    project_id = amp_uuid(claims["project_id"])
+
+    subject = if is_binary(claims["sub"]), do: claims["sub"], else: ""
+
+    case String.split(subject, ":") do
+      ["workspace", ^workspace_id, "project", ^project_id | _] ->
+        %{amp_workspace_id: workspace_id, amp_project_id: project_id}
+
+      ["workspace", ^workspace_id, "project" | _] ->
+        %{amp_workspace_id: nil, amp_project_id: nil}
+
+      ["workspace", ^workspace_id | _] ->
+        %{amp_workspace_id: workspace_id, amp_project_id: nil}
+
+      _ ->
+        %{amp_workspace_id: nil, amp_project_id: nil}
+    end
   end
 
   defp amp_uuid(value) do
