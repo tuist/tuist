@@ -38,6 +38,27 @@ import TuistSimulator
         )
     }
 
+    @Test func profile_project_picker_includes_personal_and_organization_projects() async throws {
+        let subject = subject()
+        given(appStorage).get(.any as Parameter<SelectedProjectFullHandleKey.Type>).willReturn("team/app")
+        given(projectsService).listProjects(serverURL: .any).willReturn([
+            .test(fullName: "personal/app"), .test(fullName: "team/app"), .test(fullName: "other/app"),
+        ])
+        given(previewsService)
+            .listPreviews(
+                displayName: .any, specifier: .any, track: .any, supportedPlatforms: .any,
+                page: .any, pageSize: .any, distinctField: .any, fullHandle: .any, serverURL: .any
+            )
+            .willReturn(.test())
+
+        try await subject.onAppear()
+
+        #expect(subject.projects.map(\.fullName) == ["personal/app", "team/app", "other/app"])
+        #expect(subject.selectedProject?.fullName == "team/app")
+        try await subject.selectProject(.test(fullName: "other/app"))
+        #expect(subject.selectedProject?.fullName == "other/app")
+    }
+
     @Test func selected_organization_filters_projects_and_rejects_cross_organization_selection() async throws {
         let subject = subject(accountName: "team")
         given(appStorage).get(.any as Parameter<SelectedProjectFullHandleKey.Type>).willReturn("other/private")

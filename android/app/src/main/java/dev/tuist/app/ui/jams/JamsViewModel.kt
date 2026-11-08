@@ -74,8 +74,8 @@ constructor(
 
     init {
         viewModelScope.launch {
-            combine(auth.authState, auth.session, flags.enabled) { state, session, enabled ->
-                    ((state as? AuthState.LoggedIn)?.let { session.organization ?: it.account.handle }) to (FeatureFlag.AI in enabled)
+            combine(auth.authState, auth.session, flags.enabled) { state, _, enabled ->
+                    (state as? AuthState.LoggedIn)?.account?.handle to (FeatureFlag.AI in enabled)
                 }
                 .distinctUntilChanged()
                 .collect { (account, enabled) ->

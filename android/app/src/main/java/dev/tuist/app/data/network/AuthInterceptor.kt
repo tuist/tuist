@@ -32,12 +32,11 @@ class AuthInterceptor @Inject constructor(
         val origin = session.origin?.toHttpUrl() ?: request.url
         val path = request.url.pathSegments
         val scopedAccount = when {
-            path.size >= 5 && path.take(2) == listOf("api", "projects") && path[4] == "previews" -> path[2]
             path.size >= 4 && path.take(2) == listOf("api", "accounts") && path[3] == "jams" -> path[2]
             else -> null
         }
         if (discovery == null && scopedAccount != null) {
-            val account = session.organization ?: token?.let { dev.tuist.app.data.auth.JwtParser.parseAccount(it)?.handle }
+            val account = token?.let { dev.tuist.app.data.auth.JwtParser.parseAccount(it)?.handle }
             if (account != null && scopedAccount != account) throw java.io.IOException("Organization changed")
         }
 

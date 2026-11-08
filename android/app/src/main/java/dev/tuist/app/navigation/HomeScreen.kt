@@ -64,34 +64,27 @@ fun HomeScreen(navigation: AppNavigationViewModel, authState: AuthState) {
         navigation.consume(url)
     }
     val profilesViewModel: ProfilesViewModel = hiltViewModel()
-    val choices by profilesViewModel.choices.collectAsStateWithLifecycle()
+    val profiles by profilesViewModel.auth.profiles.collectAsStateWithLifecycle()
     val loading by profilesViewModel.loading.collectAsStateWithLifecycle()
     val failed by profilesViewModel.failed.collectAsStateWithLifecycle()
     val session by profilesViewModel.auth.session.collectAsStateWithLifecycle()
     var choosing by remember { mutableStateOf(false) }
     val chooserLabel = stringResource(R.string.profiles_title)
 
-    LaunchedEffect(Unit) { profilesViewModel.load() }
-    LaunchedEffect(choosing) { if (choosing) profilesViewModel.load() }
     if (choosing) AlertDialog(
         onDismissRequest = { choosing = false; profilesViewModel.cancelSelection() },
         title = { Text(chooserLabel) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                if (loading) Text(stringResource(R.string.organizations_loading))
-                if (failed || choices.incomplete) Text(stringResource(R.string.organizations_failed))
-                choices.organizations.forEach { choice ->
-                    val active = choice.origin == session.origin && choice.logins.any { it.id == session.profileId } &&
-                        (if (choice.personal) session.organization == null else choice.name == session.organization)
+                if (loading) Text(stringResource(R.string.profiles_switching))
+                if (failed) Text(stringResource(R.string.profiles_switch_failed))
+                profiles.forEach { profile ->
+                    val active = profile.id == session.profileId
                     TextButton(enabled = !loading, onClick = {
-                        profilesViewModel.select(choice, choice.preferredLogin(session.profileId).id) { choosing = false }
+                        profilesViewModel.select(profile.id) { choosing = false }
                     }) {
-                        val name = if (choice.personal) stringResource(R.string.organizations_personal, choice.name) else choice.name
-                        Text((if (active) "✓ " else "") + name + "\n" + choice.origin + "\n" + choice.logins.joinToString { it.label })
+                        Text((if (active) "✓ " else "") + profile.label + "\n" + profile.server)
                     }
-                }
-                if (failed || choices.incomplete) TextButton(enabled = !loading, onClick = { profilesViewModel.load() }) {
-                    Text(stringResource(R.string.organizations_retry))
                 }
                 TextButton(onClick = { choosing = false; profilesViewModel.cancelSelection(); profilesViewModel.auth.beginAddProfile() }) {
                     Text(stringResource(R.string.profiles_add))

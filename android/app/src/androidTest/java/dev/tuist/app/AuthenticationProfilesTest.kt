@@ -35,7 +35,7 @@ class AuthenticationProfilesTest {
     @Volatile private var rejectExchange = false
     private val jamAccounts = java.util.concurrent.CopyOnWriteArrayList<String>()
     private val previewAccounts = java.util.concurrent.CopyOnWriteArrayList<String>()
-    @Volatile private var membershipsEnabled = false
+    private val membershipCalls = java.util.concurrent.atomic.AtomicInteger()
 
     /** Requires an actual old-APK sign-in and install -r, with its fixture API still running. Never seeds credentials. */
     @Test fun installedApkUpgradeRetainsLegacySession() {
@@ -64,21 +64,21 @@ class AuthenticationProfilesTest {
             visible("alice@example.invalid")
             screenshot("upgrade-retained-identity")
             chooser()
-            assertTrue(device.wait(Until.hasObject(By.textContains("org-upgrade\n")), 10_000))
-            assertTrue(device.hasObject(By.textContains("alice@example.invalid")))
-            screenshot("upgrade-organization-chooser")
-            device.findObject(By.textContains("org-upgrade\n")).click()
+            assertTrue(device.hasObject(By.textContains("✓ alice@example.invalid")))
+            assertEquals(1, device.findObjects(By.textContains("http://localhost:8080")).size)
+            screenshot("upgrade-profile-chooser")
+            click("Cancel")
             visible("Profile")
             click("Previews")
             visible("org-upgrade/app")
-            screenshot("upgrade-organization-previews")
+            screenshot("upgrade-authorized-previews")
             click("Jams")
+            visible("alice")
             Thread.sleep(1500)
             click("Profile")
             visible("alice@example.invalid")
-            assertEquals("org-upgrade", TokenStorage(context, dev.tuist.app.data.EnvironmentConfig(context)).snapshot().organization)
             assertEquals("alice-refresh", tokens.getRefreshToken())
-            println("UPGRADE_PROOF profile=$id identity=alice@example.invalid origin=${storage.snapshot().origin} organization=${storage.snapshot().organization} access_matches_old=true refresh_matches_old=true legacy_keys_removed=true encrypted_on_disk=true")
+            println("UPGRADE_PROOF profile=$id identity=alice@example.invalid origin=${storage.snapshot().origin} jams=alice access_matches_old=true refresh_matches_old=true legacy_keys_removed=true encrypted_on_disk=true")
         }
     }
 
@@ -97,6 +97,7 @@ class AuthenticationProfilesTest {
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM)
         prefs.edit().clear().putString("access_token", jwt("alice")).putString("refresh_token", "alice-refresh").commit()
+        context.getSharedPreferences("tuist_previews", Context.MODE_PRIVATE).edit().clear().commit()
         val server = MockWebServer()
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
@@ -118,9 +119,8 @@ class AuthenticationProfilesTest {
                     path == "/oauth2/token" -> MockResponse().setBody("""{"access_token":"${jwt("bob")}","refresh_token":"bob-refresh"}""")
                     path.contains("feature-flags") || path.contains("feature_flags") -> MockResponse().setBody("""{"enabled":["ai"]}""")
                     path == "/api/organizations" -> {
-                        val own = if (request.getHeader("Authorization") == "Bearer ${jwt("alice")}") "org-a" else "org-b"
-                        val organizations = if (membershipsEnabled) """[{"name":"$own"},{"name":"shared"}]""" else "[]"
-                        MockResponse().setBody("""{"organizations":$organizations}""")
+                        membershipCalls.incrementAndGet()
+                        MockResponse().setResponseCode(500)
                     }
                     path == "/api/me/ai-subscriptions" -> MockResponse().setBody("""{"subscriptions":[]}""")
                     path.contains("/jams") && !path.contains("/socket") -> {
@@ -156,10 +156,10 @@ class AuthenticationProfilesTest {
                 assertFalse(device.hasObject(By.desc("Switch account")))
                 chooser()
                 assertFalse(device.hasObject(By.text("Workspaces for this login")))
-                assertTrue(device.wait(Until.hasObject(By.textContains("alice (personal account)")), 10_000))
+                assertTrue(device.hasObject(By.textContains("✓ alice@example.invalid")))
                 screenshot("00-personal-upgrade-fallback")
                 click("Cancel")
-                assertJamsAccount("alice", "alice")
+                assertJamsAccount("alice")
                 click("Profile")
                 visible("alice@example.invalid")
                 screenshot("01-legacy-profile")
@@ -183,44 +183,34 @@ class AuthenticationProfilesTest {
                 chooser()
                 click("Add login profile")
                 rejectExchange = false
-                membershipsEnabled = true
                 authorize()
                 visible("Profile")
                 click("Profile")
                 visible("bob@example.invalid")
                 assertEquals(2, tokens.profiles.value.size)
                 screenshot("05-added-second-profile")
-                assertJamsAccount("org-b", "bob")
-                assertProjects("org-b")
+                assertJamsAccount("bob")
+                assertProjects("alice/app", "org-b/app", "org-a/app")
 
                 chooser()
-                assertTrue(device.wait(Until.hasObject(By.textContains("org-a\n")), 10_000))
-                assertTrue(device.hasObject(By.textContains("org-b\n")))
-                assertTrue(device.hasObject(By.textContains("shared\n")))
-                assertEquals(1, device.findObjects(By.textContains("shared\n")).size)
-                screenshot("06-flattened-all-login-organizations")
-                device.findObject(By.textContains("org-a\n")).click()
+                assertTrue(device.hasObject(By.textContains("alice@example.invalid\n")))
+                assertTrue(device.hasObject(By.textContains("✓ bob@example.invalid\n")))
+                assertFalse(device.hasObject(By.textContains("shared\n")))
+                assertEquals(2, device.findObjects(By.textContains("http://localhost:8080")).size)
+                screenshot("06-saved-profiles-only")
+                device.findObject(By.textContains("alice@example.invalid\n")).click()
                 visible("Profile")
                 click("Profile")
                 visible("alice@example.invalid")
                 screenshot("07-switched-to-legacy")
-                assertJamsAccount("org-a", "alice")
-                assertProjects("org-a")
-                chooser()
-                device.findObject(By.textContains("shared\n")).click()
-                visible("Profile")
-                assertJamsAccount("shared", "alice")
-                assertProjects("shared")
-                screenshot("07b-shared-organization-retains-eligible-alice")
-                chooser()
-                device.findObject(By.textContains("org-a\n")).click()
-                visible("Profile")
+                assertJamsAccount("alice")
+                assertProjects("alice/app", "org-a/app", "shared/app")
+                screenshot("07b-cross-organization-previews-retain-alice")
                 scenario.recreate()
                 visible("Profile")
                 click("Profile")
                 visible("alice@example.invalid")
                 assertEquals("alice-refresh", TokenStorage(context, dev.tuist.app.data.EnvironmentConfig(context)).getRefreshToken())
-                assertEquals("org-a", tokens.snapshot().organization)
                 screenshot("08-recreated-selection")
                 click("Sign out")
                 visible("Profile")
@@ -228,7 +218,8 @@ class AuthenticationProfilesTest {
                 visible("bob@example.invalid")
                 assertEquals(1, tokens.profiles.value.size)
                 screenshot("09-sign-out-removes-only-active")
-                assertJamsAccount("org-b", "bob")
+                assertJamsAccount("bob")
+                assertEquals("Profile workflows never discover memberships", 0, membershipCalls.get())
             }
         } finally { server.shutdown() }
     }
@@ -247,6 +238,7 @@ class AuthenticationProfilesTest {
         }
         prefs.edit().clear().putString("profiles_v1", fixtureProfiles.toString()).putString("active_profile", "alice")
             .putString("active_organization", "shared").commit()
+        context.getSharedPreferences("tuist_previews", Context.MODE_PRIVATE).edit().clear().commit()
         val first = MockWebServer()
         val other = MockWebServer()
         val otherCalls = java.util.concurrent.CopyOnWriteArrayList<String>()
@@ -256,10 +248,16 @@ class AuthenticationProfilesTest {
                 assertEquals("Bearer ${jwt(person)}", request.getHeader("Authorization"))
                 if (person == "bob") otherCalls.add(path)
                 return when {
-                    path == "/api/organizations" -> MockResponse().setBody("""{"organizations":[{"name":"shared"}]}""")
+                    path == "/api/organizations" -> {
+                        membershipCalls.incrementAndGet()
+                        MockResponse().setResponseCode(500)
+                    }
                     path.contains("feature-flags") || path.contains("feature_flags") -> MockResponse().setBody("""{"enabled":["ai"]}""")
-                    path == "/api/projects" -> MockResponse().setBody("""{"projects":[{"id":1,"full_name":"shared/$project","default_branch":"main","visibility":"private"}]}""")
-                    path.contains("/previews") -> MockResponse().setBody("""{"previews":[],"pagination_metadata":{"has_next_page":false,"has_previous_page":false,"page_size":10}}""")
+                    path == "/api/projects" -> MockResponse().setBody("""{"projects":[{"id":1,"full_name":"shared/$project","default_branch":"main","visibility":"private"},{"id":2,"full_name":"other-org/$project","default_branch":"main","visibility":"private"}]}""")
+                    path.contains("/previews") -> {
+                        previewAccounts.add(path)
+                        MockResponse().setBody("""{"previews":[],"pagination_metadata":{"has_next_page":false,"has_previous_page":false,"page_size":10}}""")
+                    }
                     path.contains("/jams") && !path.contains("/socket") -> {
                         jamAccounts.add(path)
                         MockResponse().setBody("""{"jams":[]}""")
@@ -279,29 +277,40 @@ class AuthenticationProfilesTest {
                 chooser()
                 assertTrue(device.hasObject(By.textContains("http://localhost:8080")))
                 assertTrue(device.hasObject(By.textContains("http://localhost:8081")))
-                assertEquals(2, device.findObjects(By.textContains("shared\n")).size)
-                screenshot("12-same-organization-distinct-origins")
+                assertTrue(device.hasObject(By.textContains("✓ alice@example.invalid")))
+                assertTrue(device.hasObject(By.textContains("bob@example.invalid")))
+                assertFalse(device.hasObject(By.textContains("shared\n")))
+                screenshot("12-saved-profiles-distinct-origins")
                 device.findObject(By.textContains("http://localhost:8081")).click()
                 visible("shared/other-origin")
                 assertEquals("http://localhost:8081", tokens.snapshot().origin)
                 screenshot("13-selected-other-origin-previews")
-                assertJamsAccount("shared", "bob")
-                assertTrue(otherCalls.any { it.contains("/api/accounts/shared/jams") })
+                assertProjects("shared/other-origin", "other-org/other-origin", "shared/other-origin")
+                assertJamsAccount("bob")
+                assertTrue(otherCalls.any { it.contains("/api/accounts/bob/jams") })
                 assertTrue(otherCalls.any { it.contains("/api/projects/shared/other-origin/previews") })
                 screenshot("14-selected-other-origin-login-identity")
+                chooser()
+                assertTrue(device.hasObject(By.textContains("✓ bob@example.invalid")))
+                screenshot("15-active-profile-after-switch")
+                click("Cancel")
+                assertEquals("Startup, chooser and switching never discover memberships", 0, membershipCalls.get())
             }
         } finally { first.shutdown(); other.shutdown() }
     }
 
     private fun verifyColdRestart() {
-        assertEquals("org-b", tokens.snapshot().organization)
+        assertEquals("bob@example.invalid", tokens.profiles.value.single().label)
         val server = MockWebServer()
         val previews = java.util.concurrent.CopyOnWriteArrayList<String>()
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.path.orEmpty()
                 return when {
-                    path == "/api/organizations" -> MockResponse().setBody("""{"organizations":[{"name":"org-b"},{"name":"shared"}]}""")
+                    path == "/api/organizations" -> {
+                        membershipCalls.incrementAndGet()
+                        MockResponse().setResponseCode(500)
+                    }
                     path.contains("feature-flags") || path.contains("feature_flags") -> MockResponse().setBody("""{"enabled":["ai"]}""")
                     path == "/api/projects" -> MockResponse().setBody("""{"projects":[{"id":1,"full_name":"bob/personal","default_branch":"main","visibility":"private"},{"id":2,"full_name":"org-b/app","default_branch":"main","visibility":"private"}]}""")
                     path.contains("/previews") -> {
@@ -321,40 +330,47 @@ class AuthenticationProfilesTest {
         try {
             ActivityScenario.launch(MainActivity::class.java).use {
                 visible("org-b/app")
-                assertFalse(device.hasObject(By.text("bob/personal")))
                 assertTrue(previews.isNotEmpty())
-                assertTrue("First previews after process restart use persisted organization: $previews", previews.all { it.contains("/projects/org-b/") })
-                screenshot("10-cold-process-restart-organization-previews")
-                assertJamsAccount("org-b", "bob")
+                assertTrue("First previews after process restart use the profile's saved project: $previews", previews.all { it.contains("/projects/org-b/") })
+                click("org-b/app")
+                visible("bob/personal")
+                device.pressBack()
+                screenshot("10-cold-process-restart-saved-project")
+                assertJamsAccount("bob")
+                chooser()
+                assertTrue(device.hasObject(By.textContains("✓ bob@example.invalid")))
+                click("Cancel")
                 screenshot("11-cold-restart-login-identity")
+                assertEquals("Cold restart never discovers memberships", 0, membershipCalls.get())
             }
         } finally { server.shutdown() }
     }
 
-    private fun assertJamsAccount(account: String, login: String) {
+    private fun assertJamsAccount(login: String) {
         click("Profile")
         visible("$login@example.invalid")
         jamAccounts.clear()
         click("Jams")
         val deadline = System.currentTimeMillis() + 10_000
         while (jamAccounts.isEmpty() && System.currentTimeMillis() < deadline) Thread.sleep(100)
-        assertTrue("Jams use the global organization: $jamAccounts", jamAccounts.any { it.contains("/accounts/$account/jams") })
+        assertTrue("Jams default to the saved personal identity: $jamAccounts", jamAccounts.isNotEmpty() && jamAccounts.all { it.contains("/accounts/$login/jams") })
         click("Profile")
         visible("$login@example.invalid")
     }
 
-    private fun assertProjects(account: String) {
+    private fun assertProjects(current: String, selected: String, alternative: String) {
         previewAccounts.clear()
         click("Previews")
-        visible("$account/app")
-        device.findObject(By.text("$account/app")).click()
-        assertFalse("Other organization projects must not appear", device.hasObject(By.text(if (account == "org-b") "org-a/app" else "org-b/app")))
-        device.pressBack()
-        device.swipe(device.displayWidth / 2, device.displayHeight / 3, device.displayWidth / 2, device.displayHeight * 3 / 4, 30)
+        click(current)
+        visible(alternative)
+        visible(selected)
+        screenshot("projects-cross-organization-picker-${selected.substringBefore('/')}")
+        click(selected)
+        visible(selected)
         val deadline = System.currentTimeMillis() + 10_000
-        while (previewAccounts.isEmpty() && System.currentTimeMillis() < deadline) Thread.sleep(100)
-        assertTrue("Preview request must use selected organization: $previewAccounts", previewAccounts.any { it.contains("/projects/$account/app/previews") })
-        screenshot("projects-$account")
+        while (previewAccounts.none { it.contains("/projects/$selected/previews") } && System.currentTimeMillis() < deadline) Thread.sleep(100)
+        assertTrue("Previews use the selected authorized project: $previewAccounts", previewAccounts.any { it.contains("/projects/$selected/previews") })
+        screenshot("projects-${selected.substringBefore('/')}")
         click("Profile")
     }
 
@@ -374,7 +390,7 @@ class AuthenticationProfilesTest {
         visible("Profile")
         device.findObject(By.text("Profile")).longClick()
         visible("Profiles")
-        device.wait(Until.gone(By.text("Loading organizations…")), 10_000)
+        visible("Add login profile")
     }
     private fun click(text: String) {
         repeat(3) {

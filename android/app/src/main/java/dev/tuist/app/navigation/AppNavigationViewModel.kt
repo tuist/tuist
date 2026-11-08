@@ -16,7 +16,6 @@ class AppNavigationViewModel @Inject constructor(
 
     fun openUrl(url: String): Boolean {
         val route = AppRoute.parse(url, tokens.selectedServer()) ?: return false
-        if (!allows(route)) return false
         savedState["pendingRoute"] = route.toUrl()
         savedState["pendingSession"] = sessionKey()
         savedState["pendingGeneration"] = tokens.snapshot().generation
@@ -36,7 +35,7 @@ class AppNavigationViewModel @Inject constructor(
         }
         if (authState !is AuthState.LoggedIn) return null
         val route = AppRoute.parse(url, tokens.selectedServer())
-        if (route == null || !allows(route)) {
+        if (route == null) {
             consume(url)
             return null
         }
@@ -48,13 +47,8 @@ class AppNavigationViewModel @Inject constructor(
         if (it.profileId == null) null else listOf(it.profileId, it.generation, it.origin, it.organization).toString()
     }
 
-    private fun allows(route: AppRoute): Boolean = route !is AppRoute.PreviewDetail ||
-        tokens.snapshot().profileId == null || route.account == tokens.selectedAccount()
-
     fun isCurrentServerWebUrl(url: String): Boolean {
-        val server = tokens.selectedServer()
-        if (!AppRoute.isCurrentServerWebUrl(url, server)) return false
-        return AppRoute.parse(url, server)?.let(::allows) ?: true
+        return AppRoute.isCurrentServerWebUrl(url, tokens.selectedServer())
     }
 
     fun consume(url: String) {

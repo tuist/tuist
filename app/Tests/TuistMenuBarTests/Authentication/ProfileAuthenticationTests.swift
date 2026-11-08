@@ -77,6 +77,25 @@ struct ProfileAuthenticationTests {
         }
     }
 
+    @Test(.inTemporaryDirectory) func profile_switching_does_not_require_organization_discovery() async throws {
+        let fixture = OrganizationFixture(names: [:])
+        try await withProfiles(organizations: fixture) { service, _, store, vault in
+            try await service.loadProfiles()
+            let inactive = StoredProfile(id: UUID(), account: employer, server: nil, credentials: try credentials(employer))
+            vault.value.profiles.append(inactive)
+            await fixture.reject(employer.handle, error: ListOrganizationsServiceError.forbidden("Forbidden"))
+            await service.refreshOrganizations()
+            #expect(service.organizationsFailedToLoad)
+            #expect(!service.organizations.contains { $0.profileID == inactive.id })
+
+            try await service.switchProfile(inactive.id)
+
+            #expect(service.authenticationState == .loggedIn(account: employer))
+            #expect(service.activeProfileID == inactive.id)
+            #expect(try await store.get(serverURL: serverURL) == inactive.credentials)
+        }
+    }
+
     @Test(.inTemporaryDirectory) func cancellation_and_failed_add_leave_existing_credentials_untouched() async throws {
         try await withProfiles { service, storage, store, vault in
             try await service.loadProfiles()
@@ -228,6 +247,7 @@ struct ProfileAuthenticationTests {
             let personalID = try #require(service.activeProfileID)
             try await service.beginAddingProfile()
             try await service.signInWithEmailAndPassword(email: employer.email, password: UUID().uuidString)
+            await service.refreshOrganizations()
             #expect(service.organizations.contains { $0.name == "employer-team" })
             #expect(service.selectedOrganization == "employer-team")
             try await service.switchProfile(personalID)

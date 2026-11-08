@@ -205,7 +205,7 @@ class OrganizationRepositoryTest {
             val selected = choices.organizations.single { it.origin == other.url("/").toString() }
             tokens.selectOrganization(selected.logins.single().id, selected.name)
             val firstRequests = first.requestCount
-            val body = http.newCall(Request.Builder().url(first.url("/api/accounts/shared/jams")).build()).execute().use { it.body!!.string() }
+            val body = http.newCall(Request.Builder().url(first.url("/api/accounts/alice/jams")).build()).execute().use { it.body!!.string() }
             assertEquals("other-origin-jam-data", body)
             assertEquals(firstRequests, first.requestCount)
             assertEquals(2, refreshes.get())
