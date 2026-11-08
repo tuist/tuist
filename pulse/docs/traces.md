@@ -1738,7 +1738,12 @@ hour exceed the query segment budget or time out.
 Every maintenance pass (once a minute on the rendezvous owner of each tenant)
 rewrites the oldest settled flushes (30 s after their newest span), up to 512
 segments and 60,000 spans at a time, together with the same hour's merged
-objects that are not full yet. The merge splits the hour's spans into objects
+objects that are not full yet. On flat and paged manifests, the current and
+previous hour have an independent worker and ownership group, so a failing or
+slow historical batch cannot block recent compaction. Each worker performs at
+most 32 merges per pass; the historical worker retains backup and cleanup
+responsibility for both. Bucketed retention keeps its legacy merge path.
+The merge splits the hour's spans into objects
 that each hold one service, one class (spans with error status or events, or
 the others) and at most 256 trace IDs, in start order. Each object's manifest
 entry lists its exact trace-ID hashes, its services and attribute value sets,
@@ -1752,8 +1757,9 @@ its status codes and whether any span has an event, so:
 
 Nothing is dropped or aggregated: every span, duplicate and metadata field
 survives. Spans that cannot merge faithfully (`trace_projection_invalid`, a
-size mismatch) stay active and queryable, and their hour is set aside on that
-node for an hour so the others keep merging.
+size mismatch) stay active and queryable. Only the exact failed source set is
+deferred on that node for an hour, not every source in its hour. Decoded-size
+overflow retries smaller batches within the same bounded maintenance operation.
 
 Publication uploads the outputs before one conditional manifest write retires
 their sources. Sources are deleted after a one-hour grace period, and only

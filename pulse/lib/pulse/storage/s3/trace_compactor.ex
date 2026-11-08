@@ -56,7 +56,11 @@ defmodule Pulse.Storage.S3.TraceCompactor do
     end
   end
 
-  defp compact_root(true, _root, tenant, config, opts), do: SignalCompactor.compact(tenant, config, opts)
+  defp compact_root(true, _root, tenant, config, opts) do
+    if opts[:min_hour],
+      do: {:ok, %{merged: 0}},
+      else: SignalCompactor.compact(tenant, config, opts)
+  end
 
   defp compact_root(false, root, tenant, config, opts),
     do: SignalCompactor.monitor(:compact, fn -> split(root, tenant, config, opts) end)
@@ -69,8 +73,12 @@ defmodule Pulse.Storage.S3.TraceCompactor do
          do: merge_batch(select(candidates.segments, opts), root, candidates, tenant, config, opts)
   end
 
-  defp merge_batch(nil, root, candidates, tenant, config, _opts) do
-    with :ok <- SignalCompactor.advance_empty_cursor(root, candidates, tenant, config),
+  defp merge_batch(nil, root, candidates, tenant, config, opts) do
+    # A recent-only pass did not process the historical window. Only the
+    # historical lane may advance it, or alternating passes can skip leaves.
+    advance = if opts[:min_hour], do: :ok, else: SignalCompactor.advance_empty_cursor(root, candidates, tenant, config)
+
+    with :ok <- advance,
          do: {:ok, %{segments_before: length(root.segments), merged: 0}}
   end
 
@@ -90,6 +98,10 @@ defmodule Pulse.Storage.S3.TraceCompactor do
     segments
     |> Enum.filter(&eligible?(&1, settled_before))
     |> Enum.group_by(&hour(&1.min_ts))
+    |> Enum.filter(fn {hour, _segments} ->
+      (is_nil(opts[:min_hour]) or hour >= opts[:min_hour]) and
+        (is_nil(opts[:max_hour]) or hour <= opts[:max_hour])
+    end)
     |> Enum.sort_by(&elem(&1, 0))
     |> Enum.find_value(fn {_hour, segments} -> hour_batch(segments, opts) end)
   end

@@ -27,12 +27,15 @@ defmodule Pulse.PromQL.CurrentHourReadsTest do
   alias Pulse.Storage.S3.CompactionSupervision
   alias Pulse.Storage.S3.CompactionTasks
   alias Pulse.Storage.S3.CompactionWorker
+  alias Pulse.Storage.S3.JournalManifest
   alias Pulse.Storage.S3.Manifest
   alias Pulse.Storage.S3.Manifest.Segment
   alias Pulse.Storage.S3.ManifestSupervision
+  alias Pulse.Storage.S3.MetricsCompactor
   alias Pulse.Storage.S3.MetricTiers
   alias Pulse.Storage.S3.Retention
   alias Pulse.Test.CompactionStore
+  alias Pulse.Test.TuistMetricHistory
 
   @moduletag timeout: 300_000
 
@@ -240,6 +243,7 @@ defmodule Pulse.PromQL.CurrentHourReadsTest do
         compaction_enabled: true,
         compaction_interval_ms: 3_600_000,
         compaction_timeout_ms: 1_000,
+        metric_finalize_timeout_ms: 1_000,
         manifest_backup_enabled: false,
         metric_consolidate_max_batches: 1,
         metric_finalize_options: [
@@ -278,6 +282,181 @@ defmodule Pulse.PromQL.CurrentHourReadsTest do
     Runtime.put_env(:pulse, Evaluator, [])
     assert {:ok, ^expected} = Evaluator.query(query, ctx.tenant, opts)
     assert_samples(ctx)
+  end
+
+  test "the historical lane leaves recent grouping's sources active", ctx do
+    {query, opts, _} = hd(panels(ctx))
+    assert {:ok, expected} = memory(ctx, query, opts)
+    {:ok, root, _} = Retention.load(ctx.tenant, "metrics", ctx.config)
+    byte_cap = div(Enum.sum_by(root.segments, & &1.byte_size), 4)
+    Runtime.put_env(:pulse, Evaluator, max_scan_bytes: byte_cap)
+    assert {:error, :query_scan_limit} = Evaluator.query(query, ctx.tenant, opts)
+    assert %{limit: :max_scan_bytes, stage: :candidates} = QueryLimit.take()
+
+    source = hd(root.segments).key
+    parent = self()
+    Agent.update(ctx.agent, &%{&1 | barriers: %{{"GET", source} => parent}})
+    tasks = start_supervised!(Task.Supervisor)
+
+    grouping =
+      Task.Supervisor.async_nolink(tasks, fn ->
+        MetricTiers.consolidate(ctx.tenant, ctx.config,
+          consolidate_settle_ms: 0,
+          consolidate_min_rows: 1,
+          consolidate_max_rows: 60_000,
+          target_rows: 1_500
+        )
+      end)
+
+    assert_receive {:storage_barrier, storage, "GET", ^source}, 30_000
+    Agent.update(ctx.agent, &%{&1 | barriers: %{}})
+    config = Map.put(ctx.config, :maintenance_operation, :metric_compact)
+    merge = MetricsCompactor.compact(ctx.tenant, config)
+    send(storage, {:release_storage, source})
+    result = Task.await(grouping, 60_000)
+
+    assert {:ok, %{sources: 300, rows: 60_000}} = result
+    assert {:ok, %{merged: 0}} = merge
+    reads(ctx.agent)
+    assert {:ok, ^expected} = Evaluator.query(query, ctx.tenant, opts)
+    assert reads(ctx.agent) == 1
+    Runtime.put_env(:pulse, Evaluator, [])
+    assert_samples(ctx)
+  end
+
+  test "background maintenance reaches raw sources between already-grouped manifest pages", ctx do
+    tenant = ctx.tenant <> "-cursor"
+
+    grouped =
+      for n <- 1..6000 do
+        ts = ctx.t0 + n * 1_000_000
+        key = S3.object_key(tenant, "metrics", ts, ts, "page-#{n}", nil)
+        key = String.replace(key, "-rand-", "-group-")
+        %{Segment.build(key, ts, ts, 1, 1000) | metric_names: ["other"]}
+      end
+
+    # These two raw objects sit in the middle of twelve leaves, outside both
+    # the initial historical cursor and the always-included newest leaves.
+    raw =
+      for n <- 1..2 do
+        ts = ctx.t0 + 3_000_000_000 + n
+        row = %MetricSample{timestamp_ns: ts, value: n * 1.0, labels: %{"__name__" => "up"}}
+        assert {:ok, blob, min, max} = S3.encode_segment(:metrics, [row])
+        key = S3.object_key(tenant, "metrics", min, max, "raw-#{n}", nil)
+        assert {:ok, _} = ObjectStore.put(ctx.config, key, blob)
+        %{Segment.build(key, min, max, 1, byte_size(blob)) | metric_names: ["up"]}
+      end
+
+    assert {:ok, root} =
+             JournalManifest.convert(%Manifest{version: 1, segments: grouped ++ raw}, tenant, "metrics", ctx.config)
+
+    assert {:ok, _} =
+             ObjectStore.put(
+               ctx.config,
+               Manifest.manifest_key(tenant, "metrics"),
+               IO.iodata_to_binary(Manifest.encode(root))
+             )
+
+    opts = %{start_ts_ns: ctx.t0 + 4 * @second, end_ts_ns: ctx.t0 + 5 * @second, step_ns: @second}
+    assert {:ok, expected} = Evaluator.query("count(up)", tenant, opts)
+    config = Map.put(ctx.config, :maintenance_operation, :metric_compact)
+
+    for _ <- 1..4 do
+      assert {:ok, %{merged: 0}} = MetricsCompactor.compact(tenant, config)
+      assert {:ok, _} = MetricTiers.consolidate(tenant, config, consolidate_min_rows: 1)
+    end
+
+    Runtime.put_env(:pulse, Evaluator, max_scan_segments: 1)
+    assert {:ok, ^expected} = Evaluator.query("count(up)", tenant, opts)
+  end
+
+  test "default grouping keeps a low-volume hour within the segment query budget", ctx do
+    tenant = ctx.tenant <> "-small"
+    from = MetricTiers.hour(System.os_time(:nanosecond)) - @hour + 10 * @minute
+
+    append = fn n ->
+      row = %MetricSample{
+        timestamp_ns: from + (n - 1) * 2 * @second,
+        value: rem(n, 2) * 1.0,
+        labels: %{"__name__" => "up"}
+      }
+
+      assert :ok = S3.append(:metrics, tenant, [row])
+    end
+
+    for n <- 1..31, do: append.(n)
+    assert {:ok, %{hour: nil}} = MetricTiers.consolidate(tenant, ctx.config)
+    append.(32)
+    assert {:ok, %{sources: 32, rows: 32}} = MetricTiers.consolidate(tenant, ctx.config)
+
+    33..1100
+    |> Task.async_stream(append, max_concurrency: 16, timeout: :infinity)
+    |> Stream.run()
+
+    opts = %{start_ts_ns: from, end_ts_ns: from + 2198 * @second, step_ns: 10 * @second}
+    assert {:error, :query_scan_limit} = Evaluator.query("count(up)", tenant, opts)
+    assert %{limit: :max_scan_segments} = QueryLimit.take()
+    config = Map.put(ctx.config, :maintenance_operation, :metric_compact)
+
+    for _ <- 1..16 do
+      assert {:ok, %{merged: 0}} = MetricsCompactor.compact(tenant, config)
+      assert {:ok, _} = MetricTiers.consolidate(tenant, config)
+    end
+
+    assert {:ok, %{"data" => %{"result" => [%{"values" => values}]}}} = Evaluator.query("count(up)", tenant, opts)
+    assert length(values) == 220
+    assert Enum.all?(values, fn [_timestamp, count] -> count == "1" end)
+  end
+
+  @tag :query_bench
+  @tag timeout: :infinity
+  test "production volume count(up) over one hour fits the unchanged scan budget after grouping", ctx do
+    alias TuistMetricHistory, as: History
+
+    tenant = ctx.tenant <> "-production"
+    payload = IO.iodata_to_binary(Manifest.encode(Manifest.new()))
+    {:ok, _} = ObjectStore.put(ctx.config, Manifest.manifest_key(tenant, "metrics"), payload)
+    {targets, 400_000} = History.targets(:production, [])
+    from = div(ctx.t0, @hour) * @hour
+    origin_ms = div(from, 1_000_000)
+
+    # Real asymmetric families (including high-cardinality histogram/filler
+    # names), 400k series/30 s, remote-write coalesced into 2 s segments.
+    # Keep only up's reference rows, not 48M BEAM sample structs.
+    for offset <- 0..1799 do
+      records = History.batch(targets, :production, origin_ms, origin_ms + offset * 2_000)
+      assert :ok = S3.append(:metrics, tenant, records)
+      up = Enum.filter(records, &(&1.labels["__name__"] == "up"))
+      Runtime.put_env(:pulse, Storage, adapter: Memory)
+      :ok = Storage.append(:metrics, tenant <> "-reference", up)
+      Runtime.put_env(:pulse, Storage, adapter: S3)
+      if rem(offset + 1, 300) == 0, do: IO.puts("production history: #{offset + 1}/1800 flushes")
+    end
+
+    opts = %{start_ts_ns: from, end_ts_ns: from + @hour - 1, step_ns: 10 * @second}
+    Runtime.put_env(:pulse, Evaluator, max_scan_bytes: 268_435_456)
+    assert {:error, :query_scan_limit} = Evaluator.query("count(up)", tenant, opts)
+    assert %{limit: limit, stage: :candidates} = QueryLimit.take()
+    assert limit in [:max_scan_segments, :max_scan_bytes]
+    Runtime.put_env(:pulse, Storage, adapter: Memory)
+    assert {:ok, expected} = Evaluator.query("count(up)", tenant <> "-reference", opts)
+    Runtime.put_env(:pulse, Storage, adapter: S3)
+
+    config = Map.put(ctx.config, :maintenance_operation, :metric_compact)
+
+    for _ <- 1..60, reduce: 0 do
+      grouped ->
+        assert {:ok, %{merged: 0}} = MetricsCompactor.compact(tenant, config)
+
+        case MetricTiers.consolidate(tenant, config, consolidate_settle_ms: 0) do
+          {:ok, %{rows: rows}} -> grouped + rows
+          {:ok, %{hour: nil}} -> grouped
+        end
+    end
+
+    reads(ctx.agent)
+    assert {:ok, ^expected} = Evaluator.query("count(up)", tenant, opts)
+    IO.puts("production count(up), 1h/10s: #{reads(ctx.agent)} segment GETs, unchanged 256 MiB scan cap")
   end
 
   test "historical finalization cannot publish over sources replaced by recent grouping", ctx do

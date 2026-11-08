@@ -1622,7 +1622,8 @@ Before an hour settles, each remote-write batch holds a slice of every metric,
 so name summaries cannot prune it and a 1-hour panel reads every batch (a
 production hour is ~1,800 segments, ~48M rows). `MetricTiers.consolidate/3`
 regroups settled raw segments of the newest eligible hour, oldest segments
-first within that hour, in 0.5–1M-row batches into metric-sorted `-group-`
+first within that hour, once a bounded batch reaches 32 sources or 500k rows,
+with at most 512 sources and 1M rows, into metric-sorted `-group-`
 segments (tier `:grouped`, read and finalized
 like raw), using the same native builder without rollups. Finalization of an
 hour above 3/4 of `max_rows` runs in passes over equal ranges of a 64-bit
@@ -1633,11 +1634,25 @@ an uneven pass restarts the hour with twice the passes. Tier API 2.
 Each enabled signal has its own maintenance worker and task supervisor
 (`CompactionSupervision` lanes, per-signal ownership groups). Metrics with
 finalization enabled have an additional grouping lane with independent
-eligibility, timeout/backoff and supervised tasks. A slow historical merge or
-finalization cannot withhold recent grouping; historical work stays oldest
-first. Each lane runs its own bounded discovery pass. A timed-out task still
+eligibility, timeout/backoff and supervised tasks. On flat/format-4 prefixes
+the supervised historical lane skips small raw merges when finalization is
+enabled: grouping and finalization already replace those rows, and a fast
+small merge otherwise retires sources while a larger grouping build is in
+flight. Replanning page rewrites cannot recover a source already retired by
+that merge. Explicit merges, disabled finalization and format-3 prefixes keep
+the legacy merger. The historical lane still advances the paged compaction
+cursor, so raw sources between already-grouped oldest and newest leaves are
+eventually visited. A slow historical finalization cannot withhold recent
+grouping; historical work stays oldest first. Trace maintenance likewise has
+an independent lane for the current and previous hour on flat/format-4
+prefixes; its historical lane handles older hours and backup-held cleanup for
+both. A failed historical payload cannot prevent recent traces compacting.
+Bucketed trace prefixes retain the legacy merge path. Each lane runs its own
+bounded discovery pass; only the historical lane advances the shared paged
+compaction cursor, so recent-only passes cannot skip historical leaves.
+A timed-out task still
 withdraws its own lane until it actually finishes, never bypassing admission.
-The extra lane admits one more bounded native batch per instance, up to eight
+Each extra lane admits one more bounded native batch per instance, up to eight
 source GETs concurrently. All lanes publish through the same manifest owner
 and CAS; overlapping source rewrites conflict and retry on later passes,
 never duplicate or drop samples. Formats, scan budgets, backup-held cleanup

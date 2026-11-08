@@ -136,9 +136,25 @@ defmodule Pulse.Storage.S3.CompactionWorker do
     {if(result == :timeout, do: {:error, :timeout}, else: :ok), config}
   end
 
+  # A failed historical batch must not leave the current query window as
+  # thousands of ingest objects. This lane has independent tasks/eligibility;
+  # the historical lane still owns backups and cleanup for both lanes.
+  defp compact_tenant(tenant, "traces", %{maintenance_operation: :trace_recent} = config) do
+    recent = MetricTiers.hour(System.os_time(:nanosecond)) - MetricTiers.hour_ns()
+    opts = Keyword.put(Map.get(config, :trace_compaction_options, []), :min_hour, recent)
+    result = merge_while_progressing(TraceCompactor, tenant, config, opts, Map.get(config, :compaction_max_merges, 32))
+    {result, config}
+  end
+
   defp compact_tenant(tenant, signal, config) do
     {module, option_key, cleanup_key} = maintenance(signal)
     opts = Map.get(config, option_key, [])
+
+    opts =
+      if config[:maintenance_operation] == :trace_compact,
+        do: Keyword.put(opts, :max_hour, MetricTiers.hour(System.os_time(:nanosecond)) - 2 * MetricTiers.hour_ns()),
+        else: opts
+
     cleanup_opts = Map.get(config, cleanup_key, [])
     result = merge_while_progressing(module, tenant, config, opts, Map.get(config, :compaction_max_merges, 32))
     {result, config} = finalize_hours(result, tenant, signal, config)

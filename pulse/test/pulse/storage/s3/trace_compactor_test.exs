@@ -7,10 +7,12 @@ defmodule Pulse.Storage.S3.TraceCompactorTest do
   alias Pulse.Runtime
   alias Pulse.Storage.S3
   alias Pulse.Storage.S3.CompactionOwnership
+  alias Pulse.Storage.S3.CompactionSupervision
   alias Pulse.Storage.S3.CompactionTasks
   alias Pulse.Storage.S3.CompactionWorker
   alias Pulse.Storage.S3.JournalManifest
   alias Pulse.Storage.S3.Manifest
+  alias Pulse.Storage.S3.Manifest.Segment
   alias Pulse.Storage.S3.ManifestSupervision
   alias Pulse.Storage.S3.Retention
   alias Pulse.Storage.S3.TraceCompactor
@@ -378,6 +380,78 @@ defmodule Pulse.Storage.S3.TraceCompactorTest do
     send(worker, :compact)
     _ = :sys.get_state(worker, 60_000)
     assert [_] = load(ctx).segments
+  end
+
+  test "recent trace maintenance progresses independently of a failing historical hour", ctx do
+    now = System.os_time(:nanosecond)
+    recent = %{ctx.span | timestamp_ns: now - 120_000_000_000, end_timestamp_ns: now - 119_000_000_000}
+    old = %{ctx.span | name: :binary.copy(<<0>>, 1024 * 1024)}
+    for rows <- [[old, old], [old, old], [recent], [recent]], do: assert(:ok = S3.append(:traces, ctx.tenant, rows))
+
+    config = Map.merge(ctx.config, %{compaction_enabled: false, trace_compaction_enabled: true})
+    supervisor = start_supervised!({CompactionSupervision, config})
+
+    # Drive each independently supervised lane once, just as their timers do.
+    workers = for {_, pid, :worker, [CompactionWorker]} <- Supervisor.which_children(supervisor), do: pid
+    for worker <- workers, do: send(worker, :compact)
+    for worker <- workers, do: :sys.get_state(worker, 60_000)
+
+    segments = active(ctx)
+    assert length(Enum.filter(segments, &(&1.min_ts == old.timestamp_ns))) == 2
+    assert [merged] = Enum.filter(segments, &(&1.min_ts == recent.timestamp_ns))
+    assert merged.row_count == 2
+
+    assert {:ok, [^recent, ^recent]} =
+             S3.query(:traces, ctx.tenant, start_ts: recent.timestamp_ns, max_scan_segments: 1)
+  end
+
+  test "alternating recent and historical passes do not skip historical manifest leaves", ctx do
+    t0 = ctx.span.timestamp_ns
+
+    full =
+      for n <- 1..8190 do
+        ts = t0 + n * 1_000_000
+        key = S3.object_key(ctx.tenant, "traces", ts, ts, "full-#{n}", nil)
+        key = String.replace(key, "-rand-", "-compact-")
+        Segment.build(key, ts, ts, 1, 2 * 1024 * 1024)
+      end
+
+    spans =
+      for n <- 1..2, do: %{ctx.span | timestamp_ns: t0 + 2_600_000_000 + n, end_timestamp_ns: t0 + 2_600_000_000 + n}
+
+    raw =
+      for span <- spans do
+        assert {:ok, blob, min, max} = S3.encode_segment(:traces, [span])
+        key = S3.object_key(ctx.tenant, "traces", min, max, "raw", nil)
+        assert {:ok, _} = ObjectStore.put(ctx.config, key, blob)
+        Segment.build(key, min, max, 1, byte_size(blob))
+      end
+
+    assert {:ok, root} =
+             JournalManifest.convert(%Manifest{version: 1, segments: full ++ raw}, ctx.tenant, "traces", ctx.config)
+
+    assert Enum.sum_by(root.paging["refs"], & &1["l"]) == 16
+
+    assert {:ok, _} =
+             ObjectStore.put(
+               ctx.config,
+               Manifest.manifest_key(ctx.tenant, "traces"),
+               IO.iodata_to_binary(Manifest.encode(root))
+             )
+
+    recent = div(System.os_time(:nanosecond), 3_600_000_000_000) * 3_600_000_000_000 - 3_600_000_000_000
+    opts = [start_ts: hd(spans).timestamp_ns, end_ts: List.last(spans).timestamp_ns, max_scan_segments: 1]
+    assert {:error, :query_scan_limit} = S3.query(:traces, ctx.tenant, opts)
+
+    # Both lanes see one shared manifest; only the historical lane may consume
+    # its sweep window. Advancing in both lanes skips leaves 4–7 forever.
+    for _ <- 1..5 do
+      assert {:ok, _} = TraceCompactor.compact(ctx.tenant, ctx.config, max_hour: recent - 3_600_000_000_000)
+      assert {:ok, %{merged: 0}} = TraceCompactor.compact(ctx.tenant, ctx.config, min_hour: recent)
+    end
+
+    assert {:ok, actual} = S3.query(:traces, ctx.tenant, opts)
+    assert Enum.sort_by(actual, & &1.timestamp_ns) == spans
   end
 
   # Canary flushed traces every 2 s: an hour held more segments than one query
