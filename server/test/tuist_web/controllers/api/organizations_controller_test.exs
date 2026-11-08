@@ -116,6 +116,68 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
     end
   end
 
+  describe "GET /api/organizations with bearer credentials" do
+    @describetag :organization_credentials
+
+    for owner <- [:personal, :organization], credential <- [:account_token, :account_jwt] do
+      @owner owner
+      @credential credential
+
+      test "returns only the owning organization for #{@owner} #{@credential}", %{conn: conn, user: user} do
+        organization = AccountsFixtures.organization_fixture()
+        Accounts.add_user_to_organization(user, organization)
+        other_organization = AccountsFixtures.organization_fixture()
+        Accounts.add_user_to_organization(user, other_organization)
+
+        account = if @owner == :personal, do: user.account, else: organization.account
+
+        token =
+          case @credential do
+            :account_token ->
+              {:ok, {_, token}} =
+                Accounts.create_account_token(%{
+                  account: account,
+                  name: "organizations",
+                  scopes: ["project:cache:read"],
+                  all_projects: true
+                })
+
+              token
+
+            :account_jwt ->
+              {:ok, token, _} =
+                Tuist.Authentication.encode_and_sign(account, %{
+                  "type" => "account",
+                  "scopes" => ["project:cache:read"],
+                  "all_projects" => true,
+                  "user_id" => user.id
+                })
+
+              token
+          end
+
+        conn = conn |> put_req_header("authorization", "Bearer #{token}") |> get(~p"/api/organizations")
+
+        expected =
+          if @owner == :personal do
+            []
+          else
+            [
+              %{
+                "id" => organization.id,
+                "name" => account.name,
+                "plan" => "air",
+                "members" => [],
+                "invitations" => []
+              }
+            ]
+          end
+
+        assert json_response(conn, :ok) == %{"organizations" => expected}
+      end
+    end
+  end
+
   describe "GET /api/organizations/{id}" do
     setup do
       stub(Environment, :mail_configured?, fn -> false end)
