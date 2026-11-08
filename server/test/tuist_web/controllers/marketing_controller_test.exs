@@ -134,20 +134,28 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert "SoftwareApplication" in types
 
       for entry <- Enum.filter(entries, &(&1["@type"] in ["Organization", "SoftwareApplication"])) do
-        assert entry["description"] =~ "Once support is in canary"
-        assert entry["description"] =~ "Rust compilation caching is experimental"
+        assert entry["description"] ==
+                 "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
       end
 
       document = Floki.parse_document!(html)
-      [description] = Floki.attribute(document, ~s(meta[name="description"]), "content")
-      assert description =~ "Once support is in canary"
-      assert description =~ "Rust compilation caching is experimental"
+
+      for selector <- [
+            ~s(meta[name="description"]),
+            ~s(meta[property="og:description"]),
+            ~s(meta[name="twitter:description"])
+          ] do
+        assert Floki.attribute(document, selector, "content") ==
+                 [
+                   "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
+                 ]
+      end
     end
 
     test "gives the homepage a descriptive title and a single h1", %{conn: conn} do
       html = conn |> get("/") |> html_response(200)
 
-      assert html =~ "Tuist · Build platform for Xcode, Gradle, and Bazel teams and agents"
+      assert html =~ "Tuist — Build infrastructure for engineering teams and coding agents"
       assert length(Regex.scan(~r|<h1[\s>]|, html)) == 1
     end
 
@@ -356,7 +364,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert "/compare" in links
       assert "/tests" in links
       assert "/en/docs/guides/features/agentic-coding/mcp" in links
-      assert document |> Floki.find("[data-part=last-updated]") |> Floki.text() =~ "October 8, 2026"
+      assert document |> Floki.find("[data-part=last-updated]") |> Floki.text() =~ "November 8, 2026"
     end
 
     test "send other languages to their homepage from an English-only guide", %{conn: conn} do
@@ -403,7 +411,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     test "negotiate the authored Markdown on the browser URL", %{conn: conn} do
       conn = conn |> put_req_header("accept", "text/markdown") |> get("/compare/develocity")
 
-      assert response(conn, 200) =~ "# Tuist and Develocity"
+      assert response(conn, 200) =~ "# Tuist vs Develocity:"
       assert response(conn, 200) =~ "](#{Tuist.Environment.app_url(path: "/marketing-markdown/compare")})"
     end
 
@@ -472,16 +480,20 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       end
 
       assert xml =~
-               ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: "/compare/develocity"))}</loc>\s*<lastmod>2026-10-08</lastmod>|
+               ~r|<loc>#{Regex.escape(Tuist.Environment.app_url(path: "/compare/develocity"))}</loc>\s*<lastmod>2026-11-08</lastmod>|
     end
 
-    test "includes individual changelog entries", %{conn: conn} do
+    test "includes available articles without advertising untranslated locale URLs", %{conn: conn} do
       xml = conn |> get("/sitemap.xml") |> response(200)
       entry = List.first(Changelog.get_entries())
 
-      for locale <- Localization.all_locales() do
+      assert xml =~ "<loc>#{Tuist.Environment.app_url(path: "/changelog/#{entry.id}")}</loc>"
+      assert xml =~ "<loc>#{Tuist.Environment.app_url(path: "/blog/2025/11/26/opening-registry")}</loc>"
+
+      for locale <- Localization.additional_locales() do
         path = Localization.localized_href("/changelog/#{entry.id}", locale)
-        assert xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: path)}</loc>"
+        refute xml =~ "<loc>#{Tuist.Environment.app_url(path: "/#{locale}/blog/2025/11/26/opening-registry")}</loc>"
       end
     end
 
@@ -528,6 +540,38 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       conn = conn |> log_in_user(user) |> get("/")
 
       assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+    end
+  end
+
+  describe "GET /about" do
+    test "aligns company copy, sharing metadata, and Markdown around build infrastructure", %{conn: conn} do
+      document = conn |> get("/about") |> html_response(200) |> Floki.parse_document!()
+      title = "About Tuist: build infrastructure"
+
+      description =
+        "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
+
+      assert document |> Floki.find("title") |> Floki.text() |> String.trim() == title
+      assert Floki.attribute(document, ~s(meta[property="og:title"]), "content") == [title]
+      assert Floki.attribute(document, ~s(meta[name="twitter:title"]), "content") == [title]
+
+      for selector <- [
+            ~s(meta[name="description"]),
+            ~s(meta[property="og:description"]),
+            ~s(meta[name="twitter:description"])
+          ] do
+        assert Floki.attribute(document, selector, "content") == [description]
+      end
+
+      copy = document |> Floki.find("#marketing-about") |> Floki.text()
+      markdown = conn |> recycle() |> get("/marketing-markdown/about") |> response(200)
+
+      for content <- [copy, markdown] do
+        assert content =~ description
+        assert content =~ "shared caching, build and test insights, and app previews"
+        assert content =~ "open-source developer toolkit"
+        refute content =~ "seconds instead of minutes"
+      end
     end
   end
 

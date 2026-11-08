@@ -1,6 +1,6 @@
-# Tuist: a build platform for engineering teams and their coding agents
+# Tuist: build infrastructure for engineering teams and coding agents
 
-Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental. It is one productivity platform for organizations with diverse build systems. We embrace Gradle, Bazel, Elixir, Rust, and Xcode, with Once support in canary, and go deep into their native build and test models rather than treating them as generic CI commands. For organizations seeking one platform instead of a separate productivity product per build system, we believe Tuist is the best choice. Optimize projects before the environments that run them: understand the work, remove unnecessary execution, and reuse compatible outputs across local development, CI, and agents. Feature support varies by toolchain; managed compute is optional.
+Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Shared caching, build and test insights, and app previews connect building, testing, and review, with capabilities and prerequisites that vary by feature.
 
 ## Problem
 

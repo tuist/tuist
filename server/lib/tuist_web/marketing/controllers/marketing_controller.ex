@@ -31,12 +31,12 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign_structured_data(get_organization_structured_data())
     |> assign_structured_data(get_website_structured_data())
     |> assign_structured_data(get_software_application_structured_data())
-    |> assign(:head_title, dgettext("marketing", "Tuist · Build platform for Xcode, Gradle, and Bazel teams and agents"))
+    |> assign(:head_title, dgettext("marketing", "Tuist — Build infrastructure for engineering teams and coding agents"))
     |> assign(
       :head_description,
       dgettext(
         "marketing",
-        "Tuist is a build platform for engineering teams and their coding agents. It supports build and test workflows across Xcode, Gradle, Bazel, Elixir, and Rust; Once support is in canary. Features vary by toolchain, and Rust compilation caching is experimental."
+        "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
       )
     )
     |> assign(
@@ -482,9 +482,12 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign(
         :head_description,
-        "Learn more about Tuist, the open-source project that helps you scale your Swift development."
+        dgettext(
+          "marketing",
+          "Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build."
+        )
       )
-      |> assign(:head_title, "About Tuist")
+      |> assign(:head_title, dgettext("marketing", "About Tuist: build infrastructure"))
 
     render(conn, :about, layout: false)
   end
@@ -1054,7 +1057,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def compute(conn, _params) do
     conn
-    |> assign(:head_title, dgettext("marketing", "Fast macOS and Linux CI runners for teams and coding agents · Tuist"))
+    |> assign(:head_title, dgettext("marketing", "Compute for build work · Tuist"))
     |> assign(
       :head_image,
       SocialCards.image_url("compute")
@@ -1064,7 +1067,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       :head_description,
       dgettext(
         "marketing",
-        "Fast macOS and Linux runners that spin up in seconds and scale with your team and your agents."
+        "Run existing CI jobs next to your shared build cache. Tuist Compute is an optional, invite-only execution environment for teams and coding agents."
       )
     )
     |> assign_structured_data(
@@ -1078,7 +1081,7 @@ defmodule TuistWeb.Marketing.MarketingController do
 
   def tests(conn, _params) do
     conn
-    |> assign(:head_title, dgettext("marketing", "Flaky test detection, test sharding, and selective testing · Tuist"))
+    |> assign(:head_title, dgettext("marketing", "Test insights, sharding, and trustworthy feedback · Tuist"))
     |> assign(
       :head_image,
       SocialCards.image_url("tests")
@@ -1088,7 +1091,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       :head_description,
       dgettext(
         "marketing",
-        "Detect flaky tests, shard slow suites across CI machines, and skip tests a change can't affect in generated Xcode projects."
+        "Understand slow and flaky tests, distribute test work, and use selective testing where supported. Keep your CI and adopt Tuist incrementally."
       )
     )
     |> assign_structured_data(
@@ -1142,6 +1145,11 @@ defmodule TuistWeb.Marketing.MarketingController do
       [{dgettext("marketing", "Tuist"), "/"}] ++
         if(parent, do: [{parent.title, parent.path}], else: []) ++ [{guide.title, guide.path}]
 
+    template =
+      if guide.path in ["/compare", "/compare/develocity", "/compare/namespace", "/compare/buildkite"],
+        do: :comparison,
+        else: :page
+
     conn
     |> assign(:head_title, guide.title)
     |> assign(:head_description, guide.head_description)
@@ -1154,7 +1162,8 @@ defmodule TuistWeb.Marketing.MarketingController do
       )
     )
     |> assign(:page, guide)
-    |> render(:page, layout: false)
+    |> assign(:breadcrumbs, breadcrumbs)
+    |> render(template, layout: false)
   end
 
   def assign_default_head_tags(conn, _params) do
@@ -1223,10 +1232,15 @@ defmodule TuistWeb.Marketing.MarketingController do
   end
 
   defp post_sitemap_entries do
-    blog_entries = Enum.map(Blog.get_posts(), &sitemap_entry(&1.slug, &1.date))
+    blog_entries =
+      for post <- Blog.get_posts(), locale <- Blog.available_locales(post) do
+        post.slug
+        |> Localization.localized_href(locale)
+        |> sitemap_entry(post.date)
+      end
 
     changelog_entries =
-      for locale <- Localization.all_locales(), entry <- Changelog.get_entries() do
+      for entry <- Changelog.get_entries(), locale <- Changelog.available_locales(entry) do
         "/changelog/#{entry.id}"
         |> Localization.localized_href(locale)
         |> sitemap_entry(entry.date)

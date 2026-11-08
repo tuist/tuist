@@ -55,11 +55,11 @@ defmodule TuistWeb.RobotsTxtControllerTest do
       end
     end
 
-    test "points crawlers at the sitemap", %{conn: conn} do
+    test "advertises the marketing sitemap but not the challenged project sitemap", %{conn: conn} do
       conn = get(conn, "/robots.txt")
 
       assert response(conn, 200) =~ "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap.xml")}"
-      assert response(conn, 200) =~ "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap-projects.xml")}"
+      refute response(conn, 200) =~ "Sitemap: #{Tuist.Environment.app_url(path: "/sitemap-projects.xml")}"
     end
 
     test "does not block public project HTML but keeps utility routes disallowed" do

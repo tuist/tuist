@@ -466,6 +466,32 @@ defmodule TuistWeb.Router do
     redirect("/flaky-tests", "/tests", :permanent, preserve_query_string: true)
     redirect("/test-insights", "/tests", :permanent, preserve_query_string: true)
 
+    # Keep the raw query; Redirect's preserve_query_string re-encodes decoded params.
+    match(:*, "/es/build-insights", LegacyRedirectsPlug, to: "/es/docs/guides/features/build-insights")
+    match(:*, "/ko/flaky-tests", LegacyRedirectsPlug, to: "/ko/tests")
+    match(:*, "/zh_Hant/selective-testing", LegacyRedirectsPlug, to: "/zh_Hant/docs/guides/features/selective-testing")
+
+    match(:*, "/blog/2025/11/27/teaching-ai-to-r", LegacyRedirectsPlug,
+      to: "/blog/2025/11/27/teaching-ai-to-read-xcode-builds"
+    )
+
+    # Portuguese is retired; only map audited pages with verified English sources.
+    for {old_path, new_path} <- [
+          {"guides/features/projects/dependencies", "guides/features/projects/dependencies"},
+          {"guides/features/projects/synthesized-files", "guides/features/projects/synthesized-files"},
+          {"guides/develop/projects/adoption/migrate/swift-package",
+           "guides/features/projects/adoption/migrate/swift-package"}
+        ] do
+      match(:*, "/pt/docs/#{old_path}", LegacyRedirectsPlug, to: "/en/docs/#{new_path}")
+    end
+
+    match(
+      :*,
+      "/ar/docs/references/examples/generated_app_with_build_rules",
+      LegacyRedirectsPlug,
+      to: "/en/docs/references/examples/generated-projects/generated_app_with_build_rules"
+    )
+
     get "/blog/rss.xml", MarketingController, :blog_rss, metadata: @marketing_route_metadata
 
     get "/blog/atom.xml", MarketingController, :blog_atom, metadata: @marketing_route_metadata

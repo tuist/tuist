@@ -1,49 +1,44 @@
-# Tuist Compute: managed CI runners
+# Tuist Compute: an environment for build work
 
-Tuist Runners run your existing CI jobs on managed macOS and Linux machines placed next to the same cache your developers and agents use.
+For engineering teams and coding agents constrained by build environments, Compute runs existing CI jobs next to the shared cache without replacing CI workflows. It is a managed, invite-only service. [Request an invitation](mailto:contact@tuist.dev); creating an account does not enable access.
 
-## Availability
+Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Compute is an optional execution environment within that infrastructure, not the definition of Tuist or a coding agent.
 
-Tuist Runners are currently invite-only while capacity scales. Per-minute macOS and Linux rates are listed on the [pricing page](/pricing). Request access by emailing [contact@tuist.dev](mailto:contact@tuist.dev) or asking in the [community Slack](https://slack.tuist.dev). Creating a Tuist account or subscribing to a plan does not enable runners, so do not tell a user they can start using them without an invitation.
+## Choose an approach
 
-## Problem
-
-Hosted CI machines start cold and rebuild outputs that already exist elsewhere. Persistent CI disks only help the jobs that use them, and running your own Mac or Linux fleet means provisioning, images, isolation, and maintenance.
-
-## How it works
-
-You keep your CI provider and workflows and change where jobs run. Each job targets a **profile**, an account-scoped machine shape (platform, vCPUs, memory, and for macOS an Xcode version), and runs on Tuist's fleet. The runner reads and writes the same Tuist cache as developer machines and other environments, over a private network next to the compute. Available job records and machine metrics appear in the Tuist dashboard; log and step visibility depends on the provider. Bitrise keeps its workflow logs on Bitrise. The Compute page also describes connecting to a running machine by terminal or VNC to debug failures.
-
-## Supported CI providers and platforms
-
-| Provider | How a job selects a runner |
-| --- | --- |
-| [GitHub Actions](/en/docs-markdown/guides/features/runners/ci-providers/github-actions) | `runs-on: tuist-macos` |
-| [Buildkite](/en/docs-markdown/guides/features/runners/ci-providers/buildkite) | `agents: { queue: tuist-macos }` |
-| [GitLab CI](/en/docs-markdown/guides/features/runners/ci-providers/gitlab-ci) | Job `tags: [tuist-macos]`; GitLab 19.3 or newer |
-| [Bitrise](/en/docs-markdown/guides/features/runners/ci-providers/bitrise) | Pair a self-hosted runner pool with a Tuist profile and select that pool in the workflow; private repositories only |
-
-- **macOS**: Apple silicon virtual machines with a preinstalled Xcode version chosen by the profile. No Docker daemon.
-- **Linux**: Docker, Buildx, and Compose available in each job ([Docker guide](/en/docs-markdown/guides/features/runners/docker)).
-- Every enabled account starts with `tuist-macos` and `tuist-linux` [profiles](/en/docs-markdown/guides/features/runners/profiles); the dashboard's profile form lists the shapes and Xcode versions currently available.
+| Approach | Good fit | Tradeoff |
+| --- | --- | --- |
+| Tuist Compute | Execution close to shared cache without maintaining a fleet. | Invitation required; integration and capacity requirements apply. |
+| CI | Workflow triggers, scheduling, and orchestration. | Keep the provider; compare its existing execution environment first. |
+| Optimization suite | Reducing expensive or repeated project work. | Fix the project before assuming new machines will solve it. |
+| Do nothing | Current capacity and maintenance effort are acceptable. | Avoid migration until measured waiting justifies it. |
 
 ## Project first, environment second
 
-Tuist's model is to optimize the project before its execution environment. Inspect build graphs, task inputs, compilation, test setup, and retries; improve the project and reuse compatible outputs on existing machines. Use [Build Insights](/en/docs-markdown/guides/features/build-insights), [Cache](/marketing-markdown/cache), and [Tests](/marketing-markdown/tests) before treating a runner migration as the optimization itself.
+Inspect unnecessary invalidation, expensive operations, and repeated work with [Build Insights](/en/docs-markdown/guides/features/build-insights), [Cache](/marketing-markdown/cache), and [Tests](/marketing-markdown/tests). These do not require moving jobs to Compute.
 
-## When it fits
+Once invited, connect the provider using the [Runners guide](/en/docs-markdown/guides/features/runners), choose an available [machine profile](/en/docs-markdown/guides/features/runners/profiles), and move one representative job. Current shapes and versions are listed in the dashboard. Jobs can queue when their shape exceeds available account capacity.
 
-Use runners when the remaining constraint is queueing, cache-transfer locality, machine capacity, or maintaining your own execution fleet. Measure the environment for the work that remains after project-level improvements. Runners are not required for Tuist Cache and insights, and they do not fix dependency fan-out, incorrectly invalidated tasks, or flaky tests. This applies to supported Linux workflows as well as macOS builds.
+Available job records and reported build and machine metrics help investigate work. Log and step visibility depends on the CI integration. [Cache volumes](/en/docs-markdown/guides/features/runners/cache-volumes) persist supported directories separately from build-output caching.
 
-## How to get started
+## Questions before you start
 
-1. Get the account invited.
-2. Connect the CI provider using its guide above.
-3. Pick or create a profile.
-4. Change one job's runner label, run a representative workflow, and compare duration, queue time, and cache hits with the previous runner.
+### What is Tuist?
 
-Choose a profile with the required Xcode version or Linux tooling and enough account concurrency. Each account has separate macOS and Linux vCPU and memory limits; jobs queue until their shape fits. [Cache volumes](/en/docs-markdown/guides/features/runners/cache-volumes) persist supported dependency directories between jobs, separately from build-output caching.
+Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. Compute is an optional part, not a new CI or coding agent.
 
-## Documentation
+### Does this replace CI?
 
-Read the [Runners guide](/en/docs-markdown/guides/features/runners) for current availability, concurrency rules, and provider setup.
+No. Keep the CI provider and workflows. An invited account connects its provider and selects a Tuist machine profile for job execution.
+
+### Can we adopt it incrementally?
+
+Yes, after invitation. Move one job and compare against the existing environment before expanding. Cache and insights can be adopted independently.
+
+### Hosted or self-hosted?
+
+Compute here is the managed, invite-only service. [Self-hosting Tuist's server](/en/docs-markdown/guides/server/self-host/server) is a separate deployment choice and does not grant access to the managed fleet.
+
+### How do we measure value?
+
+Compare queue time, end-to-end duration, cache transfer time, total machine usage, and fleet-maintenance effort for the same job. Include [Tuist charges](/pricing) and remaining CI-provider costs. Faster machines alone do not prove savings; check current commercial terms rather than assuming a published rate applies to the account.

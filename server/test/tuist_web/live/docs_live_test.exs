@@ -224,6 +224,39 @@ defmodule TuistWeb.DocsLiveTest do
       assert html =~ ~s(href="/en/docs/guides/get-started")
     end
 
+    test "keeps a single primary heading and section anchors on initial and live renders", %{conn: conn} do
+      initial_html = conn |> get("/en/docs/") |> html_response(200)
+      {:ok, view, _html} = live(conn, ~p"/en/docs/guides/get-started")
+      live_html = render_patch(view, ~p"/en/docs")
+
+      for html <- [initial_html, live_html] do
+        document = Floki.parse_document!(html)
+        assert document |> Floki.find("h1") |> Floki.text() == "One platform for faster build toolchains"
+        assert length(Floki.find(document, "h1")) == 1
+
+        for anchor <- ["learn-more", "see-tuist-in-action", "open-source-and-community"] do
+          assert length(Floki.find(document, "h2##{anchor}")) == 1
+          assert Floki.find(document, ~s(a[href="##{anchor}"])) != []
+        end
+      end
+    end
+
+    test "does not repeat the getting-started guide title while retaining child-page context", %{conn: conn} do
+      document =
+        conn
+        |> get(~p"/en/docs/guides/get-started")
+        |> html_response(200)
+        |> Floki.parse_document!()
+
+      assert document |> Floki.find("title") |> Floki.text() |> String.trim() == "Get started · Guides · Tuist"
+
+      {:ok, view, _html} = live(conn, ~p"/en/docs/guides/get-started")
+      assert page_title(view) == "Get started · Guides · Tuist"
+
+      render_patch(view, ~p"/en/docs/guides/get-started/existing-xcode-project")
+      assert page_title(view) == "Xcode project · Get started · Guides · Tuist"
+    end
+
     test "routes the generic cache card to the cache overview", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/en/docs")
 
@@ -513,13 +546,18 @@ defmodule TuistWeb.DocsLiveTest do
     end
 
     @tag :locale
-    test "redirects an untranslated article to its English source, preserving the query", %{conn: conn} do
-      page = %{Tuist.Docs.get_page("/en/guides/install-tuist") | slug: "/en/guides/english-only"}
-      stub(CLI, :get_pages, fn -> [page] end)
-      stub(CLI, :get_page, fn slug -> if slug == page.slug, do: page end)
+    test "redirects untranslated articles and runtime CLI pages to English, preserving the query", %{conn: conn} do
+      source = Tuist.Docs.get_page("/en/guides/install-tuist")
 
-      assert {:error, {:redirect, %{to: "/en/docs/guides/english-only?utm_source=google"}}} =
-               live(conn, "/zh_Hans/docs/guides/english-only?utm_source=google")
+      for {locale, path} <- [{"zh_Hans", "/guides/english-only"}, {"ar", "/cli/build/list"}] do
+        page = %{source | slug: "/en#{path}"}
+        stub(CLI, :get_pages, fn -> [page] end)
+        stub(CLI, :get_page, fn slug -> if slug == page.slug, do: page end)
+        destination = "/en/docs#{path}?utm_source=google&filter=a%2Fb"
+
+        assert {:error, {:redirect, %{to: ^destination}}} =
+                 live(conn, "/#{locale}/docs#{path}?utm_source=google&filter=a%2Fb")
+      end
     end
   end
 

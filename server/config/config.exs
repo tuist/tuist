@@ -613,8 +613,7 @@ config :tuist, :urls,
   feature_generated_projects: "https://tuist.dev/en/docs/guides/features/projects",
   feature_cache: "https://tuist.dev/en/docs/guides/features/cache",
   feature_previews: "https://tuist.dev/en/docs/guides/features/previews",
-  feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights",
-  shop: "https://shop.tuist.dev"
+  feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights"
 
 config :tuist, web_endpoint: TuistWeb.Endpoint, web_router: TuistWeb.Router
 

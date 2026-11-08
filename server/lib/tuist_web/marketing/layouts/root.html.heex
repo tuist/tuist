@@ -123,7 +123,7 @@
       />
       <!-- Language alternates for SEO. English-only pages have none. -->
       <%= unless assigns[:english_only] do %>
-        <%= for locale <- TuistWeb.Marketing.Localization.all_locales() do %>
+        <%= for locale <- assigns[:head_available_locales] || TuistWeb.Marketing.Localization.all_locales() do %>
           <link
             rel="alternate"
             hreflang={TuistWeb.Locale.language_tag(locale)}

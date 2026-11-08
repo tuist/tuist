@@ -1,32 +1,40 @@
-# Tuist and Buildkite: a development improvement layer or a CI and Test Engine platform?
+# Tuist vs Buildkite: build infrastructure alongside CI orchestration
 
-Choose Tuist when its supported toolchain integrations, compatible cache reuse, and build/test evidence improve your existing development loop. Optimize the project first, then its execution environment. Add [Tuist caching or tests](/marketing-markdown) to the current pipeline and connect CI work with compatible developer builds and authorized agent investigations.
+Compare Tuist and Buildkite by responsibility: shared build infrastructure, pipeline orchestration, caching, test visibility, and coding-agent access. They can work together; adopting Tuist does not require replacing Buildkite pipelines.
 
-## What overlaps
+## What is Buildkite?
 
-Buildkite documents [hosted macOS agents](https://buildkite.com/docs/agent/buildkite-hosted/macos.md), available on **Pro or Enterprise** plans, as well as [Test Engine splitting with bktec](https://buildkite.com/docs/pipelines/speed-up-builds-with-bktec.md) and [flaky-test detection and quarantine](https://buildkite.com/docs/pipelines/reduce-flaky-tests.md).
+Buildkite is a CI/CD platform with pipeline orchestration, hosted and self-hosted execution, and testing capabilities. Its [Pipelines documentation](https://buildkite.com/docs/pipelines/getting-started) explains configuring workflows and connecting agents that execute jobs. Its strengths include control over pipeline execution and [Test Engine](https://buildkite.com/docs/pipelines/reduce-flaky-tests), the testing layer that uses historical results to identify and manage unreliable tests.
 
-Its [coding-agent guide](https://buildkite.com/docs/pipelines/getting-started-with-coding-agents.md) describes MCP, skills, and Markdown documentation for working with Pipelines, Test Engine, and Package Registries. Hosted Apple machines, test acceleration, and agent-ready workflows are not exclusive to Tuist.
+## What is Tuist?
+
+Tuist is build infrastructure for engineering teams and coding agents: a coding environment where people build. [Caching](/marketing-markdown/cache), [tests](/marketing-markdown/tests), and [compute](/marketing-markdown/compute) serve work shared by developers, agents, and CI. Tuist is not CI orchestration. An existing pipeline can keep scheduling jobs while supported Tuist integrations provide reuse and build/test evidence.
 
 ## Compare the responsibilities
 
-| Requirement | Tuist | Buildkite evidence to evaluate |
+| Criterion | Buildkite | Tuist |
 | --- | --- | --- |
-| Orchestrate pipelines and choose agents | Supported integrations add a capability to existing CI; optional [Tuist Runners](/marketing-markdown/compute) integrate with Buildkite subject to invitation. | Buildkite manages pipelines with hosted or customer-managed agents. Using Tuist does not require replacing Buildkite orchestration. |
-| Reuse build outputs across environments | [Cache](/marketing-markdown/cache) supports compatible developer, CI, and agent clients independently of Tuist Runners. | Evaluate hosted-agent persistence, cache configuration, and artifact mechanisms separately from a toolchain remote cache. |
-| Split and contain unreliable tests | [Tests](/marketing-markdown/tests) provides feature-specific reporting, quarantine, and timing-balanced sharding for supported integrations. | Test Engine and bktec also split tests and quarantine flakes. Compare framework support, state ownership, retries, and scheduling. |
-| Investigate with agents | [Tuist MCP](/en/docs-markdown/guides/features/agentic-coding/mcp) exposes supported toolchain build/test records and integration workflows. | Buildkite offers MCP and skills spanning its platform. Compare a specific toolchain question with a pipeline-operation question. |
+| Setup | Define a pipeline and connect hosted or self-hosted agents. Add test collection and execution tooling for the testing features you need. See [getting started](https://buildkite.com/docs/pipelines/getting-started). | Configure a supported [Tuist integration](/en/docs-markdown/guides/get-started) within the current development and CI workflow. |
+| What runs where | Pipelines coordinate jobs executed by Buildkite-hosted or customer-managed agents. That execution choice is distinct from orchestration. | Keep existing local and CI execution for supported services; evaluate [Tuist Compute](/marketing-markdown/compute) independently and check its current availability. |
+| Caching | Buildkite documents hosted-agent volumes and a separate key-based Buildkite Cache for hosted and self-hosted agents in its [cache guide](https://buildkite.com/docs/pipelines/hosted-agents/cache-volumes). Evaluate the mechanism and access policy you need. | [Tuist Cache](/marketing-markdown/cache) shares compatible outputs across supported developer, CI, and coding-agent workflows, independently of a pipeline migration. |
+| Test visibility | [Test Engine](https://buildkite.com/docs/pipelines/reduce-flaky-tests) uses historical data for flaky-test detection, quarantine, and recovery workflows. | [Tuist Tests](/marketing-markdown/tests) provides reported outcomes and test history, with supported acceleration and reliability features. Assign overlapping test policies to one owner during a pilot. |
+| Agents and CI together | [Buildkite's coding-agent guide](https://buildkite.com/docs/pipelines/getting-started-with-coding-agents) documents MCP, skills, and agent access to logs, pipeline configuration, and test results. | [Tuist MCP](/en/docs-markdown/guides/features/agentic-coding/mcp) exposes authorized build and test evidence. Your existing CI can remain responsible for scheduling and delivery. |
+| Audience | Teams choosing pipeline orchestration, execution control, and integrated CI testing workflows. | Engineering teams seeking shared build infrastructure for people and agents alongside their existing delivery workflow. |
+
+## Choose Buildkite when
+
+Choose Buildkite when the decision is about orchestrating pipelines and controlling where jobs execute, or when its Test Engine workflows meet your testing requirements. Buildkite already documents coding-agent tooling and flaky-test management; those are not exclusive Tuist benefits.
 
 ## Choose Tuist when
 
-You want an additional layer of Xcode, Gradle, Bazel, or Elixir evidence and compatible cache reuse while retaining Buildkite pipelines. You want to inspect the [public implementation](https://github.com/tuist/tuist) and contribute to integrations that matter to the team. Generated Xcode projects can also use module caching and test-target selective testing; those are not prerequisites for most server capabilities.
+Choose Tuist when you need shared build infrastructure that connects development work, coding agents, and CI through supported caching and test evidence. You can retain Buildkite orchestration. Evaluate the [documentation](/en/docs-markdown/guides/get-started) and [pricing](/marketing-markdown/pricing) for the capability you would add rather than comparing the two as interchangeable products.
 
 ## First experiment
 
-Pilot a [supported Tuist integration](/en/docs-markdown/guides/get-started) in one existing pipeline without changing the orchestrator. Compare setup, compilation, transfers, and test time against the current baseline. If enabling Tuist test acceleration, assign scheduling and quarantine to one system at a time and measure both latency and total machine-minutes. Use Tuist MCP to investigate a recorded failure and require approval before pipeline changes.
+Add one Tuist integration to an existing pipeline without changing scheduling or execution. Compare repeated work and the evidence available to an engineer investigating a failure. Connect an authorized agent to the same records. If you test overlapping quarantine or test scheduling, enable one system at a time and compare both feedback time and total usage.
 
 ## Sources and review
 
-Sources checked on **2026-10-08**: Buildkite's [hosted macOS agents](https://buildkite.com/docs/agent/buildkite-hosted/macos.md), [bktec acceleration](https://buildkite.com/docs/pipelines/speed-up-builds-with-bktec.md), [flaky-test management](https://buildkite.com/docs/pipelines/reduce-flaky-tests.md), [coding-agent guide](https://buildkite.com/docs/pipelines/getting-started-with-coding-agents.md), and [Tuist Tests](/marketing-markdown/tests). This comparison is written by Tuist and treats orchestration, execution, and test acceleration as distinct decisions.
+Sources checked on **2026-11-08**. Written by Tuist, not an independent benchmark. Primary sources: [Pipelines getting started](https://buildkite.com/docs/pipelines/getting-started), [hosted-agent cache volumes](https://buildkite.com/docs/pipelines/hosted-agents/cache-volumes), [flaky-test management](https://buildkite.com/docs/pipelines/reduce-flaky-tests), and [coding-agent guide](https://buildkite.com/docs/pipelines/getting-started-with-coding-agents). Confirm execution options, integration support, and plan terms for your requirements; no numeric prices or savings are asserted.
 
-Related: [CircleCI](/marketing-markdown/compare/circleci), [Cirun](/marketing-markdown/compare/cirun), and [all comparisons](/marketing-markdown/compare).
+Explore [Cache](/marketing-markdown/cache), [Tests](/marketing-markdown/tests), [Compute](/marketing-markdown/compute), [documentation](/en/docs-markdown/guides/get-started), [pricing](/marketing-markdown/pricing), and [all comparisons](/marketing-markdown/compare).
