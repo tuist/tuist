@@ -97,7 +97,8 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert id == sandbox.id
   end
 
-  test "passes a read-only account cache credential and the Node's site-local cache endpoint", %{account: account} do
+  test "passes an account credential that reads the cache and reports builds, and the Node's site-local cache endpoint",
+       %{account: account} do
     project = project_fixture(account: account)
     other_project = project_fixture()
     sandbox_fixture(account: account, amp_orb_id: "amp-thread", node_name: "node-a")
@@ -125,7 +126,14 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert_in_delta claims["exp"] - claims["iat"], 6 * 3600, 1
     assert {:ok, %AuthenticatedAccount{} = subject} = Guardian.resource_from_claims(claims)
     assert subject.account.id == account.id
-    assert subject.scopes == ["account:cache:read", "project:cache:read"]
+
+    assert subject.scopes == [
+             "account:cache:read",
+             "project:cache:read",
+             "project:builds:write",
+             "project:tests:write",
+             "project:runs:write"
+           ]
 
     assert %{"account" => %{"read" => [account_handle], "write" => []}, "project" => %{"read" => readable, "write" => []}} =
              Cache.cache_grants(subject)
@@ -136,7 +144,15 @@ defmodule Tuist.Sandboxes.AmpOrbsTest do
     assert Authorization.authorize(:project_cache_read, subject, project) == :ok
     assert Authorization.authorize(:project_cache_create, subject, project) != :ok
     assert Authorization.authorize(:account_cache_create, subject, account) != :ok
-    assert Authorization.authorize(:run_create, subject, project) != :ok
+
+    for action <- [:build_create, :test_create, :run_create] do
+      assert Authorization.authorize(action, subject, project) == :ok
+      assert Authorization.authorize(action, subject, other_project) != :ok
+    end
+
+    assert Authorization.authorize(:preview_create, subject, project) != :ok
+    assert Authorization.authorize(:bundle_create, subject, project) != :ok
+    assert Authorization.authorize(:project_update, subject, project) != :ok
   end
 
   test "pause is repeatable and only releases residency after a successful snapshot", %{account: account} do
