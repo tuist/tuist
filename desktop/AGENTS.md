@@ -139,7 +139,7 @@ Record native VoiceOver/Narrator/NVDA/Orca acceptance separately in the README.
 Run from this directory:
 
 The GPUI source layout in `once.toml` requires Once's `build_script_sources`
-support, available in the pinned 0.77.1 release. Use the published binary
+support, available in the pinned 0.77.2 release. Use the published binary
 installed by mise. Do not replace this dependency with patched Cargo sources.
 
 ```sh

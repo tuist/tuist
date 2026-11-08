@@ -15,7 +15,9 @@ use crate::workspace::{Workspace, WorkspaceEvent};
 
 mod titlebar;
 pub use titlebar::{ToggleAccountMenu, init};
-#[cfg(test)]
+// These tests locate controls with GPUI debug selectors, which GPUI records only
+// with debug assertions, so the optimized release graph cannot run them.
+#[cfg(all(test, debug_assertions))]
 mod tests;
 
 enum Operation {
