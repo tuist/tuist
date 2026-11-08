@@ -238,6 +238,10 @@ other_guidance=""
   with `ovh_set_server_display_name`, which needs approval the same way. Never approve
   either yourself, never ask for or use the fleet's `OVH_API`
   token, and never use 1Password from an orb.
+- Vultr reads (bare metal state, region, plan, tags) go through the Atlas MCP tools
+  `vultr-compute__*`, which run as your own Vultr login and cannot write. Tagging a box
+  into a fleet stays a human step in the Vultr console; never ask for or use the
+  fleet's `VULTR_API` key.
 EOF
 } >"$guidance.tmp"
 mv "$guidance.tmp" "$guidance"
