@@ -15,13 +15,17 @@ defmodule TuistLabelsTest do
 
   defp json(conn), do: Jason.decode!(conn.resp_body)
 
-  test "the browser entry is a Phoenix LiveView using Noora and a same-origin asset bundle" do
-    page = call(:get, "/")
-    assert page.status == 200
-    html = Floki.parse_document!(page.resp_body)
-    assert Floki.find(html, "[data-phx-main] .noora-card") != []
-    assert Floki.find(html, "script[src='/assets/app.js']") != []
-    assert get_resp_header(page, "referrer-policy") == ["no-referrer"]
+  test "the browser only connects the printer; sessions and preparation belong to the CLI" do
+    for path <- ["/", "/relay"] do
+      page = call(:get, path)
+      assert page.status == 200
+      html = Floki.parse_document!(page.resp_body)
+      assert Floki.find(html, "[data-phx-main] .noora-card") != []
+      assert Floki.find(html, "script[src='/assets/app.js']") != []
+      assert Floki.find(html, "form, textarea, input, button") == []
+      assert Floki.text(html) =~ "tuist-labels init"
+      assert get_resp_header(page, "referrer-policy") == ["no-referrer"]
+    end
   end
 
   test "HTTP sessions isolate roles; text and PNG previews are real, atomic and never print" do

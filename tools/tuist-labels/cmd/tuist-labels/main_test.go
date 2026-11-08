@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,6 +15,10 @@ import (
 )
 
 func TestWorkflowAndExclusiveCredentials(t *testing.T) {
+	png, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var submitted struct {
 		Items []struct {
 			Text string `json:"text"`
@@ -31,6 +36,11 @@ func TestWorkflowAndExclusiveCredentials(t *testing.T) {
 		}
 		if r.Header.Get("Authorization") != "Bearer private-control" {
 			t.Error("missing scoped authorization")
+		}
+		if r.URL.Path == "/api/sessions/session-1/jobs/job-1.png" {
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(png)
+			return
 		}
 		if strings.HasSuffix(r.URL.Path, "/jobs") {
 			if err := json.NewDecoder(r.Body).Decode(&submitted); err != nil {
@@ -51,6 +61,9 @@ func TestWorkflowAndExclusiveCredentials(t *testing.T) {
 	if !strings.Contains(out.String(), "https://labels.example.com/relay#") || strings.Contains(out.String(), "?token=") {
 		t.Fatal("links must use fragments and browser origin")
 	}
+	if strings.Contains(out.String(), "private-control") {
+		t.Fatal("the browser link must not expose the agent's control credential")
+	}
 	info, _ := os.Stat(c.file)
 	if info.Mode().Perm() != 0600 {
 		t.Fatal("credentials must be private")
@@ -68,6 +81,20 @@ func TestWorkflowAndExclusiveCredentials(t *testing.T) {
 	}
 	if err := c.run([]string{"status"}); err != nil {
 		t.Fatal(err)
+	}
+	preview := filepath.Join(dir, "preview.png")
+	if err := c.run([]string{"preview", "job-1", preview}); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := os.ReadFile(preview)
+	if err != nil || !bytes.Equal(saved, png) {
+		t.Fatal("preview must save the actual server image")
+	}
+	if err := c.run([]string{"preview", "job-1", preview}); err == nil {
+		t.Fatal("preview must not overwrite an existing file")
+	}
+	if err := c.run([]string{"preview", "not-an-image", filepath.Join(dir, "bad.png")}); err == nil {
+		t.Fatal("preview must reject a JSON response instead of saving it as an image")
 	}
 }
 

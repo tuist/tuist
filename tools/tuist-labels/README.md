@@ -1,9 +1,10 @@
 # Tuist Labels
 
-Prepare rack labels with **`tuist-labels`**, preview them in your browser, and
-print through a nearby computer's Chrome tab. Currently supports the **Brady
-M211**. Zen/Firefox can use the control/preview page but cannot connect to
-Bluetooth. No native helper, printer driver or extension is needed on the Mac.
+An agent prepares rack labels from an orb with **`tuist-labels`**, downloads the
+rendered previews for inspection, and submits approved output through a nearby
+computer's Chrome tab. Currently supports the **Brady M211**. There is no browser
+preparation dashboard: Chrome provides connection/status only. Zen/Firefox cannot
+relay Bluetooth. No native helper, printer driver or extension is needed on the Mac.
 
 This is an early internal tool, not a command in the main Tuist CLI or a hosted
 production service. It supports one reviewed print attempt and an optionally
@@ -13,24 +14,33 @@ clean separation. Software tests do not access hardware.
 
 ## Who runs what?
 
-- **Job host (an orb or your computer):** runs the server and `tuist-labels` CLI.
+- **Job host (usually the agent's orb):** runs Phoenix and the `tuist-labels` CLI.
+  A maintainer starts this host once; colleagues do not each run a server.
 - **Mac beside the printer:** opens one private relay link in Chrome and selects
-  the printer. It does not need Node, this repository, or a local helper.
-- **Anyone preparing labels:** uses the CLI on the job host or opens the private
-  control link in Zen/Firefox/Chrome. Only share links with trusted operators.
+  the printer. Keep that tab open. It does not need Node, this repository, or a
+  local helper. Chrome's initial Bluetooth chooser needs a person; this is not
+  completely headless printing.
+- **Agent preparing labels:** creates the session, submits text/PNGs, downloads
+  previews and reads status through the CLI/API. Only the limited relay link is
+  shared with the person beside the printer; the control credential stays with
+  the agent. No browser session creation, label entry or job gallery is provided.
 
 ## For colleagues
 
-Use the reviewed **`tuist-labels` Go binary** for your OS/architecture, or open a
-private control link from a session owner. No Node, Elixir, repository checkout,
-printer driver or native Bluetooth helper is needed on the colleague's machine.
+Usually, give your agent the labels and open the private connection link it
+provides in Chrome beside the printer. The agent handles preparation and status;
+you do not need to install a CLI or run Phoenix. Operators who want to submit
+jobs themselves can use the reviewed **`tuist-labels` Go binary** for their
+OS/architecture. No Node, Elixir, repository checkout, printer driver or native
+Bluetooth helper is needed on the colleague's machine.
 The host maintainer builds binaries with `make dist`; automated publication and
 an installer are not configured yet. Do not use `npm install` to install the CLI.
 
-The application is **Phoenix LiveView + Noora**; session and queue updates are
-pushed through Phoenix PubSub. Only a small browser hook handles the official
-Brady Bluetooth SDK. Chrome is the Bluetooth endpoint, not the server. The CLI
-can run on another machine with access to the authenticated HTTPS host.
+The connection page uses **Phoenix LiveView + Noora**; session status updates are
+pushed through Phoenix PubSub. A small browser hook handles the official Brady
+Bluetooth SDK. Chrome is the Bluetooth endpoint, not the server. The CLI can run
+on another machine with access to the authenticated HTTPS host. A durable shared
+team host is not provisioned by this tool.
 
 ## Install once on the job host (maintainers)
 
@@ -68,10 +78,20 @@ tuist-labels submit-text /tmp/labels.txt 38.1 10
 tuist-labels status
 ```
 
-`init` prints two private links. `submit-text` renders one preview per line and
+`init` prints one private Chrome connection link. `submit-text` renders one preview per line and
 returns `{"queued":2,"state":"preview-only"}` for this example. `status` returns
 JSON with preview jobs, approval state and fresh relay/printer/supply status.
 You can also use `tuist-labels submit-png label.png` for a pre-rendered image.
+
+Download the exact rendered image using the job ID from `status`:
+
+```sh
+tuist-labels preview JOB-ID /tmp/label.png
+```
+
+The command saves a private PNG and refuses to overwrite an existing file. The
+agent can inspect that image directly and show it to the operator in the thread.
+Downloading a preview never prints. No browser preparation page is required.
 
 ### If the job host is an orb
 
@@ -96,14 +116,16 @@ Plain remote HTTP cannot use Web Bluetooth. `SECRET_KEY_BASE` can preserve signe
 browser cookies across host restarts; the default key is ephemeral. API sessions
 and queued jobs remain memory-only either way.
 
-### Connect and preview
+### Connect the nearby printer
 
 Open the private **relay link in Chrome** on the computer near the printer. Wait
 for “SDK ready”, click **Connect M211**, and select the printer in the chooser.
 Approve Bluetooth permission manually if prompted. Keep this single relay tab
-open. Open the separate **control link in Zen or Chrome** to inspect previews or
-compose more. `tuist-labels links` displays the links again; protect them like
-passwords. If portal sign-in loses the fragment, reopen the full link afterward.
+open. The page only shows connection, session job count and approval status.
+Use the CLI for previews and results. `tuist-labels links` displays the connection
+link again; protect it like a password. If portal sign-in loses the fragment,
+reopen the full link afterward. Refresh/reconnect retains SDK ownership on the
+same browser origin/profile; no unattended chooser bypass is attempted.
 
 Run `tuist-labels status` and check `relay.connected`, `relay.stale`, printer name,
 supply and printable zones before any output. A successful submission or a page
@@ -229,7 +251,9 @@ markers are packaged. No registry publication or automatic release is configured
 The ExUnit/Go tests cover role isolation, real PNG generation, atomic rejection,
 relay leases, session expiry, single dispatch under concurrency/restart,
 separate cut authorization, filesystem failure, private credentials and uncertain
-HTTP responses without retries. No test prints.
+HTTP responses without retries. Preview downloads are tested for exact bytes,
+non-overwrite and non-image rejection; connection links never include the agent's
+control credential. No test prints.
 Actual Firefox is not part of this suite; unsupported-Bluetooth UI can be checked
 in Chromium without Bluetooth support. Hardware verification requires an explicit
 operator-authorized print and physical confirmation.

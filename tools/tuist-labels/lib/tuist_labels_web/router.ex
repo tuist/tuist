@@ -11,8 +11,8 @@ defmodule TuistLabelsWeb.Router do
 
   scope "/" do
     pipe_through :browser
-    live "/", TuistLabelsWeb.DashboardLive, :control
-    live "/relay", TuistLabelsWeb.DashboardLive, :relay
+    live "/", TuistLabelsWeb.RelayLive, :relay
+    live "/relay", TuistLabelsWeb.RelayLive, :relay
   end
 
   get "/health", TuistLabelsWeb.API, :health

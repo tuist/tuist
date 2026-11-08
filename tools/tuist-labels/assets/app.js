@@ -1,8 +1,7 @@
 import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 
-const relay = location.pathname === "/relay";
-const storageKey = relay ? "m211-relay-session" : "m211-control-session";
+const storageKey = "m211-relay-session";
 let config, storageError;
 try {
   const params = new URLSearchParams(location.hash.slice(1));
@@ -10,7 +9,6 @@ try {
     config = {
       id: params.get("session"),
       token: params.get("token"),
-      relayToken: params.get("relayToken"),
     };
     localStorage.setItem(storageKey, JSON.stringify(config));
     history.replaceState(null, "", location.pathname);
@@ -40,40 +38,6 @@ const BrowserSession = {
     if (config) this.pushEvent("authenticate", config);
     if (storageError)
       this.pushEvent("client-notice", { message: storageError });
-    this.handleEvent("session-created", (value) => {
-      config = value;
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(config));
-      } catch {
-        this.pushEvent("client-notice", {
-          message: "Could not save session. Use CLI links before refreshing.",
-        });
-      }
-    });
-    this.onClick = async (event) => {
-      if (!event.target.closest("#copy-relay")) return;
-      try {
-        const fragment = new URLSearchParams({
-          session: config.id,
-          token: config.relayToken,
-        });
-        await navigator.clipboard.writeText(
-          `${location.origin}/relay#${fragment}`,
-        );
-        this.pushEvent("client-notice", {
-          message:
-            "Private relay link copied. Open it in Chrome on the nearby Mac.",
-        });
-      } catch {
-        this.pushEvent("client-notice", {
-          message: "Clipboard unavailable. Use tuist-labels links.",
-        });
-      }
-    };
-    this.el.addEventListener("click", this.onClick);
-  },
-  destroyed() {
-    this.el.removeEventListener("click", this.onClick);
   },
 };
 
@@ -214,7 +178,7 @@ const PrinterRelay = {
     });
     if (!isSecureContext || !navigator.bluetooth) {
       message =
-        "Web Bluetooth unavailable. Use Google Chrome on the nearby Mac over HTTPS. Zen/Firefox supports preview only.";
+        "Web Bluetooth unavailable. Open this private connection link in Google Chrome on the nearby Mac over HTTPS. Zen/Firefox cannot relay Bluetooth.";
     } else {
       capability.textContent = "Loading Brady Web SDK 3.3.3…";
       try {

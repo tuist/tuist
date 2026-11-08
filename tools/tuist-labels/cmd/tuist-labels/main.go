@@ -22,10 +22,11 @@ const help = `Tuist Labels — CLI-first rack labels, with a nearby Chrome Bluet
 
 Usage: tuist-labels <command>
   init <API-origin> [browser-HTTPS-origin]  Create a private eight-hour session
-  links                                   Show private preview and Chrome relay links
+  links                                   Show the private Chrome connection link
   submit-text <file> [width-mm height-mm]   Queue one label per line (preview only)
   submit-png <file> [file ...]              Queue PNG previews
   status                                  Show JSON printer, supply and job status
+  preview <job-id> <file.png>               Save a rendered preview without printing
   print-one <job-id>                       Request one explicitly authorized copy
   cut-once                                Request one separately authorized cut
   --help, --version
@@ -34,9 +35,12 @@ Example:
   tuist-labels init https://labels.example.com
   tuist-labels submit-text labels.txt
   tuist-labels status
+  tuist-labels preview JOB-ID label.png
 
 Open the private relay link in Chrome beside the printer and click Connect M211.
-Zen/Firefox supports preview, not Bluetooth. Keep the relay tab open.
+Keep the relay tab open. Zen/Firefox cannot relay Bluetooth.
+Agents create sessions, prepare labels and inspect previews through this CLI;
+the browser has connection/status controls only, not a preparation dashboard.
 The Phoenix host must already be running. No Node runtime or printer driver is
 needed on the CLI user's machine. Print/cut are disabled by default; the host
 requires explicit single-use authorization. Commands never automatically retry.
@@ -143,9 +147,45 @@ func (c client) links(s session) error {
 	if err != nil {
 		return err
 	}
-	control := url.Values{"session": {s.ID}, "token": {s.ControlToken}, "relayToken": {s.RelayToken}}
 	relay := url.Values{"session": {s.ID}, "token": {s.RelayToken}}
-	fmt.Fprintf(c.out, "Private control / preview link:\n%s/#%s\n\nPrivate Chrome relay link:\n%s/relay#%s\n\nLinks expire with this eight-hour session. Keep them private.\n", base, control.Encode(), base, relay.Encode())
+	fmt.Fprintf(c.out, "Private Chrome connection link:\n%s/relay#%s\n\nOpen in Chrome beside the printer; keep the tab open.\nThis link expires with the eight-hour session. Keep it private.\n", base, relay.Encode())
+	return nil
+}
+
+func (c client) preview(s session, job, path string) error {
+	base, err := origin(s.Base, false)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest("GET", base+"/api/sessions/"+s.ID+"/jobs/"+url.PathEscape(job)+".png", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+s.ControlToken)
+	res, err := c.http.Do(req)
+	if err != nil {
+		return errors.New("preview download failed; check host access and job status")
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK || !strings.HasPrefix(res.Header.Get("Content-Type"), "image/png") {
+		return fmt.Errorf("host did not return a PNG preview (HTTP %d)", res.StatusCode)
+	}
+	b, err := io.ReadAll(io.LimitReader(res.Body, 16_000_001))
+	if err != nil || len(b) > 16_000_000 || !bytes.HasPrefix(b, []byte{137, 80, 78, 71, 13, 10, 26, 10}) {
+		return errors.New("invalid or oversized PNG preview")
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err = f.Write(b); err != nil {
+		return err
+	}
+	if err = f.Sync(); err != nil {
+		return err
+	}
+	fmt.Fprintln(c.out, "Saved preview to", path, "— no printing requested.")
 	return nil
 }
 
@@ -206,7 +246,7 @@ func (c client) run(args []string) error {
 		fmt.Fprintln(c.out, "Created preview-only session; private credentials saved with mode 0600.")
 		return c.links(s)
 	}
-	if command != "links" && command != "status" && command != "submit-text" && command != "submit-png" && command != "print-one" && command != "cut-once" {
+	if command != "links" && command != "status" && command != "preview" && command != "submit-text" && command != "submit-png" && command != "print-one" && command != "cut-once" {
 		return fmt.Errorf("unknown command %q; run tuist-labels --help", command)
 	}
 	b, err := os.ReadFile(c.file)
@@ -238,6 +278,11 @@ func (c client) run(args []string) error {
 		if len(args) != 0 {
 			return errors.New("usage: tuist-labels status")
 		}
+	case "preview":
+		if len(args) != 2 {
+			return errors.New("usage: tuist-labels preview <job-id> <file.png>")
+		}
+		return c.preview(s, args[0], args[1])
 	case "print-one":
 		if len(args) != 1 {
 			return errors.New("usage: tuist-labels print-one <job-id>")

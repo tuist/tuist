@@ -130,7 +130,7 @@ defmodule TuistLabels.Store do
     {reply, %{state | sessions: Map.put(state.sessions, id, updated)}, changed}
   end
 
-  defp act(:status, s, _role, images, state) do
+  defp act(:status, s, _role, _, state) do
     relay =
       if s["relay"],
         do:
@@ -141,14 +141,7 @@ defmodule TuistLabels.Store do
 
     allowed = permitted?(s, state)
 
-    jobs =
-      Enum.map(s["jobs"], fn j ->
-        public = Map.drop(j, ["png"])
-
-        if images == true and j["png"],
-          do: Map.put(public, "image", "data:image/png;base64," <> Base.encode64(j["png"])),
-          else: public
-      end)
+    jobs = Enum.map(s["jobs"], &Map.drop(&1, ["png"]))
 
     {%{
        "id" => s["id"],
