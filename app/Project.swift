@@ -328,6 +328,7 @@ let project = Project(
             sources: ["Tests/TuistNotificationsTests/**"],
             dependencies: [
                 .target(name: "TuistNotifications"),
+                .target(name: "TuistAuthentication"),
                 .target(name: "TuistAppStorage"),
                 .project(target: "TuistServer", path: "../"),
                 .external(name: "Mockable"),
