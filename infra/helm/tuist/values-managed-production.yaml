@@ -1085,9 +1085,15 @@ vultrFleets:
   # us-central's presence in TUIST_KURA_AVAILABLE_REGIONS and by its ingress
   # controller in the platform chart. Both are open. Closing either one takes the
   # region out of service without touching the box.
+  #
+  # The third box is temporary landing room for moving the region onto encrypted
+  # thin volumes: it joins as lvm-v1 (its VultrMachine is annotated
+  # tuist.dev/kura-storage-layout=lvm-v1 before the box is tagged), the existing
+  # hosts are emptied onto it and converted one at a time, and it is removed
+  # again once the move is done.
   us-central-8c:
     enabled: true
-    replicas: 2
+    replicas: 3
     nodePool: kura-us-central
     machine:
       adoptTag: tuist-kura-vultr-production
