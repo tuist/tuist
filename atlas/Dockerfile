@@ -60,6 +60,11 @@ ENV NODE_OPTIONS=--use-openssl-ca \
 # proven version here keeps this build path stable.
 COPY --from=aube-builder /aube/target/release/aube /usr/local/bin/aube
 
+# Pin and package Brady's proprietary browser SDK without vendoring it in Git.
+WORKDIR /atlas/assets
+COPY atlas/assets/package.json atlas/assets/package-lock.json atlas/assets/build-labels-sdk.mjs ./
+RUN npm ci --ignore-scripts && npm run build:labels
+
 # Install from the manifest alone so the install layer survives source
 # changes, then copy only what the build reads: the web component generator
 # walks components/ and lib/noora/icons/, reads the RTL-mirrored icon list
@@ -140,6 +145,7 @@ COPY atlas/lib lib
 RUN mix compile
 
 # compile assets
+COPY --from=noora-assets /atlas/priv/static/assets/labels-sdk priv/static/assets/labels-sdk
 RUN mix assets.deploy
 
 # Changes to config/runtime.exs don't require recompiling the code
@@ -164,7 +170,7 @@ COPY infra/certificate-trust/pem-store.sh infra/certificate-trust/policy.json /o
 ARG APT_CACHE_BUST=0
 RUN : "APT_CACHE_BUST=${APT_CACHE_BUST}" \
   && apt-get update -y && \
-  apt-get install -y libstdc++6 openssl libncurses6 locales ca-certificates poppler-utils pandoc chromium fonts-liberation \
+  apt-get install -y libstdc++6 openssl libncurses6 locales ca-certificates poppler-utils pandoc chromium fonts-liberation libvips-tools fonts-dejavu-core \
   && sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf \
   && update-ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_* \

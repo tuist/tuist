@@ -1,8 +1,7 @@
-defmodule TuistLabels.Renderer do
+defmodule Atlas.Labels.Renderer do
   @moduledoc "Label previews rendered with libvips; no Node runtime or shell interpolation."
 
-  def render(%{"text" => text}, width, height)
-      when is_binary(text) and byte_size(text) <= 480 do
+  def render(%{"text" => text}, width, height) when is_binary(text) and byte_size(text) <= 480 do
     text = String.trim(text)
 
     if text == "" or String.length(text) > 120,
@@ -47,8 +46,7 @@ defmodule TuistLabels.Renderer do
     {text, png}
   end
 
-  def render(%{"png" => encoded}, _width, _height)
-      when is_binary(encoded) and byte_size(encoded) <= 3_000_000 do
+  def render(%{"png" => encoded}, _width, _height) when is_binary(encoded) and byte_size(encoded) <= 3_000_000 do
     with {:ok, png} <- Base.decode64(encoded),
          <<137, 80, 78, 71, 13, 10, 26, 10, 13::32, "IHDR", w::32, h::32, _::binary>> <- png,
          true <-
@@ -72,32 +70,20 @@ defmodule TuistLabels.Renderer do
   defp single_frame?(<<_length::32, "acTL", _::binary>>), do: false
   defp single_frame?(<<0::32, "IEND", _crc::32>>), do: true
 
-  defp single_frame?(<<length::32, _type::binary-size(4), rest::binary>>)
-       when byte_size(rest) >= length + 4,
-       do: single_frame?(binary_part(rest, length + 4, byte_size(rest) - length - 4))
+  defp single_frame?(<<length::32, _type::binary-size(4), rest::binary>>) when byte_size(rest) >= length + 4,
+    do: single_frame?(binary_part(rest, length + 4, byte_size(rest) - length - 4))
 
   defp single_frame?(_), do: false
 
   defp temporary(fun) do
-    dir =
-      Path.join(
-        System.tmp_dir!(),
-        "tuist-label-" <> Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
-      )
-
-    File.mkdir!(dir)
+    {:ok, dir} = Briefly.create(directory: true)
     File.chmod!(dir, 0o700)
-
-    try do
-      fun.(dir)
-    after
-      File.rm_rf!(dir)
-    end
+    fun.(dir)
   end
 
   defp run(args) do
     # Small labels need no parallel workers; avoids observed vips 8.15/GLib crashes.
-    case System.cmd("vips", ["--vips-concurrency=1" | args], stderr_to_stdout: true) do
+    case MuonTrap.cmd("vips", ["--vips-concurrency=1" | args], stderr_to_stdout: true) do
       {_, 0} -> :ok
       _ -> throw({:api, 400, "Label image could not be rendered."})
     end

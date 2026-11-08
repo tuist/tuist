@@ -225,6 +225,12 @@
             selected={String.starts_with?(@current_path, "/operations/hardware/financings")}
           />
         </.sidebar_group>
+        <.sidebar_item
+          label={gettext("Labels")}
+          icon="device_mobile_share"
+          navigate={~p"/operations/labels"}
+          selected={String.starts_with?(@current_path, "/operations/labels")}
+        />
       </.sidebar_group>
       <.sidebar_group
         :if={Atlas.Users.has_scope?(@current_user, "automation:read")}

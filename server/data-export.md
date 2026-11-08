@@ -28,6 +28,14 @@ Data is provided in a single compressed archive containing:
 
 Sensitive authentication data (passwords, tokens) are excluded from exports.
 
+Atlas label-printing data lives in its separate PostgreSQL database:
+owner-scoped `label_sessions`, exact preview PNGs and approval/dispatch/results
+in `label_jobs`, plus related audit activities. Export by verified Atlas owner,
+including expired records and PNG binaries, not by Tuist account ID. Capability
+hashes and live credentials are excluded. Rows remain until owner deletion;
+session expiry is not deletion. Device-local relay/CLI credentials require
+separate authorized handling. See [Atlas's label inventory](../atlas/data-export.md#label-printing).
+
 Atlas personal coding data is stored in Atlas's separate database, not Tuist's
 account tables. Its owner-private environment registrations, encrypted command
 arguments/results (including code edits), conversation history, and device-local

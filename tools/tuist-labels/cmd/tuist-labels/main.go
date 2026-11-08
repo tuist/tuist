@@ -1,4 +1,4 @@
-// Tuist Labels submits previews and explicitly approved jobs to the Phoenix host.
+// Tuist Labels prepares previews and requests browser approval in shared Atlas.
 // Bluetooth is exclusively handled by the nearby Chrome relay, not this CLI.
 package main
 
@@ -13,47 +13,75 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
-const help = `Tuist Labels — CLI-first rack labels, with a nearby Chrome Bluetooth relay.
+const help = `Tuist Labels — optional Go CLI for shared Atlas labels.
+
+Atlas MCP is preferred for agents; this Go CLI is optional. No server installation
+is needed per orb or Mac. Set ATLAS_TOKEN to your Atlas OAuth bearer token for
+every API call; it is never saved in the session file.
 
 Usage: tuist-labels <command>
-  init <API-origin> [browser-HTTPS-origin]  Create a private eight-hour session
+  init <Atlas-origin>                     Create a private eight-hour session
   links                                   Show the private Chrome connection link
   submit-text <file> [width-mm height-mm]   Queue one label per line (preview only)
   submit-png <file> [file ...]              Queue PNG previews
   status                                  Show JSON printer, supply and job status
   preview <job-id> <file.png>               Save a rendered preview without printing
-  print-one <job-id>                       Request one explicitly authorized copy
-  cut-once                                Request one separately authorized cut
+  print-one <job-id>                       Request browser approval for one copy
+  cut-once                                Request browser approval for one cut
   --help, --version
 
 Example:
-  tuist-labels init https://labels.example.com
+  tuist-labels init https://atlas.example.com
   tuist-labels submit-text labels.txt
   tuist-labels status
   tuist-labels preview JOB-ID label.png
 
-Open the private relay link in Chrome beside the printer and click Connect M211.
-Keep the relay tab open. Zen/Firefox cannot relay Bluetooth.
-Agents create sessions, prepare labels and inspect previews through this CLI;
-the browser has connection/status controls only, not a preparation dashboard.
-The Phoenix host must already be running. No Node runtime or printer driver is
-needed on the CLI user's machine. Print/cut are disabled by default; the host
-requires explicit single-use authorization. Commands never automatically retry.
-M211_STATE_DIR / M211_SESSION retain compatible private credentials and markers.
+The logged-in session owner opens the private Atlas link in Chrome beside the
+printer and connects M211. Chrome stays the nearby BLE endpoint; keep it open.
+Zen/Firefox cannot relay Bluetooth. The user approves the exact job in Atlas.
+print-one and cut-once only return awaiting-approval jobs and approval URLs;
+neither command authorizes output. Commands never automatically retry.
+M211_STATE_DIR / M211_SESSION retain private session paths and legacy markers.
 Links are secrets. Do not paste links, credentials or approvals into public PRs.`
 
 type session struct {
-	ID           string `json:"id"`
-	ControlToken string `json:"controlToken"`
-	RelayToken   string `json:"relayToken"`
-	ExpiresAt    int64  `json:"expiresAt"`
-	Base         string `json:"base"`
-	BrowserBase  string `json:"browserBase"`
+	ID         string `json:"id"`
+	RelayToken string `json:"relayToken"`
+	ExpiresAt  int64  `json:"expiresAt"`
+	Base       string `json:"base"`
+}
+
+const sessionsPath = "/api/labels/sessions"
+
+var sessionID = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+func atlasToken() (string, error) {
+	token := strings.TrimSpace(os.Getenv("ATLAS_TOKEN"))
+	if token == "" {
+		return "", errors.New("ATLAS_TOKEN is required; set your Atlas OAuth bearer token")
+	}
+	return token, nil
+}
+
+func decodeSession(b []byte) (session, error) {
+	var fields map[string]json.RawMessage
+	var s session
+	if err := json.Unmarshal(b, &fields); err != nil {
+		return s, errors.New("invalid session JSON")
+	}
+	if _, legacy := fields["controlToken"]; legacy {
+		return s, errors.New("legacy controlToken session is not supported; preserve legacy session and dispatch markers, choose a new private M211_STATE_DIR or M211_SESSION, and run init <Atlas-origin> with ATLAS_TOKEN")
+	}
+	if err := json.Unmarshal(b, &s); err != nil || !sessionID.MatchString(s.ID) || s.RelayToken == "" || s.ExpiresAt <= 0 {
+		return s, errors.New("invalid session credentials")
+	}
+	return s, nil
 }
 
 type client struct {
@@ -95,6 +123,10 @@ func origin(raw string, httpsOnly bool) (string, error) {
 }
 
 func (c client) request(s session, tail, method string, data any) (json.RawMessage, error) {
+	token, err := atlasToken()
+	if err != nil {
+		return nil, err
+	}
 	base, err := origin(s.Base, false)
 	if err != nil {
 		return nil, err
@@ -112,9 +144,7 @@ func (c client) request(s session, tail, method string, data any) (json.RawMessa
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if s.ControlToken != "" {
-		req.Header.Set("Authorization", "Bearer "+s.ControlToken)
-	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	// POST side effects are never retried, including after timeout or lost response.
 	res, err := c.http.Do(req)
 	if err != nil {
@@ -139,29 +169,29 @@ func (c client) request(s session, tail, method string, data any) (json.RawMessa
 }
 
 func (c client) links(s session) error {
-	base := s.BrowserBase
-	if base == "" {
-		base = s.Base
-	}
-	base, err := origin(base, false)
-	if err != nil {
-		return err
-	}
-	relay := url.Values{"session": {s.ID}, "token": {s.RelayToken}}
-	fmt.Fprintf(c.out, "Private Chrome connection link:\n%s/relay#%s\n\nOpen in Chrome beside the printer; keep the tab open.\nThis link expires with the eight-hour session. Keep it private.\n", base, relay.Encode())
-	return nil
-}
-
-func (c client) preview(s session, job, path string) error {
 	base, err := origin(s.Base, false)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest("GET", base+"/api/sessions/"+s.ID+"/jobs/"+url.PathEscape(job)+".png", nil)
+	relay := url.Values{"token": {s.RelayToken}}
+	fmt.Fprintf(c.out, "Private Chrome connection link:\n%s/operations/labels/%s#%s\n\nOpen as the logged-in session owner in Chrome beside the printer; keep the tab open.\nApprove the exact job in Atlas before output.\nThis link expires with the eight-hour session. Keep it private.\n", base, s.ID, relay.Encode())
+	return nil
+}
+
+func (c client) preview(s session, job, path string) error {
+	token, err := atlasToken()
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+s.ControlToken)
+	base, err := origin(s.Base, false)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest("GET", base+sessionsPath+"/"+s.ID+"/jobs/"+url.PathEscape(job)+".png", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := c.http.Do(req)
 	if err != nil {
 		return errors.New("preview download failed; check host access and job status")
@@ -200,19 +230,23 @@ func (c client) run(args []string) error {
 		return nil
 	}
 	if command == "init" {
-		if len(args) < 1 || len(args) > 2 {
-			return errors.New("usage: tuist-labels init <API-origin> [browser-HTTPS-origin]")
+		if len(args) != 1 {
+			return errors.New("usage: tuist-labels init <Atlas-origin>")
 		}
 		base, err := origin(args[0], false)
 		if err != nil {
 			return err
 		}
-		browserBase := base
-		if len(args) == 2 {
-			browserBase, err = origin(args[1], true)
-			if err != nil {
+		if b, readErr := os.ReadFile(c.file); readErr == nil {
+			if _, err := decodeSession(b); err != nil {
 				return err
 			}
+			return errors.New("saved session already exists; use links/status or choose a new private M211_STATE_DIR; never discard dispatch markers")
+		} else if !errors.Is(readErr, os.ErrNotExist) {
+			return readErr
+		}
+		if _, err := atlasToken(); err != nil {
+			return err
 		}
 		if err = os.MkdirAll(filepath.Dir(c.file), 0700); err != nil {
 			return err
@@ -225,17 +259,17 @@ func (c client) run(args []string) error {
 			return err
 		}
 		defer f.Close()
-		result, err := c.request(session{Base: base}, "/api/sessions", "POST", map[string]any{})
+		result, err := c.request(session{Base: base}, sessionsPath, "POST", map[string]any{})
 		if err != nil {
 			_ = os.Remove(c.file)
 			return err
 		}
-		var s session
-		if err = json.Unmarshal(result, &s); err != nil || s.ID == "" || s.ControlToken == "" || s.RelayToken == "" {
+		s, err := decodeSession(result)
+		if err != nil {
 			_ = os.Remove(c.file)
 			return errors.New("invalid session response")
 		}
-		s.Base, s.BrowserBase = base, browserBase
+		s.Base = base
 		if err = json.NewEncoder(f).Encode(s); err == nil {
 			err = f.Sync()
 		}
@@ -256,17 +290,14 @@ func (c client) run(args []string) error {
 	if err != nil {
 		return err
 	}
-	var s session
-	if err = json.Unmarshal(b, &s); err != nil {
-		return errors.New("invalid saved session")
-	}
-	if s.ID == "" || strings.ContainsAny(s.ID, "/?#") || s.ControlToken == "" {
-		return errors.New("invalid saved session credentials")
+	s, err := decodeSession(b)
+	if err != nil {
+		return err
 	}
 	if err = os.Chmod(c.file, 0600); err != nil {
 		return err
 	}
-	path, method := "/api/sessions/"+s.ID, "GET"
+	path, method := sessionsPath+"/"+s.ID, "GET"
 	var data any
 	switch command {
 	case "links":

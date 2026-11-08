@@ -1,262 +1,122 @@
 # Tuist Labels
 
-An agent prepares rack labels from an orb with **`tuist-labels`**, downloads the
-rendered previews for inspection, and submits approved output through a nearby
-computer's Chrome tab. Currently supports the **Brady M211**. There is no browser
-preparation dashboard: Chrome provides connection/status only. Zen/Firefox cannot
-relay Bluetooth. No native helper, printer driver or extension is needed on the Mac.
+Prepare labels through **Atlas MCP** and connect a nearby **Brady M211** using
+Chrome. Atlas hosts the Phoenix/Noora connection and approval pages and stores
+sessions, images, approvals and dispatch results in PostgreSQL. **No server runs
+in each orb or on colleagues' Macs.** This directory contains only the optional
+Go CLI; the server lives in `atlas/` and ships with Atlas.
 
-This is an early internal tool, not a command in the main Tuist CLI or a hosted
-production service. It supports one reviewed print attempt and an optionally
-authorized separate cut, not unattended batch printing. A prototype was physically
-tested with an M211 and M21-750-427 supply; the operator confirmed correct text and
-clean separation. Software tests do not access hardware.
+## Normal agent workflow
 
-## Who runs what?
+1. Give your agent the label text or PNGs. Using your personal Atlas connection,
+   it calls `manage_label_session` with `action: "create"`, then `submit`.
+2. Open the returned **private connection link in Chrome beside the printer**,
+   signed into the same Atlas account. Click **Connect M211**, select the printer
+   and approve the browser's Bluetooth prompt. Keep that one tab open and the
+   computer awake. No CLI, repository, Elixir, Node, drivers or helper is needed
+   on this computer. Zen/Firefox cannot provide Web Bluetooth.
+3. The agent reads `status` and `preview`, inspects the exact PNG, printer, supply
+   and printable zones, then calls `request_print` for that job.
+4. Open its **Atlas approval link**. Check the image, printer and installed supply,
+   then click **Approve & print one copy**. Only the signed-in owner can approve;
+   neither MCP nor a bearer API call can approve output.
+5. Inspect the physical result. Printing never cuts automatically. If needed, the
+   agent calls `request_cut` after an SDK-confirmed print. Approve that separate
+   cut in Atlas; it does not print or feed another label.
 
-- **Job host (usually the agent's orb):** runs Phoenix and the `tuist-labels` CLI.
-  A maintainer starts this host once; colleagues do not each run a server.
-- **Mac beside the printer:** opens one private relay link in Chrome and selects
-  the printer. Keep that tab open. It does not need Node, this repository, or a
-  local helper. Chrome's initial Bluetooth chooser needs a person; this is not
-  completely headless printing.
-- **Agent preparing labels:** creates the session, submits text/PNGs, downloads
-  previews and reads status through the CLI/API. Only the limited relay link is
-  shared with the person beside the printer; the control credential stays with
-  the agent. No browser session creation, label entry or job gallery is provided.
+Submission is always preview-only. Each session supports one reviewed print
+attempt and one separately approved cut, not unattended batch printing. Up to
+50 previews can be submitted per request, 100 per session. Sessions expire after
+eight hours, approvals ten minutes after request, and relay reports after
+35 seconds. Text previews use 203 dpi; their dimensions are not a physical-size
+guarantee. The SDK scales to the supply preserving aspect ratio.
 
-## For colleagues
+MCP actions: `create`; `status` with `session_id`; `submit` with `session_id`,
+`items: [{text: "RACK-02-SW01"}]` (or base64 `png`), optional `width_mm`/`height_mm`;
+`preview` with `session_id`/`job_id` (base64 PNG result); `request_print` with
+`session_id`/`job_id`; `request_cut` with `session_id`. No approval action exists.
+The hardware MCP group and `assets:read`/`assets:write` scopes apply; shared-identity
+Slack callers are excluded. Existing roles are not granted new permissions.
 
-Usually, give your agent the labels and open the private connection link it
-provides in Chrome beside the printer. The agent handles preparation and status;
-you do not need to install a CLI or run Phoenix. Operators who want to submit
-jobs themselves can use the reviewed **`tuist-labels` Go binary** for their
-OS/architecture. No Node, Elixir, repository checkout, printer driver or native
-Bluetooth helper is needed on the colleague's machine.
-The host maintainer builds binaries with `make dist`; automated publication and
-an installer are not configured yet. Do not use `npm install` to install the CLI.
+## Optional Go CLI
 
-The connection page uses **Phoenix LiveView + Noora**; session status updates are
-pushed through Phoenix PubSub. A small browser hook handles the official Brady
-Bluetooth SDK. Chrome is the Bluetooth endpoint, not the server. The CLI can run
-on another machine with access to the authenticated HTTPS host. A durable shared
-team host is not provisioned by this tool.
-
-## Install once on the job host (maintainers)
-
-Requires Elixir 1.18+/OTP 25+, Go 1.22+, Node 24.12+ **for building assets only**,
-libvips tools (`vips`) and DejaVu Sans. On Ubuntu, the image/font packages are
-`libvips-tools fonts-dejavu-core`; on macOS use libvips and install DejaVu Sans.
-From `tools/tuist-labels`:
+Agents should normally use the Atlas MCP connection already available to them.
+Operators with an Atlas OAuth bearer token can use the Go binary instead. Set
+`ATLAS_TOKEN` securely in the environment; never put it in a command argument,
+source file or public thread. It is read anew on each request and never saved.
 
 ```sh
-make setup
-export PATH="$PWD/bin:$PATH"
-./bin/tuist-labels --help
-```
-
-`make setup` resolves locked Mix/npm dependencies, bundles Noora/LiveView/Brady
-assets and builds the Go binary. Node is not used by the running server or CLI.
-The Phoenix host uses the local Noora path dependency from this monorepo; retain
-that checkout layout. No separate Node server or sidecar runs.
-
-## Start and prepare labels
-
-For a job host beside the printer:
-
-```sh
-make serve
-```
-
-The server is **preview-only by default**, listening on loopback port 3077. In a
-second terminal on the same host:
-
-```sh
-tuist-labels init http://localhost:3077
-printf 'RACK-02-SW01\nRACK-02-P09\n' > /tmp/labels.txt
-tuist-labels submit-text /tmp/labels.txt 38.1 10
+tuist-labels init https://atlas.tuist.dev
+tuist-labels links
+printf 'RACK-02-SW01\nRACK-02-P09\n' > labels.txt
+tuist-labels submit-text labels.txt 38.1 10
 tuist-labels status
-```
-
-`init` prints one private Chrome connection link. `submit-text` renders one preview per line and
-returns `{"queued":2,"state":"preview-only"}` for this example. `status` returns
-JSON with preview jobs, approval state and fresh relay/printer/supply status.
-You can also use `tuist-labels submit-png label.png` for a pre-rendered image.
-
-Download the exact rendered image using the job ID from `status`:
-
-```sh
-tuist-labels preview JOB-ID /tmp/label.png
-```
-
-The command saves a private PNG and refuses to overwrite an existing file. The
-agent can inspect that image directly and show it to the operator in the thread.
-Downloading a preview never prints. No browser preparation page is required.
-
-### If the job host is an orb
-
-An orb cannot use your Mac's Bluetooth directly. Start a supervised service with
-an HTTPS portal, not a detached process:
-
-```sh
-amp orb service start tuist-labels --command 'mix phx.server' --port 3077 --portal
-```
-
-Use its returned HTTPS origin for the browser links while the CLI calls the
-loopback API:
-
-```sh
-tuist-labels init http://localhost:3077 https://YOUR-PORTAL-ORIGIN
-```
-
-Outside Amp, configure `HOST`/`PORT` and use a trusted authenticated HTTPS proxy
-for remote browser access. Set `PUBLIC_URL` to its external HTTPS origin so
-Phoenix accepts same-origin WebSocket connections. Amp services set it for you.
-Plain remote HTTP cannot use Web Bluetooth. `SECRET_KEY_BASE` can preserve signed
-browser cookies across host restarts; the default key is ephemeral. API sessions
-and queued jobs remain memory-only either way.
-
-### Connect the nearby printer
-
-Open the private **relay link in Chrome** on the computer near the printer. Wait
-for “SDK ready”, click **Connect M211**, and select the printer in the chooser.
-Approve Bluetooth permission manually if prompted. Keep this single relay tab
-open. The page only shows connection, session job count and approval status.
-Use the CLI for previews and results. `tuist-labels links` displays the connection
-link again; protect it like a password. If portal sign-in loses the fragment,
-reopen the full link afterward. Refresh/reconnect retains SDK ownership on the
-same browser origin/profile; no unattended chooser bypass is attempted.
-
-Run `tuist-labels status` and check `relay.connected`, `relay.stale`, printer name,
-supply and printable zones before any output. A successful submission or a page
-load is not evidence of a Bluetooth connection.
-
-Text files contain one label per line; submission creates previews, **not prints**.
-At most 50 labels per request and 100 per session. PNGs are flattened to white.
-Text preview dimensions are illustrative at 203 dpi, not guaranteed physical
-dimensions. Check cartridge and printable zones before authorizing a print.
-Brady's SDK preserves image aspect ratio and fits it to the supply's printable
-zone; continuous media length may depend on that ratio.
-
-## Explicit single-use printing
-
-An approval file has this shape (all placeholder values must be replaced):
-
-```json
-{
-  "id": "replace-with-new-reviewed-approval-id",
-  "sessionId": "replace-with-cli-session-id",
-  "text": "RACK-02-TEST",
-  "printer": "replace-with-reported-printer-name",
-  "supply": "replace-with-reported-supply-part",
-  "allowCut": false
-}
-```
-
-After the operator approves the exact label and printer:
-
-1. Use `tuist-labels status` to record the session ID, printer name and supply.
-2. Create a private approval JSON **outside the checkout** with the fields above
-   (also available in `authorization.example.json` for source users). Replace
-   every placeholder. Set `text` to the exact approved label. Choose a new `id`
-   for this approval (letters, digits, `_` or `-`). Leave `allowCut` false unless
-   a separate cut has also been explicitly approved.
-3. Restart the server with `M211_AUTHORIZATION=/absolute/path/authorization.json`
-   and the same `M211_STATE_DIR`/`M211_SESSION`. For an Amp service, include these
-   environment assignments in its service command. The server restores the
-   matching unexpired CLI session. **Queued images/status are lost on restart.**
-4. Refresh the existing relay tab and reconnect; do not open competing relay tabs.
-   Re-submit the exact approved text, inspect the preview, and obtain its job ID
-   from `tuist-labels status`. An uploaded PNG's title is `Uploaded PNG`;
-   authorize that title only after reviewing the actual image. Control
-   credentials are trusted.
-5. Run the explicit command only after approval:
-
-```sh
+tuist-labels preview JOB-ID label.png
 tuist-labels print-one JOB-ID
-tuist-labels status
 ```
 
-One copy prints with automatic cutting disabled. If the operator separately
-approved a cut and the authorization contains `allowCut: true`:
+`print-one` returns an `awaiting-approval` job and its `approvalUrl`; **it does not
+approve printing**. After the operator approves and verifies the output:
 
 ```sh
 tuist-labels cut-once
 tuist-labels status
 ```
 
-`cut-once` sends only a cut, never a new print or feed. No feed, ownership reset,
-firmware or printer configuration API is exposed. SDK confirmation still requires
-the operator to check physical output. **Never automatically retry an uncertain
-print or cut.**
+`cut-once` also requests browser approval, not immediate output. `submit-png`
+accepts one or more PNG paths. Preview/session writes refuse to overwrite files.
+Commands never automatically retry output requests, including a lost response.
 
-Before granting dispatch the server exclusively creates and fsyncs
-`dispatch-ID.json` (0600) in the state directory; a separate `.cut` marker guards
-the cut. Concurrent claims, lost responses and server restarts cannot reuse those
-markers. A consumed authorization may have produced nothing if delivery failed:
-safety takes precedence over automatic recovery. Never delete a marker or change
-the approval ID merely to retry. Inspect the printer and obtain a new explicit
-approval first. Keep the same state directory across restarts; losing it loses
-the duplicate-dispatch protection. Results and jobs themselves are memory-only.
-
-## Ownership, freshness and security
-
-- Runtime paths and `M211_*` environment variables deliberately retain their
-  original names: existing private credentials and consumed dispatch markers
-  must not be silently abandoned by a product rename. `init` refuses to overwrite
-  credentials at `~/.config/m211-bridge/session.json` (0600). Set `M211_STATE_DIR`
-  in server and CLI processes for an isolated state directory, or `M211_SESSION`
-  for a specific credential file. Keep state outside Git. Sessions expire after
-  eight hours; choose a new state directory for a new session, not for a retry.
-- SDK 3.3.3 internally preserves `localStorage.ownershipID` and returns a boolean
-  from discovery, unlike older public documentation. Refresh/reconnect on the same
-  origin/profile retains ownership. **Disconnect & release** intentionally calls
-  SDK disconnect, which clears it. No automatic ownership reset is performed.
-- A 35-second single-relay lease prevents competing tabs through this UI. Status
-  is stale after 35 seconds without a heartbeat. Tab throttling or sleep can make
-  a physical connection appear stale; this is a freshness check, not disconnect
-  proof. A status button/page load alone does not prove a Bluetooth connection.
-- Separate random 256-bit control/relay capabilities scope access to each session.
-  Relay can claim queued actions and report results but cannot create them.
-  Fragments are removed after intake. No CORS or remote shell execution exists.
-  A relay is trusted to report honestly; this is not hardware attestation.
-- Bind to loopback by default. Use a trusted HTTPS/authenticated proxy for remote
-  access; room capabilities are not a substitute for protecting the host. Session
-  creation is rate/bound limited, but this is not hardened for hostile public use.
-- SDK JavaScript/WASM are served from the installed pinned npm package under a
-  same-origin CSP. Analytics are disabled. Brady's SDK is proprietary and subject
-  to its own license; it is a dependency, not vendored or relicensed here.
-
-## Development and distribution
-
-From `tools/tuist-labels`:
+Build with Go 1.22+ from this directory:
 
 ```sh
-make setup
+make build
+./bin/tuist-labels --help
 make test
-mix compile --warnings-as-errors
-mix format --check-formatted
-npm run format:check
 GOWORK=off go vet ./...
 make dist
-make serve
 ```
 
-`make dist` cross-compiles standalone, CGO-free CLI binaries for macOS, Linux
-and Windows, arm64 and amd64, under ignored `dist/`. Review/distribute the right
-binary to colleagues; put it on their PATH. No credentials, approvals or dispatch
-markers are packaged. No registry publication or automatic release is configured.
-`GOWORK=off` keeps this independent module outside the infrastructure workspace.
+`make dist` creates CGO-free macOS/Linux/Windows binaries for arm64 and amd64 in
+ignored `dist/`. No installer or automated binary publication is configured.
+Review/distribute the binary; the CLI is not installed through npm. Atlas assets
+use a pinned npm dependency at build time only, not a Node server.
 
-The ExUnit/Go tests cover role isolation, real PNG generation, atomic rejection,
-relay leases, session expiry, single dispatch under concurrency/restart,
-separate cut authorization, filesystem failure, private credentials and uncertain
-HTTP responses without retries. Preview downloads are tested for exact bytes,
-non-overwrite and non-image rejection; connection links never include the agent's
-control credential. No test prints.
-Actual Firefox is not part of this suite; unsupported-Bluetooth UI can be checked
-in Chromium without Bluetooth support. Hardware verification requires an explicit
-operator-authorized print and physical confirmation.
+## Safety and migration
+
+- Atlas ownership and current permissions are checked on every operation.
+  Private relay capabilities grant transport/status only, never preparation or
+  approval. PostgreSQL stores only their SHA-256 hashes. Links are secrets.
+- PostgreSQL row locks serialize claims across replicas. The `dispatched` state
+  commits before Chrome receives permission to output. Restart, competing
+  claims and lost responses never return a consumed job to the queue. A crash
+  can therefore consume an approval without printing. There is no retry worker.
+- **Never automatically retry uncertain output.** Inspect the printer first.
+  A new session and new human approval represent a new deliberate operation,
+  not recovery of an old claim. `sdk-confirmed` is not physical confirmation.
+- The relay is trusted to report honestly, not hardware-attested. Keep the tab
+  open; sleeping/throttled tabs can become stale. Web Bluetooth requires HTTPS
+  (or local development loopback) and an explicit initial user chooser gesture.
+- SDK 3.3.3 manages `localStorage.ownershipID` internally. Same-origin/profile
+  refresh preserves it; moving from a prototype portal to Atlas does not migrate
+  browser-origin ownership. Release the old connection deliberately first; never
+  reset printer ownership automatically. **Disconnect & release** is explicit.
+- No feed, firmware, configuration, ownership-reset or remote-shell API exists.
+  SDK analytics are disabled. Its JavaScript/WASM are build outputs of the pinned
+  proprietary Brady package, not vendored or relicensed here.
+- CLI paths retain `M211_STATE_DIR`, `M211_SESSION` and the default
+  `~/.config/m211-bridge/session.json` (0600). Legacy `controlToken` sessions are
+  rejected without modifying credentials or dispatch markers. Keep those files;
+  use a new private path for a genuinely new Atlas session after checking old
+  output. No old preview, authorization or consumed marker is imported/replayed.
+- Atlas data survives restarts and follows [its export/retention inventory](../../atlas/data-export.md#label-printing).
+  Integration still needs the normal Atlas release/migration process; a PR does
+  not provision or deploy a separate service.
+
+Backend and UI checks live in Atlas's test suite; this directory's tests cover
+the Go HTTP contract, token rotation, private state and no-retry behavior. Tests
+must never access a real printer without fresh explicit authorization. Earlier
+prototype hardware success does not validate a new Atlas deployment.
 
 Official references: [Web API](https://sdk.bradyid.com/web_api_documentation/),
 [supported components](https://sdk.bradyid.com/supported_components/),

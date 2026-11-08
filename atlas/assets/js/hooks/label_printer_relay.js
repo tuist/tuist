@@ -1,60 +1,56 @@
-import { Socket } from "phoenix";
-import { LiveSocket } from "phoenix_live_view";
-
-const storageKey = "m211-relay-session";
-let config, storageError;
-try {
-  const params = new URLSearchParams(location.hash.slice(1));
-  if (params.has("session") && params.has("token")) {
-    config = {
-      id: params.get("session"),
-      token: params.get("token"),
-    };
-    localStorage.setItem(storageKey, JSON.stringify(config));
-    history.replaceState(null, "", location.pathname);
-  } else config = JSON.parse(localStorage.getItem(storageKey) || "null");
-} catch {
-  storageError =
-    "Browser storage is unavailable. Allow storage to retain the private session and printer ownership.";
-}
-
-async function api(tail = "", method = "GET", body) {
-  const response = await fetch(`/api/sessions/${config.id}${tail}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${config.token}`,
-      "Content-Type": "application/json",
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-  if (!response.ok)
-    throw new Error((await response.json()).error || `HTTP ${response.status}`);
-  return response;
-}
-
-const BrowserSession = {
-  mounted() {
-    // Credentials travel inside the authenticated socket frame, never URL query parameters.
-    if (config) this.pushEvent("authenticate", config);
-    if (storageError)
-      this.pushEvent("client-notice", { message: storageError });
-  },
-};
-
-const PrinterRelay = {
+export default {
   async mounted() {
     this.stopped = false;
+    const id = this.el.dataset.sessionId;
+    let token;
+    const capability = this.el.querySelector("#capability");
+    try {
+      const storageKey = `atlas-label-relay:${id}`;
+      const params = new URLSearchParams(location.hash.slice(1));
+      token = params.get("token") || localStorage.getItem(storageKey);
+      if (params.has("token")) {
+        localStorage.setItem(storageKey, token);
+        history.replaceState(null, "", location.pathname);
+      }
+      if (!token)
+        throw new Error(
+          "Reopen the full private connection link from your agent.",
+        );
+    } catch (error) {
+      capability.textContent = `Relay not started: ${error.message}`;
+      return;
+    }
+    const api = async (tail = "", method = "GET", body) => {
+      const response = await fetch(`/api/labels/relay/sessions/${id}${tail}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      if (!response.ok)
+        throw new Error(
+          (await response.json()).error || `HTTP ${response.status}`,
+        );
+      return response;
+    };
     let sdk,
       connecting = false,
       ready = false,
       message = "Waiting for connection.";
     const connect = this.el.querySelector("#connect");
     const disconnect = this.el.querySelector("#disconnect");
-    const capability = this.el.querySelector("#capability");
     const attempted = new Set();
-    const clientId =
-      sessionStorage.getItem("m211-client") || crypto.randomUUID();
-    sessionStorage.setItem("m211-client", clientId);
+    let clientId;
+    try {
+      clientId = sessionStorage.getItem("m211-client") || crypto.randomUUID();
+      sessionStorage.setItem("m211-client", clientId);
+    } catch {
+      capability.textContent =
+        "Browser storage is required to preserve the relay identity. No output will be sent.";
+      return;
+    }
     const report = () => ({
       clientId,
       connected: sdk?.isConnected() === true,
@@ -74,9 +70,20 @@ const PrinterRelay = {
       connect.disabled = connecting || !ready || sdk?.isConnected() === true;
       disconnect.disabled = connecting || !sdk?.isConnected();
     };
+    // PostgreSQL JSONB reorders object keys; compare content, not SDK key order.
+    const zonesKey = (zones) =>
+      JSON.stringify(
+        zones?.map((zone) =>
+          Object.entries(zone).sort(([a], [b]) => a.localeCompare(b)),
+        ),
+      );
+    const sameSupply = (job) =>
+      sdk.printerName === job.printer &&
+      sdk.supplyName === job.supply &&
+      zonesKey(sdk.zoneDimensions) === zonesKey(job.zoneDimensions);
     const dispatch = async (job) => {
-      if (attempted.has(job.id) || !sdk?.isConnected()) return;
-      if (sdk.printerName !== job.printer || sdk.supplyName !== job.supply)
+      if (this.stopped || attempted.has(job.id) || !sdk?.isConnected()) return;
+      if (!sameSupply(job))
         throw new Error("Printer or supply changed. Output blocked.");
       attempted.add(job.id);
       let url;
@@ -94,11 +101,7 @@ const PrinterRelay = {
         await api(`/jobs/${job.id}/claim`, "POST", { clientId });
         let success = false;
         try {
-          if (
-            !sdk.isConnected() ||
-            sdk.printerName !== job.printer ||
-            sdk.supplyName !== job.supply
-          )
+          if (this.stopped || !sdk.isConnected() || !sameSupply(job))
             throw new Error("Printer or supply changed");
           if (job.action === "cut") success = (await sdk.cut()) === true;
           else {
@@ -182,7 +185,9 @@ const PrinterRelay = {
     } else {
       capability.textContent = "Loading Brady Web SDK 3.3.3…";
       try {
-        const { default: BradySdk } = await import("/sdk/bundle.js");
+        const sdkUrl = "/assets/labels-sdk/bundle.js";
+        const { default: BradySdk } = await import(sdkUrl);
+        if (this.stopped) return;
         // SDK owns localStorage.ownershipID. Discovery returns a boolean, not an ownership ID.
         sdk = new BradySdk(() => {
           if (sdk && !this.stopped) {
@@ -204,9 +209,3 @@ const PrinterRelay = {
     clearTimeout(this.timer);
   },
 };
-
-const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-new LiveSocket("/live", Socket, {
-  hooks: { BrowserSession, PrinterRelay },
-  params: { _csrf_token: csrfToken },
-}).connect();
