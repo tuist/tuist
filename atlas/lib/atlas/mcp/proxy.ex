@@ -479,7 +479,7 @@ defmodule Atlas.MCP.Proxy do
   defp require_approval(%Server{} = server, conn, tool_name, arguments) do
     if match?(%{assigns: %{current_user: %User{}, audit_interface: "mcp"}}, conn) do
       case MCPContext.authorize_tool_call(conn.assigns.current_user, server.name, tool_name, arguments) do
-        :ok ->
+        {:ok, _approval} ->
           :ok
 
         {:approval_required, approval} ->

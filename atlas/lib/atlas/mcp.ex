@@ -439,8 +439,8 @@ defmodule Atlas.MCP do
   @doc """
   Spends the caller's approval for this exact call, or files a request for one.
 
-  Returns `:ok` when an approved, unspent and unexpired approval matches the
-  user, tool and arguments; the approval is consumed in the same statement, so
+  Returns `{:ok, approval}` when an approved, unspent and unexpired approval
+  matches the user, tool and arguments; the approval is consumed in the same statement, so
   two concurrent calls cannot share it. Otherwise returns
   `{:approval_required, approval}` with the pending request a person decides in
   the Atlas web UI, reusing an open request for the same call.
@@ -473,7 +473,7 @@ defmodule Atlas.MCP do
     case Repo.update_all(spend, set: [consumed_at: now, updated_at: now]) do
       {1, [approval]} ->
         audit_tool_approval("mcp_tool_approval.consumed", approval)
-        :ok
+        {:ok, approval}
 
       {0, _} ->
         :approval_required
