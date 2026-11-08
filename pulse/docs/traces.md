@@ -413,10 +413,12 @@ string. Compaction recomputes the proof from bytes, so it can prove old rich
 sources but never reconstruct missing original types. No compaction is required
 for correctness. Expressions do not prune but use the same planning.
 
-Planning runs in rounds. A round discovers matching-or-legacy-unknown candidate
-IDs in the newest 4 candidates by `max_ts` (including matches outside the
-requested time window), replaying their exact admitted bytes locally without a
-second GET. Candidate IDs then select additional context sources through complete
+Planning runs in rounds, starting with the newest candidate source by `max_ts`.
+One compacted source can already hold every requested trace; a small result
+must not require admitting several sources and all their context first.
+A round discovers matching-or-legacy-unknown candidate IDs (including matches
+outside the requested time window), replaying their exact admitted bytes locally
+without a second GET. Candidate IDs then select additional context sources through complete
 SHA-256-prefix sets or versioned canonical ID blooms, and paged-manifest leaves
 through their ID blooms, **without a service or request-time filter**, among the
 sources within the [context horizon](#search-context-horizon) of the round's
@@ -464,6 +466,19 @@ the general 128 MiB scan ceiling and not a capacity gain for every workload.
 Record-based reference adapters have no source indexes or native compressed-input
 owner caps. Dirty native work can outlive deadlines; exceptions/panics rely on
 resource cleanup and lock contention remains a generic resource error.
+
+`query_resource_limit` does not identify one ceiling. Native search also caps
+expression work at **20,000,000 units**, including candidate discovery and replay
+before the final result limit. Even `{}` with `limit=1` can exhaust this budget.
+Native failures log `pulse trace query safety limit=... maximum=... observed=...`
+with fixed limit names and numeric counters only, at most once per second per
+process across concurrent failures. Input, payload, sample, retained/result byte,
+expression/structural work, context-byte and resource-lock failures are
+distinguished there; the public error and limits are unchanged. No diagnostic
+line is guaranteed for each failure under concurrency. A killed query worker
+instead records its configured `max_heap_mb` in MCP error text. That classifies
+the killed worker, not proof that heap exhaustion caused the kill. Native
+allocations are not charged to that BEAM heap cap.
 
 Require complete-context search capability **10**, current tuple **`{2,1,3,10,13}`**, on
 all serving application/native artifacts before use; discovery capability is
@@ -1760,6 +1775,18 @@ survives. Spans that cannot merge faithfully (`trace_projection_invalid`, a
 size mismatch) stay active and queryable. Only the exact failed source set is
 deferred on that node for an hour, not every source in its hour. Decoded-size
 overflow retries smaller batches within the same bounded maintenance operation.
+When a deferred set contains only partial merged outputs, later passes can
+still try other pairs from the candidate pool. A size failure or lack of
+object-count reduction in one set does not prevent consolidation of another
+set from the same hour. Unproductive partial rewrites are never published.
+
+Compaction is not a guarantee that broad queries fit the query budgets. Every
+service/class partition needs its own objects, and high trace-ID volume needs
+multiple objects per partition even after consolidation. An unfiltered query
+can therefore exceed the segment ceiling on a fully compacted hour. TraceQL
+metrics still scan individual spans, so their row and byte budgets can also bind
+after compaction removes fragmentation. Narrow the time range or selector;
+increasing maintenance throughput alone cannot remove these limits.
 
 Publication uploads the outputs before one conditional manifest write retires
 their sources. Sources are deleted after a one-hour grace period, and only

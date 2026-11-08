@@ -307,6 +307,85 @@ defmodule Pulse.Storage.S3.TraceCompactorTest do
     assert Enum.frequencies(rows) == %{ctx.span => 3, other => 1}
   end
 
+  test "a deferred partial pair does not hide a productive pair in the same hour", ctx do
+    payload =
+      update_in(Fixture.payload(), ["resourceSpans", Access.all(), "resource", "attributes", Access.all()], fn
+        %{"key" => "service.name"} = attribute -> put_in(attribute, ["value", "stringValue"], "another-service")
+        attribute -> attribute
+      end)
+
+    assert {:ok, [other], 0} = Traces.decode(payload)
+    assert :ok = S3.append(:traces, ctx.tenant, [ctx.span])
+    assert :ok = S3.append(:traces, ctx.tenant, [other])
+    assert {:ok, %{merged: 2, outputs: 2}} = TraceCompactor.compact(ctx.tenant, ctx.config)
+
+    later = %{
+      ctx.span
+      | timestamp_ns: ctx.span.timestamp_ns + 1,
+        end_timestamp_ns: ctx.span.end_timestamp_ns + 1
+    }
+
+    for _ <- 1..2, do: assert(:ok = S3.append(:traces, ctx.tenant, [later]))
+    assert {:ok, %{merged: 2, outputs: 1}} = TraceCompactor.compact(ctx.tenant, ctx.config, max_sources: 2)
+    assert length(active(ctx)) == 3
+
+    # The oldest two outputs belong to different services: no object-count
+    # reduction is possible. Their failure says nothing about the later
+    # output sharing a service with one of them. Depending on key order,
+    # at most two unproductive pairs precede the productive one.
+    for _ <- 1..4, do: assert({:ok, _} = TraceCompactor.compact(ctx.tenant, ctx.config, max_sources: 2))
+
+    assert length(active(ctx)) == 2
+    assert {:ok, rows} = S3.query(:traces, ctx.tenant, max_scan_segments: 2)
+    assert Enum.frequencies(rows) == %{ctx.span => 1, other => 1, later => 2}
+  end
+
+  test "decoded overflow of partial outputs does not hide a smaller fitting pair", ctx do
+    large = %{ctx.span | name: :binary.copy(<<0>>, 1024 * 1024)}
+    next = %{large | timestamp_ns: large.timestamp_ns + 1, end_timestamp_ns: large.end_timestamp_ns + 1}
+
+    later = %{
+      ctx.span
+      | timestamp_ns: ctx.span.timestamp_ns + 2,
+        end_timestamp_ns: ctx.span.end_timestamp_ns + 2
+    }
+
+    opts = [max_sources: 2, small_segment_bytes: 32 * 1024 * 1024]
+
+    for row <- [large, next, later] do
+      offset = if row == later, do: 0, else: 100
+      tail = %{row | timestamp_ns: row.timestamp_ns + offset, end_timestamp_ns: row.end_timestamp_ns + offset}
+      for span <- [row, tail], do: assert(:ok = S3.append(:traces, ctx.tenant, [span]))
+      assert {:ok, %{merged: 2, outputs: 1}} = TraceCompactor.compact(ctx.tenant, ctx.config, opts)
+    end
+
+    originals = active(ctx)
+    assert length(originals) == 3
+
+    # Compressed sizes fit selection, but the oldest two partial outputs
+    # together exceed native decoded JSON's 16 MiB ceiling. Defer that set,
+    # not the whole partial pool: the oldest plus the small output fits.
+    assert {:ok, %{merged: 0}} = TraceCompactor.compact(ctx.tenant, ctx.config, opts)
+    assert active(ctx) == originals
+    assert {:ok, %{merged: 2, outputs: 1}} = TraceCompactor.compact(ctx.tenant, ctx.config, opts)
+
+    rows =
+      Enum.flat_map(active(ctx), fn segment ->
+        assert {:ok, blob} = ObjectStore.get(ctx.config, segment.key)
+        assert {:ok, decoded} = S3.decode_segment(:traces, blob, nil, nil, [])
+        decoded
+      end)
+
+    expected =
+      Enum.flat_map([large, next, later], fn row ->
+        offset = if row == later, do: 0, else: 100
+        [row, %{row | timestamp_ns: row.timestamp_ns + offset, end_timestamp_ns: row.end_timestamp_ns + offset}]
+      end)
+
+    assert Enum.frequencies(rows) == Enum.frequencies(expected)
+    assert map_size(load(ctx).retired) == 8
+  end
+
   test "oversized partial payloads do not prevent fresh sources from compacting", ctx do
     row = %{ctx.span | name: :binary.copy(<<0>>, 1024 * 1024)}
     opts = [small_segment_bytes: 32 * 1024 * 1024]

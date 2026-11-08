@@ -89,11 +89,53 @@ defmodule Pulse.Storage.S3.TempoPlannerTest do
     assert data_gets(ctx) == []
   end
 
+  test "complete newest traces fit their source budget without admitting older candidates", ctx do
+    groups =
+      for n <- 1..8 do
+        for i <- 1..20, do: record(ctx.base, "api", n * 20 + i, n * 20 + i, n * 400 + i * 10)
+      end
+
+    entries = seed(ctx, groups)
+    {:ok, predicates} = TempoSearch.parse("{}")
+
+    for limit <- [1, 20] do
+      opts = [trace_start: 1, trace_end: 4000, limit: limit, spss: 3]
+      assert {:ok, expected} = TempoSearch.json(List.flatten(groups), predicates, opts)
+
+      assert {:ok, json} =
+               S3.tempo_search_json(
+                 ctx.tenant,
+                 predicates,
+                 Keyword.merge(opts,
+                   max_scan_segments: 1,
+                   max_scan_bytes: List.last(entries).byte_size,
+                   max_scan_rows: 20
+                 )
+               )
+
+      assert Pulse.JSON.decode!(json) == Pulse.JSON.decode!(expected)
+    end
+  end
+
+  test "a small first window expands when recovered trace starts change the newest result", ctx do
+    root = record(ctx.base, "edge", 1, 1, 1)
+    child = record(ctx.base, "api", 1, 2, 160, root.span_id)
+    newest = record(ctx.base, "api", 2, 3, 120)
+    seed(ctx, [[root], [newest], [child]])
+    {:ok, predicates} = TempoSearch.parse(@query)
+    opts = [trace_start: 1, trace_end: 200, limit: 1, spss: 3]
+    assert {:ok, expected} = TempoSearch.json([root, newest, child], predicates, opts)
+
+    assert {:ok, json} = query(ctx, limit: 1, max_scan_segments: 3)
+    assert Pulse.JSON.decode!(json) == Pulse.JSON.decode!(expected)
+    assert [%{"traceID" => "2"}] = Pulse.JSON.decode!(json)["traces"]
+  end
+
   test "unknown, missing or malformed proof bits cannot infer original service types", ctx do
     seed(ctx, for(n <- 1..3, do: [record(ctx.base, "noise", n, n, 10)]))
     rewrite(ctx, fn segment -> %{segment | trace_summary: %{segment.trace_summary | pruning_safe?: false}} end)
     assert {:error, :query_scan_limit} = query(ctx, max_scan_segments: 1)
-    assert data_gets(ctx) == []
+    assert length(data_gets(ctx)) == 1
     assert TraceSummary.parse(%{"v" => 1, "s" => ["noise"], "k" => "true"}).pruning_safe? == false
     assert TraceSummary.matches?(nil, proven_only: true, resource: %{"service.name" => "api"})
   end
@@ -129,9 +171,10 @@ defmodule Pulse.Storage.S3.TempoPlannerTest do
     assert {:ok, ~s'{"traces":[]}'} = search.(~s'{span.request_kind="absent"}')
     assert data_gets(ctx) == []
 
-    # Every source may match: the first window already exceeds the segment budget.
+    # Every source may match: admit the first source, then reject expansion
+    # before reading beyond the segment budget.
     assert {:error, :query_scan_limit} = search.(~s'{resource.service.name=~"no.*"}')
-    assert data_gets(ctx) == []
+    assert length(data_gets(ctx)) == 1
   end
 
   test "context GETs retain cumulative segment, byte and row limits", ctx do

@@ -1470,9 +1470,26 @@ defmodule Pulse.Storage.S3 do
   # match, known only once decoded (see charge_matched_rows/3). Discovery
   # keeps every stored row it reads.
   defp check_scan_budget(:metrics, segments, opts) do
-    if opts[:metric_discovery],
-      do: check_scan_budget(segments, opts),
-      else: check_scan_budget(segments, Keyword.delete(opts, :max_scan_rows))
+    result =
+      if opts[:metric_discovery],
+        do: check_scan_budget(segments, opts),
+        else: check_scan_budget(segments, Keyword.delete(opts, :max_scan_rows))
+
+    # Distinguish ungrouped backlog from expensive grouped reads without
+    # exposing source keys or fetching any payload just to diagnose a limit.
+    with {:error, :query_scan_limit} <- result,
+         %{limit: :max_scan_bytes} = detail <- QueryLimit.peek() do
+      tiers =
+        Enum.reduce(segments, %{}, fn segment, acc ->
+          Map.update(acc, Segment.metric_tier(segment), {1, segment.byte_size || 0}, fn {count, bytes} ->
+            {count + 1, bytes + (segment.byte_size || 0)}
+          end)
+        end)
+
+      QueryLimit.put(Map.put(detail, :metric_tiers, tiers))
+    end
+
+    result
   end
 
   defp limited_span_query?(opts),
@@ -1952,7 +1969,6 @@ defmodule Pulse.Storage.S3 do
   # source's `max_ts`, so once the round's `limit`th trace starts after the
   # newest unread candidate its answer is final. Otherwise the next round plans
   # four times as many; blobs read earlier are reused, not fetched again.
-  @tempo_window 4
   defp tempo_search(manifest, start_ts, opts, tenant, config) do
     filters = TraceSummary.tempo_filters(opts[:tempo_search])
     # A trace-duration predicate must use every retained span, even when an
@@ -1972,7 +1988,10 @@ defmodule Pulse.Storage.S3 do
       candidate?: &TraceSummary.matches?(&1.trace_summary, filters)
     }
 
-    tempo_round(@tempo_window, plan, {%{}, 0}, start_ts, opts, config)
+    # One compacted source may already contain every requested trace. Recover
+    # its context before admitting more candidates; larger rounds still run
+    # unless complete trace starts prove the requested results are final.
+    tempo_round(1, plan, {%{}, 0}, start_ts, opts, config)
   end
 
   # Format-4 manifests read only the leaves that can hold the newest `n`.

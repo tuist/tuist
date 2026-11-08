@@ -131,11 +131,10 @@ defmodule Pulse.Storage.S3.TraceCompactor do
         find_pair(sources, opts)
 
       batch ->
-        cond do
-          not batch_deferred?(batch, opts) -> batch
-          partial_batch?(batch, opts) -> nil
-          true -> find_pair(sources, opts)
-        end
+        # Deferral applies only to this exact immutable set, including when
+        # every source is a partial output. A different pair may still reduce
+        # fragmentation (or fit the decoded native budget).
+        if batch_deferred?(batch, opts), do: find_pair(sources, opts), else: batch
     end
   end
 

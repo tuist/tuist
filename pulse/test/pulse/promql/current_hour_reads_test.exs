@@ -217,7 +217,12 @@ defmodule Pulse.PromQL.CurrentHourReadsTest do
     byte_cap = div(Enum.sum_by(root.segments, & &1.byte_size), 4)
     Runtime.put_env(:pulse, Evaluator, max_scan_bytes: byte_cap)
     assert {:error, :query_scan_limit} = Evaluator.query(query, ctx.tenant, opts)
-    assert %{limit: :max_scan_bytes, stage: :candidates} = QueryLimit.take()
+
+    # rate's left-open window excludes the flush exactly at t0.
+    assert %{limit: :max_scan_bytes, stage: :candidates, observed: bytes, metric_tiers: %{raw: {299, bytes}}} =
+             detail = QueryLimit.take()
+
+    assert QueryLimit.describe(detail) =~ "candidate tiers: raw: 299 segments / #{bytes} bytes"
 
     # An older eligible hour competes with recent grouping. Block its merge
     # in storage, not the worker's mailbox, just as a slow historical task
@@ -274,6 +279,12 @@ defmodule Pulse.PromQL.CurrentHourReadsTest do
     reads(ctx.agent)
     assert {:ok, ^expected} = Evaluator.query(query, ctx.tenant, opts)
     assert reads(ctx.agent) == 1
+
+    Runtime.put_env(:pulse, Evaluator, max_scan_bytes: 1)
+    assert {:error, :query_scan_limit} = Evaluator.query(query, ctx.tenant, opts)
+    assert %{metric_tiers: %{grouped: {1, grouped_bytes}}} = detail = QueryLimit.take()
+    assert grouped_bytes > 1
+    assert QueryLimit.describe(detail) =~ "candidate tiers: grouped: 1 segments / #{grouped_bytes} bytes"
 
     # Historical maintenance can finish against the concurrently changed
     # manifest without losing or duplicating recent samples.

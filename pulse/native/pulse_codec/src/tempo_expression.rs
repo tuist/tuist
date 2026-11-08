@@ -66,9 +66,11 @@ impl TraceContext {
         for attrs in &links {
             units += 1 + attributes(attrs)?.len();
         }
-        *work = work.checked_add(units).ok_or(Error::Budget)?;
+        *work = work
+            .checked_add(units)
+            .ok_or_else(|| Error::budget("expression_work", WORK_MAX, usize::MAX))?;
         if *work > WORK_MAX {
-            return Err(Error::Budget);
+            return Err(Error::budget("expression_work", WORK_MAX, *work));
         }
         let start = crate::tempo_search::integer(field(fields, b"timestamp_ns")?)?;
         let end = crate::tempo_search::integer(field(fields, b"end_timestamp_ns")?)?;
@@ -102,7 +104,11 @@ impl TraceContext {
             }
         }
         if self.retained_bytes() > 16_777_216 {
-            return Err(Error::Budget);
+            return Err(Error::budget(
+                "context_bytes",
+                16_777_216,
+                self.retained_bytes(),
+            ));
         }
         Ok(())
     }
@@ -529,9 +535,11 @@ impl Expression {
         units += (events.len() + links.len()) * self.size * (2 * self.size + SELECT_MAX);
         // Charge all owners, attributes and instructions before filtering, in
         // both candidate and retained-context passes, including nonmatches.
-        *work = work.checked_add(units).ok_or(Error::Budget)?;
+        *work = work
+            .checked_add(units)
+            .ok_or_else(|| Error::budget("expression_work", WORK_MAX, usize::MAX))?;
         if *work > WORK_MAX {
-            return Err(Error::Budget);
+            return Err(Error::budget("expression_work", WORK_MAX, *work));
         }
         let owners = Owners {
             resource: &resource,
