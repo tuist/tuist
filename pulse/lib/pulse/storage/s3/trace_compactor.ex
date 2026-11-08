@@ -285,12 +285,14 @@ defmodule Pulse.Storage.S3.TraceCompactor do
 
       ids = Keyword.get(opts, :max_ids, 256)
       flagged = Keyword.get(opts, :max_flagged_ids, 1024)
+      partial? = partial_batch?(sources, opts)
 
       case NIF.compact_trace_segments_split(blobs, max_rows, ids, flagged, max_output_rows(opts)) do
+        {:ok, outputs} when partial? and length(outputs) >= length(sources) ->
+          :unchanged
+
         {:ok, outputs} ->
-          if partial_batch?(sources, opts) and length(outputs) >= length(sources),
-            do: :unchanged,
-            else: upload(outputs, tenant, config)
+          upload(outputs, tenant, config)
 
         {:error, :query_sample_limit} ->
           {:error, :payload_too_large}
