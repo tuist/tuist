@@ -410,9 +410,13 @@ shape on the shared OVH Linux fleet):
 
 The VM is not the bottleneck: half of all resumes spend longer in
 `Capacity.admit/1` (grant check, node lock, carve-out growth) than the
-node takes to restore. Work on resume latency should start there, not on
-memory restore. `boot_ms` and `node_call_ms` exclude the API request and
-Amp's bootstrap; `admit_ms` is logged only by servers since the field was
+node takes to restore. A pause shrinks the carve-out, so nearly every
+resume grows it again and waits for the daemon to report the new limit.
+The daemon notices within 250 ms, but these numbers predate the change
+that cut `Tuist.Sandboxes.NodePresence`'s `broadcast_period` from 1.5 s,
+when another replica took up to that long to see the report.
+`boot_ms` and `node_call_ms` exclude the API request and Amp's
+bootstrap; `admit_ms` is logged only by servers since the field was
 added, hence the smaller sample. Reproduce with LogQL quantiles over those
 lines (`regexp "admit_ms=(?P<v>\\d+)" | unwrap v`) on
 `{namespace="tuist", container="server"}`.
