@@ -27,15 +27,15 @@ For a verified subject export, select all `label_sessions` by `owner_id`, all
 `label_jobs` by those session IDs, and related `audit_activities` by actor/session
 target (including `manage_label_session` calls). Export metadata as JSON and the
 exact `png` binaries as files; exclude `relay_token_hash` and live credentials.
-The session status page/API is not a complete export (expired rows are excluded).
+MCP session status is not a complete export (expired rows are excluded).
 
 Browser localStorage holds the relay capability per session and Brady SDK
 ownership ID; sessionStorage holds a browser client ID. They remain until browser
 storage is cleared; expired capabilities grant no access. These are device-local
-credentials, not server-exportable personal-data collections. The optional Go
-CLI stores session ID/capability/expiry/origin in a 0600 private file, never the
-Atlas bearer token, and leaves legacy dispatch markers untouched. Operators must
-handle authorized device-file export separately, excluding active credentials.
+credentials, not server-exportable personal-data collections. There is no CLI or
+new local credential file. Legacy prototype CLI files/dispatch markers are not
+read, modified or replayed. Operators must handle authorized device-file export
+separately, excluding active credentials.
 SDK analytics are disabled; label images are delivered to the trusted Chrome
 relay and printer over local BLE, not an Atlas-host Bluetooth connection.
 

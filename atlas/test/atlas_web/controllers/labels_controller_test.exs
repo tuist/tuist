@@ -12,8 +12,8 @@ defmodule AtlasWeb.LabelsControllerTest do
 
   setup %{conn: conn} do
     {browser, user} = log_in_user(conn, %{scopes: ["assets:write"]})
-    token = oauth_access_token_fixture(user)
-    %{browser: browser, user: user, token: token}
+    mcp = build_conn() |> assign(:current_user, user) |> assign(:audit_interface, "mcp")
+    %{browser: browser, user: user, mcp: mcp}
   end
 
   defp api(token, method, path, body \\ %{}) do
@@ -23,8 +23,15 @@ defmodule AtlasWeb.LabelsControllerTest do
     |> dispatch(@endpoint, method, path, Jason.encode!(body))
   end
 
-  defp session(token) do
-    api(token, :post, "/api/labels/sessions") |> json_response(200)
+  defp mcp(conn, action, args \\ %{}) do
+    assert %{"structuredContent" => %{"result" => result}} =
+             ManageLabelSession.call(conn, Map.put(args, "action", action))
+
+    result
+  end
+
+  defp session(conn) do
+    mcp(conn, "create")
   end
 
   defp report do
@@ -39,51 +46,65 @@ defmodule AtlasWeb.LabelsControllerTest do
     }
   end
 
-  test "bearer control is owner scoped, atomic and distinct from relay transport", c do
-    s = session(c.token)
-    path = "/api/labels/sessions/#{s["id"]}"
+  test "MCP preparation is owner scoped, atomic and distinct from relay transport", c do
+    s = session(c.mcp)
     relay = "/api/labels/relay/sessions/#{s["id"]}"
-    {_, other} = log_in_user(build_conn(), %{scopes: ["assets:write"]})
-    other_token = oauth_access_token_fixture(other)
-    assert get(build_conn(), path).status == 401
-    assert api(other_token, :get, path).status == 404
-    assert api(s["relayToken"], :post, path <> "/jobs", %{"items" => [%{"text" => "NO"}]}).status == 401
+    {other_browser, other} = log_in_user(build_conn(), %{scopes: ["assets:write"]})
+    other_mcp = assign(c.mcp, :current_user, other)
+
+    assert %{"isError" => true} =
+             ManageLabelSession.call(other_mcp, %{"action" => "status", "session_id" => s["id"]})
+
     assert api("invalid", :get, relay).status == 401
-    assert api(c.token, :post, path <> "/jobs", %{"items" => [%{"text" => "RACK-09"}, %{"text" => ""}]}).status == 400
-    assert json_response(api(c.token, :get, path), 200)["jobs"] == []
 
-    assert api(c.token, :post, path <> "/jobs", %{
+    assert %{"isError" => true} =
+             ManageLabelSession.call(c.mcp, %{
+               "action" => "submit",
+               "session_id" => s["id"],
+               "items" => [%{"text" => "RACK-09"}, %{"text" => ""}]
+             })
+
+    assert mcp(c.mcp, "status", %{"session_id" => s["id"]})["jobs"] == []
+
+    assert mcp(c.mcp, "submit", %{
+             "session_id" => s["id"],
              "items" => [%{"text" => "SW02 & <UPLINK>"}],
-             "widthMm" => 38.1,
-             "heightMm" => 10
-           }).status == 200
+             "width_mm" => 38.1,
+             "height_mm" => 10
+           }) == %{"queued" => 1, "state" => "preview-only"}
 
-    [job] = json_response(api(c.token, :get, path), 200)["jobs"]
+    [job] = mcp(c.mcp, "status", %{"session_id" => s["id"]})["jobs"]
     assert job["state"] == "preview-only"
-    image = api(c.token, :get, path <> "/jobs/#{job["id"]}.png")
+    preview = mcp(c.mcp, "preview", %{"session_id" => s["id"], "job_id" => job["id"]})
+    png = Base.decode64!(preview["png"])
+    image_path = "/operations/labels/#{s["id"]}/jobs/#{job["id"]}/preview"
+    image = get(c.browser, image_path)
+    assert image.resp_body == png
     assert <<137, 80, 78, 71, 13, 10, 26, 10, 13::32, "IHDR", 305::32, 80::32, _::binary>> = image.resp_body
     assert api(s["relayToken"], :get, relay <> "/jobs/#{job["id"]}.png").resp_body == image.resp_body
-    assert api(other_token, :get, path <> "/jobs/#{job["id"]}.png").status == 404
+    assert get(other_browser, image_path).status == 404
     assert get_resp_header(image, "cache-control") == ["no-store"]
 
-    assert api(c.token, :post, path <> "/jobs", %{"items" => [%{"png" => Base.encode64(image.resp_body)}]}).status ==
-             200
+    assert mcp(c.mcp, "submit", %{"session_id" => s["id"], "items" => [%{"png" => preview["png"]}]})["queued"] == 1
+
+    {:ok, view, _} = live(c.browser, "/operations/labels/#{s["id"]}")
+    assert has_element?(view, "#label-relay")
+    refute has_element?(view, "a[href='/operations/labels']")
+    refute has_element?(view, "#labels form")
 
     assert byte_size(Repo.get!(Session, s["id"]).relay_token_hash) == 32
   end
 
   test "only owner dashboard approval can queue output; claims survive callers and cannot replay", c do
-    s = session(c.token)
-    path = "/api/labels/sessions/#{s["id"]}"
+    s = session(c.mcp)
     relay = "/api/labels/relay/sessions/#{s["id"]}"
     report = report()
     assert api(s["relayToken"], :post, relay <> "/relay", report).status == 200
-    assert api(c.token, :post, path <> "/jobs", %{"items" => [%{"text" => "ASYMMETRIC-09"}]}).status == 200
-    [job] = json_response(api(c.token, :get, path), 200)["jobs"]
+    mcp(c.mcp, "submit", %{"session_id" => s["id"], "items" => [%{"text" => "ASYMMETRIC-09"}]})
+    [job] = mcp(c.mcp, "status", %{"session_id" => s["id"]})["jobs"]
     assert api(s["relayToken"], :post, relay <> "/jobs/#{job["id"]}/claim", report).status == 409
-    pending = api(c.token, :post, path <> "/print", %{"jobId" => job["id"]}) |> json_response(200)
+    pending = mcp(c.mcp, "request_print", %{"session_id" => s["id"], "job_id" => job["id"]})
     assert pending["state"] == "awaiting-approval"
-    assert api(c.token, :post, path <> "/approve", %{"jobId" => job["id"]}).status == 404
     assert {:error, 400, _} = Labels.request(c.user, :approve, s["id"], %{"jobId" => job["id"]}, "mcp")
     {other_browser, _} = log_in_user(build_conn(), %{scopes: ["assets:write"]})
     {:ok, other_view, _} = live(other_browser, "/operations/labels/#{s["id"]}/jobs/#{job["id"]}/approval")
@@ -101,7 +122,7 @@ defmodule AtlasWeb.LabelsControllerTest do
     claim = api(s["relayToken"], :post, relay <> "/jobs/#{job["id"]}/claim", report) |> json_response(200)
     assert claim["state"] == "dispatched"
     # Fresh request reads PostgreSQL, not a process-local queue or session cache.
-    assert [%{"state" => "dispatched"}] = json_response(api(c.token, :get, path), 200)["jobs"]
+    assert [%{"state" => "dispatched"}] = mcp(c.mcp, "status", %{"session_id" => s["id"]})["jobs"]
     assert api(s["relayToken"], :post, relay <> "/jobs/#{job["id"]}/claim", report).status == 409
 
     assert api(s["relayToken"], :post, relay <> "/jobs/#{job["id"]}/result", Map.put(report, "success", false)).status ==
@@ -109,14 +130,14 @@ defmodule AtlasWeb.LabelsControllerTest do
 
     assert Repo.get!(Job, job["id"]).state == "uncertain"
 
-    assert api(c.token, :post, path <> "/print", %{"jobId" => job["id"]}) |> json_response(200) |> Map.fetch!("state") ==
+    assert mcp(c.mcp, "request_print", %{"session_id" => s["id"], "job_id" => job["id"]})["state"] ==
              "uncertain"
 
-    assert api(c.token, :post, path <> "/cut").status == 409
+    assert %{"isError" => true} = ManageLabelSession.call(c.mcp, %{"action" => "request_cut", "session_id" => s["id"]})
   end
 
   test "sizing, relay lease and expiry changes block approval and dispatch", c do
-    s = session(c.token)
+    s = session(c.mcp)
     r = report()
     id = s["id"]
     token = s["relayToken"]

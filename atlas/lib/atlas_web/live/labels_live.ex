@@ -39,8 +39,6 @@ defmodule AtlasWeb.LabelsLive do
     end
   end
 
-  defp refresh(%{assigns: %{session_id: nil}} = socket), do: socket
-
   defp refresh(socket) do
     case Labels.request(socket.assigns.current_user, :status, socket.assigns.session_id, %{}, "dashboard") do
       {:ok, state} -> assign(socket, state: state, job: Enum.find(state["jobs"], &(&1["id"] == socket.assigns.job_id)))
@@ -58,19 +56,9 @@ defmodule AtlasWeb.LabelsLive do
     <Layouts.app flash={@flash}>
       <div id="labels" data-part="labels">
         <div data-part="header">
-          <h1>Labels</h1>
+          <h1>{if @job_id, do: "Review printer operation", else: "Printer connection"}</h1>
           <p>Your agent prepares labels in Atlas. Chrome beside the printer supplies Bluetooth.</p>
         </div>
-        <.card :if={!@state} title="Open your agent's connection link" icon="lock">
-          <.card_section>
-            <p>
-              Ask your agent to create a label session through Atlas MCP and share its private connection link.
-            </p>
-            <p>
-              Open it here in Chrome, signed in with the same Atlas account. No server or CLI installation is needed on your Mac or in the orb.
-            </p>
-          </.card_section>
-        </.card>
         <div :if={@state && !@job_id} data-part="connection-grid">
           <.card title="Printer connection" icon="device_mobile_share">
             <:actions>

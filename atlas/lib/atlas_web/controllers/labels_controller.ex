@@ -3,20 +3,15 @@ defmodule AtlasWeb.LabelsController do
 
   alias Atlas.Labels
 
-  def action(conn, _) do
-    operation = action_name(conn)
-    user = conn.assigns[:current_user]
-    data = params(conn)
-
+  def image(conn, _) do
     result =
-      if Map.has_key?(conn.assigns[:mcp_claims] || %{}, "slack_agent") do
-        {:error, 403, "Labels require a personal Atlas connection."}
-      else
-        case operation do
-          :create -> Labels.create(user, "api")
-          _ -> Labels.request(user, operation, conn.path_params["id"], data, "api")
-        end
-      end
+      Labels.request(
+        conn.assigns.current_user,
+        :image,
+        conn.path_params["id"],
+        %{"jobId" => conn.path_params["jobId"]},
+        "dashboard"
+      )
 
     respond(conn, result)
   end

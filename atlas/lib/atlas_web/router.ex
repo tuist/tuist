@@ -280,16 +280,6 @@ defmodule AtlasWeb.Router do
     delete "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :delete
   end
 
-  scope "/api/labels/sessions", AtlasWeb do
-    pipe_through :native
-    post "/", LabelsController, :create, log: false
-    get "/:id", LabelsController, :status, log: false
-    post "/:id/jobs", LabelsController, :submit, log: false
-    get "/:id/jobs/:image", LabelsController, :image, log: false
-    post "/:id/print", LabelsController, :print, log: false
-    post "/:id/cut", LabelsController, :cut, log: false
-  end
-
   scope "/api/labels/relay/sessions", AtlasWeb do
     pipe_through :api
     get "/:id", LabelRelayController, :status, log: false
@@ -529,7 +519,6 @@ defmodule AtlasWeb.Router do
     live_session :scoped_assets,
       on_mount: [{AtlasWeb.LayoutLive, {:scope, "assets:read"}}],
       layout: {AtlasWeb.Layouts, :dashboard} do
-      live "/operations/labels", LabelsLive, :index
       live "/operations/labels/:id", LabelsLive, :relay
       live "/operations/labels/:id/jobs/:jobId/approval", LabelsLive, :approval
       live "/operations/hardware", HardwareLive, :index
