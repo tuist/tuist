@@ -37,6 +37,14 @@ does not expose a second Build Event Service listener.
 - `bazel_invocation_logs` stores sanitized, ordered log chunks from bounded
   Build Event Protocol progress output and conventional test logs in
   ClickHouse.
+- Test-log rows store the test result's `target_label` and attempt `status`;
+  progress rows and rows written before leave both empty, and Bazel does not
+  attribute progress output to targets. The API/MCP `source` filter relies on
+  the writers' sequence numbering (Kura's progress at `2n` stderr and `2n + 1`
+  stdout, test logs at even stdout numbers), so keep Kura and
+  `ProcessTestInvocationWorker` aligned. `errors` returns failed test-log
+  attempts plus Bazel's `ERROR:`/`FAIL:`/`TIMEOUT:` reporter lines on stderr.
+  Filter targets by the stored label; never infer attribution from text.
 - `bazel_test_invocations`, `bazel_test_results`, and `bazel_test_summaries`
   durably stage bounded raw test results in PostgreSQL until processing
   succeeds; an indexed, batched daily job removes any records older than 90

@@ -161,6 +161,48 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
     assert %{"id" => ^first_id, "message" => "first"} = JSON.decode!(text)
   end
 
+  test "filters invocation logs to Bazel-reported errors and test logs", %{conn: conn, user: user, project: project} do
+    create_invocation_log(project, "invocation-1", 4, "ERROR: BUILD:3:1: Compiling a.c failed", "stderr")
+    create_invocation_log(project, "invocation-1", 5, "ERROR: printed by the program", "stdout")
+
+    create_invocation_log(project, "invocation-1", 6, "[Bazel test log for //a:test]\nassertion", "stdout",
+      target_label: "//a:test",
+      status: "failure"
+    )
+
+    create_invocation_log(project, "invocation-1", 8, "[Bazel test log for //b:test]\nok", "stdout",
+      target_label: "//b:test",
+      status: "success"
+    )
+
+    messages = fn filters ->
+      result =
+        ListBazelInvocationLogs.call(
+          conn,
+          Map.merge(
+            %{
+              "account_handle" => user.account.name,
+              "project_handle" => project.name,
+              "invocation_id" => "invocation-1"
+            },
+            filters
+          )
+        )
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      text |> JSON.decode!() |> Map.fetch!("logs") |> Enum.map(& &1["message"])
+    end
+
+    assert messages.(%{"errors" => true}) == [
+             "ERROR: BUILD:3:1: Compiling a.c failed",
+             "[Bazel test log for //a:test]\nassertion"
+           ]
+
+    assert messages.(%{"target_label" => "//b:test"}) == ["[Bazel test log for //b:test]\nok"]
+    assert messages.(%{"stream" => "stdout", "source" => "progress"}) == ["ERROR: printed by the program"]
+    assert %{"source" => "test_log"} |> messages.() |> length() == 2
+  end
+
   test "returns not found for an invalid invocation log identifier", %{conn: conn, user: user, project: project} do
     result =
       GetBazelInvocationLog.call(conn, %{
@@ -264,7 +306,7 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
     ])
   end
 
-  defp create_invocation_log(project, invocation_id, sequence_number, message) do
+  defp create_invocation_log(project, invocation_id, sequence_number, message, stream \\ "stdout", attribution \\ []) do
     id = UUIDv7.generate()
 
     Bazel.create_invocation_logs([
@@ -272,8 +314,10 @@ defmodule Tuist.MCP.Components.Tools.BazelToolsTest do
         id: id,
         invocation_id: invocation_id,
         sequence_number: sequence_number,
-        stream: "stdout",
+        stream: stream,
         message: message,
+        target_label: Keyword.get(attribution, :target_label, ""),
+        status: Keyword.get(attribution, :status, ""),
         project_id: project.id,
         observed_at: ~N[2026-09-04 12:00:00]
       }

@@ -147,6 +147,61 @@ defmodule TuistWeb.API.BazelControllerTest do
       assert %{"logs" => logs, "pagination_metadata" => _} = json_response(conn, 200)
       assert Enum.map(logs, & &1["sequence_number"]) == [10, 20]
       assert Enum.map(logs, & &1["message"]) == ["first", "second"]
+      assert Enum.map(logs, &{&1["target_label"], &1["status"]}) == [{"", ""}, {"", ""}]
+    end
+
+    test "filters invocation logs by stream, source, target, and errors", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      create_invocation_log(
+        project,
+        "invocation-1",
+        4,
+        "INFO: Analyzed //a:a\nERROR: BUILD:3:1: Compiling a.c failed",
+        "stderr"
+      )
+
+      create_invocation_log(project, "invocation-1", 5, "ERROR: printed by the program", "stdout")
+
+      create_invocation_log(project, "invocation-1", 6, "[Bazel test log for //a:test]\nassertion", "stdout",
+        target_label: "//a:test",
+        status: "failure"
+      )
+
+      create_invocation_log(project, "invocation-1", 14, "[Bazel test log for //a:test]\nERROR: retried", "stdout",
+        target_label: "//a:test",
+        status: "success"
+      )
+
+      create_invocation_log(project, "invocation-1", 16, "[Bazel test log for //a:test_more]\nok", "stdout",
+        target_label: "//a:test_more",
+        status: "flaky"
+      )
+
+      create_invocation_log(project, "invocation-1", 8, "WARNING: no ERROR: at the start of a line", "stderr")
+      create_invocation_log(project, "invocation-1", 10, "FAIL: //a:test (see <LOCAL_PATH>)", "stderr")
+      create_invocation_log(project, "invocation-1", 12, "INFO: Build completed\n\rTIMEOUT: //b:test", "stderr")
+
+      sequence_numbers = fn query ->
+        conn
+        |> recycle()
+        |> Authentication.put_current_user(user)
+        |> get("/api/projects/#{user.account.name}/#{project.name}/bazel/invocations/invocation-1/logs?#{query}")
+        |> json_response(200)
+        |> Map.fetch!("logs")
+        |> Enum.map(& &1["sequence_number"])
+      end
+
+      assert sequence_numbers.("") == [4, 5, 6, 8, 10, 12, 14, 16]
+      assert sequence_numbers.("stream=stderr") == [4, 8, 10, 12]
+      assert sequence_numbers.("source=test_log") == [6, 14, 16]
+      assert sequence_numbers.("source=progress") == [4, 5, 8, 10, 12]
+      assert sequence_numbers.("target_label=//a:test") == [6, 14]
+      assert sequence_numbers.("errors=true") == [4, 6, 10, 12]
+      assert sequence_numbers.("errors=true&target_label=//a:test") == [6]
+      assert sequence_numbers.("errors=true&page_size=1") == [4]
     end
 
     test "gets one invocation log without crossing invocation boundaries", %{
@@ -309,7 +364,7 @@ defmodule TuistWeb.API.BazelControllerTest do
     ])
   end
 
-  defp create_invocation_log(project, invocation_id, sequence_number, message) do
+  defp create_invocation_log(project, invocation_id, sequence_number, message, stream \\ "stdout", attribution \\ []) do
     id = UUIDv7.generate()
 
     Bazel.create_invocation_logs([
@@ -317,8 +372,10 @@ defmodule TuistWeb.API.BazelControllerTest do
         id: id,
         invocation_id: invocation_id,
         sequence_number: sequence_number,
-        stream: "stdout",
+        stream: stream,
         message: message,
+        target_label: Keyword.get(attribution, :target_label, ""),
+        status: Keyword.get(attribution, :status, ""),
         project_id: project.id,
         observed_at: ~N[2026-09-04 12:00:00]
       }

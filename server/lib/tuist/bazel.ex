@@ -23,6 +23,8 @@ defmodule Tuist.Bazel do
 
   @max_test_artifact_bytes_per_invocation 64 * 1_024 * 1_024
   @ingest_pruning_slack_seconds 24 * 60 * 60
+  @invocation_log_streams ~w(stdout stderr)
+  @invocation_log_error_pattern "(?m)^\\r*(?:ERROR|FAIL|TIMEOUT): "
 
   def sanitize_invocation_log(message), do: Sanitizer.sanitize(message)
 
@@ -117,6 +119,8 @@ defmodule Tuist.Bazel do
           sequence_number: log.sequence_number,
           stream: log.stream,
           message: log.message,
+          target_label: Map.get(log, :target_label, ""),
+          status: Map.get(log, :status, ""),
           project_id: log.project_id,
           observed_at: log.observed_at,
           inserted_at: now
@@ -574,6 +578,10 @@ defmodule Tuist.Bazel do
     |> ClickHouseRepo.exists?()
   end
 
+  # Besides the time-pruning options, `opts` accepts the filters shared by the
+  # API and MCP: `stream:` (`"stdout"` or `"stderr"`), `source:` (`"progress"`
+  # or `"test_log"`), `target_label:` and `errors: true`. Absent or unknown
+  # values do not filter.
   def list_invocation_logs(project_id, invocation_id, flop_params \\ %{}, opts \\ []) do
     ClickHouseFlop.validate_and_run!(
       invocation_log_query(project_id, invocation_id, opts),
@@ -798,11 +806,57 @@ defmodule Tuist.Bazel do
         start_datetime -> where(query, [log], log.observed_at >= ^start_datetime)
       end
 
-    case Keyword.get(opts, :end_datetime) do
-      nil -> query
-      end_datetime -> where(query, [log], log.observed_at < ^end_datetime)
-    end
+    query =
+      case Keyword.get(opts, :end_datetime) do
+        nil -> query
+        end_datetime -> where(query, [log], log.observed_at < ^end_datetime)
+      end
+
+    query
+    |> filter_invocation_log_stream(Keyword.get(opts, :stream))
+    |> filter_invocation_log_source(Keyword.get(opts, :source))
+    |> filter_invocation_log_target(Keyword.get(opts, :target_label))
+    |> filter_invocation_log_errors(Keyword.get(opts, :errors))
   end
+
+  defp filter_invocation_log_stream(query, stream) when stream in @invocation_log_streams,
+    do: where(query, [log], log.stream == ^stream)
+
+  defp filter_invocation_log_stream(query, _stream), do: query
+
+  # The writers encode a row's origin in its sequence number: Kura stores Build
+  # Event Protocol progress at `2 * event sequence` (stderr) and
+  # `2 * event sequence + 1` (stdout), and ProcessTestInvocationWorker stores
+  # each test.log on stdout at `2 * test result sequence`. Even stdout rows are
+  # therefore test logs and every other row is progress output.
+  defp filter_invocation_log_source(query, "test_log"),
+    do: where(query, [log], log.stream == "stdout" and fragment("modulo(?, 2) = 0", log.sequence_number))
+
+  defp filter_invocation_log_source(query, "progress"),
+    do: where(query, [log], log.stream == "stderr" or fragment("modulo(?, 2) = 1", log.sequence_number))
+
+  defp filter_invocation_log_source(query, _source), do: query
+
+  # Only test logs carry a target label: Bazel does not attribute progress
+  # output to targets.
+  defp filter_invocation_log_target(query, target_label) when is_binary(target_label) and target_label != "",
+    do: where(query, [log], log.target_label == ^target_label)
+
+  defp filter_invocation_log_target(query, _target_label), do: query
+
+  # Errors are test logs of failed attempts, plus stderr progress chunks with a
+  # line Bazel's terminal reporter prefixes for an ERROR, FAIL or TIMEOUT event.
+  # Progress stdout is program output and is never matched as text.
+  defp filter_invocation_log_errors(query, true) do
+    where(
+      query,
+      [log],
+      log.status == "failure" or
+        (log.stream == "stderr" and fragment("match(?, ?)", log.message, ^@invocation_log_error_pattern))
+    )
+  end
+
+  defp filter_invocation_log_errors(query, _errors), do: query
 
   defp daily_analytics(query, opts) do
     %{start_datetime: start_datetime, end_datetime: end_datetime} = period(opts)

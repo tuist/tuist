@@ -440,12 +440,14 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `get_bazel_invocation` | Get one completed Bazel invocation with build metrics, a bounded execution timeline, critical-path diagnostics, and correlated remote-cache totals. | `account_handle`, `project_handle`, `invocation_id` |
 | `list_bazel_build_steps` | List recorded Bazel profile intervals, with filters and explicit coverage. | `account_handle`, `project_handle`, `invocation_id` |
 | `get_bazel_build_step` | Inspect a recorded Bazel step and its published action outcome and sanitized log. | `account_handle`, `project_handle`, `invocation_id`, `step_id` |
-| `list_bazel_invocation_logs` | List sanitized test logs captured for a Bazel invocation in execution order. | `account_handle`, `project_handle`, `invocation_id` |
-| `get_bazel_invocation_log` | Get one sanitized test log captured for a Bazel invocation. | `account_handle`, `project_handle`, `invocation_id`, `invocation_log_id` |
+| `list_bazel_invocation_logs` | List the sanitized logs captured for a Bazel invocation in execution order: the bounded tail of Bazel's progress output and `test.log` artifacts. Optional `stream` (`stdout` or `stderr`), `source` (`progress` or `test_log`), `target_label` and `errors` filters narrow the results. | `account_handle`, `project_handle`, `invocation_id` |
+| `get_bazel_invocation_log` | Get one sanitized log chunk captured for a Bazel invocation. | `account_handle`, `project_handle`, `invocation_id`, `invocation_log_id` |
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
 | `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
 
 `list_bazel_invocations` filters are exact matches, and invocations that finish in the same second are ordered by invocation ID. To find the latest failing invocation on a branch, call it with `status: "failure"`, `git_branch` and `page_size: 1`. The REST endpoint `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations` accepts the same filters.
+
+Test logs carry the `target_label` and attempt `status` of the test result they came from, so `target_label: "//foo:bar_test"` returns only that target's test logs. `errors: true` returns test logs of failed attempts and the stderr progress chunks that contain a line Bazel's reporter starts with `ERROR:`, `FAIL:` or `TIMEOUT:`. Progress output is not attributed to targets, and logs written before attribution was recorded have empty fields. Failed actions and their own output are available per target from `list_bazel_build_steps`, and per-test-case failures from the test run tools.
 
 #### Cargo builds
 
