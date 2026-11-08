@@ -1,7 +1,7 @@
 # Installs the Cloudflare operator into the management cluster from the
-# chart in this repository. The child Kustomization waits for the Helm
+# OCI chart published from this repository. The Kustomization waits for the Helm
 # release so Cloudflare configuration can depend on the controller and
-# its custom resource definition being ready.
+# its custom resource definition being ready, not on every source resource.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -16,5 +16,10 @@ spec:
     name: flux-system
   path: ./infra/flux/cloudflare-operator
   prune: true
-  wait: true
+  wait: false
+  healthChecks:
+    - apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      name: cloudflare-operator
+      namespace: flux-system
   force: false
