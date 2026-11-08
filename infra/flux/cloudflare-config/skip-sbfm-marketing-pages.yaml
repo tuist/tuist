@@ -40,8 +40,8 @@ spec:
     phases:
       - http_request_sbfm
   enabled: true
-  # Activate separately after the updated rate limits reconcile and the
-  # operator's proposed create has been inspected.
-  mode: read_only
+  # Both protective rate limits reconciled and the read-only proposal
+  # reported the expected create before this separate activation.
+  mode: active
   createNewRule: true
   retainOnDelete: false
