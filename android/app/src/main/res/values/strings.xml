@@ -68,6 +68,8 @@
     <string name="notifications_channel_new_previews">"New previews"</string>
     <string name="notifications_channel_new_previews_description">"New previews of your projects"</string>
     <string name="threads_title">"Threads"</string>
+    <!-- Keep legacy defaults for existing Glossia-managed translations. -->
+    <string name="threads_accounts">"Switch account"</string>
     <string name="threads_account">"Account"</string>
     <string name="threads_refresh">"Refresh threads"</string>
     <string name="threads_active">"Active"</string>
@@ -100,6 +102,7 @@
     <string name="threads_empty_description">"Start a private coding thread. Describe a change, review the work, and ship when you are ready."</string>
     <string name="threads_access_title">"Threads are not available"</string>
     <string name="threads_access_description">"Threads require AI access on your profile and permission to manage this account."</string>
+    <string name="threads_personal_account">"Back to personal account"</string>
     <string name="threads_load_failed">"Threads could not be loaded"</string>
     <string name="threads_retry_description">"Check your connection and try again. Your existing work is saved on the server."</string>
     <string name="threads_load_more">"Load more threads"</string>
