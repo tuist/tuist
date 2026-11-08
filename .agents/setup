@@ -226,9 +226,10 @@ other_guidance=""
 - macOS-only work (Xcode, `tuist generate`, Swift app targets) is not possible in this orb.
 - `kubectl --context tuist-k8s-<staging|canary|production>` reaches the clusters through
   `kube-orb-<env>.tuist.dev` with this thread's Amp identity: read access everywhere and
-  staging writes. For a canary/production write, ask the human to run
-  `/elevate <env> --thread $AMP_CURRENT_THREAD_ID [duration] <intent>` in Slack and approve it.
-  Never run `/elevate` or approve it yourself, and never run `infra/k8s/orb-kube-credential`
+  staging writes. For a canary/production write, call the Atlas MCP tool
+  `request_cluster_elevation` (`thread_id` = `$AMP_CURRENT_THREAD_ID`): it returns a link
+  the human approves in Atlas, then the identical call grants this thread the access.
+  Never approve it (or a Slack `/elevate`) yourself, and never run `infra/k8s/orb-kube-credential`
   directly (its output is a bearer token). Follow infra/AGENTS.md "Cluster access for agents".
 - OVH reads (datacenter, range, state, install tasks, displayName, orders) go through
   the Atlas MCP tools `ovh-servers__*`, `ovh-services__*` and `ovh-orders__*`, which run

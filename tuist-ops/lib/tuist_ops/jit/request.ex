@@ -36,6 +36,7 @@ defmodule TuistOps.JIT.Request do
     field :denied_at, :utc_datetime
     field :expires_at, :utc_datetime
     field :failure_reason, :string
+    field :atlas_approval_id, :string
 
     timestamps(type: :utc_datetime)
   end
@@ -45,6 +46,9 @@ defmodule TuistOps.JIT.Request do
   `expires_at` here is the deadline by which a second human must
   approve in Slack (default 10 minutes); the runtime elevation TTL
   lives on the Elevation row instead.
+
+  A request approved in Atlas carries `:atlas_approval_id` instead of
+  the Slack fields, and is always an orb thread elevation.
   """
   def create_changeset(attrs) do
     %__MODULE__{}
@@ -57,22 +61,25 @@ defmodule TuistOps.JIT.Request do
       :intent,
       :ttl_seconds,
       :slack_channel_id,
-      :expires_at
+      :expires_at,
+      :atlas_approval_id
     ])
-    |> validate_required([
-      :requester_email,
-      :requester_slack_id,
-      :target_group,
-      :intent,
-      :ttl_seconds,
-      :slack_channel_id,
-      :expires_at
-    ])
+    |> validate_required([:requester_email, :target_group, :intent, :ttl_seconds, :expires_at])
+    |> validate_approval_channel()
     |> validate_inclusion(:status, @statuses)
     |> validate_number(:ttl_seconds, greater_than: 0, less_than_or_equal_to: 3600)
     |> validate_length(:intent, min: 5, max: 500)
     |> validate_github_login()
     |> validate_orb_thread_id()
+    |> unique_constraint(:atlas_approval_id)
+  end
+
+  defp validate_approval_channel(changeset) do
+    if get_field(changeset, :atlas_approval_id) do
+      validate_required(changeset, [:orb_thread_id])
+    else
+      validate_required(changeset, [:requester_slack_id, :slack_channel_id])
+    end
   end
 
   # GitHub logins: alphanumerics and single inner hyphens, max 39 chars.

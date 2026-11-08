@@ -993,6 +993,14 @@ end
 clickhouse_enabled? =
   parse_boolean.(System.get_env("ATLAS_CLICKHOUSE_ENABLED", if(config_env() == :dev, do: "false", else: "false")))
 
+# tuist-ops, which grants orb thread cluster elevations a person approved in
+# Atlas (`request_cluster_elevation`). Atlas authenticates with a projected
+# ServiceAccount token (audience `ops.tuist.dev`); without the token file the
+# tool reports elevations as unavailable.
+config :atlas, :tuist_ops,
+  base_url: System.get_env("TUIST_OPS_URL") || "https://ops.tuist.dev",
+  token_path: System.get_env("TUIST_OPS_TOKEN_PATH") || "/var/run/secrets/tuist-ops/token"
+
 # Internal Tuist server API, used by the `*_tuist_postgres*` MCP tools for
 # read-only database access. Atlas authenticates with a projected ServiceAccount
 # token (audience `tuist-server`) read from `token_path`; the file is absent in

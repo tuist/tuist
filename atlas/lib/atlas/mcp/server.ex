@@ -276,6 +276,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.RemovePublicHoliday
   alias Atlas.MCP.Tools.ReplyToSupportThread
   alias Atlas.MCP.Tools.ReportHoliday
+  alias Atlas.MCP.Tools.RequestClusterElevation
   alias Atlas.MCP.Tools.RequestSpecReview
   alias Atlas.MCP.Tools.RequestTaxCertificateLetter
   alias Atlas.MCP.Tools.ResolveErrorIssue
@@ -580,6 +581,7 @@ defmodule Atlas.MCP.Server do
     GetMyGmailMessage,
     SearchMySlack,
     SetOVHServerDisplayName,
+    RequestClusterElevation,
     ListCodingRepositories,
     UpdateCodingRepositorySettings,
     ListLLMProviderConnections,
@@ -1069,6 +1071,7 @@ defmodule Atlas.MCP.Server do
   defp tool_group(GetErrorEventContexts), do: "observability"
   # Same group as the proxied OVH tools it sits beside.
   defp tool_group(SetOVHServerDisplayName), do: "observability"
+  defp tool_group(RequestClusterElevation), do: "observability"
   defp tool_group(_tool_module), do: "default"
 
   defp error_context_tool_allowed?(conn, GetErrorEventContexts),
