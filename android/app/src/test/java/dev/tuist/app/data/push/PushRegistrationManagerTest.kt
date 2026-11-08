@@ -32,18 +32,126 @@ class PushRegistrationManagerTest {
     private lateinit var api: PushDevicesApi
     private lateinit var store: PushInstallationStore
     private lateinit var manager: PushRegistrationManager
+    private lateinit var tokenProvider: PushTokenProvider
+    private lateinit var tokenStorage: TokenStorage
 
     @Before
     fun setUp() {
         api = mockk()
         store = PushInstallationStore(context, EnvironmentConfig(context))
-        val tokenProvider = mockk<PushTokenProvider> {
+        tokenProvider = mockk<PushTokenProvider> {
             every { isAvailable } returns true
             coEvery { token() } returns "fcm-token"
+            coEvery { reset() } returns Unit
         }
-        val tokenStorage = mockk<TokenStorage> { every { getAccessToken() } returns "access-token" }
+        tokenStorage = mockk<TokenStorage> {
+            every { getAccessToken() } returns "access-token"
+            every { session } returns kotlinx.coroutines.flow.MutableStateFlow(TokenStorage.Session("profile", 0))
+            every { snapshot() } returns TokenStorage.Session("profile", 0)
+            every { isCurrent(any()) } answers { firstArg<TokenStorage.Session>() == TokenStorage.Session("profile", 0) }
+        }
         manager = PushRegistrationManager(context, api, store, tokenProvider, tokenStorage, NetworkModule.provideMoshi())
         store.isDeviceEnabled = true
+    }
+
+    @Test fun `automatic fallback inside push transport cancels delivered notifications and retires outgoing token without recursion`() = runTest {
+        val server = okhttp3.mockwebserver.MockWebServer()
+        server.start()
+        try {
+            val prefs = context.getSharedPreferences("push-expiry", Context.MODE_PRIVATE)
+            prefs.edit().clear().commit()
+            val tokens = TokenStorage(prefs, server.url("/").toString())
+            tokens.storeTokens("bob", "bob-refresh")
+            val bob = tokens.snapshot().profileId!!
+            tokens.storeTokens("alice", "alice-refresh")
+            val alice = tokens.snapshot().profileId!!
+            store.clear()
+            store.bindProfile(alice)
+            store.isDeviceEnabled = true
+            store.needsTokenReset = false
+            val retired = store.rotateInstallationId()
+            val notifications = context.getSystemService(android.app.NotificationManager::class.java)
+            notifications.createNotificationChannel(android.app.NotificationChannel("expiry", "Expiry", android.app.NotificationManager.IMPORTANCE_DEFAULT))
+            notifications.notify(42, android.app.Notification.Builder(context, "expiry").setSmallIcon(android.R.drawable.ic_dialog_info).build())
+            assertEquals(1, notifications.activeNotifications.size)
+            val environment = mockk<EnvironmentConfig> {
+                every { serverUrl } returns server.url("/").toString()
+                every { oauthClientId } returns "android-client"
+            }
+            val client = okhttp3.OkHttpClient.Builder()
+                .addInterceptor(dev.tuist.app.data.network.AuthInterceptor(tokens))
+                .addNetworkInterceptor(dev.tuist.app.data.network.SessionGuardInterceptor(tokens))
+                .authenticator(dev.tuist.app.data.network.TokenRefreshAuthenticator(tokens, okhttp3.OkHttpClient(), environment, dev.tuist.app.data.auth.AuthEventBus()))
+                .build()
+            server.enqueue(okhttp3.mockwebserver.MockResponse().setResponseCode(401))
+            server.enqueue(okhttp3.mockwebserver.MockResponse().setResponseCode(400).setBody("""{"error":"invalid_grant"}"""))
+            coEvery { api.registerPushDevice(retired, any()) } answers {
+                client.newCall(okhttp3.Request.Builder().url(server.url("/push/devices")).build()).execute().close()
+                registered()
+            }
+            val reset = java.util.concurrent.CountDownLatch(1)
+            coEvery { tokenProvider.reset() } answers {
+                reset.countDown()
+                throw java.io.IOException("FCM offline")
+            }
+            val automatic = PushRegistrationManager(context, api, store, tokenProvider, tokens, NetworkModule.provideMoshi())
+            assertTrue(automatic.sync(force = true) is PushRegistrationResult.Failed)
+            assertTrue(reset.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            assertEquals(PushRegistrationResult.DisabledOnDevice, automatic.sync())
+            assertEquals(bob, tokens.snapshot().profileId)
+            assertEquals(0, notifications.activeNotifications.size)
+            assertNull(store.installationId)
+            assertNull(store.registeredToken)
+            assertTrue(store.needsTokenReset)
+            assertFalse(automatic.isDeviceEnabled)
+            coVerify(exactly = 0) { api.unregisterPushDevice(any()) }
+            assertTrue(automatic.setDeviceEnabled(true) is PushRegistrationResult.Failed)
+            coEvery { tokenProvider.reset() } returns Unit
+            coEvery { api.registerPushDevice(any(), any()) } returns registered()
+            assertEquals(PushRegistrationResult.Registered, automatic.sync())
+            assertFalse(store.needsTokenReset)
+            assertNotEquals(retired, store.installationId)
+        } finally { server.shutdown() }
+    }
+
+    @Test fun `failed profile change restores opt in but never reuses retired installation`() = runTest {
+        every { tokenProvider.isAvailable } returns false
+        store.bindProfile("profile")
+        val retired = store.rotateInstallationId()
+        coEvery { api.unregisterPushDevice(retired) } returns Response.success(Unit)
+        try {
+            manager.changeProfile { error("credential commit failed") }
+            throw AssertionError("Expected failure")
+        } catch (_: IllegalStateException) { }
+        assertTrue(store.isDeviceEnabled)
+        assertTrue(store.belongsTo("profile"))
+        assertNull(store.installationId)
+        assertNull(store.registeredToken)
+    }
+
+    @Test fun `cancelled profile change restores opt in with reset still required`() = runTest {
+        every { tokenProvider.isAvailable } returns false
+        store.bindProfile("profile")
+        store.forgetInstallation()
+        coEvery { tokenProvider.reset() } throws kotlinx.coroutines.CancellationException("cancel")
+        try {
+            manager.changeProfile { throw kotlinx.coroutines.CancellationException("cancel") }
+        } catch (_: kotlinx.coroutines.CancellationException) { }
+        assertTrue(store.isDeviceEnabled)
+        assertTrue(store.needsTokenReset)
+        assertNull(store.installationId)
+    }
+
+    @Test fun `successful profile change does not transfer outgoing notification opt in`() = runTest {
+        every { tokenProvider.isAvailable } returns false
+        store.bindProfile("profile")
+        store.forgetInstallation()
+        manager.changeProfile {
+            every { tokenStorage.isCurrent(any()) } returns false
+            every { tokenStorage.snapshot() } returns TokenStorage.Session("bob", 1)
+        }
+        assertFalse(store.isDeviceEnabled)
+        assertFalse(manager.isDeviceEnabled)
     }
 
     @Test
@@ -201,6 +309,29 @@ class PushRegistrationManagerTest {
     }
 
     private fun registered() = Response.success(RegisterPushDevice200Response(registrationId = "registration"))
+
+    @Test fun `changing login owner drops old opt-in and installation`() {
+        store.bindProfile("alice")
+        store.isDeviceEnabled = true
+        store.rotateInstallationId()
+        store.markRegistered("alice-fcm", 123)
+        store.bindProfile("bob")
+        assertFalse(store.isDeviceEnabled)
+        assertNull(store.installationId)
+        assertNull(store.registeredToken)
+    }
+
+    @Test fun `failed token retirement blocks registration for the next login until retry succeeds`() = runTest {
+        coEvery { tokenProvider.reset() } throws java.io.IOException("offline")
+        manager.signOut()
+        assertTrue(store.needsTokenReset)
+        assertTrue(manager.setDeviceEnabled(true) is PushRegistrationResult.Failed)
+        coVerify(exactly = 0) { api.registerPushDevice(any(), any()) }
+        coEvery { tokenProvider.reset() } returns Unit
+        coEvery { api.registerPushDevice(any(), any()) } returns registered()
+        assertEquals(PushRegistrationResult.Registered, manager.sync())
+        assertFalse(store.needsTokenReset)
+    }
 
     private fun gone(reason: String) = Response.error<RegisterPushDevice200Response>(
         410,

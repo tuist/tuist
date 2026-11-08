@@ -66,12 +66,6 @@ class ThreadsPreviewActivity : ComponentActivity() {
                                         )
                                     is ThreadAction.Archived ->
                                         state.copy(showArchived = action.value)
-                                    is ThreadAction.Account ->
-                                        state.copy(
-                                            account = action.value,
-                                            denied = false,
-                                            threads = emptyList(),
-                                        )
                                     ThreadAction.Back -> state.copy(selected = null)
                                     ThreadAction.Archive ->
                                         state.copy(
@@ -167,7 +161,6 @@ private fun sampleState(screen: String?): ThreadsState {
         ThreadsState(
             enabled = true,
             account = "tuist",
-            accounts = listOf("tuist"),
             loading = false,
             threads =
                 listOf(
@@ -214,7 +207,6 @@ private fun sampleState(screen: String?): ThreadsState {
         "denied" ->
             base.copy(
                 denied = true,
-                accounts = listOf("sample-user", "tuist"),
                 threads = emptyList(),
             )
         "flag-off" -> base.copy(enabled = false)

@@ -81,8 +81,9 @@ public struct ThreadClient {
 
     public init(account: String, serverURL: URL) {
         let session = Self.liveSession
+        let authentication = ServerAuthenticationController()
         self.init(account: account, serverURL: serverURL, session: session, token: {
-            guard let token = try await ServerAuthenticationController().authenticationToken(serverURL: serverURL) else {
+            guard let token = try await authentication.authenticationToken(serverURL: serverURL) else {
                 throw ThreadClientError(httpStatusCode: 401)
             }
             return token.value

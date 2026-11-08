@@ -77,12 +77,12 @@ class ThreadsScreenTest {
     }
 
     @Test
-    fun deniedOrganizationCanReturnToThePersonalAccount() {
+    fun deniedOrganizationCannotBypassGlobalSelection() {
         withPreview("denied") {
             capture("denied")
-            click("Back to personal account")
-            eventually { find("Make something happen").isNotEmpty() }
-            assertTrue(find("sample-user").isNotEmpty())
+            assertTrue(find("Threads are not available").isNotEmpty())
+            assertTrue(find("Back to personal account").isEmpty())
+            assertTrue(find("Switch account").isEmpty())
             assertTrue(find("Make flaky tests easier to find").isEmpty())
         }
     }

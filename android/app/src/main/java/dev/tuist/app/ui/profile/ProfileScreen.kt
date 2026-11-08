@@ -53,6 +53,7 @@ fun ProfileScreen(
 ) {
     val account by viewModel.account.collectAsStateWithLifecycle()
     val isAIEnabled by viewModel.isAIEnabled.collectAsStateWithLifecycle()
+    val signOutFailed by viewModel.signOutFailed.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var showDeleteConfirmation by remember { mutableStateOf(false) }
 
@@ -200,6 +201,9 @@ fun ProfileScreen(
             Spacer(Modifier.height(NooraSpacing.Spacing5))
 
             // Sign out
+            if (signOutFailed) {
+                Text(stringResource(R.string.profile_sign_out_failed), color = MaterialTheme.colorScheme.error)
+            }
             SectionCard {
                 TextButton(
                     onClick = { viewModel.signOut() },

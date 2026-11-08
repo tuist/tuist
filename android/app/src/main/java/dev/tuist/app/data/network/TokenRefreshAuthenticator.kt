@@ -2,6 +2,7 @@ package dev.tuist.app.data.network
 
 import android.util.Log
 import dev.tuist.app.data.EnvironmentConfig
+import dev.tuist.app.data.TuistEnvironment
 import dev.tuist.app.data.auth.AuthEvent
 import dev.tuist.app.data.auth.AuthEventBus
 import dev.tuist.app.data.auth.TokenStorage
@@ -25,26 +26,44 @@ class TokenRefreshAuthenticator @Inject constructor(
 
     override fun authenticate(route: Route?, response: Response): Request? = synchronized(LOCK) {
         if (response.request.header(HEADER_RETRY_AUTH) != null) return null
-
-        val currentToken = tokenStorage.getAccessToken()
+        val session = response.request.tag(TokenStorage.Session::class.java) ?: tokenStorage.snapshot()
+        val discovery = response.request.tag(ProfileRequest::class.java)
+        val (currentToken, savedRefreshToken) = synchronized(tokenStorage) {
+            if (!tokenStorage.retryPendingRotation()) throw TokenRefreshException("Could not persist rotated credentials")
+            if (discovery != null) {
+                val credentials = tokenStorage.credentials(discovery.profileId) ?: return null
+                credentials.access to credentials.refresh
+            } else {
+                if (!tokenStorage.isCurrent(session)) return null
+                tokenStorage.getAccessToken() to tokenStorage.getRefreshToken()
+            }
+        }
         val requestToken = response.request.header("Authorization")?.removePrefix("Bearer ")
         if (currentToken != null && currentToken != requestToken) {
             return response.request.withAccessToken(currentToken)
         }
 
-        val refreshToken = tokenStorage.getRefreshToken() ?: run {
-            if (currentToken != null) expireSession()
+        val refreshToken = savedRefreshToken ?: run {
+            if (currentToken != null) expireSession(session)
             return null
         }
 
-        when (val result = refresh(refreshToken)) {
+        val origin = session.origin ?: environmentConfig.serverUrl
+        val issuingClientId = session.profileId?.let { tokenStorage.credentials(it)?.clientId }
+        when (val result = refresh(refreshToken, origin, issuingClientId)) {
             is RefreshResult.Success -> {
-                tokenStorage.storeTokens(result.accessToken, result.refreshToken)
+                if (!tokenStorage.rotate(session, refreshToken, result.accessToken, result.refreshToken)) return null
+                if (discovery == null && !tokenStorage.isCurrent(session)) return null
                 response.request.withAccessToken(result.accessToken)
             }
             RefreshResult.Rejected -> {
+                if (discovery != null && !tokenStorage.isCurrent(session)) {
+                    tokenStorage.removeRejectedProfile(discovery.profileId, refreshToken)
+                    return null
+                }
+                if (!tokenStorage.isCurrent(session)) return null
                 if (tokenStorage.getRefreshToken() == refreshToken) {
-                    expireSession()
+                    expireSession(session)
                     return null
                 }
                 val rotatedToken = tokenStorage.getAccessToken() ?: return null
@@ -57,14 +76,17 @@ class TokenRefreshAuthenticator @Inject constructor(
         }
     }
 
-    private fun refresh(refreshToken: String): RefreshResult {
+    private fun refresh(refreshToken: String, origin: String, issuingClientId: String?): RefreshResult {
+        val clientId = issuingClientId ?: if (environmentConfig.serverUrl.trimEnd('/') == origin.trimEnd('/')) environmentConfig.oauthClientId
+            else TuistEnvironment.entries.firstOrNull { it.serverUrl.trimEnd('/') == origin.trimEnd('/') }?.oauthClientId
+                ?: return RefreshResult.Transient("Unknown issuing OAuth client")
         val body = FormBody.Builder()
             .add("grant_type", "refresh_token")
             .add("refresh_token", refreshToken)
-            .add("client_id", environmentConfig.oauthClientId)
+            .add("client_id", clientId)
             .build()
 
-        val tokenUrl = environmentConfig.serverUrl.toHttpUrl().newBuilder()
+        val tokenUrl = origin.toHttpUrl().newBuilder()
             .addPathSegments("oauth2/token")
             .build()
 
@@ -121,8 +143,12 @@ class TokenRefreshAuthenticator @Inject constructor(
             .header(HEADER_RETRY_AUTH, "true")
             .build()
 
-    private fun expireSession() {
-        tokenStorage.clear()
+    private fun expireSession(session: TokenStorage.Session) {
+        try {
+            if (!tokenStorage.clearIfCurrent(session, selectFallback = true)) return
+        } catch (e: IllegalStateException) {
+            throw TokenRefreshException("Could not persist expired session removal", e)
+        }
         authEventBus.emit(AuthEvent.SessionExpired)
     }
 

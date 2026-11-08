@@ -45,4 +45,8 @@ class PushTokenProvider @Inject constructor(
     val isAvailable: Boolean get() = FirebaseSetup.initialize(context)
 
     suspend fun token(): String = FirebaseMessaging.getInstance().token.await()
+
+    suspend fun reset() {
+        if (isAvailable) FirebaseMessaging.getInstance().deleteToken().await()
+    }
 }

@@ -493,7 +493,15 @@
 "OK" = "OK";
 "Unable to open link" = "Unable to open link";
 "This link belongs to a different Tuist server. Sign in to that server and open the link again." = "This link belongs to a different Tuist server. Sign in to that server and open the link again.";
+"This link belongs to a different organization. Switch organizations and open the link again." = "This link belongs to a different organization. Switch organizations and open the link again.";
 "This navigation link is invalid or unsupported." = "This navigation link is invalid or unsupported.";
 
 /* TuistPreviews/PreviewView/PreviewView.swift */
 "Open on web" = "Open on web";
+"Organizations" = "Organizations";
+"Add profile" = "Add profile";
+"Switch organization" = "Switch organization";
+"Switch organization?" = "Switch organization?";
+"View profile" = "View profile";
+"Open screens and unsent drafts will be closed. Running threads will continue." = "Open screens and unsent drafts will be closed. Running threads will continue.";
+"Your saved profiles could not be updated. Please try again." = "Your saved profiles could not be updated. Please try again.";

@@ -41,8 +41,6 @@ sealed interface ThreadAction {
 
     data class Repository(val value: ThreadRepository?) : ThreadAction
 
-    data class Account(val value: String) : ThreadAction
-
     data class Archived(val value: Boolean) : ThreadAction
 
     data object Back : ThreadAction
@@ -88,7 +86,6 @@ fun ThreadsScreen(viewModel: ThreadsViewModel = hiltViewModel()) {
             is ThreadAction.Reply -> viewModel.reply(action.value)
             is ThreadAction.Model -> viewModel.model(action.value)
             is ThreadAction.Repository -> viewModel.repository(action.value)
-            is ThreadAction.Account -> viewModel.selectAccount(action.value)
             is ThreadAction.Archived -> viewModel.archived(action.value)
             ThreadAction.Back -> viewModel.back()
             ThreadAction.Refresh -> viewModel.refresh()
@@ -115,17 +112,9 @@ fun ThreadsContent(state: ThreadsState, onAction: (ThreadAction) -> Unit) {
     ) {
         BackHandler(state.selected != null && state.sheet == null) { onAction(ThreadAction.Back) }
         if (!state.enabled || state.denied) {
-            val personalAccount = state.accounts.firstOrNull()
             ThreadUnavailable(
                 R.string.threads_access_title,
                 R.string.threads_access_description,
-                action =
-                    if (
-                        state.enabled && personalAccount != null && personalAccount != state.account
-                    )
-                        R.string.threads_personal_account
-                    else null,
-                onClick = { onAction(ThreadAction.Account(personalAccount!!)) },
             )
             return@MaterialTheme
         }
@@ -164,14 +153,6 @@ fun ThreadsContent(state: ThreadsState, onAction: (ThreadAction) -> Unit) {
                         }
                     },
                     actions = {
-                        IconButton(
-                            onClick = { onAction(ThreadAction.Sheet(ThreadSheet.ACCOUNTS)) }
-                        ) {
-                            Icon(
-                                Icons.Default.AccountCircle,
-                                stringResource(R.string.threads_accounts),
-                            )
-                        }
                         IconButton(
                             onClick = { onAction(ThreadAction.Refresh) },
                             enabled = !state.busy,

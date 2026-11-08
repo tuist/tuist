@@ -298,6 +298,7 @@ class ThreadWatcherTest {
     @Test
     fun `injected constructor authorizes HTTP before reading current storage token`() = runTest {
         val storage = mockk<TokenStorage>()
+        every { storage.snapshot() } returns TokenStorage.Session("profile", 0)
         val transport = mockk<ThreadTransport>()
         val api = mockk<ThreadsApi>()
         every { transport.api } returns api

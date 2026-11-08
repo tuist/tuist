@@ -9,7 +9,9 @@ import dev.tuist.app.api.model.PaginationMetadata
 import dev.tuist.app.api.model.Preview
 import dev.tuist.app.api.model.PreviewsIndex1
 import dev.tuist.app.api.model.Project
+import dev.tuist.app.data.auth.TokenStorage
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -31,7 +33,12 @@ class PreviewsRepositoryTest {
         previewsApi = mockk()
         projectsApi = mockk()
         moshi = Moshi.Builder().build()
-        repository = PreviewsRepository(previewsApi, projectsApi, moshi)
+        val tokens = mockk<TokenStorage> {
+            every { snapshot() } returns TokenStorage.Session("profile", 0, "tuist", "https://tuist.dev")
+            every { selectedAccount() } returns "tuist"
+            every { isCurrent(any()) } returns true
+        }
+        repository = PreviewsRepository(previewsApi, projectsApi, moshi, tokens)
     }
 
     @Test
@@ -61,6 +68,19 @@ class PreviewsRepositoryTest {
         val result = repository.listProjects()
 
         assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `projects are filtered to global organization and foreign previews are rejected`() = runTest {
+        val own = Project("main", "tuist/app", 1, Project.Visibility.`private`)
+        val other = own.copy(id = 2, fullName = "other/app")
+        coEvery { projectsApi.listProjects() } returns Response.success(ListProjects200Response(listOf(other, own)))
+        assertEquals(listOf(own), repository.listProjects())
+        try {
+            repository.listPreviews("other", "app")
+            org.junit.Assert.fail("Foreign organization must not reach the preview API")
+        } catch (_: IllegalArgumentException) { }
+        io.mockk.coVerify(exactly = 0) { previewsApi.listPreviews(any(), any(), any(), any()) }
     }
 
     @Test(expected = RuntimeException::class)

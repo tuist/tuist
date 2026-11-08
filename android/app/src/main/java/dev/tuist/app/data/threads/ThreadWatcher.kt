@@ -29,6 +29,7 @@ internal constructor(
     moshi: Moshi,
     private val authorize: suspend (String) -> Unit,
     private val token: () -> String?,
+    private val session: () -> TokenStorage.Session? = { null },
     private val openSocket: (OkHttpClient, Request, WebSocketListener) -> WebSocket =
         { client, request, listener ->
             client.newWebSocket(request, listener)
@@ -48,6 +49,7 @@ internal constructor(
             Unit
         },
         storage::getAccessToken,
+        session = storage::snapshot,
     )
 
     private val frames = moshi.adapter(List::class.java)
@@ -69,16 +71,19 @@ internal constructor(
         invalidate: suspend () -> Unit,
         disconnected: suspend () -> Unit,
     ) {
+        val fence = session()
         var attempt = 0
-        while (currentCoroutineContext().isActive) {
+        while (currentCoroutineContext().isActive && session() == fence) {
             try {
                 authorize(account)
+                if (session() != fence) return
                 val credential =
                     token()?.takeIf { it.isNotEmpty() } ?: throw IOException("Missing credentials")
-                connection(account, threadId, credential, invalidate)
+                connection(account, threadId, credential, fence) { if (session() == fence) invalidate() }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
+                if (session() != fence) return
                 disconnected()
                 attempt = (attempt + 1).coerceAtMost(5)
                 delay(1_000L shl attempt)
@@ -90,6 +95,7 @@ internal constructor(
         account: String,
         threadId: String?,
         credential: String,
+        fence: TokenStorage.Session?,
         invalidate: suspend () -> Unit,
     ) = coroutineScope {
         val events = Channel<Event>(Channel.BUFFERED)
@@ -98,6 +104,7 @@ internal constructor(
         }
         val request =
             Request.Builder()
+                .tag(TokenStorage.Session::class.java, fence)
                 .url(
                     retrofit
                         .baseUrl()

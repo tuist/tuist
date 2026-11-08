@@ -1,8 +1,6 @@
 package dev.tuist.app.ui.threads
 
 import androidx.lifecycle.ViewModelStore
-import dev.tuist.app.api.OrganizationsApi
-import dev.tuist.app.api.model.OrganizationList1
 import dev.tuist.app.data.auth.AuthRepository
 import dev.tuist.app.data.featureflags.FeatureFlag
 import dev.tuist.app.data.featureflags.FeatureFlagsRepository
@@ -20,7 +18,6 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import retrofit2.Response
-import retrofit2.Retrofit
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ThreadsViewModelTest {
@@ -30,11 +27,10 @@ class ThreadsViewModelTest {
     private val transport = mockk<ThreadTransport>()
     private val api = mockk<ThreadsApi>()
     private val watcher = mockk<ThreadWatcher>()
-    private val retrofit = mockk<Retrofit>()
-    private val organizations = mockk<OrganizationsApi>()
     private val authState =
         MutableStateFlow<AuthState>(AuthState.LoggedIn(Account("alice@example.com", "alice")))
     private val enabled = MutableStateFlow<Set<FeatureFlag>>(emptySet())
+    private val session = MutableStateFlow(dev.tuist.app.data.auth.TokenStorage.Session("alice-login", 0))
     private val store = ViewModelStore()
     private val model = ThreadModel("chatgpt", "chosen-model", "Chosen model")
     private val thread =
@@ -59,11 +55,9 @@ class ThreadsViewModelTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         every { auth.authState } returns authState
+        every { auth.session } returns session
         every { flags.enabled } returns enabled
         every { transport.api } returns api
-        every { retrofit.create(OrganizationsApi::class.java) } returns organizations
-        coEvery { organizations.listOrganizations() } returns
-            Response.success(OrganizationList1(emptyList()))
         coEvery { api.list(any(), any()) } returns ThreadPage(listOf(thread))
         coEvery { api.history(any(), any(), any()) } returns thread
         coEvery { api.repositories(any()) } returns ThreadRepositories(emptyList())
@@ -77,9 +71,23 @@ class ThreadsViewModelTest {
     }
 
     private fun viewModel() =
-        ThreadsViewModel(transport, auth, flags, retrofit, watcher).also {
+        ThreadsViewModel(transport, auth, flags, watcher).also {
             store.put("threads", it)
         }
+
+    @Test fun `global organization drives threads while login identity remains personal`() = runTest(dispatcher) {
+        enabled.value = setOf(FeatureFlag.AI)
+        session.value = session.value.copy(organization = "organization-one")
+        val vm = viewModel()
+        runCurrent()
+        assertEquals("organization-one", vm.state.value.account)
+        coVerify { api.list("organization-one", null) }
+        session.value = session.value.copy(generation = 1, organization = "organization-two")
+        runCurrent()
+        assertEquals("organization-two", vm.state.value.account)
+        coVerify { api.list("organization-two", null) }
+        assertEquals("alice", (authState.value as AuthState.LoggedIn).account.handle)
+    }
 
     @Test
     fun `disjoint inbox refresh restarts pagination and load more reaches every thread`() =
@@ -223,26 +231,24 @@ class ThreadsViewModelTest {
         }
 
     @Test
-    fun `a denied organization can return to the personal account without retaining its data`() =
+    fun `denied threads stay scoped to the login until the global profile changes`() =
         runTest(dispatcher) {
-            coEvery { organizations.listOrganizations() } returns
-                Response.success(OrganizationList1(listOf(mockk { every { name } returns "team" })))
-            coEvery { api.list("team", any()) } throws
-                retrofit2.HttpException(Response.error<ThreadPage>(403, "".toResponseBody()))
             enabled.value = setOf(FeatureFlag.AI)
             val vm = viewModel()
             runCurrent()
             vm.draft("Private draft")
-            vm.selectAccount("team")
-            runCurrent()
+            coEvery { api.list("alice", any()) } throws
+                retrofit2.HttpException(Response.error<ThreadPage>(403, "".toResponseBody()))
+            vm.refresh(quiet = false)
             assertTrue(vm.state.value.denied)
+            assertEquals("alice", vm.state.value.account)
             assertTrue(vm.state.value.threads.isEmpty())
             assertEquals("", vm.state.value.draft)
-            coEvery { api.list("alice", any()) } returns ThreadPage(emptyList())
-            vm.selectAccount("alice")
+            coEvery { api.list("bob", any()) } returns ThreadPage(emptyList())
+            authState.value = AuthState.LoggedIn(Account("bob@example.com", "bob"))
             runCurrent()
             assertFalse(vm.state.value.denied)
-            assertEquals("alice", vm.state.value.account)
+            assertEquals("bob", vm.state.value.account)
             assertTrue(vm.state.value.threads.isEmpty())
         }
 

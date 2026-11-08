@@ -5,13 +5,13 @@
 
     struct ThreadsPreview: View {
         let accountName: String
-        var isLayoutPreview = false
-        let switchAccount: () -> Void
-        private var client: ThreadClient? {
-            #if DEBUG
-                if isLayoutPreview { return nil }
-            #endif
-            return ThreadClient(account: accountName, serverURL: AppServerEnvironmentService().url())
+        let isLayoutPreview: Bool
+        private let client: ThreadClient?
+
+        init(accountName: String, isLayoutPreview: Bool = false) {
+            self.accountName = accountName
+            self.isLayoutPreview = isLayoutPreview
+            client = isLayoutPreview ? nil : ThreadClient(account: accountName, serverURL: AppServerEnvironmentService().url())
         }
 
         private var isLive: Bool { client != nil }
@@ -75,17 +75,6 @@
                 .refreshable { await load() }
                 .navigationTitle("Threads")
                 .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(action: switchAccount) {
-                            HStack(spacing: 4) {
-                                Text(verbatim: accountName)
-                                Image(systemName: "chevron.down").font(.caption2.weight(.semibold))
-                            }
-                        }
-                        .tint(.primary)
-                        .accessibilityLabel("Switch account")
-                        .accessibilityValue(accountName)
-                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("New thread", systemImage: "square.and.pencil") { showingNewSession = true }
                             .labelStyle(.iconOnly)

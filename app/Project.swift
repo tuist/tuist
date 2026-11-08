@@ -367,6 +367,7 @@ let project = Project(
             deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
             sources: ["Sources/TuistAuthentication/**"],
             dependencies: [
+                .external(name: "OpenAPIRuntime"),
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
@@ -397,6 +398,7 @@ let project = Project(
                 .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
                 .project(target: "TuistConstants", path: "../"),
+                .external(name: "FileSystemTesting"),
                 .external(name: "TestCoverageAttribution"),
             ]
         ),

@@ -41,6 +41,7 @@ class PreviewsViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val prefs = context.getSharedPreferences("tuist_previews", Context.MODE_PRIVATE)
+    private val selectedProjectKey = authRepository.session.value.let { "$KEY_SELECTED_PROJECT.${it.profileId}.${it.origin}.${it.organization}" }
 
     private val _uiState = MutableStateFlow<PreviewsUiState>(PreviewsUiState.Loading)
     val uiState: StateFlow<PreviewsUiState> = _uiState.asStateFlow()
@@ -72,7 +73,7 @@ class PreviewsViewModel @Inject constructor(
                     _uiState.value = PreviewsUiState.Empty("no_projects")
                     return@launch
                 }
-                val lastSelectedFullName = prefs.getString(KEY_SELECTED_PROJECT, null)
+                val lastSelectedFullName = prefs.getString(selectedProjectKey, null)
                 val selected = projects.find { it.fullName == lastSelectedFullName } ?: projects.first()
                 loadPreviewsForProject(selected, projects)
             } catch (e: Exception) {
@@ -161,7 +162,7 @@ class PreviewsViewModel @Inject constructor(
                 projectHandle = projectHandle,
                 page = 1,
             )
-            prefs.edit().putString(KEY_SELECTED_PROJECT, project.fullName).apply()
+            prefs.edit().putString(selectedProjectKey, project.fullName).apply()
             _uiState.value = PreviewsUiState.Success(
                 projects = projects,
                 selectedProject = project,

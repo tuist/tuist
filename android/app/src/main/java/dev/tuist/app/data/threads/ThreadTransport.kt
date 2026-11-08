@@ -2,6 +2,7 @@ package dev.tuist.app.data.threads
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.Moshi
+import dev.tuist.app.data.auth.TokenStorage
 import java.util.UUID
 import javax.inject.Inject
 import okhttp3.OkHttpClient
@@ -19,13 +20,18 @@ import retrofit2.http.Query
  * Uses the selected origin, authentication and TLS configuration without logging private
  * conversations.
  */
-class ThreadTransport @Inject constructor(retrofit: Retrofit, moshi: Moshi) {
+class ThreadTransport internal constructor(retrofit: Retrofit, moshi: Moshi, session: TokenStorage.Session? = null) {
+    @Inject constructor(retrofit: Retrofit, moshi: Moshi, storage: TokenStorage) : this(retrofit, moshi, storage.snapshot())
+
     private val client =
         (retrofit.callFactory() as OkHttpClient)
             .newBuilder()
             .apply {
                 interceptors().removeAll { it is HttpLoggingInterceptor }
                 networkInterceptors().removeAll { it is HttpLoggingInterceptor }
+                if (session != null) interceptors().add(0, okhttp3.Interceptor { chain ->
+                    chain.proceed(chain.request().newBuilder().tag(TokenStorage.Session::class.java, session).build())
+                })
             }
             .build()
 
