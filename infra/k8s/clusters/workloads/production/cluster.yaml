@@ -24,7 +24,7 @@ spec:
   topology:
     classRef:
       name: tuist-hcloud
-    version: v1.35.10
+    version: v1.36.6
     controlPlane:
       replicas: 3
     variables:
