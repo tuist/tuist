@@ -99,14 +99,25 @@ defmodule Pulse.Storage.S3.Manifest.Segment do
       "r" => segment.row_count
     }
 
-    base = if segment.byte_size, do: Map.put(base, "b", segment.byte_size), else: base
-    base = if segment.metric_names, do: Map.put(base, "n", segment.metric_names), else: base
+    base =
+      Enum.reduce(
+        [
+          {"b", segment.byte_size},
+          {"n", segment.metric_names},
+          {"ls", segment.log_services},
+          {"l", segment.metric_labels},
+          {"el", segment.log_labels},
+          {"cg", segment.catalog}
+        ],
+        base,
+        fn
+          {_key, value}, acc when value in [nil, false] -> acc
+          {key, value}, acc -> Map.put(acc, key, value)
+        end
+      )
+
     base = if segment.metric_name_bloom, do: Map.put(base, "nb", Base.encode64(segment.metric_name_bloom)), else: base
-    base = if segment.log_services, do: Map.put(base, "ls", segment.log_services), else: base
-    base = if segment.metric_labels, do: Map.put(base, "l", segment.metric_labels), else: base
-    base = if segment.log_labels, do: Map.put(base, "el", segment.log_labels), else: base
     base = if segment.log_minutes, do: Map.put(base, "lm", minutes_to_wire(segment.log_minutes)), else: base
-    base = if segment.catalog, do: Map.put(base, "cg", segment.catalog), else: base
     if segment.trace_summary, do: Map.put(base, "t", TraceSummary.to_wire(segment.trace_summary)), else: base
   end
 

@@ -70,36 +70,42 @@ defmodule Pulse.Storage.S3.MetricCatalog do
   end
 
   defp build_root(root, tenant, config, opts) do
-    max_rows = Keyword.get(opts, :max_rows, 2_000_000)
     floor = JournalManifest.retention_floor(root) || 0
     now = System.os_time(:nanosecond)
 
     with {:ok, candidates} <- candidates(root, tenant, config) do
       candidates.segments
-      |> Enum.filter(&(Segment.metric_tier(&1) in [:raw, :grouped, :final] and is_integer(&1.min_ts)))
-      |> Enum.filter(&is_integer(&1.max_ts))
+      |> Enum.filter(
+        &(Segment.metric_tier(&1) in [:raw, :grouped, :final] and is_integer(&1.min_ts) and is_integer(&1.max_ts))
+      )
       |> Enum.flat_map(&hours(&1, floor, now))
       |> Enum.uniq()
       |> Enum.filter(&(&1 >= Keyword.get(opts, :min_hour, floor) and &1 <= Keyword.get(opts, :max_hour, now)))
       |> Enum.sort(:desc)
       |> Enum.take(Keyword.get(opts, :max_hours, 24))
-      |> Enum.reduce_while({:ok, %{hours: 0, sources: 0, rows: 0}}, fn hour, {:ok, acc} ->
-        if acc.rows >= max_rows do
-          {:halt, {:ok, acc}}
-        else
-          case build_hour(root, hour, tenant, config, opts, max_rows - acc.rows) do
-            {:ok, nil} ->
-              {:cont, {:ok, acc}}
-
-            {:ok, %{sources: sources, rows: rows}} ->
-              {:cont, {:ok, %{acc | hours: acc.hours + 1, sources: acc.sources + sources, rows: acc.rows + rows}}}
-
-            {:error, reason} ->
-              {:halt, {:error, {hour, reason}}}
-          end
-        end
-      end)
+      |> build_hours(root, tenant, config, opts)
     end
+  end
+
+  defp build_hours(hours, root, tenant, config, opts) do
+    max_rows = Keyword.get(opts, :max_rows, 2_000_000)
+
+    Enum.reduce_while(hours, {:ok, %{hours: 0, sources: 0, rows: 0}}, fn
+      _hour, {:ok, %{rows: rows} = acc} when rows >= max_rows ->
+        {:halt, {:ok, acc}}
+
+      hour, {:ok, acc} ->
+        case build_hour(root, hour, tenant, config, opts, max_rows - acc.rows) do
+          {:ok, nil} ->
+            {:cont, {:ok, acc}}
+
+          {:ok, %{sources: sources, rows: rows}} ->
+            {:cont, {:ok, %{acc | hours: acc.hours + 1, sources: acc.sources + sources, rows: acc.rows + rows}}}
+
+          {:error, reason} ->
+            {:halt, {:error, {hour, reason}}}
+        end
+    end)
   end
 
   # The hours a segment has rows in, at most the newest 48, none expired or
@@ -137,7 +143,7 @@ defmodule Pulse.Storage.S3.MetricCatalog do
 
       if batch == [] and not merge?,
         do: {:ok, nil},
-        else: write(tenant, config, {hour, lineage}, {catalogs, blobs}, batch, merge?, samples, covered, opts)
+        else: write(tenant, config, {hour, lineage}, {catalogs, blobs}, batch, merge?, {samples, covered}, opts)
     end
   end
 
@@ -156,7 +162,7 @@ defmodule Pulse.Storage.S3.MetricCatalog do
     |> Enum.reverse()
   end
 
-  defp write(tenant, config, {hour, lineage}, {catalogs, blobs}, batch, merge?, samples, covered, opts) do
+  defp write(tenant, config, {hour, lineage}, {catalogs, blobs}, batch, merge?, {samples, covered}, opts) do
     with {:ok, builder} <- native(NIF.metric_catalog_new(hour, hour + @hour_ns)),
          :ok <- add_catalogs(builder, blobs, if(merge?, do: :merge, else: :known)),
          {:ok, rows} <- add_segments(builder, config, batch, opts),

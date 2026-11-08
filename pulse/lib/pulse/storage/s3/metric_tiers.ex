@@ -352,10 +352,12 @@ defmodule Pulse.Storage.S3.MetricTiers do
         outputs
 
       lineage ->
-        Enum.map(outputs, fn output ->
-          if Segment.metric_tier(output) in [:grouped, :final], do: %{output | catalog: lineage}, else: output
-        end)
+        Enum.map(outputs, &mark_catalogued(&1, lineage))
     end
+  end
+
+  defp mark_catalogued(output, lineage) do
+    if Segment.metric_tier(output) in [:grouped, :final], do: %{output | catalog: lineage}, else: output
   end
 
   # Accumulate the sources natively, then encode and upload one output at a
