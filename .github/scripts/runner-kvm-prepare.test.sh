@@ -30,15 +30,48 @@ awk '/set image/ {image=NR} /apply -f/ {plugin=NR} END {exit !(image > 0 && plug
 for mutation in \
  '.items[0].metadata.annotations["tuist.dev/kata-kvm-config"] = "revision:previous-boot"' \
  '.items[0].status.allocatable["devices.tuist.dev/kvm"] = "16"' \
- 'del(.items[0].metadata.labels["tuist.dev/kata-kvm"])' \
- '.items[0].status.conditions[0].status = "False"' \
- '.items[0].spec.unschedulable = true'; do
+ 'del(.items[0].metadata.labels["tuist.dev/kata-kvm"])'; do
   jq "$mutation" "$work/ready.json" > "$work/nodes.json"
   if KVM_PREPARE_TIMEOUT_SECONDS=0 bash "$root/.github/scripts/runner-kvm-prepare.sh" "$work/render.json" tuist tuist-staging > "$work/out" 2>&1; then
     echo "Gate accepted unsafe state: $mutation" >&2; exit 1
   fi
   grep -q 'runner pools have not been switched' "$work/out"
 done
+# A schedulable host is still gated next to a cordoned one; the failure names
+# the condition and only the fleet's nodes.
+jq '.items[0].metadata.annotations["tuist.dev/kata-kvm-config"] = "revision:previous-boot" |
+  .items += [(.items[0] | .metadata.name = "cordoned" | .spec.unschedulable = true),
+    (.items[0] | .metadata.name = "other" | .metadata.labels["node.cluster.x-k8s.io/pool"] = "ordinary")]' "$work/ready.json" > "$work/nodes.json"
+if KVM_PREPARE_TIMEOUT_SECONDS=0 bash "$root/.github/scripts/runner-kvm-prepare.sh" "$work/render.json" tuist tuist-staging > "$work/out" 2>&1; then
+  echo 'Gate accepted a stale-boot host next to a cordoned one' >&2; exit 1
+fi
+grep -q 'runners-linux/runner: tuist.dev/kata-kvm-config proof is not for the current boot' "$work/out"
+grep -q '"cordoned"' "$work/out"
+! grep -q '"other"' "$work/out" || exit 1
+# A fleet without eligible hosts takes no runner Pods, so it does not block.
+for mutation in \
+ '.items[0].spec.unschedulable = true' \
+ '.items[0].status.conditions[0].status = "False"' \
+ '.items[0].metadata.deletionTimestamp = "2026-11-08T12:00:00Z"'; do
+  jq "$mutation | del(.items[0].metadata.labels[\"tuist.dev/kata-kvm\"])" "$work/ready.json" > "$work/nodes.json"
+  : > "$work/calls"
+  KVM_PREPARE_TIMEOUT_SECONDS=0 bash "$root/.github/scripts/runner-kvm-prepare.sh" "$work/render.json" tuist tuist-staging > "$work/out"
+  grep -q '::warning::Linux runner fleet runners-linux has no eligible host (runner: ' "$work/out"
+  ! grep -Eq 'set image|apply -f' "$work/calls" || exit 1
+done
+grep -q 'runner: being deleted' "$work/out"
+# Another fleet's eligible hosts are still prepared and gated.
+jq '. + [.[0] | .spec.fleetSelector = "runners-linux-b"]' "$work/render.json" > "$work/two.json"
+jq '.items += [.items[0] | .metadata.name = "b" | .metadata.labels["node.cluster.x-k8s.io/pool"] = "runners-linux-b" | .spec.unschedulable = true]' "$work/ready.json" > "$work/nodes.json"
+: > "$work/calls"
+KVM_PREPARE_TIMEOUT_SECONDS=0 bash "$root/.github/scripts/runner-kvm-prepare.sh" "$work/two.json" tuist tuist-staging > "$work/out"
+grep -q '::warning::Linux runner fleet runners-linux-b has no eligible host (b: unschedulable)' "$work/out"
+grep -q 'apply -f' "$work/calls"
+jq '.items[0].status.allocatable["devices.tuist.dev/kvm"] = "16"' "$work/nodes.json" > "$work/stale.json" && mv "$work/stale.json" "$work/nodes.json"
+if KVM_PREPARE_TIMEOUT_SECONDS=0 bash "$root/.github/scripts/runner-kvm-prepare.sh" "$work/two.json" tuist tuist-staging > "$work/out" 2>&1; then
+  echo 'Gate accepted an unprepared host because another fleet was skipped' >&2; exit 1
+fi
+grep -q 'runners-linux/runner: devices.tuist.dev/kvm 16 < pods 110' "$work/out"
 # Rollback skips all preparation, even when hosts are not ready.
 jq 'map(if .kind == "RunnerPool" then .spec.nestedVirtualization = false else . end)' "$work/render.json" > "$work/off.json"
 : > "$work/calls"
@@ -47,5 +80,5 @@ test ! -s "$work/calls"
 # First install is left to Helm; no preparatory mutations without hosts.
 echo '{"items":[]}' > "$work/nodes.json"
 bash "$root/.github/scripts/runner-kvm-prepare.sh" "$work/render.json" tuist tuist-staging
-! grep -Eq 'set image|apply -f' "$work/calls"
-echo 'KVM preparation preserves pools until hosts and allocations are ready; rollback and first install stay safe.'
+! grep -Eq 'set image|apply -f' "$work/calls" || exit 1
+echo 'KVM preparation preserves pools until eligible hosts and allocations are ready; fleets without eligible hosts, rollback and first install stay safe.'
