@@ -1,5 +1,5 @@
 defmodule Tuist.MCP.Components.Tools.ListGradleBuildSteps do
-  @moduledoc "List recorded Gradle build steps. IDs are opaque and scoped to the build. Logs are not collected. Gradle includes timed tasks, configuration and transforms; legacy reports use the first recorded timestamp as origin. Times are milliseconds; time filters select overlaps and end_ms is exclusive. Retention is 90 days."
+  @moduledoc "List recorded Gradle build steps. IDs are opaque and scoped to the build. Lists omit logs; get_gradle_build_step returns a failed step's failure message. Configuration steps report failure when they failed and unknown otherwise. Gradle includes timed tasks, configuration and transforms; legacy reports use the first recorded timestamp as origin. Times are milliseconds; time filters select overlaps and end_ms is exclusive. Retention is 90 days."
   use Tuist.MCP.Tool,
     name: "list_gradle_build_steps",
     title: "List Gradle Build Steps",
