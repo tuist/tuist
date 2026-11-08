@@ -185,7 +185,9 @@ openApiGenerate {
     ))
 }
 
-// With "original" enum naming, an empty-string enum value generates a constant without a name.
+// With "original" enum naming, an empty-string enum value generates a constant without a name,
+// and `name` and `value` entries clash with Kotlin's `Enum.name` and the generated `value`
+// property. The plugin ignores `enumNameMappings`, so rename them here; JSON values are unchanged.
 tasks.named("openApiGenerate") {
     val generatedSources = layout.buildDirectory.dir("generated/openapi/src/main/kotlin")
     doLast {
@@ -193,7 +195,10 @@ tasks.named("openApiGenerate") {
             .filter { it.extension == "kt" }
             .forEach { file ->
                 val source = file.readText()
-                val patched = source.replace("@Json(name = \"\") (\"\")", "@Json(name = \"\") EMPTY(\"\")")
+                val patched = source
+                    .replace("@Json(name = \"\") (\"\")", "@Json(name = \"\") EMPTY(\"\")")
+                    .replace("@Json(name = \"name\") name(\"name\")", "@Json(name = \"name\") name_(\"name\")")
+                    .replace("@Json(name = \"value\") `value`(\"value\")", "@Json(name = \"value\") value_(\"value\")")
                 if (patched != source) file.writeText(patched)
             }
     }

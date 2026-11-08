@@ -175,6 +175,15 @@ defmodule TuistWeb.API.BazelController do
       sequence_number: %Schema{type: :integer},
       stream: %Schema{type: :string},
       message: %Schema{type: :string},
+      target_label: %Schema{
+        type: :string,
+        description: "The test target a test log belongs to; empty for progress output and older logs."
+      },
+      status: %Schema{
+        type: :string,
+        description:
+          "The test attempt's status (`success`, `failure`, `flaky` or `skipped`); empty for progress output and older logs."
+      },
       observed_at: %Schema{type: :string, format: :"date-time"}
     },
     required: [:id, :invocation_id, :sequence_number, :stream, :message, :observed_at]
@@ -285,6 +294,8 @@ defmodule TuistWeb.API.BazelController do
 
   operation(:list_invocation_logs,
     summary: "List the sanitized logs captured for a Bazel invocation.",
+    description:
+      "Returns bounded Build Event Protocol progress output and test.log artifacts in execution order. Test logs carry their target label and attempt status. Progress output is not attributed to targets; failed actions' output by target is available from the invocation's build steps.",
     operation_id: "listBazelInvocationLogs",
     parameters:
       @project_parameters ++
@@ -295,6 +306,29 @@ defmodule TuistWeb.API.BazelController do
             type: :string,
             required: true,
             description: "The Bazel invocation identifier."
+          ],
+          stream: [
+            in: :query,
+            type: %Schema{type: :string, enum: ["stdout", "stderr"]},
+            description: "Only return chunks from this stream. Test logs are always stdout."
+          ],
+          source: [
+            in: :query,
+            type: %Schema{type: :string, enum: ["progress", "test_log"]},
+            description:
+              "Only return Build Event Protocol progress output (`progress`) or test.log artifacts (`test_log`)."
+          ],
+          target_label: [
+            in: :query,
+            type: %Schema{type: :string, maxLength: 1_024},
+            description:
+              "Only return the test logs of this exact Bazel target label, such as `//foo:bar_test`. Progress output is not attributed to targets."
+          ],
+          errors: [
+            in: :query,
+            type: %Schema{type: :boolean, default: false},
+            description:
+              "Only return test logs of failed attempts and stderr progress chunks containing a line that Bazel's reporter starts with `ERROR:`, `FAIL:` or `TIMEOUT:`."
           ]
         ],
     responses: %{
@@ -315,17 +349,25 @@ defmodule TuistWeb.API.BazelController do
   def list_invocation_logs(
         %{
           assigns: %{selected_project: project},
-          params: %{invocation_id: invocation_id, page: page, page_size: page_size}
+          params: %{invocation_id: invocation_id, page: page, page_size: page_size} = params
         } = conn,
         _params
       ) do
     {logs, meta} =
-      Bazel.list_invocation_logs(project.id, invocation_id, %{
-        order_by: [:sequence_number],
-        order_directions: [:asc],
-        page: page,
-        page_size: page_size
-      })
+      Bazel.list_invocation_logs(
+        project.id,
+        invocation_id,
+        %{
+          order_by: [:sequence_number],
+          order_directions: [:asc],
+          page: page,
+          page_size: page_size
+        },
+        stream: params[:stream],
+        source: params[:source],
+        target_label: params[:target_label],
+        errors: params[:errors] == true
+      )
 
     json(conn, %{logs: Enum.map(logs, &invocation_log_json/1), pagination_metadata: pagination_json(meta)})
   end
@@ -492,6 +534,8 @@ defmodule TuistWeb.API.BazelController do
       sequence_number: log.sequence_number,
       stream: log.stream,
       message: log.message,
+      target_label: log.target_label,
+      status: log.status,
       observed_at: utc_datetime(log.observed_at)
     }
   end
