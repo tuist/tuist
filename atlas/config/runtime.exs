@@ -749,6 +749,28 @@ case System.get_env("MCP_PROXY_SERVERS") do
               scopes: ["all"],
               tool_allowlist: ["get-order-list", "get-order-infos", "get-order-status", "get-order-details-list"]
             },
+            # Vultr's hosted MCP server, compute area only: Cloud Compute and
+            # Bare Metal, where the Kura hosts in ord and scl live. Each person
+            # connects their own Vultr login, one organization per sign-in,
+            # after an org admin enables MCP and attaches the "Use MCP" policy.
+            # The server has no write tools at all and marks every tool with
+            # readOnlyHint, so read_only is enough on its own; it also withholds
+            # VNC URLs, userdata and startup-script bodies.
+            #
+            # There is no write here. Tagging a box `tuist-kura-vultr-production`
+            # makes the fleet adopt it and convert its disks, but the token this
+            # session holds is the MCP server's own JWT, which it swaps for the
+            # real Vultr token server-side, so it cannot call api.vultr.com.
+            # Tagging and ordering stay in the Vultr console.
+            %{
+              name: "vultr-compute",
+              url: "https://mcp.vultr.com/mcp/compute",
+              auth_type: "oauth2",
+              authorization_url: "https://mcp.vultr.com/authorize",
+              token_url: "https://mcp.vultr.com/token",
+              registration_url: "https://mcp.vultr.com/register",
+              read_only: true
+            },
             # Stripe's hosted MCP server, reached with each person's own Stripe
             # login: Stripe's consent screen picks the accounts and sandboxes
             # the session covers, so Atlas holds no Stripe key. Reserved for the
