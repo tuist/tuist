@@ -183,6 +183,12 @@ openApiGenerate {
     importMappings.set(mapOf(
         "Int" to "kotlin.Int",
     ))
+    // With "original" enum naming, `name` and `value` entries clash with Kotlin's
+    // `Enum.name` and the generated `value` property; the JSON values are unchanged.
+    enumNameMappings.set(mapOf(
+        "name" to "name_",
+        "value" to "value_",
+    ))
 }
 
 // With "original" enum naming, an empty-string enum value generates a constant without a name.
