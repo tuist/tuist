@@ -61,7 +61,8 @@ optimize_graph() (
     temp=$(mktemp -d)
     trap 'rm -rf "$temp"' EXIT
     query "$root" schema cargo_dependencies | jq -e '.attrs | any(.name == "dep_rustc_flags")' >/dev/null || fail 'Once optimization schema changed'
-    query "$root" 'MATCH (t:Target) WHERE t.id STARTS WITH "cargo_" RETURN t.id, t.kind' | jq -r '.rows[][0]' > "$temp/ids"
+    # Native Windows jq otherwise writes CRLF, making Bash read CR as part of each ID.
+    query "$root" 'MATCH (t:Target) WHERE t.id STARTS WITH "cargo_" RETURN t.id, t.kind' | jq -br '.rows[][0]' > "$temp/ids"
     while IFS= read -r id; do query "$root" target "$id"; done < "$temp/ids" | jq -s '.' > "$temp/targets"
     jq -e --arg binary "$BINARY" 'any(.[]; .label.id == $binary)' "$temp/targets" >/dev/null || fail 'Once did not declare the desktop binary'
     yq -p toml -o json '.' "$root/once.toml" > "$temp/seed"
