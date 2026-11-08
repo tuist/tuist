@@ -171,7 +171,19 @@ build() (
     fi
     export ONCE_CACHE_PROVIDER=local
     optimize_graph "$root"
-    (cd "$root"; once build "$BINARY"; once test --all)
+    (
+        cd "$root"
+        once build "$BINARY"
+        if once test --all; then :; else
+            status=$?
+            for log in .once/out/*/test/rust-libtest.log; do
+                test -f "$log" || continue
+                printf '\n--- %s ---\n' "$log"
+                cat "$log"
+            done
+            exit "$status"
+        fi
+    )
     name=Tuist
     test "$fmt" != nsis || name=Tuist.exe
     binary=$root/.once/out/$BINARY/$name
