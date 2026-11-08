@@ -1481,9 +1481,9 @@ defmodule Pulse.Storage.S3 do
          %{limit: :max_scan_bytes} = detail <- QueryLimit.peek() do
       tiers =
         Enum.reduce(segments, %{}, fn segment, acc ->
-          Map.update(acc, Segment.metric_tier(segment), {1, segment.byte_size || 0}, fn {count, bytes} ->
-            {count + 1, bytes + (segment.byte_size || 0)}
-          end)
+          tier = Segment.metric_tier(segment)
+          {count, bytes} = Map.get(acc, tier, {0, 0})
+          Map.put(acc, tier, {count + 1, bytes + (segment.byte_size || 0)})
         end)
 
       QueryLimit.put(Map.put(detail, :metric_tiers, tiers))
