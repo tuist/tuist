@@ -436,7 +436,7 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `get_bazel_integration_guide` | Return the authentication, project setup, Bazel configuration, and verification workflow. | None |
-| `list_bazel_invocations` | List completed [Bazel Build Event Protocol](https://bazel.build/remote/bep) invocations with build metrics, a bounded execution timeline, critical-path diagnostics, and correlated remote-cache totals for a project. | `account_handle`, `project_handle` |
+| `list_bazel_invocations` | List completed [Bazel Build Event Protocol](https://bazel.build/remote/bep) invocations newest first, with build metrics, a bounded execution timeline, critical-path diagnostics, and correlated remote-cache totals for a project. Filter by `status`, `git_branch`, `git_commit_sha`, `is_ci` and `command`. | `account_handle`, `project_handle` |
 | `get_bazel_invocation` | Get one completed Bazel invocation with build metrics, a bounded execution timeline, critical-path diagnostics, and correlated remote-cache totals. | `account_handle`, `project_handle`, `invocation_id` |
 | `list_bazel_build_steps` | List recorded Bazel profile intervals, with filters and explicit coverage. | `account_handle`, `project_handle`, `invocation_id` |
 | `get_bazel_build_step` | Inspect a recorded Bazel step and its published action outcome and sanitized log. | `account_handle`, `project_handle`, `invocation_id`, `step_id` |
@@ -444,6 +444,8 @@ Bazel step IDs returned from retained summaries remain readable if a full profil
 | `get_bazel_invocation_log` | Get one sanitized test log captured for a Bazel invocation. | `account_handle`, `project_handle`, `invocation_id`, `invocation_log_id` |
 | `list_bazel_cache_events` | List raw Bazel remote-cache observations with their operation, endpoint, and observation time, optionally narrowed to an invocation, outcome, or operation. | `account_handle`, `project_handle` |
 | `get_bazel_cache_event` | Get one raw Bazel remote-cache observation. | `account_handle`, `project_handle`, `cache_event_id` |
+
+`list_bazel_invocations` filters are exact matches, and invocations that finish in the same second are ordered by invocation ID. To find the latest failing invocation on a branch, call it with `status: "failure"`, `git_branch` and `page_size: 1`. The REST endpoint `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations` accepts the same filters.
 
 #### Cargo builds
 

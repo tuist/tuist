@@ -40192,7 +40192,9 @@ public struct Client: APIProtocol {
             }
         )
     }
-    /// List Bazel invocations for a project.
+    /// List Bazel invocations for a project, newest first.
+    ///
+    /// Filters are exact matches. Pass `status=failure`, a `git_branch` and `page_size=1` to get the latest failing invocation on a branch.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bazel/invocations`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bazel/invocations/get(listBazelInvocations)`.
@@ -40233,6 +40235,34 @@ public struct Client: APIProtocol {
                     explode: true,
                     name: "status",
                     value: input.query.status
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "git_branch",
+                    value: input.query.git_branch
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "git_commit_sha",
+                    value: input.query.git_commit_sha
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "is_ci",
+                    value: input.query.is_ci
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "command",
+                    value: input.query.command
                 )
                 converter.setAcceptHeader(
                     in: &request.headerFields,

@@ -216,9 +216,20 @@ defmodule TuistWeb.API.BazelController do
   }
 
   operation(:list_invocations,
-    summary: "List Bazel invocations for a project.",
+    summary: "List Bazel invocations for a project, newest first.",
+    description:
+      "Filters are exact matches. Pass `status=failure`, a `git_branch` and `page_size=1` to get the latest failing invocation on a branch.",
     operation_id: "listBazelInvocations",
-    parameters: @project_parameters ++ @pagination_parameters ++ @status_parameter,
+    parameters:
+      @project_parameters ++
+        @pagination_parameters ++
+        @status_parameter ++
+        [
+          git_branch: [in: :query, type: :string, description: "Filter by git branch."],
+          git_commit_sha: [in: :query, type: :string, description: "Filter by full git commit SHA."],
+          is_ci: [in: :query, type: :boolean, description: "Filter by whether the invocation ran on CI."],
+          command: [in: :query, type: :string, description: "Filter by Bazel command, for example build or test."]
+        ],
     responses: %{
       ok:
         {"List of Bazel invocations", "application/json",
@@ -234,20 +245,8 @@ defmodule TuistWeb.API.BazelController do
     }
   )
 
-  def list_invocations(
-        %{assigns: %{selected_project: project}, params: %{page: page, page_size: page_size} = params} = conn,
-        _params
-      ) do
-    filters = maybe_append_filter([%{field: :project_id, op: :==, value: project.id}], :status, params[:status])
-
-    {invocations, meta} =
-      Bazel.list_invocations(project.id, %{
-        filters: filters,
-        order_by: [:finished_at],
-        order_directions: [:desc],
-        page: page,
-        page_size: page_size
-      })
+  def list_invocations(%{assigns: %{selected_project: project}, params: params} = conn, _params) do
+    {invocations, meta} = Bazel.list_project_invocations(project.id, params)
 
     json(conn, %{invocations: Enum.map(invocations, &invocation_json/1), pagination_metadata: pagination_json(meta)})
   end
