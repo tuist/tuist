@@ -4,7 +4,8 @@ The server, iOS, and Android share canonical web addresses for destinations they
 all implement. Routes contain identifiers, not serialized API models, credentials,
 or commands. Opening a link only navigates; installing,
 deleting, signing in, and switching servers still require the existing UI and
-authorization. This contract covers the current mobile screens, not macOS.
+authorization. This contract covers the current mobile screens and the Rust
+desktop shell. The Swift macOS app does not yet use this navigation contract.
 
 ## Route contract
 
@@ -105,6 +106,18 @@ unconsumed links across activity recreation without replaying consumed launch
 intents. `HomeScreen` maps routes onto the existing type-safe Compose destinations.
 Feature callbacks and tab actions use that same entry point. Add destinations to
 the parser, generator, and native mapping together.
+
+The Rust desktop app uses `tuist-navigation::Route` for the same wire format and
+`Navigation` for pending delivery and tab/detail state. Command-line URL arguments,
+gpui URL events, and authenticated local forwarding from a second launch all
+reach the root before the signed-in workspace. OAuth remains on its loopback
+callback, separate from navigation. Linux and Windows require explicit protocol
+registration; see `desktop/README.md`. They do not claim all HTTPS links.
+
+Desktop preview browsing is not implemented yet. A preview link opens a handoff
+screen with the identifiers, **Copy link**, **Open on web**, and Back, not fetched
+preview metadata or a Run/Install action. Canonical web links continue to work in
+the system browser. Never imply this screen has checked preview access.
 
 `app/Fixtures/Navigation/routes.json` is the shared executable contract: canonical
 web URLs, native aliases, encoded identifiers, server base paths, and web-only
