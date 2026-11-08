@@ -10,6 +10,11 @@ import TuistLogging
     import TuistProcess
 #endif
 
+#if canImport(TuistOIDC)
+    import TuistEnvironment
+    import TuistOIDC
+#endif
+
 #if canImport(TuistSupport)
     import TuistAlert
     import TuistConstants
@@ -223,6 +228,7 @@ private actor CredentialRefreshLock {
 public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private let refreshAuthTokenService: RefreshAuthTokenServicing
     private let refreshOAuthTokenService: RefreshOAuthTokenServicing
+    private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
     private let fileSystem: FileSysteming
     private let cachedValueStore: CachedValueStoring
     private static let credentialRefreshLock = CredentialRefreshLock()
@@ -241,12 +247,14 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
+            exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.refreshOAuthTokenService = refreshOAuthTokenService
+            self.exchangeOIDCTokenService = exchangeOIDCTokenService
             self.fileSystem = fileSystem
             self.backgroundProcessRunner = backgroundProcessRunner
             self.cachedValueStore = cachedValueStore
@@ -255,11 +263,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
+            exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.refreshOAuthTokenService = refreshOAuthTokenService
+            self.exchangeOIDCTokenService = exchangeOIDCTokenService
             self.fileSystem = fileSystem
             self.cachedValueStore = cachedValueStore
         }
@@ -669,8 +679,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             case .project:
                 upToDateToken = token
             case let .account(accessToken):
-                upToDateToken = token
-                expiresAt = cacheExpirationDate(for: accessToken)
+                let renewedAccessToken = try await renewedAmpOrbAccessToken(
+                    serverURL: serverURL,
+                    accessToken: accessToken,
+                    forceRefresh: forceRefresh
+                )
+                upToDateToken = .account(renewedAccessToken ?? accessToken)
+                expiresAt = cacheExpirationDate(for: renewedAccessToken ?? accessToken)
             case let .user(
                 accessToken, refreshToken
             ):
@@ -718,6 +733,33 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
 
             return (value: upToDateToken, expiresAt: expiresAt)
         }
+    }
+
+    /// Account tokens exchanged from an OIDC token have no refresh token. In an Amp orb, the orb can
+    /// mint a new identity token at any time, so an expiring session is renewed by exchanging a new one,
+    /// the way Amp's trust recipes re-mint before a cloud credential expires.
+    private func renewedAmpOrbAccessToken(
+        serverURL: URL,
+        accessToken: JWT,
+        forceRefresh: Bool
+    ) async throws -> JWT? {
+        #if canImport(TuistOIDC)
+            guard Environment.current.isAmpOrb,
+                  forceRefresh || accessToken.expiryDate.timeIntervalSince(Date.now()) < 30
+            else { return nil }
+            Logger.current.debug("Renewing the Amp orb session for \(serverURL)")
+            let renewedAccessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
+                oidcToken: try await CIOIDCAuthenticator().fetchOIDCToken(),
+                serverURL: serverURL
+            )
+            try await ServerCredentialsStore.current.store(
+                credentials: ServerCredentials(accessToken: renewedAccessToken),
+                serverURL: serverURL
+            )
+            return try JWT.parse(renewedAccessToken)
+        #else
+            return nil
+        #endif
     }
 
     #if canImport(TuistSupport)
