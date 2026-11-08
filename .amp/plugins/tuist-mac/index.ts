@@ -1,25 +1,27 @@
 import type { PluginAPI, PluginToolResult } from '@ampcode/plugin'
-import { createHash } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { baseCommit, checkoutScript, originURL, syncScript, worktreePatch } from './lib/git.ts'
-import { Mac, quote } from './lib/mac.ts'
-import { accountHandle, SandboxClient, tuistToken } from './lib/sandbox.ts'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { basename, join } from 'node:path'
+import { sandbox, sandboxJSON } from './lib/tuist.ts'
 
 export const description =
-	'Prototype: a macOS Tuist sandbox per thread. Mirrors the worktree to the Mac before each command, runs commands there, and returns simulator screenshots.'
+	'A macOS Tuist sandbox per thread for Xcode builds, tests and the iOS Simulator: mirrors the worktree to the Mac before each command, streams output and returns simulator screenshots. Uses the Tuist CLI.'
 
-const SERVER_URL = (process.env.TUIST_MAC_SERVER_URL ?? process.env.TUIST_URL ?? 'https://tuist.dev').replace(/\/$/, '')
 const PATH_PREFIX = 'export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH" PAGER=cat GIT_PAGER=cat\n'
 const MAX_OUTPUT = 30_000
-const WORK = '/Users/runner/work'
 
 interface SessionRecord {
 	sandboxId: string
-	account: string
-	base: string
-	repo: string
-	lastPatchHash?: string
+	// The repository's path on the Mac, from the last sync.
+	root?: string
+}
+
+interface Sandbox {
+	id: string
+	state: string
+	status?: string
+	node_name?: string | null
+	error_message?: string | null
 }
 
 export default function (amp: PluginAPI) {
@@ -52,32 +54,25 @@ export default function (amp: PluginAPI) {
 		return root
 	}
 
-	async function client(account: string): Promise<SandboxClient> {
-		return new SandboxClient(SERVER_URL, account, await tuistToken(SERVER_URL, requireRoot()))
-	}
-
-	async function macFor(thread: string): Promise<{ record: SessionRecord; mac: Mac }> {
+	async function recordFor(thread: string): Promise<SessionRecord> {
 		await loaded
 		const record = sessions.get(thread)
 		if (!record) throw new Error('No Mac in this thread. Call tuist_mac_start first.')
-		return { record, mac: new Mac(await client(record.account), record.sandboxId) }
+		return record
 	}
 
-	async function sync(record: SessionRecord, mac: Mac): Promise<string> {
-		const patch = await worktreePatch(requireRoot(), record.base)
-		const hash = createHash('sha256').update(patch).digest('hex').slice(0, 16)
-		const remote = `/tmp/tuist-mac/patch-${hash}`
-		if (record.lastPatchHash !== hash) await mac.upload(remote, patch)
-		let result = await mac.exec(`cd ${record.repo}\n${syncScript(record.base, remote)}`, 300_000)
-		if (result.exitCode !== 0 && record.lastPatchHash === hash) {
-			// The Mac lost the patch (a fresh VM after an eviction); send it again.
-			await mac.upload(remote, patch)
-			result = await mac.exec(`cd ${record.repo}\n${syncScript(record.base, remote)}`, 300_000)
+	// Mirrors the worktree into the Mac and remembers where the repository is there.
+	async function sync(record: SessionRecord, signal?: AbortSignal): Promise<string> {
+		const result = await sandboxJSON<{ root: string; base: string; patch_bytes: number; uploaded: boolean }>(
+			['sync', record.sandboxId],
+			{ cwd: requireRoot(), signal },
+		)
+		if (record.root !== result.root) {
+			record.root = result.root
+			await persist()
 		}
-		if (result.exitCode !== 0) throw new Error(`Syncing the worktree to the Mac failed:\n${truncate(result.output)}`)
-		record.lastPatchHash = hash
-		await persist()
-		return `${patch.length} bytes of changes against ${record.base.slice(0, 12)}`
+		const size = result.patch_bytes < 1024 ? `${result.patch_bytes} B` : `${Math.round(result.patch_bytes / 1024)} KB`
+		return `${size} of changes against ${result.base.slice(0, 12)}${result.uploaded ? '' : ', already on the Mac'}`
 	}
 
 	amp.registerTool({
@@ -86,8 +81,8 @@ export default function (amp: PluginAPI) {
 		transcriptGroup: { active: 'Starting a Tuist Mac', complete: 'Started a Tuist Mac' },
 		description:
 			"Start a macOS Tuist sandbox (Xcode, simulators, Homebrew) for this thread, or reuse the thread's existing one. " +
-			'Use it when the task needs macOS: Xcode builds, Apple-platform tests, or the iOS Simulator. The Mac starts from the newest commit the remote has; ' +
-			'tuist_mac_shell then mirrors local commits, uncommitted and untracked (non-ignored) changes before each command. ' +
+			'Use it when the task needs macOS: Xcode builds, Apple-platform tests, or the iOS Simulator. ' +
+			'It mirrors the worktree onto the Mac, including unpushed commits, uncommitted and untracked (non-ignored) changes, and tuist_mac_shell mirrors it again before each command. ' +
 			'Tuist pauses an idle Mac and resumes it on the next command; tuist_mac_stop deletes it.',
 		inputSchema: {
 			type: 'object',
@@ -99,12 +94,13 @@ export default function (amp: PluginAPI) {
 		async execute(input, ctx) {
 			await loaded
 			const thread = ctx.thread.id
-			const workspace = requireRoot()
+			const cwd = requireRoot()
 			const existing = sessions.get(thread)
 			if (existing) {
-				const sandbox = await (await client(existing.account)).show(existing.sandboxId).catch(() => null)
-				if (sandbox && !['error', 'deleted', 'archived'].includes(sandbox.state)) {
-					return `The thread's Mac (sandbox ${sandbox.id}) is ${sandbox.status ?? sandbox.state}; tuist_mac_shell resumes it if paused.`
+				const shown = await sandbox(['show', existing.sandboxId, '--json'], { cwd })
+				const state = shown.exitCode === 0 ? (JSON.parse(shown.stdout) as Sandbox) : null
+				if (state && !['error', 'deleted', 'archived'].includes(state.state)) {
+					return `The thread's Mac (sandbox ${state.id}) is ${state.status ?? state.state}; tuist_mac_shell resumes it if paused.`
 				}
 				sessions.delete(thread)
 				await persist()
@@ -113,32 +109,23 @@ export default function (amp: PluginAPI) {
 			const workspaceGB = typeof input.workspace_gb === 'number' ? Math.min(100, Math.max(1, Math.round(input.workspace_gb))) : 30
 			return withKeepAlive(async () => {
 				const started = Date.now()
-				const account = await accountHandle(workspace)
-				const api = await client(account)
-				const base = await baseCommit(workspace)
-				const url = await originURL(workspace)
-				const repo = `${WORK}/${url.replace(/\.git$/, '').split('/').pop() || 'repo'}`
-				const sandbox = await api.create({ platform: 'darwin', vcpus: 8, memory_mb: memoryGB * 1024, workspace_gb: workspaceGB })
-				const record: SessionRecord = { sandboxId: sandbox.id, account, base, repo }
+				const created = await sandboxJSON<Sandbox>(
+					['create', '--platform', 'macos', '--vcpus', '8', '--memory-gb', String(memoryGB), '--workspace-gb', String(workspaceGB)],
+					{ cwd, signal: ctx.signal },
+				)
+				const record: SessionRecord = { sandboxId: created.id }
 				sessions.set(thread, record)
 				await persist()
 				try {
-					let state = sandbox
-					while (state.state !== 'running') {
-						ctx.signal?.throwIfAborted()
-						if (state.state === 'error' || state.state === 'deleted') throw new Error(`The Mac failed to start: ${state.error_message ?? state.state}`)
-						if (Date.now() - started > 20 * 60_000) throw new Error('Timed out waiting for the Mac to start.')
-						await new Promise((r) => setTimeout(r, 3000))
-						state = await api.show(sandbox.id)
-					}
 					const booted = Date.now()
-					const mac = new Mac(api, sandbox.id)
-					const checkout = await mac.run(checkoutScript(repo, quote(url), base), { cwd: WORK, timeoutMs: 30 * 60_000, signal: ctx.signal })
-					if (checkout.exitCode !== 0) throw new Error(`Checking out ${base.slice(0, 12)} on the Mac failed:\n${truncate(checkout.output)}`)
-					const info = await mac.exec(`${PATH_PREFIX}sw_vers -productVersion; xcodebuild -version | head -1`)
+					const synced = await sync(record, ctx.signal)
+					const info = await sandbox(['run', record.sandboxId, '--', `${PATH_PREFIX}sw_vers -productVersion; xcodebuild -version | head -1`], {
+						cwd,
+						signal: ctx.signal,
+					})
 					return (
-						`Mac ready (sandbox ${sandbox.id} on ${state.node_name ?? 'a Tuist host'}): booted in ${Math.round((booted - started) / 1000)}s, ` +
-						`checked out ${base.slice(0, 12)} in ${Math.round((Date.now() - booted) / 1000)}s.\n${info.output.trim()}\nRepository: ${repo}`
+						`Mac ready (sandbox ${created.id} on ${created.node_name ?? 'a Tuist host'}): booted in ${Math.round((booted - started) / 1000)}s, ` +
+						`synced ${synced} in ${Math.round((Date.now() - booted) / 1000)}s.\n${info.stdout.trim()}\nRepository: ${record.root}`
 					)
 				} catch (error) {
 					await stop(thread).catch(() => {})
@@ -154,12 +141,12 @@ export default function (amp: PluginAPI) {
 		transcriptGroup: { active: 'Running on the Mac', complete: 'Ran on the Mac' },
 		description:
 			"Run a bash command on this thread's Tuist Mac, in the mirrored repository. First mirrors the worktree onto the Mac, one way: " +
-			'edit files here, not on the Mac, because the next mirror overwrites Mac-side changes to files the repository tracks and removes untracked files the Mac created unless Git ignores them. ' +
-			'Returns the exit code and combined output (long output keeps its start and end).',
+			'edit files here, not on the Mac, because the next mirror overwrites Mac-side changes to files the repository tracks. Files the Mac created that Git ignores, such as build products, stay. ' +
+			'Output streams however long the command runs. Returns the exit code and combined output (long output keeps its start and end).',
 		inputSchema: {
 			type: 'object',
 			properties: {
-				command: { type: 'string', description: 'bash command, such as `xcodebuild -scheme App -destination "platform=iOS Simulator,name=iPhone 17" build`.' },
+				command: { type: 'string', description: 'bash command, such as `xcodebuild -scheme App -destination "platform=iOS Simulator,name=iPhone 17 Pro" build`.' },
 				cwd: { type: 'string', description: 'Directory relative to the repository root. Default: the root.' },
 				sync: { type: 'boolean', description: 'Mirror the worktree first. Default true.' },
 				timeout_seconds: { type: 'number', description: 'Default 1800.' },
@@ -167,16 +154,44 @@ export default function (amp: PluginAPI) {
 			required: ['command'],
 		},
 		async execute(input, ctx) {
-			const { record, mac } = await macFor(ctx.thread.id)
-			const timeoutMs = (typeof input.timeout_seconds === 'number' ? input.timeout_seconds : 1800) * 1000
+			const record = await recordFor(ctx.thread.id)
+			const timeout = Math.min(21_600, Math.max(1, Math.round(typeof input.timeout_seconds === 'number' ? input.timeout_seconds : 1800)))
 			return withKeepAlive(async () => {
-				const synced = input.sync === false ? 'not synced' : await sync(record, mac)
-				const cwd = typeof input.cwd === 'string' && input.cwd ? `${record.repo}/${input.cwd}` : record.repo
+				const synced = input.sync === false && record.root ? 'not synced' : await sync(record, ctx.signal)
+				const dir = typeof input.cwd === 'string' && input.cwd ? `${record.root}/${input.cwd}` : record.root!
 				const started = Date.now()
-				const result = await mac.run(`${PATH_PREFIX}${String(input.command)}`, { cwd, timeoutMs, signal: ctx.signal })
+				const result = await sandbox(
+					['run', record.sandboxId, '--cwd', dir, '--timeout', String(timeout), '--', `${PATH_PREFIX}${String(input.command)}`],
+					{ cwd: requireRoot(), signal: ctx.signal },
+				)
 				const seconds = ((Date.now() - started) / 1000).toFixed(1)
 				return `exit code ${result.exitCode} after ${seconds}s (${synced})\n${truncate(result.output)}`
 			})
+		},
+	})
+
+	amp.registerTool({
+		name: 'tuist_mac_download',
+		title: 'Download from Mac',
+		transcriptGroup: { active: 'Downloading from the Mac', complete: 'Downloaded from the Mac' },
+		description:
+			"Copy a file or directory from this thread's Tuist Mac to this machine, such as a built .app, an .xcresult bundle or logs. Returns the local path.",
+		inputSchema: {
+			type: 'object',
+			properties: {
+				path: { type: 'string', description: 'Path on the Mac, absolute or relative to the repository root.' },
+				output: { type: 'string', description: 'Local directory to copy it into. Default: a directory under the system temporary directory.' },
+			},
+			required: ['path'],
+		},
+		async execute(input, ctx) {
+			const record = await recordFor(ctx.thread.id)
+			const remote = String(input.path).startsWith('/') ? String(input.path) : `${record.root}/${input.path}`
+			const output = typeof input.output === 'string' && input.output ? input.output : join(tmpdir(), 'tuist-mac', ctx.thread.id)
+			await mkdir(output, { recursive: true })
+			const result = await sandbox(['download', record.sandboxId, remote, '-o', output], { cwd: requireRoot(), signal: ctx.signal })
+			if (result.exitCode !== 0) throw new Error(`Download failed:\n${truncate(result.output)}`)
+			return `Downloaded to ${join(output, basename(remote))}`
 		},
 	})
 
@@ -192,24 +207,37 @@ export default function (amp: PluginAPI) {
 			},
 		},
 		async execute(input, ctx): Promise<PluginToolResult> {
-			const { mac } = await macFor(ctx.thread.id)
+			const record = await recordFor(ctx.thread.id)
+			const cwd = requireRoot()
+			const shot = `/tmp/tuist-mac-screenshot-${Date.now()}.jpg`
 			const capture =
 				input.target === 'screen' ? 'screencapture -x "$png" 2>/dev/null' : 'xcrun simctl io booted screenshot --type=png "$png" >/dev/null 2>&1'
-			const result = await mac.exec(
-				`set -euo pipefail\n${PATH_PREFIX}png=$(mktemp /tmp/tm.XXXXXX); jpg="$png.jpg"\n${capture}\n` +
-					`sips -Z 1600 -s format jpeg -s formatOptions 75 "$png" --out "$jpg" >/dev/null 2>&1\necho __TM_IMAGE__\nbase64 < "$jpg"\nrm -f "$png" "$jpg"`,
-				60_000,
-				ctx.signal,
+			const taken = await sandbox(
+				[
+					'run',
+					record.sandboxId,
+					'--timeout',
+					'120',
+					'--',
+					`set -euo pipefail\n${PATH_PREFIX}png=$(mktemp /tmp/tm.XXXXXX)\n${capture}\nsips -Z 1600 -s format jpeg -s formatOptions 75 "$png" --out ${shot} >/dev/null 2>&1\nrm -f "$png"`,
+				],
+				{ cwd, signal: ctx.signal },
 			)
-			if (result.exitCode !== 0) throw new Error(`Screenshot failed:\n${truncate(result.output)}`)
-			// simctl and sips print notes; the image is everything after the marker.
-			const encoded = result.output.slice(result.output.lastIndexOf('__TM_IMAGE__') + '__TM_IMAGE__'.length)
-			const data = Buffer.from(encoded.replace(/\s+/g, ''), 'base64')
+			if (taken.exitCode !== 0) throw new Error(`Screenshot failed:\n${truncate(taken.output)}`)
+			const local = await mkdtemp(join(tmpdir(), 'tuist-mac-shot-'))
 			try {
-				const { url } = await amp.attachments.upload({ data, mimeType: 'image/jpeg' })
-				return [{ type: 'image', mimeType: 'image/jpeg', url }]
-			} catch {
-				return [{ type: 'image', mimeType: 'image/jpeg', data: data.toString('base64') }]
+				const downloaded = await sandbox(['download', record.sandboxId, shot, '-o', local], { cwd, signal: ctx.signal })
+				if (downloaded.exitCode !== 0) throw new Error(`Copying the screenshot failed:\n${truncate(downloaded.output)}`)
+				void sandbox(['run', record.sandboxId, '--', `rm -f ${shot}`], { cwd }).catch(() => {})
+				const data = await readFile(join(local, basename(shot)))
+				try {
+					const { url } = await amp.attachments.upload({ data, mimeType: 'image/jpeg' })
+					return [{ type: 'image', mimeType: 'image/jpeg', url }]
+				} catch {
+					return [{ type: 'image', mimeType: 'image/jpeg', data: data.toString('base64') }]
+				}
+			} finally {
+				await rm(local, { recursive: true, force: true })
 			}
 		},
 	})
@@ -220,7 +248,7 @@ export default function (amp: PluginAPI) {
 		description: "Delete this thread's Tuist Mac and everything on it.",
 		inputSchema: { type: 'object', properties: {} },
 		async execute(_input, ctx) {
-			await macFor(ctx.thread.id)
+			await recordFor(ctx.thread.id)
 			await stop(ctx.thread.id)
 			return 'Mac deleted.'
 		},
@@ -231,7 +259,8 @@ export default function (amp: PluginAPI) {
 		if (!record) return
 		sessions.delete(thread)
 		await persist()
-		await (await client(record.account)).delete(record.sandboxId)
+		const result = await sandbox(['delete', record.sandboxId, '--yes'], { cwd: requireRoot() })
+		if (result.exitCode !== 0) throw new Error(`Deleting the Mac failed:\n${truncate(result.output)}`)
 	}
 }
 
