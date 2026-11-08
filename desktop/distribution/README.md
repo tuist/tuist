@@ -13,7 +13,12 @@ Use Bash (Git Bash on Windows), jq, mikefarah yq, OpenSSL, the native dependenci
 listed in `desktop.yml`, Once and Rust from `desktop/mise.toml`, cargo-packager
 0.11.7 and minisign. jq and yq are pinned in mise. Installing the
 packager tool with `cargo install --locked cargo-packager --version '=0.11.7'`
-does not build the application. From `desktop/`, on native Linux/Windows x86_64:
+does not build the application. Ubuntu 22.04 has no minisign package; CI uses
+`install-minisign.sh DESTINATION` to install upstream Minisign 0.12 with a pinned
+SHA-256 checksum, keeping the Ubuntu 22.04 build baseline. Native CI checkouts
+include only `desktop/` and the shared navigation fixtures to avoid unrelated
+Swift fixture paths exceeding Windows checkout limits.
+From `desktop/`, on native Linux/Windows x86_64:
 
 ```sh
 for test in distribution/test_*.sh; do bash "$test"; done

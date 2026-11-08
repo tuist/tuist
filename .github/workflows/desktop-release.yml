@@ -53,13 +53,21 @@ jobs:
         with:
           ref: ${{ needs.guard.outputs.sha }}
           persist-credentials: false
+          sparse-checkout: |
+            desktop
+            app/Fixtures/Navigation
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
       - name: Linux native dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake clang pkg-config libasound2-dev libfontconfig1-dev libfreetype6-dev libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-xcb-dev libwayland-dev libvulkan-dev libssl-dev libglib2.0-dev libgtk-3-dev libfuse2 minisign
+          sudo apt-get install -y build-essential cmake clang pkg-config libasound2-dev libfontconfig1-dev libfreetype6-dev libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-xcb-dev libwayland-dev libvulkan-dev libssl-dev libglib2.0-dev libgtk-3-dev libfuse2
+      - name: Linux signature verification tool
+        if: runner.os == 'Linux'
+        run: |
+          bash distribution/install-minisign.sh "$RUNNER_TEMP/minisign-bin"
+          echo "$RUNNER_TEMP/minisign-bin" >> "$GITHUB_PATH"
       - name: Windows packaging tools
         if: runner.os == 'Windows'
         run: choco install nsis minisign -y --no-progress
@@ -128,7 +136,10 @@ jobs:
           tools: jq@1.8.1 yq@4.52.5
           cache: false
       - uses: dtolnay/rust-toolchain@1.96.0
-      - run: sudo apt-get update && sudo apt-get install -y minisign
+      - name: Install signature verification tool
+        run: |
+          bash desktop/distribution/install-minisign.sh "$RUNNER_TEMP/minisign-bin"
+          echo "$RUNNER_TEMP/minisign-bin" >> "$GITHUB_PATH"
       - run: cargo install --locked cargo-packager --version '=0.11.7'
       - uses: actions/download-artifact@v4
         with:
