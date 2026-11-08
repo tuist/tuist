@@ -2,7 +2,7 @@
 
 Linux x86_64 AppImage and Windows x86_64 per-user NSIS are packaged with
 **cargo-packager 0.11.7**, from native **Once** outputs. The GPUI upgrade needs
-Once's `build_script_sources` support, included in the pinned 0.77.1 release.
+Once's `build_script_sources` support, included in the pinned 0.77.2 release.
 The existing Swift
 macOS app, DMG release and Sparkle feed are unchanged. macOS is a development
 and graph-qualification host, not a packaging target here.

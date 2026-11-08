@@ -6,7 +6,7 @@ the Swift app in `../app` remains the shipping macOS app. Build through Once wit
 replacement for the Swift app's preview browsing or installation features.
 
 The GPUI source layout uses Once's `build_script_sources` support, included in
-the pinned [Once 0.77.1 release](https://github.com/tuist/once/releases/tag/0.77.1).
+the pinned [Once 0.77.2 release](https://github.com/tuist/once/releases/tag/0.77.2).
 Run `mise install` to install the published toolchain before building.
 
 ## Servers and accounts
