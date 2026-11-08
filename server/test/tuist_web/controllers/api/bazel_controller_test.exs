@@ -40,6 +40,8 @@ defmodule TuistWeb.API.BazelControllerTest do
       assert invocation["cache_endpoint"] == "cache.tuist.dev"
       assert invocation["status"] == "success"
       assert invocation["duration_ms"] == 15_000
+      assert invocation["started_at"] == "2023-11-14T22:13:20Z"
+      assert invocation["finished_at"] == "2023-11-14T22:13:35Z"
       assert invocation["build_metrics"]["actions_created"] == 11
 
       assert invocation["build_timeline"]["spans"] == [
@@ -147,6 +149,7 @@ defmodule TuistWeb.API.BazelControllerTest do
       assert %{"logs" => logs, "pagination_metadata" => _} = json_response(conn, 200)
       assert Enum.map(logs, & &1["sequence_number"]) == [10, 20]
       assert Enum.map(logs, & &1["message"]) == ["first", "second"]
+      assert Enum.map(logs, & &1["observed_at"]) == ["2026-09-04T12:00:00Z", "2026-09-04T12:00:00Z"]
     end
 
     test "gets one invocation log without crossing invocation boundaries", %{
