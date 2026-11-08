@@ -75,6 +75,12 @@ android {
         buildConfig = true
     }
 
+    lint {
+        // Glossia updates values-*/strings.xml only after source strings land, so renamed
+        // or removed keys stay in translations until its next sync; Android drops them.
+        disable += "ExtraTranslation"
+    }
+
     testOptions {
         unitTests {
             isReturnDefaultValues = true
