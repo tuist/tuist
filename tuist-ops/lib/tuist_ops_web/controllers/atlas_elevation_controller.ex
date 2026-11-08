@@ -9,8 +9,8 @@ defmodule TuistOpsWeb.AtlasElevationController do
   Atlas email. Atlas authenticates with its projected ServiceAccount
   token (`TuistOps.AtlasIdentity`); this endpoint trusts Atlas for the
   email and the approval, and still requires an engineering tailnet
-  role for the email, as the Slack flow does. Like a `/elevate --thread`
-  elevation, it only takes effect when that email created the thread.
+  role for the email, as the Slack flow does. The elevation only takes
+  effect when that email created the thread.
 
   Body: `email`, `env` (`canary` | `production`), `thread_id`,
   `intent`, `ttl_seconds`, `approval_id`.

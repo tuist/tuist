@@ -3,9 +3,10 @@ defmodule Atlas.MCP.Tools.RequestClusterElevation do
   Grants an Amp orb thread write access to the canary or production cluster,
   once the person the agent works for approves that exact call in Atlas.
 
-  This replaces the Slack `/elevate <env> --thread` round trip for agents. The
-  first call files an approval request and returns a link to `/admin/mcps`; the
-  person approves it from their browser session; the identical call then asks
+  This is the only way to elevate an orb thread; Slack `/elevate` does not
+  take threads. The first call files an approval request and returns a link to
+  `/admin/mcps`; the person approves it from their browser session; the
+  identical call then asks
   tuist-ops (`Atlas.TuistOps`) to grant the elevation, as that person. tuist-ops
   still requires an engineering tailnet role, and the elevation only counts
   when that person created the thread. Each approval grants once.
