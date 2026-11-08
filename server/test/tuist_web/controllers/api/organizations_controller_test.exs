@@ -99,6 +99,21 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
                }
              ] == response["organizations"]
     end
+
+    test "returns empty list when authenticated with a project token of a personal account", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      project = ProjectsFixtures.project_fixture(account: user.account, preload: [:account])
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn = get(conn, ~p"/api/organizations")
+
+      # Then
+      assert %{"organizations" => []} == json_response(conn, :ok)
+    end
   end
 
   describe "GET /api/organizations/{id}" do
