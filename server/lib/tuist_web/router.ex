@@ -839,20 +839,22 @@ defmodule TuistWeb.Router do
     get "/cache/endpoint", CacheController, :endpoint
   end
 
-  scope "/api/accounts/:account_handle/jams", TuistWeb.API do
-    pipe_through [:jams_no_store, :open_api, :authenticated_api, :on_premise_api]
+  for collection <- [:jams, :threads] do
+    scope "/api/accounts/:account_handle/#{collection}", TuistWeb.API, assigns: %{jams_collection: collection} do
+      pipe_through [:jams_no_store, :open_api, :authenticated_api, :on_premise_api]
 
-    # Phoenix's dispatch logs include request params, including private prompts.
-    get "/", JamsController, :index, log: false
-    post "/", JamsController, :create, log: false
-    get "/repositories", JamsController, :repositories, log: false
-    get "/models", JamsController, :models, log: false
-    get "/:id", JamsController, :show, log: false
-    post "/:id/messages", JamsController, :message, log: false
-    patch "/:id", JamsController, :update, log: false
-    post "/:id/ship-preview", JamsController, :ship_preview, log: false
-    post "/:id/ship", JamsController, :ship, log: false
-    post "/:id/ship-reconcile", JamsController, :reconcile_ship, log: false
+      # Phoenix's dispatch logs include request params, including private prompts.
+      get "/", JamsController, :index, log: false
+      post "/", JamsController, :create, log: false
+      get "/repositories", JamsController, :repositories, log: false
+      get "/models", JamsController, :models, log: false
+      get "/:id", JamsController, :show, log: false
+      post "/:id/messages", JamsController, :message, log: false
+      patch "/:id", JamsController, :update, log: false
+      post "/:id/ship-preview", JamsController, :ship_preview, log: false
+      post "/:id/ship", JamsController, :ship, log: false
+      post "/:id/ship-reconcile", JamsController, :reconcile_ship, log: false
+    end
   end
 
   scope path: "/api",

@@ -12,8 +12,14 @@ defmodule TuistWeb.API.JamsController do
 
   def index(conn, params) do
     case Jams.list(conn.assigns.app_user, conn.assigns.jam_account, params["cursor"]) do
-      {:ok, page} -> json(conn, %{jams: Enum.map(page.jams, &Jams.serialize/1), next_cursor: page.next_cursor})
-      {:error, reason} -> error(conn, reason)
+      {:ok, page} ->
+        json(conn, %{
+          conn.assigns.jams_collection => Enum.map(page.jams, &Jams.serialize/1),
+          :next_cursor => page.next_cursor
+        })
+
+      {:error, reason} ->
+        error(conn, reason)
     end
   end
 
@@ -62,7 +68,7 @@ defmodule TuistWeb.API.JamsController do
 
   def ship_preview(conn, _params) do
     case Jams.ship_preview(conn.assigns.app_user, conn.assigns.jam_account, conn.path_params["id"]) do
-      {:ok, preview} -> json(conn, preview)
+      {:ok, preview} -> json(conn, Map.put(preview, :thread_id, preview.jam_id))
       {:error, reason} -> error(conn, reason)
     end
   end

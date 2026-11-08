@@ -30,7 +30,14 @@ public struct JamPage: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case jams
+        case threads
         case nextCursor = "next_cursor"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        jams = try container.decode([DemoJam].self, forKey: container.contains(.jams) ? .jams : .threads)
+        nextCursor = try container.decodeIfPresent(String.self, forKey: .nextCursor)
     }
 }
 
@@ -157,8 +164,39 @@ public struct JamClient {
     private func request<Response: Decodable>(
         path: [String] = [], method: String = "GET", query: [URLQueryItem] = [], body: [String: Any]? = nil
     ) async throws -> Response {
+        if method == "GET" {
+            do {
+                return try await request(dialect: .jams, path: path, query: query)
+            } catch let error as JamClientError where error.httpStatusCode == 404 {
+                return try await request(dialect: .legacy, path: path, query: query)
+            }
+        }
+        // Negotiate with a safe read, never by replaying a potentially completed write.
+        let dialect = try await negotiatedDialect()
+        return try await request(dialect: dialect, path: path, method: method, query: query, body: body)
+    }
+
+    enum Dialect: String {
+        case jams
+        case legacy = "threads"
+    }
+
+    private func negotiatedDialect() async throws -> Dialect {
+        do {
+            let _: JamModelCatalog = try await request(dialect: .jams, path: ["models"])
+            return .jams
+        } catch let error as JamClientError where error.httpStatusCode == 404 {
+            let _: JamModelCatalog = try await request(dialect: .legacy, path: ["models"])
+            return .legacy
+        }
+    }
+
+    private func request<Response: Decodable>(
+        dialect: Dialect, path: [String] = [], method: String = "GET",
+        query: [URLQueryItem] = [], body: [String: Any]? = nil
+    ) async throws -> Response {
         var url = serverURL
-        for component in ["api", "accounts", account, "jams"] + path {
+        for component in ["api", "accounts", account, dialect.rawValue] + path {
             url.appendPathComponent(component)
         }
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
@@ -205,10 +243,9 @@ public struct JamClient {
     }
 
     private func connection(jamID: String?, invalidate: @escaping () async -> Void) async throws {
-        let request = socketRequest(token: try await token())
+        let (request, topic) = try await socketConfiguration(jamID: jamID)
         let socket = session.webSocketTask(with: request)
         let liveness = JamSocketLiveness()
-        let topic = "jams:\(account):\(jamID ?? "inbox")"
         socket.resume()
         defer { socket.cancel(with: .goingAway, reason: nil) }
         try await withTaskCancellationHandler {
@@ -256,9 +293,17 @@ public struct JamClient {
         }
     }
 
-    func socketRequest(token: String) -> URLRequest {
+    func socketConfiguration(jamID: String?) async throws -> (URLRequest, String) {
+        let dialect = try await negotiatedDialect()
+        return (
+            socketRequest(token: try await token(), dialect: dialect),
+            "\(dialect.rawValue):\(account):\(jamID ?? "inbox")"
+        )
+    }
+
+    func socketRequest(token: String, dialect: Dialect = .jams) -> URLRequest {
         var components = URLComponents(
-            url: serverURL.appendingPathComponent("jams/socket/websocket"),
+            url: serverURL.appendingPathComponent("\(dialect.rawValue)/socket/websocket"),
             resolvingAgainstBaseURL: false
         )!
         components.scheme = components.scheme == "https" ? "wss" : "ws"

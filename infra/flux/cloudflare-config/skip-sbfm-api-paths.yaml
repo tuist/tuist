@@ -41,6 +41,7 @@
 #   /api/*             CLI OpenAPI client (auth, cache, builds, tests,
 #                      previews, runners) — every managed-CI call.
 #   GET /jams/socket/websocket  Native iOS/Android Jam updates.
+#   GET /threads/socket/websocket  Compatibility for older native clients.
 #                      Phoenix authenticates the bearer subprotocol and
 #                      authorizes each account/private-Jam subscription.
 #   /open-graph-images/* Signed social-preview images; crawlers cannot
@@ -106,7 +107,7 @@ spec:
   expression: |-
     (http.host ne "tuist.dev") or
     starts_with(http.request.uri.path, "/api/") or
-    (http.request.method eq "GET" and http.request.uri.path eq "/jams/socket/websocket") or
+    (http.request.method eq "GET" and http.request.uri.path in {"/jams/socket/websocket" "/threads/socket/websocket"}) or
     starts_with(http.request.uri.path, "/open-graph-images/") or
     (
       http.request.method in {"GET" "HEAD"} and
