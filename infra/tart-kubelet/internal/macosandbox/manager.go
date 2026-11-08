@@ -676,14 +676,14 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 func (m *Manager) Exec(ctx context.Context, a protocol.ExecArgs, out func(protocol.Stream)) (protocol.ExecResult, error) {
 	m.Gate.Lock()
 	r, err := m.get(a.SandboxID)
+	// Only a resume takes capacity, and resume asks for the grant. A running VM
+	// already holds its charge, so its commands work while CI holds the grant;
+	// eviction waits for them (active work).
 	if err == nil && r.State == "paused" && r.Operation == "" {
 		err = m.resume(ctx, r)
 	}
 	if err == nil && (r.State != "running" || r.Operation != "") {
 		err = errors.New("sandbox is not running")
-	}
-	if err == nil {
-		err = m.Capacity.Allow(ctx, r)
 	}
 	if err != nil {
 		m.Gate.Unlock()
