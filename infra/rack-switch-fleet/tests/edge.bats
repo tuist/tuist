@@ -617,7 +617,8 @@ fi"* ]]
   direct;"* ]]
     # each prefix is originated as a blackhole in BIRD's own table and is the
     # only thing announced; the site's own block goes beside the aggregate,
-    # tagged NO_EXPORT so only the upstream acts on it
+    # tagged with the upstream's keep-inside-its-AS community (Cogent's 174:990,
+    # never NO_EXPORT, which Cogent does not accept) so only the upstream acts on it
     [[ "$output" == *"protocol static originate4 {
   ipv4;
   route 95.130.119.0/24 blackhole;
@@ -629,7 +630,7 @@ fi"* ]]
 }"* ]]
     [[ "$output" == *'    export filter {
       if proto != "originate4" then reject;
-      if net ~ [ 95.130.119.16/28 ] then bgp_community.add((65535, 65281));
+      if net ~ [ 95.130.119.16/28 ] then bgp_community.add((174, 990));
       accept;
     };'* ]]
     [[ "$output" == *'export where proto = "originate6";'* ]]
@@ -638,7 +639,7 @@ fi"* ]]
     run fleet_edge_bgp "$BATS_TEST_TMPDIR/nosite.json"
     [ "$status" -eq 0 ]
     [[ "$output" == *'export where proto = "originate4";'* ]]
-    [[ "$output" != *"65281"* ]]
+    [[ "$output" != *"bgp_community"* ]]
     [[ "$output" != *"95.130.119.16/28"* ]]
     run fleet_edge_bgp "$SITE_FILE"
     [[ "$output" == *"if net.len = 0 then accept;"* ]]
@@ -753,7 +754,7 @@ fi"* ]]
     [ "$status" -eq 0 ]
 }
 
-@test "a site prefix outside the announced aggregate, or an IPv6 one, is refused at render" {
+@test "a site prefix outside the announced aggregate, an IPv6 one, or one without the upstream's community is refused at render" {
     source "$FLEET_ROOT/lib/edge.sh"
     site="$BATS_TEST_TMPDIR/badsite.json"
     jq '.management.edge.wan.bgp.site_prefixes = ["95.130.118.16/28"]' "$SITE_FILE" > "$site"
@@ -768,6 +769,20 @@ fi"* ]]
     run fleet_edge_check "$site"
     [ "$status" -ne 0 ]
     [[ "$output" == *"site_prefixes '2a11:83c0::/48' is IPv6"* ]]
+    # site prefixes go nowhere without the upstream's community, and a
+    # community is two 16-bit numbers
+    jq '.management.edge.wan.bgp |= del(.site_prefix_community)' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"site_prefix_community '' is not a community"* ]]
+    jq '.management.edge.wan.bgp.site_prefix_community = "174:65536"' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"site_prefix_community '174:65536' is not a community"* ]]
+    # without site prefixes, no community is needed
+    jq '.management.edge.wan.bgp |= del(.site_prefixes, .site_prefix_community)' "$SITE_FILE" > "$site"
+    run fleet_edge_check "$site"
+    [ "$status" -eq 0 ]
 }
 
 # Two sites beside each other, as sites/ holds them: ber1 and a copy of it

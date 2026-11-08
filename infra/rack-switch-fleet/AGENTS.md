@@ -1227,13 +1227,17 @@ addresses and the gateways.
   goes down. A /24 is the longest IPv4 prefix the internet carries, so the
   aggregate alone cannot say which site an address belongs to. Each site
   therefore also announces its own blocks, `management.edge.wan.bgp.site_prefixes`
-  (its egress /28), tagged NO_EXPORT (65535:65281). The upstream routes them
-  to that site and passes only the aggregate on. A reply to a mini
-  then reaches the site that sent the request, whichever site the internet
-  handed the packet to. Without that, the upstream could deliver it to the other site,
-  whose `tuist_rack_wan` drops it. That only works while both sites hang off
-  the same upstream AS: a more-specific tagged NO_EXPORT goes no further
-  than the AS that receives it. The upstream also has to accept prefixes
+  (its egress /28), tagged `site_prefix_community`, the upstream's own
+  community for keeping a route inside its AS: Cogent's `174:990` ("do not
+  send route to BGP customers, or peers"). Not NO_EXPORT (65535:65281):
+  Cogent's customer guide does not accept announcements carrying a
+  community off its published list, and NO_EXPORT is not on it. The
+  upstream routes them to that site and passes only the aggregate on. A
+  reply to a mini then reaches the site that sent the request, whichever
+  site the internet handed the packet to. Without that, the upstream could
+  deliver it to the other site, whose `tuist_rack_wan` drops it. That only
+  works while both sites hang off the same upstream AS: a more-specific
+  kept inside that AS goes no further. The upstream also has to accept prefixes
   longer than /24 from us, and RPKI has to allow them: each site prefix
   needs its own route object and ROA for AS218377, since the /24's ROA is
   for the /24 alone. `render` refuses an egress outside the site's
@@ -1270,7 +1274,7 @@ file name (as the tests make) is not a site.
 | Provisioning | 192.168.50.0/24 | 192.168.70.0/24 |
 | ToR management links | none | 192.168.61.0/30 (edge-a to tor-a), 192.168.61.4/30 (edge-b to tor-b) |
 | Edge VRRP (VLAN 4000) | 10.255.255.0/29 | 10.255.255.0/29 |
-| WAN (VLAN 4001) | 149.6.170.31/31, 2001:978:2:b::4:11/127 (Cogent) | Cogent's, once the port is ordered |
+| WAN (VLAN 4001) | 149.6.170.31/31, 2001:978:2:b::4:11/127 (Cogent) | 149.6.170.1/31, 2001:978:2:b::4:13/127 (Cogent) |
 | Egress and site prefix | 95.130.119.16/28 | 95.130.119.32/28 |
 
 ### Cold boot

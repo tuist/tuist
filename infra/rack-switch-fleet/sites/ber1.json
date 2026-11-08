@@ -85,7 +85,8 @@
           ],
           "site_prefixes": [
             "95.130.119.16/28"
-          ]
+          ],
+          "site_prefix_community": "174:990"
         },
         "egress": {
           "prefix": "95.130.119.16/28"

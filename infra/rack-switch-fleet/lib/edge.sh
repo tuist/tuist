@@ -109,7 +109,7 @@ fleet_edge_check_sites() {
   has_site_prefixes="$(jq -r '.management.edge.wan.bgp.site_prefixes // [] | length' "$site_file")"
   for other in "$(dirname "$site_file")"/*.json; do
     other_site="$(jq -r '.site // ""' "$other" 2>/dev/null)"
-    [ "$other_site" = "$(basename "$other" .json)" ] && [ "$other_site" != "$site" ] || continue
+    if [ "$other_site" != "$(basename "$other" .json)" ] || [ "$other_site" = "$site" ]; then continue; fi
     while read -r kind name network; do
       while read -r okind oname onetwork; do
         fleet_prefixes_overlap "$network" "$onetwork" || continue
@@ -172,15 +172,19 @@ fleet_edge_check_wan() {
 # with no host bits. An IPv4 prefix needs the WAN's IPv4 address and an IPv6
 # one its IPv6 address, which the sessions run from. A site prefix is an IPv4
 # block inside one of them that only this site serves (its egress), announced
-# to the upstream tagged NO_EXPORT: with two sites announcing the same
-# aggregate, it is what makes the upstream deliver the replies to the site
-# that sent them. An IPv6 block the size of a site is routable on its own, so
-# it is one of the prefixes instead. Prints what is wrong.
+# to the upstream tagged with `site_prefix_community`, the upstream's own
+# community for keeping a route inside its AS: with two sites announcing the
+# same aggregate, it is what makes the upstream deliver the replies to the
+# site that sent them. Cogent drops an announcement carrying a community off
+# its published list, which does not include NO_EXPORT, so the community is
+# the upstream's to name (174:990 at Cogent). An IPv6 block the size of a site
+# is routable on its own, so it is one of the prefixes instead. Prints what is
+# wrong.
 fleet_edge_check_bgp() {
-  local site_file="$1" address="$2" address6="$3" asn peer_asn prefix
+  local site_file="$1" address="$2" address6="$3" asn peer_asn prefix community
   local -a prefixes site_prefixes
   jq -e '.management.edge.wan.bgp' "$site_file" >/dev/null 2>&1 || return 0
-  IFS=$'\x1f' read -r asn peer_asn < <(jq -r '.management.edge.wan.bgp as $b | [($b.asn // ""), ($b.peer_asn // "")] | map(tostring) | join("\u001f")' "$site_file")
+  IFS=$'\x1f' read -r asn peer_asn community < <(jq -r '.management.edge.wan.bgp as $b | [($b.asn // ""), ($b.peer_asn // ""), ($b.site_prefix_community // "")] | map(tostring) | join("\u001f")' "$site_file")
   mapfile -t prefixes < <(jq -r '.management.edge.wan.bgp.prefixes // [] | .[] | tostring' "$site_file")
   mapfile -t site_prefixes < <(jq -r '.management.edge.wan.bgp.site_prefixes // [] | .[] | tostring' "$site_file")
   if [ -z "$address" ]; then
@@ -223,6 +227,10 @@ fleet_edge_check_bgp() {
       return 0
     fi
   done
+  if [ "${#site_prefixes[@]}" -gt 0 ] && { ! [[ "$community" =~ ^(0|[1-9][0-9]{0,4}):(0|[1-9][0-9]{0,4})$ ]] || (( ${community%:*} > 65535 || ${community#*:} > 65535 )); }; then
+    echo "management.edge.wan.bgp.site_prefix_community '$community' is not a community 'asn:value' of two 16-bit numbers; site_prefixes need the one the upstream documents for keeping a route inside its AS"
+    return 0
+  fi
 }
 
 # Where the site's Mac minis go out from, when not the WAN address: a block of
@@ -326,15 +334,15 @@ fleet_prefix_inside_any() {
 # sends, the default route is kept and nothing goes into the node's routes:
 # the node's default through the WAN is keepalived's.
 # A site's own blocks inside the shared aggregate (`site_prefixes`) are
-# announced beside it tagged NO_EXPORT, so the upstream routes them to this
-# site while the rest of the internet sees only the aggregate, from every site
-# that is up.
+# announced beside it tagged `site_prefix_community`, so the upstream routes
+# them to this site while the rest of the internet sees only the aggregate,
+# from every site that is up.
 fleet_edge_bgp() {
-  local site_file="$1" address gateway address6 gateway6 asn peer_asn prefix family
+  local site_file="$1" address gateway address6 gateway6 asn peer_asn community prefix family
   local -a prefixes site_prefixes
   fleet_edge_check "$site_file" || return 1
-  IFS=$'\x1f' read -r address gateway address6 gateway6 asn peer_asn < <(jq -r '.management.edge.wan as $w | [
-      $w.address, $w.gateway, ($w.address6 // ""), ($w.gateway6 // ""), $w.bgp.asn, $w.bgp.peer_asn
+  IFS=$'\x1f' read -r address gateway address6 gateway6 asn peer_asn community < <(jq -r '.management.edge.wan as $w | [
+      $w.address, $w.gateway, ($w.address6 // ""), ($w.gateway6 // ""), $w.bgp.asn, $w.bgp.peer_asn, ($w.bgp.site_prefix_community // "")
     ] | map(tostring) | join("\u001f")' "$site_file")
   mapfile -t prefixes < <(jq -r '.management.edge.wan.bgp.prefixes[]' "$site_file")
   mapfile -t site_prefixes < <(jq -r '.management.edge.wan.bgp.site_prefixes // [] | .[]' "$site_file")
@@ -360,7 +368,7 @@ CONF
       set="$(IFS=,; echo "${site_prefixes[*]}")"
       export="    export filter {
       if proto != \"originate4\" then reject;
-      if net ~ [ ${set//,/, } ] then bgp_community.add((65535, 65281));
+      if net ~ [ ${set//,/, } ] then bgp_community.add((${community%:*}, ${community#*:}));
       accept;
     };"
     fi
