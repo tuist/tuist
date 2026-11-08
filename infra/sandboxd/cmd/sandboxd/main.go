@@ -235,8 +235,9 @@ func main() {
 		os.Exit(1)
 	}
 	// Remote-execution daemons keep their old tags: the server places
-	// executions on the tag most nodes report, so a node that dropped it
-	// during an OnDelete rollout would take no work until most nodes rolled.
+	// executions on the tag most nodes are configured with, so a node that
+	// dropped the old one during an OnDelete rollout would take no work until
+	// most nodes rolled.
 	if templateTag != "" && executionSlots == 0 {
 		inUse := map[string]bool{}
 		for _, sb := range manager.List() {
@@ -330,6 +331,8 @@ func main() {
 					ExecutionDeadlines: true,
 					ExecutionSlots:     executionSlots,
 					DirectExecEndpoint: directExecEndpoint,
+					DefaultTemplate:    templateName,
+					DefaultTemplateTag: defaultTemplate.Tag,
 					DaemonVersion:      version, FirecrackerVersion: fcVersion, Capacity: hostinfo.Capacity(), Elastic: elastic, Disk: diskReport(),
 					Templates: manager.Templates(), Sandboxes: manager.List(), DiskSnapshots: manager.DiskSnapshots(),
 				}

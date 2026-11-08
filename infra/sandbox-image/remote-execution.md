@@ -292,8 +292,11 @@ input/output transfer, 50,000 filesystem entries, depth 128, 64 MiB per log and
      `remote_execution_memory_gb_limit` (16 and 32 by default). Change them in
      the Remote execution concurrency card of the ops account page.
    - **Image:** the `bazel` template tag that the most connected execution
-     daemons report ready. Workers roll out `OnDelete`, so it changes only when
-     an operator replaces them, and while they are replaced the majority wins.
+     daemons are configured with (`TEMPLATE_TAG`) and have ready. Daemons keep
+     older tags ready so they take work mid-rollout; those count only for a
+     daemon whose own tag is not ready yet. Workers roll out `OnDelete`, so it
+     changes only when an operator replaces them, and while they are replaced
+     the majority wins.
    - **CAS:** the account's Linux runner cache
      (`Tuist.Kura.runner_cache_endpoint_url/2`), the Kura instance a Linux CI
      job of the account uploads into, as `grpc(s)://` on the same port. The
