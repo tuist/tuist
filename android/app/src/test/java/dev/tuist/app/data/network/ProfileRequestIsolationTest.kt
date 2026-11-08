@@ -60,6 +60,33 @@ class ProfileRequestIsolationTest {
         scenario(refresh = true, rejected = true, switchBeforeResult = false, failExpiryCommit = true)
     }
 
+    @Test fun `both conversation protocols stay scoped to the personal login despite legacy organization selection`() {
+        val prefs = RuntimeEnvironment.getApplication().getSharedPreferences("conversation-isolation", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val payload = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+            """{"email":"alice@example.invalid","preferred_username":"alice"}""".toByteArray(),
+        )
+        val server = MockWebServer()
+        server.start()
+        try {
+            val tokens = TokenStorage(prefs, server.url("/").toString())
+            tokens.storeTokens("header.$payload.signature", "alice-refresh")
+            tokens.selectOrganization(tokens.snapshot().profileId!!, "legacy-org")
+            val client = OkHttpClient.Builder().addInterceptor(AuthInterceptor(tokens)).build()
+            for (collection in listOf("jams", "threads")) {
+                repeat(2) { server.enqueue(MockResponse().setBody("personal history")) }
+                client.newCall(Request.Builder().url(server.url("/api/accounts/alice/$collection")).build()).execute().use {
+                    assertEquals("personal history", it.body!!.string())
+                }
+                assertEquals("/api/accounts/alice/$collection", server.takeRequest(5, TimeUnit.SECONDS)!!.path)
+                assertThrows(IOException::class.java) {
+                    client.newCall(Request.Builder().url(server.url("/api/accounts/legacy-org/$collection")).build()).execute().close()
+                }
+            }
+            assertEquals(2, server.requestCount)
+        } finally { server.shutdown() }
+    }
+
     @Test fun `cross organization previews use current login while profile changes fence stale requests`() {
         val prefs = RuntimeEnvironment.getApplication().getSharedPreferences("organization-isolation", Context.MODE_PRIVATE)
         prefs.edit().clear().commit()
