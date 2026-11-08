@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -44,11 +45,17 @@ type Manager struct {
 	// PodInterface is the pod's egress device (default eth0), resolved from
 	// the default route when empty.
 	PodInterface string
-	// DaemonOnlyTCPPort is a TCP port the daemon reaches through the pod's
-	// egress and the guests may not: forwarded guest traffic to it is
-	// dropped. 0 blocks nothing.
-	DaemonOnlyTCPPort int
-	configureLinks    func(context.Context, string, Addresses) error
+	// DaemonOnlyTCPPorts are TCP ports the daemon reaches through the pod's
+	// egress and the guests may not, on any address: forwarded guest
+	// traffic to them is dropped.
+	DaemonOnlyTCPPorts []int
+	// DaemonOnlyEndpoints are TCP addresses (a Service's cluster IP and
+	// port) only the daemon may reach; guest traffic to them is dropped.
+	// A Service's port differs from its Pods' target port, and the pod
+	// network sees guest traffic before the Service is translated, so both
+	// the target port and the Service address need a rule.
+	DaemonOnlyEndpoints []netip.AddrPort
+	configureLinks      func(context.Context, string, Addresses) error
 
 	natOnce sync.Once
 	natErr  error
@@ -132,9 +139,13 @@ func (m *Manager) ensurePodNAT(ctx context.Context) error {
 	if err := m.ensureRuleFirst(ctx, "filter", "FORWARD", "-s", SlotNetwork, "-d", SlotNetwork, "-j", "DROP"); err != nil {
 		return err
 	}
-	if m.DaemonOnlyTCPPort > 0 {
-		port := strconv.Itoa(m.DaemonOnlyTCPPort)
-		if err := m.ensureRuleFirst(ctx, "filter", "FORWARD", "-s", SlotNetwork, "-p", "tcp", "--dport", port, "-j", "DROP"); err != nil {
+	for _, port := range m.DaemonOnlyTCPPorts {
+		if err := m.ensureRuleFirst(ctx, "filter", "FORWARD", "-s", SlotNetwork, "-p", "tcp", "--dport", strconv.Itoa(port), "-j", "DROP"); err != nil {
+			return err
+		}
+	}
+	for _, endpoint := range m.DaemonOnlyEndpoints {
+		if err := m.ensureRuleFirst(ctx, "filter", "FORWARD", "-s", SlotNetwork, "-d", endpoint.Addr().String(), "-p", "tcp", "--dport", strconv.Itoa(int(endpoint.Port())), "-j", "DROP"); err != nil {
 			return err
 		}
 	}

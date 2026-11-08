@@ -2787,8 +2787,15 @@ sandboxes:
     # Let the daemon reach the in-rack archive store (the shard-storage
     # release in the kura namespace) on :3900 to upload and restore Amp Orb
     # archives. The daemon drops the guests' traffic to that port
-    # (DAEMON_ONLY_TCP_PORT), so only the daemon uses this rule.
+    # (DAEMON_ONLY_TCP_PORTS), so only the daemon uses this rule.
     archiveStoreEgress: false
+    # Let guests reach the in-cluster server directly. The NetworkPolicy
+    # admits the daemon Pod, and so its guests, to the server for the node
+    # connection; without this the daemon drops guest traffic to the
+    # server's Service address and its Pods' port, so guests use the
+    # public Tuist URL like any client. Set it only for a deployment whose
+    # public URL resolves to the in-cluster Service.
+    guestServerAccess: false
 
 runnersFleet:
   customCacheVolumes:
