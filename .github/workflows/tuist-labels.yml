@@ -1,0 +1,60 @@
+name: Tuist Labels
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - tools/tuist-labels/**
+      - noora/**
+      - .github/workflows/tuist-labels.yml
+  pull_request:
+    paths:
+      - tools/tuist-labels/**
+      - noora/**
+      - .github/workflows/tuist-labels.yml
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tuist-labels-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: tools/tuist-labels
+
+jobs:
+  test:
+    name: Test and format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tools/tuist-labels/package-lock.json
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: '27'
+          elixir-version: '1.18.4'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+          cache: false
+      - run: sudo apt-get update && sudo apt-get install -y libvips-tools fonts-dejavu-core
+      - run: mix deps.get
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: mix compile --warnings-as-errors
+      - run: mix format --check-formatted
+      - run: npm run format:check
+      - run: make test
+      - run: GOWORK=off go vet ./...
+      - run: test -z "$(gofmt -l cmd)"
+      - run: make dist

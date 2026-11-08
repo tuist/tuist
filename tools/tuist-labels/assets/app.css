@@ -1,0 +1,180 @@
+@import "../../../noora/css/noora.css";
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--noora-surface-background-primary, #fafafa);
+  color: var(--noora-surface-label-primary, #171719);
+  font:
+    15px/1.55 Inter,
+    system-ui,
+    sans-serif;
+}
+main {
+  max-width: 1120px;
+  margin: auto;
+  padding: 28px 32px;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.brand {
+  color: inherit;
+  text-decoration: none;
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.7px;
+}
+.brand span {
+  font-weight: 450;
+  margin-left: 6px;
+  color: #6d28d9;
+}
+.intro {
+  padding: 44px 0 26px;
+}
+.eyebrow {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.13em;
+  color: #6d28d9;
+}
+h1 {
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.18;
+  letter-spacing: -1.2px;
+  margin: 12px 0;
+}
+p {
+  margin: 0 0 14px;
+}
+.intro > p:last-child,
+.hint,
+footer {
+  color: #6c6a73;
+}
+code {
+  font-size: 12px;
+  background: #f0edf5;
+  padding: 3px 5px;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+.columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+#workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+.noora-card__section {
+  padding: 22px;
+}
+.noora-alert {
+  margin-bottom: 20px;
+}
+.dimensions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 18px;
+  margin: 18px 0;
+}
+.dimensions input {
+  min-width: 0;
+  width: 100%;
+}
+.hint {
+  font-size: 12px;
+  margin: 12px 0 0;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+#capability {
+  font-size: 13px;
+  margin: 0;
+}
+dl {
+  font-size: 13px;
+  margin-bottom: 0;
+}
+dl > div {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 10px;
+  padding: 4px 0;
+}
+dt {
+  color: #787580;
+}
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.jobs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.job {
+  border: 1px solid #e5e3e8;
+  border-radius: 10px;
+  padding: 16px;
+  background: #faf9fc;
+  min-width: 0;
+}
+.job img {
+  width: 100%;
+  height: 86px;
+  object-fit: contain;
+  background: white;
+  border: 1px solid #ecebf0;
+  border-radius: 5px;
+  margin-bottom: 10px;
+}
+.job p {
+  overflow-wrap: anywhere;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+footer {
+  padding-top: 28px;
+  font-size: 11px;
+  text-align: center;
+}
+@media (max-width: 650px) {
+  main {
+    padding: 22px 16px;
+  }
+  .intro {
+    padding-top: 32px;
+  }
+  .columns {
+    grid-template-columns: 1fr;
+  }
+  .dimensions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .dimensions > button {
+    grid-column: 1 / -1;
+  }
+  .noora-card__section {
+    padding: 16px;
+  }
+  header .noora-badge {
+    white-space: nowrap;
+  }
+}

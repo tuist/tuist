@@ -1,4 +1,10 @@
 /node_modules/
+/_build/
+/deps/
+/priv/static/
+/bin/
+/dist/
+/erl_crash.dump
 /state/
 /authorization.json
 /session.json
