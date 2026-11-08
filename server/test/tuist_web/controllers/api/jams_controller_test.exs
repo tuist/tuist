@@ -81,7 +81,7 @@ defmodule TuistWeb.API.JamsControllerTest do
         |> put_req_header("authorization", "Bearer #{token}")
         |> post(base <> "/#{id}/ship-preview", %{})
 
-      assert json_response(response, 200) == preview |> Map.put(:thread_id, id) |> Jason.encode!() |> Jason.decode!()
+      assert json_response(response, 200) == preview |> Map.put(:thread_id, id) |> JSON.encode!() |> JSON.decode!()
     end
   end
 
