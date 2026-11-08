@@ -60,6 +60,16 @@ jobs:
             app/Fixtures/Navigation
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
+      - name: Prefer MSVC tools in every Bash process
+        if: runner.os == 'Windows'
+        run: |
+          cat > "$RUNNER_TEMP/desktop-bash-env.sh" <<'EOF'
+          # Git Bash otherwise places its GNU link.exe ahead of MSVC's linker.
+          msvc_bin="$(cygpath -u "${VCToolsInstallDir:?}bin/Hostx64/x64")"
+          test -x "$msvc_bin/link.exe" || exit 1
+          export PATH="$msvc_bin:$PATH"
+          EOF
+          echo "BASH_ENV=$RUNNER_TEMP/desktop-bash-env.sh" >> "$GITHUB_ENV"
       - name: Linux native dependencies
         if: runner.os == 'Linux'
         run: |
