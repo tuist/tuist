@@ -451,25 +451,41 @@ defmodule Pulse.Storage.S3.MetricTiers do
   # after `grace`. As for compaction (`SignalCompactor`), a format-4
   # replacement is planned outside the manifest owner, which only commits it
   # in memory.
-  def publish(tenant, config, sources, outputs, grace, signal \\ "metrics") do
+  def publish(tenant, config, sources, outputs, grace, signal \\ "metrics"),
+    do: publish(tenant, config, sources, outputs, grace, signal, 2)
+
+  defp publish(tenant, config, sources, outputs, grace, signal, retries) do
     marker = List.first(outputs)
 
-    with {:ok, plan} <- plan(tenant, signal, config, sources, outputs, grace) do
-      transaction = &transaction(&1, {sources, outputs, grace, plan}, tenant, signal, config)
+    result =
+      with {:ok, plan} <- plan(tenant, signal, config, sources, outputs, grace, retries < 2) do
+        transaction = &transaction(&1, {sources, outputs, grace, plan}, tenant, signal, config)
 
-      case ManifestOwner.transact(tenant, signal, config, transaction) do
-        {:ok, :ok} ->
-          :ok
+        case ManifestOwner.transact(tenant, signal, config, transaction) do
+          {:ok, :ok} ->
+            :ok
 
-        {:error, :cas_retries_exhausted} = error ->
-          resolve_unconfirmed(tenant, signal, config, marker, plan, error)
+          {:error, :cas_retries_exhausted} = error ->
+            resolve_unconfirmed(tenant, signal, config, marker, plan, error)
 
-        {:error, {:unconfirmed, reason}} ->
-          resolve_unconfirmed(tenant, signal, config, marker, plan, {:error, {:unpublished, reason}})
+          {:error, {:unconfirmed, reason}} ->
+            resolve_unconfirmed(tenant, signal, config, marker, plan, {:error, {:unpublished, reason}})
 
-        error ->
-          error
+          error ->
+            error
+        end
       end
+
+    case result do
+      # An append or unrelated maintenance can move a journal page while its
+      # rewrite is in flight, even though all sources remain active. Replan
+      # outside the owner, reusing uploads only after proving they were never
+      # published. Missing/replaced sources still fail the fresh plan.
+      {:error, {:unpublished, :compaction_conflict}} when retries > 0 ->
+        publish(tenant, config, sources, outputs, grace, signal, retries - 1)
+
+      result ->
+        result
     end
   end
 
@@ -482,8 +498,8 @@ defmodule Pulse.Storage.S3.MetricTiers do
   end
 
   # Planned against the node's cached root, as compaction does.
-  defp plan(tenant, signal, config, sources, outputs, grace) do
-    case ManifestOwner.ensure_loaded(tenant, signal, config) do
+  defp plan(tenant, signal, config, sources, outputs, grace, fresh?) do
+    case ManifestOwner.ensure_loaded(tenant, signal, config, require_fresh_manifest: fresh?) do
       {:ok, %{manifest: %{version: 4} = snapshot}} ->
         deadline = System.system_time(:millisecond) + grace
 

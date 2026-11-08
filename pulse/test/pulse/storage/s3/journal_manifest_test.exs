@@ -3,6 +3,7 @@ defmodule Pulse.Storage.S3.JournalManifestTest do
 
   alias Pulse.Record.Log
   alias Pulse.Runtime
+  alias Pulse.Runtime.Task
   alias Pulse.Storage.S3
   alias Pulse.Storage.S3.JournalManifest
   alias Pulse.Storage.S3.LogCompactor
@@ -11,6 +12,7 @@ defmodule Pulse.Storage.S3.JournalManifestTest do
   alias Pulse.Storage.S3.ManifestOwner
   alias Pulse.Storage.S3.ManifestSupervision
   alias Pulse.Storage.S3.MetadataCache
+  alias Pulse.Storage.S3.MetricTiers
   alias Pulse.Storage.S3.Retention
   alias Pulse.Test.CompactionStore
 
@@ -126,6 +128,41 @@ defmodule Pulse.Storage.S3.JournalManifestTest do
     end
 
     assert new.body == "new"
+  end
+
+  test "replacement replans after unrelated maintenance changes the same journal page", ctx do
+    [first, second | _] = history = history(ctx.tenant, 600)
+    put_root(ctx, %Manifest{version: 1, segments: history})
+    assert :ok = S3.append(:logs, ctx.tenant, [%Log{timestamp_ns: 10_000_000_000, service: "api", body: "new"}])
+    before = stats(ctx, 0, 20_000_000_000, nil)
+    replacement = %{first | key: String.replace(first.key, "-rand-", "-compact-")}
+    other = %{second | key: String.replace(second.key, "-rand-", "-compact-")}
+    parent = self()
+    Agent.update(ctx.agent, &%{&1 | barriers: %{{"PUT", :page} => parent}})
+    tasks = start_supervised!(Task.Supervisor)
+
+    pending =
+      Task.Supervisor.async_nolink(tasks, fn ->
+        MetricTiers.publish(ctx.tenant, ctx.config, [first.key], [replacement], 60_000, "logs")
+      end)
+
+    assert_receive {:storage_barrier, storage, "PUT", page}, 30_000
+    Agent.update(ctx.agent, &%{&1 | barriers: %{}})
+    assert :ok = MetricTiers.publish(ctx.tenant, ctx.config, [second.key], [other], 60_000, "logs")
+    send(storage, {:release_storage, page})
+    assert :ok = Task.await(pending, 60_000)
+
+    {_, current} = root(ctx)
+
+    for source <- [first, second] do
+      assert {:ok, {:retired, _}} = JournalManifest.lookup(current, source, ctx.tenant, "logs", ctx.config)
+    end
+
+    for output <- [replacement, other] do
+      assert {:ok, :active} = JournalManifest.lookup(current, output, ctx.tenant, "logs", ctx.config)
+    end
+
+    assert stats(ctx, 0, 20_000_000_000, nil) == before
   end
 
   test "a narrow window reads only the pages on its path, not the rest of history", ctx do

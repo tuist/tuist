@@ -555,8 +555,3 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "vs previous hour"
 msgstr ""
-
-#: lib/tuist/pulse.ex:468
-#, elixir-autogen, elixir-format
-msgid "Search reached its 100-result limit. Filters, sorting and totals cover only returned results; narrow the native query or time range."
-msgstr ""

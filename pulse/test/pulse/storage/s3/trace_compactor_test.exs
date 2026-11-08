@@ -1,6 +1,7 @@
 defmodule Pulse.Storage.S3.TraceCompactorTest do
   use Pulse.Test.Case, async: true
 
+  alias Pulse.Codec.NIF
   alias Pulse.ObjectStore
   alias Pulse.OTLP.Traces
   alias Pulse.Runtime
@@ -161,6 +162,206 @@ defmodule Pulse.Storage.S3.TraceCompactorTest do
     assert length(manifest.segments) == 3
     assert Enum.sum(Enum.map(manifest.segments, & &1.row_count)) == 4
     assert map_size(manifest.retired) == 2
+  end
+
+  test "partial selection obeys every input bound without starving fresh sources", ctx do
+    assert :ok = S3.append(:traces, ctx.tenant, [ctx.span])
+    [source] = active(ctx)
+
+    fresh =
+      for n <- 1..2 do
+        %{source | key: String.replace(source.key, "-rand-", "-rand-#{n}-")}
+      end
+
+    partial =
+      for n <- 1..64 do
+        %{
+          source
+          | key: String.replace(source.key, "-rand-", "-compact-#{n}-"),
+            trace_summary: %{source.trace_summary | lookup_hashes: <<0::64>>}
+        }
+      end
+
+    for opts <- [[max_sources: 2], [max_rows: 2], [max_input_bytes: source.byte_size * 2]] do
+      assert TraceCompactor.select(partial ++ fresh, opts) == Enum.sort_by(fresh, & &1.key)
+    end
+
+    assert length(TraceCompactor.select(partial, [])) == 64
+    assert length(TraceCompactor.select([hd(fresh) | partial], max_sources: 2)) == 2
+  end
+
+  test "metadata admission finds viable pairs beyond oversized and singleton prefixes", ctx do
+    for {counts, maximum} <- [{[3, 1, 1], 2}, {[2, 2, 1, 1], 3}, {[3, 1, 1], 3}] do
+      tenant = "#{ctx.tenant}-#{Enum.join(counts)}-#{maximum}"
+
+      expected =
+        counts
+        |> Enum.with_index()
+        |> Enum.flat_map(fn {count, index} ->
+          row = %{
+            ctx.span
+            | timestamp_ns: ctx.span.timestamp_ns + index,
+              end_timestamp_ns: ctx.span.end_timestamp_ns + index
+          }
+
+          rows = List.duplicate(row, count)
+          assert :ok = S3.append(:traces, tenant, rows)
+          rows
+        end)
+
+      assert {:ok, %{merged: merged}} = TraceCompactor.compact(tenant, ctx.config, max_rows: maximum)
+      assert merged >= 2
+      assert {:ok, rows} = S3.query(:traces, tenant, max_scan_segments: length(counts) - 1)
+      assert Enum.frequencies(rows) == Enum.frequencies(expected)
+    end
+
+    large = %{
+      ctx.span
+      | name: :binary.copy("large", 10_000),
+        timestamp_ns: ctx.span.timestamp_ns - 1,
+        end_timestamp_ns: ctx.span.end_timestamp_ns - 1
+    }
+
+    assert :ok = S3.append(:traces, ctx.tenant, [large])
+    for _ <- 1..2, do: assert(:ok = S3.append(:traces, ctx.tenant, [ctx.span]))
+    bytes = active(ctx) |> Enum.filter(&(&1.min_ts == ctx.span.timestamp_ns)) |> Enum.sum_by(& &1.byte_size)
+    assert {:ok, %{merged: 2}} = TraceCompactor.compact(ctx.tenant, ctx.config, max_input_bytes: bytes)
+    assert {:ok, rows} = S3.query(:traces, ctx.tenant, max_scan_segments: 2)
+    assert Enum.frequencies(rows) == %{large => 1, ctx.span => 2}
+  end
+
+  test "decoded overflow finds healthy same-hour batches without quarantining either source", ctx do
+    big = %{
+      ctx.span
+      | name: :binary.copy(<<0>>, 1024 * 1024),
+        timestamp_ns: ctx.span.timestamp_ns - 20,
+        end_timestamp_ns: ctx.span.end_timestamp_ns - 20
+    }
+
+    next = %{big | timestamp_ns: big.timestamp_ns + 10, end_timestamp_ns: big.end_timestamp_ns + 10}
+    assert :ok = S3.append(:traces, ctx.tenant, [big, big])
+    assert :ok = S3.append(:traces, ctx.tenant, [next])
+    originals = active(ctx)
+    for _ <- 1..2, do: assert(:ok = S3.append(:traces, ctx.tenant, [ctx.span]))
+
+    assert {:ok, %{merged: merged}} = TraceCompactor.compact(ctx.tenant, ctx.config)
+    assert merged >= 2
+    assert Enum.any?(originals, &Map.has_key?(load(ctx).retired, &1.key))
+
+    # The failing pair does not prove either source is individually invalid.
+    # New arrivals must still be able to merge with those original sources.
+    for _ <- 1..4 do
+      for _ <- 1..2, do: assert(:ok = S3.append(:traces, ctx.tenant, [ctx.span]))
+      assert {:ok, %{merged: merged}} = TraceCompactor.compact(ctx.tenant, ctx.config)
+      assert merged >= 2
+    end
+
+    assert Enum.all?(originals, &Map.has_key?(load(ctx).retired, &1.key))
+
+    rows =
+      Enum.flat_map(active(ctx), fn segment ->
+        assert {:ok, blob} = ObjectStore.get(ctx.config, segment.key)
+        assert {:ok, decoded} = S3.decode_segment(:traces, blob, nil, nil, [])
+        decoded
+      end)
+
+    assert Enum.frequencies(rows) == %{big => 2, next => 1, ctx.span => 10}
+  end
+
+  test "bounded compaction converges after fresh sources are exhausted", ctx do
+    for _ <- 1..24, do: assert(:ok = S3.append(:traces, ctx.tenant, [ctx.span]))
+
+    Enum.reduce_while(1..30, nil, fn _, _ ->
+      assert {:ok, result} = TraceCompactor.compact(ctx.tenant, ctx.config, max_sources: 2)
+      if result.merged == 0, do: {:halt, nil}, else: {:cont, nil}
+    end)
+
+    assert {:ok, rows} = S3.query(:traces, ctx.tenant, max_scan_segments: 1)
+    assert rows == List.duplicate(ctx.span, 24)
+    assert {:ok, %{merged: 0}} = TraceCompactor.compact(ctx.tenant, ctx.config, max_sources: 2)
+  end
+
+  test "partial finishing does not republish outputs without reducing fragmentation", ctx do
+    payload =
+      update_in(Fixture.payload(), ["resourceSpans", Access.all(), "resource", "attributes", Access.all()], fn
+        %{"key" => "service.name"} = attribute -> put_in(attribute, ["value", "stringValue"], "another-service")
+        attribute -> attribute
+      end)
+
+    assert {:ok, [other], 0} = Traces.decode(payload)
+    assert :ok = S3.append(:traces, ctx.tenant, [ctx.span])
+    assert :ok = S3.append(:traces, ctx.tenant, [other])
+    assert {:ok, %{merged: 2, outputs: 2}} = TraceCompactor.compact(ctx.tenant, ctx.config)
+    before = active(ctx)
+
+    for _ <- 1..3 do
+      assert {:ok, %{merged: 0}} = TraceCompactor.compact(ctx.tenant, ctx.config)
+      assert active(ctx) == before
+    end
+
+    for _ <- 1..2, do: assert(:ok = S3.append(:traces, ctx.tenant, [ctx.span]))
+    assert {:ok, %{merged: 4, outputs: 2}} = TraceCompactor.compact(ctx.tenant, ctx.config)
+    assert {:ok, rows} = S3.query(:traces, ctx.tenant, max_scan_segments: 2)
+    assert Enum.frequencies(rows) == %{ctx.span => 3, other => 1}
+  end
+
+  test "oversized partial payloads do not prevent fresh sources from compacting", ctx do
+    row = %{ctx.span | name: :binary.copy(<<0>>, 1024 * 1024)}
+    opts = [small_segment_bytes: 32 * 1024 * 1024]
+    for _ <- 1..2, do: assert(:ok = S3.append(:traces, ctx.tenant, [row]))
+    assert {:ok, %{merged: 2}} = TraceCompactor.compact(ctx.tenant, ctx.config, opts)
+    [partial] = active(ctx)
+    assert {:ok, partial_blob} = ObjectStore.get(ctx.config, partial.key)
+
+    for _ <- 1..2, do: assert(:ok = S3.append(:traces, ctx.tenant, [row]))
+    fresh = Enum.reject(active(ctx), &(&1.key == partial.key))
+
+    blobs =
+      Enum.map(fresh, fn source ->
+        {:ok, blob} = ObjectStore.get(ctx.config, source.key)
+        blob
+      end)
+
+    # The native bound is decoded JSON, not compressed Parquet. Even one
+    # fresh source plus the partial exceeds it, but the fresh pair fits.
+    assert {:error, :payload_too_large} =
+             NIF.compact_trace_segments_split([partial_blob, hd(blobs)], 60_000, 256, 1024, 20_000)
+
+    assert {:ok, [_]} = NIF.compact_trace_segments_split(blobs, 60_000, 256, 1024, 20_000)
+    assert {:ok, %{merged: 2}} = TraceCompactor.compact(ctx.tenant, ctx.config, opts)
+
+    segments = active(ctx)
+    assert length(segments) == 2
+    assert partial in segments
+    assert Enum.sum_by(segments, & &1.row_count) == 4
+
+    # Publication retires only the selected pair, retaining every original
+    # object until normal backup-held cleanup. Decode each active output to
+    # prove complete rows, including duplicates, not just manifest counts.
+    assert Enum.all?(fresh, &Map.has_key?(load(ctx).retired, &1.key))
+    for source <- fresh, do: assert({:ok, _} = ObjectStore.get(ctx.config, source.key))
+
+    # Now the partial set alone exceeds the native budget. A later batch
+    # still progresses, instead of setting this entire hour aside locally.
+    for _ <- 1..2, do: assert(:ok = S3.append(:traces, ctx.tenant, [row]))
+    assert {:ok, %{merged: 2}} = TraceCompactor.compact(ctx.tenant, ctx.config, opts)
+    later = active(ctx)
+    assert length(later) == 3
+    assert Enum.all?(segments, &(&1 in later))
+    assert Enum.sum_by(later, & &1.row_count) == 6
+
+    for segment <- later do
+      assert {:ok, blob} = ObjectStore.get(ctx.config, segment.key)
+      assert {:ok, rows} = S3.decode_segment(:traces, blob, nil, nil, [])
+      assert rows == [row, row]
+    end
+
+    # An irreducible partial-only batch must not defer newly arriving fresh
+    # sources from the same hour, nor repeatedly publish unchanged outputs.
+    for _ <- 1..2, do: assert({:ok, %{merged: 0}} = TraceCompactor.compact(ctx.tenant, ctx.config, opts))
+    assert active(ctx) == later
+    for _ <- 1..2, do: assert(:ok = S3.append(:traces, ctx.tenant, [ctx.span]))
+    assert {:ok, %{merged: 2}} = TraceCompactor.compact(ctx.tenant, ctx.config, opts)
   end
 
   test "trace-only workers join their own eligibility group and maintain idle durable tenants", ctx do

@@ -549,6 +549,7 @@ defmodule Tuist.PulseTest do
 
       for signal <- ~w(logs errors traces),
           {range, seconds, step} <- [{"15m", 900, 3}, {"1h", 3600, 10}, {"6h", 21_600, 60}, {"24h", 86_400, 240}] do
+        step = if signal == "traces", do: step, else: max(60, step)
         finish = DateTime.to_unix(now) - rem(DateTime.to_unix(now), step)
 
         stub(Req, :request, fn request ->
@@ -558,6 +559,7 @@ defmodule Tuist.PulseTest do
           if signal == "traces" do
             assert params[:end] in [finish, finish - seconds]
             assert params[:start] == params[:end] - seconds
+            if !instant, do: assert(params[:step] == "#{step}s")
             if instant, do: send(parent, {:comparison_end, params[:end]})
             response(%{"series" => []})
           else
@@ -614,68 +616,132 @@ defmodule Tuist.PulseTest do
     end
 
     for signal <- ~w(logs errors) do
-      test "#{signal} uses period totals and nonoverlapping bucket counts, including distinct services", ctx do
+      test "#{signal} uses minute-aligned bins and independent full-window totals for every range", ctx do
         signal = unquote(signal)
-        stub(DateTime, :utc_now, fn -> ~U[2026-11-06 12:00:00Z] end)
-        finish = DateTime.to_unix(~U[2026-11-06 12:00:00Z])
+        now = ~U[2026-11-06 12:03:59Z]
+        stub(DateTime, :utc_now, fn -> now end)
         parent = self()
 
-        selectors =
-          if signal == "logs" do
-            [
-              ~s({service_name=~".+"}),
-              ~s'{service_name=~".+",level=~"(?i)(error|fatal)"}',
-              ~s'{service_name=~".+",level=~"(?i)(warning|warn)"}'
-            ]
-          else
-            [
-              ~s({error_source="sentry"}),
-              ~s'{error_source="sentry",level=~"(?i)fatal"}',
-              ~s({error_source="sentry",service_name=~".+"})
-            ]
-          end
+        for {range, seconds, step} <- [{"15m", 900, 60}, {"1h", 3600, 60}, {"6h", 21_600, 60}, {"24h", 86_400, 240}] do
+          finish = DateTime.to_unix(now) - rem(DateTime.to_unix(now), step)
 
-        stub(Req, :request, fn request ->
-          params = request.options.params
-          instant = request.url.path == "/loki/api/v1/query"
-          duration = if instant, do: 3600, else: 10
+          selectors =
+            if signal == "logs" do
+              [
+                ~s({service_name=~".+"}),
+                ~s'{service_name=~".+",level=~"(?i)(error|fatal)"}',
+                ~s'{service_name=~".+",level=~"(?i)(warning|warn)"}'
+              ]
+            else
+              [
+                ~s({error_source="sentry"}),
+                ~s'{error_source="sentry",level=~"(?i)fatal"}',
+                ~s({error_source="sentry",service_name=~".+"})
+              ]
+            end
 
-          expected =
-            Enum.with_index(selectors, fn selector, index ->
-              counts = "count_over_time(#{selector}[#{duration}s])"
-              if signal == "errors" and index == 2, do: "count(sum by (service_name) (#{counts}))", else: "sum(#{counts})"
-            end)
+          stub(Req, :request, fn request ->
+            params = request.options.params
+            instant = request.url.path == "/loki/api/v1/query"
+            duration = if instant, do: seconds, else: step
 
-          assert params[:query] in expected
-          send(parent, {:log_query, params[:query]})
-          refute Keyword.has_key?(params, :limit)
+            expected =
+              Enum.with_index(selectors, fn selector, index ->
+                counts = "count_over_time(#{selector}[#{duration}s])"
 
-          if instant do
-            assert params[:time] in Enum.map([finish, finish - 3600], &Integer.to_string(&1 * 1_000_000_000))
-            value = if params[:time] == Integer.to_string(finish * 1_000_000_000), do: "12345", else: "23456"
-            response(vector_body([%{"value" => [finish, value]}]))
-          else
-            assert request.url.path == "/loki/api/v1/query_range"
-            assert params[:start] == Integer.to_string((finish - 3590) * 1_000_000_000)
-            assert params[:end] == Integer.to_string(finish * 1_000_000_000)
-            assert params[:step] == 10
-            response(metric_body([%{"values" => [[finish, "7"]]}]))
-          end
-        end)
+                if signal == "errors" and index == 2,
+                  do: "count(sum by (service_name) (#{counts}))",
+                  else: "sum(#{counts})"
+              end)
 
-        assert {:ok, %{widgets: widgets}} = Pulse.analytics(ctx.user, ctx.account, signal, %{})
+            assert params[:query] in expected
+            send(parent, {:log_query, params[:query]})
+            refute Keyword.has_key?(params, :limit)
 
-        assert Enum.map(widgets, & &1.id) ==
-                 if(signal == "logs", do: ~w(entries errors warnings), else: ~w(events fatal services))
+            if instant do
+              assert params[:time] in Enum.map([finish, finish - seconds], &Integer.to_string(&1 * 1_000_000_000))
+              value = if params[:time] == Integer.to_string(finish * 1_000_000_000), do: "12345", else: "23456"
+              response(vector_body([%{"value" => [finish, value]}]))
+            else
+              assert request.url.path == "/loki/api/v1/query_range"
+              assert params[:start] == Integer.to_string((finish - seconds + step) * 1_000_000_000)
+              assert params[:end] == Integer.to_string(finish * 1_000_000_000)
+              assert params[:step] == step
+              assert rem(step, 60) == 0
+              assert rem(finish, 60) == 0
+              points = Enum.map((finish - seconds + step)..finish//step, &[&1, "7"])
+              assert length(points) <= 360
+              response(metric_body([%{"values" => points}]))
+            end
+          end)
 
-        assert Enum.all?(
-                 widgets,
-                 &(&1.value == 12_345 and &1.previous_value == 23_456 and &1.points == [[finish, 7.0]] and
-                     &1.unit == :count)
-               )
+          assert {:ok, %{widgets: widgets}} = Pulse.analytics(ctx.user, ctx.account, signal, %{"range" => range})
 
-        for _ <- 1..9, do: assert_receive({:log_query, _})
-        refute_receive {:log_query, _}
+          assert Enum.map(widgets, & &1.id) ==
+                   if(signal == "logs", do: ~w(entries errors warnings), else: ~w(events fatal services))
+
+          assert Enum.all?(
+                   widgets,
+                   &(&1.value == 12_345 and &1.previous_value == 23_456 and
+                       &1.points == Enum.map((finish - seconds + step)..finish//step, fn time -> [time, 7.0] end) and
+                       &1.unit == :count)
+                 )
+
+          for _ <- 1..9, do: assert_receive({:log_query, _})
+          refute_receive {:log_query, _}
+        end
+      end
+    end
+
+    test "minute bins preserve boundary totals and count repeated services once per full window", ctx do
+      now = ~U[2026-11-06 12:00:59Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      finish = DateTime.to_unix(now) - 59
+      start = finish - 900
+
+      events = [
+        {start - 900, "outside"},
+        {start, "previous"},
+        {start + 1, "api"},
+        {finish, "api"},
+        {finish + 1, "outside"}
+      ]
+
+      stub(Req, :request, fn request ->
+        params = request.options.params
+        instant = request.url.path == "/loki/api/v1/query"
+        duration = if instant, do: 900, else: 60
+        assert params[:query] =~ "[#{duration}s]"
+        services? = String.starts_with?(params[:query], "count(sum by (service_name)")
+
+        count = fn time ->
+          matching = Enum.filter(events, fn {timestamp, _} -> timestamp > time - duration and timestamp <= time end)
+          if services?, do: matching |> Enum.map(&elem(&1, 1)) |> Enum.uniq() |> length(), else: length(matching)
+        end
+
+        if instant do
+          time = div(String.to_integer(params[:time]), 1_000_000_000)
+          assert time in [start, finish]
+          response(vector_body([%{"value" => [time, Integer.to_string(count.(time))]}]))
+        else
+          assert params[:start] == Integer.to_string((start + 60) * 1_000_000_000)
+          assert params[:end] == Integer.to_string(finish * 1_000_000_000)
+          assert params[:step] == 60
+          points = Enum.map((start + 60)..finish//60, &[&1, Integer.to_string(count.(&1))])
+          response(metric_body([%{"values" => points}]))
+        end
+      end)
+
+      for signal <- ~w(logs errors) do
+        assert {:ok, %{widgets: widgets}} = Pulse.analytics(ctx.user, ctx.account, signal, %{"range" => "15m"})
+
+        for widget <- widgets do
+          assert widget.value == if(widget.id == "services", do: 1, else: 2)
+          assert widget.previous_value == 1
+          assert Enum.sum(Enum.map(widget.points, &List.last/1)) == 2
+          assert hd(widget.points) == [start + 60, 1.0]
+          assert List.last(widget.points) == [finish, 1.0]
+        end
       end
     end
 
@@ -1025,8 +1091,8 @@ defmodule Tuist.PulseTest do
       end
     end
 
-    test "full log and trace searches return bounded pages with explicit incomplete-cohort warnings", ctx do
-      for count <- [99, 100], signal <- ~w(logs traces) do
+    test "full log and trace searches stay bounded without generated warnings and preserve upstream warnings", ctx do
+      for count <- [99, 100], signal <- ~w(logs traces), warnings <- [[], ["upstream notice"]] do
         stub(Req, :request, fn request ->
           assert request.options.params[:limit] == 100
 
@@ -1037,24 +1103,16 @@ defmodule Tuist.PulseTest do
               %{"traces" => Enum.map(1..count, &%{"traceID" => "#{&1}", "startTimeUnixNano" => &1})}
             end
 
-          response(body)
+          response(Map.put(body, "warnings", warnings))
         end)
 
-        assert {:ok, %{rows: rows, meta: meta, warnings: warnings}} =
+        assert {:ok, %{rows: rows, meta: meta, warnings: ^warnings}} =
                  Pulse.query(ctx.user, ctx.account, signal, %{"page" => 2, "page_size" => 20, "sort_order" => "asc"})
 
         assert length(rows) == 20
         assert hd(rows)["timestamp"] == "21"
         assert meta["total_count"] == count
         assert meta["total_pages"] == 5
-
-        if count == 100 do
-          assert [warning] = warnings
-          assert warning =~ "100-result limit"
-          assert warning =~ "totals cover only returned results"
-        else
-          assert warnings == []
-        end
 
         assert {:ok, %{rows: [], warnings: ^warnings, meta: %{"total_count" => 0}}} =
                  Pulse.query(ctx.user, ctx.account, signal, %{"service" => "absent"})
@@ -1167,9 +1225,17 @@ defmodule Tuist.PulseTest do
       assert row["latest_event_id"] == first["event_id"]
     end
 
-    test "native scan errors and excessive byte pages fail with fixed bounds", ctx do
+    test "native tool errors discard diagnostics and excessive byte pages fail with fixed bounds", ctx do
       for {diagnostic, reason} <- [
+            {":query_result_limit: secret", :query_result_limit},
             {":query_scan_limit: secret", :query_result_limit},
+            {":query_execution_limit: secret", :query_result_limit},
+            {":query_sample_limit: secret", :query_result_limit},
+            {":query_decoded_limit: secret", :query_result_limit},
+            {":query_resource_limit: secret", :query_result_limit},
+            {":query_timeout: secret", :timeout},
+            {":query_overloaded: secret", :rate_limited},
+            {":unrecognized_error: secret", :upstream_error},
             {":error_query_reset_required", :query_reset_required}
           ] do
         stub(Req, :request, fn _ ->
