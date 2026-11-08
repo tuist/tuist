@@ -174,6 +174,10 @@ type Hello struct {
 	Templates          []TemplateInfo     `json:"templates"`
 	Sandboxes          []SandboxInfo      `json:"sandboxes"`
 	DiskSnapshots      []DiskSnapshotInfo `json:"disk_snapshots"`
+	// DefaultTemplate and DefaultTemplateTag are the template the daemon was
+	// configured with. Templates also lists tags kept from earlier rollouts.
+	DefaultTemplate    string `json:"default_template,omitempty"`
+	DefaultTemplateTag string `json:"default_template_tag,omitempty"`
 	// DirectExecEndpoint serves claims of claimed execs.
 	DirectExecEndpoint string `json:"direct_exec_endpoint,omitempty"`
 }
