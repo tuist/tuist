@@ -53,12 +53,15 @@ defmodule TuistWeb.API.OrganizationsController do
           Accounts.get_user_organization_accounts(user)
 
         nil ->
-          account =
-            conn
-            |> Authentication.authenticated_subject_account()
-            |> Tuist.Repo.preload(:organization)
+          case conn
+               |> Authentication.authenticated_subject_account()
+               |> Tuist.Repo.preload(:organization) do
+            %{organization: %{} = organization} = account ->
+              [%{organization: organization, account: account}]
 
-          [%{organization: account.organization, account: account}]
+            _ ->
+              []
+          end
       end
 
     organizations =
