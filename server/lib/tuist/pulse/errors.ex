@@ -167,8 +167,21 @@ defmodule Tuist.Pulse.Errors do
   defp page(%{"result" => %{"isError" => true, "content" => [%{"type" => "text", "text" => text}]}})
        when is_binary(text) do
     cond do
-      String.starts_with?(text, [":query_result_limit", ":query_scan_limit", ":query_execution_limit"]) ->
+      String.starts_with?(text, [
+        ":query_result_limit",
+        ":query_scan_limit",
+        ":query_execution_limit",
+        ":query_sample_limit",
+        ":query_decoded_limit",
+        ":query_resource_limit"
+      ]) ->
         {:error, :query_result_limit}
+
+      String.starts_with?(text, ":query_timeout") ->
+        {:error, :timeout}
+
+      String.starts_with?(text, ":query_overloaded") ->
+        {:error, :rate_limited}
 
       String.starts_with?(text, ":error_query_reset_required") ->
         {:error, :query_reset_required}

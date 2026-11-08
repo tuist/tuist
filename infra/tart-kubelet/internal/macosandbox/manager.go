@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -317,7 +318,7 @@ func (m *Manager) Create(ctx context.Context, a protocol.CreateArgs) error {
 
 // createOnWarm gives a sandbox a booted warm VM under the same
 // grant as a cold create. Once the claim is journaled the VM is the
-// sandbox's: a failure keeps its charge and needs an explicit delete.
+// sandbox's: a failure keeps its charge until Reconcile deletes the VM.
 func (m *Manager) createOnWarm(ctx context.Context, a protocol.CreateArgs, w *warmVM) error {
 	if err := m.Capacity.Allow(ctx, &Record{CreateArgs: a, NodeUID: m.NodeUID}); err != nil {
 		m.warm[w.pod] = w
@@ -599,6 +600,17 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 		}
 		if r.State == "error" && !r.Resident && r.Operation == "" {
 			continue
+		}
+		// A create or claim still journaled here failed, and the server saw it
+		// fail, so no one has used its guest. Delete it like an explicit delete
+		// rather than holding its charge for one: a server that keeps the failed
+		// row, or that this host cannot reach, never sends it.
+		if r.Operation == "create" || r.Operation == "claim" {
+			slog.Warn("deleting a macOS sandbox whose create did not finish", "sandbox", r.SandboxID, "operation", r.Operation, "error", r.Error)
+			if err := m.begin(r, "delete"); err != nil {
+				errs = append(errs, err)
+				continue
+			}
 		}
 		if r.Operation == "delete" {
 

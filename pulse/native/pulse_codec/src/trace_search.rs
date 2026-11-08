@@ -26,6 +26,35 @@ pub(crate) enum Error {
     UnsupportedTag,
     DiscoveryWork,
 }
+
+impl Error {
+    // Keep the public error/ABI unchanged, but distinguish native safety
+    // bounds in operator logs. Never include source keys, IDs or payloads.
+    // One diagnostic per second per process bounds concurrent failures.
+    pub(crate) fn budget(limit: &'static str, maximum: usize, observed: usize) -> Self {
+        use std::io::Write;
+        use std::sync::atomic::{AtomicU64, Ordering};
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        static LAST_LOG: AtomicU64 = AtomicU64::new(0);
+        if let Ok(now) = SystemTime::now().duration_since(UNIX_EPOCH) {
+            let now = now.as_secs();
+            let previous = LAST_LOG.load(Ordering::Relaxed);
+            if previous != now
+                && LAST_LOG
+                    .compare_exchange(previous, now, Ordering::Relaxed, Ordering::Relaxed)
+                    .is_ok()
+            {
+                let _ = writeln!(
+                    std::io::stderr(),
+                    "pulse trace query safety limit={limit} maximum={maximum} observed={observed}"
+                );
+            }
+        }
+        Self::Budget
+    }
+}
+
 pub(crate) type Res<T> = Result<T, Error>;
 pub(crate) struct Predicate {
     pub(crate) scope: String,

@@ -438,6 +438,8 @@ defmodule AtlasWeb.Router do
       live "/orbit", OrbitLive, :index
       live "/orbit/:id", OrbitLive, :show
       live "/tasks", TasksLive, :index
+      live "/approvals", ApprovalsLive, :index
+      live "/approvals/:id", ApprovalsLive, :show
       live "/people", PeopleLive, :index
       live "/people/time-off", TimeOffLive, :index
       live "/people/time-off/settings", TimeOffLive, :settings

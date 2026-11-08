@@ -25,13 +25,15 @@ defmodule Pulse.Storage.S3.CompactionSupervision do
   defp lanes(config) do
     signals = CompactionOwnership.signals(config)
 
-    if "metrics" in signals and Map.get(config, :metric_finalize_enabled, true),
-      do: signals ++ ["metrics_grouping"],
-      else: signals
+    metric_lanes =
+      if "metrics" in signals and Map.get(config, :metric_finalize_enabled, true), do: ["metrics_grouping"], else: []
+
+    trace_lanes = if "traces" in signals, do: ["traces_recent"], else: []
+    signals ++ metric_lanes ++ trace_lanes
   end
 
-  # One worker and task supervisor per signal, so an hour's metric
-  # finalization never delays recent metric grouping or the other signals.
+  # Separate tasks and eligibility keep historical maintenance from delaying
+  # recent metric grouping, recent trace compaction, or the other signals.
   # The first lane keeps the unsuffixed names.
   defp lane(config, {signal, index}) do
     {tasks, worker} =
@@ -43,6 +45,8 @@ defmodule Pulse.Storage.S3.CompactionSupervision do
       case signal do
         "metrics_grouping" -> {"metrics", :metric_consolidate}
         "metrics" -> {"metrics", :metric_compact}
+        "traces_recent" -> {"traces", :trace_recent}
+        "traces" -> {"traces", :trace_compact}
         signal -> {signal, :compact}
       end
 

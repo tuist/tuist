@@ -302,9 +302,13 @@ defmodule Pulse.MCP do
   }
 
   defp error_text(name, reason) do
-    # Which scan budget fired and its value, recorded by the query that failed.
-    detail = if reason in [:query_scan_limit, :query_execution_limit], do: QueryLimit.describe(QueryLimit.take())
-    hints = Enum.reject([Map.get(@trace_hints, {name, reason}), detail], &is_nil/1)
+    # Prefer the failing query's recorded limit over a generic native hint:
+    # resource errors also include workers killed at their BEAM heap bound.
+    detail =
+      if reason in [:query_scan_limit, :query_execution_limit, :query_resource_limit, :query_timeout],
+        do: QueryLimit.describe(QueryLimit.take())
+
+    hints = Enum.reject([detail || Map.get(@trace_hints, {name, reason})], &is_nil/1)
 
     if hints == [], do: inspect(reason), else: "#{inspect(reason)}: #{Enum.join(hints, "; ")}"
   end

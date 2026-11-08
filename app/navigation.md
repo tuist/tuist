@@ -4,7 +4,8 @@ The server, iOS, and Android share canonical web addresses for destinations they
 all implement. Routes contain identifiers, not serialized API models, credentials,
 or commands. Opening a link only navigates; installing,
 deleting, signing in, and switching servers still require the existing UI and
-authorization. This contract covers the current mobile screens, not macOS.
+authorization. This contract covers the current mobile screens and the Rust
+desktop shell. The Swift macOS app does not yet use this navigation contract.
 
 ## Route contract
 
@@ -26,7 +27,7 @@ is reserved for explicit native handoff, not sharing. Handoff generators always
 include the server. Omitting it still means `https://tuist.dev`, never the current
 device environment. Existing aliases remain accepted.
 
-Examples for an agent to include in a thread:
+Examples for an agent to include in a jam:
 
 ```markdown
 [Open your profile](tuist://app/profile)
@@ -36,9 +37,9 @@ Examples for an agent to include in a thread:
 
 Share canonical HTTPS links from agents, notifications, QR codes, and native
 Share actions. They work as ordinary browser links without the app installed.
-Native-only screens still require an installed app and a thread client that
+Native-only screens still require an installed app and a jam client that
 allows `tuist:` links. Custom schemes have no website fallback and can be claimed
-by other apps. This substrate does not change any thread renderer.
+by other apps. This substrate does not change any jam renderer.
 
 Canonical preview links navigate natively when delivered to the app and scoped
 to the active server. iOS declares associated domains and the server's Apple
@@ -83,6 +84,12 @@ is the marketing page. Those pages, settings, and preview downloads remain web-o
   to the previews list. Repeated deliveries do not accumulate duplicate details.
 - Profile selects the Profile tab. Previews-root links clear its detail stack.
   Ordinary platform tab switching retains native behavior.
+- On iOS and Android, long-press Profile to switch saved logins, not organizations.
+  Rows show the personal account identity and server. Previews keeps all authorized personal
+  and organization projects in its existing picker; Jams defaults to the
+  signed-in personal account. Preview links are scoped to the server, not a
+  previously selected organization. Switching profiles clears open screens,
+  drafts, and pending links from the outgoing session.
 - These are navigation addresses, not authorization grants. The existing detail
   requests still enforce access and report missing or inaccessible previews.
 
@@ -105,6 +112,18 @@ unconsumed links across activity recreation without replaying consumed launch
 intents. `HomeScreen` maps routes onto the existing type-safe Compose destinations.
 Feature callbacks and tab actions use that same entry point. Add destinations to
 the parser, generator, and native mapping together.
+
+The Rust desktop app uses `tuist-navigation::Route` for the same wire format and
+`Navigation` for pending delivery and tab/detail state. Command-line URL arguments,
+gpui URL events, and authenticated local forwarding from a second launch all
+reach the root before the signed-in workspace. OAuth remains on its loopback
+callback, separate from navigation. Linux and Windows require explicit protocol
+registration; see `desktop/README.md`. They do not claim all HTTPS links.
+
+Desktop preview browsing is not implemented yet. A preview link opens a handoff
+screen with the identifiers, **Copy link**, **Open on web**, and Back, not fetched
+preview metadata or a Run/Install action. Canonical web links continue to work in
+the system browser. Never imply this screen has checked preview access.
 
 `app/Fixtures/Navigation/routes.json` is the shared executable contract: canonical
 web URLs, native aliases, encoded identifiers, server base paths, and web-only

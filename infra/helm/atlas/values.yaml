@@ -94,6 +94,16 @@ tuistServer:
   tokenAudience: tuist-server
   tokenMountPath: /var/run/secrets/tuist
   tokenExpirationSeconds: 3600
+# tuist-ops (ops.tuist.dev), which grants Amp orb thread cluster elevations a
+# person approved in Atlas. Atlas authenticates with a projected
+# ServiceAccount token (audience `tokenAudience`) that tuist-ops verifies
+# offline. Disabled by default; the managed overlay enables it.
+tuistOps:
+  enabled: false
+  url: ''
+  tokenAudience: ops.tuist.dev
+  tokenMountPath: /var/run/secrets/tuist-ops
+  tokenExpirationSeconds: 3600
 # Pulse MCP upstreams, one per environment, each authenticated with its own
 # projected ServiceAccount token (audience `audience`). Empty by default; the
 # managed overlay lists the Tuist clusters.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/netip"
 	"strings"
 	"testing"
 )
@@ -220,17 +221,27 @@ func TestEnsurePodNATFencesGuestsOffTheDaemon(t *testing.T) {
 	}
 }
 
-func TestEnsurePodNATKeepsGuestsOffTheDaemonOnlyPort(t *testing.T) {
+func TestEnsurePodNATKeepsGuestsOffTheDaemonOnlyPorts(t *testing.T) {
 	f := &fakeRunner{}
-	m := &Manager{Run: f.run, Log: slog.Default(), DaemonOnlyTCPPort: 3900}
+	m := &Manager{
+		Run: f.run, Log: slog.Default(),
+		DaemonOnlyTCPPorts:  []int{3900, 8080},
+		DaemonOnlyEndpoints: []netip.AddrPort{netip.MustParseAddrPort("10.96.12.34:80")},
+	}
 	if err := m.EnsurePodNAT(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	joined := strings.Join(f.calls, "\n")
-	drop := strings.Index(joined, "iptables -w 5 -t filter -I FORWARD 1 -s 172.31.0.0/16 -p tcp --dport 3900 -j DROP")
 	accept := strings.Index(joined, "-A FORWARD -s 172.31.0.0/16 -j ACCEPT")
-	if drop < 0 || accept < 0 || drop > accept {
-		t.Fatalf("the daemon-only port drop must be installed before the forwarding accept:\n%s", joined)
+	for _, rule := range []string{
+		"iptables -w 5 -t filter -I FORWARD 1 -s 172.31.0.0/16 -p tcp --dport 3900 -j DROP",
+		"iptables -w 5 -t filter -I FORWARD 1 -s 172.31.0.0/16 -p tcp --dport 8080 -j DROP",
+		"iptables -w 5 -t filter -I FORWARD 1 -s 172.31.0.0/16 -d 10.96.12.34 -p tcp --dport 80 -j DROP",
+	} {
+		drop := strings.Index(joined, rule)
+		if drop < 0 || accept < 0 || drop > accept {
+			t.Fatalf("%q must be installed before the forwarding accept:\n%s", rule, joined)
+		}
 	}
 
 	f = &fakeRunner{}

@@ -384,8 +384,8 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
   end
 
-  pipeline :threads_no_store do
-    plug :put_threads_no_store
+  pipeline :jams_no_store do
+    plug :put_jams_no_store
   end
 
   pipeline :report_publishing_api do
@@ -839,20 +839,22 @@ defmodule TuistWeb.Router do
     get "/cache/endpoint", CacheController, :endpoint
   end
 
-  scope "/api/accounts/:account_handle/threads", TuistWeb.API do
-    pipe_through [:threads_no_store, :open_api, :authenticated_api, :on_premise_api]
+  for collection <- [:jams, :threads] do
+    scope "/api/accounts/:account_handle/#{collection}", TuistWeb.API, assigns: %{jams_collection: collection} do
+      pipe_through [:jams_no_store, :open_api, :authenticated_api, :on_premise_api]
 
-    # Phoenix's dispatch logs include request params, including private prompts.
-    get "/", ThreadsController, :index, log: false
-    post "/", ThreadsController, :create, log: false
-    get "/repositories", ThreadsController, :repositories, log: false
-    get "/models", ThreadsController, :models, log: false
-    get "/:id", ThreadsController, :show, log: false
-    post "/:id/messages", ThreadsController, :message, log: false
-    patch "/:id", ThreadsController, :update, log: false
-    post "/:id/ship-preview", ThreadsController, :ship_preview, log: false
-    post "/:id/ship", ThreadsController, :ship, log: false
-    post "/:id/ship-reconcile", ThreadsController, :reconcile_ship, log: false
+      # Phoenix's dispatch logs include request params, including private prompts.
+      get "/", JamsController, :index, log: false
+      post "/", JamsController, :create, log: false
+      get "/repositories", JamsController, :repositories, log: false
+      get "/models", JamsController, :models, log: false
+      get "/:id", JamsController, :show, log: false
+      post "/:id/messages", JamsController, :message, log: false
+      patch "/:id", JamsController, :update, log: false
+      post "/:id/ship-preview", JamsController, :ship_preview, log: false
+      post "/:id/ship", JamsController, :ship, log: false
+      post "/:id/ship-reconcile", JamsController, :reconcile_ship, log: false
+    end
   end
 
   scope path: "/api",
@@ -1960,7 +1962,7 @@ defmodule TuistWeb.Router do
     assign(conn, :current_path, conn.request_path)
   end
 
-  defp put_threads_no_store(conn, _opts), do: put_resp_header(conn, "cache-control", "no-store")
+  defp put_jams_no_store(conn, _opts), do: put_resp_header(conn, "cache-control", "no-store")
 
   defp put_request_kind(conn, kind) when is_binary(kind) do
     assign(conn, :request_kind, kind)

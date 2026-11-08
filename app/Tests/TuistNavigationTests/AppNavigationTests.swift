@@ -142,6 +142,51 @@ struct AppNavigationTests {
         #expect(navigation.pendingURL == nil)
     }
 
+    @Test func profile_navigation_accepts_preview_links_across_organizations() {
+        for account in ["personal", "team", "other-team"] {
+            let route = AppRoute.preview(account: account, project: "mobile", id: "42")
+            for url in [route.url(serverURL: production), route.handoffURL(serverURL: production)] {
+                let navigation = AppNavigation()
+                navigation.navigate(to: .profile)
+                navigation.receive(url)
+                navigation.openPendingURL(serverURL: production)
+                #expect(navigation.previewPath == [route])
+                #expect(navigation.tab == .previews)
+                #expect(navigation.error == nil)
+                #expect(navigation.pendingURL == nil)
+            }
+        }
+    }
+
+    @Test func organization_scope_applies_to_web_and_native_preview_links() {
+        let route = AppRoute.preview(account: "team", project: "mobile", id: "42")
+        for url in [route.url(serverURL: production), route.handoffURL(serverURL: production)] {
+            let navigation = AppNavigation()
+            navigation.navigate(to: .profile)
+            navigation.receive(url)
+            navigation.openPendingURL(serverURL: production, organization: "other-team")
+            #expect(navigation.error == .differentOrganization)
+            #expect(navigation.tab == .profile)
+            #expect(navigation.previewPath.isEmpty)
+            #expect(navigation.webURL == nil)
+            #expect(navigation.pendingURL == nil)
+            navigation.receive(url)
+            navigation.openPendingURL(serverURL: production, organization: "team")
+            #expect(navigation.previewPath == [route])
+            #expect(navigation.error == nil)
+        }
+    }
+
+    @Test func organization_switch_discards_pending_links_from_the_outgoing_session() {
+        let navigation = AppNavigation()
+        navigation.receive(AppRoute.preview(account: "team", project: "mobile", id: "42").url(serverURL: production))
+        navigation.reset(clearPending: true)
+        navigation.openPendingURL(serverURL: production, organization: "other-team")
+        #expect(navigation.pendingURL == nil)
+        #expect(navigation.previewPath.isEmpty)
+        #expect(navigation.error == nil)
+    }
+
     private func fixtures() throws -> Fixtures {
         let url = try #require(Bundle(for: FixtureBundle.self).url(forResource: "routes", withExtension: "json"))
         let decoder = JSONDecoder()

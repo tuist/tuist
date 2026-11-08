@@ -30,6 +30,8 @@ defmodule Pulse.Storage.S3.MetricTiers do
   newest hour first, into `-group-` segments grouped and ordered the same way, so
   a selector reads only the segments holding its metric instead of every
   ingested segment, and a partitioned finalization reads each one once.
+  A bounded batch qualifies at 32 sources or `:consolidate_min_rows` rows,
+  so low-volume hours also stay below query object limits.
 
   Outputs whose sources the hour's series catalogs all covered carry their
   lineage, so catalog maintenance and discovery need not read them
@@ -145,7 +147,7 @@ defmodule Pulse.Storage.S3.MetricTiers do
   @doc """
   Consolidate a batch of settled raw segments in the newest eligible hour,
   oldest segments first within that hour. The segments must lie inside one
-  hour, when the hour holds at least `:consolidate_min_rows` of them: up to
+  hour, with at least 32 sources or `:consolidate_min_rows` rows: up to
   `:consolidate_max_rows` rows are rewritten into `-group-` segments grouped
   by metric name, published in one manifest transition. Returns
   `{:ok, %{hour: start | nil, ...}}` or `{:error, {hour, reason}}`.
@@ -183,10 +185,11 @@ defmodule Pulse.Storage.S3.MetricTiers do
     end
   end
 
-  # The oldest settled segments of an hour, if they hold enough rows.
+  # Keep low-volume flushes below query object limits too, without rewriting
+  # tiny batches on every pass. Grouping alone owns these raw sources.
   defp hour_batch({start, segments}, min_rows, max_rows, max_sources) do
     batch = segments |> Enum.sort_by(&{&1.max_ts, &1.key}) |> take_batch(max_rows, max_sources)
-    if Enum.sum_by(batch, & &1.row_count) >= min_rows, do: {start, batch}
+    if length(batch) >= 32 or Enum.sum_by(batch, & &1.row_count) >= min_rows, do: {start, batch}
   end
 
   defp consolidatable?(segment, settled_before, max_rows) do
@@ -352,10 +355,12 @@ defmodule Pulse.Storage.S3.MetricTiers do
         outputs
 
       lineage ->
-        Enum.map(outputs, fn output ->
-          if Segment.metric_tier(output) in [:grouped, :final], do: %{output | catalog: lineage}, else: output
-        end)
+        Enum.map(outputs, &mark_catalogued(&1, lineage))
     end
+  end
+
+  defp mark_catalogued(output, lineage) do
+    if Segment.metric_tier(output) in [:grouped, :final], do: %{output | catalog: lineage}, else: output
   end
 
   # Accumulate the sources natively, then encode and upload one output at a
@@ -451,25 +456,41 @@ defmodule Pulse.Storage.S3.MetricTiers do
   # after `grace`. As for compaction (`SignalCompactor`), a format-4
   # replacement is planned outside the manifest owner, which only commits it
   # in memory.
-  def publish(tenant, config, sources, outputs, grace, signal \\ "metrics") do
+  def publish(tenant, config, sources, outputs, grace, signal \\ "metrics"),
+    do: publish(tenant, config, sources, outputs, grace, signal, 2)
+
+  defp publish(tenant, config, sources, outputs, grace, signal, retries) do
     marker = List.first(outputs)
 
-    with {:ok, plan} <- plan(tenant, signal, config, sources, outputs, grace) do
-      transaction = &transaction(&1, {sources, outputs, grace, plan}, tenant, signal, config)
+    result =
+      with {:ok, plan} <- plan(tenant, signal, config, sources, outputs, grace, retries < 2) do
+        transaction = &transaction(&1, {sources, outputs, grace, plan}, tenant, signal, config)
 
-      case ManifestOwner.transact(tenant, signal, config, transaction) do
-        {:ok, :ok} ->
-          :ok
+        case ManifestOwner.transact(tenant, signal, config, transaction) do
+          {:ok, :ok} ->
+            :ok
 
-        {:error, :cas_retries_exhausted} = error ->
-          resolve_unconfirmed(tenant, signal, config, marker, plan, error)
+          {:error, :cas_retries_exhausted} = error ->
+            resolve_unconfirmed(tenant, signal, config, marker, plan, error)
 
-        {:error, {:unconfirmed, reason}} ->
-          resolve_unconfirmed(tenant, signal, config, marker, plan, {:error, {:unpublished, reason}})
+          {:error, {:unconfirmed, reason}} ->
+            resolve_unconfirmed(tenant, signal, config, marker, plan, {:error, {:unpublished, reason}})
 
-        error ->
-          error
+          error ->
+            error
+        end
       end
+
+    case result do
+      # An append or unrelated maintenance can move a journal page while its
+      # rewrite is in flight, even though all sources remain active. Replan
+      # outside the owner, reusing uploads only after proving they were never
+      # published. Missing/replaced sources still fail the fresh plan.
+      {:error, {:unpublished, :compaction_conflict}} when retries > 0 ->
+        publish(tenant, config, sources, outputs, grace, signal, retries - 1)
+
+      result ->
+        result
     end
   end
 
@@ -482,8 +503,8 @@ defmodule Pulse.Storage.S3.MetricTiers do
   end
 
   # Planned against the node's cached root, as compaction does.
-  defp plan(tenant, signal, config, sources, outputs, grace) do
-    case ManifestOwner.ensure_loaded(tenant, signal, config) do
+  defp plan(tenant, signal, config, sources, outputs, grace, fresh?) do
+    case ManifestOwner.ensure_loaded(tenant, signal, config, require_fresh_manifest: fresh?) do
       {:ok, %{manifest: %{version: 4} = snapshot}} ->
         deadline = System.system_time(:millisecond) + grace
 

@@ -118,7 +118,8 @@ The default backing file is 200 GB; an operator can choose a different size.
 Formatting disables discard and the persistent mount opts out of periodic
 [fstrim](https://www.man7.org/linux/man-pages/man8/fstrim.8.html), preserving the
 outer file reservation. Do not manually trim or hole-punch that backing file.
-It never reformats or resizes an existing image. A dedicated block device with
+It never reformats or resizes an existing image; growing one is an operator
+step ("Changing the cache size"). A dedicated block device with
 XFS is also supported with automatic provisioning disabled.
 
 Managed production sets `cacheVolumes.provisioning.enabled=true`. A privileged
@@ -128,7 +129,8 @@ tools already installed by fleet bootstrap, checks free space, and installs the
 persistent systemd mount without restarting kubelet or repartitioning disks.
 Retries retain existing contents and reject foreign mounts, symlinks, and
 nonempty unprovisioned paths. An existing image of another size is kept as it
-is; a new `sizeGB` reaches only images created after it. Failure leaves the agent unready;
+is; a new `sizeGB` reaches only images created after it, until an operator
+grows the existing ones. Failure leaves the agent unready;
 the host cannot advertise volume readiness. Each reconcile also labels the Node
 `tuist.dev/cache-volume-<scope prefix>` for every lineage with an installed
 master and removes the labels of evicted ones. Disabling provisioning never deletes
@@ -139,17 +141,66 @@ pods and remove only their confirmed-unused directories before retrying setup.
 
 ### Changing the cache size
 
-The backing file is preallocated and never resized, so a new
-`runnersFleetLinux.cacheVolumes.provisioning.sizeGB` applies to replacement
-hosts and to hosts whose image is rebuilt. Size it against `/data`, which the
-cache shares with containerd and kubelet: kubelet evicts Pods once
-`imagefs.available` drops below 15%, so the image plus the host's peak use
-outside it (`node_filesystem_size_bytes - node_filesystem_avail_bytes` on
-`/data`, less the current image) must leave that margin.
+The provisioning script never resizes an existing backing file, so a new
+`runnersFleetLinux.cacheVolumes.provisioning.sizeGB` reaches replacement hosts
+on its own and existing hosts only when an operator grows their image. Size it
+against `/data`, which the cache shares with containerd and kubelet: kubelet
+evicts Pods once `imagefs.available` drops below 15%, so the image plus the
+host's peak use outside it (`node_filesystem_size_bytes - node_filesystem_avail_bytes`
+on `/data`, less the current image) must leave that margin.
 
-Rebuilding a host's image discards its masters, checkouts and Docker caches;
-jobs there start cold until prefetch and jobs refill it. Do one host at a time.
-Writes to canary or production need elevation (infra/AGENTS.md).
+#### Growing an existing image
+
+XFS grows while mounted, so a host keeps its masters, checkouts and Docker
+caches, and needs no cordon or drain. The agent reads capacity and free space
+with `statfs` on every admission, so it uses the new room at once, and the init
+container keeps the grown file on its next start because it then matches
+`sizeGB`. Writes to canary or production need elevation (infra/AGENTS.md).
+
+Save this as `grow-cache.sh`, with `new` set to the new `sizeGB` in bytes. It
+takes the provisioning script's lock, checks that the mount is this backing
+file, and refuses a grow that would leave less than `keep` free on `/data`
+(the host's peak use outside the cache plus kubelet's 15% margin; 200 GB on the
+889 GB production hosts):
+
+```bash
+set -euo pipefail
+img=/var/lib/kubelet/tuist-runner-cache.img mnt=/var/lib/kubelet/tuist-runner-cache
+new=350000000000 keep=200000000000
+exec 9>"$img.lock"; flock -x 9
+dev=$(losetup --noheadings --output NAME -j "$img")
+[[ -n $dev && $(findmnt -n -o SOURCE --mountpoint "$mnt") == "$dev" ]] || { echo "skip: mount does not match $img"; exit 1; }
+grow=$(( new - $(stat -c %s "$img") ))
+avail=$(df -B1 --output=avail "$(dirname "$img")" | tail -1 | tr -d ' ')
+(( grow > 0 && avail - grow >= keep )) || { echo "skip: grow=$grow avail=$avail"; exit 1; }
+fallocate -l "$new" "$img"   # preallocate the added bytes on /data
+losetup -c "$dev"            # the loop device picks up the new length
+xfs_growfs "$mnt" | tail -1  # grow XFS online
+df -B1G --output=size,avail "$mnt" | tail -1
+df -B1G --output=size,avail "$(dirname "$img")" | tail -1
+```
+
+Run it on one host, check it, then do the rest one at a time:
+
+```bash
+kubectl -n tuist-runners debug node/<node> --image=ubuntu --profile=sysadmin -i -q -- \
+  nsenter -t 1 -m -- bash -s < grow-cache.sh
+kubectl -n tuist-runners logs <node-debugger pod>
+kubectl -n tuist-runners delete pod <node-debugger pod>
+```
+
+The attached session can end before it prints anything, so read the result from
+the debugger Pod's log: `data blocks changed from … to …` followed by the cache's
+and `/data`'s size and free GiB. The debugger Pod stays behind; delete it. A
+rerun on a grown host prints `skip` and changes nothing. Afterwards the agent's
+log should show attaches succeeding and prefetch restoring listed masters it
+had refused with `no_space`.
+
+#### Shrinking
+
+XFS cannot shrink, so a smaller size means rebuilding the image, which discards
+the host's masters, checkouts and Docker caches; jobs there start cold until
+prefetch and jobs refill it. Do one host at a time.
 
 1. `kubectl cordon <node>` and wait until no runner Pod is left on it.
 2. Wait until the host's agent has published every job: its log shows no

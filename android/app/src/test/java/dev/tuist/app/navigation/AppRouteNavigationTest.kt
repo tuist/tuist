@@ -28,15 +28,15 @@ class AppRouteNavigationTest {
                 composable<HomeTabs.Previews> {}
                 composable<HomeTabs.Profile> {}
                 composable<HomeTabs.PreviewDetail> {}
-                composable<HomeTabs.Threads> {}
+                composable<HomeTabs.Jams> {}
                 composable<HomeTabs.Notifications> {}
             }
         }
 
     @Test
-    fun `preview links from threads return Back to previews without retaining threads`() {
+    fun `preview links from jams return Back to previews without retaining jams`() {
         val nav = controller()
-        nav.navigate(HomeTabs.Threads)
+        nav.navigate(HomeTabs.Jams)
         nav.navigateAppRoute(AppRoute.PreviewDetail("a", "p", "one"))
         assertEquals(HomeTabs.PreviewDetail("one", "a/p"), nav.currentBackStackEntry!!.toRoute<HomeTabs.PreviewDetail>())
         assertTrue(nav.popBackStack())

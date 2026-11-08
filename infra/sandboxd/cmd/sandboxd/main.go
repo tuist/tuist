@@ -6,13 +6,18 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -135,7 +140,22 @@ func main() {
 
 	netManager := network.NewManager(logger)
 	netManager.PodInterface = os.Getenv("POD_INTERFACE")
-	netManager.DaemonOnlyTCPPort = intEnv(logger, "DAEMON_ONLY_TCP_PORT", 0)
+	netManager.DaemonOnlyTCPPorts = tcpPortsEnv(logger, "DAEMON_ONLY_TCP_PORTS")
+	// The single-port variable an older chart sets.
+	if port := intEnv(logger, "DAEMON_ONLY_TCP_PORT", 0); port > 0 {
+		netManager.DaemonOnlyTCPPorts = append(netManager.DaemonOnlyTCPPorts, port)
+	}
+	// Guests reach the Tuist API through its public URL. The in-cluster
+	// server is the daemon's control channel, so the guests are kept off
+	// its Service address unless the deployment needs them to reach it.
+	if serverURL != "" && !boolEnv(logger, "GUESTS_REACH_SERVER", false) {
+		endpoints, err := serviceEndpoints(ctx, serverURL)
+		if err != nil {
+			logger.Error("resolving SERVER_URL to keep the guests off it", "error", err)
+			os.Exit(1)
+		}
+		netManager.DaemonOnlyEndpoints = endpoints
+	}
 	switch backend := os.Getenv("NETWORK_BACKEND"); backend {
 	case "", "iproute2":
 	case "netlink":
@@ -390,6 +410,60 @@ func boolEnv(logger *slog.Logger, key string, fallback bool) bool {
 		os.Exit(1)
 	}
 	return parsed
+}
+
+func tcpPortsEnv(logger *slog.Logger, key string) []int {
+	var ports []int
+	for _, field := range strings.Split(os.Getenv(key), ",") {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		port, err := strconv.Atoi(field)
+		if err != nil || port < 1 || port > 65535 {
+			logger.Error("invalid TCP port", "env", key, "value", field)
+			os.Exit(1)
+		}
+		ports = append(ports, port)
+	}
+	return ports
+}
+
+// serviceEndpoints resolves a URL's host to its IPv4 addresses and port.
+// Cluster DNS can lag a Pod's start, so a failed lookup is retried for
+// about a minute before startup gives up.
+func serviceEndpoints(ctx context.Context, rawURL string) ([]netip.AddrPort, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Hostname() == "" {
+		return nil, fmt.Errorf("parsing %q: no host", rawURL)
+	}
+	port := 80
+	if u.Scheme == "https" {
+		port = 443
+	}
+	if u.Port() != "" {
+		if port, err = strconv.Atoi(u.Port()); err != nil {
+			return nil, fmt.Errorf("parsing the port of %q: %w", rawURL, err)
+		}
+	}
+	var addrs []netip.Addr
+	for attempt := 1; ; attempt++ {
+		lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		addrs, err = net.DefaultResolver.LookupNetIP(lookupCtx, "ip4", u.Hostname())
+		cancel()
+		if err == nil || attempt == 12 || ctx.Err() != nil {
+			break
+		}
+		time.Sleep(5 * time.Second)
+	}
+	if err != nil {
+		return nil, err
+	}
+	endpoints := make([]netip.AddrPort, 0, len(addrs))
+	for _, addr := range addrs {
+		endpoints = append(endpoints, netip.AddrPortFrom(addr.Unmap(), uint16(port)))
+	}
+	return endpoints, nil
 }
 
 func intEnv(logger *slog.Logger, key string, fallback int) int {

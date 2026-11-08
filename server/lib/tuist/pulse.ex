@@ -18,10 +18,11 @@ defmodule Tuist.Pulse do
   All filtering and sorting precedes pagination. Rows, series and metadata use
   string keys; result envelope keys are atoms. Series follow the metric page.
 
-  Logs and traces inspect up to 100 native-query matches. When that limit is
-  reached, warnings explicitly scope filtering, sorting and totals to returned
-  results, not the complete time window. Logs always select newest first before
-  local sorting. Metric tables evaluate an instant snapshot at end_at, not a
+  Logs and traces inspect up to 100 native-query matches. Filtering, sorting and
+  table totals cover only returned results, not the complete time window.
+  Upstream warnings are preserved without generating a result-limit warning.
+  Logs always select newest first before local sorting.
+  Metric tables evaluate an instant snapshot at end_at, not a
   historical grid; analytics provide history. Metrics allow at most 5000 series
   and 361 points per series;
   oversized metric cohorts fail whole. HTTP bodies cap at 8 MiB before JSON
@@ -39,8 +40,6 @@ defmodule Tuist.Pulse do
   Locals and request/auth/user payloads are not returned. `analytics/4` keeps
   its independent aggregate contract.
   """
-
-  use Gettext, backend: TuistWeb.Gettext
 
   alias Tuist.Accounts
   alias Tuist.Environment
@@ -127,14 +126,19 @@ defmodule Tuist.Pulse do
   remain nil, independently in each period; only the current period has points.
 
   One snapshot is aligned down to the chart step (at most 240 seconds) so Tempo's
-  epoch-aligned buckets cannot read outside the selected window. Trace counts are
-  spans, not traces. Duration quantiles are Pulse's approximate duration buckets.
+  epoch-aligned buckets cannot read outside the selected window. Log and error
+  charts use minute-aligned, nonoverlapping buckets, at least 60 seconds wide and
+  at most 360 points, to use native log rollups. Full-window totals and distinct
+  service counts are independent instant queries, never sums of chart buckets.
+  Trace counts are spans, not traces. Duration quantiles are Pulse's approximate
+  duration buckets.
   """
   def analytics(user, account, signal, params) do
     with true <- authorized?(user, account),
          {:ok, seconds} <- analytics_range(signal, params),
          {:ok, client} <- credentials() do
-      step = ceil(seconds / 360)
+      # Minute multiples keep log/error buckets eligible for native rollups.
+      step = if signal in ~w(logs errors), do: ceil(seconds / 360 / 60) * 60, else: ceil(seconds / 360)
       now = DateTime.to_unix(DateTime.utc_now(), :second)
       finish = now - rem(now, step)
       window = %{start: finish - seconds, finish: finish, seconds: seconds, step: step}
@@ -461,19 +465,6 @@ defmodule Tuist.Pulse do
          {:ok, result} <- normalize(signal, body),
          :ok <- complete_result(signal, result) do
       {rows, meta} = Table.page(result.rows, opts)
-
-      result =
-        if signal in ~w(logs traces) and length(result.rows) >= @limit do
-          warning =
-            dgettext(
-              "dashboard_pulse",
-              "Search reached its 100-result limit. Filters, sorting and totals cover only returned results; narrow the native query or time range."
-            )
-
-          %{result | warnings: [warning | result.warnings]}
-        else
-          result
-        end
 
       series =
         if signal == "metrics",

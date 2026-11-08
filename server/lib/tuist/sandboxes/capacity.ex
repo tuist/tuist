@@ -446,6 +446,8 @@ defmodule Tuist.Sandboxes.Capacity do
     (workspace_gb || 0) * @gib + rootfs_bytes(node, template) + @sandbox_disk_overhead_bytes
   end
 
+  # An archived snapshot whose node copy is gone has no `node_name` and
+  # reserves nothing.
   defp reserved_disk_snapshot_bytes(%{name: node_name} = node) do
     from(s in DiskSnapshot,
       where: s.node_name == ^node_name,

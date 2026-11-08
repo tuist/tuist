@@ -9,8 +9,10 @@ defmodule Pulse.MCP.ToolsTest do
   alias Pulse.Record.MetricSample
   alias Pulse.Storage
   alias Pulse.Storage.Memory
+  alias Pulse.Test.BlockingMetricStorage
   alias Pulse.Test.MCPMessages
   alias Pulse.Test.NativeQueryStorage
+  alias Pulse.Traces.TempoSearch
 
   setup do
     Memory.reset()
@@ -71,6 +73,37 @@ defmodule Pulse.MCP.ToolsTest do
 
     assert text =~ ":query_execution_limit: max_samples=2 exceeded"
     assert text =~ "PULSE_QUERY_MAX_SAMPLES"
+  end
+
+  test "trace tool resource failures preserve the worker limit instead of guessing a native limit" do
+    adapter = BlockingMetricStorage
+    Pulse.Runtime.put_env(:pulse, Storage, adapter: adapter)
+    Pulse.Runtime.put_env(:pulse, adapter, self())
+    Pulse.Runtime.put_env(:pulse, Pulse.QueryRunner, max_heap_words: 1_048_576)
+    Pulse.Runtime.put_env(:pulse, TempoSearch, enabled: true)
+
+    for {name, arguments} <- [
+          {"query_traces", %{"tenant" => "acme", "limit" => 1}},
+          {"search_trace_metadata",
+           %{"tenant" => "acme", "query" => "{}", "start_ts_ns" => 1, "end_ts_ns" => 2, "limit" => 1}}
+        ] do
+      response =
+        Pulse.Runtime.Task.async(fn ->
+          Pulse.MCP.dispatch(MCPMessages.request(1, "tools/call", %{"name" => name, "arguments" => arguments}))
+        end)
+
+      assert_receive {:blocked_metric_query, worker, "acme"}, 5_000
+      # QueryRunner classifies a killed worker as a resource failure and
+      # records its configured heap limit, independently of native errors.
+      Process.exit(worker, :kill)
+
+      assert {:reply, %{"result" => %{"isError" => true, "content" => [%{"text" => text}]}}} =
+               Pulse.Runtime.Task.await(response)
+
+      assert text =~ ":query_resource_limit: max_heap_mb=8 exceeded"
+      assert text =~ "PULSE_QUERY_MAX_HEAP_MB"
+      refute text =~ "16 MiB"
+    end
   end
 
   test "queries that still hold Grafana's interval and range variables say how to replace them" do

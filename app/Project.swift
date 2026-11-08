@@ -78,7 +78,7 @@ let bundleId =
     default: "dev.tuist.app"
     }
 
-let threadRichUI = Environment.threadRichUi.getBoolean(default: false)
+let jamRichUI = Environment.jamRichUi.getBoolean(default: false)
 
 let project = Project(
     name: "TuistApp",
@@ -129,7 +129,7 @@ let project = Project(
             resources: .resources([
                 .glob(pattern: "Resources/TuistApp/**", excluding: ["Resources/TuistApp/iOS/**"]),
                 .glob(pattern: "Resources/TuistApp/iOS/**", inclusionCondition: .when([.ios])),
-            ] + (threadRichUI ? [.folderReference(path: "../.build/nsh-threads/ui", inclusionCondition: .when([.ios]))] : [])),
+            ] + (jamRichUI ? [.folderReference(path: "../.build/nsh-jams/ui", inclusionCondition: .when([.ios]))] : [])),
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
@@ -151,8 +151,8 @@ let project = Project(
                 // and leaves the macOS build unable to resolve the module.
                 .external(name: "ArgumentParser"),
                 .external(name: "TuistSDK"),
-            ] + (threadRichUI ? [.xcframework(
-                path: "../.build/nsh-threads/nsh/embed/ios/NativeShell.xcframework",
+            ] + (jamRichUI ? [.xcframework(
+                path: "../.build/nsh-jams/nsh/embed/ios/NativeShell.xcframework",
                 condition: .when([.ios])
             )] : []),
             settings: .settings(
@@ -367,6 +367,7 @@ let project = Project(
             deploymentTargets: .multiplatform(iOS: "18.0", macOS: "15.0.0"),
             sources: ["Sources/TuistAuthentication/**"],
             dependencies: [
+                .external(name: "OpenAPIRuntime"),
                 .project(target: "TuistServer", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
                 .project(target: "TuistLogging", path: "../"),
@@ -397,6 +398,7 @@ let project = Project(
                 .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
                 .project(target: "TuistConstants", path: "../"),
+                .external(name: "FileSystemTesting"),
                 .external(name: "TestCoverageAttribution"),
             ]
         ),

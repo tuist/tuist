@@ -15,6 +15,11 @@ defmodule Pulse.Storage.S3.TraceCompactor do
   one conditional manifest transition and the sources retire with the usual
   grace, backup hold and cleanup (`Pulse.Storage.S3.SignalCompactor`).
 
+  Bounded partial-only batches finish consolidation after fresh inputs run out,
+  publishing only when object count decreases. Failed or unproductive immutable
+  sets are deferred node-locally for an hour, never their whole hour or individual
+  sources. Alternative batches retain the same input/native limits.
+
   Bucketed (format-3) retention prefixes keep the single-output merge of
   `SignalCompactor`. Retention, retirement cleanup and orphan reclamation are
   shared with logs and metrics.
@@ -51,7 +56,11 @@ defmodule Pulse.Storage.S3.TraceCompactor do
     end
   end
 
-  defp compact_root(true, _root, tenant, config, opts), do: SignalCompactor.compact(tenant, config, opts)
+  defp compact_root(true, _root, tenant, config, opts) do
+    if opts[:min_hour],
+      do: {:ok, %{merged: 0}},
+      else: SignalCompactor.compact(tenant, config, opts)
+  end
 
   defp compact_root(false, root, tenant, config, opts),
     do: SignalCompactor.monitor(:compact, fn -> split(root, tenant, config, opts) end)
@@ -64,8 +73,12 @@ defmodule Pulse.Storage.S3.TraceCompactor do
          do: merge_batch(select(candidates.segments, opts), root, candidates, tenant, config, opts)
   end
 
-  defp merge_batch(nil, root, candidates, tenant, config, _opts) do
-    with :ok <- SignalCompactor.advance_empty_cursor(root, candidates, tenant, config),
+  defp merge_batch(nil, root, candidates, tenant, config, opts) do
+    # A recent-only pass did not process the historical window. Only the
+    # historical lane may advance it, or alternating passes can skip leaves.
+    advance = if opts[:min_hour], do: :ok, else: SignalCompactor.advance_empty_cursor(root, candidates, tenant, config)
+
+    with :ok <- advance,
          do: {:ok, %{segments_before: length(root.segments), merged: 0}}
   end
 
@@ -77,14 +90,18 @@ defmodule Pulse.Storage.S3.TraceCompactor do
   @doc false
   # The next batch: the oldest settled ingested segments of the oldest hour
   # holding any, within the input bounds, plus that hour's outputs that are
-  # not full. A batch always holds an ingested segment, so outputs are never
-  # rewritten on their own.
+  # not full. Once fresh inputs are exhausted, bounded partial-only batches
+  # finish consolidation, but are published only if they reduce object count.
   def select(segments, opts) do
     settled_before = System.os_time(:nanosecond) - Keyword.get(opts, :settle_ms, 30_000) * 1_000_000
 
     segments
-    |> Enum.filter(&(eligible?(&1, settled_before) and not unmergeable?(&1)))
+    |> Enum.filter(&eligible?(&1, settled_before))
     |> Enum.group_by(&hour(&1.min_ts))
+    |> Enum.filter(fn {hour, _segments} ->
+      (is_nil(opts[:min_hour]) or hour >= opts[:min_hour]) and
+        (is_nil(opts[:max_hour]) or hour <= opts[:max_hour])
+    end)
     |> Enum.sort_by(&elem(&1, 0))
     |> Enum.find_value(fn {_hour, segments} -> hour_batch(segments, opts) end)
   end
@@ -93,10 +110,66 @@ defmodule Pulse.Storage.S3.TraceCompactor do
     {fresh, partial} = Enum.split_with(segments, &(class(&1, opts) == :fresh))
     partial = partial |> Enum.filter(&(class(&1, opts) == :partial)) |> Enum.sort_by(&order/1) |> Enum.take(64)
 
-    used = {length(partial), Enum.sum_by(partial, & &1.row_count), Enum.sum_by(partial, & &1.byte_size)}
-    batch = fresh |> Enum.sort_by(&order/1) |> take(used, opts) |> Enum.reverse()
+    # Prefer fresh sources, but skip non-fitting inputs rather than allowing
+    # an oversized source to hide healthy inputs later in the candidate set.
+    find_batch(Enum.sort_by(fresh, &order/1) ++ partial, opts)
+  end
 
-    if batch != [] and length(batch) + length(partial) >= 2, do: batch ++ partial
+  defp find_batch([], _opts), do: nil
+
+  defp find_batch(sources, opts) do
+    sources
+    |> take({0, 0, 0}, opts)
+    |> Enum.reverse()
+    |> case do
+      [] ->
+        nil
+
+      [_single] ->
+        # A source can fit alone yet leave no room for any partner. Search
+        # the bounded candidate pool for a pair rather than keeping it pinned.
+        find_pair(sources, opts)
+
+      batch ->
+        # Deferral applies only to this exact immutable set, including when
+        # every source is a partial output. A different pair may still reduce
+        # fragmentation (or fit the decoded native budget).
+        if batch_deferred?(batch, opts), do: find_pair(sources, opts), else: batch
+    end
+  end
+
+  defp find_pair(sources, opts) do
+    minimum_rows = sources |> Enum.min_by(& &1.row_count) |> Map.fetch!(:row_count)
+    minimum_bytes = sources |> Enum.min_by(& &1.byte_size) |> Map.fetch!(:byte_size)
+    maximum_rows = Keyword.get(opts, :max_rows, 60_000)
+    maximum_bytes = Keyword.get(opts, :max_input_bytes, 32 * 1024 * 1024)
+
+    # These independent lower bounds can only exclude impossible partners.
+    # Avoid quadratic scans through sources that consume the whole budget.
+    sources
+    |> Enum.filter(fn source ->
+      source.row_count + minimum_rows <= maximum_rows and
+        source.byte_size + minimum_bytes <= maximum_bytes
+    end)
+    |> find_pair_in(opts)
+  end
+
+  defp find_pair_in([], _opts), do: nil
+
+  defp find_pair_in([first | rest], opts) do
+    maximum_rows = Keyword.get(opts, :max_rows, 60_000)
+    maximum_bytes = Keyword.get(opts, :max_input_bytes, 32 * 1024 * 1024)
+
+    if Keyword.get(opts, :max_sources, 512) >= 2 do
+      partner =
+        Enum.find(rest, fn second ->
+          first.row_count + second.row_count <= maximum_rows and
+            first.byte_size + second.byte_size <= maximum_bytes and
+            not batch_deferred?([first, second], opts)
+        end)
+
+      if partner, do: [first, partner], else: find_pair_in(rest, opts)
+    end
   end
 
   defp order(segment), do: {segment.min_ts, segment.max_ts, segment.key}
@@ -108,9 +181,16 @@ defmodule Pulse.Storage.S3.TraceCompactor do
 
     segments
     |> Enum.reduce_while({[], used}, fn s, {acc, {count, rows, bytes}} ->
-      if count < max_sources and rows + s.row_count <= max_rows and bytes + s.byte_size <= max_bytes,
-        do: {:cont, {[s | acc], {count + 1, rows + s.row_count, bytes + s.byte_size}}},
-        else: {:halt, {acc, {count, rows, bytes}}}
+      cond do
+        count >= max_sources ->
+          {:halt, {acc, {count, rows, bytes}}}
+
+        rows + s.row_count <= max_rows and bytes + s.byte_size <= max_bytes ->
+          {:cont, {[s | acc], {count + 1, rows + s.row_count, bytes + s.byte_size}}}
+
+        true ->
+          {:cont, {acc, {count, rows, bytes}}}
+      end
     end)
     |> elem(0)
   end
@@ -152,29 +232,57 @@ defmodule Pulse.Storage.S3.TraceCompactor do
   defp hour(ts), do: Integer.floor_div(ts, @hour_ns) * @hour_ns
 
   defp merge(sources, tenant, config, opts) do
+    # Bound the entire operation, not just each native attempt: at most 16
+    # builds and three times the original batch's source count/encoded bytes.
+    budget = {16, 3 * length(sources), 3 * Enum.sum_by(sources, & &1.byte_size)}
+    merge_batches([sources], tenant, config, opts, budget, {:ok, %{merged: 0}})
+  end
+
+  defp merge_batches([], _tenant, _config, _opts, _budget, result), do: result
+  defp merge_batches(_batches, _tenant, _config, _opts, {0, _, _}, result), do: result
+
+  defp merge_batches([sources | rest], tenant, config, opts, {attempts, count, bytes} = budget, result) do
+    source_count = length(sources)
+    source_bytes = Enum.sum_by(sources, & &1.byte_size)
+
+    if source_count > count or source_bytes > bytes or batch_deferred?(sources, opts) do
+      merge_batches(rest, tenant, config, opts, budget, result)
+    else
+      remaining = {attempts - 1, count - source_count, bytes - source_bytes}
+      merge_attempt(sources, rest, tenant, config, opts, remaining)
+    end
+  end
+
+  defp merge_attempt(sources, rest, tenant, config, opts, remaining) do
     case build(sources, tenant, config, opts) do
       {:ok, outputs} ->
         publish(sources, outputs, tenant, config, opts)
 
-      # Decoded payloads can outgrow the compressed estimate: halve the
-      # ingested part, never truncate rows.
-      {:error, :payload_too_large} = error ->
-        {fresh, partial} = Enum.split_with(sources, &(class(&1, opts) == :fresh))
-        half = Enum.take(fresh, div(length(fresh), 2))
+      :unchanged ->
+        defer_batch(sources, opts)
+        merge_batches(rest, tenant, config, opts, remaining, {:ok, %{merged: 0}})
 
-        if half != [] and length(half) + length(partial) >= 2 do
-          merge(half ++ partial, tenant, config, opts)
-        else
-          remember_unmergeable(fresh)
-          error
-        end
+      # Try both halves and a cross-pair with a different partner for the
+      # oldest source. Failure of a pair proves neither source individually
+      # unmergeable. All retries share the operation's remaining budget.
+      {:error, :payload_too_large} = error ->
+        defer_batch(sources, opts)
+        half = div(length(sources), 2)
+
+        alternatives =
+          if length(sources) > 2,
+            do: [Enum.take(sources, max(2, half)), [hd(sources), List.last(sources)], Enum.drop(sources, half)],
+            else: []
+
+        result = if partial_batch?(sources, opts), do: {:ok, %{merged: 0}}, else: error
+        merge_batches(alternatives ++ rest, tenant, config, opts, remaining, result)
 
       {:error, reason} = error
       when reason in [:trace_projection_invalid, :segment_summary_mismatch, :invalid_segment] ->
-        # A source that cannot merge faithfully stays active and queryable;
-        # set the batch aside node-locally so later hours keep compacting.
-        remember_unmergeable(sources)
-        error
+        # Leave every source active; the exact failed batch is a local hint,
+        # not authority to exclude unrelated sources from the same hour.
+        defer_batch(sources, opts)
+        merge_batches(rest, tenant, config, opts, remaining, error)
 
       error ->
         error
@@ -188,12 +296,23 @@ defmodule Pulse.Storage.S3.TraceCompactor do
 
       ids = Keyword.get(opts, :max_ids, 256)
       flagged = Keyword.get(opts, :max_flagged_ids, 1024)
+      partial? = partial_batch?(sources, opts)
 
       case NIF.compact_trace_segments_split(blobs, max_rows, ids, flagged, max_output_rows(opts)) do
-        {:ok, outputs} -> upload(outputs, tenant, config)
-        {:error, :query_sample_limit} -> {:error, :payload_too_large}
-        {:error, _} = error -> error
-        _ -> {:error, :invalid_segment}
+        {:ok, outputs} when partial? and length(outputs) >= length(sources) ->
+          :unchanged
+
+        {:ok, outputs} ->
+          upload(outputs, tenant, config)
+
+        {:error, :query_sample_limit} ->
+          {:error, :payload_too_large}
+
+        {:error, _} = error ->
+          error
+
+        _ ->
+          {:error, :invalid_segment}
       end
     end
   end
@@ -287,18 +406,19 @@ defmodule Pulse.Storage.S3.TraceCompactor do
 
   defp discard(config, segments), do: Enum.each(segments, &ObjectStore.delete(config, &1.key))
 
-  # A failing batch sets its hour (its keys' date/hour prefix) aside for an
-  # hour, node-locally, as hour finalization does for metrics.
-  @unmergeable_ms 3_600_000
-  defp unmergeable_ref(segment), do: %{"k" => "trace-unmergeable:" <> Path.dirname(segment.key), "b" => 1}
+  defp partial_batch?(sources, opts), do: Enum.all?(sources, &(class(&1, opts) == :partial))
 
-  defp remember_unmergeable([source | _]),
-    do: MetadataCache.put(unmergeable_ref(source), System.monotonic_time(:millisecond) + @unmergeable_ms)
+  defp batch_ref(sources, opts) do
+    limits = opts |> Keyword.take([:max_rows, :max_ids, :max_flagged_ids, :max_output_rows]) |> Enum.sort()
+    digest = :crypto.hash(:sha256, :erlang.term_to_binary({Enum.map(sources, & &1.key), limits}))
+    %{"k" => "trace-batch:" <> Base.encode16(digest, case: :lower), "b" => 1}
+  end
 
-  defp remember_unmergeable([]), do: :ok
+  defp defer_batch(sources, opts),
+    do: MetadataCache.put(batch_ref(sources, opts), System.monotonic_time(:millisecond) + 3_600_000)
 
-  defp unmergeable?(segment) do
-    case MetadataCache.get(unmergeable_ref(segment)) do
+  defp batch_deferred?(sources, opts) do
+    case MetadataCache.get(batch_ref(sources, opts)) do
       {:ok, until} -> until > System.monotonic_time(:millisecond)
       :miss -> false
     end

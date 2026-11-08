@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
   @moduledoc """
-  Get detailed information about a specific Gradle build run. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/gradle/builds/{id}.
+  Get detailed information about a specific Gradle build run, including the failure messages of failed tasks and configuration. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/gradle/builds/{id}.
   """
 
   use Tuist.MCP.Tool,
@@ -54,6 +54,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "cache_hit_rate" => %{"type" => ["number", "null"]},
         "cache_download_bytes" => %{"type" => "integer"},
         "cache_upload_bytes" => %{"type" => "integer"},
+        "failures" => Tuist.MCP.GradleSchemas.failures(),
         "inserted_at" => %{"type" => "string"}
       },
       "required" => [
@@ -81,6 +82,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         "cache_hit_rate",
         "cache_download_bytes",
         "cache_upload_bytes",
+        "failures",
         "inserted_at"
       ],
       "additionalProperties" => false
@@ -93,7 +95,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
   @impl EMCP.Tool
   def description,
     do:
-      "Get detailed information about a specific Gradle build run. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/gradle/builds/{id}."
+      "Get detailed information about a specific Gradle build run, including the failure messages of failed tasks and configuration. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/gradle/builds/{id}."
 
   def execute(conn, args) do
     build_run_id = MCPTool.resource_id(Map.get(args, "build_run_id"))
@@ -136,6 +138,7 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
          cache_hit_rate: Gradle.cache_hit_rate(build),
          cache_download_bytes: cache_aggregates.cache_download_bytes,
          cache_upload_bytes: cache_aggregates.cache_upload_bytes,
+         failures: Gradle.list_failures(build),
          inserted_at: Formatter.iso8601(build.inserted_at, naive: :utc)
        }}
     end

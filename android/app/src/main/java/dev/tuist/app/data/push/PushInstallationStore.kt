@@ -63,6 +63,21 @@ class PushInstallationStore @Inject constructor(
         prefs.edit().remove(key(KEY_DEVICE_ENABLED)).apply()
     }
 
+    fun bindProfile(profileId: String) {
+        val owner = prefs.getString(key("profile"), null)
+        if (owner != null && owner != profileId) {
+            clear()
+            needsTokenReset = true
+        }
+        prefs.edit().putString(key("profile"), profileId).commit()
+    }
+
+    fun belongsTo(profileId: String): Boolean = prefs.getString(key("profile"), profileId) == profileId
+
+    var needsTokenReset: Boolean
+        get() = prefs.getBoolean(key("needs_token_reset"), false)
+        set(value) { prefs.edit().putBoolean(key("needs_token_reset"), value).commit() }
+
     companion object {
         const val PREFS_NAME = "tuist_push"
         private const val KEY_INSTALLATION_ID = "installation_id"

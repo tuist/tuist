@@ -6,7 +6,7 @@
         android:networkSecurityConfig="@xml/network_security_config"
         tools:targetApi="28">
         <activity
-            android:name=".ui.threads.ThreadsPreviewActivity"
+            android:name=".ui.jams.JamsPreviewActivity"
             android:exported="false" />
     </application>
 

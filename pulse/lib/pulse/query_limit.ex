@@ -42,7 +42,13 @@ defmodule Pulse.QueryLimit do
 
   @hint "narrow the time range or selector, or raise"
 
-  @type detail :: %{limit: atom(), maximum: integer() | nil, observed: integer() | nil, stage: atom()}
+  @type detail :: %{
+          optional(:metric_tiers) => %{atom() => {non_neg_integer(), non_neg_integer()}},
+          limit: atom(),
+          maximum: integer() | nil,
+          observed: integer() | nil,
+          stage: atom()
+        }
 
   @doc """
   Record that `limit` (with configured `maximum`) was exceeded at `stage`,
@@ -99,6 +105,15 @@ defmodule Pulse.QueryLimit do
 
   def describe(%{limit: :max_scan_bytes, stage: :object, maximum: remaining}),
     do: "a segment object exceeded the #{remaining} bytes left of max_scan_bytes; #{@hint} PULSE_QUERY_MAX_SCAN_BYTES"
+
+  def describe(%{metric_tiers: tiers} = detail) do
+    breakdown =
+      tiers
+      |> Enum.sort()
+      |> Enum.map_join(", ", fn {tier, {count, bytes}} -> "#{tier}: #{count} segments / #{bytes} bytes" end)
+
+    describe(Map.delete(detail, :metric_tiers)) <> "; candidate tiers: " <> breakdown
+  end
 
   def describe(%{limit: limit, maximum: maximum, observed: observed, stage: stage}) do
     env = Map.get(@env, limit)
