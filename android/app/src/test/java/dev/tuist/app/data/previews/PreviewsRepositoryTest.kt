@@ -71,16 +71,23 @@ class PreviewsRepositoryTest {
     }
 
     @Test
-    fun `projects are filtered to global organization and foreign previews are rejected`() = runTest {
+    fun `projects and previews include all authorized organizations despite legacy selection`() = runTest {
         val own = Project("main", "tuist/app", 1, Project.Visibility.`private`)
         val other = own.copy(id = 2, fullName = "other/app")
         coEvery { projectsApi.listProjects() } returns Response.success(ListProjects200Response(listOf(other, own)))
-        assertEquals(listOf(own), repository.listProjects())
-        try {
-            repository.listPreviews("other", "app")
-            org.junit.Assert.fail("Foreign organization must not reach the preview API")
-        } catch (_: IllegalArgumentException) { }
-        io.mockk.coVerify(exactly = 0) { previewsApi.listPreviews(any(), any(), any(), any()) }
+        val preview = createPreview("other-preview", "Other organization app")
+        coEvery {
+            previewsApi.listPreviews(accountHandle = "other", projectHandle = "app", page = 1, pageSize = 10)
+        } returns Response.success(
+            PreviewsIndex1(PaginationMetadata(false, false, 10), listOf(preview)),
+        )
+        coEvery { previewsApi.getPreview("other", "app", "other-preview") } returns Response.success(preview)
+        coEvery { previewsApi.deletePreview("other", "app", "other-preview") } returns Response.success(Unit)
+
+        assertEquals(listOf(other, own), repository.listProjects())
+        assertEquals(listOf(preview), repository.listPreviews("other", "app").previews)
+        assertEquals(preview, repository.getPreview("other", "app", "other-preview"))
+        repository.deletePreview("other", "app", "other-preview")
     }
 
     @Test(expected = RuntimeException::class)

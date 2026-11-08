@@ -7,6 +7,7 @@ defmodule TuistWeb.JamsSocket do
   alias TuistWeb.Authentication, as: WebAuthentication
 
   channel "jams:*", TuistWeb.JamsChannel
+  channel "threads:*", TuistWeb.JamsChannel
 
   # Phoenix extracts this only from the bearer WebSocket subprotocol. Never
   # accept a credential in URL parameters, which are routinely logged.

@@ -136,7 +136,7 @@ import TuistServer
     private struct RootView: View {
         @StateObject private var authenticationService = AuthenticationService(profilesEnabled: true)
         @State private var featureFlags = FeatureFlags()
-        @State private var hasLoadedOrganizations = false
+        @State private var hasLoadedProfiles = false
         @Environment(AppNavigation.self) private var navigation
         @Environment(\.scenePhase) private var scenePhase
 
@@ -161,7 +161,7 @@ import TuistServer
             }
             .onChange(of: authenticationService.isChangingProfile) { _, changing in
                 if changing {
-                    navigation.reset(clearPending: hasLoadedOrganizations && authenticationService.activeProfileID != nil)
+                    navigation.reset(clearPending: hasLoadedProfiles && authenticationService.activeProfileID != nil)
                 } else {
                     openPendingURL()
                 }
@@ -193,8 +193,7 @@ import TuistServer
                 authenticationService.beforeProfileChange = { await PushNotifications.shared.prepareForProfileChange() }
                 guard !authenticationService.isChangingProfile else { return }
                 try? await authenticationService.loadProfiles()
-                await authenticationService.refreshOrganizations()
-                hasLoadedOrganizations = true
+                hasLoadedProfiles = true
                 openPendingURL()
             }
             .task(id: authenticationService.authenticationState) {
@@ -222,7 +221,7 @@ import TuistServer
             switch authenticationService.authenticationState {
             case let .loggedIn(account, _):
                 AccountHomeView(account: account)
-                    .id(authenticationService.selectedOrganization)
+                    .id(authenticationService.activeProfileID)
             case .loggedOut:
                 LogInView()
                 #if DEBUG
@@ -235,12 +234,9 @@ import TuistServer
 
         private func openPendingURL() {
             guard case .loggedIn = authenticationService.authenticationState,
-                  hasLoadedOrganizations, !authenticationService.isChangingProfile, !authenticationService.isSigningIn,
-                  let organization = authenticationService.selectedOrganization
+                  hasLoadedProfiles, !authenticationService.isChangingProfile, !authenticationService.isSigningIn
             else { return }
-            navigation.openPendingURL(
-                serverURL: AppServerEnvironmentService().url(), organization: organization
-            )
+            navigation.openPendingURL(serverURL: AppServerEnvironmentService().url())
         }
 
         /// When launch arguments with credentials are passed, such as when running QA tests, we can skip the log in and

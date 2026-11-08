@@ -75,17 +75,18 @@ class JamsViewModelTest {
             store.put("jams", it)
         }
 
-    @Test fun `global organization drives jams while login identity remains personal`() = runTest(dispatcher) {
+    @Test fun `jams use personal account despite legacy organization selection`() = runTest(dispatcher) {
         enabled.value = setOf(FeatureFlag.AI)
         session.value = session.value.copy(organization = "organization-one")
         val vm = viewModel()
         runCurrent()
-        assertEquals("organization-one", vm.state.value.account)
-        coVerify { api.list("organization-one", null) }
+        assertEquals("alice", vm.state.value.account)
+        coVerify { api.list("alice", null) }
         session.value = session.value.copy(generation = 1, organization = "organization-two")
         runCurrent()
-        assertEquals("organization-two", vm.state.value.account)
-        coVerify { api.list("organization-two", null) }
+        assertEquals("alice", vm.state.value.account)
+        coVerify(exactly = 0) { api.list("organization-one", null) }
+        coVerify(exactly = 0) { api.list("organization-two", null) }
         assertEquals("alice", (authState.value as AuthState.LoggedIn).account.handle)
     }
 

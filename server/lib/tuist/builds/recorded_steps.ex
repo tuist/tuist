@@ -81,7 +81,7 @@ defmodule Tuist.Builds.RecordedSteps do
   def get(%Gradle.Build{} = build, id) when is_binary(id) and byte_size(id) <= 128 do
     case ClickHouseRepo.one(from(s in Gradle.Timeline.step_query(build), where: s.event_id == ^id, limit: 1)) do
       nil -> {:error, :not_found}
-      step -> {:ok, Map.merge(serialize(step), %{log: nil, log_truncated: false})}
+      step -> {:ok, Map.merge(serialize(step), Gradle.step_failure(build, step.event_id))}
     end
   end
 

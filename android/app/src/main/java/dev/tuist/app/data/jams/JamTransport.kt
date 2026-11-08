@@ -1,6 +1,7 @@
 package dev.tuist.app.data.jams
 
 import com.squareup.moshi.Json
+import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.Moshi
 import dev.tuist.app.data.auth.TokenStorage
 import java.util.UUID
@@ -8,6 +9,7 @@ import javax.inject.Inject
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
+import retrofit2.HttpException
 import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -41,57 +43,126 @@ class JamTransport internal constructor(retrofit: Retrofit, moshi: Moshi, sessio
             .apply {
                 client(client)
                 converterFactories()
-                    .add(0, MoshiConverterFactory.create(moshi).withNullSerialization())
+                    .add(0, MoshiConverterFactory.create(moshi.newBuilder().add(JamAliases).build()).withNullSerialization())
             }
             .build()
-            .create(JamsApi::class.java)
+            .create(JamRoutes::class.java)
+            .let { CompatibleJamsApi(it) }
+
+    internal suspend fun dialect(account: String): String = (api as CompatibleJamsApi).dialect(account)
 }
 
 interface JamsApi {
-    @GET("api/accounts/{account}/jams")
+    suspend fun list(account: String, cursor: String? = null): JamPage
+    suspend fun repositories(account: String): JamRepositories
+    suspend fun models(account: String): JamModelCatalog
+    suspend fun history(account: String, id: String, before: Int? = null): ServerJam
+    suspend fun create(account: String, body: CreateJam): ServerJam
+    suspend fun send(account: String, id: String, body: SendMessage): ServerJam
+    suspend fun archive(account: String, id: String, body: ArchiveJam): ServerJam
+    suspend fun shipPreview(account: String, id: String): ShipPreview
+    suspend fun ship(account: String, id: String, approval: ShipApproval): ServerJam
+}
+
+private class CompatibleJamsApi(private val routes: JamRoutes) : JamsApi {
+    private suspend fun <T> read(operation: suspend (String) -> T): T =
+        try {
+            operation("jams")
+        } catch (error: HttpException) {
+            if (error.code() != 404) throw error
+            operation("threads")
+        }
+
+    suspend fun dialect(account: String): String = read { dialect ->
+        routes.models(account, dialect)
+        dialect
+    }
+
+    override suspend fun list(account: String, cursor: String?) = read { routes.list(account, it, cursor) }
+    override suspend fun repositories(account: String) = read { routes.repositories(account, it) }
+    override suspend fun models(account: String) = read { routes.models(account, it) }
+    override suspend fun history(account: String, id: String, before: Int?) = read { routes.history(account, it, id, before) }
+    override suspend fun create(account: String, body: CreateJam) = routes.create(account, dialect(account), body)
+    override suspend fun send(account: String, id: String, body: SendMessage) = routes.send(account, dialect(account), id, body)
+    override suspend fun archive(account: String, id: String, body: ArchiveJam) = routes.archive(account, dialect(account), id, body)
+    override suspend fun shipPreview(account: String, id: String) = routes.shipPreview(account, dialect(account), id)
+    override suspend fun ship(account: String, id: String, approval: ShipApproval) = routes.ship(account, dialect(account), id, approval)
+}
+
+// Normalize only known aliases, then let the required-field adapters validate the payload.
+private object JamAliases : JsonAdapter.Factory {
+    override fun create(type: java.lang.reflect.Type, annotations: Set<Annotation>, moshi: Moshi): JsonAdapter<*>? {
+        val keys = when (type) {
+            JamPage::class.java -> "jams" to "threads"
+            ShipPreview::class.java -> "jam_id" to "thread_id"
+            else -> return null
+        }
+        val delegate = moshi.nextAdapter<Any>(this, type, annotations)
+        return object : JsonAdapter<Any>() {
+            override fun fromJson(reader: com.squareup.moshi.JsonReader): Any? {
+                val value = reader.readJsonValue()
+                if (value is Map<*, *> && !value.containsKey(keys.first) && value.containsKey(keys.second)) {
+                    val normalized = value.toMutableMap()
+                    normalized[keys.first] = value[keys.second]
+                    return delegate.fromJsonValue(normalized)
+                }
+                return delegate.fromJsonValue(value)
+            }
+            override fun toJson(writer: com.squareup.moshi.JsonWriter, value: Any?) = delegate.toJson(writer, value)
+        }
+    }
+}
+
+internal interface JamRoutes {
+    @GET("api/accounts/{account}/{dialect}")
     suspend fun list(
         @Path("account") account: String,
+        @Path("dialect") dialect: String,
         @Query("cursor") cursor: String? = null,
     ): JamPage
 
-    @GET("api/accounts/{account}/jams/repositories")
-    suspend fun repositories(@Path("account") account: String): JamRepositories
+    @GET("api/accounts/{account}/{dialect}/repositories")
+    suspend fun repositories(@Path("account") account: String, @Path("dialect") dialect: String): JamRepositories
 
-    @GET("api/accounts/{account}/jams/models")
-    suspend fun models(@Path("account") account: String): JamModelCatalog
+    @GET("api/accounts/{account}/{dialect}/models")
+    suspend fun models(@Path("account") account: String, @Path("dialect") dialect: String): JamModelCatalog
 
-    @GET("api/accounts/{account}/jams/{id}")
+    @GET("api/accounts/{account}/{dialect}/{id}")
     suspend fun history(
         @Path("account") account: String,
+        @Path("dialect") dialect: String,
         @Path("id") id: String,
         @Query("before") before: Int? = null,
     ): ServerJam
 
-    @POST("api/accounts/{account}/jams")
-    suspend fun create(@Path("account") account: String, @Body body: CreateJam): ServerJam
+    @POST("api/accounts/{account}/{dialect}")
+    suspend fun create(@Path("account") account: String, @Path("dialect") dialect: String, @Body body: CreateJam): ServerJam
 
-    @POST("api/accounts/{account}/jams/{id}/messages")
+    @POST("api/accounts/{account}/{dialect}/{id}/messages")
     suspend fun send(
         @Path("account") account: String,
+        @Path("dialect") dialect: String,
         @Path("id") id: String,
         @Body body: SendMessage,
     ): ServerJam
 
-    @PATCH("api/accounts/{account}/jams/{id}")
+    @PATCH("api/accounts/{account}/{dialect}/{id}")
     suspend fun archive(
         @Path("account") account: String,
+        @Path("dialect") dialect: String,
         @Path("id") id: String,
         @Body body: ArchiveJam,
     ): ServerJam
 
-    @POST("api/accounts/{account}/jams/{id}/ship-preview")
-    suspend fun shipPreview(@Path("account") account: String, @Path("id") id: String): ShipPreview
+    @POST("api/accounts/{account}/{dialect}/{id}/ship-preview")
+    suspend fun shipPreview(@Path("account") account: String, @Path("dialect") dialect: String, @Path("id") id: String): ShipPreview
 
     // Calling this is a separate application-owned approval, never a model tool or suggested
     // prompt.
-    @POST("api/accounts/{account}/jams/{id}/ship")
+    @POST("api/accounts/{account}/{dialect}/{id}/ship")
     suspend fun ship(
         @Path("account") account: String,
+        @Path("dialect") dialect: String,
         @Path("id") id: String,
         @Body approval: ShipApproval,
     ): ServerJam

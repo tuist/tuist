@@ -9,6 +9,8 @@ defmodule TuistWeb.JamsChannel do
 
   @poll_interval 10_000
 
+  def join("threads:" <> scope, params, socket), do: join("jams:" <> scope, params, socket)
+
   def join("jams:" <> scope, _params, socket) do
     with [handle, id] <- String.split(scope, ":"),
          {:ok, target} <- target(id),

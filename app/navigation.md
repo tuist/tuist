@@ -84,6 +84,12 @@ is the marketing page. Those pages, settings, and preview downloads remain web-o
   to the previews list. Repeated deliveries do not accumulate duplicate details.
 - Profile selects the Profile tab. Previews-root links clear its detail stack.
   Ordinary platform tab switching retains native behavior.
+- On iOS and Android, long-press Profile to switch saved logins, not organizations.
+  Rows show the personal account identity and server. Previews keeps all authorized personal
+  and organization projects in its existing picker; Jams defaults to the
+  signed-in personal account. Preview links are scoped to the server, not a
+  previously selected organization. Switching profiles clears open screens,
+  drafts, and pending links from the outgoing session.
 - These are navigation addresses, not authorization grants. The existing detail
   requests still enforce access and report missing or inaccessible previews.
 

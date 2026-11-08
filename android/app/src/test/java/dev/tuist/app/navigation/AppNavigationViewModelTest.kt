@@ -68,15 +68,16 @@ class AppNavigationViewModelTest {
     }
 
     @Test
-    fun `saved origin and selected organization govern all detail entry points`() {
+    fun `saved origin governs detail entry points across organizations`() {
         session = session.copy(origin = "https://other.dev", organization = "org")
         val model = AppNavigationViewModel(SavedStateHandle(), tokens)
         assertTrue(model.preview("id", "org/project"))
         assertEquals("https://other.dev/org/project/previews/id", model.pendingUrl.value)
-        assertFalse(model.preview("id", "account/project"))
+        assertTrue(model.preview("id", "account/project"))
         assertFalse(model.openUrl("https://tuist.dev/org/project/previews/id"))
-        assertFalse(model.openUrl("https://other.dev/account/project/previews/id"))
-        assertFalse(model.isCurrentServerWebUrl("https://other.dev/account/project/previews/id"))
+        assertTrue(model.openUrl("https://other.dev/account/project/previews/id"))
+        assertEquals(AppRoute.PreviewDetail("account", "project", "id", "https://other.dev"), model.pendingRoute(loggedIn))
+        assertTrue(model.isCurrentServerWebUrl("https://other.dev/account/project/previews/id"))
         assertTrue(model.openUrl("https://other.dev/org/project/previews/id"))
         assertTrue(model.isCurrentServerWebUrl("https://other.dev/org/project/previews/id"))
         assertFalse(model.isCurrentServerWebUrl("tuist://app/org/project/previews/id?server=https%3A%2F%2Fother.dev"))
@@ -103,7 +104,7 @@ class AppNavigationViewModelTest {
     }
 
     @Test
-    fun `cold login link survives authentication but must match selected account and origin`() {
+    fun `cold login link survives authentication across organizations on same origin`() {
         session = TokenStorage.Session(null, 0)
         val model = AppNavigationViewModel(SavedStateHandle(), tokens)
         assertTrue(model.openUrl("https://tuist.dev/account/project/previews/id"))
@@ -115,7 +116,7 @@ class AppNavigationViewModelTest {
         session = TokenStorage.Session(null, 3)
         assertTrue(model.openUrl("https://tuist.dev/account/project/previews/id"))
         session = TokenStorage.Session("login", 4, "wrong", "https://tuist.dev")
-        assertNull(model.pendingRoute(loggedIn))
+        assertEquals(AppRoute.PreviewDetail("account", "project", "id"), model.pendingRoute(loggedIn))
     }
 
     @Test

@@ -69,7 +69,8 @@ data class TaskOutcomeData(
     val startedAt: String?,
     val remoteCacheMiss: Boolean = false,
     val remoteCacheStored: Boolean? = null,
-    val execution: TaskExecutionTelemetry? = null
+    val execution: TaskExecutionTelemetry? = null,
+    val failure: FailureReport? = null
 )
 
 data class TaskReportEntry(
@@ -82,7 +83,8 @@ data class TaskReportEntry(
     @SerializedName("started_at") val startedAt: String?,
     @SerializedName("remote_cache_miss") val remoteCacheMiss: Boolean = false,
     @SerializedName("remote_cache_stored") val remoteCacheStored: Boolean? = null,
-    val execution: TaskExecutionTelemetry? = null
+    val execution: TaskExecutionTelemetry? = null,
+    val failure: FailureReport? = null
 )
 
 data class ConfigurationCacheReport(
@@ -97,7 +99,8 @@ data class ConfigurationOperationReportEntry(
     @SerializedName("build_path") val buildPath: String,
     @SerializedName("project_path") val projectPath: String? = null,
     @SerializedName("duration_ms") val durationMs: Long,
-    @SerializedName("started_at") val startedAt: String
+    @SerializedName("started_at") val startedAt: String,
+    val failure: FailureReport? = null
 )
 
 data class ArtifactTransformReportEntry(
@@ -133,6 +136,11 @@ data class BuildReportRequest(
 )
 
 data class BuildReportResponse(val id: String)
+
+internal fun BuildReportRequest.withoutFailureMessages() = copy(
+    tasks = tasks.map { it.copy(failure = null) },
+    configurationOperations = configurationOperations.map { it.copy(failure = null) }
+)
 
 // --- Build Service ---
 
@@ -174,7 +182,7 @@ abstract class TuistBuildInsightsService :
 
     val buildId: String = UUID.randomUUID().toString()
 
-    private val executionTelemetry = BuildExecutionTelemetry()
+    private val executionTelemetry = BuildExecutionTelemetry(rootDir = parameters.projectDir.asFile.get().path)
     private val configurationOperations = ConcurrentLinkedQueue<ConfigurationOperationReportEntry>()
     private val artifactTransforms = ConcurrentLinkedQueue<ArtifactTransformReportEntry>()
     private val buildStartTime = Time.currentTimeMillis()
@@ -235,7 +243,7 @@ abstract class TuistBuildInsightsService :
             else -> null
         }
 
-        operation?.let(configurationOperations::add)
+        operation?.let { configurationOperations.add(it.copy(failure = executionTelemetry.failures.report(finishEvent.failure))) }
     }
 
     private fun recordConfigurationCacheMetadata(result: Any?, finishEvent: OperationFinishEvent) {
@@ -391,7 +399,8 @@ abstract class TuistBuildInsightsService :
                 discoverBuildMetadataLimit(URI(resolvedUrl)) { httpClients.openConnection(it) }
             } else MAX_BUILD_METADATA_VALUES
             val enriched = report.copy(customMetadata = report.customMetadata.withObservations(observations, limit))
-            val body = if (config.token.isEmpty()) enriched.copy(gitRemoteUrlOrigin = null) else enriched
+            // Servers that predate a field refuse it in credential-free reports, dropping the report.
+            val body = if (config.token.isEmpty()) enriched.withoutFailureMessages().copy(gitRemoteUrlOrigin = null) else enriched
             // Every attempt sends the same build id, and the server stores a replayed id only once
             // (a server that does not deduplicate by id stores the replay as another build).
             httpClient.retrying("Build insights request", replaySafe = true) {
@@ -516,7 +525,8 @@ internal fun buildReport(
                 startedAt = task.startedAt,
                 remoteCacheMiss = task.remoteCacheMiss,
                 remoteCacheStored = task.remoteCacheStored,
-                execution = task.execution
+                execution = task.execution,
+                failure = task.failure
             )
         },
         customMetadata = customMetadata,

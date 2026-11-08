@@ -24632,7 +24632,7 @@ public struct Client: APIProtocol {
     }
     /// Get one recorded Gradle build step.
     ///
-    /// Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
+    /// Returns recorded metadata. For a failed task or configuration operation, log holds the failure message the Tuist Gradle plugin reported (the exception message and cause chain, sanitized and bounded to 16 KiB); otherwise log is null. Task output is not collected.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/get(getGradleBuildStep)`.

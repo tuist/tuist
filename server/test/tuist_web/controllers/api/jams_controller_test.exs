@@ -31,6 +31,60 @@ defmodule TuistWeb.API.JamsControllerTest do
     assert get_resp_header(conn, "cache-control") == ["no-store"]
   end
 
+  test "legacy clients can list, read and archive the same private jam", %{user: user, token: token, path: path} do
+    jam =
+      Repo.insert!(%Jam{
+        account_id: user.account.id,
+        owner_id: user.id,
+        request_id: Ecto.UUID.generate(),
+        request_hash: :crypto.hash(:sha256, "compatibility"),
+        title: "Private work",
+        goal: "Private goal",
+        provider: "chatgpt",
+        model: "selected-model"
+      })
+
+    legacy = String.replace(path, "/jams", "/threads")
+    conn = request(token, legacy)
+    assert %{"threads" => [%{"id" => id}], "next_cursor" => nil} = json_response(conn, 200)
+    assert id == jam.id
+    assert get_resp_header(conn, "cache-control") == ["no-store"]
+    assert %{"id" => ^id, "title" => "Private work"} = token |> request(legacy <> "/#{id}") |> json_response(200)
+
+    archived =
+      build_conn()
+      |> put_req_header("authorization", "Bearer #{token}")
+      |> patch(legacy <> "/#{id}", %{status: "archived"})
+
+    assert %{"archive_status" => "archived"} = json_response(archived, 200)
+    assert %{"archive_status" => "archived"} = token |> request(path <> "/#{id}") |> json_response(200)
+    assert legacy |> then(&get(build_conn(), &1)) |> json_response(401)
+  end
+
+  test "ship previews preserve the legacy identifier without changing the approval", %{
+    user: user,
+    token: token,
+    path: path
+  } do
+    id = Ecto.UUID.generate()
+    preview = %{jam_id: id, request_id: Ecto.UUID.generate(), head_sha: "reviewed-head", diff: "private diff"}
+
+    expect(Tuist.Jams, :ship_preview, 2, fn actor, account, ^id ->
+      assert actor.id == user.id
+      assert account.id == user.account.id
+      {:ok, preview}
+    end)
+
+    for base <- [path, String.replace(path, "/jams", "/threads")] do
+      response =
+        build_conn()
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> post(base <> "/#{id}/ship-preview", %{})
+
+      assert json_response(response, 200) == preview |> Map.put(:thread_id, id) |> Jason.encode!() |> Jason.decode!()
+    end
+  end
+
   test "accepts native OAuth but not an unrelated OAuth client's grant", %{user: user, path: path} do
     client_id = Ecto.UUID.generate()
     stub(Environment, :oauth_client_id, fn -> client_id end)
@@ -58,9 +112,11 @@ defmodule TuistWeb.API.JamsControllerTest do
         goal: "Private"
       })
 
-    path = "/api/accounts/#{organization.account.name}/jams"
-    assert token |> request(path) |> json_response(200) == %{"jams" => [], "next_cursor" => nil}
-    assert token |> request(path <> "/#{jam.id}") |> json_response(404)
+    for collection <- ["jams", "threads"] do
+      path = "/api/accounts/#{organization.account.name}/#{collection}"
+      assert token |> request(path) |> json_response(200) == %{collection => [], "next_cursor" => nil}
+      assert token |> request(path <> "/#{jam.id}") |> json_response(404)
+    end
   end
 
   test "does not reveal another account", %{token: token} do
@@ -85,7 +141,8 @@ defmodule TuistWeb.API.JamsControllerTest do
     stub(FeatureFlags, :ai_enabled?, fn _user -> false end)
     id = Ecto.UUID.generate()
 
-    for {method, suffix} <- [
+    for collection <- ["jams", "threads"],
+        {method, suffix} <- [
           {:get, ""},
           {:post, ""},
           {:get, "/repositories"},
@@ -100,7 +157,7 @@ defmodule TuistWeb.API.JamsControllerTest do
       conn =
         build_conn()
         |> put_req_header("authorization", "Bearer #{token}")
-        |> dispatch(@endpoint, method, path <> suffix, %{})
+        |> dispatch(@endpoint, method, String.replace(path, "/jams", "/#{collection}") <> suffix, %{})
 
       assert json_response(conn, 404) == %{"message" => "Not found."}
       assert get_resp_header(conn, "cache-control") == ["no-store"]

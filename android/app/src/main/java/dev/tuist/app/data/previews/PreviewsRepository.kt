@@ -60,12 +60,12 @@ class PreviewsRepository @Inject constructor(
     private val tokens: TokenStorage,
 ) {
     suspend fun listProjects(): List<Project> {
-        val (session, account) = synchronized(tokens) { tokens.snapshot() to tokens.selectedAccount() }
+        val session = tokens.snapshot()
         val response = projectsApi.listProjects()
-        check(tokens.isCurrent(session)) { "Organization changed" }
+        check(tokens.isCurrent(session)) { "Authentication profile changed" }
         val body = response.body()
         if (response.isSuccessful && body != null) {
-            return body.projects.filter { it.fullName.substringBefore('/') == account }
+            return body.projects
         }
         val message = response.serverErrorMessage()
         throw when (response.code()) {
@@ -80,7 +80,6 @@ class PreviewsRepository @Inject constructor(
         projectHandle: String,
         previewId: String,
     ): Preview {
-        requireAccount(accountHandle)
         val response = previewsApi.getPreview(
             accountHandle = accountHandle,
             projectHandle = projectHandle,
@@ -105,7 +104,6 @@ class PreviewsRepository @Inject constructor(
         projectHandle: String,
         previewId: String,
     ) {
-        requireAccount(accountHandle)
         val response = previewsApi.deletePreview(
             accountHandle = accountHandle,
             projectHandle = projectHandle,
@@ -128,7 +126,6 @@ class PreviewsRepository @Inject constructor(
         page: Int = 1,
         pageSize: Int = 10,
     ): PreviewsPage {
-        requireAccount(accountHandle)
         val response = previewsApi.listPreviews(
             accountHandle = accountHandle,
             projectHandle = projectHandle,
@@ -152,10 +149,6 @@ class PreviewsRepository @Inject constructor(
     }
 
     val serverUrl: String get() = tokens.selectedServer()
-
-    private fun requireAccount(account: String) {
-        require(account == tokens.selectedAccount()) { "Project belongs to another organization" }
-    }
 
     private fun <T> Response<T>.serverErrorMessage(): String {
         val errorJson = errorBody()?.string() ?: return ""

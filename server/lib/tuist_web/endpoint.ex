@@ -42,6 +42,11 @@ defmodule TuistWeb.Endpoint do
     websocket: true,
     longpoll: false
 
+  socket "/threads/socket", TuistWeb.JamsSocket,
+    auth_token: true,
+    websocket: true,
+    longpoll: false
+
   plug TuistWeb.Plugs.DrainingPlug
 
   # Serve at "/" the static files from "priv/static" directory.
@@ -185,7 +190,8 @@ defmodule TuistWeb.Endpoint do
   @sentry_scrubbed_body_keys ["mfa_code", "token", "arguments"]
 
   # Private conversations and Ship approvals must not become error-report data.
-  def scrub_sentry_body(%{path_info: ["api", "accounts", _handle, "jams" | _]}), do: %{}
+  def scrub_sentry_body(%{path_info: ["api", "accounts", _handle, collection | _]})
+      when collection in ["jams", "threads"], do: %{}
 
   def scrub_sentry_body(conn) do
     conn

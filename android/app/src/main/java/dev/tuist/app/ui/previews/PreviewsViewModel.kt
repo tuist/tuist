@@ -41,7 +41,7 @@ class PreviewsViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val prefs = context.getSharedPreferences("tuist_previews", Context.MODE_PRIVATE)
-    private val selectedProjectKey = authRepository.session.value.let { "$KEY_SELECTED_PROJECT.${it.profileId}.${it.origin}.${it.organization}" }
+    private val selectedProjectKey = authRepository.session.value.let { "$KEY_SELECTED_PROJECT.${it.profileId}.${it.origin}" }
 
     private val _uiState = MutableStateFlow<PreviewsUiState>(PreviewsUiState.Loading)
     val uiState: StateFlow<PreviewsUiState> = _uiState.asStateFlow()

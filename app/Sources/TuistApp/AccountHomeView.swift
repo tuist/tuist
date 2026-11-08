@@ -22,18 +22,14 @@
         @State private var showingSignOut = false
         @State private var showingPreviewNotice = false
         @State private var showingAddProfile = false
-        @State private var pendingOrganization: StoredOrganization?
-
-        private var organizationName: String {
-            isLayoutPreview ? account.handle : authenticationService.selectedOrganization ?? account.handle
-        }
+        @State private var pendingProfile: StoredProfile?
 
         var body: some View {
             @Bindable var navigation = navigation
             TabView(selection: $navigation.tab) {
                 if featureFlags.isEnabled(.ai) {
                     JamsPreview(
-                        accountName: organizationName,
+                        accountName: account.handle,
                         isLayoutPreview: isLayoutPreview
                     )
                     .tabItem { Label("Jams", systemImage: "bubble.left.and.bubble.right.fill") }
@@ -48,9 +44,7 @@
                     .tabItem { Label("Profile", systemImage: "person.crop.circle.fill") }
                     .tag(AppNavigation.Tab.profile)
             }
-            .background(ProfileTabContextMenu(menu: quickSwitchMenu, refresh: {
-                if !isLayoutPreview { await authenticationService.refreshOrganizations() }
-            }))
+            .background(ProfileTabContextMenu(menu: quickSwitchMenu))
             .tint(Noora.Colors.accent)
             .onAppear {
                 if isLayoutPreview, featureFlags.isEnabled(.ai) {
@@ -77,15 +71,15 @@
                     if !adding { showingAddProfile = false }
                 }
             }
-            .confirmationDialog("Switch organization?", isPresented: Binding(
-                get: { pendingOrganization != nil }, set: { if !$0 { pendingOrganization = nil } }
+            .confirmationDialog("Switch profile?", isPresented: Binding(
+                get: { pendingProfile != nil }, set: { if !$0 { pendingProfile = nil } }
             ), titleVisibility: .visible) {
-                if let pendingOrganization {
-                    Button("Switch organization") {
+                if let pendingProfile {
+                    Button("Switch profile") {
                         Task {
-                            do { try await authenticationService.switchOrganization(pendingOrganization) }
+                            do { try await authenticationService.switchProfile(pendingProfile.id) }
                             catch { errorHandler.handle(error: error) }
-                            self.pendingOrganization = nil
+                            self.pendingProfile = nil
                         }
                     }
                 }
@@ -161,10 +155,10 @@
                 if isLayoutPreview {
                     PreviewsLayoutPreview()
                 } else {
-                    PreviewsView(accountName: authenticationService.selectedOrganization ?? account.handle)
+                    PreviewsView()
                 }
             #else
-                PreviewsView(accountName: authenticationService.selectedOrganization ?? account.handle)
+                PreviewsView()
             #endif
         }
 
@@ -178,17 +172,14 @@
                     state: .on
                 ) { _ in }]
             } else {
-                actions = authenticationService.organizations.map { organization in
+                actions = authenticationService.profiles.map { profile in
                     UIAction(
-                        title: organization.name,
-                        subtitle: organization.serverURL.absoluteString,
-                        image: UIImage(systemName: "building.2"),
-                        state: authenticationService.activeProfileID == organization.profileID &&
-                            authenticationService.selectedOrganization == organization.name ? .on : .off
+                        title: profile.account.handle,
+                        subtitle: (profile.server?.url ?? ServerEnvironmentService().url()).absoluteString,
+                        image: UIImage(systemName: "person.crop.circle"),
+                        state: authenticationService.activeProfileID == profile.id ? .on : .off
                     ) { _ in
-                        if organization.profileID != authenticationService.activeProfileID ||
-                            organization.name != authenticationService.selectedOrganization
-                        { pendingOrganization = organization }
+                        if profile.id != authenticationService.activeProfileID { pendingProfile = profile }
                     }
                 }
                 actions.append(UIAction(
@@ -220,15 +211,13 @@
 
     private struct ProfileTabContextMenu: UIViewControllerRepresentable {
         var menu: () -> UIMenu
-        var refresh: () async -> Void
 
         func makeUIViewController(context _: Context) -> MenuController {
-            MenuController(menu: menu, refresh: refresh)
+            MenuController(menu: menu)
         }
 
         func updateUIViewController(_ controller: MenuController, context _: Context) {
             controller.menu = menu
-            controller.refresh = refresh
             DispatchQueue.main.async { controller.install() }
         }
 
@@ -238,12 +227,10 @@
 
         final class MenuController: UIViewController, UIContextMenuInteractionDelegate {
             var menu: () -> UIMenu
-            var refresh: () async -> Void
             private lazy var interaction = UIContextMenuInteraction(delegate: self)
 
-            init(menu: @escaping () -> UIMenu, refresh: @escaping () async -> Void) {
+            init(menu: @escaping () -> UIMenu) {
                 self.menu = menu
-                self.refresh = refresh
                 super.init(nibName: nil, bundle: nil)
             }
 
@@ -315,17 +302,6 @@
                 previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration
             ) -> UITargetedPreview? {
                 contextMenuInteraction(interaction, previewForHighlightingMenuWithConfiguration: configuration)
-            }
-
-            func contextMenuInteraction(
-                _ interaction: UIContextMenuInteraction,
-                willDisplayMenuFor _: UIContextMenuConfiguration,
-                animator _: UIContextMenuInteractionAnimating?
-            ) {
-                Task {
-                    await refresh()
-                    interaction.updateVisibleMenu { _ in self.menu() }
-                }
             }
 
             func contextMenuInteraction(

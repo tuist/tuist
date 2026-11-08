@@ -27,7 +27,7 @@ class JamWatcher
 internal constructor(
     private val retrofit: Retrofit,
     moshi: Moshi,
-    private val authorize: suspend (String) -> Unit,
+    private val authorize: suspend (String) -> String,
     private val token: () -> String?,
     private val session: () -> TokenStorage.Session? = { null },
     private val openSocket: (OkHttpClient, Request, WebSocketListener) -> WebSocket =
@@ -44,10 +44,7 @@ internal constructor(
     ) : this(
         retrofit,
         moshi,
-        { account ->
-            transport.api.list(account)
-            Unit
-        },
+        { account -> transport.dialect(account) },
         storage::getAccessToken,
         session = storage::snapshot,
     )
@@ -75,11 +72,11 @@ internal constructor(
         var attempt = 0
         while (currentCoroutineContext().isActive && session() == fence) {
             try {
-                authorize(account)
+                val dialect = authorize(account)
                 if (session() != fence) return
                 val credential =
                     token()?.takeIf { it.isNotEmpty() } ?: throw IOException("Missing credentials")
-                connection(account, jamId, credential, fence) { if (session() == fence) invalidate() }
+                connection(account, jamId, dialect, credential, fence) { if (session() == fence) invalidate() }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -94,6 +91,7 @@ internal constructor(
     private suspend fun connection(
         account: String,
         jamId: String?,
+        dialect: String,
         credential: String,
         fence: TokenStorage.Session?,
         invalidate: suspend () -> Unit,
@@ -109,7 +107,7 @@ internal constructor(
                     retrofit
                         .baseUrl()
                         .newBuilder()
-                        .addPathSegments("jams/socket/websocket")
+                        .addPathSegments("$dialect/socket/websocket")
                         .query(null)
                         .addQueryParameter("vsn", "2.0.0")
                         .build()
@@ -149,7 +147,7 @@ internal constructor(
                         enqueue(Event.Lost)
                 },
             )
-        val topic = "jams:$account:${jamId ?: "inbox"}"
+        val topic = "$dialect:$account:${jamId ?: "inbox"}"
         val joinRef = "1"
         var nextRef = 1L
         var pending: String? = joinRef

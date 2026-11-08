@@ -60,7 +60,34 @@ class ProfileRequestIsolationTest {
         scenario(refresh = true, rejected = true, switchBeforeResult = false, failExpiryCommit = true)
     }
 
-    @Test fun `organization change on same login fences old responses and queued requests`() {
+    @Test fun `both conversation protocols stay scoped to the personal login despite legacy organization selection`() {
+        val prefs = RuntimeEnvironment.getApplication().getSharedPreferences("conversation-isolation", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val payload = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+            """{"email":"alice@example.invalid","preferred_username":"alice"}""".toByteArray(),
+        )
+        val server = MockWebServer()
+        server.start()
+        try {
+            val tokens = TokenStorage(prefs, server.url("/").toString())
+            tokens.storeTokens("header.$payload.signature", "alice-refresh")
+            tokens.selectOrganization(tokens.snapshot().profileId!!, "legacy-org")
+            val client = OkHttpClient.Builder().addInterceptor(AuthInterceptor(tokens)).build()
+            for (collection in listOf("jams", "threads")) {
+                repeat(2) { server.enqueue(MockResponse().setBody("personal history")) }
+                client.newCall(Request.Builder().url(server.url("/api/accounts/alice/$collection")).build()).execute().use {
+                    assertEquals("personal history", it.body!!.string())
+                }
+                assertEquals("/api/accounts/alice/$collection", server.takeRequest(5, TimeUnit.SECONDS)!!.path)
+                assertThrows(IOException::class.java) {
+                    client.newCall(Request.Builder().url(server.url("/api/accounts/legacy-org/$collection")).build()).execute().close()
+                }
+            }
+            assertEquals(2, server.requestCount)
+        } finally { server.shutdown() }
+    }
+
+    @Test fun `cross organization previews use current login while profile changes fence stale requests`() {
         val prefs = RuntimeEnvironment.getApplication().getSharedPreferences("organization-isolation", Context.MODE_PRIVATE)
         prefs.edit().clear().commit()
         val server = MockWebServer()
@@ -77,23 +104,25 @@ class ProfileRequestIsolationTest {
             server.enqueue(MockResponse().setBody("alpha-private-data").setHeadersDelay(500, TimeUnit.MILLISECONDS))
             val result = executor.submit<Boolean> {
                 try {
-                    client.newCall(Request.Builder().url(server.url("/api/accounts/alpha/jams")).build()).execute().use { it.body?.string() }
+                    client.newCall(Request.Builder().url(server.url("/api/projects/other/app/previews")).build()).execute().use { it.body?.string() }
                     false
                 } catch (_: IOException) { true }
             }
-            assertNotNull(server.takeRequest(5, TimeUnit.SECONDS))
-            tokens.selectOrganization(id, "beta")
+            val outgoing = server.takeRequest(5, TimeUnit.SECONDS)!!
+            assertEquals("/api/projects/other/app/previews", outgoing.path)
+            assertEquals("Bearer alice-access", outgoing.getHeader("Authorization"))
+            tokens.storeTokens("bob-access", "bob-refresh")
             assertTrue(result.get(5, TimeUnit.SECONDS))
-            assertEquals("alice-refresh", tokens.getRefreshToken())
-            assertEquals("beta", tokens.selectedAccount())
-            listOf(
-                Request.Builder().url(server.url("/api/accounts/alpha/jams")).build(),
-                Request.Builder().url(server.url("/api/projects/alpha/app/previews")).build(),
-                Request.Builder().url(server.url("/api/accounts/beta/jams")).tag(TokenStorage.Session::class.java, alpha).build(),
-            ).forEach { request ->
-                assertThrows(IOException::class.java) { client.newCall(request).execute().close() }
-            }
+            assertEquals("bob-refresh", tokens.getRefreshToken())
+            val stale = Request.Builder().url(server.url("/api/projects/other/app/previews"))
+                .tag(TokenStorage.Session::class.java, alpha).build()
+            assertThrows(IOException::class.java) { client.newCall(stale).execute().close() }
             assertEquals(1, server.requestCount)
+            server.enqueue(MockResponse().setBody("bob-project-data"))
+            client.newCall(Request.Builder().url(server.url("/api/projects/other/app/previews")).build()).execute().use {
+                assertEquals("bob-project-data", it.body!!.string())
+            }
+            assertEquals("Bearer bob-access", server.takeRequest(5, TimeUnit.SECONDS)!!.getHeader("Authorization"))
         } finally { executor.shutdownNow(); server.shutdown() }
     }
 

@@ -8,6 +8,7 @@ defmodule TuistWeb.Authentication do
   import Phoenix.Controller
   import Plug.Conn
 
+  alias Boruta.Oauth.Token
   alias Phoenix.LiveView
   alias Phoenix.LiveView.Socket
   alias Tuist.Accounts
@@ -140,6 +141,19 @@ defmodule TuistWeb.Authentication do
 
       _ ->
         nil
+    end
+  end
+
+  @doc "Returns the issuer of a full, active OAuth access grant, or `nil`."
+  def oauth_user(conn) do
+    with %AuthenticatedAccount{issued_by: %User{} = user, all_projects: true} <- authenticated_subject(conn),
+         bearer when is_binary(bearer) <- get_authorization_token_from_conn(conn),
+         %Token{sub: sub} = grant <- Boruta.AccessTokensAdapter.get_by(value: bearer),
+         true <- sub == to_string(user.id),
+         :ok <- Token.ensure_valid(grant) do
+      user
+    else
+      _ -> nil
     end
   end
 

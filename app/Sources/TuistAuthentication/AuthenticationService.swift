@@ -735,8 +735,7 @@ extension AuthenticationService {
     public func switchProfile(_ id: UUID) async throws {
         guard profilesEnabled, !isSigningIn, !isChangingProfile, id != activeProfileID else { return }
         try await loadProfiles()
-        guard let profile = profiles.first(where: { $0.id == id }), profile.canSelectOrganization,
-              !rejectedOrganizationProfiles.contains(id)
+        guard let profile = profiles.first(where: { $0.id == id }), profile.credentials.rejected != true
         else {
             throw ProfileStorageError()
         }
@@ -855,13 +854,8 @@ extension AuthenticationService {
     @MainActor
     private func whileSigningIn(_ action: () async throws -> Void) async throws {
         guard !isSigningIn, !isChangingProfile, authenticationState == .loggedOut || isAddingProfile else { return }
-        do {
-            isSigningIn = true
-            defer { isSigningIn = false }
-            try await action()
-        }
-        if profilesEnabled, !isAddingProfile, case .loggedIn = authenticationState {
-            await refreshOrganizations()
-        }
+        isSigningIn = true
+        defer { isSigningIn = false }
+        try await action()
     }
 }

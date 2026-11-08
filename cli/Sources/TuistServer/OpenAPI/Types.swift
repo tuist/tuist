@@ -887,7 +887,7 @@ public protocol APIProtocol: Sendable {
     func resolveTestImpactBaseline(_ input: Operations.resolveTestImpactBaseline.Input) async throws -> Operations.resolveTestImpactBaseline.Output
     /// Get one recorded Gradle build step.
     ///
-    /// Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
+    /// Returns recorded metadata. For a failed task or configuration operation, log holds the failure message the Tuist Gradle plugin reported (the exception message and cause chain, sanitized and bounded to 16 KiB); otherwise log is null. Task output is not collected.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/get(getGradleBuildStep)`.
@@ -3764,7 +3764,7 @@ extension APIProtocol {
     }
     /// Get one recorded Gradle build step.
     ///
-    /// Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
+    /// Returns recorded metadata. For a failed task or configuration operation, log holds the failure message the Tuist Gradle plugin reported (the exception message and cause chain, sanitized and bounded to 16 KiB); otherwise log is null. Task output is not collected.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/get(getGradleBuildStep)`.
@@ -29264,6 +29264,72 @@ public enum Components {
                 case gap_files_count
                 case kind
                 case skipped_tests_count
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/GradleBuildFailure`.
+        public struct GradleBuildFailure: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/GradleBuildFailure/kind`.
+            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case task = "task"
+                case configuration = "configuration"
+            }
+            /// - Remark: Generated from `#/components/schemas/GradleBuildFailure/kind`.
+            public var kind: Components.Schemas.GradleBuildFailure.kindPayload
+            /// - Remark: Generated from `#/components/schemas/GradleBuildFailure/message`.
+            public var message: Swift.String
+            /// The Gradle build path.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GradleBuildFailure/project`.
+            public var project: Swift.String
+            /// The step ID accepted by getGradleBuildStep.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GradleBuildFailure/step_id`.
+            public var step_id: Swift.String
+            /// The task path or configured project path.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GradleBuildFailure/target`.
+            public var target: Swift.String
+            /// The task path or configuration phase.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GradleBuildFailure/title`.
+            public var title: Swift.String
+            /// - Remark: Generated from `#/components/schemas/GradleBuildFailure/truncated`.
+            public var truncated: Swift.Bool
+            /// Creates a new `GradleBuildFailure`.
+            ///
+            /// - Parameters:
+            ///   - kind:
+            ///   - message:
+            ///   - project: The Gradle build path.
+            ///   - step_id: The step ID accepted by getGradleBuildStep.
+            ///   - target: The task path or configured project path.
+            ///   - title: The task path or configuration phase.
+            ///   - truncated:
+            public init(
+                kind: Components.Schemas.GradleBuildFailure.kindPayload,
+                message: Swift.String,
+                project: Swift.String,
+                step_id: Swift.String,
+                target: Swift.String,
+                title: Swift.String,
+                truncated: Swift.Bool
+            ) {
+                self.kind = kind
+                self.message = message
+                self.project = project
+                self.step_id = step_id
+                self.target = target
+                self.title = title
+                self.truncated = truncated
+            }
+            public enum CodingKeys: String, CodingKey {
+                case kind
+                case message
+                case project
+                case step_id
+                case target
+                case title
+                case truncated
             }
         }
         /// The schema for a test case.
@@ -112539,7 +112605,7 @@ public enum Operations {
     }
     /// Get one recorded Gradle build step.
     ///
-    /// Returns recorded metadata. Per-step logs are not collected for Gradle; log is null.
+    /// Returns recorded metadata. For a failed task or configuration operation, log holds the failure message the Tuist Gradle plugin reported (the exception message and cause chain, sanitized and bounded to 16 KiB); otherwise log is null. Task output is not collected.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/steps/{step_id}/get(getGradleBuildStep)`.
@@ -140805,6 +140871,10 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/execution`.
                             public var execution: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload?
+                            /// Why the task failed, when the plugin reported it.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/failure_message`.
+                            public var failure_message: Swift.String?
                             /// The task ID.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/GET/responses/200/content/json/tasksPayload/id`.
@@ -140846,6 +140916,7 @@ public enum Operations {
                             ///   - cacheable: Whether the task is cacheable.
                             ///   - duration_ms: Task duration in milliseconds.
                             ///   - execution:
+                            ///   - failure_message: Why the task failed, when the plugin reported it.
                             ///   - id: The task ID.
                             ///   - outcome: Task outcome.
                             ///   - started_at: When the task started executing.
@@ -140857,6 +140928,7 @@ public enum Operations {
                                 cacheable: Swift.Bool,
                                 duration_ms: Swift.Int,
                                 execution: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload? = nil,
+                                failure_message: Swift.String? = nil,
                                 id: Swift.String,
                                 outcome: Operations.listGradleBuildTasks.Output.Ok.Body.jsonPayload.tasksPayloadPayload.outcomePayload,
                                 started_at: Foundation.Date? = nil,
@@ -140868,6 +140940,7 @@ public enum Operations {
                                 self.cacheable = cacheable
                                 self.duration_ms = duration_ms
                                 self.execution = execution
+                                self.failure_message = failure_message
                                 self.id = id
                                 self.outcome = outcome
                                 self.started_at = started_at
@@ -140880,6 +140953,7 @@ public enum Operations {
                                 case cacheable
                                 case duration_ms
                                 case execution
+                                case failure_message
                                 case id
                                 case outcome
                                 case started_at
@@ -155086,6 +155160,10 @@ public enum Operations {
                             }
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/execution`.
                             public var execution: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload?
+                            /// Why the task failed, when the plugin reported it.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/failure_message`.
+                            public var failure_message: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/outcome`.
                             public var outcome: Swift.String?
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/remote_cache_miss`.
@@ -155106,6 +155184,7 @@ public enum Operations {
                             ///   - cacheable:
                             ///   - duration_ms:
                             ///   - execution:
+                            ///   - failure_message: Why the task failed, when the plugin reported it.
                             ///   - outcome:
                             ///   - remote_cache_miss:
                             ///   - remote_cache_stored:
@@ -155118,6 +155197,7 @@ public enum Operations {
                                 cacheable: Swift.Bool? = nil,
                                 duration_ms: Swift.Int? = nil,
                                 execution: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload.executionPayload? = nil,
+                                failure_message: Swift.String? = nil,
                                 outcome: Swift.String? = nil,
                                 remote_cache_miss: Swift.Bool? = nil,
                                 remote_cache_stored: Swift.Bool? = nil,
@@ -155130,6 +155210,7 @@ public enum Operations {
                                 self.cacheable = cacheable
                                 self.duration_ms = duration_ms
                                 self.execution = execution
+                                self.failure_message = failure_message
                                 self.outcome = outcome
                                 self.remote_cache_miss = remote_cache_miss
                                 self.remote_cache_stored = remote_cache_stored
@@ -155143,6 +155224,7 @@ public enum Operations {
                                 case cacheable
                                 case duration_ms
                                 case execution
+                                case failure_message
                                 case outcome
                                 case remote_cache_miss
                                 case remote_cache_stored
@@ -155171,14 +155253,137 @@ public enum Operations {
                         public var artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_hit_rate`.
                         public var cache_hit_rate: Swift.Double?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_operationsPayload`.
+                        public struct configuration_operationsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_operationsPayload/build_path`.
+                            public var build_path: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_operationsPayload/duration_ms`.
+                            public var duration_ms: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_operationsPayload/failure_message`.
+                            public var failure_message: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_operationsPayload/phase`.
+                            public var phase: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_operationsPayload/project_path`.
+                            public var project_path: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_operationsPayload/started_at`.
+                            public var started_at: Foundation.Date?
+                            /// Creates a new `configuration_operationsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - build_path:
+                            ///   - duration_ms:
+                            ///   - failure_message:
+                            ///   - phase:
+                            ///   - project_path:
+                            ///   - started_at:
+                            public init(
+                                build_path: Swift.String? = nil,
+                                duration_ms: Swift.Int? = nil,
+                                failure_message: Swift.String? = nil,
+                                phase: Swift.String? = nil,
+                                project_path: Swift.String? = nil,
+                                started_at: Foundation.Date? = nil
+                            ) {
+                                self.build_path = build_path
+                                self.duration_ms = duration_ms
+                                self.failure_message = failure_message
+                                self.phase = phase
+                                self.project_path = project_path
+                                self.started_at = started_at
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case build_path
+                                case duration_ms
+                                case failure_message
+                                case phase
+                                case project_path
+                                case started_at
+                            }
+                        }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_operations`.
-                        public var configuration_operations: [OpenAPIRuntime.OpenAPIObjectContainer]?
+                        public typealias configuration_operationsPayload = [Operations.getGradleBuild.Output.Ok.Body.jsonPayload.configuration_operationsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/configuration_operations`.
+                        public var configuration_operations: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.configuration_operationsPayload?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_no_source_count`.
                         public var tasks_no_source_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/actor`.
                         public var actor: Components.Schemas.ReportActor?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/id`.
                         public var id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/failuresPayload`.
+                        public struct failuresPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/failuresPayload/kind`.
+                            @frozen public enum kindPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case task = "task"
+                                case configuration = "configuration"
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/failuresPayload/kind`.
+                            public var kind: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.failuresPayloadPayload.kindPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/failuresPayload/message`.
+                            public var message: Swift.String
+                            /// The Gradle build path.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/failuresPayload/project`.
+                            public var project: Swift.String
+                            /// The step ID accepted by getGradleBuildStep.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/failuresPayload/step_id`.
+                            public var step_id: Swift.String
+                            /// The task path or configured project path.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/failuresPayload/target`.
+                            public var target: Swift.String
+                            /// The task path or configuration phase.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/failuresPayload/title`.
+                            public var title: Swift.String
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/failuresPayload/truncated`.
+                            public var truncated: Swift.Bool
+                            /// Creates a new `failuresPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - kind:
+                            ///   - message:
+                            ///   - project: The Gradle build path.
+                            ///   - step_id: The step ID accepted by getGradleBuildStep.
+                            ///   - target: The task path or configured project path.
+                            ///   - title: The task path or configuration phase.
+                            ///   - truncated:
+                            public init(
+                                kind: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.failuresPayloadPayload.kindPayload,
+                                message: Swift.String,
+                                project: Swift.String,
+                                step_id: Swift.String,
+                                target: Swift.String,
+                                title: Swift.String,
+                                truncated: Swift.Bool
+                            ) {
+                                self.kind = kind
+                                self.message = message
+                                self.project = project
+                                self.step_id = step_id
+                                self.target = target
+                                self.title = title
+                                self.truncated = truncated
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case kind
+                                case message
+                                case project
+                                case step_id
+                                case target
+                                case title
+                                case truncated
+                            }
+                        }
+                        /// Failure messages of the build's failed configuration operations and tasks, in start order. Empty when the build succeeded or the reporting plugin predates failure reporting.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/failures`.
+                        public typealias failuresPayload = [Operations.getGradleBuild.Output.Ok.Body.jsonPayload.failuresPayloadPayload]
+                        /// Failure messages of the build's failed configuration operations and tasks, in start order. Empty when the build succeeded or the reporting plugin predates failure reporting.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/failures`.
+                        public var failures: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.failuresPayload?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_failed_count`.
                         public var tasks_failed_count: Swift.Int?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_remote_hit_count`.
@@ -155228,6 +155433,7 @@ public enum Operations {
                         ///   - tasks_no_source_count:
                         ///   - actor:
                         ///   - id:
+                        ///   - failures: Failure messages of the build's failed configuration operations and tasks, in start order. Empty when the build succeeded or the reporting plugin predates failure reporting.
                         ///   - tasks_failed_count:
                         ///   - tasks_remote_hit_count:
                         ///   - duration_ms:
@@ -155259,10 +155465,11 @@ public enum Operations {
                             requested_tasks: [Swift.String]? = nil,
                             artifact_transforms: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
                             cache_hit_rate: Swift.Double? = nil,
-                            configuration_operations: [OpenAPIRuntime.OpenAPIObjectContainer]? = nil,
+                            configuration_operations: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.configuration_operationsPayload? = nil,
                             tasks_no_source_count: Swift.Int? = nil,
                             actor: Components.Schemas.ReportActor? = nil,
                             id: Swift.String? = nil,
+                            failures: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.failuresPayload? = nil,
                             tasks_failed_count: Swift.Int? = nil,
                             tasks_remote_hit_count: Swift.Int? = nil,
                             duration_ms: Swift.Int? = nil,
@@ -155298,6 +155505,7 @@ public enum Operations {
                             self.tasks_no_source_count = tasks_no_source_count
                             self.actor = actor
                             self.id = id
+                            self.failures = failures
                             self.tasks_failed_count = tasks_failed_count
                             self.tasks_remote_hit_count = tasks_remote_hit_count
                             self.duration_ms = duration_ms
@@ -155334,6 +155542,7 @@ public enum Operations {
                             case tasks_no_source_count
                             case actor
                             case id
+                            case failures
                             case tasks_failed_count
                             case tasks_remote_hit_count
                             case duration_ms
@@ -166173,6 +166382,37 @@ public enum Operations {
                         public var build_path: Swift.String
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/configuration_operationsPayload/duration_ms`.
                         public var duration_ms: Swift.Int
+                        /// Why the operation failed: the exception message and its cause chain, without stack traces. The server redacts credentials and local paths and keeps at most 16 KiB per message and 32 messages per build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/configuration_operationsPayload/failure`.
+                        public struct failurePayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/configuration_operationsPayload/failure/message`.
+                            public var message: Swift.String
+                            /// Whether the client shortened the message.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/configuration_operationsPayload/failure/truncated`.
+                            public var truncated: Swift.Bool?
+                            /// Creates a new `failurePayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - message:
+                            ///   - truncated: Whether the client shortened the message.
+                            public init(
+                                message: Swift.String,
+                                truncated: Swift.Bool? = nil
+                            ) {
+                                self.message = message
+                                self.truncated = truncated
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case message
+                                case truncated
+                            }
+                        }
+                        /// Why the operation failed: the exception message and its cause chain, without stack traces. The server redacts credentials and local paths and keeps at most 16 KiB per message and 32 messages per build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/configuration_operationsPayload/failure`.
+                        public var failure: Operations.createGradleBuild.Input.Body.jsonPayload.configuration_operationsPayloadPayload.failurePayload?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/configuration_operationsPayload/phase`.
                         @frozen public enum phasePayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case build = "build"
@@ -166190,18 +166430,21 @@ public enum Operations {
                         /// - Parameters:
                         ///   - build_path:
                         ///   - duration_ms:
+                        ///   - failure: Why the operation failed: the exception message and its cause chain, without stack traces. The server redacts credentials and local paths and keeps at most 16 KiB per message and 32 messages per build.
                         ///   - phase:
                         ///   - project_path:
                         ///   - started_at:
                         public init(
                             build_path: Swift.String,
                             duration_ms: Swift.Int,
+                            failure: Operations.createGradleBuild.Input.Body.jsonPayload.configuration_operationsPayloadPayload.failurePayload? = nil,
                             phase: Operations.createGradleBuild.Input.Body.jsonPayload.configuration_operationsPayloadPayload.phasePayload,
                             project_path: Swift.String? = nil,
                             started_at: Foundation.Date
                         ) {
                             self.build_path = build_path
                             self.duration_ms = duration_ms
+                            self.failure = failure
                             self.phase = phase
                             self.project_path = project_path
                             self.started_at = started_at
@@ -166209,6 +166452,7 @@ public enum Operations {
                         public enum CodingKeys: String, CodingKey {
                             case build_path
                             case duration_ms
+                            case failure
                             case phase
                             case project_path
                             case started_at
@@ -166505,6 +166749,37 @@ public enum Operations {
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/execution`.
                         public var execution: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload?
+                        /// Why the operation failed: the exception message and its cause chain, without stack traces. The server redacts credentials and local paths and keeps at most 16 KiB per message and 32 messages per build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/failure`.
+                        public struct failurePayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/failure/message`.
+                            public var message: Swift.String
+                            /// Whether the client shortened the message.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/failure/truncated`.
+                            public var truncated: Swift.Bool?
+                            /// Creates a new `failurePayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - message:
+                            ///   - truncated: Whether the client shortened the message.
+                            public init(
+                                message: Swift.String,
+                                truncated: Swift.Bool? = nil
+                            ) {
+                                self.message = message
+                                self.truncated = truncated
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case message
+                                case truncated
+                            }
+                        }
+                        /// Why the operation failed: the exception message and its cause chain, without stack traces. The server redacts credentials and local paths and keeps at most 16 KiB per message and 32 messages per build.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/failure`.
+                        public var failure: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.failurePayload?
                         /// Task outcome.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/outcome`.
@@ -166550,6 +166825,7 @@ public enum Operations {
                         ///   - cacheable: Whether the task is cacheable.
                         ///   - duration_ms: Task duration in milliseconds.
                         ///   - execution:
+                        ///   - failure: Why the operation failed: the exception message and its cause chain, without stack traces. The server redacts credentials and local paths and keeps at most 16 KiB per message and 32 messages per build.
                         ///   - outcome: Task outcome.
                         ///   - remote_cache_miss: Whether the remote cache was checked and did not contain the task output.
                         ///   - remote_cache_stored: Whether this build wrote the task output to the remote cache.
@@ -166562,6 +166838,7 @@ public enum Operations {
                             cacheable: Swift.Bool? = nil,
                             duration_ms: Swift.Int? = nil,
                             execution: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.executionPayload? = nil,
+                            failure: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.failurePayload? = nil,
                             outcome: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.outcomePayload,
                             remote_cache_miss: Swift.Bool? = nil,
                             remote_cache_stored: Swift.Bool? = nil,
@@ -166574,6 +166851,7 @@ public enum Operations {
                             self.cacheable = cacheable
                             self.duration_ms = duration_ms
                             self.execution = execution
+                            self.failure = failure
                             self.outcome = outcome
                             self.remote_cache_miss = remote_cache_miss
                             self.remote_cache_stored = remote_cache_stored
@@ -166587,6 +166865,7 @@ public enum Operations {
                             case cacheable
                             case duration_ms
                             case execution
+                            case failure
                             case outcome
                             case remote_cache_miss
                             case remote_cache_stored
