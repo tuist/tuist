@@ -20,7 +20,8 @@ secrets, and CNPG database, independent of the customer server.
   approved in Atlas (`request_cluster_elevation`). It trusts Atlas for the
   approver's email and the approval, still requires an engineering tailnet
   role, refuses staging, posts nothing to Slack, and grants each Atlas
-  approval ID once.
+  approval ID once. It is the only way to elevate an orb thread; Slack
+  `/elevate` rejects `--thread`.
 - Canary/production cluster access defaults to `view`; staging's write tier is
   standing access and `/elevate staging` is rejected. Read `infra/AGENTS.md` for the human-only
   `/elevate` request/approval flow; agents must never request or approve elevation.

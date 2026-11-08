@@ -48,7 +48,8 @@ defmodule TuistOps.JIT.Request do
   lives on the Elevation row instead.
 
   A request approved in Atlas carries `:atlas_approval_id` instead of
-  the Slack fields, and is always an orb thread elevation.
+  the Slack fields, and is always an orb thread elevation. Orb thread
+  elevations only come from Atlas, never from Slack.
   """
   def create_changeset(attrs) do
     %__MODULE__{}
@@ -78,7 +79,11 @@ defmodule TuistOps.JIT.Request do
     if get_field(changeset, :atlas_approval_id) do
       validate_required(changeset, [:orb_thread_id])
     else
-      validate_required(changeset, [:requester_slack_id, :slack_channel_id])
+      changeset
+      |> validate_required([:requester_slack_id, :slack_channel_id])
+      |> validate_change(:orb_thread_id, fn _, _ ->
+        [orb_thread_id: "needs an Atlas approval"]
+      end)
     end
   end
 
@@ -100,8 +105,9 @@ defmodule TuistOps.JIT.Request do
     end
   end
 
-  # Amp thread IDs, as `/elevate --thread` takes them and as the Amp
-  # workload identity token's `thread_id` claim carries them.
+  # Amp thread IDs, as Atlas's `request_cluster_elevation` takes them
+  # and as the Amp workload identity token's `thread_id` claim carries
+  # them.
   @orb_thread_id_format ~r/^T-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
   def orb_thread_id?(value), do: is_binary(value) and Regex.match?(@orb_thread_id_format, value)

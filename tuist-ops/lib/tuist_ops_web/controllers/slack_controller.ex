@@ -86,7 +86,6 @@ defmodule TuistOpsWeb.SlackController do
              requester_slack_id: params["user_id"],
              target_group: parsed.target_group,
              github_login: parsed[:github_login],
-             orb_thread_id: parsed[:orb_thread_id],
              intent: parsed.intent,
              ttl_seconds: parsed.ttl,
              slack_channel_id: channel_id
@@ -306,50 +305,35 @@ defmodule TuistOpsWeb.SlackController do
   #   "<env> <duration> <intent...>"          -> explicit TTL
   # Duration: "15m", "30m", "1h", or bare integer seconds.
   defp parse_slash(text) when is_binary(text) do
-    case text |> String.trim() |> String.split(~r/\s+/, parts: 2) do
-      [env | _] when env not in @valid_envs ->
-        {:error, {:invalid_env, env}}
-
-      [env, rest] ->
-        with false <- Policy.always_write_env?(env),
-             {:ok, thread_id, rest} <- parse_thread_flag(rest) do
-          rest
-          |> parse_duration_and_intent()
-          |> Map.put(:target_group, Map.fetch!(@env_to_group, env))
-          |> Map.put(:orb_thread_id, thread_id)
-          |> validate_intent()
-        else
-          true -> {:error, {:always_write_env, env}}
-          {:error, reason} -> {:error, reason}
-        end
-
-      _ ->
-        {:error, :missing_intent}
+    # Orb thread elevations moved to Atlas. A leftover `--thread` (or one
+    # Slack turned into an em or en dash) would otherwise become a
+    # personal elevation of the requester with the flag in the intent.
+    if Regex.match?(~r/(--|\x{2014}|\x{2013})thread/iu, text) do
+      {:error, :thread_elevation_moved}
+    else
+      parse_env_slash(text)
     end
   end
 
   defp parse_slash(_), do: {:error, :missing_text}
 
-  # `--thread <T-…>` right after the env aims the elevation at one Amp
-  # orb thread instead of the requester's own kubectl. Agents propose
-  # this exact command; the human runs it and approves it.
-  defp parse_thread_flag(text) do
-    case String.split(text, ~r/\s+/, parts: 3) do
-      ["--thread", thread_id, rest] ->
-        if Request.orb_thread_id?(thread_id),
-          do: {:ok, thread_id, rest},
-          else: {:error, {:invalid_thread_id, thread_id}}
+  defp parse_env_slash(text) do
+    case text |> String.trim() |> String.split(~r/\s+/, parts: 2) do
+      [env | _] when env not in @valid_envs ->
+        {:error, {:invalid_env, env}}
 
-      ["--thread" | _] ->
-        {:error, :missing_intent}
+      [env, rest] ->
+        if Policy.always_write_env?(env) do
+          {:error, {:always_write_env, env}}
+        else
+          rest
+          |> parse_duration_and_intent()
+          |> Map.put(:target_group, Map.fetch!(@env_to_group, env))
+          |> validate_intent()
+        end
 
       _ ->
-        # A flag anywhere else, or one Slack turned into an em or en
-        # dash, would otherwise fall through to a personal elevation of
-        # the requester with the flag buried in the intent.
-        if Regex.match?(~r/(--|\x{2014}|\x{2013})thread/iu, text),
-          do: {:error, :misplaced_thread_flag},
-          else: {:ok, nil, text}
+        {:error, :missing_intent}
     end
   end
 
@@ -423,12 +407,9 @@ defmodule TuistOpsWeb.SlackController do
     do:
       "`#{env}` is writable for everyone on the tailnet — no elevation needed. Just run `kubectl --context tuist-k8s-#{env} ...`."
 
-  defp human_error(:misplaced_thread_flag),
+  defp human_error(:thread_elevation_moved),
     do:
-      "Put `--thread <T-…>` right after the env, typed with two hyphens: `/elevate <env> --thread <T-…> [duration] <intent>`."
-
-  defp human_error({:invalid_thread_id, thread_id}),
-    do: "`#{thread_id}` isn't an Amp thread ID (expected `T-<uuid>`)."
+      "Amp orb threads are no longer elevated from Slack. The agent calls Atlas's `request_cluster_elevation` tool and you approve the request in Atlas → Admin → MCPs."
 
   defp human_error({:invalid_github_login, login}),
     do: "`#{login}` isn't a valid GitHub login."
@@ -462,7 +443,7 @@ defmodule TuistOpsWeb.SlackController do
   defp human_error(reason), do: "Internal error: #{inspect(reason)}"
 
   defp usage_message do
-    "Usage: `/elevate <env> [duration] <intent>` where env is one of #{Enum.join(elevatable_envs(), ", ")}. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do. Add `--thread <T-…>` after the env to elevate one of your own Amp orb threads instead of yourself. For GitHub organization admin, use `/elevate-github`."
+    "Usage: `/elevate <env> [duration] <intent>` where env is one of #{Enum.join(elevatable_envs(), ", ")}. Duration is e.g. `15m` or `1h` (default #{div(Approvals.default_ttl_seconds(), 60)}m, max #{div(Approvals.max_ttl_seconds(), 60)}m). Intent should describe what you're going to do. For GitHub organization admin, use `/elevate-github`."
   end
 
   defp github_api_error({:github_status, 403, body}),
