@@ -663,6 +663,32 @@ defmodule TuistWeb.API.SandboxesControllerTest do
       |> json_response(:forbidden)
     end
 
+    test "writes the decoded stdin bytes to the command", %{conn: conn, account: account} do
+      sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
+      expect(Nodes, :call, fn "node-a", "exec", _args, _opts -> {:ok, %{"exit_code" => 0}} end)
+
+      %{"id" => id} =
+        conn
+        |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands", %{command: "cat", stdin: true})
+        |> json_response(:accepted)
+
+      bytes = <<"hello", 0, 255, "\n">>
+
+      expect(Nodes, :call, fn "node-a", "exec", %{env: env}, _opts ->
+        assert Base.decode64!(env["TUIST_STDIN_DATA"]) == bytes
+        assert env["TUIST_STDIN_CLOSE"] == "1"
+        {:ok, %{"exit_code" => 0}}
+      end)
+
+      assert %{"id" => ^id} =
+               conn
+               |> post(~p"/api/accounts/#{account.name}/sandboxes/#{sandbox.id}/commands/#{id}/stdin", %{
+                 data: Base.encode64(bytes),
+                 close: true
+               })
+               |> json_response(:ok)
+    end
+
     test "rejects stdin data that is not base64", %{conn: conn, account: account} do
       sandbox = sandbox_fixture(account: account, state: :running, node_name: "node-a")
       reject(&Nodes.call/4)
